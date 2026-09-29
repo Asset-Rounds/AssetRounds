@@ -1,8 +1,11 @@
+import Darwin
 import Foundation
 import SwiftData
 import UserNotifications
 import XCTest
 @testable import FieldEvidenceApp
+
+private enum C22NotificationTestFailure: Error { case addDidNotStart, schedulingDidNotTerminate, supportExclusionMismatch, policyDescriptorCloseUncertain }
 
 private struct C22NotificationClock: ApplicationClock {
     var date: Date = C22RecurringRoundTestSupport.now
@@ -18,6 +21,11 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
 @MainActor private final class C22NotificationSystem: NotificationSystemPortV1 {
     var requests: [NotificationSystemRequestV1] = []
     var pausesAdd = false
+    var didBeginAdd: (() -> Void)?
+    var failsAfterAdd = false
+    var failsRemove = false
+    private(set) var removedRequestIDs: [[String]] = []
+    enum InjectedFailure: Error, Equatable { case afterAdd, remove }
     private var started = false
     private var startedWaiter: CheckedContinuation<Void, Never>?
     private var addContinuation: CheckedContinuation<Void, Never>?
@@ -30,15 +38,19 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
     }
     func add(_ request: NotificationSystemRequestV1) async throws {
         addCount += 1
+        didBeginAdd?()
         if pausesAdd {
             started = true
             startedWaiter?.resume(); startedWaiter = nil
             await withCheckedContinuation { addContinuation = $0 }
         }
         requests.append(request)
+        if failsAfterAdd { throw InjectedFailure.afterAdd }
     }
     func remove(_ requestIDs: [String]) async throws {
         removeCount += 1
+        removedRequestIDs.append(requestIDs)
+        if failsRemove { throw InjectedFailure.remove }
         requests.removeAll { requestIDs.contains($0.notification.requestID) }
     }
     func waitForAdd() async {
@@ -123,6 +135,22 @@ private actor C22NotificationAuthentication: LocalAuthenticationClient {
             definitions: [release], history: [event]), localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue)
     }
 }
+
+#if DEBUG
+/// Stores only actual uncertain-close callbacks from the checked policy reader.
+/// These descriptor numbers are never closed, retried, reused as authority or
+/// treated as proof that the kernel still has the descriptor open. Strong fixture
+/// retention keeps its Support root and defaults available for later diagnosis.
+@MainActor private final class C22NotificationPolicyUncertaintyRetention {
+    static let shared = C22NotificationPolicyUncertaintyRetention()
+    private var retained: [(descriptor: Int32, fixture: C22NotificationFixture)] = []
+    private init() {}
+
+    func retain(_ descriptor: Int32, fixture: C22NotificationFixture) {
+        retained.append((descriptor, fixture))
+    }
+}
+#endif
 
 private enum C22RecurringRoundTestSupport {
     static let now = Date(timeIntervalSince1970: 1_804_000_000)
@@ -868,40 +896,503 @@ final class V9_85RecurringRoundExperienceTests: XCTestCase {
         }
     }
 
+    private func assertNotificationSupportExclusive(_ support: URL, available: Bool,
+                                                    file: StaticString = #filePath, line: UInt = #line) throws {
+        let descriptor = Darwin.open(support.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw CocoaError(.fileReadUnknown) }
+        defer { Darwin.close(descriptor) }
+        let result = flock(descriptor, LOCK_EX | LOCK_NB)
+        let failure = errno
+        if result == 0 { XCTAssertEqual(flock(descriptor, LOCK_UN), 0, file: file, line: line) }
+        XCTAssertEqual(result == 0, available, file: file, line: line)
+        if !available { XCTAssertEqual(failure, EWOULDBLOCK, file: file, line: line) }
+        guard (result == 0) == available, available || failure == EWOULDBLOCK else {
+            throw C22NotificationTestFailure.supportExclusionMismatch
+        }
+    }
+
+    @MainActor
+    func testConcreteReminderSchedulingOwnsSupportAcrossAwaitedSystemAdd() async throws {
+        let fixture = try await C22NotificationFixture()
+        var fixtureOwnerChecksCompleted = false
+        defer {
+            // Notification SH/EX does not prove SwiftData/SQLite alias disposal.
+            // Root's collector cleans only after the test process is terminal.
+            print("C22Notification fixture cleanup deferred: root=\(fixture.support.path) suite=\(fixture.suite) ownerChecksCompleted=\(fixtureOwnerChecksCompleted); require terminal test process, disposed aliases and fresh collector evidence")
+        }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        XCTAssertEqual(fixture.projection.reminders.count, 1)
+        let reminder = try XCTUnwrap(fixture.projection.reminders.first)
+        XCTAssertGreaterThan(reminder.fireAtUTC, C22RecurringRoundTestSupport.now)
+        try assertNotificationSupportExclusive(fixture.support, available: true)
+        let started = expectation(description: "real scheduling reached system add")
+        let finished = expectation(description: "real scheduling returned")
+        let cleanupFinished = XCTestExpectation(description: "cancelled scheduling reached its terminal tail")
+        fixture.system.pausesAdd = true
+        var didStart = false
+        fixture.system.didBeginAdd = { didStart = true; started.fulfill() }
+        var result: Result<Void, Error>?
+        var completed = false
+        fixtureOwnerChecksCompleted = false
+        let scheduling = Task { @MainActor in
+            do {
+                let plan = try await fixture.owner.reconcile(fixture.projection)
+                XCTAssertEqual(plan.disposition, .applied)
+                result = .success(())
+            } catch { result = .failure(error) }
+            completed = true
+            finished.fulfill()
+            cleanupFinished.fulfill()
+        }
+        do {
+            await fulfillment(of: [started], timeout: 10)
+            guard didStart else { throw C22NotificationTestFailure.addDidNotStart }
+            let admitted = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+            let admittedEntry = try XCTUnwrap(admitted.entries.first)
+            XCTAssertNotNil(admittedEntry.admissionID)
+            XCTAssertFalse(admittedEntry.acknowledged)
+            try assertNotificationSupportExclusive(fixture.support, available: false)
+            fixture.system.pausesAdd = false
+            fixture.system.releaseAdd()
+            await fulfillment(of: [finished], timeout: 10)
+            guard completed else { throw C22NotificationTestFailure.schedulingDidNotTerminate }
+            try XCTUnwrap(result).get()
+            let settled = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+            let settledEntry = try XCTUnwrap(settled.entries.first)
+            XCTAssertNil(settledEntry.admissionID)
+            XCTAssertTrue(settledEntry.acknowledged)
+            XCTAssertEqual(fixture.system.requests, [settledEntry.request])
+            try assertNotificationSupportExclusive(fixture.support, available: true)
+            fixtureOwnerChecksCompleted = true
+            // Preserve live SQLite fixture bytes/defaults for terminal collector cleanup.
+        } catch {
+            scheduling.cancel()
+            fixture.system.pausesAdd = false
+            fixture.system.releaseAdd()
+            if !completed { await fulfillment(of: [cleanupFinished], timeout: 10) }
+            guard completed else {
+                XCTFail("Scheduling remained live after bounded cancellation; fixture preserved at \(fixture.support.path), defaults \(fixture.suite)")
+                throw error
+            }
+            do {
+                try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+                try assertNotificationSupportExclusive(fixture.support, available: true)
+                fixtureOwnerChecksCompleted = true
+                // Preserve live SQLite fixture bytes/defaults for terminal collector cleanup.
+            } catch {
+                XCTFail("Terminal scheduling settlement failed; fixture preserved at \(fixture.support.path), defaults \(fixture.suite): \(error)")
+            }
+            throw error
+        }
+    }
+
+    @MainActor
+    func testConcreteReminderAmbiguousAddRetainsSupportUntilOwnedSettlement() async throws {
+        let fixture = try await C22NotificationFixture()
+        var fixtureOwnerChecksCompleted = false
+        defer {
+            // Notification SH/EX does not prove SwiftData/SQLite alias disposal.
+            // Root's collector cleans only after the test process is terminal.
+            print("C22Notification fixture cleanup deferred: root=\(fixture.support.path) suite=\(fixture.suite) ownerChecksCompleted=\(fixtureOwnerChecksCompleted); require terminal test process, disposed aliases and fresh collector evidence")
+        }
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        XCTAssertEqual(fixture.projection.reminders.count, 1)
+        try assertNotificationSupportExclusive(fixture.support, available: true)
+        let unrelated = NotificationSystemRequestV1(notification: .init(requestID: UUID().uuidString.lowercased(),
+            opaqueCorrelationToken: C22RecurringRoundTestSupport.digest("e")),
+            fireAtUTC: C22RecurringRoundTestSupport.now.addingTimeInterval(900))
+        try unrelated.validate()
+        fixture.system.requests = [unrelated]
+        fixtureOwnerChecksCompleted = false
+        fixture.system.failsAfterAdd = true
+        fixture.system.failsRemove = true
+        do {
+            do {
+                _ = try await fixture.owner.reconcile(fixture.projection)
+                XCTFail("An ambiguous system add with failed removal claimed success")
+            } catch { XCTAssertEqual(error as? C22NotificationSystem.InjectedFailure, .remove) }
+            let admitted = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+            let entry = try XCTUnwrap(admitted.entries.first)
+            XCTAssertNotNil(entry.admissionID)
+            XCTAssertFalse(entry.acknowledged)
+            XCTAssertNotEqual(entry.request.notification.requestID, unrelated.notification.requestID)
+            XCTAssertEqual(fixture.system.requests, [unrelated, entry.request])
+            XCTAssertEqual(fixture.system.removedRequestIDs, [[entry.request.notification.requestID]])
+            // The scheduling call has returned; only its retained live admission
+            // can still own this physical Support descriptor.
+            try assertNotificationSupportExclusive(fixture.support, available: false)
+            fixture.system.failsAfterAdd = false
+            fixture.system.failsRemove = false
+            try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+            let settled = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+            XCTAssertEqual(settled.entries.count, 1)
+            let settledEntry = try XCTUnwrap(settled.entries.first)
+            XCTAssertEqual(settledEntry.request, entry.request)
+            XCTAssertNil(settledEntry.admissionID)
+            XCTAssertFalse(settledEntry.acknowledged)
+            XCTAssertEqual(fixture.system.requests, [unrelated])
+            XCTAssertEqual(fixture.system.removedRequestIDs,
+                [[entry.request.notification.requestID], [entry.request.notification.requestID]])
+            try assertNotificationSupportExclusive(fixture.support, available: true)
+            let removals = fixture.system.removeCount
+            try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+            XCTAssertEqual(fixture.system.removeCount, removals)
+            XCTAssertEqual(fixture.system.requests, [unrelated])
+            fixtureOwnerChecksCompleted = true
+            // Preserve live SQLite fixture bytes/defaults for terminal collector cleanup.
+        } catch {
+            fixture.system.failsAfterAdd = false
+            fixture.system.failsRemove = false
+            do {
+                try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+                try assertNotificationSupportExclusive(fixture.support, available: true)
+                fixtureOwnerChecksCompleted = true
+                // Preserve live SQLite fixture bytes/defaults for terminal collector cleanup.
+            } catch {
+                XCTFail("Retained admission settlement failed; fixture preserved at \(fixture.support.path), defaults \(fixture.suite): \(error)")
+            }
+            throw error
+        }
+    }
+
+#if DEBUG
+    @MainActor
+    private func assertConcreteNotificationPublisherFault(
+        phase: AppLockNotificationControlStoreV1.NotificationSchedulingPublicationPhaseForTesting,
+        cut: AppLockNotificationControlStoreV1.NotificationSchedulingPublicationCutForTesting,
+        expectedPrefix: Int?, initialVerified: Bool, finalVerified: Bool, renamed: Bool
+    ) async throws {
+        var diagnosticPhase = "fixture.create"
+        var fatalFailureLogged = false
+        func markPhase(_ value: String) {
+            diagnosticPhase = value
+            print("C22PublisherFault phase=\(value)")
+        }
+        func logFailure(_ error: Error, context: String = "original") {
+            let bridged = error as NSError
+            print("C22PublisherFault failure context=\(context) phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error))) error=\(String(reflecting: error)) domain=\(bridged.domain) code=\(bridged.code)")
+        }
+        do {
+            markPhase("fixture.create")
+            let fixture = try await C22NotificationFixture(observePhase: { markPhase($0) })
+            var fixtureOwnerChecksCompleted = false
+            var observedPolicyDescriptorUncertainty = false
+            defer {
+                // Notification SH/EX does not prove SwiftData/SQLite alias disposal.
+                // Root's collector cleans only after the test process is terminal.
+                print("C22Notification fixture cleanup deferred: root=\(fixture.support.path) suite=\(fixture.suite) ownerChecksCompleted=\(fixtureOwnerChecksCompleted); require terminal test process, disposed aliases and fresh collector evidence")
+            }
+            markPhase("setup.bind-gate")
+            try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+            markPhase("setup.projection")
+            XCTAssertEqual(fixture.projection.reminders.count, 1)
+            let reminder = try XCTUnwrap(fixture.projection.reminders.first)
+            XCTAssertGreaterThan(reminder.fireAtUTC, C22RecurringRoundTestSupport.now)
+            markPhase("setup.support-ex")
+            try assertNotificationSupportExclusive(fixture.support, available: true)
+            let unrelated = NotificationSystemRequestV1(notification: .init(requestID: UUID().uuidString.lowercased(),
+                opaqueCorrelationToken: C22RecurringRoundTestSupport.digest("f")),
+                fireAtUTC: C22RecurringRoundTestSupport.now.addingTimeInterval(900))
+            markPhase("setup.unrelated-request-validation")
+            try unrelated.validate()
+            fixture.system.requests = [unrelated]
+            markPhase("arm.actual-publisher-fault")
+            try fixture.control.setNotificationSchedulingPublicationFaultForTesting(.init(phase: phase, cut: cut))
+            // Force the actual fault cleanup's OS remove to fail, leaving the live
+            // publication owner available for independent post-return assertions.
+            fixture.system.failsRemove = true
+            fixtureOwnerChecksCompleted = false
+            do {
+                do {
+                    markPhase("reconcile.actual-owner")
+                    _ = try await fixture.owner.reconcile(fixture.projection)
+                    XCTFail("A reached publisher fault with failed OS removal claimed success")
+                } catch { logFailure(error, context: "reconcile"); XCTAssertEqual(error as? C22NotificationSystem.InjectedFailure, .remove) }
+                markPhase("observed.actual-cut")
+                let observed = try XCTUnwrap(fixture.control.notificationSchedulingPublicationFaultObservationForTesting())
+                print("C22PublisherFault observed phase=\(observed.phase) cut=\(observed.cut) prefix=\(observed.actualWrittenPrefixCount) initialVerified=\(observed.initialPolicyVerified) finalVerified=\(observed.finalPolicyVerified) renamed=\(observed.renamed)")
+                XCTAssertEqual(observed.phase, phase)
+                XCTAssertEqual(observed.cut, cut)
+                XCTAssertEqual(observed.initialPolicyVerified, initialVerified)
+                XCTAssertEqual(observed.finalPolicyVerified, finalVerified)
+                XCTAssertEqual(observed.renamed, renamed)
+                if let expectedPrefix { XCTAssertEqual(observed.actualWrittenPrefixCount, expectedPrefix) }
+                markPhase("canonical.read")
+                let canonical = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+                XCTAssertEqual(canonical.entries.count, 1)
+                let entry = try XCTUnwrap(canonical.entries.first)
+                XCTAssertEqual(entry.request.notification.requestID, observed.requestID)
+                XCTAssertEqual(entry.reminder, reminder)
+                XCTAssertNil(entry.admissionID)
+                XCTAssertEqual(entry.acknowledged, renamed)
+                var exactAbsent = canonical
+                exactAbsent.entries[0].admissionID = nil
+                exactAbsent.entries[0].acknowledged = false
+                var exactAdmission = exactAbsent
+                exactAdmission.entries[0].admissionID = observed.admissionID
+                markPhase("encode.admission")
+                let admissionBytes = try CompatibilityCanonicalV1.encode(exactAdmission)
+                markPhase("encode.absent")
+                let absentBytes = try CompatibilityCanonicalV1.encode(exactAbsent)
+                markPhase("paths.actual-operations-root")
+                let root = fixture.support.appendingPathComponent(OwnedStorageRootKindV1.operations.rawValue)
+                    .appendingPathComponent(AppLockNotificationControlStoreV1.rootName)
+                let canonicalURL = root.appendingPathComponent(AppLockNotificationControlStoreV1.mappingName)
+                let pendingURL = root.appendingPathComponent(AppLockNotificationControlStoreV1.mappingPendingName)
+                if renamed {
+                    markPhase("encode.canonical-present")
+                    XCTAssertEqual(observed.actualWrittenPrefixCount, try CompatibilityCanonicalV1.encode(canonical).count)
+                    XCTAssertFalse(FileManager.default.fileExists(atPath: pendingURL.path))
+                    XCTAssertEqual(fixture.system.addCount, 1)
+                    XCTAssertEqual(fixture.system.requests, [unrelated, entry.request])
+                } else {
+                    XCTAssertLessThan(observed.actualWrittenPrefixCount, admissionBytes.count)
+                    markPhase("raw.pending-read")
+                    let pendingBytes = try Data(contentsOf: pendingURL)
+                    XCTAssertEqual(pendingBytes, Data(admissionBytes.prefix(observed.actualWrittenPrefixCount)))
+                    XCTAssertEqual(pendingBytes.count, observed.actualWrittenPrefixCount)
+                    markPhase("raw.pending-stat")
+                    var fact = stat()
+                    XCTAssertEqual(Darwin.lstat(pendingURL.path, &fact), 0)
+                    XCTAssertEqual(fact.st_size, Int64(observed.actualWrittenPrefixCount))
+                    XCTAssertEqual(fact.st_mode & mode_t(S_IFMT), mode_t(S_IFREG))
+                    XCTAssertEqual(fact.st_mode & 0o777, 0o600)
+                    XCTAssertEqual(fixture.system.addCount, 0)
+                    XCTAssertEqual(fixture.system.requests, [unrelated])
+                }
+                if initialVerified {
+                    markPhase("policy.actual-readback")
+                    let policy: TemporalPolicyObservationV1 = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                        renamed ? .journal : .journalTemporary,
+                        at: renamed ? canonicalURL : pendingURL,
+                        retainUncertainDescriptor: { descriptor in
+                            observedPolicyDescriptorUncertainty = true
+                            C22NotificationPolicyUncertaintyRetention.shared.retain(descriptor, fixture: fixture)
+                            XCTFail("Checked policy readback reported actual descriptor close uncertainty; retaining the descriptor fact and fixture")
+                        })
+                    guard !observedPolicyDescriptorUncertainty else {
+                        throw C22NotificationTestFailure.policyDescriptorCloseUncertain
+                    }
+                    XCTAssertEqual(policy.backupExcluded, true)
+                    XCTAssertEqual(policy.isDirectory, false)
+                    // The DEBUG Simulator request state is a functional readback,
+                    // not a physical-device protection assertion.
+                    XCTAssertTrue(policy.state == .strictComplete || policy.state == .pendingSimulatorRequest)
+                }
+                XCTAssertEqual(fixture.system.removedRequestIDs, [[observed.requestID]])
+                try assertNotificationSupportExclusive(fixture.support, available: false)
+                markPhase("writer.blocked-canonical-read")
+                let beforeWriter = try Data(contentsOf: canonicalURL)
+                XCTAssertThrowsError(try fixture.control.replacePrivateNotificationMapping(canonical, expected: canonical)) {
+                    XCTAssertEqual($0 as? AppAccessContractFailureV1, .notificationReconciliationRequired)
+                }
+                XCTAssertEqual(try Data(contentsOf: canonicalURL), beforeWriter)
+                XCTAssertEqual(fixture.system.removedRequestIDs, [[observed.requestID]])
+                markPhase("settle.retained-admission")
+                fixture.system.failsRemove = false
+                try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+                markPhase("settle.verify-exact-F")
+                XCTAssertEqual(try fixture.control.loadPrivateNotificationMapping(), exactAbsent)
+                XCTAssertEqual(try Data(contentsOf: canonicalURL), absentBytes)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: pendingURL.path))
+                XCTAssertEqual(fixture.system.requests, [unrelated])
+                XCTAssertEqual(fixture.system.removedRequestIDs, [[observed.requestID], [observed.requestID]])
+                try assertNotificationSupportExclusive(fixture.support, available: true)
+                markPhase("writer.after-retirement")
+                // The ordinary writer is admitted only after synchronous owner
+                // retirement and physical SH release, with the same mapping input.
+                try fixture.control.replacePrivateNotificationMapping(exactAbsent, expected: exactAbsent)
+                XCTAssertEqual(try fixture.control.loadPrivateNotificationMapping(), exactAbsent)
+                XCTAssertEqual(fixture.system.requests, [unrelated])
+                markPhase("settle.idempotence")
+                let removals = fixture.system.removeCount
+                try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+                XCTAssertEqual(fixture.system.removeCount, removals)
+                guard !observedPolicyDescriptorUncertainty else {
+                    throw C22NotificationTestFailure.policyDescriptorCloseUncertain
+                }
+                markPhase("cleanup.deferred-after-owner-checks")
+                fixtureOwnerChecksCompleted = true
+                // Preserve live SQLite fixture bytes/defaults for terminal collector cleanup.
+            } catch {
+                logFailure(error)
+                fatalFailureLogged = true
+                markPhase("cleanup.retained-settlement")
+                fixture.system.failsRemove = false
+                do {
+                    try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+                    try assertNotificationSupportExclusive(fixture.support, available: true)
+                    // Settlement and Support EX do not dispose the policy reader's
+                    // separate uncertain descriptor. Preserve root/defaults anyway.
+                    guard !observedPolicyDescriptorUncertainty else {
+                        throw C22NotificationTestFailure.policyDescriptorCloseUncertain
+                    }
+                    fixtureOwnerChecksCompleted = true
+                    // Preserve live SQLite fixture bytes/defaults for terminal collector cleanup.
+                } catch {
+                    logFailure(error, context: "cleanup")
+                    XCTFail("Publisher fault settlement failed; fixture preserved at \(fixture.support.path), defaults \(fixture.suite): \(error)")
+                }
+                throw error
+            }
+        } catch {
+            if !fatalFailureLogged { logFailure(error) }
+            throw error
+        }
+    }
+
+    @MainActor
+    func testConcreteReminderPublisherPositiveAdmissionPrefixRetainsOwnedRecovery() async throws {
+        try await assertConcreteNotificationPublisherFault(phase: .admission, cut: .afterPositivePrefix(17),
+            expectedPrefix: 17, initialVerified: true, finalVerified: false, renamed: false)
+    }
+
+    @MainActor
+    func testConcreteReminderPublisherCommittedPresentRenameRecoversExactAbsent() async throws {
+        try await assertConcreteNotificationPublisherFault(phase: .finishPresent, cut: .afterRenameBeforeParentSync,
+            expectedPrefix: nil, initialVerified: true, finalVerified: true, renamed: true)
+    }
+
+    @MainActor
+    func testConcreteReminderPublisherBeforeInitialPolicyHasZeroPayload() async throws {
+        try await assertConcreteNotificationPublisherFault(phase: .admission, cut: .beforeInitialPolicyEffect,
+            expectedPrefix: 0, initialVerified: false, finalVerified: false, renamed: false)
+    }
+
+    @MainActor
+    func testConcreteReminderPublisherVerifiedInitialPolicyPrecedesPayload() async throws {
+        try await assertConcreteNotificationPublisherFault(phase: .admission, cut: .afterInitialPolicyVerificationBeforeWrite,
+            expectedPrefix: 0, initialVerified: true, finalVerified: false, renamed: false)
+    }
+#endif
+
     @MainActor
     func testConcreteReminderEraseAcrossOwnersDrainsLateAddBeforeDeletingMapping() async throws {
         let fixture = try await C22NotificationFixture()
-        defer { fixture.defaults.removePersistentDomain(forName: fixture.suite) }
-        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
-        fixture.system.pausesAdd = true
-        let scheduling = Task { @MainActor in try await fixture.owner.reconcile(fixture.projection) }
-        await fixture.system.waitForAdd()
-        let admitted = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
-        XCTAssertNotNil(admitted.entries[0].admissionID)
-        XCTAssertFalse(admitted.entries[0].acknowledged)
-        let reopened = try AppLockNotificationControlStoreV1(applicationSupportURL: fixture.support,
-            preferences: PreferencesAdapterV1(defaults: fixture.defaults))
-        let eraseID = UUID()
-        _ = try reopened.beginNotificationErase(operationID: eraseID)
-        let erasing = Task { @MainActor in
-            try await DeviceLocalNotificationOwnerV1.erase(control: reopened, system: fixture.system, operationID: eraseID)
+        var fixtureOwnerChecksCompleted = false
+        defer {
+            // Notification SH/EX does not prove SwiftData/SQLite alias disposal.
+            // Root's collector cleans only after the test process is terminal.
+            print("C22Notification fixture cleanup deferred: root=\(fixture.support.path) suite=\(fixture.suite) ownerChecksCompleted=\(fixtureOwnerChecksCompleted); require terminal test process, disposed aliases and fresh collector evidence")
         }
-        XCTAssertThrowsError(try fixture.control.requireNotificationPublicationAllowed())
-        XCTAssertEqual(try reopened.loadPrivateNotificationMapping(), admitted)
-        fixture.system.releaseAdd()
-        do { _ = try await scheduling.value; XCTFail("late add published through erase revocation") }
-        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
-        try await erasing.value
-        XCTAssertEqual(fixture.system.addCount, 1)
-        XCTAssertTrue(fixture.system.requests.isEmpty)
-        XCTAssertNil(try reopened.loadPrivateNotificationMapping())
-        XCTAssertNil(try reopened.loadControl())
-        let finalOwner = try AppLockNotificationControlStoreV1(applicationSupportURL: fixture.support,
-            preferences: PreferencesAdapterV1(defaults: fixture.defaults))
-        XCTAssertThrowsError(try finalOwner.requireNotificationPublicationAllowed())
-        do { _ = try await fixture.owner.reconcile(fixture.projection); XCTFail("reopened erase restored scheduling") }
-        catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
-        XCTAssertEqual(fixture.system.addCount, 1)
+        try await fixture.owner.bindNotificationGateEffect(fixture.gate)
+        let firstProgress = XCTestExpectation(description: "legacy scheduling began add or returned")
+        let schedulingReturned = XCTestExpectation(description: "legacy scheduling returned")
+        let schedulingCleanupReturned = XCTestExpectation(description: "legacy cancelled scheduling returned")
+        var firstProgressSignalled = false
+        var didStart = false
+        var schedulingCompleted = false
+        var schedulingOutcome: Result<Void, Error>?
+        var erasingCompleted = true // No Erase Task has been spawned yet.
+        var erasingOutcome: Result<Void, Error>?
+        var erasing: Task<Void, Never>?
+        var erasingCleanupReturned: XCTestExpectation?
+        fixture.system.pausesAdd = true
+        fixture.system.didBeginAdd = {
+            didStart = true
+            if !firstProgressSignalled {
+                firstProgressSignalled = true
+                firstProgress.fulfill()
+            }
+        }
+        fixtureOwnerChecksCompleted = false
+        let scheduling = Task { @MainActor in
+            do {
+                _ = try await fixture.owner.reconcile(fixture.projection)
+                schedulingOutcome = .success(())
+            } catch { schedulingOutcome = .failure(error) }
+            schedulingCompleted = true
+            schedulingReturned.fulfill()
+            schedulingCleanupReturned.fulfill()
+            if !firstProgressSignalled {
+                firstProgressSignalled = true
+                firstProgress.fulfill()
+            }
+        }
+        do {
+            await fulfillment(of: [firstProgress], timeout: 10)
+            guard didStart else {
+                if schedulingCompleted {
+                    let outcome = try XCTUnwrap(schedulingOutcome)
+                    if case .failure(let error) = outcome { throw error }
+                    XCTFail("Scheduling returned successfully before the expected actual add")
+                }
+                throw C22NotificationTestFailure.addDidNotStart
+            }
+            let admitted = try XCTUnwrap(fixture.control.loadPrivateNotificationMapping())
+            let admittedEntry = try XCTUnwrap(admitted.entries.first)
+            XCTAssertNotNil(admittedEntry.admissionID)
+            XCTAssertFalse(admittedEntry.acknowledged)
+            let reopened = try AppLockNotificationControlStoreV1(applicationSupportURL: fixture.support,
+                preferences: PreferencesAdapterV1(defaults: fixture.defaults))
+            let eraseID = UUID()
+            _ = try reopened.beginNotificationErase(operationID: eraseID)
+            let eraseReturned = XCTestExpectation(description: "legacy erase returned")
+            let eraseCleanupReturned = XCTestExpectation(description: "legacy cancelled erase returned")
+            erasingCleanupReturned = eraseCleanupReturned
+            erasingCompleted = false
+            erasing = Task { @MainActor in
+                do {
+                    try await DeviceLocalNotificationOwnerV1.erase(control: reopened, system: fixture.system, operationID: eraseID)
+                    erasingOutcome = .success(())
+                } catch { erasingOutcome = .failure(error) }
+                erasingCompleted = true
+                eraseReturned.fulfill()
+                eraseCleanupReturned.fulfill()
+            }
+            XCTAssertThrowsError(try fixture.control.requireNotificationPublicationAllowed())
+            XCTAssertEqual(try reopened.loadPrivateNotificationMapping(), admitted)
+            fixture.system.pausesAdd = false
+            fixture.system.releaseAdd()
+            await fulfillment(of: [schedulingReturned, eraseReturned], timeout: 10)
+            guard schedulingCompleted, erasingCompleted else {
+                throw C22NotificationTestFailure.schedulingDidNotTerminate
+            }
+            do {
+                try XCTUnwrap(schedulingOutcome).get()
+                XCTFail("late add published through erase revocation")
+            } catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+            try XCTUnwrap(erasingOutcome).get()
+            XCTAssertEqual(fixture.system.addCount, 1)
+            XCTAssertTrue(fixture.system.requests.isEmpty)
+            XCTAssertNil(try reopened.loadPrivateNotificationMapping())
+            XCTAssertNil(try reopened.loadControl())
+            let finalOwner = try AppLockNotificationControlStoreV1(applicationSupportURL: fixture.support,
+                preferences: PreferencesAdapterV1(defaults: fixture.defaults))
+            XCTAssertThrowsError(try finalOwner.requireNotificationPublicationAllowed())
+            do { _ = try await fixture.owner.reconcile(fixture.projection); XCTFail("reopened erase restored scheduling") }
+            catch { XCTAssertEqual(error as? AppAccessContractFailureV1, .notificationReconciliationRequired) }
+            XCTAssertEqual(fixture.system.addCount, 1)
+            try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+            try assertNotificationSupportExclusive(fixture.support, available: true)
+            fixtureOwnerChecksCompleted = true
+            // Preserve live SQLite fixture bytes/defaults for terminal collector cleanup.
+        } catch {
+            // The fake's checked continuation is not cancelled by Task.cancel.
+            // Disable future pauses and release it before bounded terminal waits.
+            scheduling.cancel()
+            erasing?.cancel()
+            fixture.system.pausesAdd = false
+            fixture.system.releaseAdd()
+            var cleanupSignals: [XCTestExpectation] = []
+            if !schedulingCompleted { cleanupSignals.append(schedulingCleanupReturned) }
+            if !erasingCompleted, let erasingCleanupReturned { cleanupSignals.append(erasingCleanupReturned) }
+            if !cleanupSignals.isEmpty { await fulfillment(of: cleanupSignals, timeout: 10) }
+            guard schedulingCompleted, erasingCompleted else {
+                XCTFail("Legacy tasks remain live: scheduling=\(schedulingCompleted), erase=\(erasingCompleted); fixture preserved at \(fixture.support.path), defaults \(fixture.suite)")
+                throw error
+            }
+            do {
+                // Never settle or destroy the fixture while either Task lives.
+                try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(applicationSupportURL: fixture.support)
+                try assertNotificationSupportExclusive(fixture.support, available: true)
+                fixtureOwnerChecksCompleted = true
+                // Preserve live SQLite fixture bytes/defaults for terminal collector cleanup.
+            } catch {
+                XCTFail("Legacy erase cleanup failed at \(fixture.support.path); defaults retained=true, suite \(fixture.suite): \(error)")
+            }
+            throw error
+        }
     }
 
     func testV23P04C22G01FixedCompletionRelativeEditorDueAndStartOnce() throws {

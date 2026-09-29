@@ -518,6 +518,61 @@ struct NotificationEraseDrainRecordV1: Codable, Equatable, Sendable {
     ) throws
 }
 
+/// Emitted only after the original notification owner completed its OS
+/// absence readback and checked control removal. Physical tree admission is
+/// separate and remains bound to the original Erase operation's first roster.
+/// Issued only after the genuine system removal/readback found no owned
+/// requests, the add drain ended, and mapping/control were revalidated.
+/// It authorizes no filesystem effect without the retained Router owner.
+@MainActor final class OriginalEraseNotificationOSAbsenceReceiptV1 {
+    let revocation: NotificationEraseRevocationV1
+    let mapping: NotificationPrivateMappingV1?
+    let journal: AppLockNotificationJournalV1?
+    let ownedRequestIDs: Set<String>
+    private let control: any NotificationEraseControlOwnerV1
+
+    fileprivate init(control: any NotificationEraseControlOwnerV1,
+        revocation: NotificationEraseRevocationV1,
+        mapping: NotificationPrivateMappingV1?,
+        journal: AppLockNotificationJournalV1?,
+        ownedRequestIDs: Set<String>) {
+        self.control = control
+        self.revocation = revocation
+        self.mapping = mapping
+        self.journal = journal
+        self.ownedRequestIDs = ownedRequestIDs
+    }
+
+    func requireBound(control: any NotificationEraseControlOwnerV1,
+        revocation: NotificationEraseRevocationV1) throws {
+        guard self.control === control,
+              self.revocation == revocation else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+    }
+}
+
+@MainActor final class OriginalEraseNotificationEffectReceiptV1 {
+    private let control: any NotificationEraseControlOwnerV1
+    let revocation: NotificationEraseRevocationV1
+
+    fileprivate init(control: any NotificationEraseControlOwnerV1,
+                     revocation: NotificationEraseRevocationV1) {
+        self.control = control
+        self.revocation = revocation
+    }
+
+    func requireBound(control: any NotificationEraseControlOwnerV1,
+                      operationID: UUID) throws {
+        guard self.control === control,
+              revocation.operationID == operationID else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try control.requireNotificationEraseRevocation(revocation)
+    }
+}
+
 /// Constructed at the actual OS readback boundary, after the mapping and
 /// journal have been re-read unchanged. The private initializer prevents a
 /// file-only record from impersonating a completed OS drain.
@@ -607,6 +662,92 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
     private let openSource: SourceOpener
     private let clock: any ApplicationClock
     private var boundGate: AppAccessGateV1?
+    // Keep the actual admission, store and OS owner with an uncertain add.
+    // Recovery settles only this operation before releasing its own child SH.
+    @MainActor private final class RetainedSchedulingAdmission {
+        let control: AppLockNotificationControlStoreV1
+        let system: any NotificationSystemPortV1
+        let activity: OwnedStorageProducerActivityV1
+        let rootIdentity: String
+        let publication: AppLockNotificationControlStoreV1.NotificationSchedulingPublicationOwner
+        let request: NotificationSystemRequestV1
+        private(set) var completed = false
+        private var settling = false
+
+        init(control: AppLockNotificationControlStoreV1,
+             system: any NotificationSystemPortV1,
+             activity: OwnedStorageProducerActivityV1,
+             publication: AppLockNotificationControlStoreV1.NotificationSchedulingPublicationOwner,
+             request: NotificationSystemRequestV1) {
+            self.control = control
+            self.system = system
+            self.activity = activity
+            rootIdentity = control.notificationRootIdentity
+            self.publication = publication
+            self.request = request
+        }
+
+        private func requireOwnedPublication() throws {
+            try activity.requireApplicationSupport(activity.applicationSupportURL)
+            guard control.notificationRootIdentity == rootIdentity else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            try control.requireNotificationSchedulingState(publication)
+        }
+
+        func settle() async throws {
+            if completed { return }
+            guard !settling else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            settling = true
+            defer { settling = false }
+            try requireOwnedPublication()
+            // Abandon only the positively owned request from this exact
+            // admission. A later normal reconciliation can schedule anew.
+            try await system.remove([request.notification.requestID])
+            try requireOwnedPublication()
+            let observed = try await system.observations()
+            try requireOwnedPublication()
+            guard !observed.contains(where: {
+                $0.requestID == request.notification.requestID
+            }) else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            try control.settleNotificationSchedulingAbsent(publication)
+            try control.requireNotificationSchedulingTerminal(publication, verifiedPresent: false)
+            try control.retireNotificationSchedulingPublicationOwner(publication, verifiedPresent: false)
+            activity.close()
+            completed = true
+        }
+    }
+
+    private static var retainedSchedulingAdmissions: [RetainedSchedulingAdmission] = []
+
+    /// Called before cold recovery acquires Support EX. Only retained live
+    /// admissions are considered; this never reconstructs an owner from disk.
+    static func settleRetainedNotificationScheduling(applicationSupportURL: URL) async throws {
+        let root = applicationSupportURL.standardizedFileURL
+        let pending = retainedSchedulingAdmissions.filter {
+            $0.activity.applicationSupportURL == root && !$0.completed
+        }
+        for admission in pending {
+            try await admission.settle()
+            retainedSchedulingAdmissions.removeAll { $0 === admission }
+        }
+    }
+
+    private static func settleRetainedNotificationScheduling(
+        control: AppLockNotificationControlStoreV1
+    ) async throws {
+        let pending = retainedSchedulingAdmissions.filter {
+            $0.rootIdentity == control.notificationRootIdentity && !$0.completed
+        }
+        for admission in pending {
+            try await admission.settle()
+            retainedSchedulingAdmissions.removeAll { $0 === admission }
+        }
+    }
 
     init(control: AppLockNotificationControlStoreV1, preferences: PreferencesAdapterV1,
          system: any NotificationSystemPortV1, clock: any ApplicationClock,
@@ -730,6 +871,8 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
     private func prepare(operationID: UUID, target: Bool, expected: AppLockNotificationJournalV1?,
                          authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1 {
         try await validate(authorization, target: target)
+        try await Self.settleRetainedNotificationScheduling(control: control)
+        try await validate(authorization, target: target)
         let predecessor = try currentAuthenticationControl()
         guard predecessor?.journal == expected,
               try predecessor.map(NotificationOperationSubjectV1.init(control:)) == authorization.subject else {
@@ -850,6 +993,8 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
     private func reconcileControl(expected: AppLockNotificationJournalV1, target: Bool,
                                   authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1 {
         try await validate(authorization, target: target)
+        try await Self.settleRetainedNotificationScheduling(control: control)
+        try await validate(authorization, target: target)
         let value = try exactControl(expected, authorization: authorization)
         if !target {
             guard value.phase == .settingCommitted,
@@ -946,6 +1091,8 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
 
     private func reconcileSnapshot(_ snapshot: NotificationSourceSnapshotV1, source: ProductionMyDaySourceProviderV1,
                                    authorization: NotificationOperationAuthorizationV1) async throws -> LocalReminderReconciliationV1 {
+        try await Self.settleRetainedNotificationScheduling(control: control)
+        try await validate(authorization)
         let projection = snapshot.projection
         let policy = try currentPolicy()
         // A caller cannot turn a canonical due projection into renewed consent.
@@ -1045,6 +1192,9 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
 
     private func removeAll(snapshot: NotificationSourceSnapshotV1, source: ProductionMyDaySourceProviderV1,
                            authorization: NotificationOperationAuthorizationV1) async throws {
+        try await validate(authorization)
+        try await Self.settleRetainedNotificationScheduling(control: control)
+        try await validate(authorization)
         let policy = try currentPolicy()
         let setting = try preferences.readAppLockSettingSnapshot()
         let localControl = try ordinaryControl(setting: setting)
@@ -1115,6 +1265,38 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             observedOwnedRefusal: nil, afterSuccess: nil)
     }
 
+    /// The original Erase operation retains its EX and first physical roster
+    /// across these synchronous callbacks. A failure in either callback is a
+    /// failed effect, never a reusable observation from a later tree.
+    static func eraseForOriginalRetainedOwner(
+        control: any NotificationEraseControlOwnerV1,
+        system: any NotificationSystemPortV1,
+        operationID: UUID,
+        beginMarker: (@MainActor () throws
+            -> NotificationEraseRevocationV1)? = nil,
+        removeRecords: (@MainActor (
+            OriginalEraseNotificationOSAbsenceReceiptV1) throws -> Void)? = nil,
+        beforeBegin: @escaping @MainActor () throws -> Void,
+        afterBegin: (@MainActor (NotificationEraseRevocationV1) throws -> Void)? = nil,
+        observedOwnedRefusal: (@MainActor (
+            NotificationEraseRevocationV1, Set<String>, Set<String>
+        ) throws -> Void)? = nil,
+        afterSuccess: @escaping @MainActor (NotificationEraseRevocationV1) throws -> Void
+    ) async throws -> OriginalEraseNotificationEffectReceiptV1 {
+        let revocation = try await eraseOriginalOwner(
+            control: control, system: system, operationID: operationID,
+            beforeBegin: beforeBegin, afterBegin: afterBegin,
+            observedOwnedRefusal: observedOwnedRefusal,
+            afterSuccess: afterSuccess,
+            originalBeginMarker: beginMarker,
+            requiresOriginalBeginMarker: true,
+            originalRemoveRecords: removeRecords,
+            requiresOriginalRemoveRecords: true)
+        try control.requireNotificationEraseRevocation(revocation)
+        return OriginalEraseNotificationEffectReceiptV1(
+            control: control, revocation: revocation)
+    }
+
     static func eraseSchema2Cold(
         control: any Schema2ColdNotificationEraseControlV1,
         system: any NotificationSystemPortV1,
@@ -1168,9 +1350,25 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             NotificationEraseRevocationV1, Set<String>, Set<String>
         ) throws -> Void)?,
         afterSuccess: (@MainActor (NotificationEraseRevocationV1) throws -> Void)?,
-        coldControl: (any Schema2ColdNotificationEraseControlV1)? = nil
+        coldControl: (any Schema2ColdNotificationEraseControlV1)? = nil,
+        originalBeginMarker: (@MainActor () throws
+            -> NotificationEraseRevocationV1)? = nil,
+        requiresOriginalBeginMarker: Bool = false,
+        originalRemoveRecords: (@MainActor (
+            OriginalEraseNotificationOSAbsenceReceiptV1) throws -> Void)? = nil,
+        requiresOriginalRemoveRecords: Bool = false
     ) async throws -> NotificationEraseRevocationV1 {
         try beforeBegin?()
+        guard !requiresOriginalBeginMarker ||
+                originalBeginMarker != nil else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+        guard !requiresOriginalRemoveRecords ||
+                originalRemoveRecords != nil else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
         let firstCut: (
             NotificationEraseOwnedIDsProvenanceV1?,
             NotificationEraseRevocationV1)
@@ -1185,6 +1383,14 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
                     let marker = try control.beginNotificationErase(
                         operationID: operationID)
                     return (value, marker)
+                }
+        } else if let originalBeginMarker {
+            // The original retained owner supplies its checked publication
+            // under this same process fence. The ordinary AppLock publisher
+            // remains unavailable to an original-mode control.
+            firstCut = try
+                AppLockNotificationTransactionFenceV1.perform {
+                    (nil, try originalBeginMarker())
                 }
         } else {
             firstCut = (nil, try control.beginNotificationErase(
@@ -1257,7 +1463,15 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             try coldControl.requireSchema2ColdDrainRecord(
                 record, revocation: revocation)
         }
-        try control.removeNotificationRecordsAfterErase(revocation)
+        if let originalRemoveRecords {
+            try originalRemoveRecords(
+                OriginalEraseNotificationOSAbsenceReceiptV1(
+                    control: control, revocation: revocation,
+                    mapping: mapping, journal: journal,
+                    ownedRequestIDs: owned))
+        } else {
+            try control.removeNotificationRecordsAfterErase(revocation)
+        }
         try afterSuccess?(revocation)
         return revocation
     }
@@ -1350,6 +1564,15 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
                            source: ProductionMyDaySourceProviderV1,
                            authorization: NotificationOperationAuthorizationV1,
                            settingControl: AppLockNotificationControlV1?) async throws {
+        let schedulingActivity = try control.acquireNotificationSchedulingActivity()
+        var unsettledAdmission: RetainedSchedulingAdmission?
+        defer {
+            if let unsettledAdmission {
+                Self.retainedSchedulingAdmissions.append(unsettledAdmission)
+            } else {
+                schedulingActivity.close()
+            }
+        }
         var mapping = original
         guard mapping.entries.allSatisfy({ $0.admissionID == nil }),
               !NotificationAddDrainV1.isActive(root: control.notificationRootIdentity) else {
@@ -1395,12 +1618,21 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             let previous = mapping
             mapping.entries[index].admissionID = admission
             mapping.entries[index].acknowledged = false
-            try control.replacePrivateNotificationMapping(mapping, expected: previous)
+            let publication = try control.makeNotificationSchedulingPublicationOwner(
+                predecessor: previous, request: request, admissionID: admission,
+                activity: schedulingActivity)
+            let retained = RetainedSchedulingAdmission(control: control, system: system,
+                activity: schedulingActivity, publication: publication, request: request)
+            unsettledAdmission = retained
             let root = control.notificationRootIdentity
-            try NotificationAddDrainV1.begin(root: root, admission: admission)
+            var drainStarted = false
             do {
-                defer { NotificationAddDrainV1.finish(root: root, admission: admission) }
-                do {
+                defer {
+                    if drainStarted { NotificationAddDrainV1.finish(root: root, admission: admission) }
+                }
+                try control.publishNotificationSchedulingAdmission(publication)
+                try NotificationAddDrainV1.begin(root: root, admission: admission)
+                drainStarted = true
                     try await source.performNotificationEffect(snapshot: mapping.source, authorization: authorization) {
                         try self.verifyMapping(mapping, source: source, authorization: authorization,
                                                settingMayBeSuccessor: settingControl)
@@ -1411,30 +1643,28 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
                         try await source.validateNotificationSnapshot(mapping.source, authorization: authorization)
                         try self.verifyMapping(mapping, source: source, authorization: authorization,
                                                settingMayBeSuccessor: settingControl)
+                        try schedulingActivity.requireApplicationSupport(
+                            schedulingActivity.applicationSupportURL)
+                        try self.control.noteNotificationSchedulingAddAttempt(publication)
                         try await self.system.add(request)
                     }
-                    let after = try await observe(mapping, source: source, authorization: authorization, settingControl: settingControl)
-                        .filter { $0.requestID == request.notification.requestID }
-                    guard after.count == 1, after[0].request == request else {
-                        throw AppAccessContractFailureV1.notificationReconciliationRequired
-                    }
-                    try control.finishNotificationAdd(admissionID: admission,
-                        requestID: request.notification.requestID, verifiedPresent: true)
-                    mapping.entries[index].admissionID = nil
-                    mapping.entries[index].acknowledged = true
-                } catch {
-                    // Cleanup retains the original admission until actual OS
-                    // absence is observed, including after erase revocation.
-                    try await system.remove([request.notification.requestID])
-                    let remaining = try await system.observations()
-                    try control.verifyNotificationStorage()
-                    guard !remaining.contains(where: { $0.requestID == request.notification.requestID }) else {
-                        throw AppAccessContractFailureV1.notificationReconciliationRequired
-                    }
-                    try control.finishNotificationAdd(admissionID: admission,
-                        requestID: request.notification.requestID, verifiedPresent: false)
-                    throw error
+                let after = try await observe(mapping, source: source, authorization: authorization, settingControl: settingControl)
+                    .filter { $0.requestID == request.notification.requestID }
+                guard after.count == 1, after[0].request == request else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
                 }
+                try control.finishNotificationSchedulingAdd(publication, verifiedPresent: true)
+                try control.requireNotificationSchedulingTerminal(publication, verifiedPresent: true)
+                try control.retireNotificationSchedulingPublicationOwner(publication, verifiedPresent: true)
+                unsettledAdmission = nil
+                mapping.entries[index].admissionID = nil
+                mapping.entries[index].acknowledged = true
+            } catch {
+                // Retain exact publication ownership across failed staging,
+                // admission, OS work and terminal durability checks.
+                try await retained.settle()
+                unsettledAdmission = nil
+                throw error
             }
         }
         try await verifySystem(mapping, source: source, authorization: authorization, settingControl: settingControl)

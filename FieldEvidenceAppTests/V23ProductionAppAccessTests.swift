@@ -1208,6 +1208,7 @@ final class V23ProductionAppAccessTests: XCTestCase {
         var completions = [CompletedEraseReceiptV1]()
 #if DEBUG
         var fixedStages = [String]()
+        var retryStages = [String]()
 #endif
         let presentation = AppAccessPresentationV1(startupRouter: router,
             eraseServiceFactory: { admission, completion, aborted, sceneState in
@@ -1236,6 +1237,13 @@ final class V23ProductionAppAccessTests: XCTestCase {
                             if fixedStages.count > 32 {
                                 fixedStages.removeFirst()
                             }
+                        }
+                    }
+                } else if serviceCount == 2 {
+                    service.schema2ColdFixedStageForTesting = { stage in
+                        retryStages.append(stage)
+                        if retryStages.count > 32 {
+                            retryStages.removeFirst()
                         }
                     }
                 }
@@ -1324,6 +1332,15 @@ final class V23ProductionAppAccessTests: XCTestCase {
         defer { presentation.eraseRecoveryDiagnosticForTesting = nil }
 #endif
         await presentation.retryStartup()
+#if DEBUG
+        if !presentation.permitsContentPresentation {
+            FileHandle.standardError.write(Data(
+                ("ORIGINAL_APPACCESS_RETRY_SERVICE_V1 stage="
+                + (retryStages.last ?? "none")
+                + " history=" + retryStages.joined(separator: ",")
+                + "\n").utf8))
+        }
+#endif
         await fulfillment(of: [ready], timeout: 30)
         XCTAssertEqual(serviceCount, 2, "Retry must use the retained original operation's service factory")
         XCTAssertEqual(reservations.count, 2, "One original admission and one checked recovery admission")
@@ -1344,6 +1361,424 @@ final class V23ProductionAppAccessTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath:
             StoreGenerationFactory(applicationSupportURL: support)
                 .installedGenerationURL(id: oldID).path))
+    }
+
+    @MainActor
+    func testPresentationRetriesOriginalEraseWithTwoPriorRetiredGenerationsToReady() async throws {
+        let suiteName = "V23.ProductionAppAccess.original-multiretired-retry.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("V23-ProductionAppAccess-original-multiretired-retry-\(UUID().uuidString)")
+        let support = root.appendingPathComponent("Library/Application Support")
+        let caches = root.appendingPathComponent("Library/Caches")
+        let temporary = root.appendingPathComponent("tmp")
+        for directory in [support, caches, temporary] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let priorIDs = try makeOriginalRetryRetiredSources(support: support)
+        let priorManifestBytes = try Dictionary(uniqueKeysWithValues: priorIDs.map { id in
+            (id, try Data(contentsOf: support.appendingPathComponent(
+                "FieldEvidenceOperations/schema-migration/manifest-\(id.uuidString.lowercased()).json")))
+        })
+        let priorInodes = try Dictionary(uniqueKeysWithValues: priorIDs.map { id in
+            (id, try XCTUnwrap(FileManager.default.attributesOfItem(atPath:
+                StoreGenerationFactory(applicationSupportURL: support)
+                    .installedGenerationURL(id: id).path)[.systemFileNumber] as? NSNumber))
+        })
+        let system = ProductionAccessNotificationSystem()
+        let router = StartupRouter(applicationSupportURL: support)
+        let session = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: support, startupRouter: router, defaults: defaults,
+            authenticationClient: ProductionAccessAuthentication(), notificationSystem: system)
+        var serviceCount = 0
+        var reservations = [AppAccessGateV1.EraseAdoptionToken]()
+        var completions = [CompletedEraseReceiptV1]()
+#if DEBUG
+        var fixedStages = [String]()
+        var retryStages = [String]()
+        var transferredSourceChecks = 0
+#endif
+        let presentation = AppAccessPresentationV1(startupRouter: router,
+            eraseServiceFactory: { admission, completion, aborted, sceneState in
+                serviceCount += 1
+                let service = EraseAllService(applicationSupportURL: support,
+                    cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                    userDefaults: defaults, defaultsDomainName: suiteName,
+                    failureInjection: serviceCount == 1
+                        ? EraseAllFailureInjection(failOnceAt: .afterPointerSwitch) : nil,
+                    sceneNavigationStatePort: sceneState,
+                    privateSystemDiscoveryIndex: nil, notificationSystem: system,
+                    admitErase: { subject in
+                        let actualAdmission = try XCTUnwrap(admission)
+                        let reservation = try await actualAdmission(subject)
+                        reservations.append(reservation)
+                        return reservation
+                    }, didCompleteErase: { receipt in
+                        completions.append(receipt)
+                        completion?(receipt)
+                    }, didAbortEraseAdmission: aborted)
+#if DEBUG
+                if serviceCount == 1 {
+                    service.schema2ColdFixedStageForTesting = { stage in
+                        if !stage.hasPrefix("empty.policy.") {
+                            fixedStages.append(stage)
+                            if fixedStages.count > 32 {
+                                fixedStages.removeFirst()
+                            }
+                        }
+                    }
+                } else if serviceCount == 2 {
+                    service.schema2ColdFixedStageForTesting = { stage in
+                        if stage == "recovery.presence.transferred-prior-enter" {
+                            transferredSourceChecks += 1
+                        }
+                        retryStages.append(stage)
+                        if retryStages.count > 32 {
+                            retryStages.removeFirst()
+                        }
+                    }
+                }
+#endif
+                return service
+            }, sessionFactory: { session })
+        // Retain the authentic owners and their root if any failure leaves
+        // descriptors alive. Never delete a live recovery tree in teardown.
+        Self.retainedDeferredEraseOwners.append((root, router, session, presentation))
+        let published = expectation(description: "Original production owner publishes")
+        let startupPublication = presentation.$permitsContentPresentation.filter { $0 }.prefix(1)
+            .sink { _ in published.fulfill() }
+        defer { startupPublication.cancel() }
+        await presentation.bootstrapIfNeeded()
+        await fulfillment(of: [published], timeout: 30)
+        var coordinator: StoreSessionCoordinator?
+        let diagnostics: DiagnosticsStore
+        switch router.route {
+        case let .ready(value, store, _): coordinator = value; diagnostics = store
+        default: return XCTFail("Original startup did not become ready")
+        }
+        let oldID = try XCTUnwrap(coordinator).generationID
+        do {
+            try await presentation.performErase(applicationSupportURL: support,
+                confirmation: "ERASE", coordinator: try XCTUnwrap(coordinator),
+                diagnosticsStore: diagnostics)
+            return XCTFail("The original pointer-switch interruption was not reached")
+        } catch {
+            guard error as? EraseAllServiceError == .injectedFailure else {
+#if DEBUG
+                let category: String
+                if error is GenerationLeaseRegistryFailureV1 {
+                    category = "registry"
+                } else if error is EraseAllServiceError {
+                    category = "erase"
+                } else if error is AppAccessContractFailureV1 {
+                    category = "app-access"
+                } else {
+                    category = "other"
+                }
+                let fixed = fixedStages.last ?? "none"
+                let history = fixedStages.joined(separator: ",")
+                FileHandle.standardError.write(Data(
+                    ("ORIGINAL_APPACCESS_ERASE_FIXED_V1 stage=" + fixed
+                    + " category=" + category + " history=" + history
+                    + "\n").utf8))
+#endif
+                throw error
+            }
+        }
+        XCTAssertEqual(serviceCount, 1)
+        XCTAssertFalse(presentation.isBusy)
+        XCTAssertFalse(presentation.permitsContentPresentation)
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertEqual(reservations.count, 1, "The interrupted original admits exactly once")
+        let originalReservation = try XCTUnwrap(reservations.first)
+        // Decode existing bytes directly: no reparative EraseIntentStore
+        // construction may precede the production retry under test.
+        let intent = try EraseIntentCodecV1.decode(Data(contentsOf: support
+            .appendingPathComponent("FieldEvidenceErase/erase.json")))
+        XCTAssertEqual(intent.phase, .emptyGenerationPrepared)
+        XCTAssertEqual(intent.oldGenerationID, oldID)
+        XCTAssertEqual(Set(intent.generationIDsToDelete), Set(priorIDs + [oldID]))
+        let priorFactory = StoreGenerationFactory(applicationSupportURL: support)
+        let retiredAtCut = try JSONDecoder().decode(RetiredPointerV1.self,
+            from: Data(contentsOf: support.appendingPathComponent("FieldEvidenceData/retired.json")))
+        XCTAssertEqual(Set(retiredAtCut.generationIDs),
+            Set((priorIDs + [oldID]).map { $0.uuidString.lowercased() }))
+        for id in priorIDs {
+            XCTAssertEqual(try Data(contentsOf: support.appendingPathComponent(
+                "FieldEvidenceOperations/schema-migration/manifest-\(id.uuidString.lowercased()).json")),
+                try XCTUnwrap(priorManifestBytes[id]))
+            XCTAssertEqual(try XCTUnwrap(FileManager.default.attributesOfItem(atPath:
+                priorFactory.installedGenerationURL(id: id).path)[.systemFileNumber] as? NSNumber),
+                try XCTUnwrap(priorInodes[id]))
+        }
+        XCTAssertEqual(intent.newGenerationID, originalReservation.subject.newGenerationID)
+        XCTAssertEqual(intent.eraseID, originalReservation.subject.eraseID)
+        guard case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(
+            Data(contentsOf: support.appendingPathComponent("FieldEvidenceData/current.json"))) else {
+            return XCTFail("The real pointer switch must publish the current pointer schema")
+        }
+        XCTAssertEqual(UUID(uuidString: pointer.generationID), intent.newGenerationID,
+            "Retry must enter the target-current recovery branch")
+        weak var originalCoordinator = coordinator
+        coordinator = nil
+        XCTAssertNotNil(originalCoordinator, "The actual pending operation must retain its source owner")
+        let ready = expectation(description: "Same presentation retry completes and publishes target")
+        let retryPublication = presentation.$permitsContentPresentation.filter { $0 }.prefix(1)
+            .sink { _ in ready.fulfill() }
+        defer { retryPublication.cancel() }
+#if DEBUG
+        var retryDiagnosticCount = 0
+        presentation.eraseRecoveryDiagnosticForTesting = { fixedMessage in
+            guard retryDiagnosticCount < 32 else { return }
+            retryDiagnosticCount += 1
+            FileHandle.standardError.write(Data(
+                ("ORIGINAL_APPACCESS_RETRY_V1 " + fixedMessage + "\n").utf8))
+        }
+        defer { presentation.eraseRecoveryDiagnosticForTesting = nil }
+#endif
+        await presentation.retryStartup()
+#if DEBUG
+        if !presentation.permitsContentPresentation {
+            FileHandle.standardError.write(Data(
+                ("ORIGINAL_APPACCESS_RETRY_SERVICE_V1 stage="
+                + (retryStages.last ?? "none")
+                + " history=" + retryStages.joined(separator: ",")
+                + "\n").utf8))
+        }
+#endif
+        await fulfillment(of: [ready], timeout: 30)
+        XCTAssertEqual(serviceCount, 2, "Retry must use the retained original operation's service factory")
+        XCTAssertEqual(reservations.count, 2, "One original admission and one checked recovery admission")
+        XCTAssertTrue(reservations.allSatisfy { $0 == originalReservation })
+#if DEBUG
+        XCTAssertEqual(transferredSourceChecks, priorIDs.count + 1,
+            "The same retained retry must reach transferred-source proof for old plus both prior sources")
+#endif
+        XCTAssertEqual(completions.count, 1)
+        XCTAssertEqual(completions.first?.subject, originalReservation.subject)
+        XCTAssertTrue(presentation.permitsContentPresentation)
+        XCTAssertNil(presentation.failure)
+        XCTAssertNil(originalCoordinator)
+        guard case let .ready(recovered, _, _) = router.route else {
+            return XCTFail("Original retry did not publish its target")
+        }
+        XCTAssertEqual(recovered.generationID, intent.newGenerationID)
+        for id in priorIDs {
+            XCTAssertFalse(FileManager.default.fileExists(atPath:
+                StoreGenerationFactory(applicationSupportURL: support)
+                    .installedGenerationURL(id: id).path),
+                "A successful same-owner retry must remove every prior retired generation")
+        }
+        XCTAssertEqual(try recovered.workspaceWriter.currentRevision().generationID,
+            intent.newGenerationID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: support
+            .appendingPathComponent("FieldEvidenceErase").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            StoreGenerationFactory(applicationSupportURL: support)
+                .installedGenerationURL(id: oldID).path))
+    }
+
+    @MainActor
+    func testOriginalRetryRefusesNestedOperationsSubstitutionBeforePriorRead() async throws {
+#if DEBUG
+        let suiteName = "V23.ProductionAppAccess.original-operations-hostile.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("V23-ProductionAppAccess-operations-hostile-\(UUID().uuidString)")
+        let support = root.appendingPathComponent("Library/Application Support")
+        let caches = root.appendingPathComponent("Library/Caches")
+        let temporary = root.appendingPathComponent("tmp")
+        for directory in [support, caches, temporary] {
+            try FileManager.default.createDirectory(at: directory,
+                withIntermediateDirectories: true)
+        }
+        let priorIDs = try makeOriginalRetryRetiredSources(support: support)
+        let system = ProductionAccessNotificationSystem()
+        let router = StartupRouter(applicationSupportURL: support)
+        let session = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: support, startupRouter: router,
+            defaults: defaults,
+            authenticationClient: ProductionAccessAuthentication(),
+            notificationSystem: system)
+        var serviceCount = 0
+        var reservations = [AppAccessGateV1.EraseAdoptionToken]()
+        var completions = [CompletedEraseReceiptV1]()
+        var transferredChecks = 0
+        var injectionOrdinal: Int?
+        var oldLiveReadbacks = 0
+        var injectionFailed = false
+        var controlCut: [String: Data]?
+        let controlNames = ["FieldEvidenceErase/erase.json",
+            "FieldEvidenceData/current.json",
+            "FieldEvidenceData/retired.json"]
+        let presentation = AppAccessPresentationV1(startupRouter: router,
+            eraseServiceFactory: { admission, completion, aborted, sceneState in
+                serviceCount += 1
+                let service = EraseAllService(applicationSupportURL: support,
+                    cachesDirectoryURL: caches,
+                    temporaryDirectoryURL: temporary,
+                    userDefaults: defaults, defaultsDomainName: suiteName,
+                    failureInjection: serviceCount == 1
+                        ? EraseAllFailureInjection(failOnceAt: .afterPointerSwitch)
+                        : nil,
+                    sceneNavigationStatePort: sceneState,
+                    privateSystemDiscoveryIndex: nil,
+                    notificationSystem: system,
+                    admitErase: { subject in
+                        let actualAdmission = try XCTUnwrap(admission)
+                        let token = try await actualAdmission(subject)
+                        reservations.append(token)
+                        return token
+                    }, didCompleteErase: { receipt in
+                        completions.append(receipt)
+                        completion?(receipt)
+                    }, didAbortEraseAdmission: aborted)
+                if serviceCount == 2 {
+                    service.v949RetainedSourceReadbackForTesting = { _, _ in
+                        oldLiveReadbacks += 1
+                    }
+                    service.schema2ColdFixedStageForTesting = { stage in
+                        guard stage == "recovery.presence.transferred-prior-enter" else {
+                            return
+                        }
+                        transferredChecks += 1
+                        guard let injectionOrdinal,
+                              transferredChecks == injectionOrdinal else {
+                            return
+                        }
+                        let scratch = support.appendingPathComponent(
+                            "FieldEvidenceOperations/ScratchDataV1",
+                            isDirectory: true)
+                        var isDirectory: ObjCBool = false
+                        guard FileManager.default.fileExists(atPath: scratch.path,
+                                isDirectory: &isDirectory), isDirectory.boolValue else {
+                            injectionFailed = true
+                            return
+                        }
+                        do {
+                            controlCut = try Dictionary(uniqueKeysWithValues:
+                                controlNames.map { name in
+                                    (name, try Data(contentsOf:
+                                        support.appendingPathComponent(name)))
+                                })
+                            let hostile = scratch.appendingPathComponent(
+                                "foreign-child-\(UUID().uuidString)")
+                            try Data("foreign".utf8).write(to: hostile,
+                                options: .atomic)
+                        } catch {
+                            injectionFailed = true
+                        }
+                    }
+                }
+                return service
+            }, sessionFactory: { session })
+        // A failed retry may retain checked descriptors; preserve its owners.
+        Self.retainedDeferredEraseOwners.append((root, router, session,
+            presentation))
+        let published = expectation(description: "Hostile fixture original ready")
+        let startup = presentation.$permitsContentPresentation.filter { $0 }
+            .prefix(1).sink { _ in published.fulfill() }
+        defer { startup.cancel() }
+        await presentation.bootstrapIfNeeded()
+        await fulfillment(of: [published], timeout: 30)
+        let coordinator: StoreSessionCoordinator
+        let diagnostics: DiagnosticsStore
+        switch router.route {
+        case let .ready(value, store, _):
+            coordinator = value; diagnostics = store
+        default: return XCTFail("Original fixture did not become ready")
+        }
+        let oldID = coordinator.generationID
+        do {
+            try await presentation.performErase(applicationSupportURL: support,
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: diagnostics)
+            return XCTFail("The after-pointer interruption was not reached")
+        } catch {
+            XCTAssertEqual(error as? EraseAllServiceError, .injectedFailure)
+        }
+        let intent = try EraseIntentCodecV1.decode(Data(contentsOf:
+            support.appendingPathComponent("FieldEvidenceErase/erase.json")))
+        XCTAssertEqual(intent.phase, .emptyGenerationPrepared)
+        XCTAssertEqual(Set(intent.generationIDsToDelete),
+            Set(priorIDs + [oldID]))
+        let firstPriorIndex = try XCTUnwrap(intent.generationIDsToDelete
+            .firstIndex(where: { priorIDs.contains($0) }))
+        injectionOrdinal = firstPriorIndex + 1
+        guard case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(
+            Data(contentsOf: support.appendingPathComponent(
+                "FieldEvidenceData/current.json"))) else {
+            return XCTFail("The real target pointer was not published")
+        }
+        XCTAssertEqual(UUID(uuidString: pointer.generationID),
+            intent.newGenerationID)
+        await presentation.retryStartup()
+        XCTAssertEqual(serviceCount, 2)
+        XCTAssertEqual(transferredChecks, try XCTUnwrap(injectionOrdinal),
+            "The nested substitution must occur at a real prior read")
+        XCTAssertFalse(injectionFailed)
+        let expected = try XCTUnwrap(controlCut)
+        for name in controlNames {
+            XCTAssertEqual(try Data(contentsOf:
+                support.appendingPathComponent(name)),
+                try XCTUnwrap(expected[name]),
+                "A hostile prior read must not advance durable controls")
+        }
+        let afterIntent = try EraseIntentCodecV1.decode(
+            try XCTUnwrap(expected["FieldEvidenceErase/erase.json"]))
+        XCTAssertEqual(afterIntent.phase, .pointerSwitched)
+        XCTAssertFalse(presentation.permitsContentPresentation)
+        XCTAssertNotNil(presentation.failure)
+        XCTAssertTrue(completions.isEmpty)
+        XCTAssertEqual(reservations.count, 2)
+        let originalReservation = try XCTUnwrap(reservations.first)
+        XCTAssertTrue(reservations.allSatisfy { $0 == originalReservation })
+        XCTAssertEqual(oldLiveReadbacks, 0,
+            "The original retry must not open old source live")
+        for id in priorIDs + [oldID] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath:
+                StoreGenerationFactory(applicationSupportURL: support)
+                    .installedGenerationURL(id: id).path))
+        }
+#else
+        throw XCTSkip("Requires the DEBUG original-recovery substitution seam")
+#endif
+    }
+
+    @MainActor
+    private func makeOriginalRetryRetiredSources(support: URL) throws -> [UUID] {
+        let factory = StoreGenerationFactory(applicationSupportURL: support)
+        var retired: [UUID] = []
+        for _ in 0..<2 {
+            let observed = try autoreleasepool { () throws ->
+                (CurrentGenerationPointerV3, WorkspaceReplicaIdentityV1) in
+                let session = try factory.openOrBootstrapCurrent()
+                return (try factory.currentGenerationPointerV3(
+                    expectedGenerationID: session.generationID),
+                    session.workspaceIdentity)
+            }
+            let pointer = observed.0
+            let oldID = try XCTUnwrap(UUID(uuidString: pointer.generationID))
+            let identity = RestorePointerIdentityV1(generationID: oldID,
+                generationManifestSHA256: pointer.generationManifestSHA256,
+                knownReplicaIDs: Set(try pointer.knownReplicaIdentitySet().map(\.rawValue)),
+                workspaceID: observed.1.workspaceID.rawValue,
+                replicaID: observed.1.replicaID.rawValue)
+            let authority = try factory.makeRestoreGenerationAuthority()
+            let nextID = UUID()
+            let created = try factory.createEmptyEraseGeneration(id: nextID,
+                expectedOldPointer: identity, identity: observed.1, authority: authority)
+            try factory.publishEmptyEraseGeneration(expectedOldPointer: identity,
+                targetPointer: created.pointer, expectedEmptyLedger: created.ledgerProof,
+                authority: authority)
+            try factory.retireGeneration(oldID: oldID, currentID: nextID,
+                authority: authority)
+            retired.append(oldID)
+            XCTAssertEqual(try factory.currentGenerationID(), nextID)
+            XCTAssertEqual(Set(try factory.retiredGenerationIDs()), Set(retired))
+        }
+        XCTAssertEqual(try factory.makeGenerationLeaseRegistry().activeEpochs(), [])
+        return retired
     }
 
     @MainActor

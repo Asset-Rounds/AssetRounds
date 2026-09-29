@@ -4626,7 +4626,17 @@ private extension StoreGenerationFactory {
         originalRetainedEraseAuthority:
             StoreRestoreGenerationAuthority? = nil
     ) throws -> StoreGenerationSession {
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.inventory-enter\n".utf8))
+        }
+        #endif
         try eraseReaderRetirementInventory?.requireUnsealed()
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.inventory-complete\n".utf8))
+        }
+        #endif
         let identity = try pointer.identity()
         if pointer.storeSchemaVersion == 2 {
             guard originalRetainedEraseOperation == nil else {
@@ -4648,6 +4658,11 @@ private extension StoreGenerationFactory {
               let generationID = canonicalUUID(from: pointer.generationID) else {
             throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.manifest-enter\n".utf8))
+        }
+        #endif
         let manifest = try store.loadManifest(
             targetGenerationID: generationID,
             expectedDigest: pointer.generationManifestSHA256
@@ -4658,6 +4673,11 @@ private extension StoreGenerationFactory {
         guard manifest.storeSchemaRelease == release else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.manifest-complete\n".utf8))
+        }
+        #endif
         observeManifest?(manifest)
 #if DEBUG
         observeSourceTreeStage?("after-manifest")
@@ -4669,12 +4689,22 @@ private extension StoreGenerationFactory {
 #if DEBUG
         coldOpenDiagnostic("current-reader-lease-before")
 #endif
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.reader-enter\n".utf8))
+        }
+        #endif
         let readerLease = try acquireCurrentReaderLease(
             epoch: epoch,
             expectedPointerData: try pointer.canonicalData(),
             originalRetainedEraseOperation: originalRetainedEraseOperation,
             originalRetainedEraseAuthority: originalRetainedEraseAuthority
         )
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.reader-complete\n".utf8))
+        }
+        #endif
         let retirementConstruction = try eraseReaderRetirementInventory?
             .beginConstruction(reader: readerLease)
         defer { retirementConstruction?.constructionInProgress = false }
@@ -4687,11 +4717,21 @@ private extension StoreGenerationFactory {
 #if DEBUG
         observeSourceTreeStage?("before-protect")
 #endif
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.protect-enter\n".utf8))
+        }
+        #endif
         try protectGeneration(at: generationRootURL, staging: false, requireModel: true,
                               diagnoseSourceProtection: observeSourceTreeStage != nil)
 #if DEBUG
         observeSourceTreeStage?("after-protect")
 #endif
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.protect-complete\n".utf8))
+        }
+        #endif
         let container: ModelContainer
         switch pointer.storeSchemaVersion {
         case 3: retirementConstruction?.constructorStarted = true; container = try makeV3Container(at: modelStoreURL, migrate: false)
@@ -4754,11 +4794,21 @@ private extension StoreGenerationFactory {
 #endif
         default: throw StoreMigrationFailure.maintenanceRequired(.invalidPointer)
         }
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.container-complete\n".utf8))
+        }
+        #endif
         retirementConstruction?.container = container
         retirementConstruction?.context = container.mainContext
 #if DEBUG
         observeSourceTreeStage?("after-container")
 #endif
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.marker-enter\n".utf8))
+        }
+        #endif
         if pointer.storeSchemaVersion == 3 {
             _ = try requireV3Marker(in: container.mainContext, expectedMigrationID: manifest.migrationID)
         } else if pointer.storeSchemaVersion == 4 {
@@ -4836,6 +4886,11 @@ private extension StoreGenerationFactory {
                 throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
             }
         }
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=open.marker-complete\n".utf8))
+        }
+        #endif
         let session = StoreGenerationSession(
             generationID: generationID,
             generationRootURL: generationRootURL,
@@ -11653,6 +11708,20 @@ fileprivate struct OriginalErasePointerFullFactV1: Equatable {
         changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
     }
 
+    init(_ value: OriginalEraseRecoveryNamespaceSnapshotV1.RegularFact) {
+        device = value.device
+        inode = value.inode
+        mode = value.mode
+        owner = value.user
+        group = value.group
+        links = value.links
+        size = value.size
+        modifiedSeconds = value.modifiedSeconds
+        modifiedNanoseconds = value.modifiedNanoseconds
+        changedSeconds = value.changedSeconds
+        changedNanoseconds = value.changedNanoseconds
+    }
+
     func sameRenamedInode(as other: Self) -> Bool {
         device == other.device && inode == other.inode
             && mode == other.mode && owner == other.owner
@@ -14916,6 +14985,63 @@ final class StoreRestoreGenerationAuthority {
         return digest
     }
 
+    /// Reprove the original P→Q Data postimage through this recovery authority's
+    /// retained descriptors. The caller has just bound `receipt` to its original
+    /// issuing operation under the same EX/G. Every read here is checked and
+    /// nonrepairing; the original writer's complete sibling image remains the
+    /// immutable baseline rather than a surviving recovery-side snapshot.
+    @MainActor
+    func requireOriginalRecoveryPublishedControls(
+        receipt: OriginalErasePointerReceiptV1,
+        intent: EraseIntentV1
+    ) throws {
+        guard !originalRecoveryNoCreate,
+              intent.schemaVersion == 2,
+              intent.phase == .pointerSwitched,
+              receipt.stage == .retired,
+              receipt.predecessor?.stage == .current,
+              try receipt.currentGenerationID() == intent.newGenerationID,
+              try receipt.retiredGenerationIDs() == intent.generationIDsToDelete else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        func requireHeldPostimage() throws {
+            var support = stat(), held = stat(), named = stat()
+            guard Darwin.lstat(applicationSupportURL.path, &support) == 0,
+                  support.st_mode & S_IFMT == S_IFDIR,
+                  support.st_dev == applicationSupportIdentity.device,
+                  support.st_ino == applicationSupportIdentity.inode,
+                  Darwin.fstat(dataDescriptor, &held) == 0,
+                  Darwin.fstatat(applicationSupportDescriptor, Self.dataName,
+                      &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  OriginalErasePointerFullFactV1(held) == receipt.root,
+                  OriginalErasePointerFullFactV1(named) == receipt.root,
+                  try originalErasePointerCheckedIO.names(in: dataDescriptor)
+                      == receipt.names else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let current = try originalRecoveryIO.originalRecoveryPointerFull(
+                parent: dataDescriptor, name: "current.json")
+            let retired = try originalRecoveryIO.originalRecoveryPointerFull(
+                parent: dataDescriptor, name: "retired.json")
+            guard current.0 == receipt.other.data,
+                  OriginalErasePointerFullFactV1(current.1)
+                      == receipt.other.fact,
+                  retired.0 == receipt.published.data,
+                  OriginalErasePointerFullFactV1(retired.1)
+                      == receipt.published.fact else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try requireOriginalErasePointerSiblings(
+                receipt.siblings, names: receipt.names)
+        }
+        try originalErasePointerCheckedIO.requireSettled()
+        try originalRecoveryIO.requireSettled()
+        try requireHeldPostimage()
+        try requireHeldPostimage()
+        try originalRecoveryIO.requireSettled()
+        try originalErasePointerCheckedIO.requireSettled()
+    }
+
     /// After the original owner's first-effect EX becomes a typed Coordinator
     /// maintenance transfer, reprove the exact old source without constructing
     /// an old ModelContainer or using verify()'s ordinary transient opens.
@@ -15070,27 +15196,49 @@ final class StoreRestoreGenerationAuthority {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
             }
-            try originalRecoveryIO.withOpen(parent: dataDescriptor, name: "migration",
-                flags: O_RDONLY | O_DIRECTORY) { migration in
-                try check(migration, parent: dataDescriptor, name: "migration",
-                    kind: S_IFDIR, expected: image.migrationFact)
-                let name = "manifest-" + receipt.generationID.uuidString.lowercased() + ".json"
-                try originalRecoveryIO.withOpen(parent: migration, name: name,
-                    flags: O_RDONLY | O_NONBLOCK) { leaf in
-                    try check(leaf, parent: migration, name: name,
-                        kind: S_IFREG, expected: image.manifestFact)
-                    let (bytes, fact) = try originalRecoveryIO.control(parent: migration, name: name)
-                    var held = stat()
-                    guard Darwin.fstat(leaf, &held) == 0,
-                          fact == "\(held.st_dev)|\(held.st_ino)|\(held.st_mode)|\(held.st_nlink)|\(held.st_size)|\(held.st_mtimespec.tv_sec)|\(held.st_mtimespec.tv_nsec)|\(held.st_ctimespec.tv_sec)|\(held.st_ctimespec.tv_nsec)",
-                          bytes == image.manifestBytes else {
-                        throw StoreGenerationFailure.dataPointerInvalid
-                    }
-                    try check(leaf, parent: migration, name: name,
-                        kind: S_IFREG, expected: image.manifestFact)
+            try originalRecoveryIO.withOpen(parent: applicationSupportDescriptor,
+                name: "FieldEvidenceOperations", flags: O_RDONLY | O_DIRECTORY) { operations in
+                var heldOperations = stat()
+                guard Darwin.fstat(operations, &heldOperations) == 0 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
                 }
-                try check(migration, parent: dataDescriptor, name: "migration",
-                    kind: S_IFDIR, expected: image.migrationFact)
+                guard fullFact(heldOperations) == image.operationsFact,
+                      try originalRecoveryIO.names(in: operations)
+                        == image.operationsNames else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                try check(operations, parent: applicationSupportDescriptor,
+                    name: "FieldEvidenceOperations", kind: S_IFDIR,
+                    expected: image.operationsFact)
+                try originalRecoveryIO.withOpen(parent: operations,
+                    name: "schema-migration", flags: O_RDONLY | O_DIRECTORY) { migration in
+                    try check(migration, parent: operations, name: "schema-migration",
+                        kind: S_IFDIR, expected: image.migrationFact)
+                    let name = "manifest-" + receipt.generationID.uuidString.lowercased() + ".json"
+                    try originalRecoveryIO.withOpen(parent: migration, name: name,
+                        flags: O_RDONLY | O_NONBLOCK) { leaf in
+                        try check(leaf, parent: migration, name: name,
+                            kind: S_IFREG, expected: image.manifestFact)
+                        let (bytes, fact) = try originalRecoveryIO.control(parent: migration, name: name)
+                        var held = stat()
+                        guard Darwin.fstat(leaf, &held) == 0,
+                              fact == "\(held.st_dev)|\(held.st_ino)|\(held.st_mode)|\(held.st_nlink)|\(held.st_size)|\(held.st_mtimespec.tv_sec)|\(held.st_mtimespec.tv_nsec)|\(held.st_ctimespec.tv_sec)|\(held.st_ctimespec.tv_nsec)",
+                              bytes == image.manifestBytes else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                        try check(leaf, parent: migration, name: name,
+                            kind: S_IFREG, expected: image.manifestFact)
+                    }
+                    try check(migration, parent: operations, name: "schema-migration",
+                        kind: S_IFDIR, expected: image.migrationFact)
+                }
+                guard try originalRecoveryIO.names(in: operations)
+                    == image.operationsNames else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                try check(operations, parent: applicationSupportDescriptor,
+                    name: "FieldEvidenceOperations", kind: S_IFDIR,
+                    expected: image.operationsFact)
             }
         }
         try originalRecoveryIO.requireSettled()
@@ -21003,36 +21151,67 @@ struct StoreGenerationFactory {
 #if DEBUG
         coldOpenDiagnostic("current-reader-registry-before")
 #endif
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.registry-enter\n".utf8))
+        }
+        #endif
         let registry = try makeGenerationLeaseRegistry()
 #if DEBUG
         coldOpenDiagnostic("current-reader-registry-after")
 #endif
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.registry-complete\n".utf8))
+        }
+        #endif
         try eraseReaderRetirementInventory?.registerFreshRegistry(registry, factory: self)
 #if DEBUG
         coldOpenDiagnostic("current-reader-registration-after")
 #endif
         if let originalRetainedEraseOperation {
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.typed-enter\n".utf8))
+            #endif
             guard let inventory = eraseReaderRetirementInventory,
                   let originalRetainedEraseAuthority else {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.allocation-enter\n".utf8))
+            #endif
             let allocation = try registry.makeReaderAllocationAttempt(epoch: epoch)
             try inventory.retainAllocation(allocation)
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.allocation-complete\n".utf8))
+            #endif
             let activity = try originalRetainedEraseOperation
                 .retainOriginalEraseTargetReaderAllocation(
                     allocation, registry: registry, epoch: epoch,
                     factory: self,
                     authority: originalRetainedEraseAuthority,
                     expectedPointerData: expectedPointerData)
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.operation-admission-complete\n".utf8))
+            #endif
             do {
+                #if DEBUG
+                FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.publish-enter\n".utf8))
+                #endif
                 let handle = try allocation
                     .acquireReaderForOriginalEraseRetainedExclusion(
                         operation: originalRetainedEraseOperation,
                         activity: activity,
                         expectedPointerData: expectedPointerData)
+                #if DEBUG
+                FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.publish-complete\n".utf8))
+                #endif
                 try originalRetainedEraseOperation
                     .retainOriginalEraseTargetReaderHandle(
                         handle, allocation: allocation)
+                #if DEBUG
+                FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=lease.projection-complete\n".utf8))
+                #endif
                 return handle
             } catch {
                 originalRetainedEraseOperation.failOriginalEraseTargetReader()
@@ -21824,12 +22003,28 @@ struct StoreGenerationFactory {
         authority: StoreRestoreGenerationAuthority,
         originalRetainedEraseOperation: EraseRouterOperationV1? = nil
     ) throws -> StoreGenerationSession {
+        do {
         try expectedEmptyLedger.validate()
         guard oldPointer.generationID != targetPointer.generationID,
               expectedEmptyLedger.entryCount == 0 else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=published.pointer-enter\n".utf8))
+        }
+        #endif
         let pointer = try requireCurrentPointer(targetPointer, authority: authority)
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=published.pointer-complete\n".utf8))
+        }
+        #endif
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=published.open-enter\n".utf8))
+        }
+        #endif
         let session = try openValidatedV3Current(
             pointer: pointer,
             dataRootURL: dataRootURL,
@@ -21837,10 +22032,36 @@ struct StoreGenerationFactory {
             originalRetainedEraseOperation: originalRetainedEraseOperation,
             originalRetainedEraseAuthority: authority
         )
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=published.open-complete\n".utf8))
+        }
+        #endif
         guard try deletionLedgerProof(in: session.modelContext) == expectedEmptyLedger else {
             throw StoreMigrationFailure.maintenanceRequired(.targetMismatch)
         }
+        #if DEBUG
+        if originalRetainedEraseOperation != nil {
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=published.ledger-complete\n".utf8))
+        }
+        #endif
         return session
+        } catch {
+#if DEBUG
+            if originalRetainedEraseOperation != nil {
+                let family: String
+                if error is GenerationLeaseRegistryFailureV1 { family = "registry" }
+                else if error is StoreMigrationFailure { family = "migration" }
+                else if error is StoreGenerationFailure { family = "generation" }
+                else if error is ProtectedFilePolicyError { family = "policy" }
+                else { family = "other" }
+                FileHandle.standardError.write(Data(
+                    ("V23_ORIGINAL_READER_DIAG stage=published.failure family="
+                     + family + "\n").utf8))
+            }
+#endif
+            throw error
+        }
     }
 
     @MainActor
@@ -22063,14 +22284,26 @@ struct StoreGenerationFactory {
         treeDigest: String,
         migrationID: UUID,
         operationID: UUID,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil,
         onCheckedScratchSettlement: (@MainActor (
             ScratchDataLeaseStoreV1.OriginalEraseExclusiveSourceReadReceiptV1
         ) -> Void)? = nil,
         _ validate: (ModelContext, URL) throws -> Value
     ) throws -> Value {
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.factory.owner-enter")
+#endif
         try owner.requireObservationUnchanged()
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.factory.owner-complete")
+        diagnosticPhase?("recovery.original.old.factory.files-enter")
+#endif
         let files = try authority.originalRecoverySQLiteFiles(
             id: generationID, treeDigest: treeDigest)
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.factory.files-complete")
+        diagnosticPhase?("recovery.original.old.factory.request-enter")
+#endif
         var requested: UInt64 = 0
         for file in files {
             let (sum, overflow) = requested.addingReportingOverflow(file.byteCount)
@@ -22093,10 +22326,16 @@ struct StoreGenerationFactory {
             ownerOperationID: operationID, requestedByteCount: requested,
             createdAt: now, expiresAt: now.addingTimeInterval(
                 ScratchDataPurposeV1.source.maximumLifetimeSeconds))
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.factory.request-complete")
+#endif
         weak var retainedContainer: ModelContainer?
         weak var retainedContext: ModelContext?
         var constructionAttempted = false
         var constructionSettled = false
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.factory.scratch-enter")
+#endif
         let value = try owner.withExclusiveSourceScratch { permit in
             try ScratchDataLeaseStoreV1.withExclusiveOriginalEraseSourceRead(
                 applicationSupportURL: applicationSupportURL,
@@ -22107,10 +22346,19 @@ struct StoreGenerationFactory {
                 readerIsDrained: {
                     (!constructionAttempted || constructionSettled)
                         && retainedContainer == nil && retainedContext == nil
-                }, onCheckedSettlement: onCheckedScratchSettlement) { copy in
+                }, onCheckedSettlement: onCheckedScratchSettlement,
+                diagnosticPhase: diagnosticPhase) { copy in
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.factory.read-enter")
+                diagnosticPhase?("recovery.original.old.factory.copy-enter")
+#endif
                 try authority.copyOriginalRecoverySQLiteFiles(
                     id: generationID, files: files,
                     treeDigest: treeDigest, into: copy)
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.factory.copy-complete")
+                diagnosticPhase?("recovery.original.old.factory.input-proofs-enter")
+#endif
                 var immutableInputs: [String: ScratchDataLeaseStoreV1.SourceReadDirectory.FileProof] = [:]
                 for file in files where file.name != "model.sqlite-shm" {
                     let proof = try copy.sqliteFileProof(named: file.name)
@@ -22120,11 +22368,19 @@ struct StoreGenerationFactory {
                     }
                     immutableInputs[file.name] = proof
                 }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.factory.input-proofs-complete")
+                diagnosticPhase?("recovery.original.old.factory.shm-integrity-enter")
+#endif
                 try copy.requireExclusiveOwnedFilesBeforeContainer()
                 try copy.prepareExclusiveOwnedSHMForContainer()
                 try CompletedAbortSQLitePhysicalImageV1.requireFullIntegrity(
                     at: copy.modelURL)
                 try copy.requireExclusiveContainerKeptOwnedFiles()
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.factory.shm-integrity-complete")
+                diagnosticPhase?("recovery.original.old.factory.container-enter")
+#endif
                 let result = Result { try autoreleasepool {
                     try permit.requireHeld()
                     constructionAttempted = true
@@ -22139,12 +22395,23 @@ struct StoreGenerationFactory {
                             try copy.requireExclusiveContainerKeptOwnedFiles()
                         })
                     constructionSettled = true
-                    return try validate(container.mainContext, copy.modelURL)
+#if DEBUG
+                    diagnosticPhase?("recovery.original.old.factory.container-complete")
+                    diagnosticPhase?("recovery.original.old.factory.callback-enter")
+#endif
+                    let validated = try validate(container.mainContext, copy.modelURL)
+#if DEBUG
+                    diagnosticPhase?("recovery.original.old.factory.callback-complete")
+#endif
+                    return validated
                 } }
                 guard retainedContainer == nil, retainedContext == nil else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
                 let semantic = try result.get()
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.factory.postinput-enter")
+#endif
                 try permit.requireHeld()
                 guard try copy.sqliteFileNames().subtracting(["model.sqlite-shm"])
                         == Set(immutableInputs.keys) else {
@@ -22159,14 +22426,28 @@ struct StoreGenerationFactory {
                     id: generationID, treeDigest: treeDigest) == files else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.factory.postinput-complete")
+#endif
                 return semantic
             }
         }
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.factory.scratch-complete")
+        diagnosticPhase?("recovery.original.old.factory.final-owner-enter")
+#endif
         try owner.requireObservationUnchanged()
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.factory.final-owner-complete")
+        diagnosticPhase?("recovery.original.old.factory.final-files-enter")
+#endif
         guard try authority.originalRecoverySQLiteFiles(
             id: generationID, treeDigest: treeDigest) == files else {
             throw StoreGenerationFailure.dataPointerInvalid
         }
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.factory.final-files-complete")
+#endif
         return value
     }
 

@@ -153,6 +153,33 @@ final class RestoreWriterTransitionOwnerV1 {
 
 @MainActor
 final class StoreSessionCoordinator: ObservableObject {
+#if DEBUG
+    enum OriginalEraseJournalRecoveryProbeV1: Equatable {
+        case foreignFence
+        case wrongAllocation
+        case completedReuse
+        case failInsideCheckedScope
+    }
+
+    enum OriginalEraseJournalRecoveryProbeResultV1: Equatable {
+        case rejectedBeforeBody
+        case rejectedCompletedReuse
+        case failedScopeBlockedOldClose
+        case unexpected
+    }
+    private enum OriginalEraseJournalRecoveryProbeFailureV1: Error {
+        case injected
+    }
+
+    /// One-shot, operation-bound development challenge. It is consumed before
+    /// touching the actual recovery and never exposes a descriptor or mints
+    /// production authority for a caller.
+    static var originalEraseJournalRecoveryProbeForTesting:
+        (operation: EraseRouterOperationV1,
+         applicationSupportURL: URL,
+         kind: OriginalEraseJournalRecoveryProbeV1,
+         report: @MainActor (OriginalEraseJournalRecoveryProbeResultV1) -> Void)?
+#endif
     @Published private(set) var uiGenerationToken: UInt64 = 0
 
     private var session: StoreGenerationSession
@@ -1633,7 +1660,8 @@ final class StoreSessionCoordinator: ObservableObject {
                 diagnoseOriginalErase: true,
                 originalEraseRecovery: .init(
                     activity: exclusion.activity, operation: operation,
-                    targetAllocation: allocation))
+                    targetAllocation: allocation,
+                    oldWriter: oldWriter))
 #if DEBUG
             print("ORIGINAL_ACTIVATION_V1 stage=writer-construction-complete")
 #endif
@@ -1868,6 +1896,7 @@ final class StoreSessionCoordinator: ObservableObject {
         let activity: GenerationTemporalActivityHandleV1
         let operation: EraseRouterOperationV1
         let targetAllocation: GenerationWriterAllocationAttemptV1
+        let oldWriter: GenerationLeaseHandleV1
     }
 
     private static func releaseAfterFailure(
@@ -1961,11 +1990,95 @@ final class StoreSessionCoordinator: ObservableObject {
 #endif
         let recovery = MutationReceiptRecoveryServiceV1(store: journalStore)
         if let owner = originalEraseRecovery {
+#if DEBUG
+            var selectedProbe:
+                (kind: OriginalEraseJournalRecoveryProbeV1,
+                 report: @MainActor (OriginalEraseJournalRecoveryProbeResultV1) -> Void)?
+            if let candidate = Self.originalEraseJournalRecoveryProbeForTesting,
+               candidate.operation === owner.operation,
+               candidate.applicationSupportURL.standardizedFileURL
+                    == Self.applicationSupportURL(for: session).standardizedFileURL {
+                selectedProbe = (candidate.kind, candidate.report)
+                Self.originalEraseJournalRecoveryProbeForTesting = nil
+            }
+            if let selectedProbe {
+                switch selectedProbe.kind {
+                case .foreignFence:
+                    let foreign = try generationFactory.makeWriterFence(
+                        expectedGenerationEpoch: owner.oldWriter.token.epoch,
+                        writerLeaseToken: owner.oldWriter.token,
+                        registry: registry)
+                    var bodyEntered = false
+                    var accepted = false
+                    do {
+                        _ = try foreign.withAuthorizedOriginalEraseWriterRecovery(
+                            activity: owner.activity, operation: owner.operation,
+                            targetAllocation: owner.targetAllocation,
+                            targetHandle: leaseHandle) {
+                            bodyEntered = true
+                        }
+                        accepted = true
+                    } catch {
+                        selectedProbe.report(!bodyEntered
+                            && (error as? GenerationLeaseRegistryFailureV1) == .uncertainOwner
+                            ? .rejectedBeforeBody : .unexpected)
+                    }
+                    if accepted {
+                        selectedProbe.report(.unexpected)
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                case .wrongAllocation:
+                    let foreign = try registry.makeWriterAllocationAttempt(
+                        epoch: generationEpoch)
+                    defer { foreign.sealForRetirement() }
+                    var accepted = false
+                    do {
+                        try owner.operation.beginOriginalEraseWriterRecovery(
+                            registry: registry, activity: owner.activity,
+                            targetAllocation: foreign, targetHandle: leaseHandle)
+                        accepted = true
+                    } catch {
+                        selectedProbe.report((error as? GenerationLeaseRegistryFailureV1)
+                            == .uncertainOwner ? .rejectedBeforeBody : .unexpected)
+                    }
+                    if accepted {
+                        selectedProbe.report(.unexpected)
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                case .completedReuse, .failInsideCheckedScope:
+                    break
+                }
+            }
+#endif
             try owner.operation.beginOriginalEraseWriterRecovery(
                 registry: registry, activity: owner.activity,
                 targetAllocation: owner.targetAllocation,
                 targetHandle: leaseHandle)
             do {
+#if DEBUG
+                if let selectedProbe,
+                   selectedProbe.kind == .failInsideCheckedScope {
+                    do {
+                        _ = try staleWriterFence
+                            .withAuthorizedOriginalEraseWriterRecovery(
+                                activity: owner.activity, operation: owner.operation,
+                                targetAllocation: owner.targetAllocation,
+                                targetHandle: leaseHandle) {
+                                throw OriginalEraseJournalRecoveryProbeFailureV1.injected
+                            }
+                        selectedProbe.report(.unexpected)
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    } catch OriginalEraseJournalRecoveryProbeFailureV1.injected {
+                        let blocked = (try? owner.operation
+                            .beginOriginalEraseSourceWriterClose(
+                                registry: registry, activity: owner.activity,
+                                targetAllocation: owner.targetAllocation)) == nil
+                        selectedProbe.report(blocked
+                            ? .failedScopeBlockedOldClose : .unexpected)
+                        throw OriginalEraseJournalRecoveryProbeFailureV1.injected
+                    }
+                }
+#endif
                 let receipt = try recovery
                     .recoverBeforeOriginalEraseTargetWriterActivation(
                     activity: owner.activity, operation: owner.operation,
@@ -1975,6 +2088,27 @@ final class StoreSessionCoordinator: ObservableObject {
                     receipt, registry: registry, activity: owner.activity,
                     targetAllocation: owner.targetAllocation,
                     targetHandle: leaseHandle)
+#if DEBUG
+                if let selectedProbe,
+                   selectedProbe.kind == .completedReuse {
+                    var accepted = false
+                    do {
+                        try owner.operation.beginOriginalEraseWriterRecovery(
+                            registry: registry, activity: owner.activity,
+                            targetAllocation: owner.targetAllocation,
+                            targetHandle: leaseHandle)
+                        accepted = true
+                    } catch {
+                        selectedProbe.report((error as? GenerationLeaseRegistryFailureV1)
+                            == .uncertainOwner
+                            ? .rejectedCompletedReuse : .unexpected)
+                    }
+                    if accepted {
+                        selectedProbe.report(.unexpected)
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                }
+#endif
             } catch {
                 owner.operation.failOriginalEraseWriterRecovery()
                 throw error
@@ -2805,6 +2939,76 @@ extension StoreSessionCoordinator {
     }
 }
 
+/// Carries the final checked-close first-image projection across the Q
+/// continuation. It never grants a new effect or a fresh baseline.
+@MainActor
+final class OriginalRecoveryPostPointerAuxiliaryProjectionV1 {
+    private weak var operation: EraseRouterOperationV1?
+    private weak var owner: StoreOriginalEraseRecoveryPreOpenOwnerV1?
+    private let observer: EraseSchema2ColdAuxiliaryFirstObserverV1
+    private let first: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
+    private let projected: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
+    private var failed = false
+
+    fileprivate init(operation: EraseRouterOperationV1,
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        first: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        projected: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot) {
+        self.operation = operation
+        self.owner = owner
+        self.observer = observer
+        self.first = first
+        self.projected = projected
+    }
+
+    /// This receipt can be consumed for a reader only if the recovery
+    /// observer's first image is exactly the immutable original P image.
+    /// Earlier Operations mutations require their own typed projection.
+    func requireOriginalPFirst(
+        _ expected: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        operation expectedOperation: EraseRouterOperationV1,
+        owner expectedOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1
+    ) throws {
+        guard !failed, operation === expectedOperation,
+              owner === expectedOwner, first == expected else {
+            failed = true
+            expectedOwner.poisonOnUncertainScratch()
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireReaderStartingImage(
+        originalP: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        operation expectedOperation: EraseRouterOperationV1,
+        owner expectedOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        support: Int32
+    ) throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+        try requireOriginalPFirst(originalP, operation: expectedOperation,
+            owner: expectedOwner)
+        try requireProjected(operation: expectedOperation,
+            owner: expectedOwner, support: support)
+        return projected
+    }
+
+    func requireProjected(operation expectedOperation: EraseRouterOperationV1,
+        owner expectedOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        support: Int32) throws {
+        guard !failed, operation === expectedOperation,
+              owner === expectedOwner else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        do {
+            try observer.requirePostPointerOperationsProjected(
+                first: first, projected: projected, support: support)
+        } catch {
+            failed = true
+            expectedOwner.poisonOnUncertainScratch()
+            throw error
+        }
+    }
+}
+
 /// Keeps the original operation's first auxiliary image through the admission
 /// await. Parent descriptors and the observer are retained before any scan;
 /// only checked ScratchData lease receipts may project that first image.
@@ -2895,7 +3099,8 @@ final class StoreOriginalEraseRecoveryAuxiliaryContinuityV1 {
                 let observed = try observer.captureFirst(
                     support: support.descriptor,
                     caches: caches.descriptor,
-                    temporary: temporary.descriptor)
+                    temporary: temporary.descriptor,
+                    applicationSupportURL: supportURL)
                 try requireParents(borrowedSupport: borrowed)
                 return observed
             }
@@ -3005,8 +3210,8 @@ final class StoreOriginalEraseRecoveryAuxiliaryContinuityV1 {
 
     func closeCheckedAfterFirstPointerPhase(
         owner: StoreOriginalEraseRecoveryPreOpenOwnerV1
-    ) throws {
-        _ = try requireOperation(owner)
+    ) throws -> OriginalRecoveryPostPointerAuxiliaryProjectionV1 {
+        let operation = try requireOperation(owner)
         guard owner.publishedIntentForTargetTransfer?.phase == .pointerSwitched,
               captureAttempted, !captureInFlight,
               !closeAttempted, !closed, !reproofFailed,
@@ -3019,7 +3224,10 @@ final class StoreOriginalEraseRecoveryAuxiliaryContinuityV1 {
         // noncontrol child and the exact ScratchData receipt projection now,
         // before any held parent descriptor can be released.
         try owner.requireObservationUnchanged()
-        _ = try requireProjected(owner: owner)
+        let projected = try requireProjected(owner: owner)
+        guard let first else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
         try requireNamedParentsAfterPointerPhase()
         closeAttempted = true
         for descriptor in [temporary?.descriptor, caches?.descriptor,
@@ -3031,6 +3239,9 @@ final class StoreOriginalEraseRecoveryAuxiliaryContinuityV1 {
         }
         temporary = nil; caches = nil; support = nil
         closed = true
+        return OriginalRecoveryPostPointerAuxiliaryProjectionV1(
+            operation: operation, owner: owner, observer: observer,
+            first: first, projected: projected)
     }
 
     var isCheckedClosed: Bool {
@@ -3364,6 +3575,8 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
             let device: dev_t
             let inode: ino_t
             let mode: mode_t
+            let owner: uid_t
+            let group: gid_t
             let links: nlink_t
             let size: off_t
             let modifiedSeconds: Int64
@@ -3378,6 +3591,8 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
                 device = value.st_dev
                 inode = value.st_ino
                 mode = value.st_mode
+                owner = value.st_uid
+                group = value.st_gid
                 links = value.st_nlink
                 size = value.st_size
                 modifiedSeconds = Int64(value.st_mtimespec.tv_sec)
@@ -3385,10 +3600,16 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
                 changedSeconds = Int64(value.st_ctimespec.tv_sec)
                 changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
             }
+
+            var fullText: String {
+                "\(device)|\(inode)|\(mode)|\(owner)|\(group)|\(links)|\(size)|\(modifiedSeconds)|\(modifiedNanoseconds)|\(changedSeconds)|\(changedNanoseconds)"
+            }
         }
         let dataDirectory: DirectoryFact
+        let operationsDirectory: DirectoryFact
         let migrationDirectory: DirectoryFact
         let dataNames: [String]
+        let operationsNames: [String]
         let migrationNames: [String]
         let current: Leaf
         let retired: Leaf
@@ -3400,7 +3621,8 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
     /// fresh baseline: every callback re-reads the same names, identities and
     /// bytes, including every non-target migration control and manifest.
     func requireOriginalRecoveryTargetControls(
-        intent: EraseIntentV1
+        intent: EraseIntentV1,
+        expectedAuxiliary: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
     ) throws -> StoreGenerationManifestV1 {
         guard intent.schemaVersion == 2,
               let target = intent.targetPointer,
@@ -3409,7 +3631,10 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
         }
         let targetName = "manifest-" + target.generationID.uuidString.lowercased() + ".json"
         let dataURL = supportURL.appendingPathComponent("FieldEvidenceData", isDirectory: true)
-        let migrationURL = dataURL.appendingPathComponent("migration", isDirectory: true)
+        let operationsURL = supportURL.appendingPathComponent(
+            "FieldEvidenceOperations", isDirectory: true)
+        let migrationURL = operationsURL.appendingPathComponent(
+            "schema-migration", isDirectory: true)
         func admittedMigrationName(_ name: String) -> Bool {
             if ["journal.json", "prepared-migration.json", "aggregate.json"].contains(name) {
                 return true
@@ -3444,48 +3669,79 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
                             parent: data, name: "current.json")
                         let (retiredBytes, retiredIdentity) = try io.control(
                             parent: data, name: "retired.json")
-                        return try io.withOpen(parent: data, name: "migration",
-                                               flags: O_RDONLY | O_DIRECTORY) { migration in
-                            let migrationFact = try directoryFact(
-                                parent: data, name: "migration", opened: migration)
-                            let names = try io.names(in: migration)
-                            guard names.allSatisfy(admittedMigrationName),
-                                  names.contains(targetName) else {
+                        return try io.withOpen(parent: support,
+                            name: "FieldEvidenceOperations",
+                            flags: O_RDONLY | O_DIRECTORY) { operations in
+                            let operationsFact = try directoryFact(
+                                parent: support, name: "FieldEvidenceOperations",
+                                opened: operations)
+                            let operationsNames = try io.names(in: operations)
+                            guard operationsNames.contains("schema-migration") else {
                                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
                             }
-                            var leaves: [String: OriginalRecoveryTargetControls.Leaf] = [:]
-                            for name in names {
-                                let (bytes, identity) = try io.control(parent: migration,
-                                                                        name: name)
-                                leaves[name] = .init(bytes: bytes, identity: identity)
-                                if name.hasPrefix("manifest-") {
-                                    let decoded = try StoreGenerationManifestV1.decodeCanonical(
-                                        from: bytes)
-                                    guard "manifest-" + decoded.generationID.uuidString.lowercased()
-                                            + ".json" == name else {
-                                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                            return try io.withOpen(parent: operations,
+                                name: "schema-migration",
+                                flags: O_RDONLY | O_DIRECTORY) { migration in
+                                let migrationFact = try directoryFact(
+                                    parent: operations, name: "schema-migration",
+                                    opened: migration)
+                                let names = try io.names(in: migration)
+                                guard names.allSatisfy(admittedMigrationName),
+                                      names.contains(targetName) else {
+                                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                                }
+                                var leaves: [String: OriginalRecoveryTargetControls.Leaf] = [:]
+                                for name in names {
+                                    let (bytes, identity) = try io.control(parent: migration,
+                                                                            name: name)
+                                    leaves[name] = .init(bytes: bytes, identity: identity)
+                                    if name.hasPrefix("manifest-") {
+                                        let decoded = try StoreGenerationManifestV1
+                                            .decodeCanonical(from: bytes)
+                                        guard "manifest-" + decoded.generationID
+                                            .uuidString.lowercased() + ".json" == name else {
+                                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                                        }
                                     }
                                 }
+                                guard try io.names(in: migration) == names,
+                                      try io.names(in: operations) == operationsNames,
+                                      try io.names(in: data) == dataNames,
+                                      try directoryFact(parent: operations,
+                                          name: "schema-migration", opened: migration)
+                                          == migrationFact,
+                                      try directoryFact(parent: support,
+                                          name: "FieldEvidenceOperations", opened: operations)
+                                          == operationsFact,
+                                      try directoryFact(parent: support,
+                                          name: "FieldEvidenceData", opened: data)
+                                          == dataFact else {
+                                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                                }
+                                return OriginalRecoveryTargetControls(
+                                    dataDirectory: dataFact,
+                                    operationsDirectory: operationsFact,
+                                    migrationDirectory: migrationFact,
+                                    dataNames: dataNames,
+                                    operationsNames: operationsNames,
+                                    migrationNames: names,
+                                    current: .init(bytes: currentBytes,
+                                        identity: currentIdentity),
+                                    retired: .init(bytes: retiredBytes,
+                                        identity: retiredIdentity),
+                                    migrationLeaves: leaves)
                             }
-                            guard try io.names(in: migration) == names,
-                                  try io.names(in: data) == dataNames,
-                                  try directoryFact(parent: data, name: "migration",
-                                                    opened: migration) == migrationFact,
-                                  try directoryFact(parent: support, name: "FieldEvidenceData",
-                                                    opened: data) == dataFact else {
-                                throw GenerationLeaseRegistryFailureV1.uncertainOwner
-                            }
-                            return OriginalRecoveryTargetControls(
-                                dataDirectory: dataFact,
-                                migrationDirectory: migrationFact,
-                                dataNames: dataNames, migrationNames: names,
-                                current: .init(bytes: currentBytes, identity: currentIdentity),
-                                retired: .init(bytes: retiredBytes, identity: retiredIdentity),
-                                migrationLeaves: leaves)
                         }
                     }
                 }
                 let first = try read()
+                guard case .present(let firstOperationsFact, _) =
+                        expectedAuxiliary.operations,
+                      first.operationsDirectory.fullText == firstOperationsFact,
+                      first.operationsNames ==
+                        expectedAuxiliary.operationsChildren.keys.sorted() else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
                 let envelope = try CurrentPointerCodecV1.decode(first.current.bytes)
                 let expected = try CurrentGenerationPointerV3(
                     generationID: target.generationID,
@@ -4510,6 +4766,50 @@ extension StoreSessionCoordinator {
         try exclusion.revalidate()
     }
 
+    /// One synchronous, read-only post-Q proof around a transferred-prior
+    /// source read. The released pre-open owner cannot reenter its held path;
+    /// the original Router and Registry supply the same retained EX and G.
+    func withOriginalRecoveryPostPointerOperationsReproof<Value>(
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        operation: EraseRouterOperationV1,
+        intent: EraseIntentV1,
+        projection: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        try requireOriginalRecoveryRetainedSourceContinuation(
+            owner: owner, operation: operation, intent: intent)
+        guard let exclusion = owner.retainedOriginalExclusion,
+              let activity = owner.activity,
+              let root = owner.root,
+              exclusion.owner === self,
+              exclusion.registry === owner.registry,
+              exclusion.activity === activity,
+              exclusion.physicalRoot === root else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let store = try operation.requireOriginalRecoveryProjectedAuxiliaryStore(
+            coordinator: self, switched: intent)
+        do {
+            return try operation.withOriginalRecoveryPostPointerAuxiliaryRead(
+                registry: owner.registry, activity: activity,
+                store: store, intent: intent, coordinator: self) {
+                try root.withOriginalErasePostPointerRetainedSupport(
+                    owner: owner, coordinator: self,
+                    operation: operation, intent: intent) { support in
+                    try projection.requireProjected(
+                        operation: operation, owner: owner, support: support)
+                    let result = try body()
+                    try projection.requireProjected(
+                        operation: operation, owner: owner, support: support)
+                    return result
+                }
+            }
+        } catch {
+            owner.poisonOnUncertainScratch()
+            throw error
+        }
+    }
+
     private func finishOriginalRecoveryTargetTransferIfPresent(
         operation: EraseRouterOperationV1,
         installedSession: StoreGenerationSession
@@ -4688,7 +4988,7 @@ final class StoreTemporalPhysicalRootExclusionV1 {
     /// replace this EX, and both edges reprove its held/named inode.
     fileprivate func withHeldOriginalEraseAuxiliarySupport<T>(
         at expected: URL,
-        _ body: (Int32) throws -> T
+        _ body: @MainActor (Int32) throws -> T
     ) throws -> T {
         guard !checkedCloseUncertain else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
@@ -4744,6 +5044,34 @@ final class StoreTemporalPhysicalRootExclusionV1 {
                 .requireRetainedOriginalPhysicalBorrow(self)
         }
         return value
+    }
+
+    /// The original retained EX survives the pre-open owner's one-way
+    /// release at Q. Borrow its same Support FD only under the Coordinator's
+    /// exact released-owner continuation proof; the ordinary held-owner
+    /// borrow remains strict for every other route.
+    func withOriginalErasePostPointerRetainedSupport<Value>(
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        coordinator: StoreSessionCoordinator,
+        operation: EraseRouterOperationV1,
+        intent: EraseIntentV1,
+        _ body: (Int32) throws -> Value
+    ) throws -> Value {
+        guard !checkedCloseUncertain,
+              owner.root === self,
+              owner.retainedOriginalExclusion?.physicalRoot === self else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try coordinator.requireOriginalRecoveryRetainedSourceContinuation(
+            owner: owner, operation: operation, intent: intent)
+        try revalidate(applicationSupportURL: owner.supportURL)
+        let outcome = Result<Value, Error> {
+            try body(descriptor)
+        }
+        try revalidate(applicationSupportURL: owner.supportURL)
+        try coordinator.requireOriginalRecoveryRetainedSourceContinuation(
+            owner: owner, operation: operation, intent: intent)
+        return try outcome.get()
     }
     fileprivate func requireOperationsAbsent() throws {
         guard !checkedCloseUncertain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
@@ -4825,6 +5153,9 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
     private var rosterReproofInFlight = false
     private var rosterReproofFailed = false
     private var firstRoster: EraseSchema2ColdAuxiliaryPhysicalRosterV1?
+    private var readerStartingSnapshot:
+        EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+    private var readerStartingProjectionFailed = false
     private var readerProjectionAttempted = false
     private var readerProjectionInFlight = false
     private var readerProjectionFailed = false
@@ -4840,6 +5171,8 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
     private var oldCloseProjectionFailed = false
     private var oldCloseProjectedSnapshot:
         EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+    private var postwriterBorrowInFlight = false
+    private var postwriterBorrowFailed = false
 
     init(cachesURL: URL, temporaryURL: URL,
          observer: EraseSchema2ColdAuxiliaryFirstObserverV1) throws {
@@ -4884,7 +5217,8 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
                 at: supportURL) { support in
                 try observer.captureFirst(support: support,
                     caches: caches.descriptor,
-                    temporary: temporary.descriptor)
+                    temporary: temporary.descriptor,
+                    applicationSupportURL: supportURL)
             }
         }
         try operation.requireOriginalEraseAuxiliaryFirstCaptureOwner(
@@ -5009,6 +5343,60 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
         }
     }
 
+    /// Before any reader-record O_EXCL, rewalk the sealed Scratch-projected
+    /// Operations image under the retained EX and the Registry's actual G.
+    /// The first P image remains immutable; no survivor is adopted.
+    func requireOriginalReaderStartingProjected(
+        _ sealed: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+        recoveryOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        originalP: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1
+    ) throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+        guard firstSnapshot == originalP,
+              readerStartingSnapshot == nil,
+              !readerStartingProjectionFailed,
+              !readerProjectionAttempted,
+              !readerProjectionInFlight,
+              !readerProjectionFailed,
+              let caches, let temporary else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        do {
+            try operation.requireOriginalEraseTargetReaderStartingProjectionOwner(
+                sealed, recoveryOwner: recoveryOwner,
+                allocation: allocation, owner: self,
+                coordinator: coordinator, exclusion: exclusion,
+                registry: registry, activity: activity)
+            try requireParent(caches)
+            try requireParent(temporary)
+            let supportURL = coordinator.originalEraseAuxiliarySupportURL
+            let starting = try exclusion.physicalRoot
+                .withHeldOriginalEraseAuxiliarySupport(at: supportURL) { support in
+                    try observer.requireOriginalRecoveryReaderStartingImage(
+                        sealed, operation: operation, owner: recoveryOwner,
+                        support: support, caches: caches.descriptor,
+                        temporary: temporary.descriptor)
+                }
+            try operation.requireOriginalEraseTargetReaderStartingProjectionOwner(
+                sealed, recoveryOwner: recoveryOwner,
+                allocation: allocation, owner: self,
+                coordinator: coordinator, exclusion: exclusion,
+                registry: registry, activity: activity)
+            try requireParent(caches)
+            try requireParent(temporary)
+            readerStartingSnapshot = starting
+            return starting
+        } catch {
+            readerStartingProjectionFailed = true
+            throw error
+        }
+    }
+
     /// The original operation's checked reader publication projects only
     /// generation-leases from the immutable first Operations image. Retain
     /// this attempt before borrowing the same held Support/Cache/Temp parents;
@@ -5021,9 +5409,14 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
         coordinator: StoreSessionCoordinator,
         exclusion: StoreTemporalNormalizationExclusionV1
     ) throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+        #if DEBUG
+        FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=coordinator.reader-projection-enter\n".utf8))
+        #endif
         guard rosterCaptureAttempted, !rosterCaptureInFlight,
               !rosterReproofInFlight, !rosterReproofFailed,
               firstRoster != nil, firstSnapshot != nil,
+              let starting = readerStartingSnapshot,
+              !readerStartingProjectionFailed,
               !readerProjectionAttempted, !readerProjectionInFlight,
               !readerProjectionFailed,
               readerProjectedSnapshot == nil,
@@ -5039,11 +5432,17 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
                 exclusion: exclusion)
             try requireParent(caches)
             try requireParent(temporary)
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=coordinator.reader-owner-bound\n".utf8))
+            #endif
             let supportURL = coordinator.originalEraseAuxiliarySupportURL
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=coordinator.reader-parent-bound\n".utf8))
+            #endif
             let projected = try exclusion.physicalRoot
                 .withHeldOriginalEraseAuxiliarySupport(at: supportURL) { support in
                     try observer.requireOriginalReaderProjected(
-                        projection, support: support,
+                        projection, starting: starting, support: support,
                         caches: caches.descriptor,
                         temporary: temporary.descriptor)
                 }
@@ -5053,10 +5452,16 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
                 exclusion: exclusion)
             try requireParent(caches)
             try requireParent(temporary)
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=coordinator.reader-observer-complete\n".utf8))
+            #endif
             readerProjectedSnapshot = projected
             readerProjectionInFlight = false
             return projected
         } catch {
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=coordinator.reader-projection-failed\n".utf8))
+            #endif
             readerProjectionFailed = true
             throw error
         }
@@ -5072,6 +5477,8 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
         exclusion: StoreTemporalNormalizationExclusionV1
     ) throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
         guard readerProjectedSnapshot != nil,
+              let starting = readerStartingSnapshot,
+              !readerStartingProjectionFailed,
               !readerProjectionInFlight, !readerProjectionFailed,
               !writerProjectionAttempted, !writerProjectionInFlight,
               !writerProjectionFailed, writerProjectedSnapshot == nil,
@@ -5092,7 +5499,7 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
                 .withHeldOriginalEraseAuxiliarySupport(at: supportURL) { support in
                     try observer.requireOriginalWriterProjected(
                         reader: reader, writer: writer,
-                        support: support, caches: caches.descriptor,
+                        starting: starting, support: support, caches: caches.descriptor,
                         temporary: temporary.descriptor)
                 }
             try operation.requireOriginalEraseWriterProjectionOwner(
@@ -5121,6 +5528,8 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
         exclusion: StoreTemporalNormalizationExclusionV1
     ) throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
         guard writerProjectedSnapshot != nil,
+              let starting = readerStartingSnapshot,
+              !readerStartingProjectionFailed,
               !writerProjectionInFlight, !writerProjectionFailed,
               !oldCloseProjectionAttempted,
               !oldCloseProjectionInFlight, !oldCloseProjectionFailed,
@@ -5142,7 +5551,8 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
                 .withHeldOriginalEraseAuxiliarySupport(at: supportURL) { support in
                     try observer.requireOriginalOldWriterCloseProjected(
                         reader: reader, writer: writer,
-                        release: release, support: support,
+                        release: release, starting: starting,
+                        support: support,
                         caches: caches.descriptor,
                         temporary: temporary.descriptor)
                 }
@@ -5157,6 +5567,60 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
             return projected
         } catch {
             oldCloseProjectionFailed = true
+            throw error
+        }
+    }
+
+    /// Borrow exactly the three parents retained by the original P capture.
+    /// The immutable first image and checked reader/writer projections remain
+    /// the comparison source; this callback cannot create a survivor baseline.
+    func withOriginalErasePostwriterAuxiliaryParents<T>(
+        operation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        policyPermit: OriginalEraseAuxiliaryScratchControlPolicyPermitV1? = nil,
+        notificationPolicyPermit:
+            OriginalEraseNotificationRootPolicyPermitV1? = nil,
+        notificationMarkerPermit:
+            OriginalEraseNotificationMarkerPermitV1? = nil,
+        notificationRemovalPermit:
+            OriginalEraseNotificationRemovalPermitV1? = nil,
+        _ body: @MainActor (Int32, Int32, Int32) throws -> T
+    ) throws -> T {
+        try operation.requireOriginalErasePostwriterAuxiliaryParentOwner(
+            self, coordinator: coordinator, exclusion: exclusion,
+            policyPermit: policyPermit,
+            notificationPolicyPermit: notificationPolicyPermit,
+            notificationMarkerPermit: notificationMarkerPermit,
+            notificationRemovalPermit: notificationRemovalPermit)
+        guard oldCloseProjectedSnapshot != nil,
+              !oldCloseProjectionInFlight, !oldCloseProjectionFailed,
+              !postwriterBorrowInFlight, !postwriterBorrowFailed,
+              let caches, let temporary else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        postwriterBorrowInFlight = true
+        do {
+            try requireParent(caches)
+            try requireParent(temporary)
+            let value = try exclusion.physicalRoot
+                .withHeldOriginalEraseAuxiliarySupport(
+                    at: coordinator.originalEraseAuxiliarySupportURL) { support in
+                    try body(support, caches.descriptor,
+                        temporary.descriptor)
+                }
+            try operation.requireOriginalErasePostwriterAuxiliaryParentOwner(
+                self, coordinator: coordinator, exclusion: exclusion,
+            policyPermit: policyPermit,
+            notificationPolicyPermit: notificationPolicyPermit,
+            notificationMarkerPermit: notificationMarkerPermit,
+            notificationRemovalPermit: notificationRemovalPermit)
+            try requireParent(caches)
+            try requireParent(temporary)
+            postwriterBorrowInFlight = false
+            return value
+        } catch {
+            postwriterBorrowFailed = true
             throw error
         }
     }

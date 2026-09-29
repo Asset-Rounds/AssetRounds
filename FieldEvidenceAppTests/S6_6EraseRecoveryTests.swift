@@ -773,6 +773,104 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         XCTAssertNotNil(try writer.durableReceipt(mutationID: mutationID))
     }
 
+    #if DEBUG
+    @MainActor
+    private func exerciseOriginalEraseJournalRecoveryProbe(
+        _ kind: StoreSessionCoordinator.OriginalEraseJournalRecoveryProbeV1,
+        expected: StoreSessionCoordinator.OriginalEraseJournalRecoveryProbeResultV1,
+        expectsFailedScope: Bool
+    ) async throws {
+        let harness = try await makeHarness("journal-recovery-\(kind)")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let oldID = coordinator.generationID
+        let oldWriterIdentity = ObjectIdentifier(coordinator.workspaceWriter)
+        let targetID = UUID()
+        let owner = harness.originalOwner
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
+        var results = [StoreSessionCoordinator.OriginalEraseJournalRecoveryProbeResultV1]()
+        var completed = [CompletedEraseReceiptV1]()
+        StoreSessionCoordinator.originalEraseJournalRecoveryProbeForTesting = (
+            operation: operation, applicationSupportURL: harness.support,
+            kind: kind, report: { results.append($0) })
+        defer { StoreSessionCoordinator.originalEraseJournalRecoveryProbeForTesting = nil }
+        let service = try owner.configure(EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
+            makeUUID: sequence([targetID, UUID()]),
+            failureInjection: EraseAllFailureInjection(failOnceAt: .afterSessionPhaseWrite),
+            admitErase: { try await owner.admitSubject($0) },
+            didCompleteErase: { completed.append($0) }
+        ))
+        Self.retainedS6EraseServices.append((harness.root, service))
+        var activationFailure: Error?
+        var eraseFailure: Error?
+        do {
+            _ = try await service.erase(
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnosticsStore: harness.diagnostics, operation: operation,
+                activate: { [weak coordinator] session in
+                    do {
+                        guard let coordinator else {
+                            throw V23EraseOperationHarnessV1.Failure.activation
+                        }
+                        try owner.router.activateErasePreparationSession(
+                            session, coordinator: coordinator, operation: operation)
+                    } catch { activationFailure = error }
+                })
+        } catch { eraseFailure = error }
+        XCTAssertEqual(results, [expected], "the exact operation/root probe must run once")
+        XCTAssertNil(StoreSessionCoordinator.originalEraseJournalRecoveryProbeForTesting)
+        XCTAssertTrue(completed.isEmpty)
+        XCTAssertNotNil(eraseFailure)
+        if expectsFailedScope {
+            XCTAssertNotNil(activationFailure)
+            XCTAssertEqual(coordinator.generationID, oldID)
+            XCTAssertEqual(ObjectIdentifier(coordinator.workspaceWriter), oldWriterIdentity)
+            XCTAssertNotEqual(try EraseIntentStore(
+                applicationSupportURL: harness.support).load()?.phase,
+                .sessionActivated)
+        } else {
+            XCTAssertNil(activationFailure)
+            XCTAssertEqual(eraseFailure as? EraseAllServiceError, .injectedFailure)
+            XCTAssertEqual(coordinator.generationID, targetID)
+            XCTAssertEqual(try EraseIntentStore(
+                applicationSupportURL: harness.support).load()?.phase,
+                .sessionActivated)
+        }
+    }
+
+    @MainActor
+    func testOriginalEraseJournalRecoveryRejectsForeignFenceBeforeBody() async throws {
+        try await exerciseOriginalEraseJournalRecoveryProbe(
+            .foreignFence, expected: .rejectedBeforeBody, expectsFailedScope: false)
+    }
+
+    @MainActor
+    func testOriginalEraseJournalRecoveryRejectsWrongAllocationBeforeBody() async throws {
+        try await exerciseOriginalEraseJournalRecoveryProbe(
+            .wrongAllocation, expected: .rejectedBeforeBody, expectsFailedScope: false)
+    }
+
+    @MainActor
+    func testOriginalEraseJournalRecoveryRejectsCompletedReuse() async throws {
+        try await exerciseOriginalEraseJournalRecoveryProbe(
+            .completedReuse, expected: .rejectedCompletedReuse, expectsFailedScope: false)
+    }
+
+    @MainActor
+    func testOriginalEraseJournalRecoveryFailureBlocksOldCloseAndInstall() async throws {
+        try await exerciseOriginalEraseJournalRecoveryProbe(
+            .failInsideCheckedScope, expected: .failedScopeBlockedOldClose,
+            expectsFailedScope: true)
+    }
+    #endif
+
     @MainActor
     func testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState() async throws {
         try verifyCompletedCleanupProbe()

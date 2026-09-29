@@ -2,6 +2,35 @@ import Darwin
 import CryptoKit
 import Foundation
 
+/// Keep the original owner's checked descriptor lifetime on the main actor.
+/// The callback performs synchronous owner reproofs; it cannot cross an await.
+@MainActor private extension EraseAbortCheckedSnapshotIOV1 {
+    func withOriginalEraseMainActorOpen<Value>(parent: Int32, name: String,
+        flags: Int32, _ body: (Int32) throws -> Value) throws -> Value {
+        try requireSettled()
+        let descriptor = Darwin.openat(parent, name,
+            flags | O_NOFOLLOW | O_CLOEXEC, 0)
+        guard descriptor >= 0 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        var closeAttempted = false
+        do {
+            let result = try body(descriptor)
+            closeAttempted = true
+            guard Darwin.close(descriptor) == 0 else {
+                retainUncertainDescriptor(descriptor)
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            return result
+        } catch {
+            if !closeAttempted, Darwin.close(descriptor) != 0 {
+                retainUncertainDescriptor(descriptor)
+            }
+            throw error
+        }
+    }
+}
+
 /// Darwin readdir returns variable-length records, not a full Swift dirent value.
 /// Read only the advertised name bytes while the directory entry is still valid.
 enum OwnedStorageDirectoryEntryNameV1 {
@@ -1265,18 +1294,144 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     private let supportInode: UInt64
     private let authority: PinnedScratchRootV1
     private let failurePoint: AppLockNotificationControlFailurePointV1
+    private let originalErasePolicyIO: EraseAbortCheckedSnapshotIOV1?
+    private var originalEraseSupportCloseAttempted = false
+    private(set) var originalEraseCheckedCloseComplete = false
+
+    /// Minted from a live, exact predecessor before the first publication
+    /// effect. Disk bytes alone cannot register a scheduling owner.
+    final class NotificationSchedulingPublicationOwner {
+        let request: NotificationSystemRequestV1
+        let admissionID: UUID
+        let activity: OwnedStorageProducerActivityV1
+        let rootIdentity: String
+        fileprivate weak var store: AppLockNotificationControlStoreV1?
+        fileprivate let predecessor: NotificationPrivateMappingV1
+        fileprivate let admitted: NotificationPrivateMappingV1
+        fileprivate let present: NotificationPrivateMappingV1
+        fileprivate let absent: NotificationPrivateMappingV1
+        fileprivate let p: Data, a: Data, t: Data, f: Data
+        fileprivate var canonicalFact: stat
+        fileprivate var stage: SchedulingStage?
+        fileprivate var uncertainClose = false
+        fileprivate(set) var addAttempted = false
+        fileprivate var retired = false
+
+        fileprivate init(store: AppLockNotificationControlStoreV1,
+            predecessor: NotificationPrivateMappingV1,
+            admitted: NotificationPrivateMappingV1,
+            present: NotificationPrivateMappingV1,
+            absent: NotificationPrivateMappingV1,
+            request: NotificationSystemRequestV1, admissionID: UUID,
+            activity: OwnedStorageProducerActivityV1,
+            bytes: [Data], canonicalFact: stat) {
+            self.store = store; self.predecessor = predecessor
+            self.admitted = admitted; self.present = present; self.absent = absent
+            self.request = request; self.admissionID = admissionID
+            self.activity = activity; rootIdentity = store.notificationRootIdentity
+            p = bytes[0]; a = bytes[1]; t = bytes[2]; f = bytes[3]
+            self.canonicalFact = canonicalFact
+        }
+    }
+
+    fileprivate final class SchedulingStage {
+        let descriptor: Int32
+        let bytes: Data
+        let predecessor: Data
+        // These are recorded immediately after actual effects, before reproof.
+        var prefixCount = 0
+        var positiveWriteCounts: [Int] = []
+        var fact: stat?
+        var anchor: stat?
+        var postEffectSamplePending = false
+        var name = AppLockNotificationControlStoreV1.mappingPendingName
+        var policyRequested = false
+        var initialPolicyVerified = false
+        var initialPolicyDisposition: ProtectedFileVerificationDispositionV1?
+        var finalPolicyVerified = false
+        var fileSynced = false
+        var renamed = false
+        var parentSynced = false
+        var renameAttempted = false
+        var unlinkAttempted = false
+        var fileSyncAttempted = false
+        var parentSyncAttempted = false
+        var removed = false
+        var closeAttempted = false
+        init(descriptor: Int32, bytes: Data, predecessor: Data) {
+            self.descriptor = descriptor; self.bytes = bytes
+            self.predecessor = predecessor
+        }
+    }
+
+#if DEBUG
+    enum NotificationSchedulingPublicationPhaseForTesting: Equatable {
+        case admission, finishPresent, finishAbsent
+    }
+    enum NotificationSchedulingPublicationCutForTesting: Equatable {
+        case afterStageOpenBeforeFirstFact
+        case beforeInitialPolicyEffect
+        case afterInitialPolicyEffectBeforeVerification
+        case afterInitialPolicyVerificationBeforeWrite
+        case afterPositivePrefix(Int)
+        case afterFullWriteBeforeFinalPolicy
+        case afterFinalPolicyBeforeFileSync
+        case beforeRename
+        case afterRenameBeforeParentSync
+        case afterParentSyncBeforeReadback
+        case beforeCheckedStageClose
+    }
+    struct NotificationSchedulingPublicationFaultForTesting {
+        let phase: NotificationSchedulingPublicationPhaseForTesting
+        let cut: NotificationSchedulingPublicationCutForTesting
+    }
+    struct NotificationSchedulingPublicationFaultObservationForTesting {
+        let phase: NotificationSchedulingPublicationPhaseForTesting
+        let cut: NotificationSchedulingPublicationCutForTesting
+        let admissionID: UUID
+        let requestID: String
+        let actualWrittenPrefixCount: Int
+        let initialPolicyVerified: Bool
+        let finalPolicyVerified: Bool
+        let renamed: Bool
+    }
+#endif
+
+    // Access is exclusively under the existing synchronous transaction fence.
+    // This is a process writer claim, never a content authorization or disk owner.
+    private final class SchedulingOwners: @unchecked Sendable {
+        var live: [String: NotificationSchedulingPublicationOwner] = [:]
+#if DEBUG
+        var faults: [String: NotificationSchedulingPublicationFaultForTesting] = [:]
+        var faultObservations: [String: NotificationSchedulingPublicationFaultObservationForTesting] = [:]
+#endif
+    }
+    private static let schedulingOwners = SchedulingOwners()
+
+    private static func retainOriginalEraseUncertainPolicyDescriptor(
+        _ descriptor: Int32, io: EraseAbortCheckedSnapshotIOV1
+    ) {
+        io.retainUncertainDescriptor(descriptor)
+        _ = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+    }
 #if DEBUG
     private let postRetiredIO = EraseAbortCheckedSnapshotIOV1()
 #endif
 
     init(applicationSupportURL: URL, preferences: PreferencesAdapterV1,
-         failurePoint: AppLockNotificationControlFailurePointV1 = .none) throws {
+         failurePoint: AppLockNotificationControlFailurePointV1 = .none,
+         mustExistForOriginalErase: Bool = false) throws {
         guard applicationSupportURL.isFileURL else { throw AppAccessContractFailureV1.configurationUnknown }
         self.preferences = preferences
         supportURL = applicationSupportURL.standardizedFileURL
         self.failurePoint = failurePoint
+        let policyIO = mustExistForOriginalErase
+            ? EraseAbortCheckedSnapshotIOV1() : nil
+        originalErasePolicyIO = policyIO
         let opened = try AppLockNotificationTransactionFenceV1.perform {
-            try Self.openRoot(applicationSupportURL.standardizedFileURL)
+            try Self.openRoot(applicationSupportURL.standardizedFileURL,
+                mustExistForOriginalErase: mustExistForOriginalErase,
+                originalErasePolicyIO: policyIO)
         }
         supportDescriptor = opened.support
         supportDevice = opened.device
@@ -1284,7 +1439,87 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         authority = opened.authority
     }
 
-    deinit { _ = Darwin.close(supportDescriptor) }
+    deinit {
+        if !originalEraseSupportCloseAttempted {
+            if originalErasePolicyIO == nil {
+                _ = Darwin.close(supportDescriptor)
+            } else {
+                let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(
+                    supportDescriptor)
+                if Darwin.close(supportDescriptor) == 0 {
+                    ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                }
+            }
+        }
+    }
+
+    /// The notification scheduling owner retains this child SH only across
+    /// its reconcile admission, OS add, readback and settlement. This Store
+    /// itself never owns a lifetime producer SH; original Erase EX is a
+    /// separate route and cannot request a scheduling child.
+    func acquireNotificationSchedulingActivity() throws
+        -> OwnedStorageProducerActivityV1 {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard originalErasePolicyIO == nil else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            try verifyRoot()
+            var supportBefore = stat(), namedSupportBefore = stat()
+            guard Darwin.fstat(supportDescriptor, &supportBefore) == 0,
+                  Darwin.lstat(supportURL.path,
+                    &namedSupportBefore) == 0,
+                  Self.sameOriginalEraseRootFact(
+                    supportBefore, namedSupportBefore) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let rootBefore = try Self.originalEraseHeldNamedRootFact(
+                authority: authority, url: rootURL)
+            let child = try OwnedStorageProducerActivityV1.acquire(
+                applicationSupportURL: supportURL)
+            do {
+                try child.requireApplicationSupport(supportURL)
+                try verifyRoot()
+                var supportAfter = stat(), namedSupportAfter = stat()
+                guard Darwin.fstat(supportDescriptor, &supportAfter) == 0,
+                      Darwin.lstat(supportURL.path,
+                        &namedSupportAfter) == 0,
+                      Self.sameOriginalEraseRootFact(
+                        supportBefore, supportAfter),
+                      Self.sameOriginalEraseRootFact(
+                        supportBefore, namedSupportAfter),
+                      Self.sameOriginalEraseRootFact(rootBefore,
+                        try Self.originalEraseHeldNamedRootFact(
+                            authority: authority, url: rootURL)) else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+                return child
+            } catch {
+                child.close()
+                throw error
+            }
+        }
+    }
+
+    /// The original owner must call this before releasing its retained EX.
+    /// A failed close is quarantined and cannot be retried using its number.
+    func closeCheckedForOriginalErase() throws {
+        guard let originalErasePolicyIO,
+              !originalEraseSupportCloseAttempted else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try verifyRoot()
+        try originalErasePolicyIO.requireSettled()
+        try authority.closeCheckedForExclusiveOriginalEraseRead(
+            verifyBeforeClose: false)
+        originalEraseSupportCloseAttempted = true
+        let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(
+            supportDescriptor)
+        guard Darwin.close(supportDescriptor) == 0 else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+        originalEraseCheckedCloseComplete = true
+    }
 
 #if DEBUG
     /// Pre-deletion Erase retains the typed revocation marker after OS absence
@@ -1461,6 +1696,9 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     func replacePrivateNotificationMapping(_ value: NotificationPrivateMappingV1,
                                            expected: NotificationPrivateMappingV1?) throws {
         try AppLockNotificationTransactionFenceV1.perform {
+            guard Self.schedulingOwners.live[notificationRootIdentity] == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
             try requireNotificationPublicationAllowed()
             try value.validate()
             guard try loadPrivateNotificationMapping() == expected else {
@@ -1472,10 +1710,554 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         }
     }
 
+    func makeNotificationSchedulingPublicationOwner(
+        predecessor: NotificationPrivateMappingV1,
+        request: NotificationSystemRequestV1, admissionID: UUID,
+        activity: OwnedStorageProducerActivityV1
+    ) throws -> NotificationSchedulingPublicationOwner {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard originalErasePolicyIO == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            try requireNotificationPublicationAllowed()
+            try activity.requireApplicationSupport(supportURL)
+            try predecessor.validate(); try request.validate()
+            guard Self.schedulingOwners.live[notificationRootIdentity] == nil,
+                  admissionID != SettingsValidationV1.zeroUUID,
+                  predecessor.entries.allSatisfy({ $0.admissionID == nil }),
+                  let index = predecessor.entries.firstIndex(where: { $0.request == request }),
+                  try schedulingRawInformation(Self.mappingPendingName) == nil
+            else { throw AppAccessContractFailureV1.notificationReconciliationRequired }
+            var admitted = predecessor
+            admitted.entries[index].admissionID = admissionID
+            admitted.entries[index].acknowledged = false
+            var present = admitted, absent = admitted
+            present.entries[index].admissionID = nil
+            present.entries[index].acknowledged = true
+            absent.entries[index].admissionID = nil
+            absent.entries[index].acknowledged = false
+            try admitted.validate(); try present.validate(); try absent.validate()
+            let bytes = try [predecessor, admitted, present, absent].map {
+                try CompatibilityCanonicalV1.encode($0)
+            }
+            guard let current = try schedulingReadCanonical(), current.0 == bytes[0]
+            else { throw AppAccessContractFailureV1.effectMismatch }
+            let owner = NotificationSchedulingPublicationOwner(store: self,
+                predecessor: predecessor, admitted: admitted, present: present,
+                absent: absent, request: request, admissionID: admissionID,
+                activity: activity, bytes: bytes, canonicalFact: current.1)
+            Self.schedulingOwners.live[notificationRootIdentity] = owner
+            return owner
+        }
+    }
+
+    func requireNotificationSchedulingState(_ owner: NotificationSchedulingPublicationOwner) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            _ = try schedulingState(owner)
+        }
+    }
+
+    func publishNotificationSchedulingAdmission(_ owner: NotificationSchedulingPublicationOwner) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try requireNotificationPublicationAllowed()
+            guard try schedulingState(owner) == owner.p, owner.stage == nil,
+                  !owner.addAttempted else { throw AppAccessContractFailureV1.effectMismatch }
+            try publishBytes(owner.a, recordName: Self.mappingName,
+                pendingName: Self.mappingPendingName, expected: owner.p,
+                schedulingOwner: owner)
+        }
+    }
+
+    /// Called synchronously immediately before entering the actual OS add.
+    /// Minting and publishing admission are deliberately not add attempts.
+    func noteNotificationSchedulingAddAttempt(_ owner: NotificationSchedulingPublicationOwner) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try requireNotificationPublicationAllowed()
+            guard try schedulingState(owner) == owner.a, owner.stage == nil,
+                  !owner.addAttempted else { throw AppAccessContractFailureV1.effectMismatch }
+            owner.addAttempted = true
+        }
+    }
+
+    func finishNotificationSchedulingAdd(_ owner: NotificationSchedulingPublicationOwner,
+        verifiedPresent: Bool) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            if verifiedPresent {
+                guard owner.addAttempted else { throw AppAccessContractFailureV1.effectMismatch }
+            }
+            guard try schedulingState(owner) == owner.a, owner.stage == nil
+            else { throw AppAccessContractFailureV1.effectMismatch }
+            try publishBytes(verifiedPresent ? owner.t : owner.f,
+                recordName: Self.mappingName, pendingName: Self.mappingPendingName,
+                expected: owner.a, schedulingOwner: owner)
+        }
+    }
+
+    /// The concrete Workflow first removes only this request and observes real
+    /// pending/delivered absence. This source-free tail cannot add or renew consent.
+    func settleNotificationSchedulingAbsent(_ owner: NotificationSchedulingPublicationOwner) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            var current = try schedulingState(owner)
+            if let stage = owner.stage {
+                if !stage.renamed && !stage.removed {
+                    _ = try schedulingState(owner)
+                    stage.unlinkAttempted = true
+                    guard Darwin.unlinkat(authority.rootDescriptor,
+                        Self.mappingPendingName, 0) == 0 else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    stage.removed = true
+                    schedulingRecordFact(stage)
+                    stage.parentSyncAttempted = true
+                    guard Darwin.fsync(authority.rootDescriptor) == 0 else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    stage.parentSynced = true
+                }
+                try schedulingCompleteStage(owner)
+                current = try schedulingState(owner)
+            }
+            if current != owner.f {
+                try publishBytes(owner.f, recordName: Self.mappingName,
+                    pendingName: Self.mappingPendingName, expected: current,
+                    schedulingOwner: owner)
+            }
+            try requireNotificationSchedulingTerminal(owner, verifiedPresent: false)
+        }
+    }
+
+    func requireNotificationSchedulingTerminal(_ owner: NotificationSchedulingPublicationOwner,
+        verifiedPresent: Bool) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            guard try schedulingState(owner) == (verifiedPresent ? owner.t : owner.f),
+                  owner.stage == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            // A terminal byte observation does not substitute for durability.
+            let file = Darwin.openat(authority.rootDescriptor, Self.mappingName,
+                O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+            guard file >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+            var closeAttempted = false
+            do {
+                var held = stat()
+                guard Darwin.fstat(file, &held) == 0,
+                      Self.sameFile(held, owner.canonicalFact) else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+                _ = try schedulingState(owner)
+                guard Darwin.fsync(file) == 0,
+                      Darwin.fsync(authority.rootDescriptor) == 0 else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                _ = try schedulingState(owner)
+                closeAttempted = true
+                try schedulingClose(file, owner: owner)
+            } catch {
+                if !closeAttempted { try? schedulingClose(file, owner: owner) }
+                throw error
+            }
+        }
+    }
+
+    /// Retires the process writer claim only. It is not a checked SH-release
+    /// receipt; that resource belongs to the concrete Workflow owner.
+    func retireNotificationSchedulingPublicationOwner(_ owner: NotificationSchedulingPublicationOwner,
+        verifiedPresent: Bool) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try requireNotificationSchedulingTerminal(owner, verifiedPresent: verifiedPresent)
+            owner.retired = true
+            Self.schedulingOwners.live.removeValue(forKey: owner.rootIdentity)
+        }
+    }
+
+    private func requireSchedulingOwner(_ owner: NotificationSchedulingPublicationOwner) throws {
+        guard owner.store === self, !owner.retired, !owner.uncertainClose,
+              owner.rootIdentity == notificationRootIdentity,
+              Self.schedulingOwners.live[notificationRootIdentity] === owner else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        try owner.activity.requireApplicationSupport(supportURL)
+        try verifyRoot()
+        _ = try Self.originalEraseHeldNamedRootFact(authority: authority, url: rootURL)
+        for name in [Self.pendingName, Self.erasePendingName] {
+            guard try schedulingRawInformation(name) == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
+    }
+
+    // Unlike ordinary information(), zero length is a valid known open cut.
+    private func schedulingRawInformation(_ name: String) throws -> stat? {
+        var fact = stat()
+        if Darwin.fstatat(authority.rootDescriptor, name, &fact, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw AppAccessContractFailureV1.configurationUnknown }
+            return nil
+        }
+        guard fact.st_mode & S_IFMT == S_IFREG, fact.st_nlink == 1,
+              fact.st_uid == Darwin.geteuid(), UInt64(fact.st_dev) == authority.rootDevice,
+              fact.st_size >= 0, fact.st_size <= Int64(Self.maximumRecordBytes) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return fact
+    }
+
+    private func schedulingClose(_ file: Int32,
+        owner: NotificationSchedulingPublicationOwner?) throws {
+        let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(file)
+        guard Darwin.close(file) == 0 else {
+            owner?.uncertainClose = true
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+    }
+
+    private func schedulingBytes(_ file: Int32, count: Int) throws -> Data {
+        var bytes = Data(count: count), offset = 0
+        while offset < count {
+            let read = bytes.withUnsafeMutableBytes { raw -> Int in
+                guard let base = raw.baseAddress else { return 0 }
+                return Darwin.pread(file, base.advanced(by: offset), count - offset, off_t(offset))
+            }
+            if read < 0, errno == EINTR { continue }
+            guard read > 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+            offset += read
+        }
+        return bytes
+    }
+
+    private func schedulingReadCanonical(_ owner: NotificationSchedulingPublicationOwner? = nil)
+        throws -> (Data, stat)? {
+        guard let named = try schedulingRawInformation(Self.mappingName) else { return nil }
+        guard named.st_size > 0 else { throw AppAccessContractFailureV1.effectMismatch }
+        let file = Darwin.openat(authority.rootDescriptor, Self.mappingName,
+            O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        guard file >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        var closeAttempted = false
+        do {
+            var held = stat(), after = stat()
+            guard Darwin.fstat(file, &held) == 0, Self.sameFile(named, held) else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            let bytes = try schedulingBytes(file, count: Int(held.st_size))
+            guard Darwin.fstat(file, &after) == 0, Self.sameFile(held, after),
+                  let final = try schedulingRawInformation(Self.mappingName),
+                  Self.sameFile(held, final) else { throw AppAccessContractFailureV1.effectMismatch }
+            let observed = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                .journal, at: rootURL.appendingPathComponent(Self.mappingName),
+                retainUncertainDescriptor: { descriptor in
+                    owner?.uncertainClose = true
+                    _ = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+                })
+            guard observed.device == UInt64(held.st_dev), observed.inode == UInt64(held.st_ino),
+                  observed.backupExcluded == true,
+                  observed.state == .strictComplete || observed.state == .pendingSimulatorRequest else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            guard Darwin.fstat(file, &after) == 0, Self.sameFile(held, after),
+                  let final = try schedulingRawInformation(Self.mappingName),
+                  Self.sameFile(held, final), owner?.uncertainClose != true else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            closeAttempted = true
+            try schedulingClose(file, owner: owner)
+            return (bytes, held)
+        } catch {
+            if !closeAttempted { try? schedulingClose(file, owner: owner) }
+            throw error
+        }
+    }
+
+    private func schedulingState(_ owner: NotificationSchedulingPublicationOwner) throws -> Data {
+        try requireSchedulingOwner(owner)
+        guard let canonical = try schedulingReadCanonical(owner),
+              [owner.p, owner.a, owner.t, owner.f].contains(canonical.0) else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        let pending = try schedulingRawInformation(Self.mappingPendingName)
+        if let stage = owner.stage {
+            guard !stage.closeAttempted else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            var held = stat()
+            guard Darwin.fstat(stage.descriptor, &held) == 0,
+                  held.st_mode & S_IFMT == S_IFREG,
+                  held.st_uid == Darwin.geteuid(), UInt64(held.st_dev) == authority.rootDevice,
+                  held.st_size == Int64(stage.prefixCount),
+                  try schedulingBytes(stage.descriptor, count: stage.prefixCount)
+                    == Data(stage.bytes.prefix(stage.prefixCount)) else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            var afterRead = stat()
+            guard Darwin.fstat(stage.descriptor, &afterRead) == 0,
+                  Self.sameFile(held, afterRead) else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            // A failed first sample cannot permit a write. The actual retained
+            // O_EXCL descriptor may acquire its positive creation anchor only
+            // before any subsequent effect, with its empty held/named leaf.
+            if stage.anchor == nil {
+                guard stage.prefixCount == 0, !stage.policyRequested,
+                      !stage.fileSyncAttempted, !stage.renameAttempted,
+                      !stage.unlinkAttempted, let pending,
+                      held.st_nlink == 1, Self.sameFile(held, pending) else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                stage.anchor = held; stage.fact = held
+            }
+            guard let anchor = stage.anchor,
+                  held.st_dev == anchor.st_dev, held.st_ino == anchor.st_ino,
+                  held.st_mode == anchor.st_mode, held.st_uid == anchor.st_uid,
+                  held.st_gid == anchor.st_gid,
+                  held.st_nlink == (stage.removed ? 0 : anchor.st_nlink),
+                  anchor.st_nlink == 1 else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            // Only an actually recorded write/policy/namespace effect can
+            // account for its size/time transition when immediate sampling
+            // failed. It cannot account for owner/mode/link or byte drift.
+            if stage.postEffectSamplePending {
+                stage.fact = held; stage.postEffectSamplePending = false
+            }
+            guard let recorded = stage.fact, Self.sameFile(held, recorded) else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            if !stage.renamed {
+                guard Self.sameFile(canonical.1, owner.canonicalFact) else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            }
+            if stage.removed {
+                guard pending == nil, held.st_nlink == 0,
+                      canonical.0 == stage.predecessor else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            } else if stage.renamed {
+                guard pending == nil, Self.sameFile(held, canonical.1),
+                      canonical.0 == stage.bytes, stage.prefixCount == stage.bytes.count else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+                owner.canonicalFact = canonical.1
+            } else {
+                guard let pending, Self.sameFile(held, pending),
+                      canonical.0 == stage.predecessor,
+                      (canonical.0 == owner.p && stage.bytes == owner.a)
+                        || (canonical.0 == owner.a && (stage.bytes == owner.t || stage.bytes == owner.f))
+                        || ([owner.p, owner.t, owner.f].contains(canonical.0) && stage.bytes == owner.f)
+                else { throw AppAccessContractFailureV1.effectMismatch }
+            }
+        } else {
+            guard pending == nil, Self.sameFile(canonical.1, owner.canonicalFact) else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
+        try requireSchedulingOwner(owner)
+        return canonical.0
+    }
+
+    private func schedulingRecordFact(_ stage: SchedulingStage,
+        afterOwnedEffect: Bool = true) {
+        // Retain the last positive fact on failed sampling. A subsequent
+        // reproof must explicitly resolve the actual known effect's cut.
+        stage.postEffectSamplePending = afterOwnedEffect
+        var fact = stat()
+        if Darwin.fstat(stage.descriptor, &fact) == 0 {
+            if !afterOwnedEffect, let previous = stage.fact,
+               !Self.sameFile(previous, fact) { return }
+            stage.fact = fact
+            if stage.anchor == nil, !afterOwnedEffect { stage.anchor = fact }
+            stage.postEffectSamplePending = false
+        }
+    }
+
+#if DEBUG
+    /// A one-shot DEBUG cut on the real same-process publisher. Configuration
+    /// binds the existing pinned root and cannot alter a live owner's inputs.
+    func setNotificationSchedulingPublicationFaultForTesting(
+        _ fault: NotificationSchedulingPublicationFaultForTesting?
+    ) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try verifyRoot()
+            guard originalErasePolicyIO == nil,
+                  Self.schedulingOwners.live[notificationRootIdentity] == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            if let fault, case .afterPositivePrefix(let count) = fault.cut {
+                guard count > 0, count < Self.maximumRecordBytes else {
+                    throw AppAccessContractFailureV1.invalidValue
+                }
+            }
+            Self.schedulingOwners.faults[notificationRootIdentity] = fault
+            Self.schedulingOwners.faultObservations.removeValue(forKey: notificationRootIdentity)
+        }
+    }
+
+    func notificationSchedulingPublicationFaultObservationForTesting() throws
+        -> NotificationSchedulingPublicationFaultObservationForTesting? {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try verifyRoot()
+            return Self.schedulingOwners.faultObservations[notificationRootIdentity]
+        }
+    }
+
+    private func schedulingPhaseForTesting(_ owner: NotificationSchedulingPublicationOwner,
+        stage: SchedulingStage) -> NotificationSchedulingPublicationPhaseForTesting {
+        if stage.bytes == owner.a { return .admission }
+        if stage.bytes == owner.t { return .finishPresent }
+        return .finishAbsent
+    }
+
+    private func schedulingTestingCut(_ owner: NotificationSchedulingPublicationOwner,
+        stage: SchedulingStage, cut: NotificationSchedulingPublicationCutForTesting) throws {
+        let phase = schedulingPhaseForTesting(owner, stage: stage)
+        guard let fault = Self.schedulingOwners.faults[owner.rootIdentity],
+              fault.phase == phase, fault.cut == cut else { return }
+        // Consumption/observation precede the deterministic throw. Recovery
+        // cannot repeatedly hit this cut or discard any unknown disk leaf.
+        Self.schedulingOwners.faults.removeValue(forKey: owner.rootIdentity)
+        Self.schedulingOwners.faultObservations[owner.rootIdentity] = .init(
+            phase: phase, cut: cut, admissionID: owner.admissionID,
+            requestID: owner.request.notification.requestID,
+            actualWrittenPrefixCount: stage.prefixCount,
+            initialPolicyVerified: stage.initialPolicyVerified,
+            finalPolicyVerified: stage.finalPolicyVerified, renamed: stage.renamed)
+        throw AppAccessContractFailureV1.effectMismatch
+    }
+
+    private func schedulingWriteCountForTesting(_ owner: NotificationSchedulingPublicationOwner?,
+        stage: SchedulingStage?, remaining: Int) -> Int {
+        guard let owner, let stage,
+              let fault = Self.schedulingOwners.faults[owner.rootIdentity],
+              fault.phase == schedulingPhaseForTesting(owner, stage: stage),
+              case .afterPositivePrefix(let count) = fault.cut,
+              count > stage.prefixCount else { return remaining }
+        // The syscall still writes actual bytes and the real positive count is
+        // recorded. This only bounds that call to expose a deterministic cut.
+        return min(remaining, count - stage.prefixCount)
+    }
+#endif
+
+    /// Reuses the publisher's existing checked policy request on its actual
+    /// live stage. Zero is accepted only for this captured O_EXCL descriptor;
+    /// no disk-derived empty leaf can reach this boundary.
+    private func schedulingApplyStagePolicy(_ owner: NotificationSchedulingPublicationOwner,
+        stage: SchedulingStage, expectedPrefixCount: Int
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        guard owner.stage === stage, !stage.renamed, !stage.removed,
+              expectedPrefixCount == stage.prefixCount,
+              expectedPrefixCount == 0 || expectedPrefixCount == stage.bytes.count else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        _ = try schedulingState(owner)
+        var enteredEffect = false
+        let result: ProtectedFileVerificationDispositionV1
+        do {
+            // A policy attempt can mutate resource metadata before returning
+            // an error. Capture that cut without losing the positive anchor.
+            defer { schedulingRecordFact(stage, afterOwnedEffect: enteredEffect) }
+            result = try ProtectedFilePolicyV1.applyAndVerifyEraseColdPrivateWithCheckedClose(
+                .journalTemporary, at: rootURL.appendingPathComponent(Self.mappingPendingName),
+                retainUncertainDescriptor: { descriptor in
+                    owner.uncertainClose = true
+                    _ = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+                }, authorityCheck: {
+                    try self.requireSchedulingOwner(owner)
+                    var held = stat(), afterPrefix = stat()
+                    guard owner.stage === stage, !stage.renamed, !stage.removed,
+                          let anchor = stage.anchor,
+                          Darwin.fstat(stage.descriptor, &held) == 0,
+                          let named = try self.schedulingRawInformation(Self.mappingPendingName),
+                          Self.sameFile(held, named),
+                          held.st_dev == anchor.st_dev, held.st_ino == anchor.st_ino,
+                          held.st_mode == anchor.st_mode,
+                          held.st_uid == anchor.st_uid, held.st_gid == anchor.st_gid,
+                          held.st_nlink == anchor.st_nlink, anchor.st_nlink == 1,
+                          stage.prefixCount == expectedPrefixCount,
+                          held.st_size == Int64(expectedPrefixCount),
+                          enteredEffect || (stage.fact.map { Self.sameFile(held, $0) } == true),
+                          try self.schedulingBytes(stage.descriptor, count: expectedPrefixCount)
+                            == Data(stage.bytes.prefix(expectedPrefixCount)),
+                          let canonical = try self.schedulingReadCanonical(owner),
+                          canonical.0 == stage.predecessor,
+                          Self.sameFile(canonical.1, owner.canonicalFact),
+                          Darwin.fstat(stage.descriptor, &afterPrefix) == 0,
+                          Self.sameFile(held, afterPrefix),
+                          let finalNamed = try self.schedulingRawInformation(Self.mappingPendingName),
+                          Self.sameFile(held, finalNamed) else {
+                        throw AppAccessContractFailureV1.effectMismatch
+                    }
+#if DEBUG
+                    if expectedPrefixCount == 0, enteredEffect {
+                        try self.schedulingTestingCut(owner, stage: stage,
+                            cut: .afterInitialPolicyEffectBeforeVerification)
+                    }
+#endif
+                }, beforeFirstEffect: {
+#if DEBUG
+                    if expectedPrefixCount == 0 {
+                        try self.schedulingTestingCut(owner, stage: stage, cut: .beforeInitialPolicyEffect)
+                    }
+#endif
+                    enteredEffect = true
+                    stage.policyRequested = true
+                })
+        }
+        _ = try schedulingState(owner)
+        // Per-kind readback is separate from byte/mode ownership. Its checked
+        // helper preserves descriptor uncertainty and never authorizes a write
+        // based on the Darwin 0600 mode or inherited directory policy alone.
+        let observed = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+            .journalTemporary, at: rootURL.appendingPathComponent(Self.mappingPendingName),
+            retainUncertainDescriptor: { descriptor in
+                owner.uncertainClose = true
+                _ = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
+            })
+        guard let anchor = stage.anchor,
+              observed.device == UInt64(anchor.st_dev), observed.inode == UInt64(anchor.st_ino),
+              observed.mode == UInt16(anchor.st_mode), observed.linkCount == UInt64(anchor.st_nlink),
+              observed.isDirectory == false, observed.backupExcluded == true,
+              observed.state == .strictComplete || observed.state == .pendingSimulatorRequest else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        _ = try schedulingState(owner)
+        return result
+    }
+
+    private func schedulingCompleteStage(_ owner: NotificationSchedulingPublicationOwner) throws {
+        guard let stage = owner.stage else { return }
+        _ = try schedulingState(owner)
+        if stage.renamed && !stage.fileSynced {
+            stage.fileSyncAttempted = true
+            guard Darwin.fsync(stage.descriptor) == 0 else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            stage.fileSynced = true
+            schedulingRecordFact(stage)
+        }
+        if !stage.parentSynced {
+            _ = try schedulingState(owner)
+            stage.parentSyncAttempted = true
+            guard Darwin.fsync(authority.rootDescriptor) == 0 else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            stage.parentSynced = true
+        }
+        _ = try schedulingState(owner)
+        guard stage.renamed || stage.removed else { throw AppAccessContractFailureV1.effectMismatch }
+#if DEBUG
+        try schedulingTestingCut(owner, stage: stage, cut: .beforeCheckedStageClose)
+#endif
+        stage.closeAttempted = true
+        try schedulingClose(stage.descriptor, owner: owner)
+        owner.stage = nil
+    }
+
     /// A late add completion may clear only its own durable admission. This
     /// cannot re-enable publication or change policy/source/correlation data.
     func finishNotificationAdd(admissionID: UUID, requestID: String, verifiedPresent: Bool) throws {
         try AppLockNotificationTransactionFenceV1.perform {
+            guard Self.schedulingOwners.live[notificationRootIdentity] == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
             guard var value = try loadPrivateNotificationMapping(),
                   let index = value.entries.firstIndex(where: {
                       $0.admissionID == admissionID && $0.request.notification.requestID == requestID
@@ -1505,10 +2287,568 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         }
     }
 
+    /// Publishes the original owner's revocation under its already-held
+    /// Notification fence, EX, and checked G. An interrupted pending leaf is
+    /// retained for explicit recovery; its bytes never become authority for
+    /// this invocation. The lexical permit cannot be used by ordinary callers.
+    @MainActor
+    func publishOriginalEraseNotificationMarker(
+        operationID: UUID,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        policyReceipt: OriginalEraseNotificationRootPolicyReceiptV1,
+        firstNodes: [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode],
+        firstStableTreeDigest: String,
+        retainedIO: EraseAbortCheckedSnapshotIOV1,
+        permit: OriginalEraseNotificationMarkerPermitV1,
+        reproveUnaffectedBranches: () throws -> Void
+    ) throws -> OriginalEraseNotificationMarkerPublicationReceiptV1 {
+        guard let originalErasePolicyIO else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        try originalErasePolicyIO.requireSettled()
+        try policyReceipt.requireBound(operation: operation, store: store,
+            registry: registry, exclusion: exclusion, activity: activity)
+        let revocation = NotificationEraseRevocationV1(schemaVersion: 1,
+            operationID: operationID, rootIdentity: notificationRootIdentity)
+        try revocation.validate()
+        let bytes = try CompatibilityCanonicalV1.encode(revocation)
+        guard !bytes.isEmpty, bytes.count <= Self.maximumRecordBytes,
+              try Self.decodeAuxiliary(NotificationEraseRevocationV1.self,
+                  bytes: bytes) == revocation else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        let firstChildren = firstNodes.filter { !$0.path.isEmpty }
+        let firstNames = firstChildren.map(\.path).sorted()
+        guard firstNodes.count == firstNames.count + 1,
+              Set(firstNames).count == firstNames.count,
+              firstNames.allSatisfy({ !$0.contains("/") }),
+              !firstNames.contains(Self.eraseName),
+              !firstNames.contains(Self.erasePendingName),
+              firstNodes.first(where: { $0.path.isEmpty })?.fullFact
+                == policyReceipt.firstRootFact else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        let io = retainedIO
+        let root = authority.rootDescriptor
+        let operations = authority.operationsDescriptor
+        guard Set(firstNodes.map(\.path)).count == firstNodes.count else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        func fact(_ value: stat) -> String {
+            "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+        }
+        func sameRootOwner(_ first: String, _ projected: String) -> Bool {
+            let a = first.split(separator: "|", omittingEmptySubsequences: false)
+            let b = projected.split(separator: "|", omittingEmptySubsequences: false)
+            return a.count == 11 && b.count == 11 &&
+                Array(a.prefix(6)) == Array(b.prefix(6))
+        }
+        func requireRoot(_ expected: String, names: [String]) throws -> stat {
+            try permit.requireHeld()
+            try verifyRoot()
+            try reproveUnaffectedBranches()
+            var held = stat(), named = stat()
+            guard Darwin.fstat(root, &held) == 0,
+                  Darwin.fstatat(operations, Self.rootName, &named,
+                      AT_SYMLINK_NOFOLLOW) == 0,
+                  fact(held) == expected, fact(named) == expected,
+                  try io.names(in: root) == names else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            for node in firstChildren {
+                try io.withOpen(parent: root, name: node.path,
+                    flags: O_RDONLY | O_NONBLOCK) { child in
+                    var heldChild = stat(), namedChild = stat()
+                    guard Darwin.fstat(child, &heldChild) == 0,
+                          Darwin.fstatat(root, node.path, &namedChild,
+                              AT_SYMLINK_NOFOLLOW) == 0,
+                          fact(heldChild) == node.fullFact,
+                          fact(namedChild) == node.fullFact,
+                          heldChild.st_mode & S_IFMT == S_IFREG,
+                          heldChild.st_nlink == 1 else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                    let kind: OwnedFileKindV1 =
+                        node.path.hasSuffix(".pending.json")
+                            ? .journalTemporary : .journal
+                    let observed = try ProtectedFilePolicyV1
+                        .observeTemporalPolicyWithCheckedClose(kind,
+                            at: rootURL.appendingPathComponent(node.path),
+                            retainUncertainDescriptor: {
+                                io.retainUncertainDescriptor($0)
+                                permit.poisonOnUncertainEffect()
+                            })
+                    guard observed == node.policy,
+                          Darwin.fstat(child, &heldChild) == 0,
+                          Darwin.fstatat(root, node.path, &namedChild,
+                              AT_SYMLINK_NOFOLLOW) == 0,
+                          fact(heldChild) == node.fullFact,
+                          fact(namedChild) == node.fullFact else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                }
+            }
+            guard try io.postRetiredTree(parent: operations,
+                    name: Self.rootName,
+                    excluding: [Self.eraseName, Self.erasePendingName],
+                    ignoringDirectoryMetadata: Set([""]))
+                    == firstStableTreeDigest else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            try reproveUnaffectedBranches()
+            try permit.requireHeld()
+            return held
+        }
+        func requireLeaf(_ name: String, expected: String) throws -> stat {
+            var named = stat()
+            guard Darwin.fstatat(root, name, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  fact(named) == expected,
+                  named.st_mode & S_IFMT == S_IFREG,
+                  named.st_nlink == 1 else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            return named
+        }
+        var effectStarted = false
+        do {
+            let first = try requireRoot(policyReceipt.projectedRootFact,
+                names: firstNames)
+            guard try io.postRetiredTree(parent: operations,
+                    name: Self.rootName)
+                    == policyReceipt.projectedTreeDigest else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            _ = try requireRoot(policyReceipt.projectedRootFact,
+                names: firstNames)
+            let firstLinks = UInt64(first.st_nlink)
+            let firstCount = UInt64(firstNames.count)
+            guard firstLinks == 2 ||
+                    firstLinks == firstCount + 2 else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            effectStarted = true
+            let written = try io.withOpen(parent: root,
+                name: Self.erasePendingName,
+                flags: O_WRONLY | O_CREAT | O_EXCL, mode: 0o600) {
+                descriptor -> stat in
+                var opened = stat(), named = stat(), currentRoot = stat()
+                guard Darwin.fstat(descriptor, &opened) == 0,
+                      Darwin.fstatat(root, Self.erasePendingName,
+                          &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      opened.st_dev == named.st_dev,
+                      opened.st_ino == named.st_ino,
+                      opened.st_mode & S_IFMT == S_IFREG,
+                      opened.st_nlink == 1,
+                      opened.st_uid == geteuid(),
+                      opened.st_gid == ((first.st_mode & S_ISGID) != 0
+                          ? first.st_gid : getegid()),
+                      opened.st_size == 0,
+                      Darwin.fstat(root, &currentRoot) == 0,
+                      (firstNames.isEmpty
+                        ? (UInt64(currentRoot.st_nlink) == 2 ||
+                            UInt64(currentRoot.st_nlink) == 3)
+                        : firstLinks == 2
+                            ? UInt64(currentRoot.st_nlink) == 2
+                            : UInt64(currentRoot.st_nlink)
+                                == firstLinks + 1) else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                guard fact(opened) == fact(named) else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                let createdRootFact = fact(currentRoot)
+                _ = try requireRoot(createdRootFact,
+                    names: (firstNames + [Self.erasePendingName]).sorted())
+                _ = try requireLeaf(Self.erasePendingName,
+                    expected: fact(opened))
+                var offset = 0
+                while offset < bytes.count {
+                    let count = bytes.withUnsafeBytes { raw -> Int in
+                        guard let base = raw.baseAddress else { return 0 }
+                        return Darwin.write(descriptor,
+                            base.advanced(by: offset), raw.count - offset)
+                    }
+                    if count < 0, errno == EINTR { continue }
+                    guard count > 0 else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                    offset += count
+                }
+                _ = try requireRoot(createdRootFact,
+                    names: (firstNames + [Self.erasePendingName]).sorted())
+                // This new inode is owned by the current O_EXCL attempt. Its
+                // policy request is included in the same sticky effect window.
+                try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary,
+                    at: rootURL.appendingPathComponent(Self.erasePendingName),
+                    authorityCheck: {
+                        try permit.requireHeld()
+                        _ = try requireRoot(createdRootFact,
+                            names: (firstNames +
+                                [Self.erasePendingName]).sorted())
+                        var held = stat(), linked = stat()
+                        guard Darwin.fstat(descriptor, &held) == 0,
+                              Darwin.fstatat(root, Self.erasePendingName,
+                                  &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                              held.st_dev == opened.st_dev,
+                              held.st_ino == opened.st_ino,
+                              fact(held) == fact(linked),
+                              held.st_mode & S_IFMT == S_IFREG,
+                              held.st_nlink == 1 else {
+                            throw AppAccessContractFailureV1
+                                .notificationReconciliationRequired
+                        }
+                    })
+                guard Darwin.fsync(descriptor) == 0,
+                      Darwin.fstat(descriptor, &opened) == 0,
+                      Darwin.fstatat(root, Self.erasePendingName,
+                          &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      fact(opened) == fact(named) else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                return opened
+            }
+            let temporaryFact = fact(written)
+            _ = try requireLeaf(Self.erasePendingName,
+                expected: temporaryFact)
+            let createdRoot = try io.withOpen(parent: root,
+                name: Self.erasePendingName,
+                flags: O_RDONLY | O_NONBLOCK) { descriptor -> String in
+                var held = stat(), named = stat()
+                guard Darwin.fstat(descriptor, &held) == 0,
+                      Darwin.fstatat(root, Self.erasePendingName,
+                          &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      fact(held) == temporaryFact,
+                      fact(named) == temporaryFact,
+                      try readFile(Self.erasePendingName,
+                          kind: .journalTemporary) == bytes else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                var current = stat()
+                guard Darwin.fstat(root, &current) == 0 else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                return fact(current)
+            }
+            _ = try requireRoot(createdRoot,
+                names: (firstNames + [Self.erasePendingName]).sorted())
+            _ = try requireLeaf(Self.erasePendingName,
+                expected: temporaryFact)
+            guard try readFile(Self.erasePendingName,
+                    kind: .journalTemporary) == bytes else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            _ = try requireLeaf(Self.erasePendingName,
+                expected: temporaryFact)
+            _ = try requireRoot(createdRoot,
+                names: (firstNames + [Self.erasePendingName]).sorted())
+            // No pending byte match or orphan temp is accepted from a prior
+            // invocation. The held O_EXCL inode is the sole rename source.
+            guard Darwin.renameatx_np(root, Self.erasePendingName,
+                    root, Self.eraseName, UInt32(RENAME_EXCL)) == 0 else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            var renamedRoot = stat(), canonical = stat()
+            guard Darwin.fstat(root, &renamedRoot) == 0,
+                  Darwin.fstatat(root, Self.eraseName,
+                      &canonical, AT_SYMLINK_NOFOLLOW) == 0,
+                  canonical.st_dev == written.st_dev,
+                  canonical.st_ino == written.st_ino,
+                  canonical.st_uid == written.st_uid,
+                  canonical.st_gid == written.st_gid,
+                  canonical.st_mode == written.st_mode,
+                  canonical.st_nlink == written.st_nlink,
+                  canonical.st_size == written.st_size,
+                  canonical.st_mtimespec.tv_sec
+                    == written.st_mtimespec.tv_sec,
+                  canonical.st_mtimespec.tv_nsec
+                    == written.st_mtimespec.tv_nsec,
+                  Darwin.fsync(root) == 0 else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            let canonicalRootFact = fact(renamedRoot)
+            guard sameRootOwner(createdRoot, canonicalRootFact) else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            _ = try requireRoot(canonicalRootFact,
+                names: (firstNames + [Self.eraseName]).sorted())
+            let canonicalFact = fact(canonical)
+            _ = try requireLeaf(Self.eraseName, expected: canonicalFact)
+            guard try readFile(Self.eraseName,
+                    kind: .journal) == bytes else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            _ = try requireRoot(canonicalRootFact,
+                names: (firstNames + [Self.eraseName]).sorted())
+            try io.requireSettled()
+            let finalTree = try io.postRetiredTree(
+                parent: operations, name: Self.rootName)
+            guard try io.postRetiredTree(parent: operations,
+                    name: Self.rootName) == finalTree else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            try io.requireSettled()
+            return OriginalEraseNotificationMarkerPublicationReceiptV1(
+                control: self, operation: operation, store: store,
+                registry: registry, exclusion: exclusion,
+                activity: activity, revocation: revocation,
+                canonicalBytes: bytes,
+                firstRootFact: policyReceipt.projectedRootFact,
+                projectedRootFact: canonicalRootFact,
+                firstTreeDigest: policyReceipt.projectedTreeDigest,
+                projectedTreeDigest: finalTree,
+                canonicalLeafFact: canonicalFact)
+        } catch {
+            if effectStarted { permit.poisonOnUncertainEffect() }
+            throw error
+        }
+    }
+
+    /// The OS absence witness is produced after the real system readback.
+    /// Remove only the two canonical predecessor leaves proved by the first
+    /// Notification tree and the marker receipt. No ordinary unlink helper is
+    /// borrowed while the original operation holds EX/G.
+    @MainActor
+    func removeOriginalEraseNotificationRecordsAfterOSAbsence(
+        _ absence: OriginalEraseNotificationOSAbsenceReceiptV1,
+        marker: OriginalEraseNotificationMarkerPublicationReceiptV1,
+        firstNodes: [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode],
+        retainedIO: EraseAbortCheckedSnapshotIOV1,
+        permit: OriginalEraseNotificationRemovalPermitV1,
+        reproveUnaffectedBranches: () throws -> Void
+    ) throws -> OriginalEraseNotificationRecordRemovalReceiptV1 {
+        guard originalErasePolicyIO != nil else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        try absence.requireBound(control: self,
+            revocation: marker.revocation)
+        guard Set(firstNodes.map(\.path)).count == firstNodes.count else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        let io = retainedIO
+        let root = authority.rootDescriptor
+        let operations = authority.operationsDescriptor
+        func fact(_ value: stat) -> String {
+            "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+        }
+        func sameRootOwner(_ first: String, _ projected: String) -> Bool {
+            let a = first.split(separator: "|", omittingEmptySubsequences: false)
+            let b = projected.split(separator: "|", omittingEmptySubsequences: false)
+            return a.count == 11 && b.count == 11 &&
+                Array(a.prefix(5)) == Array(b.prefix(5))
+        }
+        let byName = Dictionary(uniqueKeysWithValues: firstNodes
+            .filter { !$0.path.isEmpty }.map { ($0.path, $0) })
+        var expectedNames = (Array(byName.keys) + [Self.eraseName]).sorted()
+        func sameRootExceptCtime(_ first: String,
+            _ projected: String) -> Bool {
+            let a = first.split(separator: "|",
+                omittingEmptySubsequences: false)
+            let b = projected.split(separator: "|",
+                omittingEmptySubsequences: false)
+            return a.count == 11 && b.count == 11 &&
+                Array(a.prefix(9)) == Array(b.prefix(9))
+        }
+        guard Set(expectedNames).count == expectedNames.count,
+              !expectedNames.contains(Self.erasePendingName),
+              !expectedNames.contains(Self.pendingName),
+              !expectedNames.contains(Self.mappingPendingName),
+              let rootNode = firstNodes.first(where: { $0.path.isEmpty }),
+              sameRootExceptCtime(rootNode.fullFact,
+                  marker.firstRootFact) else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        var expectedRoot = marker.projectedRootFact
+        var expectedTree = marker.projectedTreeDigest
+        var removed = Set<String>()
+        func requireCut() throws -> stat {
+            try permit.requireHeld()
+            try verifyRoot()
+            try reproveUnaffectedBranches()
+            var held = stat(), named = stat()
+            var observedRegularSHA: [String: String] = [:]
+            let observedTree = try io.postRetiredTree(parent: operations,
+                name: Self.rootName, observeTypedNode: { node, _ in
+                    if let sha = node.sha256 {
+                        observedRegularSHA[node.path] = sha
+                    }
+                })
+            guard Darwin.fstat(root, &held) == 0,
+                  Darwin.fstatat(operations, Self.rootName,
+                      &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  fact(held) == expectedRoot,
+                  fact(named) == expectedRoot,
+                  try io.names(in: root) == expectedNames,
+                  observedTree == expectedTree,
+                  observedRegularSHA.count == expectedNames.count,
+                  try readFile(Self.eraseName,
+                      kind: .journal) == marker.canonicalBytes else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            var markerHeld = stat(), markerNamed = stat()
+            try io.withOpen(parent: root, name: Self.eraseName,
+                flags: O_RDONLY | O_NONBLOCK) { descriptor in
+                guard Darwin.fstat(descriptor, &markerHeld) == 0,
+                      Darwin.fstatat(root, Self.eraseName, &markerNamed,
+                          AT_SYMLINK_NOFOLLOW) == 0,
+                      fact(markerHeld) == marker.canonicalLeafFact,
+                      fact(markerNamed) == marker.canonicalLeafFact else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+            }
+            for name in expectedNames where name != Self.eraseName {
+                guard let node = byName[name] else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                guard node.contentSHA256 != nil,
+                      observedRegularSHA[name] == node.contentSHA256 else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                try io.withOpen(parent: root, name: name,
+                    flags: O_RDONLY | O_NONBLOCK) { descriptor in
+                    var child = stat(), linked = stat()
+                    guard Darwin.fstat(descriptor, &child) == 0,
+                          Darwin.fstatat(root, name, &linked,
+                              AT_SYMLINK_NOFOLLOW) == 0,
+                          fact(child) == node.fullFact,
+                          fact(linked) == node.fullFact,
+                          child.st_mode & S_IFMT == S_IFREG,
+                          child.st_nlink == 1 else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                    let policy = try ProtectedFilePolicyV1
+                        .observeTemporalPolicyWithCheckedClose(.journal,
+                            at: rootURL.appendingPathComponent(name),
+                            retainUncertainDescriptor: {
+                                io.retainUncertainDescriptor($0)
+                                permit.poisonOnUncertainEffect()
+                            })
+                    guard policy == node.policy,
+                          Darwin.fstat(descriptor, &child) == 0,
+                          Darwin.fstatat(root, name, &linked,
+                              AT_SYMLINK_NOFOLLOW) == 0,
+                          fact(child) == node.fullFact,
+                          fact(linked) == node.fullFact else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                }
+            }
+            try reproveUnaffectedBranches()
+            try permit.requireHeld()
+            return held
+        }
+        var effectStarted = false
+        do {
+            _ = try requireCut()
+            guard try loadPrivateNotificationMapping()
+                    == absence.mapping,
+                  try loadControl()?.journal == absence.journal else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            for name in [Self.mappingName, Self.recordName]
+                where expectedNames.contains(name) {
+                guard let node = byName[name] else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                let before = try requireCut()
+                effectStarted = true
+                try io.withOpen(parent: root, name: name,
+                    flags: O_RDONLY | O_NONBLOCK) { descriptor in
+                    var held = stat(), named = stat()
+                    guard Darwin.fstat(descriptor, &held) == 0,
+                          Darwin.fstatat(root, name, &named,
+                              AT_SYMLINK_NOFOLLOW) == 0,
+                          fact(held) == node.fullFact,
+                          fact(named) == node.fullFact else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                    _ = try requireCut()
+                    guard Darwin.unlinkat(root, name, 0) == 0,
+                          Darwin.fsync(root) == 0,
+                          Darwin.fstat(descriptor, &held) == 0,
+                          held.st_dev == named.st_dev,
+                          held.st_ino == named.st_ino,
+                          held.st_nlink == 0 else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                    removed.insert(name)
+                    expectedNames.removeAll { $0 == name }
+                    var afterRoot = stat(), afterNamed = stat(), gone = stat()
+                    guard Darwin.fstat(root, &afterRoot) == 0,
+                          Darwin.fstatat(operations, Self.rootName,
+                              &afterNamed, AT_SYMLINK_NOFOLLOW) == 0,
+                          fact(afterRoot) == fact(afterNamed),
+                          sameRootOwner(fact(before), fact(afterRoot)),
+                          Darwin.fstatat(root, name, &gone,
+                              AT_SYMLINK_NOFOLLOW) != 0,
+                          errno == ENOENT,
+                          (before.st_nlink == 2
+                            ? afterRoot.st_nlink == 2
+                            : before.st_nlink > 2 &&
+                                afterRoot.st_nlink
+                                    == before.st_nlink - 1),
+                          try io.names(in: root) == expectedNames else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                    expectedRoot = fact(afterRoot)
+                    expectedTree = try io.postRetiredTree(
+                        parent: operations, name: Self.rootName)
+                    _ = try requireCut()
+                }
+                _ = try requireCut()
+            }
+            guard expectedNames == [Self.eraseName],
+                  removed == Set(byName.keys).intersection(
+                    [Self.mappingName, Self.recordName]),
+                  try io.names(in: root) == [Self.eraseName] else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            _ = try requireCut()
+            try io.requireSettled()
+            return OriginalEraseNotificationRecordRemovalReceiptV1(
+                control: self, absence: absence, marker: marker,
+                finalRootFact: expectedRoot,
+                finalTreeDigest: expectedTree,
+                removedNames: removed)
+        } catch {
+            if effectStarted { permit.poisonOnUncertainEffect() }
+            throw error
+        }
+    }
+
     /// Called only after the system owner has drained admissions and observed
     /// owned pending/delivered request absence. Retain the revocation marker.
     func removeNotificationRecordsAfterErase(_ revocation: NotificationEraseRevocationV1) throws {
         try AppLockNotificationTransactionFenceV1.perform {
+            guard Self.schedulingOwners.live[notificationRootIdentity] == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            // The original EX owner uses a separately receipted unlink path.
+            // This ordinary helper cannot settle its descriptor/policy cuts.
+            guard originalErasePolicyIO == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
             guard let bytes = try readFile(Self.eraseName, kind: .journal),
                   try Self.decodeAuxiliary(NotificationEraseRevocationV1.self, bytes: bytes) == revocation,
                   revocation.rootIdentity == notificationRootIdentity else {
@@ -1581,6 +2921,9 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     /// never writes policy, changes AppLock, or claims an OS projection occurred.
     func readyControlForReminderPolicy() throws -> AppLockNotificationControlV1? {
         try AppLockNotificationTransactionFenceV1.perform {
+            guard Self.schedulingOwners.live[notificationRootIdentity] == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
             try requireNotificationPublicationAllowed()
             let setting = try preferences.readAppLockSettingSnapshot()
             guard let current = try loadControl() else {
@@ -1664,6 +3007,9 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         settingWrite: AppLockSettingWritePlanV1,
         expectedPredecessor: AppLockNotificationControlV1?) throws -> AppLockNotificationControlV1 {
         try AppLockNotificationTransactionFenceV1.perform {
+            guard Self.schedulingOwners.live[notificationRootIdentity] == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
             try requireNotificationPublicationAllowed()
             let candidate = try AppLockNotificationControlV1(journal: journal,
                 priorReminderPolicy: priorReminderPolicy, settingWrite: settingWrite)
@@ -1701,6 +3047,14 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
 
     func completeSetting(expected: AppLockNotificationControlV1) throws -> AppLockNotificationControlV1 {
         try AppLockNotificationTransactionFenceV1.perform {
+            guard Self.schedulingOwners.live[notificationRootIdentity] == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            // This public mutator writes Preferences before its journal
+            // publication. The read-only original owner cannot borrow it.
+            guard originalErasePolicyIO == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
             try requireNotificationPublicationAllowed()
             let completed = try expected.committingSetting()
             let current = try loadControl()
@@ -1732,6 +3086,9 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     func recordJournal(_ journal: AppLockNotificationJournalV1,
         expected: AppLockNotificationControlV1) throws -> AppLockNotificationControlV1 {
         try AppLockNotificationTransactionFenceV1.perform {
+            guard Self.schedulingOwners.live[notificationRootIdentity] == nil else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
             try requireNotificationPublicationAllowed()
             let old = expected.journal
             guard journal.operationID == old.operationID, journal.targetEnabled == old.targetEnabled,
@@ -1789,10 +3146,66 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
             .appendingPathComponent(Self.rootName)
     }
 
+    private static func sameOriginalEraseRootFact(_ a: stat, _ b: stat) -> Bool {
+        a.st_dev == b.st_dev && a.st_ino == b.st_ino &&
+            a.st_mode == b.st_mode && a.st_uid == b.st_uid &&
+            a.st_gid == b.st_gid && a.st_nlink == b.st_nlink &&
+            a.st_size == b.st_size &&
+            a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec &&
+            a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec &&
+            a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec &&
+            a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec
+    }
+
+    private static func originalEraseHeldNamedRootFact(
+        authority: PinnedScratchRootV1, url: URL
+    ) throws -> stat {
+        var held = stat(), named = stat(), path = stat()
+        guard Darwin.fstat(authority.rootDescriptor, &held) == 0,
+              Darwin.fstatat(authority.operationsDescriptor,
+                  Self.rootName, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(url.path, &path) == 0,
+              held.st_mode & S_IFMT == S_IFDIR,
+              sameOriginalEraseRootFact(held, named),
+              sameOriginalEraseRootFact(held, path),
+              UInt64(held.st_dev) == authority.rootDevice,
+              UInt64(held.st_ino) == authority.rootInode else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return held
+    }
+
     private func verifyRoot() throws {
         try Self.verifySupport(supportURL, descriptor: supportDescriptor,
             device: supportDevice, inode: supportInode, authority: authority)
-        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: rootURL)
+        if let originalErasePolicyIO {
+            let firstRoot = try Self.originalEraseHeldNamedRootFact(
+                authority: authority, url: rootURL)
+            let observed = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(.stagingDirectory,
+                    at: rootURL, retainUncertainDescriptor: {
+                        Self.retainOriginalEraseUncertainPolicyDescriptor(
+                            $0, io: originalErasePolicyIO)
+                    })
+            guard observed.device == authority.rootDevice,
+                  observed.inode == authority.rootInode,
+                  observed.mode == UInt16(firstRoot.st_mode),
+                  observed.linkCount == UInt64(firstRoot.st_nlink),
+                  observed.isDirectory == true,
+                  observed.backupExcluded == true,
+                  observed.state == .strictComplete ||
+                    observed.state == .pendingSimulatorRequest else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let finalRoot = try Self.originalEraseHeldNamedRootFact(
+                authority: authority, url: rootURL)
+            guard Self.sameOriginalEraseRootFact(firstRoot, finalRoot) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            try originalErasePolicyIO.requireSettled()
+        } else {
+            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: rootURL)
+        }
         try authority.verify(rootName: Self.rootName)
     }
 
@@ -1813,12 +3226,27 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         try authority.verify(rootName: rootName)
     }
 
-    private static func openRoot(_ supportURL: URL) throws
+    private static func openRoot(_ supportURL: URL,
+        mustExistForOriginalErase: Bool = false,
+        originalErasePolicyIO: EraseAbortCheckedSnapshotIOV1? = nil) throws
         -> (support: Int32, device: UInt64, inode: UInt64, authority: PinnedScratchRootV1) {
         let support = Darwin.open(supportURL.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard support >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
         var keep = false
-        defer { if !keep { _ = Darwin.close(support) } }
+        defer {
+            if !keep {
+                if let originalErasePolicyIO {
+                    let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(support)
+                    if Darwin.close(support) == 0 {
+                        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                    } else {
+                        originalErasePolicyIO.retainUncertainDescriptor(support)
+                    }
+                } else {
+                    _ = Darwin.close(support)
+                }
+            }
+        }
         var information = stat(), linked = stat()
         guard Darwin.fstat(support, &information) == 0,
               Darwin.lstat(supportURL.path, &linked) == 0,
@@ -1827,21 +3255,52 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
             throw AppAccessContractFailureV1.configurationUnknown
         }
         let operationsName = OwnedStorageRootKindV1.operations.rawValue
-        guard Darwin.mkdirat(support, operationsName, 0o700) == 0 || errno == EEXIST else {
-            throw AppAccessContractFailureV1.configurationUnknown
+        if !mustExistForOriginalErase {
+            guard Darwin.mkdirat(support, operationsName, 0o700) == 0
+                    || errno == EEXIST else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
         }
         let operations = Darwin.openat(support, operationsName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
         guard operations >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
-        defer { _ = Darwin.close(operations) }
+        var operationsCloseAttempted = false
+        defer {
+            if !operationsCloseAttempted {
+                if let originalErasePolicyIO {
+                    let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(operations)
+                    if Darwin.close(operations) == 0 {
+                        ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+                    } else {
+                        originalErasePolicyIO.retainUncertainDescriptor(operations)
+                    }
+                } else {
+                    _ = Darwin.close(operations)
+                }
+            }
+        }
         var operationsInfo = stat()
         guard Darwin.fstat(operations, &operationsInfo) == 0,
               operationsInfo.st_dev == information.st_dev else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        let created = Darwin.mkdirat(operations, rootName, 0o700) == 0
-        guard created || errno == EEXIST else { throw AppAccessContractFailureV1.configurationUnknown }
+        let created: Bool
+        if mustExistForOriginalErase {
+            created = false
+        } else {
+            created = Darwin.mkdirat(operations, rootName, 0o700) == 0
+            guard created || errno == EEXIST else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+        }
         let operationsURL = supportURL.appendingPathComponent(operationsName)
         let pinned = try PinnedScratchRootV1(operationsURL: operationsURL, rootName: rootName)
+        var keepPinned = false
+        defer {
+            if mustExistForOriginalErase && !keepPinned {
+                try? pinned.closeCheckedForExclusiveOriginalEraseRead(
+                    verifyBeforeClose: false)
+            }
+        }
         guard UInt64(operationsInfo.st_dev) == pinned.operationsDevice,
               UInt64(operationsInfo.st_ino) == pinned.operationsInode else {
             throw AppAccessContractFailureV1.configurationUnknown
@@ -1852,14 +3311,55 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
         }
         try check()
         let root = operationsURL.appendingPathComponent(rootName)
-        if created {
+        if mustExistForOriginalErase, let originalErasePolicyIO {
+            let firstRoot = try originalEraseHeldNamedRootFact(
+                authority: pinned, url: root)
+            let observed = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(.stagingDirectory,
+                    at: root, retainUncertainDescriptor: {
+                        retainOriginalEraseUncertainPolicyDescriptor(
+                            $0, io: originalErasePolicyIO)
+                    })
+            guard observed.device == pinned.rootDevice,
+                  observed.inode == pinned.rootInode,
+                  observed.mode == UInt16(firstRoot.st_mode),
+                  observed.linkCount == UInt64(firstRoot.st_nlink),
+                  observed.isDirectory == true,
+                  observed.backupExcluded == true,
+                  observed.state == .strictComplete ||
+                    observed.state == .pendingSimulatorRequest else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let finalRoot = try originalEraseHeldNamedRootFact(
+                authority: pinned, url: root)
+            guard sameOriginalEraseRootFact(firstRoot, finalRoot) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+        } else if created {
             try ProtectedFilePolicyV1.applyAndVerify(.stagingDirectory, at: root, authorityCheck: check)
         } else {
             try ProtectedFilePolicyV1.verify(.stagingDirectory, at: root)
         }
         try check()
-        guard Darwin.fsync(pinned.rootDescriptor) == 0, Darwin.fsync(operations) == 0,
-              Darwin.fsync(support) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+        if !mustExistForOriginalErase {
+            guard Darwin.fsync(pinned.rootDescriptor) == 0,
+                  Darwin.fsync(operations) == 0,
+                  Darwin.fsync(support) == 0 else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+        }
+        if let originalErasePolicyIO {
+            operationsCloseAttempted = true
+            let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(
+                operations)
+            guard Darwin.close(operations) == 0 else {
+                originalErasePolicyIO.retainUncertainDescriptor(operations)
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
+        }
+        try originalErasePolicyIO?.requireSettled()
+        keepPinned = true
         keep = true
         return (support, UInt64(information.st_dev), UInt64(information.st_ino), pinned)
     }
@@ -1881,38 +3381,79 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
 
     private static func sameFile(_ a: stat, _ b: stat) -> Bool {
         a.st_dev == b.st_dev && a.st_ino == b.st_ino && a.st_size == b.st_size
-            && a.st_nlink == b.st_nlink && a.st_mode == b.st_mode && a.st_uid == b.st_uid
+            && a.st_nlink == b.st_nlink && a.st_mode == b.st_mode
+            && a.st_uid == b.st_uid && a.st_gid == b.st_gid
             && a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec && a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec
             && a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec && a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec
     }
 
     private func readFile(_ name: String, kind: OwnedFileKindV1) throws -> Data? {
         guard let before = try information(name) else { return nil }
-        let file = Darwin.openat(authority.rootDescriptor, name, O_RDONLY | O_NOFOLLOW)
-        guard file >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
-        defer { _ = Darwin.close(file) }
-        var opened = stat()
-        guard Darwin.fstat(file, &opened) == 0, Self.sameFile(before, opened) else {
-            throw AppAccessContractFailureV1.configurationUnknown
-        }
-        try ProtectedFilePolicyV1.verify(kind, at: rootURL.appendingPathComponent(name))
-        var bytes = Data(count: Int(opened.st_size))
-        var offset = 0
-        while offset < bytes.count {
-            let count = bytes.withUnsafeMutableBytes { raw -> Int in
-                guard let base = raw.baseAddress else { return 0 }
-                return Darwin.read(file, base.advanced(by: offset), raw.count - offset)
+        func readOpened(_ file: Int32) throws -> Data {
+            var opened = stat()
+            guard Darwin.fstat(file, &opened) == 0,
+                  Self.sameFile(before, opened) else {
+                throw AppAccessContractFailureV1.configurationUnknown
             }
-            if count < 0, errno == EINTR { continue }
-            guard count > 0 else { throw AppAccessContractFailureV1.configurationUnknown }
-            offset += count
+            if let originalErasePolicyIO {
+                let observed = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(kind,
+                        at: rootURL.appendingPathComponent(name),
+                        retainUncertainDescriptor: {
+                            Self.retainOriginalEraseUncertainPolicyDescriptor(
+                                $0, io: originalErasePolicyIO)
+                        })
+                guard observed.device == UInt64(opened.st_dev),
+                      observed.inode == UInt64(opened.st_ino),
+                      observed.mode == UInt16(opened.st_mode),
+                      observed.linkCount == UInt64(opened.st_nlink),
+                      observed.backupExcluded == true,
+                      observed.state == .strictComplete ||
+                        observed.state == .pendingSimulatorRequest else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+                try originalErasePolicyIO.requireSettled()
+            } else {
+                try ProtectedFilePolicyV1.verify(kind,
+                    at: rootURL.appendingPathComponent(name))
+            }
+            var bytes = Data(count: Int(opened.st_size))
+            var offset = 0
+            while offset < bytes.count {
+                let count = bytes.withUnsafeMutableBytes { raw -> Int in
+                    guard let base = raw.baseAddress else { return 0 }
+                    return Darwin.read(file, base.advanced(by: offset),
+                        raw.count - offset)
+                }
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+                offset += count
+            }
+            var after = stat()
+            guard Darwin.fstat(file, &after) == 0,
+                  Self.sameFile(opened, after),
+                  let linked = try information(name),
+                  Self.sameFile(after, linked) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            return bytes
         }
-        var after = stat()
-        guard Darwin.fstat(file, &after) == 0, Self.sameFile(opened, after),
-              let linked = try information(name), Self.sameFile(after, linked) else {
+        if let originalErasePolicyIO {
+            return try originalErasePolicyIO.withOpen(
+                parent: authority.rootDescriptor, name: name,
+                flags: O_RDONLY | O_NONBLOCK) { file in
+                try readOpened(file)
+            }
+        }
+        let file = Darwin.openat(authority.rootDescriptor, name,
+            O_RDONLY | O_NOFOLLOW)
+        guard file >= 0 else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        return bytes
+        defer { _ = Darwin.close(file) }
+        return try readOpened(file)
     }
 
     private func publish(_ value: AppLockNotificationControlV1,
@@ -1926,52 +3467,151 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     }
 
     private func publishBytes(_ bytes: Data, recordName: String, pendingName: String,
-                              expected: Data?) throws {
+        expected: Data?, schedulingOwner: NotificationSchedulingPublicationOwner? = nil) throws {
+        // Original-mode publication uses its separately checked EX route.
+        guard originalErasePolicyIO == nil else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        if schedulingOwner == nil, recordName != Self.eraseName,
+           Self.schedulingOwners.live[notificationRootIdentity] != nil {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        if let owner = schedulingOwner {
+            guard recordName == Self.mappingName, pendingName == Self.mappingPendingName,
+                  expected != nil, try schedulingState(owner) == expected,
+                  owner.stage == nil else { throw AppAccessContractFailureV1.effectMismatch }
+        }
         guard !bytes.isEmpty, bytes.count <= Self.maximumRecordBytes,
-              try readFile(recordName, kind: .journal) == expected else {
+              try (schedulingOwner.map { try schedulingState($0) }
+                ?? readFile(recordName, kind: .journal)) == expected else {
             throw AppAccessContractFailureV1.effectMismatch
         }
-        if let pending = try readFile(pendingName, kind: .journalTemporary) {
-            // Only an exact interrupted successor can be adopted. Unknown or
-            // divergent pending bytes are retained for explicit recovery.
+        let pending = schedulingOwner == nil
+            ? try readFile(pendingName, kind: .journalTemporary) : nil
+        if let pending {
+            // The ordinary route is unchanged. A new live owner never adopts
+            // any preexisting stage, even one with exact successor bytes.
             guard pending == bytes else { throw AppAccessContractFailureV1.effectMismatch }
         } else {
             let file = Darwin.openat(authority.rootDescriptor, pendingName,
-                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+                (schedulingOwner == nil ? O_WRONLY : O_RDWR)
+                    | O_CREAT | O_EXCL | O_NOFOLLOW
+                    | (schedulingOwner == nil ? 0 : O_CLOEXEC), 0o600)
             guard file >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
-            defer { _ = Darwin.close(file) }
+            // Register the actual FD before any write, callback or throw.
+            let stage = try schedulingOwner.map { owner -> SchedulingStage in
+                let value = SchedulingStage(descriptor: file, bytes: bytes,
+                    predecessor: expected!)
+                owner.stage = value
+#if DEBUG
+                try schedulingTestingCut(owner, stage: value, cut: .afterStageOpenBeforeFirstFact)
+#endif
+                schedulingRecordFact(value, afterOwnedEffect: false)
+                return value
+            }
+            defer { if schedulingOwner == nil { _ = Darwin.close(file) } }
+            if let owner = schedulingOwner, let stage {
+                _ = try schedulingState(owner)
+                // INITIAL_CREATE: prove the actual same owned inode empty and
+                // COMPLETE before writing any private mapping payload byte.
+                stage.initialPolicyDisposition = try schedulingApplyStagePolicy(
+                    owner, stage: stage, expectedPrefixCount: 0)
+                stage.initialPolicyVerified = true
+                _ = try schedulingState(owner)
+#if DEBUG
+                try schedulingTestingCut(owner, stage: stage, cut: .afterInitialPolicyVerificationBeforeWrite)
+#endif
+            }
             var offset = 0
             while offset < bytes.count {
+                if let owner = schedulingOwner {
+                    guard let stage, stage.initialPolicyVerified else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    _ = try schedulingState(owner)
+                }
+#if DEBUG
+                let requestedWriteCount = schedulingWriteCountForTesting(schedulingOwner,
+                    stage: stage, remaining: bytes.count - offset)
+#else
+                let requestedWriteCount = bytes.count - offset
+#endif
                 let count = bytes.withUnsafeBytes { raw -> Int in
                     guard let base = raw.baseAddress else { return 0 }
-                    return Darwin.write(file, base.advanced(by: offset), raw.count - offset)
+                    return Darwin.write(file, base.advanced(by: offset), requestedWriteCount)
+                }
+                if count > 0 {
+                    offset += count
+                    stage?.prefixCount = offset
+                    stage?.positiveWriteCounts.append(count)
+                    if let stage { schedulingRecordFact(stage) }
+#if DEBUG
+                    if let owner = schedulingOwner, let stage {
+                        try schedulingTestingCut(owner, stage: stage, cut: .afterPositivePrefix(offset))
+                    }
+#endif
                 }
                 if count < 0, errno == EINTR { continue }
                 guard count > 0 else { throw AppAccessContractFailureV1.configurationUnknown }
-                offset += count
             }
-            let pinned = try information(pendingName)
-            try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary,
-                at: rootURL.appendingPathComponent(pendingName), authorityCheck: {
-                    try self.verifyRoot()
-                    var opened = stat()
-                    guard Darwin.fstat(file, &opened) == 0,
-                          let linked = try self.information(pendingName),
-                          let pinned, opened.st_dev == pinned.st_dev, opened.st_ino == pinned.st_ino,
-                          opened.st_dev == linked.st_dev, opened.st_ino == linked.st_ino else {
-                        throw AppAccessContractFailureV1.configurationUnknown
-                    }
-                })
+            if let owner = schedulingOwner, let stage {
+#if DEBUG
+                try schedulingTestingCut(owner, stage: stage, cut: .afterFullWriteBeforeFinalPolicy)
+#endif
+                _ = try schedulingApplyStagePolicy(owner, stage: stage,
+                    expectedPrefixCount: bytes.count)
+                stage.finalPolicyVerified = true
+#if DEBUG
+                try schedulingTestingCut(owner, stage: stage, cut: .afterFinalPolicyBeforeFileSync)
+#endif
+            } else {
+                // Existing ordinary publication remains under its established
+                // final policy request. Only the live owner adds the initial
+                // empty-stage checked policy boundary in this successor.
+                let pinned = try information(pendingName)
+                try ProtectedFilePolicyV1.applyAndVerify(.journalTemporary,
+                    at: rootURL.appendingPathComponent(pendingName), authorityCheck: {
+                        try self.verifyRoot()
+                        var opened = stat()
+                        guard Darwin.fstat(file, &opened) == 0,
+                              let linked = try self.information(pendingName),
+                              let pinned, opened.st_dev == pinned.st_dev, opened.st_ino == pinned.st_ino,
+                              opened.st_dev == linked.st_dev, opened.st_ino == linked.st_ino else {
+                            throw AppAccessContractFailureV1.configurationUnknown
+                        }
+                    })
+            }
             if failurePoint == .afterPendingWriteBeforeSync {
                 throw AppAccessContractFailureV1.effectMismatch
             }
         }
-        guard try readFile(pendingName, kind: .journalTemporary) == bytes,
-              try readFile(recordName, kind: .journal) == expected else { throw AppAccessContractFailureV1.effectMismatch }
-        // A valid pending file can survive an interruption before its content
-        // was flushed. Adopted and freshly written bytes need the same fsync.
-        try syncPendingFile(pendingName)
-        try verifyRoot()
+        if let owner = schedulingOwner {
+            guard try schedulingState(owner) == expected,
+                  let stage = owner.stage, stage.prefixCount == bytes.count,
+                  stage.initialPolicyVerified, stage.finalPolicyVerified else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            stage.fileSyncAttempted = true
+            guard Darwin.fsync(stage.descriptor) == 0 else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            stage.fileSynced = true
+            schedulingRecordFact(stage)
+            _ = try schedulingState(owner)
+        } else {
+            guard try readFile(pendingName, kind: .journalTemporary) == bytes,
+                  try readFile(recordName, kind: .journal) == expected else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            try syncPendingFile(pendingName)
+            try verifyRoot()
+        }
+#if DEBUG
+        if let owner = schedulingOwner, let stage = owner.stage {
+            try schedulingTestingCut(owner, stage: stage, cut: .beforeRename)
+        }
+#endif
+        schedulingOwner?.stage?.renameAttempted = true
         let result: Int32
         if expected == nil {
             result = Darwin.renameatx_np(authority.rootDescriptor, pendingName,
@@ -1980,8 +3620,40 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
             result = Darwin.renameat(authority.rootDescriptor, pendingName,
                 authority.rootDescriptor, recordName)
         }
-        guard result == 0, Darwin.fsync(authority.rootDescriptor) == 0,
-              try readFile(recordName, kind: .journal) == bytes else { throw AppAccessContractFailureV1.effectMismatch }
+        // Record successful namespace mutation before any durability check.
+        if result == 0, let stage = schedulingOwner?.stage {
+            stage.renamed = true; stage.name = recordName
+            schedulingRecordFact(stage)
+            if let fact = stage.fact { schedulingOwner?.canonicalFact = fact }
+        }
+        guard result == 0 else { throw AppAccessContractFailureV1.effectMismatch }
+#if DEBUG
+        if let owner = schedulingOwner, let stage = owner.stage {
+            try schedulingTestingCut(owner, stage: stage, cut: .afterRenameBeforeParentSync)
+        }
+#endif
+        if let owner = schedulingOwner {
+            _ = try schedulingState(owner)
+            owner.stage?.parentSyncAttempted = true
+            guard Darwin.fsync(authority.rootDescriptor) == 0 else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            owner.stage?.parentSynced = true
+#if DEBUG
+            if let stage = owner.stage {
+                try schedulingTestingCut(owner, stage: stage, cut: .afterParentSyncBeforeReadback)
+            }
+#endif
+            guard try schedulingState(owner) == bytes else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            try schedulingCompleteStage(owner)
+        } else {
+            guard Darwin.fsync(authority.rootDescriptor) == 0,
+                  try readFile(recordName, kind: .journal) == bytes else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
     }
 
     private func syncPendingFile(_ pendingName: String) throws {
@@ -2010,6 +3682,189 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
 /// reading capture/import/source scratch.
 /// Mutable lease state and filesystem transactions are confined to this lock.
 /// Async protocol entry points never suspend while holding it.
+@MainActor final class OriginalEraseNotificationRootPolicyReceiptV1 {
+    let firstRootFact: String
+    let firstTreeDigest: String
+    let projectedRootFact: String
+    let projectedTreeDigest: String
+    let disposition: ProtectedFileVerificationDispositionV1
+    let didRequestCompleteProtection: Bool
+    let checkedSettled: Bool
+    private weak var operation: EraseRouterOperationV1?
+    private weak var store: EraseIntentStore?
+    private weak var registry: GenerationLeaseRegistryV1?
+    private weak var exclusion: StoreTemporalNormalizationExclusionV1?
+    private weak var activity: GenerationTemporalActivityHandleV1?
+
+    fileprivate init(operation: EraseRouterOperationV1,
+        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        firstRootFact: String, firstTreeDigest: String,
+        projectedRootFact: String, projectedTreeDigest: String,
+        disposition: ProtectedFileVerificationDispositionV1,
+        didRequestCompleteProtection: Bool) {
+        self.operation = operation
+        self.store = store
+        self.registry = registry
+        self.exclusion = exclusion
+        self.activity = activity
+        self.firstRootFact = firstRootFact
+        self.firstTreeDigest = firstTreeDigest
+        self.projectedRootFact = projectedRootFact
+        self.projectedTreeDigest = projectedTreeDigest
+        self.disposition = disposition
+        self.didRequestCompleteProtection = didRequestCompleteProtection
+        checkedSettled = true
+    }
+
+    func requireBound(operation: EraseRouterOperationV1,
+        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1) throws {
+        guard self.operation === operation, self.store === store,
+              self.registry === registry, self.exclusion === exclusion,
+              self.activity === activity, checkedSettled else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+    }
+}
+
+@MainActor final class OriginalEraseNotificationMarkerPublicationReceiptV1 {
+    let revocation: NotificationEraseRevocationV1
+    let canonicalBytes: Data
+    let firstRootFact: String
+    let projectedRootFact: String
+    let firstTreeDigest: String
+    let projectedTreeDigest: String
+    let canonicalLeafFact: String
+    let checkedSettled: Bool
+    private weak var control: AppLockNotificationControlStoreV1?
+    private weak var operation: EraseRouterOperationV1?
+    private weak var store: EraseIntentStore?
+    private weak var registry: GenerationLeaseRegistryV1?
+    private weak var exclusion: StoreTemporalNormalizationExclusionV1?
+    private weak var activity: GenerationTemporalActivityHandleV1?
+
+    fileprivate init(control: AppLockNotificationControlStoreV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        revocation: NotificationEraseRevocationV1,
+        canonicalBytes: Data, firstRootFact: String,
+        projectedRootFact: String, firstTreeDigest: String,
+        projectedTreeDigest: String, canonicalLeafFact: String) {
+        self.control = control
+        self.operation = operation
+        self.store = store
+        self.registry = registry
+        self.exclusion = exclusion
+        self.activity = activity
+        self.revocation = revocation
+        self.canonicalBytes = canonicalBytes
+        self.firstRootFact = firstRootFact
+        self.projectedRootFact = projectedRootFact
+        self.firstTreeDigest = firstTreeDigest
+        self.projectedTreeDigest = projectedTreeDigest
+        self.canonicalLeafFact = canonicalLeafFact
+        checkedSettled = true
+    }
+
+    func requireBound(control: AppLockNotificationControlStoreV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1) throws {
+        guard self.control === control, self.operation === operation,
+              self.store === store, self.registry === registry,
+              self.exclusion === exclusion, self.activity === activity,
+              checkedSettled else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+    }
+}
+
+@MainActor final class OriginalEraseNotificationRecordRemovalReceiptV1 {
+    let finalRootFact: String
+    let finalTreeDigest: String
+    let removedNames: Set<String>
+    let checkedSettled = true
+    private weak var control: AppLockNotificationControlStoreV1?
+    private weak var absence: OriginalEraseNotificationOSAbsenceReceiptV1?
+    private weak var marker: OriginalEraseNotificationMarkerPublicationReceiptV1?
+
+    fileprivate init(control: AppLockNotificationControlStoreV1,
+        absence: OriginalEraseNotificationOSAbsenceReceiptV1,
+        marker: OriginalEraseNotificationMarkerPublicationReceiptV1,
+        finalRootFact: String, finalTreeDigest: String,
+        removedNames: Set<String>) {
+        self.control = control
+        self.absence = absence
+        self.marker = marker
+        self.finalRootFact = finalRootFact
+        self.finalTreeDigest = finalTreeDigest
+        self.removedNames = removedNames
+    }
+
+    func requireBound(control: AppLockNotificationControlStoreV1,
+        absence: OriginalEraseNotificationOSAbsenceReceiptV1,
+        marker: OriginalEraseNotificationMarkerPublicationReceiptV1
+    ) throws {
+        guard self.control === control, self.absence === absence,
+              self.marker === marker, checkedSettled else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+    }
+}
+
+@MainActor final class OriginalEraseScratchControlPolicyReceiptV1 {
+    let firstRootFact: String?
+    let firstTreeDigest: String?
+    let projectedRootFact: String?
+    let projectedTreeDigest: String?
+    let disposition: ProtectedFileVerificationDispositionV1?
+    let checkedSettled: Bool
+    private weak var operation: EraseRouterOperationV1?
+    private weak var store: EraseIntentStore?
+    private weak var registry: GenerationLeaseRegistryV1?
+    private weak var exclusion: StoreTemporalNormalizationExclusionV1?
+    private weak var activity: GenerationTemporalActivityHandleV1?
+
+    fileprivate init(operation: EraseRouterOperationV1,
+        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        firstRootFact: String?, firstTreeDigest: String?,
+        projectedRootFact: String?, projectedTreeDigest: String?,
+        disposition: ProtectedFileVerificationDispositionV1?) {
+        self.operation = operation
+        self.store = store
+        self.registry = registry
+        self.exclusion = exclusion
+        self.activity = activity
+        self.firstRootFact = firstRootFact
+        self.firstTreeDigest = firstTreeDigest
+        self.projectedRootFact = projectedRootFact
+        self.projectedTreeDigest = projectedTreeDigest
+        self.disposition = disposition
+        checkedSettled = true
+    }
+
+    func requireBound(operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1) throws {
+        guard self.operation === operation, self.store === store,
+              self.registry === registry, self.exclusion === exclusion,
+              self.activity === activity, checkedSettled else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+    }
+}
+
 final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable {
     private static let filesystemLock = NSRecursiveLock()
     private var lock: NSRecursiveLock { Self.filesystemLock }
@@ -4306,6 +6161,796 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             scratchDigest: digest)
     }
 
+    /// Data-only admission for the original operation before any Scratch
+    /// lifecycle effect. The already-held Support FD and checked Registry G
+    /// are borrowed synchronously. This entry opens an existing root and
+    /// observes policy; it never calls the ordinary repair-capable getters,
+    /// creates a producer activity, or mints a deletion receipt.
+    @MainActor
+    static func requireOriginalEraseAuxiliaryScratchNoRepairFirstImage(
+        applicationSupportURL: URL,
+        support: Int32,
+        expectedSupportFact: String,
+        expectedOperationsFact: String,
+        expectedOperationsNames: [String],
+        expectedScratchRootFact: String,
+        expectedScratchDigest: String,
+        permit: OriginalEraseAuxiliaryScratchNoRepairPermitV1
+    ) throws {
+        try permit.requireHeld()
+        var retainedStore: ScratchDataLeaseStoreV1?
+        do {
+            let store = try ScratchDataLeaseStoreV1(
+                verifiedExistingTemporalRootAt: applicationSupportURL,
+                clock: Date.init, checkedClose: true)
+            retainedStore = store
+            let io = EraseAbortCheckedSnapshotIOV1()
+            store.originalEraseSourceReceiptIO = io
+            try Self.filesystemLock.withLock {
+                try permit.requireHeld()
+                try io.requireSettled()
+                try store.authority.verify(rootName: Self.rootName)
+                let operations = store.authority.operationsDescriptor
+                let scratch = store.authority.rootDescriptor
+                func requireExactParents() throws {
+                    var heldSupport = stat(), namedSupport = stat(),
+                        heldOperations = stat(), namedOperations = stat(),
+                        heldScratch = stat(), namedScratch = stat()
+                    guard Darwin.fstat(support, &heldSupport) == 0,
+                          Darwin.lstat(applicationSupportURL.path,
+                              &namedSupport) == 0,
+                          Darwin.fstat(operations, &heldOperations) == 0,
+                          Darwin.fstatat(support,
+                              OwnedStorageRootKindV1.operations.rawValue,
+                              &namedOperations, AT_SYMLINK_NOFOLLOW) == 0,
+                          Darwin.fstat(scratch, &heldScratch) == 0,
+                          Darwin.fstatat(operations, Self.rootName,
+                              &namedScratch, AT_SYMLINK_NOFOLLOW) == 0,
+                          Self.originalEraseSourceFullFact(heldSupport)
+                              == expectedSupportFact,
+                          Self.originalEraseSourceFullFact(namedSupport)
+                              == expectedSupportFact,
+                          Self.originalEraseSourceFullFact(heldOperations)
+                              == expectedOperationsFact,
+                          Self.originalEraseSourceFullFact(namedOperations)
+                              == expectedOperationsFact,
+                          Self.originalEraseSourceFullFact(heldScratch)
+                              == expectedScratchRootFact,
+                          Self.originalEraseSourceFullFact(namedScratch)
+                              == expectedScratchRootFact,
+                          try io.names(in: operations)
+                              == expectedOperationsNames else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                }
+                try requireExactParents()
+                guard try io.postRetiredTree(parent: operations,
+                        name: Self.rootName) == expectedScratchDigest else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                try requireExactParents()
+                guard try io.postRetiredTree(parent: operations,
+                        name: Self.rootName) == expectedScratchDigest else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                try requireExactParents()
+                try io.requireSettled()
+                try permit.requireHeld()
+                try store.authority.closeCheckedForExclusiveOriginalEraseRead()
+                try io.requireSettled()
+            }
+            retainedStore = nil
+            try permit.requireHeld()
+        } catch {
+            if let retainedStore {
+                Self.retainedExclusiveSourceStores.append(retainedStore)
+            }
+            permit.poisonOnUncertainCleanup()
+            throw error
+        }
+    }
+
+    /// One policy boundary for an already rostered ingress-control root. The
+    /// caller's lexical permit comes from the original operation under its
+    /// retained EX and checked G; the branch reproof excludes only this one
+    /// root's setter-owned ctime, never a sibling or a new inode. No ordinary
+    /// repair-capable getter is called here.
+    @MainActor
+    static func settleOriginalEraseAuxiliaryExistingControlPolicy(
+        applicationSupportURL: URL,
+        support: Int32,
+        operations: Int32,
+        expectedSupportFact: String,
+        expectedOperationsFact: String,
+        expectedOperationsNames: [String],
+        firstControlFact: String?,
+        firstControlDigest: String?,
+        firstControlNodes:
+            [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode]?,
+        retainedIO: EraseAbortCheckedSnapshotIOV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        permit: OriginalEraseAuxiliaryScratchControlPolicyPermitV1,
+        reproveUnchangedBranches: () throws -> Void
+    ) throws -> OriginalEraseScratchControlPolicyReceiptV1 {
+        let name = "ProtectedIngressReceiptsV1"
+        // The original Router operation must retain this owner before the
+        // first open. A failed checked close may leave a live descriptor in it.
+        let io = retainedIO
+        let controlURL = applicationSupportURL
+            .appendingPathComponent(OwnedStorageRootKindV1.operations.rawValue,
+                isDirectory: true)
+            .appendingPathComponent(name, isDirectory: true)
+        func requireParents() throws {
+            try permit.requireHeld()
+            var heldSupport = stat(), namedSupport = stat(),
+                heldOperations = stat(), namedOperations = stat()
+            guard Darwin.fstat(support, &heldSupport) == 0,
+                  Darwin.lstat(applicationSupportURL.path, &namedSupport) == 0,
+                  Darwin.fstat(operations, &heldOperations) == 0,
+                  Darwin.fstatat(support,
+                      OwnedStorageRootKindV1.operations.rawValue,
+                      &namedOperations, AT_SYMLINK_NOFOLLOW) == 0,
+                  originalEraseSourceFullFact(heldSupport) == expectedSupportFact,
+                  originalEraseSourceFullFact(namedSupport) == expectedSupportFact,
+                  originalEraseSourceFullFact(heldOperations) == expectedOperationsFact,
+                  originalEraseSourceFullFact(namedOperations) == expectedOperationsFact,
+                  try io.names(in: operations) == expectedOperationsNames else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            try reproveUnchangedBranches()
+        }
+        do {
+            try requireParents()
+            guard (firstControlFact == nil) == (firstControlDigest == nil),
+                  (firstControlFact == nil) == (firstControlNodes == nil) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            guard let firstControlFact, let firstControlDigest else {
+                var absent = stat()
+                guard Darwin.fstatat(operations, name, &absent,
+                        AT_SYMLINK_NOFOLLOW) != 0,
+                      errno == ENOENT else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                try requireParents()
+                try io.requireSettled()
+                return OriginalEraseScratchControlPolicyReceiptV1(
+                    operation: operation, store: store, registry: registry,
+                    exclusion: exclusion, activity: activity,
+                    firstRootFact: nil, firstTreeDigest: nil,
+                    projectedRootFact: nil, projectedTreeDigest: nil,
+                    disposition: nil)
+            }
+            guard let firstControlNodes,
+                  let firstRootNode = firstControlNodes.first(where: {
+                      $0.path.isEmpty
+                  }),
+                  firstRootNode.fullFact == firstControlFact,
+                  Set(firstControlNodes.map(\.path)).count
+                    == firstControlNodes.count else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            func childFactsAndPolicies() throws
+                -> [String: (String, TemporalPolicyObservationV1)] {
+                var nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode] = []
+                _ = try io.postRetiredTree(parent: operations,
+                    name: name, observeTypedNode: { node, _ in
+                        nodes.append(node)
+                    })
+                var values: [String: (String,
+                    TemporalPolicyObservationV1)] = [:]
+                for node in nodes where !node.path.isEmpty {
+                    let kind: OwnedFileKindV1 = node.sha256 == nil
+                        ? .stagingDirectory : .temporaryFile
+                    let url = controlURL.appendingPathComponent(node.path)
+                    let observed = try ProtectedFilePolicyV1
+                        .observeTemporalPolicyWithCheckedClose(
+                            kind, at: url,
+                            retainUncertainDescriptor: {
+                                io.retainUncertainDescriptor($0)
+                                permit.poisonOnUncertainEffect()
+                            })
+                    guard observed.device == UInt64(node.fact.st_dev),
+                          observed.inode == UInt64(node.fact.st_ino),
+                          observed.mode == UInt16(node.fact.st_mode),
+                          observed.linkCount == UInt64(node.fact.st_nlink),
+                          observed.backupExcluded == true,
+                          observed.state == .strictComplete ||
+                            observed.state == .pendingSimulatorRequest else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    values[node.path] = (
+                        originalEraseSourceFullFact(node.fact), observed)
+                }
+                guard values.count + 1 == nodes.count else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                return values
+            }
+            let projected = try io.withOriginalEraseMainActorOpen(parent: operations, name: name,
+                    flags: O_RDONLY | O_DIRECTORY)
+                    { root -> (String, String,
+                        ProtectedFileVerificationDispositionV1,
+                        [String: (String,
+                            TemporalPolicyObservationV1)], stat) in
+                var requestWindow = false
+                // Derive this projection only after the full immutable P tree
+                // has been proved. It removes root metadata from the digest
+                // solely for this setter-owned root ctime transition; every
+                // descendant and the exact root names remain checked.
+                guard try io.postRetiredTree(parent: operations, name: name)
+                        == firstControlDigest else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                let stableControlDigest = try io.postRetiredTree(
+                    parent: operations, name: name,
+                    ignoringDirectoryMetadata: Set([""]))
+                // These facts were frozen by the authentic P observer before
+                // any auxiliary effect. No current child can become first.
+                let firstChildren = try childFactsAndPolicies()
+                guard firstChildren.count + 1 == firstControlNodes.count else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                for firstNode in firstControlNodes where !firstNode.path.isEmpty {
+                    guard let current = firstChildren[firstNode.path],
+                          current.0 == firstNode.fullFact,
+                          current.1 == firstNode.policy else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                }
+                let firstRootPolicy = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(
+                        .stagingDirectory, at: controlURL,
+                        retainUncertainDescriptor: {
+                            io.retainUncertainDescriptor($0)
+                            permit.poisonOnUncertainEffect()
+                        })
+                guard firstRootPolicy == firstRootNode.policy else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                @MainActor func requireRoot() throws -> (stat, String) {
+                    try requireParents()
+                    var held = stat(), named = stat()
+                    guard Darwin.fstat(root, &held) == 0,
+                          Darwin.fstatat(operations, name, &named,
+                              AT_SYMLINK_NOFOLLOW) == 0,
+                          held.st_mode & S_IFMT == S_IFDIR,
+                          originalEraseSourceFullFact(held)
+                            == originalEraseSourceFullFact(named),
+                          held.st_dev == named.st_dev,
+                          held.st_ino == named.st_ino else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    let fact = originalEraseSourceFullFact(held)
+                    if !requestWindow && fact != firstControlFact {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    if !requestWindow,
+                       try io.postRetiredTree(parent: operations,
+                            name: name) != firstControlDigest {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    guard try io.postRetiredTree(parent: operations,
+                            name: name,
+                            ignoringDirectoryMetadata: Set([""]))
+                            == stableControlDigest else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    let currentChildren = try childFactsAndPolicies()
+                    guard currentChildren.count == firstChildren.count else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    for (path, firstChild) in firstChildren {
+                        guard let current = currentChildren[path],
+                              current.0 == firstChild.0,
+                              current.1 == firstChild.1 else {
+                            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                        }
+                    }
+                    var heldAfter = stat(), namedAfter = stat()
+                    guard Darwin.fstat(root, &heldAfter) == 0,
+                          Darwin.fstatat(operations, name,
+                              &namedAfter, AT_SYMLINK_NOFOLLOW) == 0,
+                          originalEraseSourceFullFact(heldAfter) == fact,
+                          originalEraseSourceFullFact(namedAfter) == fact else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    return (held, fact)
+                }
+                let (first, _) = try requireRoot()
+                @MainActor func stableWitness() throws -> String {
+                    let (current, _) = try requireRoot()
+                    guard current.st_dev == first.st_dev,
+                          current.st_ino == first.st_ino,
+                          current.st_mode == first.st_mode,
+                          current.st_uid == first.st_uid,
+                          current.st_gid == first.st_gid,
+                          current.st_nlink == first.st_nlink,
+                          current.st_size == first.st_size,
+                          current.st_mtimespec.tv_sec
+                            == first.st_mtimespec.tv_sec,
+                          current.st_mtimespec.tv_nsec
+                            == first.st_mtimespec.tv_nsec else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    return "\(first.st_dev)|\(first.st_ino)|\(first.st_mode)|\(first.st_uid)|\(first.st_gid)|\(first.st_nlink)|\(first.st_size)|\(first.st_mtimespec.tv_sec)|\(first.st_mtimespec.tv_nsec)|\(stableControlDigest)"
+                }
+                let disposition = try ProtectedFilePolicyV1
+                    .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                        .stagingDirectory, at: controlURL,
+                        retainUncertainDescriptor: {
+                            io.retainUncertainDescriptor($0)
+                            permit.poisonOnUncertainEffect()
+                        }, willRequestCompleteProtection: {
+                            _ = try requireRoot()
+                            requestWindow = true
+                        }, unchangedWitness: stableWitness)
+                let (final, finalFact) = try requireRoot()
+                let finalDigest = try io.postRetiredTree(
+                    parent: operations, name: name)
+                try io.requireSettled()
+                return (finalFact, finalDigest, disposition,
+                    firstChildren, final)
+            }
+            // Reopen after the first checked close. A path replacement or
+            // change following policy readback cannot become the receipt.
+            func requireProjectedPostClose() throws {
+            try io.withOriginalEraseMainActorOpen(parent: operations, name: name,
+                    flags: O_RDONLY | O_DIRECTORY) { root in
+                try requireParents()
+                var held = stat(), named = stat()
+                guard Darwin.fstat(root, &held) == 0,
+                      Darwin.fstatat(operations, name, &named,
+                          AT_SYMLINK_NOFOLLOW) == 0,
+                      originalEraseSourceFullFact(held) == projected.0,
+                      originalEraseSourceFullFact(named) == projected.0,
+                      try io.postRetiredTree(parent: operations,
+                          name: name) == projected.1 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                let children = try childFactsAndPolicies()
+                guard children.count == projected.3.count else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                for (path, firstChild) in projected.3 {
+                    guard let current = children[path],
+                          current.0 == firstChild.0,
+                          current.1 == firstChild.1 else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                }
+                var heldAfter = stat(), namedAfter = stat()
+                guard Darwin.fstat(root, &heldAfter) == 0,
+                      Darwin.fstatat(operations, name,
+                          &namedAfter, AT_SYMLINK_NOFOLLOW) == 0,
+                      originalEraseSourceFullFact(heldAfter) == projected.0,
+                      originalEraseSourceFullFact(namedAfter) == projected.0 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+            }
+            }
+            try requireProjectedPostClose()
+            let policy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: controlURL,
+                    retainUncertainDescriptor: {
+                        io.retainUncertainDescriptor($0)
+                        permit.poisonOnUncertainEffect()
+                    })
+            guard policy.device == UInt64(projected.4.st_dev),
+                  policy.inode == UInt64(projected.4.st_ino),
+                  policy.linkCount == UInt64(projected.4.st_nlink),
+                  policy.mode == UInt16(projected.4.st_mode),
+                  policy.isDirectory == true,
+                  policy.backupExcluded == true,
+                  policy.state == .strictComplete ||
+                    (projected.2 == .simulatorFileProtectionUnsupported &&
+                     policy.state == .pendingSimulatorRequest) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            try requireProjectedPostClose()
+            try requireParents()
+            try io.requireSettled()
+            return OriginalEraseScratchControlPolicyReceiptV1(
+                operation: operation, store: store, registry: registry,
+                exclusion: exclusion, activity: activity,
+                firstRootFact: firstControlFact,
+                firstTreeDigest: firstControlDigest,
+                projectedRootFact: projected.0,
+                projectedTreeDigest: projected.1,
+                disposition: projected.2)
+        } catch {
+            permit.poisonOnUncertainEffect()
+            throw error
+        }
+    }
+
+    /// One policy boundary for the original first-P Notification root. The
+    /// caller's lexical permit comes from the original operation under its
+    /// retained EX and checked G; the branch reproof excludes only this one
+    /// root's setter-owned ctime, never a sibling or a new inode. No ordinary
+    /// repair-capable getter is called here.
+    @MainActor
+    static func settleOriginalEraseNotificationExistingRootPolicy(
+        applicationSupportURL: URL,
+        support: Int32,
+        operations: Int32,
+        expectedSupportFact: String,
+        expectedOperationsFact: String,
+        expectedOperationsNames: [String],
+        firstControlFact: String?,
+        firstControlDigest: String?,
+        firstControlNodes:
+            [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode]?,
+        retainedIO: EraseAbortCheckedSnapshotIOV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        permit: OriginalEraseNotificationRootPolicyPermitV1,
+        reproveUnchangedBranches: (Bool) throws -> Void
+    ) throws -> OriginalEraseNotificationRootPolicyReceiptV1 {
+        let name = AppLockNotificationControlStoreV1.rootName
+        // The original Router operation must retain this owner before the
+        // first open. A failed checked close may leave a live descriptor in it.
+        let io = retainedIO
+        let controlURL = applicationSupportURL
+            .appendingPathComponent(OwnedStorageRootKindV1.operations.rawValue,
+                isDirectory: true)
+            .appendingPathComponent(name, isDirectory: true)
+        var requestWindow = false
+        func requireParents() throws {
+            try permit.requireHeld()
+            var heldSupport = stat(), namedSupport = stat(),
+                heldOperations = stat(), namedOperations = stat()
+            guard Darwin.fstat(support, &heldSupport) == 0,
+                  Darwin.lstat(applicationSupportURL.path, &namedSupport) == 0,
+                  Darwin.fstat(operations, &heldOperations) == 0,
+                  Darwin.fstatat(support,
+                      OwnedStorageRootKindV1.operations.rawValue,
+                      &namedOperations, AT_SYMLINK_NOFOLLOW) == 0,
+                  originalEraseSourceFullFact(heldSupport) == expectedSupportFact,
+                  originalEraseSourceFullFact(namedSupport) == expectedSupportFact,
+                  originalEraseSourceFullFact(heldOperations) == expectedOperationsFact,
+                  originalEraseSourceFullFact(namedOperations) == expectedOperationsFact,
+                  try io.names(in: operations) == expectedOperationsNames else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            try reproveUnchangedBranches(requestWindow)
+        }
+        do {
+            try requireParents()
+            guard (firstControlFact == nil) == (firstControlDigest == nil),
+                  (firstControlFact == nil) == (firstControlNodes == nil) else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            guard let firstControlFact, let firstControlDigest else {
+                // The absent-root creation protocol is a separate typed
+                // effect; no observed empty namespace authorizes mkdir.
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            guard let firstControlNodes,
+                  let firstRootNode = firstControlNodes.first(where: {
+                      $0.path.isEmpty
+                  }),
+                  firstRootNode.fullFact == firstControlFact,
+                  Set(firstControlNodes.map(\.path)).count
+                    == firstControlNodes.count else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            func childFactsAndPolicies(root: Int32) throws
+                -> [String: (String, TemporalPolicyObservationV1)] {
+                var heldRoot = stat(), namedRoot = stat()
+                guard Darwin.fstat(root, &heldRoot) == 0,
+                      Darwin.fstatat(operations, name, &namedRoot,
+                          AT_SYMLINK_NOFOLLOW) == 0,
+                      originalEraseSourceFullFact(heldRoot)
+                        == originalEraseSourceFullFact(namedRoot),
+                      heldRoot.st_mode & S_IFMT == S_IFDIR,
+                      UInt64(heldRoot.st_dev)
+                        == firstRootNode.policy.device,
+                      UInt64(heldRoot.st_ino)
+                        == firstRootNode.policy.inode else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                let heldFact = originalEraseSourceFullFact(heldRoot)
+                if !requestWindow && heldFact != firstControlFact {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                if requestWindow {
+                    let firstFields = firstControlFact.split(separator: "|",
+                        omittingEmptySubsequences: false)
+                    let heldFields = heldFact.split(separator: "|",
+                        omittingEmptySubsequences: false)
+                    guard firstFields.count == 11, heldFields.count == 11,
+                          Array(firstFields.prefix(9))
+                            == Array(heldFields.prefix(9)) else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                }
+                var nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode] = []
+                _ = try io.postRetiredTree(parent: operations,
+                    name: name, observeTypedNode: { node, _ in
+                        nodes.append(node)
+                    })
+                var values: [String: (String,
+                    TemporalPolicyObservationV1)] = [:]
+                for node in nodes where !node.path.isEmpty {
+                    // The first-P Notification grammar permits only direct
+                    // regular leaves. Keep the child FD pinned while its
+                    // URL policy is observed, with full held/named facts on
+                    // both sides of that separate checked policy read.
+                    guard !node.path.contains("/"), node.sha256 != nil else {
+                        throw AppAccessContractFailureV1
+                            .notificationReconciliationRequired
+                    }
+                    let kind: OwnedFileKindV1 =
+                        node.path.hasSuffix(".pending.json")
+                            ? .journalTemporary : .journal
+                    let url = controlURL.appendingPathComponent(node.path)
+                    values[node.path] = try io.withOpen(parent: root,
+                        name: node.path, flags: O_RDONLY | O_NONBLOCK) {
+                        descriptor in
+                        func requireChild() throws {
+                            var held = stat(), named = stat()
+                            guard Darwin.fstat(descriptor, &held) == 0,
+                                  Darwin.fstatat(root, node.path,
+                                      &named, AT_SYMLINK_NOFOLLOW) == 0,
+                                  originalEraseSourceFullFact(held)
+                                    == originalEraseSourceFullFact(node.fact),
+                                  originalEraseSourceFullFact(named)
+                                    == originalEraseSourceFullFact(node.fact),
+                                  held.st_mode & S_IFMT == S_IFREG,
+                                  held.st_nlink == 1 else {
+                                throw AppAccessContractFailureV1
+                                    .notificationReconciliationRequired
+                            }
+                        }
+                        try requireChild()
+                        let observed = try ProtectedFilePolicyV1
+                            .observeTemporalPolicyWithCheckedClose(
+                                kind, at: url,
+                                retainUncertainDescriptor: {
+                                    io.retainUncertainDescriptor($0)
+                                    permit.poisonOnUncertainEffect()
+                                })
+                        guard observed.device == UInt64(node.fact.st_dev),
+                              observed.inode == UInt64(node.fact.st_ino),
+                              observed.mode == UInt16(node.fact.st_mode),
+                              observed.linkCount == UInt64(node.fact.st_nlink),
+                              observed.backupExcluded == true,
+                              observed.state == .strictComplete ||
+                                observed.state == .pendingSimulatorRequest else {
+                            throw AppAccessContractFailureV1
+                                .notificationReconciliationRequired
+                        }
+                        try requireChild()
+                        return (originalEraseSourceFullFact(node.fact),
+                            observed)
+                    }
+                }
+                guard values.count + 1 == nodes.count else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                var finalRoot = stat(), finalNamedRoot = stat()
+                guard Darwin.fstat(root, &finalRoot) == 0,
+                      Darwin.fstatat(operations, name, &finalNamedRoot,
+                          AT_SYMLINK_NOFOLLOW) == 0,
+                      originalEraseSourceFullFact(finalRoot) == heldFact,
+                      originalEraseSourceFullFact(finalNamedRoot)
+                        == heldFact else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+                return values
+            }
+            let projected = try io.withOriginalEraseMainActorOpen(parent: operations, name: name,
+                    flags: O_RDONLY | O_DIRECTORY)
+                    { root -> (String, String,
+                        ProtectedFileVerificationDispositionV1,
+                        [String: (String,
+                            TemporalPolicyObservationV1)], stat) in
+                // Derive this projection only after the full immutable P tree
+                // has been proved. It removes root metadata from the digest
+                // solely for this setter-owned root ctime transition; every
+                // descendant and the exact root names remain checked.
+                guard try io.postRetiredTree(parent: operations, name: name)
+                        == firstControlDigest else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                let stableControlDigest = try io.postRetiredTree(
+                    parent: operations, name: name,
+                    ignoringDirectoryMetadata: Set([""]))
+                // These facts were frozen by the authentic P observer before
+                // any auxiliary effect. No current child can become first.
+                let firstChildren = try childFactsAndPolicies(root: root)
+                guard firstChildren.count + 1 == firstControlNodes.count else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                for firstNode in firstControlNodes where !firstNode.path.isEmpty {
+                    guard let current = firstChildren[firstNode.path],
+                          current.0 == firstNode.fullFact,
+                          current.1 == firstNode.policy else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                }
+                let firstRootPolicy = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(
+                        .stagingDirectory, at: controlURL,
+                        retainUncertainDescriptor: {
+                            io.retainUncertainDescriptor($0)
+                            permit.poisonOnUncertainEffect()
+                        })
+                guard firstRootPolicy == firstRootNode.policy else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                @MainActor func requireRoot() throws -> (stat, String) {
+                    try requireParents()
+                    var held = stat(), named = stat()
+                    guard Darwin.fstat(root, &held) == 0,
+                          Darwin.fstatat(operations, name, &named,
+                              AT_SYMLINK_NOFOLLOW) == 0,
+                          held.st_mode & S_IFMT == S_IFDIR,
+                          originalEraseSourceFullFact(held)
+                            == originalEraseSourceFullFact(named),
+                          held.st_dev == named.st_dev,
+                          held.st_ino == named.st_ino else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    let fact = originalEraseSourceFullFact(held)
+                    if !requestWindow && fact != firstControlFact {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    if !requestWindow,
+                       try io.postRetiredTree(parent: operations,
+                            name: name) != firstControlDigest {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    guard try io.postRetiredTree(parent: operations,
+                            name: name,
+                            ignoringDirectoryMetadata: Set([""]))
+                            == stableControlDigest else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    let currentChildren = try childFactsAndPolicies(
+                        root: root)
+                    guard currentChildren.count == firstChildren.count else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    for (path, firstChild) in firstChildren {
+                        guard let current = currentChildren[path],
+                              current.0 == firstChild.0,
+                              current.1 == firstChild.1 else {
+                            throw AppAccessContractFailureV1.notificationReconciliationRequired
+                        }
+                    }
+                    var heldAfter = stat(), namedAfter = stat()
+                    guard Darwin.fstat(root, &heldAfter) == 0,
+                          Darwin.fstatat(operations, name,
+                              &namedAfter, AT_SYMLINK_NOFOLLOW) == 0,
+                          originalEraseSourceFullFact(heldAfter) == fact,
+                          originalEraseSourceFullFact(namedAfter) == fact else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    return (held, fact)
+                }
+                let (first, _) = try requireRoot()
+                @MainActor func stableWitness() throws -> String {
+                    let (current, _) = try requireRoot()
+                    guard current.st_dev == first.st_dev,
+                          current.st_ino == first.st_ino,
+                          current.st_mode == first.st_mode,
+                          current.st_uid == first.st_uid,
+                          current.st_gid == first.st_gid,
+                          current.st_nlink == first.st_nlink,
+                          current.st_size == first.st_size,
+                          current.st_mtimespec.tv_sec
+                            == first.st_mtimespec.tv_sec,
+                          current.st_mtimespec.tv_nsec
+                            == first.st_mtimespec.tv_nsec else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                    return "\(first.st_dev)|\(first.st_ino)|\(first.st_mode)|\(first.st_uid)|\(first.st_gid)|\(first.st_nlink)|\(first.st_size)|\(first.st_mtimespec.tv_sec)|\(first.st_mtimespec.tv_nsec)|\(stableControlDigest)"
+                }
+                let disposition = try ProtectedFilePolicyV1
+                    .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                        .stagingDirectory, at: controlURL,
+                        retainUncertainDescriptor: {
+                            io.retainUncertainDescriptor($0)
+                            permit.poisonOnUncertainEffect()
+                        }, willRequestCompleteProtection: {
+                            _ = try requireRoot()
+                            requestWindow = true
+                        }, unchangedWitness: stableWitness)
+                let (final, finalFact) = try requireRoot()
+                let finalDigest = try io.postRetiredTree(
+                    parent: operations, name: name)
+                try io.requireSettled()
+                return (finalFact, finalDigest, disposition,
+                    firstChildren, final)
+            }
+            // Reopen after the first checked close. A path replacement or
+            // change following policy readback cannot become the receipt.
+            func requireProjectedPostClose() throws {
+            try io.withOriginalEraseMainActorOpen(parent: operations, name: name,
+                    flags: O_RDONLY | O_DIRECTORY) { root in
+                try requireParents()
+                var held = stat(), named = stat()
+                guard Darwin.fstat(root, &held) == 0,
+                      Darwin.fstatat(operations, name, &named,
+                          AT_SYMLINK_NOFOLLOW) == 0,
+                      originalEraseSourceFullFact(held) == projected.0,
+                      originalEraseSourceFullFact(named) == projected.0,
+                      try io.postRetiredTree(parent: operations,
+                          name: name) == projected.1 else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                let children = try childFactsAndPolicies(root: root)
+                guard children.count == projected.3.count else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+                for (path, firstChild) in projected.3 {
+                    guard let current = children[path],
+                          current.0 == firstChild.0,
+                          current.1 == firstChild.1 else {
+                        throw AppAccessContractFailureV1.notificationReconciliationRequired
+                    }
+                }
+                var heldAfter = stat(), namedAfter = stat()
+                guard Darwin.fstat(root, &heldAfter) == 0,
+                      Darwin.fstatat(operations, name,
+                          &namedAfter, AT_SYMLINK_NOFOLLOW) == 0,
+                      originalEraseSourceFullFact(heldAfter) == projected.0,
+                      originalEraseSourceFullFact(namedAfter) == projected.0 else {
+                    throw AppAccessContractFailureV1.notificationReconciliationRequired
+                }
+            }
+            }
+            try requireProjectedPostClose()
+            let policy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: controlURL,
+                    retainUncertainDescriptor: {
+                        io.retainUncertainDescriptor($0)
+                        permit.poisonOnUncertainEffect()
+                    })
+            guard policy.device == UInt64(projected.4.st_dev),
+                  policy.inode == UInt64(projected.4.st_ino),
+                  policy.linkCount == UInt64(projected.4.st_nlink),
+                  policy.mode == UInt16(projected.4.st_mode),
+                  policy.isDirectory == true,
+                  policy.backupExcluded == true,
+                  policy.state == .strictComplete ||
+                    (projected.2 == .simulatorFileProtectionUnsupported &&
+                     policy.state == .pendingSimulatorRequest) else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            try requireProjectedPostClose()
+            try requireParents()
+            try io.requireSettled()
+            return OriginalEraseNotificationRootPolicyReceiptV1(
+                operation: operation, store: store, registry: registry,
+                exclusion: exclusion, activity: activity,
+                firstRootFact: firstControlFact,
+                firstTreeDigest: firstControlDigest,
+                projectedRootFact: projected.0,
+                projectedTreeDigest: projected.1,
+                disposition: projected.2,
+                didRequestCompleteProtection: requestWindow)
+        } catch {
+            permit.poisonOnUncertainEffect()
+            throw error
+        }
+    }
+
     /// Used only within the original Erase Registry's synchronous G scope and
     /// already-held Support-root EX. No new producer SH or scratch recovery is
     /// permitted; any existing scratch member makes this read fail closed.
@@ -4340,6 +6985,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         readerIsDrained: @escaping @MainActor () -> Bool,
         onCheckedSettlement: (@MainActor (
             OriginalEraseExclusiveSourceReadReceiptV1) -> Void)? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil,
         _ read: (SourceReadDirectory) throws -> Value
     ) throws -> Value {
         try withExclusiveEraseSourceRead(
@@ -4347,7 +6993,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             request: request, permit: .original(permit),
             requireProtectedIngressUnchanged: requireProtectedIngressUnchanged,
             readerIsDrained: readerIsDrained,
-            onCheckedSettlement: onCheckedSettlement, read)
+            onCheckedSettlement: onCheckedSettlement,
+            diagnosticPhase: diagnosticPhase, read)
     }
 
     @MainActor
@@ -4375,13 +7022,20 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         readerIsDrained: @escaping @MainActor () -> Bool,
         onCheckedSettlement: (@MainActor (
             OriginalEraseExclusiveSourceReadReceiptV1) -> Void)? = nil,
+        diagnosticPhase: (@MainActor (String) -> Void)? = nil,
         _ read: (SourceReadDirectory) throws -> Value
     ) throws -> Value {
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.scratch.permit-enter")
+#endif
         try permit.requireHeld()
         guard request.purpose == .source, request.owner == .source else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
         try request.validate()
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.scratch.permit-complete")
+#endif
         if onCheckedSettlement != nil {
             guard case .original = permit else {
                 throw ScratchDataLeaseStoreFailureV1.invalidLease
@@ -4391,9 +7045,18 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         // lifecycle. Its exact tree was sealed by the original Erase Service
         // before the fault; this read neither opens an ingress Store nor
         // requires a valid preexisting sibling to be absent.
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.scratch.ingress-enter")
+#endif
         try requireProtectedIngressUnchanged()
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.scratch.ingress-complete")
+#endif
         let store: ScratchDataLeaseStoreV1
         do {
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.scratch.store-enter")
+#endif
             store = try ScratchDataLeaseStoreV1(
                 verifiedExistingTemporalRootAt: applicationSupportURL,
                 clock: Date.init,
@@ -4405,6 +7068,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             permit.poisonOnUncertainCleanup()
             throw error
         }
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.scratch.store-complete")
+#endif
         store.exclusiveNoRepairRead = true
         if onCheckedSettlement != nil {
             store.originalEraseSourceReceiptIO = EraseAbortCheckedSnapshotIOV1()
@@ -4412,39 +7078,96 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         var directory: SourceReadDirectory?
         var cleanupProved = false
         do {
+#if DEBUG
+        diagnosticPhase?("recovery.original.old.scratch.lock-enter")
+#endif
             return try Self.filesystemLock.withLock {
                 try permit.requireHeld()
                 try requireProtectedIngressUnchanged()
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.lock-complete")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.first-cut-enter")
+#endif
                 let firstCut = try onCheckedSettlement.map { _ in
                     try store.checkedOriginalEraseSourceCut()
                 }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.first-cut-complete")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.lease-enter")
+#endif
                 let lease = try store.acquireScratchLeaseSynchronously(
                     request, recoverExisting: false)
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.lease-complete")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.directory-enter")
+#endif
                 directory = try SourceReadDirectory(
                     store: store, lease: lease,
                     readerIsDrained: readerIsDrained,
                     exclusivePermit: permit)
                 guard let directory else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.directory-complete")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.metadata-enter")
+#endif
                 try directory.establishExclusiveOwnedMetadata()
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.metadata-complete")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.callback-enter")
+#endif
                 let result = Result { try read(directory) }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.callback-returned")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.drain-enter")
+#endif
                 guard readerIsDrained() else {
                     throw ScratchDataLeaseStoreFailureV1.leaseCollision
                 }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.drain-complete")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.reader-close-enter")
+#endif
                 guard let ownedFiles = try directory.closeReaderScope() else {
                     throw ScratchDataLeaseStoreFailureV1.leaseCollision
                 }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.reader-close-complete")
+#endif
                 let terminal: ScratchDataLeaseTerminalV1
                 switch result {
                 case .success: terminal = .completed
                 case .failure: terminal = .failed
                 }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.release-enter")
+#endif
                 try store.releaseScratchLeaseSynchronously(
                     lease, terminal: terminal, exclusiveNoRepair: true,
                     exclusiveExpectedFiles: ownedFiles)
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.release-complete")
+#endif
                 try permit.requireHeld()
                 guard store.active.isEmpty else {
                     throw ScratchDataLeaseStoreFailureV1.leaseCollision
                 }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.final-cut-enter")
+#endif
                 let finalCut = try firstCut.map { _ in
                     try store.checkedOriginalEraseSourceCut()
                 }
@@ -4460,16 +7183,47 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                         throw ScratchDataLeaseStoreFailureV1.invalidRoot
                     }
                 }
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.final-cut-complete")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.authority-close-enter")
+#endif
                 try store.authority.closeCheckedForExclusiveOriginalEraseRead()
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.authority-close-complete")
+#endif
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.io-settle-enter")
+#endif
                 try store.originalEraseSourceReceiptIO?.requireSettled()
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.io-settle-complete")
+#endif
+                #if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.final-ingress-enter")
+#endif
                 try requireProtectedIngressUnchanged()
+#if DEBUG
+                diagnosticPhase?("recovery.original.old.scratch.final-ingress-complete")
+#endif
                 cleanupProved = true
                 if case .success = result,
                    let firstCut, let finalCut, let onCheckedSettlement {
+#if DEBUG
+                    diagnosticPhase?("recovery.original.old.scratch.receipt-enter")
+#endif
                     onCheckedSettlement(OriginalEraseExclusiveSourceReadReceiptV1(
                         request: request, leaseName: lease.relativeDirectory,
                         before: firstCut, after: finalCut))
                 }
+#if DEBUG
+                if case .failure = result {
+                    diagnosticPhase?("recovery.original.old.scratch.callback-failed")
+                } else {
+                    diagnosticPhase?("recovery.original.old.scratch.receipt-complete")
+                }
+#endif
                 return try result.get()
             }
         } catch {

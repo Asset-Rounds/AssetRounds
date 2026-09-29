@@ -5975,15 +5975,62 @@ final class EraseRouterOperationV1 {
         case preFirstReaderRecordProbe
         case firstRosterCensus
         case writerTransition
+        case postPointerReproof
     }
     private var originalAuxiliaryRegistryObservationScope:
         OriginalAuxiliaryRegistryObservationScope?
     private var originalAuxiliaryRegistryObservationFailed = false
+    private var originalPostPointerReproofInFlight = false
+    private var originalPostPointerReproofUncertain = false
     private var originalAuxiliarySearchWriter:
         OriginalEraseAuxiliarySearchWriterV1?
     private var originalAuxiliarySearchInFlight = false
     private var originalAuxiliarySearchUncertain = false
     private var originalAuxiliarySearchPublished = false
+    private var originalAuxiliaryScratchNoRepairAttempted = false
+    private var originalAuxiliaryScratchNoRepairInFlight = false
+    private var originalAuxiliaryScratchNoRepairUncertain = false
+    private var originalAuxiliaryNotificationInFlight = false
+    private var originalAuxiliaryNotificationUncertain = false
+    private var originalAuxiliaryNotificationBefore:
+        EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+    private var originalAuxiliaryNotificationAfter:
+        EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+    private var originalAuxiliaryNotificationReceipt:
+        OriginalEraseNotificationEffectReceiptV1?
+    private var originalAuxiliaryNotificationControl:
+        AppLockNotificationControlStoreV1?
+    private var originalNotificationRootPolicyInFlight = false
+    private var originalNotificationRootPolicyUncertain = false
+    private var originalNotificationRootPolicyIO:
+        EraseAbortCheckedSnapshotIOV1?
+    private var originalNotificationRootPolicyBefore:
+        EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+    private var originalNotificationRootPolicyAfter:
+        EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+    private var originalNotificationRootPolicyReceipt:
+        OriginalEraseNotificationRootPolicyReceiptV1?
+    private var originalNotificationMarkerInFlight = false
+    private var originalNotificationMarkerUncertain = false
+    private var originalNotificationMarkerIO:
+        EraseAbortCheckedSnapshotIOV1?
+    private var originalNotificationMarkerOutsideDigest: String?
+    private var originalNotificationMarkerReceipt:
+        OriginalEraseNotificationMarkerPublicationReceiptV1?
+    private var originalNotificationRemovalInFlight = false
+    private var originalNotificationRemovalUncertain = false
+    private var originalNotificationRemovalIO:
+        EraseAbortCheckedSnapshotIOV1?
+    private var originalNotificationOSAbsence:
+        OriginalEraseNotificationOSAbsenceReceiptV1?
+    private var originalNotificationRemovalReceipt:
+        OriginalEraseNotificationRecordRemovalReceiptV1?
+    private var originalAuxiliaryScratchControlPolicyInFlight = false
+    private var originalAuxiliaryScratchControlPolicyUncertain = false
+    private var originalAuxiliaryScratchControlPolicyIO:
+        EraseAbortCheckedSnapshotIOV1?
+    private var originalAuxiliaryScratchControlPolicyReceipt:
+        OriginalEraseScratchControlPolicyReceiptV1?
     private var originalPointerMutationInFlight: OriginalEraseRetainedPointerStageV1?
     private var originalPointerMutationUncertain = false
     private var originalPointerPublished = false
@@ -6156,6 +6203,11 @@ final class EraseRouterOperationV1 {
     private var originalRecoveryPreOpenOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1?
     private var originalRecoveryAuxiliaryContinuity:
         StoreOriginalEraseRecoveryAuxiliaryContinuityV1?
+    private var originalRecoveryAuxiliaryFirstMatchesOriginalP = false
+    private var originalRecoveryPostPointerAuxiliaryProjection:
+        OriginalRecoveryPostPointerAuxiliaryProjectionV1?
+    private var originalRecoveryPostPointerOwner:
+        StoreOriginalEraseRecoveryPreOpenOwnerV1?
     private var originalRecoveryObservation: EraseIntentStore.OriginalRecoveryObservation?
     private var originalRetiredCommitmentInFlight = false
     private var originalRetiredCommitmentUncertain = false
@@ -7264,6 +7316,18 @@ final class EraseRouterOperationV1 {
         originalPointerMutationInFlight = nil
     }
 
+    /// The original P writer receipt retains its exact issuing authority.
+    /// A later recovery-only read authority must never impersonate that
+    /// issuer; Service separately reobserves its current/retired bytes.
+    func requireOriginalEraseRetiredPointerReceiptFromIssuer()
+        throws -> StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1 {
+        guard let authority = originalPointerAuthority else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try requireOriginalEraseRetiredPointerReceipt(
+            authority: authority)
+    }
+
     func requireOriginalEraseRetiredPointerReceipt(
         authority: StoreRestoreGenerationAuthority
     ) throws -> StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1 {
@@ -7331,8 +7395,16 @@ final class EraseRouterOperationV1 {
         let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
             registry: registry, coordinator: coordinator,
             writer: source.token)
+        // Bind the checked pointer-writer receipt to its original
+        // authority. The recovery authority is a distinct reader of the
+        // same Registry and must independently verify current bytes.
+        guard let pointerAuthority = originalPointerAuthority,
+              pointerAuthority.matchesMutationRegistryForOriginalErase(registry)
+        else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
         _ = try requireOriginalEraseRetiredPointerReceipt(
-            authority: authority)
+            authority: pointerAuthority)
         try factory.requireOriginalEraseCurrentPointerBytes(
             expectedPointerData, identity: target, authority: authority)
         originalTargetReaderAllocation = allocation
@@ -7378,16 +7450,63 @@ final class EraseRouterOperationV1 {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try router.requireEraseRetirementOperation(self)
+        // Bind the checked pointer-writer receipt to its original
+        // authority. The recovery authority is a distinct reader of the
+        // same Registry and must independently verify current bytes.
+        guard let pointerAuthority = originalPointerAuthority,
+              pointerAuthority.matchesMutationRegistryForOriginalErase(registry)
+        else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
         _ = try requireOriginalEraseRetiredPointerReceipt(
-            authority: authority)
+            authority: pointerAuthority)
         try factory.requireOriginalEraseCurrentPointerBytes(
             expectedPointerData, identity: target, authority: authority)
         return (intent, first)
     }
 
+    /// Identity-only owner proof under the Registry's already held G.
+    func requireOriginalEraseTargetReaderStartingProjectionOwner(
+        _ sealed: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+        recoveryOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        guard let router, !detached, !detaching,
+              originalTargetReaderInFlight,
+              !originalTargetReaderUncertain,
+              originalTargetReaderAllocation === allocation,
+              originalTargetReaderHandle == nil,
+              originalTargetReaderProjection == nil,
+              originalRecoveryAuxiliaryFirstMatchesOriginalP,
+              originalRecoveryPostPointerAuxiliaryProjection === sealed,
+              originalRecoveryPostPointerOwner === recoveryOwner,
+              originalRecoveryPreOpenOwner == nil,
+              originalAuxiliaryFirstCaptureOwner === owner,
+              preparationCoordinator === coordinator,
+              originalExclusion === exclusion,
+              exclusion.registry === registry,
+              preparationRegistry === registry,
+              allocation.matches(registry: registry),
+              originalAuxiliaryProjectedIntent?.phase == .pointerSwitched,
+              let source = preparationSourceWriter,
+              preparationWriterPhase == .absent,
+              originalWriterTransition == nil,
+              exclusion.matchesOriginalEraseAuxiliaryPhase(
+                registry: registry, activity: activity,
+                writer: source.token) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+    }
+
     /// The Registry has twice observed the physical tree while holding its
     /// actual G and before the first reader-record O_EXCL. Bind that first
-    /// tree to the immutable P auxiliary image; a fresh Q survivor cannot
+    /// tree to the checked P-to-Scratch projection; a fresh Q survivor cannot
     /// become the reader publication's starting authority.
     func requireOriginalEraseTargetReaderFirstOperationsUnderHeldG(
         registry: GenerationLeaseRegistryV1,
@@ -7404,12 +7523,13 @@ final class EraseRouterOperationV1 {
               originalTargetReaderHandle == nil,
               originalTargetReaderProjection == nil,
               originalAuxiliaryRosterAdmission != nil,
+              originalRecoveryAuxiliaryFirstMatchesOriginalP,
               let snapshot = originalAuxiliaryFirstSnapshot,
-              snapshot.operations == .present(
-                rootFact: operationsFact, digest: operationsDigest),
-              snapshot.operationsChildren["generation-leases"]
-                == .directory(rootFact: leaseRootFact,
-                    digest: leaseDigest),
+              let sealed = originalRecoveryPostPointerAuxiliaryProjection,
+              let recoveryOwner = originalRecoveryPostPointerOwner,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              let allocation = originalTargetReaderAllocation,
+              let coordinator = preparationCoordinator,
               originalAuxiliaryProjectedIntent?.phase == .pointerSwitched,
               originalPointerPublished, originalRetiredPublished,
               let exclusion = originalExclusion,
@@ -7424,12 +7544,27 @@ final class EraseRouterOperationV1 {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try router.requireEraseRetirementOperation(self)
+        let starting = try owner.requireOriginalReaderStartingProjected(
+            sealed, recoveryOwner: recoveryOwner, originalP: snapshot,
+            allocation: allocation, registry: registry, activity: activity,
+            operation: self, coordinator: coordinator,
+            exclusion: exclusion)
+        guard starting.operations == .present(
+                rootFact: operationsFact, digest: operationsDigest),
+              starting.operationsChildren["generation-leases"]
+                == .directory(rootFact: leaseRootFact,
+                    digest: leaseDigest) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
     }
 
     func retainOriginalEraseTargetReaderHandle(
         _ handle: GenerationLeaseHandleV1,
         allocation: GenerationLeaseAllocationAttemptV1
     ) throws {
+        #if DEBUG
+        FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=router.handle-enter\n".utf8))
+        #endif
         guard originalTargetReaderInFlight,
               !originalTargetReaderUncertain,
               originalTargetReaderAllocation === allocation,
@@ -7447,18 +7582,30 @@ final class EraseRouterOperationV1 {
             originalTargetReaderUncertain = true
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+        #if DEBUG
+        FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=router.handle-guard-complete\n".utf8))
+        #endif
         do {
             try projection.requireBound(registry: exclusion.registry,
                 operation: self, allocation: allocation, handle: handle)
             originalTargetReaderHandle = handle
             originalTargetReaderProjection = projection
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=router.projection-enter\n".utf8))
+            #endif
             let projected = try owner.requireOriginalReaderProjected(
                 projection, allocation: allocation, handle: handle,
                 operation: self, coordinator: coordinator,
                 exclusion: exclusion)
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=router.projection-complete\n".utf8))
+            #endif
             originalTargetReaderProjectedSnapshot = projected
             originalTargetReaderInFlight = false
         } catch {
+            #if DEBUG
+            FileHandle.standardError.write(Data("V23_ORIGINAL_READER_DIAG stage=router.projection-failed\n".utf8))
+            #endif
             originalTargetReaderUncertain = true
             throw error
         }
@@ -7661,6 +7808,96 @@ final class EraseRouterOperationV1 {
         }
     }
 
+    /// A distinct read-only Q scope after the pre-open owner has released.
+    /// It retains the original EX, Registry, activity, Store and first token
+    /// cohort; it cannot authorize target-writer publication or a phase CAS.
+    func withOriginalRecoveryPostPointerAuxiliaryRead<Value>(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore,
+        intent: EraseIntentV1,
+        coordinator: StoreSessionCoordinator,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        guard let router, !detached, !detaching,
+              preparationCoordinator === coordinator,
+              originalRecoveryPreOpenOwner == nil,
+              originalRecoveryAuxiliaryContinuity == nil,
+              let exclusion = originalExclusion,
+              exclusion.registry === registry,
+              originalAuxiliaryStore === store,
+              originalAuxiliaryProjectedIntent == intent,
+              intent.phase == .pointerSwitched,
+              originalAuxiliaryRosterAdmission != nil,
+              originalAuxiliaryFirstLeaseCensus != nil,
+              preparationWriterPhase == .absent,
+              originalWriterTransition == nil,
+              originalTargetReaderHandle == nil,
+              !originalAuxiliaryPhaseCASInFlight,
+              !originalAuxiliaryPhaseCASUncertain,
+              !originalPostPointerReproofInFlight,
+              !originalPostPointerReproofUncertain,
+              originalAuxiliaryRegistryObservationScope == nil,
+              !originalAuxiliaryRegistryObservationFailed,
+              let source = preparationSourceWriter,
+              source.token == exclusion.retainedWriter else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireLiveEraseRecovery(self, coordinator: coordinator)
+        let checkedActivity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
+            registry: registry, coordinator: coordinator,
+            writer: source.token)
+        guard checkedActivity === activity else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        originalPostPointerReproofInFlight = true
+        originalAuxiliaryRegistryObservationScope = .postPointerReproof
+        do {
+            let value = try registry.withOriginalRecoveryPostPointerReadUnderRetainedExclusion(
+                activity: activity, operation: self, store: store,
+                intent: intent, body)
+            originalAuxiliaryRegistryObservationScope = nil
+            originalPostPointerReproofInFlight = false
+            return value
+        } catch {
+            originalAuxiliaryRegistryObservationScope = nil
+            originalPostPointerReproofInFlight = false
+            originalPostPointerReproofUncertain = true
+            originalAuxiliaryRegistryObservationFailed = true
+            throw error
+        }
+    }
+
+    /// Identity-only under G. The Registry's checked reader, not this
+    /// method, observes the complete physical token cohort.
+    func requireOriginalRecoveryPostPointerReproofUnderHeldG(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore,
+        intent: EraseIntentV1
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard !detached, !detaching,
+              originalPostPointerReproofInFlight,
+              !originalPostPointerReproofUncertain,
+              originalAuxiliaryRegistryObservationScope == .postPointerReproof,
+              originalAuxiliaryStore === store,
+              originalAuxiliaryProjectedIntent == intent,
+              intent.phase == .pointerSwitched,
+              originalRecoveryPreOpenOwner == nil,
+              preparationWriterPhase == .absent,
+              originalWriterTransition == nil,
+              originalTargetReaderHandle == nil,
+              let exclusion = originalExclusion,
+              let source = preparationSourceWriter,
+              exclusion.matchesOriginalEraseAuxiliaryPhase(
+                registry: registry, activity: activity,
+                writer: source.token),
+              let first = originalAuxiliaryFirstLeaseCensus else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return first
+    }
+
     /// Registry retains each transient registry-leaf FD here before open.
     /// A failed close leaves the attempt in this operation and withholds the
     /// next observation or phase effect; numeric descriptors are never
@@ -7692,6 +7929,12 @@ final class EraseRouterOperationV1 {
             && originalAuxiliaryFirstLeaseCensus != nil
             && originalWriterTransition == nil
             && preparationWriterPhase == .constructing
+        let postPointerReproof = originalAuxiliaryRegistryObservationScope
+            == .postPointerReproof
+            && originalPostPointerReproofInFlight
+            && !originalPostPointerReproofUncertain
+            && originalAuxiliaryProjectedIntent?.phase == .pointerSwitched
+            && preparationWriterPhase == .absent
         let writerPublicationEffect =
             originalAuxiliaryRegistryObservationScope == nil
             && originalWriterTransition?.registry === registry
@@ -7711,13 +7954,19 @@ final class EraseRouterOperationV1 {
         let checkedEffect = originalAuxiliaryRegistryObservationScope == nil
             && (originalAuxiliaryPhaseCASInFlight
                 || originalAuxiliarySearchInFlight
+                || originalAuxiliaryScratchNoRepairInFlight
+                || originalNotificationRootPolicyInFlight
+                || originalNotificationMarkerInFlight
+                || originalNotificationRemovalInFlight
+                || originalAuxiliaryScratchControlPolicyInFlight
                 || originalPointerMutationInFlight != nil
                 || originalTargetReaderInFlight
                 || originalWriterRecoveryInFlight)
             && originalAuxiliaryRosterAdmission != nil
         guard let router, !detached, !detaching,
               preFirstReaderRecordProbe || firstRosterCensus
-                || writerTransition || writerPublicationEffect
+                || writerTransition || postPointerReproof
+                || writerPublicationEffect
                 || oldWriterCloseEffect || checkedEffect,
               !originalAuxiliaryPhaseCASUncertain,
               !originalAuxiliaryRegistryObservationFailed,
@@ -7920,6 +8169,1114 @@ final class EraseRouterOperationV1 {
             $0.leaseID.uuidString.lowercased()
                 < $1.leaseID.uuidString.lowercased()
         }
+    }
+
+    /// One no-create/no-repair Scratch image check while the actual original
+    /// owner still holds EX. The checked Registry G scope consumes only the
+    /// immutable P image plus its reader/writer/old-close projections. This
+    /// admits no Scratch mutation or later cleanup retry.
+    func requireOriginalEraseAuxiliaryScratchNoRepairAdmission(
+        store: EraseIntentStore,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard !originalAuxiliaryScratchNoRepairAttempted,
+              !originalAuxiliaryScratchNoRepairInFlight,
+              !originalAuxiliaryScratchNoRepairUncertain,
+              originalAuxiliaryStore === store,
+              preparationCoordinator === coordinator,
+              let exclusion = originalExclusion,
+              let registry = preparationRegistry,
+              registry === exclusion.registry,
+              let transition = originalWriterTransition,
+              transition.projected,
+              let target = transition.targetAllocation.allocatedHandle,
+              let projected = originalOldWriterProjectedSnapshot,
+              let first = originalAuxiliaryFirstSnapshot,
+              originalAuxiliaryFirstObserver != nil,
+              originalAuxiliaryFirstPhysicalRoster != nil,
+              originalAuxiliaryRosterAdmission != nil,
+              projected.operationsChildren["ScratchDataV1"]
+                == first.operationsChildren["ScratchDataV1"],
+              !originalAuxiliarySearchInFlight,
+              !originalAuxiliarySearchPublished,
+              originalAuxiliarySearchWriter == nil,
+              originalAuxiliaryProjectedIntent?.phase == .sessionActivated else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        originalAuxiliaryScratchNoRepairAttempted = true
+        originalAuxiliaryScratchNoRepairInFlight = true
+        do {
+            let activity = try exclusion
+                .requireOriginalEraseAuxiliaryPhaseActivity(
+                    registry: registry, coordinator: coordinator,
+                    writer: target.token)
+            try coordinator.withOriginalEraseAuxiliarySearchSupport(
+                exclusion: exclusion) { support in
+                try registry.requireOriginalEraseAuxiliaryScratchNoRepairAdmission(
+                    activity: activity, operation: self, store: store,
+                    support: support,
+                    applicationSupportURL:
+                        coordinator.originalEraseAuxiliarySearchSupportURL)
+            }
+            originalAuxiliaryScratchNoRepairInFlight = false
+        } catch {
+            originalAuxiliaryScratchNoRepairUncertain = true
+            throw error
+        }
+    }
+
+    /// Pure proof while this operation's actual Registry G is held. No fresh
+    /// filesystem observation can become the expected Scratch image.
+    func requireOriginalEraseAuxiliaryScratchNoRepairUnderHeldG(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore
+    ) throws -> (tokens: [GenerationLeaseTokenV1],
+        supportFact: String, operationsFact: String,
+        operationsNames: [String], scratchFact: String,
+        scratchDigest: String) {
+        guard let router, !detached, !detaching,
+              originalAuxiliaryScratchNoRepairAttempted,
+              originalAuxiliaryScratchNoRepairInFlight,
+              !originalAuxiliaryScratchNoRepairUncertain,
+              originalAuxiliaryStore === store,
+              originalAuxiliaryProjectedIntent?.phase == .sessionActivated,
+              let exclusion = originalExclusion,
+              exclusion.registry === registry,
+              preparationRegistry === registry,
+              let transition = originalWriterTransition,
+              transition.projected,
+              transition.prior
+                == (try originalAuxiliaryFirstPlusReaderTokens()),
+              let target = transition.targetAllocation.allocatedHandle,
+              exclusion.matchesOriginalEraseAuxiliaryPhase(
+                  registry: registry, activity: activity,
+                  writer: target.token),
+              let first = originalAuxiliaryFirstSnapshot,
+              originalAuxiliaryFirstObserver != nil,
+              originalAuxiliaryFirstPhysicalRoster != nil,
+              originalAuxiliaryRosterAdmission != nil,
+              let projected = originalOldWriterProjectedSnapshot,
+              let scratch = projected.operationsChildren["ScratchDataV1"],
+              scratch == first.operationsChildren["ScratchDataV1"],
+              case .directory(let scratchFact, let scratchDigest) = scratch,
+              case .present(let operationsFact, _) = projected.operations,
+              Set(projected.operationsChildren.keys)
+                == Set(first.operationsChildren.keys),
+              originalAuxiliarySearchWriter == nil,
+              !originalAuxiliarySearchPublished,
+              transition.prior
+                == (try originalAuxiliaryFirstPlusReaderTokens()) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        let tokens = (transition.prior.filter {
+            $0.leaseID != transition.oldWriter.token.leaseID
+        } + [target.token]).sorted {
+            $0.leaseID.uuidString.lowercased()
+                < $1.leaseID.uuidString.lowercased()
+        }
+        return (tokens, projected.supportFact, operationsFact,
+            projected.operationsChildren.keys.sorted(),
+            scratchFact, scratchDigest)
+    }
+
+    func failOriginalEraseAuxiliaryScratchNoRepairAdmission() {
+        if originalAuxiliaryScratchNoRepairAttempted {
+            originalAuxiliaryScratchNoRepairUncertain = true
+        }
+    }
+
+    /// Admission for a post-writer physical reread through the original
+    /// owner's first retained parent descriptors. The caller still has to
+    /// prove the stage-specific immutable-first projection.
+    func requireOriginalErasePostwriterAuxiliaryParentOwner(
+        _ owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        policyPermit: OriginalEraseAuxiliaryScratchControlPolicyPermitV1? = nil,
+        notificationPolicyPermit:
+            OriginalEraseNotificationRootPolicyPermitV1? = nil,
+        notificationMarkerPermit:
+            OriginalEraseNotificationMarkerPermitV1? = nil,
+        notificationRemovalPermit:
+            OriginalEraseNotificationRemovalPermitV1? = nil
+    ) throws {
+        guard let router, !detached, !detaching,
+              originalAuxiliaryFirstCaptureOwner === owner,
+              originalAuxiliaryFirstObserver != nil,
+              originalAuxiliaryFirstSnapshot != nil,
+              originalAuxiliaryFirstPhysicalRoster != nil,
+              originalAuxiliaryRosterAdmission != nil,
+              preparationCoordinator === coordinator,
+              originalExclusion === exclusion,
+              originalAuxiliaryProjectedIntent?.phase == .sessionActivated,
+              preparationWriterPhase == .installed,
+              originalOldWriterReleaseProjection != nil,
+              originalOldWriterProjectedSnapshot != nil,
+              originalAuxiliarySearchPublished,
+              !originalAuxiliarySearchInFlight,
+              !originalAuxiliarySearchUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        let permits = [policyPermit != nil,
+            notificationPolicyPermit != nil,
+            notificationMarkerPermit != nil,
+            notificationRemovalPermit != nil].filter { $0 }.count
+        guard permits <= 1 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let policyPermit {
+            try policyPermit.requireHeld()
+        } else if let notificationPolicyPermit {
+            try notificationPolicyPermit.requireHeld()
+        } else if let notificationMarkerPermit {
+            try notificationMarkerPermit.requireHeld()
+        } else if let notificationRemovalPermit {
+            try notificationRemovalPermit.requireHeld()
+        } else {
+            try exclusion.revalidate()
+        }
+    }
+
+    /// Settle only the existing Notification root's policy before the
+    /// original notification publisher starts. The immutable P image is the
+    /// source; the checked request can project only this root's ctime.
+    func settleOriginalEraseNotificationRootPolicy(
+        store: EraseIntentStore,
+        coordinator: StoreSessionCoordinator
+    ) throws -> OriginalEraseNotificationRootPolicyReceiptV1 {
+        guard let router, !detached, !detaching,
+              originalAuxiliaryStore === store,
+              originalAuxiliaryProjectedIntent?.phase == .sessionActivated,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              let observer = originalAuxiliaryFirstObserver,
+              let projected = originalOldWriterProjectedSnapshot,
+              let roster = originalAuxiliaryFirstPhysicalRoster,
+              let searchWriter = originalAuxiliarySearchWriter,
+              let searchBytes = searchWriter.publishedBytes,
+              originalAuxiliarySearchPublished,
+              !originalAuxiliarySearchInFlight,
+              !originalAuxiliarySearchUncertain,
+              !originalAuxiliaryNotificationInFlight,
+              originalAuxiliaryNotificationReceipt == nil,
+              !originalNotificationRootPolicyInFlight,
+              !originalNotificationRootPolicyUncertain,
+              originalNotificationRootPolicyIO == nil,
+              originalNotificationRootPolicyReceipt == nil,
+              let exclusion = originalExclusion,
+              let registry = preparationRegistry,
+              registry === exclusion.registry,
+              preparationCoordinator === coordinator,
+              let target = preparationWriterAllocation?.allocatedHandle,
+              preparationWriterPhase == .installed else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        try requireOriginalEraseAuxiliarySearchPublished(
+            store: store, coordinator: coordinator)
+        try exclusion.revalidate()
+        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
+            registry: registry, coordinator: coordinator,
+            writer: target.token)
+        guard let search = roster.record.trees.first(where: {
+                  $0.key == "support/\(LocalSearchIndexStoreV1.directoryName)"
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let io = EraseAbortCheckedSnapshotIOV1()
+        originalNotificationRootPolicyIO = io
+        originalNotificationRootPolicyInFlight = true
+        do {
+            let before = try owner.withOriginalErasePostwriterAuxiliaryParents(
+                operation: self, coordinator: coordinator,
+                exclusion: exclusion) { support, caches, temporary in
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                let value = try observer.requireOriginalNotificationBefore(
+                    oldClose: projected,
+                    searchWasAbsent: search.state == "absent",
+                    support: support, caches: caches,
+                    temporary: temporary)
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                return value
+            }
+            guard let firstNodes = before.notificationControlNodes,
+                  let stable = before.notificationControlStableDigest,
+                  let firstRoot = firstNodes.first(where: {
+                      $0.path.isEmpty
+                  }),
+                  case .present(let operationsFact, _) = before.operations,
+                  let firstRootEntry = before.operationsChildren[
+                      AppLockNotificationControlStoreV1.rootName],
+                  case .directory(let firstRootFact, let firstDigest) =
+                      firstRootEntry,
+                  firstRoot.fullFact == firstRootFact else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            originalNotificationRootPolicyBefore = before
+            var projectedAfter:
+                EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+            let receipt = try registry.withOriginalEraseNotificationRootPolicy(
+                activity: activity, operation: self, store: store,
+                exclusion: exclusion) { permit in
+                try owner.withOriginalErasePostwriterAuxiliaryParents(
+                    operation: self, coordinator: coordinator,
+                    exclusion: exclusion,
+                    notificationPolicyPermit: permit
+                ) { support, caches, temporary in
+                    try io.withOpen(parent: support,
+                        name: OwnedStorageRootKindV1.operations.rawValue,
+                        flags: O_RDONLY | O_DIRECTORY) { operations in
+                        let value = try ScratchDataLeaseStoreV1
+                            .settleOriginalEraseNotificationExistingRootPolicy(
+                                applicationSupportURL:
+                                    coordinator.originalEraseAuxiliarySearchSupportURL,
+                                support: support, operations: operations,
+                                expectedSupportFact: before.supportFact,
+                                expectedOperationsFact: operationsFact,
+                                expectedOperationsNames:
+                                    Array(before.operationsChildren.keys).sorted(),
+                                firstControlFact: firstRootFact,
+                                firstControlDigest: firstDigest,
+                                firstControlNodes: firstNodes,
+                                retainedIO: io, operation: self,
+                                store: store, registry: registry,
+                                exclusion: exclusion, activity: activity,
+                                permit: permit,
+                                reproveUnchangedBranches: { allowCtime in
+                                    try searchWriter.requirePublished(
+                                        searchBytes, supportFD: support)
+                                    let observed = try observer
+                                        .requireOriginalNotificationRootPolicyBranches(
+                                            before: before,
+                                            allowRootCtime: allowCtime,
+                                            support: support, caches: caches,
+                                            temporary: temporary)
+                                    try searchWriter.requirePublished(
+                                        searchBytes, supportFD: support)
+                                    if allowCtime {
+                                        if let projectedAfter,
+                                           projectedAfter != observed {
+                                            throw GenerationLeaseRegistryFailureV1
+                                                .uncertainOwner
+                                        }
+                                        projectedAfter = observed
+                                    } else if observed != before {
+                                        throw GenerationLeaseRegistryFailureV1
+                                            .uncertainOwner
+                                    }
+                                })
+                        return value
+                    }
+                }
+            }
+            try receipt.requireBound(operation: self, store: store,
+                registry: registry, exclusion: exclusion,
+                activity: activity)
+            let final = try owner.withOriginalErasePostwriterAuxiliaryParents(
+                operation: self, coordinator: coordinator,
+                exclusion: exclusion) { support, caches, temporary in
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                let value = try observer
+                    .requireOriginalNotificationRootPolicyBranches(
+                        before: before,
+                        allowRootCtime: receipt.didRequestCompleteProtection,
+                        support: support, caches: caches,
+                        temporary: temporary)
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                return value
+            }
+            guard let finalEntry = final.operationsChildren[
+                    AppLockNotificationControlStoreV1.rootName],
+                  case .directory(let finalRootFact, let finalDigest) =
+                    finalEntry,
+                  let finalRoot = final.notificationControlNodes?
+                    .first(where: { $0.path.isEmpty }),
+                  finalRoot.fullFact == finalRootFact,
+                  finalRootFact == receipt.projectedRootFact,
+                  finalDigest == receipt.projectedTreeDigest,
+                  final.notificationControlStableDigest == stable,
+                  projectedAfter == nil || projectedAfter == final,
+                  receipt.firstRootFact == firstRootFact,
+                  receipt.firstTreeDigest == firstDigest else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            originalNotificationRootPolicyAfter = final
+            originalNotificationRootPolicyReceipt = receipt
+            originalNotificationRootPolicyInFlight = false
+            return receipt
+        } catch {
+            originalNotificationRootPolicyUncertain = true
+            throw error
+        }
+    }
+
+    /// A pure admission under the already-held G. It neither observes the
+    /// Registry nor reacquires EX, G, or the Notification process fence.
+    func requireOriginalEraseNotificationRootPolicyUnderHeldG(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard let router, !detached, !detaching,
+              originalNotificationRootPolicyInFlight,
+              !originalNotificationRootPolicyUncertain,
+              originalNotificationRootPolicyIO != nil,
+              originalNotificationRootPolicyReceipt == nil,
+              originalNotificationRootPolicyBefore != nil,
+              !originalAuxiliaryNotificationInFlight,
+              originalAuxiliaryNotificationReceipt == nil,
+              originalAuxiliaryStore === store,
+              originalAuxiliaryProjectedIntent?.phase == .sessionActivated,
+              let coordinator = preparationCoordinator,
+              let session = preparationTargetSession,
+              let writer = preparationTargetWriter,
+              coordinator.workspaceWriter === writer,
+              coordinator.modelContext === session.modelContext,
+              coordinator.generationID == session.generationID,
+              let exclusion = originalExclusion,
+              exclusion.registry === registry,
+              preparationRegistry === registry,
+              let transition = originalWriterTransition,
+              transition.projected,
+              transition.prior == (try originalAuxiliaryFirstPlusReaderTokens()),
+              let target = transition.targetAllocation.allocatedHandle,
+              transition.targetAllocation.preparationPublishedToken
+                == target.token,
+              exclusion.matchesOriginalEraseAuxiliaryPhase(
+                registry: registry, activity: activity,
+                writer: target.token) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        return (transition.prior.filter {
+            $0.leaseID != transition.oldWriter.token.leaseID
+        } + [target.token]).sorted {
+            $0.leaseID.uuidString.lowercased()
+                < $1.leaseID.uuidString.lowercased()
+        }
+    }
+
+    func failOriginalEraseNotificationRootPolicy() {
+        originalNotificationRootPolicyUncertain = true
+    }
+
+    func beginOriginalEraseAuxiliaryNotification(
+        control: AppLockNotificationControlStoreV1,
+        coordinator: StoreSessionCoordinator,
+        store: EraseIntentStore
+    ) throws {
+        guard !originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              originalAuxiliaryNotificationReceipt == nil,
+              originalAuxiliaryNotificationBefore == nil,
+              originalAuxiliaryNotificationAfter == nil,
+              originalAuxiliaryStore === store,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              let observer = originalAuxiliaryFirstObserver,
+              let projected = originalOldWriterProjectedSnapshot,
+              let firstRoster = originalAuxiliaryFirstPhysicalRoster,
+              let searchWriter = originalAuxiliarySearchWriter,
+              let searchBytes = searchWriter.publishedBytes,
+              let policyBefore = originalNotificationRootPolicyBefore,
+              let policyAfter = originalNotificationRootPolicyAfter,
+              let policyReceipt = originalNotificationRootPolicyReceipt,
+              !originalNotificationRootPolicyInFlight,
+              !originalNotificationRootPolicyUncertain,
+              !originalNotificationMarkerInFlight,
+              !originalNotificationMarkerUncertain,
+              originalNotificationMarkerReceipt == nil,
+              let exclusion = originalExclusion else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireOriginalEraseAuxiliarySearchPublished(
+            store: store, coordinator: coordinator)
+        let search = firstRoster.record.trees.first {
+            $0.key == "support/\(LocalSearchIndexStoreV1.directoryName)"
+        }
+        guard let search else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        originalAuxiliaryNotificationInFlight = true
+        originalAuxiliaryNotificationControl = control
+        do {
+            let before = try owner.withOriginalErasePostwriterAuxiliaryParents(
+                operation: self, coordinator: coordinator,
+                exclusion: exclusion) { support, caches, temporary in
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                let before = try observer
+                    .requireOriginalNotificationRootPolicyBranches(
+                        before: policyBefore,
+                        allowRootCtime:
+                            policyReceipt.didRequestCompleteProtection,
+                        support: support, caches: caches,
+                        temporary: temporary)
+                guard before == policyAfter,
+                      policyAfter.notificationControlStableDigest
+                        == policyBefore.notificationControlStableDigest else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                let outside = try observer
+                    .requireOriginalNotificationOutsideRoot(
+                        afterPolicy: policyAfter, outsideDigest: nil,
+                        support: support, caches: caches,
+                        temporary: temporary)
+                originalNotificationMarkerOutsideDigest = outside
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                return before
+            }
+            originalAuxiliaryNotificationBefore = before
+        } catch {
+            originalAuxiliaryNotificationUncertain = true
+            throw error
+        }
+    }
+
+    /// Publish the original marker once, after the separate checked policy
+    /// receipt and the before-OS physical image. The workflow invokes this
+    /// synchronously inside its Notification transaction fence.
+    func publishOriginalEraseAuxiliaryNotificationMarker(
+        control: AppLockNotificationControlStoreV1,
+        coordinator: StoreSessionCoordinator,
+        store: EraseIntentStore
+    ) throws -> NotificationEraseRevocationV1 {
+        guard let router, !detached, !detaching,
+              originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              originalAuxiliaryNotificationControl === control,
+              originalAuxiliaryNotificationBefore
+                == originalNotificationRootPolicyAfter,
+              !originalNotificationMarkerInFlight,
+              !originalNotificationMarkerUncertain,
+              originalNotificationMarkerReceipt == nil,
+              let outsideDigest = originalNotificationMarkerOutsideDigest,
+              let policyReceipt = originalNotificationRootPolicyReceipt,
+              let policyBefore = originalNotificationRootPolicyBefore,
+              let policyAfter = originalNotificationRootPolicyAfter,
+              let firstNodes = policyBefore.notificationControlNodes,
+              let stableDigest = policyAfter.notificationControlStableDigest,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              let observer = originalAuxiliaryFirstObserver,
+              let searchWriter = originalAuxiliarySearchWriter,
+              let searchBytes = searchWriter.publishedBytes,
+              let exclusion = originalExclusion,
+              let registry = preparationRegistry,
+              registry === exclusion.registry,
+              preparationCoordinator === coordinator,
+              let target = preparationWriterAllocation?.allocatedHandle,
+              preparationWriterPhase == .installed,
+              originalAuxiliaryStore === store,
+              let intent = originalAuxiliaryProjectedIntent,
+              intent.phase == .sessionActivated else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        try exclusion.revalidate()
+        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
+            registry: registry, coordinator: coordinator,
+            writer: target.token)
+        try policyReceipt.requireBound(operation: self, store: store,
+            registry: registry, exclusion: exclusion, activity: activity)
+        let io = EraseAbortCheckedSnapshotIOV1()
+        originalNotificationMarkerIO = io
+        originalNotificationMarkerInFlight = true
+        do {
+            let receipt = try registry
+                .withOriginalEraseNotificationMarkerPublication(
+                    activity: activity, operation: self,
+                    store: store, exclusion: exclusion) { permit in
+                    try owner.withOriginalErasePostwriterAuxiliaryParents(
+                        operation: self, coordinator: coordinator,
+                        exclusion: exclusion,
+                        notificationMarkerPermit: permit
+                    ) { support, caches, temporary in
+                        @MainActor func reproveOutside() throws {
+                            try searchWriter.requirePublished(searchBytes,
+                                supportFD: support)
+                            let current = try observer
+                                .requireOriginalNotificationOutsideRoot(
+                                    afterPolicy: policyAfter,
+                                    outsideDigest: outsideDigest,
+                                    support: support, caches: caches,
+                                    temporary: temporary)
+                            guard current == outsideDigest else {
+                                throw GenerationLeaseRegistryFailureV1
+                                    .uncertainOwner
+                            }
+                            try searchWriter.requirePublished(searchBytes,
+                                supportFD: support)
+                        }
+                        try reproveOutside()
+                        let value = try control
+                            .publishOriginalEraseNotificationMarker(
+                                operationID: intent.eraseID,
+                                operation: self, store: store,
+                                registry: registry,
+                                exclusion: exclusion,
+                                activity: activity,
+                                policyReceipt: policyReceipt,
+                                firstNodes: firstNodes,
+                                firstStableTreeDigest: stableDigest,
+                                retainedIO: io, permit: permit,
+                                reproveUnaffectedBranches: reproveOutside)
+                        try reproveOutside()
+                        return value
+                    }
+                }
+            try receipt.requireBound(control: control, operation: self,
+                store: store, registry: registry,
+                exclusion: exclusion, activity: activity)
+            originalNotificationMarkerReceipt = receipt
+            originalNotificationMarkerInFlight = false
+            return receipt.revocation
+        } catch {
+            originalNotificationMarkerUncertain = true
+            originalAuxiliaryNotificationUncertain = true
+            throw error
+        }
+    }
+
+    func requireOriginalEraseNotificationMarkerControl() throws
+        -> AppLockNotificationControlStoreV1 {
+        guard originalNotificationMarkerInFlight,
+              !originalNotificationMarkerUncertain,
+              let control = originalAuxiliaryNotificationControl else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return control
+    }
+
+    /// Called by the Registry only with the same activity's G already held.
+    func requireOriginalEraseNotificationMarkerUnderHeldG(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard originalNotificationMarkerInFlight,
+              !originalNotificationMarkerUncertain,
+              originalNotificationMarkerIO != nil,
+              originalNotificationMarkerReceipt == nil,
+              originalNotificationRootPolicyReceipt != nil,
+              originalNotificationRootPolicyAfter != nil,
+              originalNotificationMarkerOutsideDigest != nil,
+              originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              originalAuxiliaryStore === store else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try requireOriginalEraseNotificationOwnerCohortUnderHeldG(
+            registry: registry, activity: activity, store: store)
+    }
+
+    private func requireOriginalEraseNotificationOwnerCohortUnderHeldG(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard originalAuxiliaryStore === store else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard let router, !detached, !detaching,
+              let coordinator = preparationCoordinator,
+              let session = preparationTargetSession,
+              let writer = preparationTargetWriter,
+              coordinator.workspaceWriter === writer,
+              coordinator.modelContext === session.modelContext,
+              coordinator.generationID == session.generationID,
+              let exclusion = originalExclusion,
+              exclusion.registry === registry,
+              preparationRegistry === registry,
+              let transition = originalWriterTransition,
+              transition.projected,
+              transition.prior
+                == (try originalAuxiliaryFirstPlusReaderTokens()),
+              let target = transition.targetAllocation.allocatedHandle,
+              transition.targetAllocation.preparationPublishedToken
+                == target.token,
+              exclusion.matchesOriginalEraseAuxiliaryPhase(
+                registry: registry, activity: activity,
+                writer: target.token) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        return (transition.prior.filter {
+            $0.leaseID != transition.oldWriter.token.leaseID
+        } + [target.token]).sorted {
+            $0.leaseID.uuidString.lowercased()
+                < $1.leaseID.uuidString.lowercased()
+        }
+    }
+
+    func failOriginalEraseNotificationMarker() {
+        originalNotificationMarkerUncertain = true
+        originalAuxiliaryNotificationUncertain = true
+    }
+
+    func removeOriginalEraseAuxiliaryNotificationRecords(
+        _ absence: OriginalEraseNotificationOSAbsenceReceiptV1,
+        control: AppLockNotificationControlStoreV1,
+        coordinator: StoreSessionCoordinator,
+        store: EraseIntentStore
+    ) throws {
+        guard let router, !detached, !detaching,
+              originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              originalAuxiliaryNotificationControl === control,
+              let marker = originalNotificationMarkerReceipt,
+              marker.revocation == absence.revocation,
+              !originalNotificationMarkerInFlight,
+              !originalNotificationMarkerUncertain,
+              !originalNotificationRemovalInFlight,
+              !originalNotificationRemovalUncertain,
+              originalNotificationRemovalReceipt == nil,
+              originalNotificationOSAbsence == nil,
+              let outsideDigest = originalNotificationMarkerOutsideDigest,
+              let policyBefore = originalNotificationRootPolicyBefore,
+              let policyAfter = originalNotificationRootPolicyAfter,
+              let firstNodes = policyBefore.notificationControlNodes,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              let observer = originalAuxiliaryFirstObserver,
+              let searchWriter = originalAuxiliarySearchWriter,
+              let searchBytes = searchWriter.publishedBytes,
+              let exclusion = originalExclusion,
+              let registry = preparationRegistry,
+              registry === exclusion.registry,
+              preparationCoordinator === coordinator,
+              let target = preparationWriterAllocation?.allocatedHandle,
+              preparationWriterPhase == .installed,
+              originalAuxiliaryStore === store else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try absence.requireBound(control: control,
+            revocation: marker.revocation)
+        try router.requireEraseRetirementOperation(self)
+        try exclusion.revalidate()
+        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
+            registry: registry, coordinator: coordinator,
+            writer: target.token)
+        let io = EraseAbortCheckedSnapshotIOV1()
+        originalNotificationRemovalIO = io
+        originalNotificationOSAbsence = absence
+        originalNotificationRemovalInFlight = true
+        do {
+            let receipt = try registry
+                .withOriginalEraseNotificationRecordRemoval(
+                    activity: activity, operation: self,
+                    store: store, exclusion: exclusion) { permit in
+                    try owner.withOriginalErasePostwriterAuxiliaryParents(
+                        operation: self, coordinator: coordinator,
+                        exclusion: exclusion,
+                        notificationRemovalPermit: permit
+                    ) { support, caches, temporary in
+                        @MainActor func reproveOutside() throws {
+                            try searchWriter.requirePublished(searchBytes,
+                                supportFD: support)
+                            let current = try observer
+                                .requireOriginalNotificationOutsideRoot(
+                                    afterPolicy: policyAfter,
+                                    outsideDigest: outsideDigest,
+                                    support: support, caches: caches,
+                                    temporary: temporary)
+                            guard current == outsideDigest else {
+                                throw GenerationLeaseRegistryFailureV1
+                                    .uncertainOwner
+                            }
+                            try searchWriter.requirePublished(searchBytes,
+                                supportFD: support)
+                        }
+                        try reproveOutside()
+                        let value = try control
+                            .removeOriginalEraseNotificationRecordsAfterOSAbsence(
+                                absence, marker: marker,
+                                firstNodes: firstNodes,
+                                retainedIO: io, permit: permit,
+                                reproveUnaffectedBranches: reproveOutside)
+                        try reproveOutside()
+                        return value
+                    }
+                }
+            try receipt.requireBound(control: control,
+                absence: absence, marker: marker)
+            originalNotificationRemovalReceipt = receipt
+            originalNotificationRemovalInFlight = false
+        } catch {
+            originalNotificationRemovalUncertain = true
+            originalAuxiliaryNotificationUncertain = true
+            throw error
+        }
+    }
+
+    func requireOriginalEraseNotificationRemovalContext() throws -> (
+        control: AppLockNotificationControlStoreV1,
+        absence: OriginalEraseNotificationOSAbsenceReceiptV1,
+        marker: OriginalEraseNotificationMarkerPublicationReceiptV1
+    ) {
+        guard originalNotificationRemovalInFlight,
+              !originalNotificationRemovalUncertain,
+              let control = originalAuxiliaryNotificationControl,
+              let absence = originalNotificationOSAbsence,
+              let marker = originalNotificationMarkerReceipt else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return (control, absence, marker)
+    }
+
+    func requireOriginalEraseNotificationRemovalUnderHeldG(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard originalNotificationRemovalInFlight,
+              !originalNotificationRemovalUncertain,
+              originalNotificationRemovalIO != nil,
+              originalNotificationRemovalReceipt == nil,
+              originalNotificationOSAbsence != nil,
+              originalNotificationMarkerReceipt != nil,
+              originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try requireOriginalEraseNotificationOwnerCohortUnderHeldG(
+            registry: registry, activity: activity, store: store)
+    }
+
+    func failOriginalEraseNotificationRemoval() {
+        originalNotificationRemovalUncertain = true
+        originalAuxiliaryNotificationUncertain = true
+    }
+
+    func observeOriginalEraseAuxiliaryNotificationSuccess(
+        _ revocation: NotificationEraseRevocationV1,
+        control: AppLockNotificationControlStoreV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              originalAuxiliaryNotificationControl === control,
+              !originalNotificationMarkerInFlight,
+              !originalNotificationMarkerUncertain,
+              let marker = originalNotificationMarkerReceipt,
+              marker.revocation == revocation,
+              let removal = originalNotificationRemovalReceipt,
+              !originalNotificationRemovalInFlight,
+              !originalNotificationRemovalUncertain,
+              let before = originalAuxiliaryNotificationBefore,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              let observer = originalAuxiliaryFirstObserver,
+              let searchWriter = originalAuxiliarySearchWriter,
+              let searchBytes = searchWriter.publishedBytes,
+              let exclusion = originalExclusion,
+              originalAuxiliaryNotificationAfter == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        do {
+            try control.requireNotificationEraseRevocation(revocation)
+            let after = try owner.withOriginalErasePostwriterAuxiliaryParents(
+                operation: self, coordinator: coordinator,
+                exclusion: exclusion) { support, caches, temporary in
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                let after = try observer.requireOriginalNotificationAfter(
+                    before: before, revocation: revocation,
+                    removal: removal,
+                    support: support, caches: caches,
+                    temporary: temporary)
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                return after
+            }
+            originalAuxiliaryNotificationAfter = after
+        } catch {
+            originalAuxiliaryNotificationUncertain = true
+            throw error
+        }
+    }
+
+    func finishOriginalEraseAuxiliaryNotification(
+        _ receipt: OriginalEraseNotificationEffectReceiptV1,
+        control: AppLockNotificationControlStoreV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              originalAuxiliaryNotificationControl === control,
+              !originalNotificationMarkerInFlight,
+              !originalNotificationMarkerUncertain,
+              let marker = originalNotificationMarkerReceipt,
+              marker.revocation == receipt.revocation,
+              let removal = originalNotificationRemovalReceipt,
+              !originalNotificationRemovalInFlight,
+              !originalNotificationRemovalUncertain,
+              let after = originalAuxiliaryNotificationAfter,
+              let before = originalAuxiliaryNotificationBefore,
+              let intent = originalAuxiliaryProjectedIntent,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              let observer = originalAuxiliaryFirstObserver,
+              let searchWriter = originalAuxiliarySearchWriter,
+              let searchBytes = searchWriter.publishedBytes,
+              let exclusion = originalExclusion else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        do {
+            try receipt.requireBound(control: control,
+                operationID: intent.eraseID)
+            try owner.withOriginalErasePostwriterAuxiliaryParents(
+                operation: self, coordinator: coordinator,
+                exclusion: exclusion) { support, caches, temporary in
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                let fresh = try observer.requireOriginalNotificationAfter(
+                    before: before,
+                    revocation: receipt.revocation,
+                    removal: removal,
+                    support: support, caches: caches,
+                    temporary: temporary)
+                try searchWriter.requirePublished(searchBytes,
+                    supportFD: support)
+                guard fresh == after else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            originalAuxiliaryNotificationReceipt = receipt
+            originalAuxiliaryNotificationInFlight = false
+        } catch {
+            originalAuxiliaryNotificationUncertain = true
+            throw error
+        }
+    }
+
+    /// Retain the completed same-operation notification lineage before the
+    /// Router transfers its EX to the retirement proof. This authorizes one
+    /// later checked descriptor close after cleanup's last semantic read.
+    func makeOriginalEraseNotificationTerminalCloseWitness(
+        control: AppLockNotificationControlStoreV1,
+        coordinator: StoreSessionCoordinator
+    ) throws -> OriginalEraseNotificationTerminalCloseWitnessV1 {
+        guard !detached, !detaching,
+              preparationCoordinator === coordinator,
+              originalAuxiliaryNotificationControl === control,
+              !originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              let receipt = originalAuxiliaryNotificationReceipt,
+              let marker = originalNotificationMarkerReceipt,
+              let removal = originalNotificationRemovalReceipt,
+              let absence = originalNotificationOSAbsence,
+              let intent = originalAuxiliaryProjectedIntent,
+              marker.revocation == receipt.revocation,
+              receipt.revocation == absence.revocation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try removal.requireBound(control: control, absence: absence,
+            marker: marker)
+        try receipt.requireBound(control: control,
+            operationID: intent.eraseID)
+        return OriginalEraseNotificationTerminalCloseWitnessV1(
+            control: control, receipt: receipt, marker: marker,
+            removal: removal, absence: absence, eraseID: intent.eraseID)
+    }
+
+    func failOriginalEraseAuxiliaryNotification() {
+        if originalAuxiliaryNotificationInFlight {
+            originalAuxiliaryNotificationUncertain = true
+        }
+    }
+
+    /// The notification OS-success receipt and the first-P roster authorize
+    /// one existing ingress-control root policy transition. This does not
+    /// authorize the later ordinary ingress or Scratch deletion effects.
+    func settleOriginalEraseAuxiliaryScratchControlPolicy(
+        store: EraseIntentStore,
+        coordinator: StoreSessionCoordinator
+    ) throws -> OriginalEraseScratchControlPolicyReceiptV1 {
+        guard let router, !detached, !detaching,
+              !originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              let notification = originalAuxiliaryNotificationReceipt,
+              let control = originalAuxiliaryNotificationControl,
+              let after = originalAuxiliaryNotificationAfter,
+              let first = originalAuxiliaryFirstSnapshot,
+              first.ingressControlNodes == after.ingressControlNodes,
+              let observer = originalAuxiliaryFirstObserver,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              originalAuxiliaryFirstPhysicalRoster != nil,
+              originalAuxiliaryRosterAdmission != nil,
+              originalAuxiliarySearchPublished,
+              !originalAuxiliarySearchInFlight,
+              !originalAuxiliarySearchUncertain,
+              !originalAuxiliaryScratchControlPolicyInFlight,
+              !originalAuxiliaryScratchControlPolicyUncertain,
+              originalAuxiliaryScratchControlPolicyIO == nil,
+              originalAuxiliaryScratchControlPolicyReceipt == nil,
+              let exclusion = originalExclusion,
+              let registry = preparationRegistry,
+              registry === exclusion.registry,
+              preparationCoordinator === coordinator,
+              originalAuxiliaryStore === store,
+              let projectedIntent = originalAuxiliaryProjectedIntent,
+              projectedIntent.phase == .sessionActivated,
+              let target = preparationWriterAllocation?.allocatedHandle,
+              preparationWriterPhase == .installed,
+              let session = preparationTargetSession,
+              let writer = preparationTargetWriter,
+              coordinator.workspaceWriter === writer,
+              coordinator.modelContext === session.modelContext,
+              coordinator.generationID == session.generationID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        try notification.requireBound(control: control,
+            operationID: projectedIntent.eraseID)
+        try requireOriginalEraseAuxiliarySearchPublished(
+            store: store, coordinator: coordinator)
+        try exclusion.revalidate()
+        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
+            registry: registry, coordinator: coordinator,
+            writer: target.token)
+        guard case .present(let operationsFact, _) = after.operations else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let controlName = "ProtectedIngressReceiptsV1"
+        let firstControlFact: String?
+        let firstControlDigest: String?
+        if let child = after.operationsChildren[controlName] {
+            guard case .directory(let fact, let digest) = child else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            firstControlFact = fact
+            firstControlDigest = digest
+        } else {
+            firstControlFact = nil
+            firstControlDigest = nil
+        }
+        let expectedNames = Array(after.operationsChildren.keys).sorted()
+        let io = EraseAbortCheckedSnapshotIOV1()
+        originalAuxiliaryScratchControlPolicyIO = io
+        originalAuxiliaryScratchControlPolicyInFlight = true
+        do {
+            let receipt = try registry
+                .withOriginalEraseAuxiliaryScratchControlPolicy(
+                    activity: activity, operation: self, store: store,
+                    exclusion: exclusion) { permit in
+                try owner.withOriginalErasePostwriterAuxiliaryParents(
+                    operation: self, coordinator: coordinator,
+                    exclusion: exclusion, policyPermit: permit
+                ) { support, caches, temporary in
+                    try io.withOpen(parent: support,
+                        name: OwnedStorageRootKindV1.operations.rawValue,
+                        flags: O_RDONLY | O_DIRECTORY) { operations in
+                        func fullFact(_ value: stat) -> String {
+                            "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+                        }
+                        func requireOperations() throws {
+                            var held = stat(), named = stat()
+                            guard Darwin.fstat(operations, &held) == 0,
+                                  Darwin.fstatat(support,
+                                      OwnedStorageRootKindV1.operations.rawValue,
+                                      &named, AT_SYMLINK_NOFOLLOW) == 0,
+                                  fullFact(held) == operationsFact,
+                                  fullFact(named) == operationsFact,
+                                  try io.names(in: operations) == expectedNames else {
+                                throw GenerationLeaseRegistryFailureV1
+                                    .uncertainOwner
+                            }
+                        }
+                        try requireOperations()
+                        let value = try ScratchDataLeaseStoreV1
+                            .settleOriginalEraseAuxiliaryExistingControlPolicy(
+                                applicationSupportURL:
+                                    coordinator.originalEraseAuxiliarySearchSupportURL,
+                                support: support, operations: operations,
+                                expectedSupportFact: after.supportFact,
+                                expectedOperationsFact: operationsFact,
+                                expectedOperationsNames: expectedNames,
+                                firstControlFact: firstControlFact,
+                                firstControlDigest: firstControlDigest,
+                                firstControlNodes: after.ingressControlNodes,
+                                retainedIO: io, operation: self,
+                                store: store, registry: registry,
+                                exclusion: exclusion, activity: activity,
+                                permit: permit,
+                                reproveUnchangedBranches: {
+                                    try observer
+                                        .requireOriginalScratchControlPolicyUnaffectedBranches(
+                                            notificationAfter: after,
+                                            support: support, caches: caches,
+                                            temporary: temporary)
+                                })
+                        try requireOperations()
+                        return value
+                    }
+                }
+            }
+            try receipt.requireBound(operation: self, store: store,
+                registry: registry, exclusion: exclusion,
+                activity: activity)
+            try io.requireSettled()
+            originalAuxiliaryScratchControlPolicyReceipt = receipt
+            originalAuxiliaryScratchControlPolicyInFlight = false
+            return receipt
+        } catch {
+            originalAuxiliaryScratchControlPolicyUncertain = true
+            throw error
+        }
+    }
+
+    /// Called only while the Registry's distinct checked G is actually held.
+    /// No filesystem observation or recursive Registry acquisition occurs.
+    func requireOriginalEraseAuxiliaryScratchControlPolicyUnderHeldG(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard let router, !detached, !detaching,
+              originalAuxiliaryScratchControlPolicyInFlight,
+              !originalAuxiliaryScratchControlPolicyUncertain,
+              originalAuxiliaryScratchControlPolicyIO != nil,
+              originalAuxiliaryScratchControlPolicyReceipt == nil,
+              !originalAuxiliaryNotificationInFlight,
+              !originalAuxiliaryNotificationUncertain,
+              originalAuxiliaryNotificationReceipt != nil,
+              originalAuxiliaryNotificationAfter != nil,
+              originalAuxiliaryStore === store,
+              originalAuxiliaryProjectedIntent?.phase == .sessionActivated,
+              let coordinator = preparationCoordinator,
+              let session = preparationTargetSession,
+              let writer = preparationTargetWriter,
+              coordinator.workspaceWriter === writer,
+              coordinator.modelContext === session.modelContext,
+              coordinator.generationID == session.generationID,
+              let exclusion = originalExclusion,
+              exclusion.registry === registry,
+              preparationRegistry === registry,
+              let transition = originalWriterTransition,
+              transition.projected,
+              transition.prior == (try originalAuxiliaryFirstPlusReaderTokens()),
+              let target = transition.targetAllocation.allocatedHandle,
+              transition.targetAllocation.preparationPublishedToken
+                == target.token,
+              exclusion.matchesOriginalEraseAuxiliaryPhase(
+                registry: registry, activity: activity,
+                writer: target.token) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        return (transition.prior.filter {
+            $0.leaseID != transition.oldWriter.token.leaseID
+        } + [target.token]).sorted {
+            $0.leaseID.uuidString.lowercased()
+                < $1.leaseID.uuidString.lowercased()
+        }
+    }
+
+    func failOriginalEraseAuxiliaryScratchControlPolicy() {
+        originalAuxiliaryScratchControlPolicyUncertain = true
     }
 
     /// Downstream auxiliary stages can demand the same checked empty bytes
@@ -9402,6 +10759,54 @@ final class EraseRouterOperationV1 {
               preparationWriterAllocation == nil else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+    }
+
+    /// The recovery observer's first physical image is captured before its
+    /// first await. For this original P cut it must be the exact first image
+    /// retained before pointer effects, not a newly accepted survivor.
+    func requireOriginalRecoveryAuxiliaryFirstMatchesOriginalP(
+        _ observed: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard originalRecoveryPreOpenOwner === owner,
+              originalRecoveryAuxiliaryContinuity != nil,
+              preparationCoordinator === coordinator,
+              originalRecoveryObservation?.intent?.phase
+                == .emptyGenerationPrepared,
+              let first = originalAuxiliaryFirstSnapshot,
+              first == observed,
+              !detached, !detaching else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireRecoveryExecution(coordinator: coordinator)
+        originalRecoveryAuxiliaryFirstMatchesOriginalP = true
+    }
+
+    /// Retain only the one checked-close Q projection derived from that
+    /// exact original P image and the checked ScratchData receipt chain.
+    func retainOriginalRecoveryPostPointerAuxiliaryProjection(
+        _ projection: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        coordinator: StoreSessionCoordinator
+    ) throws {
+        guard originalRecoveryAuxiliaryFirstMatchesOriginalP,
+              originalRecoveryPreOpenOwner === owner,
+              originalRecoveryAuxiliaryContinuity?.isCheckedClosed == true,
+              originalRecoveryPostPointerAuxiliaryProjection == nil,
+              originalRecoveryPostPointerOwner == nil,
+              preparationCoordinator === coordinator,
+              let first = originalAuxiliaryFirstSnapshot,
+              originalAuxiliaryProjectedIntent?.phase == .pointerSwitched,
+              owner.retainedOriginalExclusion === originalExclusion,
+              !detached, !detaching else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireRecoveryExecution(coordinator: coordinator)
+        try projection.requireOriginalPFirst(first, operation: self,
+            owner: owner)
+        originalRecoveryPostPointerAuxiliaryProjection = projection
+        originalRecoveryPostPointerOwner = owner
     }
 
     func releaseOriginalRecoveryAuxiliaryContinuity(
@@ -15967,3 +17372,66 @@ extension StartupRouter {
     }
 }
 #endif
+@MainActor final class OriginalEraseNotificationTerminalCloseWitnessV1 {
+    private weak var control: AppLockNotificationControlStoreV1?
+    private let receipt: OriginalEraseNotificationEffectReceiptV1
+    private let marker: OriginalEraseNotificationMarkerPublicationReceiptV1
+    private let removal: OriginalEraseNotificationRecordRemovalReceiptV1
+    private let absence: OriginalEraseNotificationOSAbsenceReceiptV1
+    private let eraseID: UUID
+    private var closeAttempted = false
+    private(set) var checkedClosed = false
+
+    fileprivate init(control: AppLockNotificationControlStoreV1,
+        receipt: OriginalEraseNotificationEffectReceiptV1,
+        marker: OriginalEraseNotificationMarkerPublicationReceiptV1,
+        removal: OriginalEraseNotificationRecordRemovalReceiptV1,
+        absence: OriginalEraseNotificationOSAbsenceReceiptV1,
+        eraseID: UUID) {
+        self.control = control
+        self.receipt = receipt
+        self.marker = marker
+        self.removal = removal
+        self.absence = absence
+        self.eraseID = eraseID
+    }
+
+    func requireBeforeClose(control: AppLockNotificationControlStoreV1,
+        eraseID: UUID) throws {
+        guard !closeAttempted, !checkedClosed,
+              self.control === control, self.eraseID == eraseID,
+              marker.revocation == receipt.revocation,
+              receipt.revocation == absence.revocation,
+              marker.checkedSettled, removal.checkedSettled else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try removal.requireBound(control: control,
+            absence: absence, marker: marker)
+        try receipt.requireBound(control: control, operationID: eraseID)
+    }
+
+    func beginClose() throws {
+        guard !closeAttempted, !checkedClosed else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        closeAttempted = true
+    }
+
+    func finishCheckedClose(control: AppLockNotificationControlStoreV1) throws {
+        guard closeAttempted, !checkedClosed,
+              self.control === control,
+              control.originalEraseCheckedCloseComplete else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        checkedClosed = true
+    }
+
+    func requireClosed(control: AppLockNotificationControlStoreV1,
+        eraseID: UUID) throws {
+        guard checkedClosed, self.control === control,
+              self.eraseID == eraseID,
+              control.originalEraseCheckedCloseComplete else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+}

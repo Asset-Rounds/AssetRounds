@@ -13287,6 +13287,144 @@ final class OriginalEraseExclusiveScratchPermitV1 {
     fileprivate func revoke() { active = false }
 }
 
+/// Read-only first-image admission for the original operation. Only the
+/// Registry can mint it inside the retained EX and checked G scope. This
+/// permit does not borrow producer SH or authorize Scratch mutation.
+@MainActor final class OriginalEraseAuxiliaryScratchNoRepairPermitV1 {
+    private let check: @MainActor () throws -> Void
+    private let poison: @MainActor () -> Void
+    private var active = true
+
+    fileprivate init(check: @escaping @MainActor () throws -> Void,
+        poison: @escaping @MainActor () -> Void) {
+        self.check = check
+        self.poison = poison
+    }
+
+    func requireHeld() throws {
+        guard active else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try check()
+    }
+
+    func poisonOnUncertainCleanup() {
+        if active { poison() }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+
+/// Lexical permission for one existing ingress-control policy request. It is
+/// distinct from the read-only first-image permit and never grants creation,
+/// interrupted-publication settlement, or Scratch deletion.
+@MainActor final class OriginalEraseAuxiliaryScratchControlPolicyPermitV1 {
+    private let check: @MainActor () throws -> Void
+    private let poison: @MainActor () -> Void
+    private var active = true
+
+    fileprivate init(check: @escaping @MainActor () throws -> Void,
+        poison: @escaping @MainActor () -> Void) {
+        self.check = check
+        self.poison = poison
+    }
+
+    func requireHeld() throws {
+        guard active else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try check()
+    }
+
+    func poisonOnUncertainEffect() {
+        if active { poison() }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+
+/// One original Notification root policy transition. This permit is valid
+/// only inside the process notification fence and the retained activity's
+/// checked G; it cannot authorize a record publication or root creation.
+@MainActor final class OriginalEraseNotificationRootPolicyPermitV1 {
+    private let check: @MainActor () throws -> Void
+    private let poison: @MainActor () -> Void
+    private var active = true
+
+    fileprivate init(check: @escaping @MainActor () throws -> Void,
+        poison: @escaping @MainActor () -> Void) {
+        self.check = check
+        self.poison = poison
+    }
+
+    func requireHeld() throws {
+        guard active else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try check()
+    }
+
+    func poisonOnUncertainEffect() {
+        if active { poison() }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+
+/// A distinct one-use owner for the original revocation marker's filesystem
+/// publication. The policy permit cannot be reused for this later effect.
+@MainActor final class OriginalEraseNotificationMarkerPermitV1 {
+    private let check: @MainActor () throws -> Void
+    private let poison: @MainActor () -> Void
+    private var active = true
+
+    fileprivate init(check: @escaping @MainActor () throws -> Void,
+        poison: @escaping @MainActor () -> Void) {
+        self.check = check
+        self.poison = poison
+    }
+
+    func requireHeld() throws {
+        guard active else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try check()
+    }
+
+    func poisonOnUncertainEffect() {
+        if active { poison() }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+
+/// Issued only after a genuine owned-ID OS absence receipt. It cannot be
+/// substituted for the earlier marker publisher's one-use authority.
+@MainActor final class OriginalEraseNotificationRemovalPermitV1 {
+    private let check: @MainActor () throws -> Void
+    private let poison: @MainActor () -> Void
+    private var active = true
+
+    fileprivate init(check: @escaping @MainActor () throws -> Void,
+        poison: @escaping @MainActor () -> Void) {
+        self.check = check
+        self.poison = poison
+    }
+
+    func requireHeld() throws {
+        guard active else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try check()
+    }
+
+    func poisonOnUncertainEffect() {
+        if active { poison() }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+
 // Completed-abort and original-recovery scopes mint distinct capabilities.
 // A scratch reader may share mechanics, but callers cannot substitute owners.
 @MainActor
@@ -13646,6 +13784,11 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         EraseSchema2ColdReaderSettlementV1?
     private var eraseSchema2ColdPolicyUncertainDescriptors: [Int32] = []
     private var originalEraseAuxiliaryPolicyUncertainDescriptors: [Int32] = []
+    private var originalEraseAuxiliaryScratchNoRepairUncertain = false
+    private var originalEraseAuxiliaryScratchControlPolicyUncertain = false
+    private var originalEraseNotificationRootPolicyUncertain = false
+    private var originalEraseNotificationMarkerUncertain = false
+    private var originalEraseNotificationRemovalUncertain = false
     private enum Schema2ColdReaderPublishStageV1: String {
         case lock, allocation, admission, priorCensus, manifestOwner
         case token, manifestBegin, recordCreate, recordPrefix, recordWrite
@@ -19803,8 +19946,14 @@ extension GenerationLeaseRegistryV1 {
               !originalEraseRetainedReaderAbsenceUncertain else {
             throw Self.uncertainOwnerFailure()
         }
+#if DEBUG
+        var originalReaderStage = "g-enter"
+#endif
         do { return try withOriginalEraseRetainedReaderG(
             allocation: allocation, activity: activity) {
+#if DEBUG
+            originalReaderStage = "reservation"
+#endif
             try requireNoMigrationReservationLocked()
             let admission = try operation
                 .requireOriginalEraseTargetReaderAdmissionUnderHeldG(
@@ -19826,11 +19975,17 @@ extension GenerationLeaseRegistryV1 {
                     operation: operation) == prior else {
                 throw Self.uncertainOwnerFailure()
             }
+#if DEBUG
+            originalReaderStage = "first-names"
+#endif
             let firstNames = try requireOriginalEraseRetainedLeaseNames(
                 record: false, temporary: false,
                 allocation: allocation)
             let treeIO = EraseAbortCheckedSnapshotIOV1()
             allocation.originalEraseRetainedTreeIO = treeIO
+#if DEBUG
+            originalReaderStage = "first-tree"
+#endif
             let firstTree = try observeOriginalEraseRetainedLeaseTree(
                 allocation: allocation)
             guard try observeOriginalEraseRetainedLeaseTree(
@@ -19841,6 +19996,9 @@ extension GenerationLeaseRegistryV1 {
             // it is the immutable original P image retained before pointer
             // effects. This pure Router proof runs in the same actual G and
             // precedes the first original-reader record O_EXCL.
+#if DEBUG
+            originalReaderStage = "first-operations-bound"
+#endif
             try operation
                 .requireOriginalEraseTargetReaderFirstOperationsUnderHeldG(
                     registry: self, activity: activity,
@@ -19871,6 +20029,9 @@ extension GenerationLeaseRegistryV1 {
             allocation.originalEraseRetainedPriorBytes = priorBytes
             allocation.originalEraseRetainedReplacementBytes = replacement
 
+#if DEBUG
+            originalReaderStage = "record-open"
+#endif
             let recordFD = Darwin.openat(leaseDescriptor,
                 Self.originalEraseRetainedReaderRecordName,
                 O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW
@@ -19918,6 +20079,9 @@ extension GenerationLeaseRegistryV1 {
             guard Darwin.fsync(leaseDescriptor) == 0 else {
                 throw Self.mappedFailure()
             }
+#if DEBUG
+            originalReaderStage = "record-settled"
+#endif
             allocation.originalEraseRetainedRecordDurable = true
             _ = try requireOriginalEraseRetainedPublicationFile(
                 descriptor: recordFD,
@@ -19946,6 +20110,9 @@ extension GenerationLeaseRegistryV1 {
                     operation: operation) == prior else {
                 throw Self.uncertainOwnerFailure()
             }
+#if DEBUG
+            originalReaderStage = "registry-temp-open"
+#endif
             let temporary = Darwin.openat(leaseDescriptor,
                 Self.registryTemporaryName,
                 O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW
@@ -20015,6 +20182,9 @@ extension GenerationLeaseRegistryV1 {
                     leaseDescriptor, Self.registryName) == 0 else {
                 throw Self.uncertainOwnerFailure()
             }
+#if DEBUG
+            originalReaderStage = "registry-renamed"
+#endif
             allocation.originalEraseRetainedRegistryRenamed = true
             allocation.originalEraseRetainedRenameUncertain = true
             // This helper is physical only: it does not use a cold operation,
@@ -20046,6 +20216,9 @@ extension GenerationLeaseRegistryV1 {
                   post.priorTokens == prior else {
                 throw Self.uncertainOwnerFailure()
             }
+#if DEBUG
+            originalReaderStage = "after-tree"
+#endif
             let afterTree = try observeOriginalEraseRetainedLeaseTree(
                 allocation: allocation)
             guard try observeOriginalEraseRetainedLeaseTree(
@@ -20075,6 +20248,9 @@ extension GenerationLeaseRegistryV1 {
             try closeOriginalEraseRetainedReaderFD(temporary,
                 allocation: allocation)
             allocation.originalEraseRetainedTemporaryDescriptor = -1
+#if DEBUG
+            originalReaderStage = "handle"
+#endif
             let handle = try GenerationLeaseHandleV1(registry: self,
                 publishedReaderToken: token)
             allocation.handle = handle
@@ -20101,9 +20277,25 @@ extension GenerationLeaseRegistryV1 {
                 afterTokens: try RegistryStateV1(
                     leases: prior + [token]).leases)
             allocation.originalEraseRetainedProjection = projection
+#if DEBUG
+            originalReaderStage = "settled"
+            FileHandle.standardError.write(Data(
+                "V23_ORIGINAL_READER_REGISTRY_DIAG stage=settled family=none\n".utf8))
+#endif
             return handle
         }
         } catch {
+#if DEBUG
+            let family: String
+            if error is GenerationLeaseRegistryFailureV1 { family = "registry" }
+            else if error is StoreMigrationFailure { family = "migration" }
+            else if error is StoreGenerationFailure { family = "generation" }
+            else if error is ProtectedFilePolicyError { family = "policy" }
+            else { family = "other" }
+            FileHandle.standardError.write(Data(
+                ("V23_ORIGINAL_READER_REGISTRY_DIAG stage="
+                 + originalReaderStage + " family=" + family + "\n").utf8))
+#endif
             originalEraseRetainedReaderEffectUncertain = true
             throw error
         }
@@ -25079,6 +25271,53 @@ extension GenerationLeaseRegistryV1 {
         }
     }
 
+    /// Same-operation, read-only Q scope after the original pre-open owner
+    /// releases. A checked operation-retained Registry reader proves the
+    /// exact first cohort and unchanged canonical bytes/policy on both sides
+    /// of the synchronous full Operations/source read. No new activity or
+    /// migration reservation is acquired.
+    @MainActor
+    func withOriginalRecoveryPostPointerReadUnderRetainedExclusion<Value>(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        intent: EraseIntentV1,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        guard intent.schemaVersion == 2,
+              intent.phase == .pointerSwitched else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try withTemporalNormalizationMutationLock(activity: activity) {
+            let expected = try operation
+                .requireOriginalRecoveryPostPointerReproofUnderHeldG(
+                    registry: self, activity: activity,
+                    store: store, intent: intent)
+            try requireNoMigrationReservationLocked()
+            let before = try observeOriginalEraseAuxiliaryRegistryLocked(
+                operation: operation)
+            guard before.leases == expected,
+                  try store.load() == intent,
+                  let preparation = try store.loadPreparation(),
+                  preparation.matches(intent) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let outcome = Result<Value, Error> { try body() }
+            let after = try observeOriginalEraseAuxiliaryRegistryLocked(
+                operation: operation)
+            guard after.leases == before.leases,
+                  after.registryBytes == before.registryBytes,
+                  after.registryPolicy == before.registryPolicy,
+                  after.directoryPolicy == before.directoryPolicy,
+                  try store.load() == intent,
+                  try store.loadPreparation() == preparation else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireNoMigrationReservationLocked()
+            return try outcome.get()
+        }
+    }
+
     /// Bracket exactly one original Erase phase CAS by the already retained
     /// normalization activity and this Registry's actual G. The pre-effect
     /// roster receipt and complete writer/reader cohort are operation-owned;
@@ -25270,6 +25509,506 @@ extension GenerationLeaseRegistryV1 {
         return OriginalEraseRetainedWriterRecoveryReceiptV1(
             registry: self, operation: operation, activity: activity,
             targetAllocation: targetAllocation, targetHandle: targetHandle)
+    }
+
+    /// A single original-operation Scratch admission before Search or
+    /// notification mutation. This is a read-only checked G scope: no
+    /// producer SH, creation, recovery getter, or deletion is reachable.
+    @MainActor
+    func requireOriginalEraseAuxiliaryScratchNoRepairAdmission(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        support: Int32,
+        applicationSupportURL: URL
+    ) throws {
+        try activity.validateSharedNormalizationRegistry(self)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard !originalEraseAuxiliaryScratchNoRepairUncertain,
+              generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            originalEraseAuxiliaryScratchNoRepairUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var failure: Error?
+        var scopeActive = true
+        do {
+            try activity.validateSharedNormalizationRegistry(self)
+            try verify()
+            let first = try operation
+                .requireOriginalEraseAuxiliaryScratchNoRepairUnderHeldG(
+                    registry: self, activity: activity, store: store)
+            try requireNoMigrationReservationLocked()
+            guard let intent = try store.load(),
+                  intent.phase == .sessionActivated,
+                  let preparation = try store.loadPreparation(),
+                  preparation.matches(intent),
+                  try readOriginalEraseAuxiliaryRegistryLocked(
+                      operation: operation) == first.tokens else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let permit = OriginalEraseAuxiliaryScratchNoRepairPermitV1(
+                check: {
+                    guard scopeActive,
+                          self.generationMutationLockDepth == 1 else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                    try activity.validateSharedNormalizationRegistry(self)
+                    _ = try operation
+                        .requireOriginalEraseAuxiliaryScratchNoRepairUnderHeldG(
+                            registry: self, activity: activity,
+                            store: store)
+                }, poison: {
+                    operation.failOriginalEraseAuxiliaryScratchNoRepairAdmission()
+                })
+            let observed = Result {
+                try ScratchDataLeaseStoreV1
+                    .requireOriginalEraseAuxiliaryScratchNoRepairFirstImage(
+                        applicationSupportURL: applicationSupportURL,
+                        support: support,
+                        expectedSupportFact: first.supportFact,
+                        expectedOperationsFact: first.operationsFact,
+                        expectedOperationsNames: first.operationsNames,
+                        expectedScratchRootFact: first.scratchFact,
+                        expectedScratchDigest: first.scratchDigest,
+                        permit: permit)
+            }
+            permit.revoke()
+            scopeActive = false
+            try observed.get()
+            guard try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == first.tokens,
+                  try store.load() == intent,
+                  try store.loadPreparation() == preparation else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try requireNoMigrationReservationLocked()
+            try verify()
+            try activity.validateSharedNormalizationRegistry(self)
+        } catch {
+            scopeActive = false
+            failure = error
+            originalEraseAuxiliaryScratchNoRepairUncertain = true
+            operation.failOriginalEraseAuxiliaryScratchNoRepairAdmission()
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            originalEraseAuxiliaryScratchNoRepairUncertain = true
+            operation.failOriginalEraseAuxiliaryScratchNoRepairAdmission()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        if let failure { throw failure }
+    }
+
+    /// The ordinary Notification process fence precedes G. Neither the
+    /// original EX nor G alone excludes an independent AppLock publication.
+    /// The one-use body runs synchronously through its checked postimage;
+    /// failure or an uncertain unlock permanently blocks this operation.
+    @MainActor
+    func withOriginalEraseNotificationRootPolicy(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        _ body: (OriginalEraseNotificationRootPolicyPermitV1)
+            throws -> OriginalEraseNotificationRootPolicyReceiptV1
+    ) throws -> OriginalEraseNotificationRootPolicyReceiptV1 {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try activity.validateSharedNormalizationRegistry(self)
+            Self.processMutationLock.lock()
+            defer { Self.processMutationLock.unlock() }
+            guard !originalEraseNotificationRootPolicyUncertain,
+                  generationMutationLockDepth == 0,
+                  flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+                originalEraseNotificationRootPolicyUncertain = true
+                operation.failOriginalEraseNotificationRootPolicy()
+                throw Self.uncertainOwnerFailure()
+            }
+            generationMutationLockDepth = 1
+            var scopeActive = true
+            var result: Result<OriginalEraseNotificationRootPolicyReceiptV1,
+                Error>?
+            do {
+                try activity.validateSharedNormalizationRegistry(self)
+                try verify()
+                let cohort = try operation
+                    .requireOriginalEraseNotificationRootPolicyUnderHeldG(
+                        registry: self, activity: activity, store: store)
+                try requireNoMigrationReservationLocked()
+                guard let intent = try store.load(),
+                      intent.phase == .sessionActivated,
+                      let preparation = try store.loadPreparation(),
+                      preparation.matches(intent),
+                      try readOriginalEraseAuxiliaryRegistryLocked(
+                          operation: operation) == cohort else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                let permit = OriginalEraseNotificationRootPolicyPermitV1(
+                    check: {
+                        guard scopeActive,
+                              self.generationMutationLockDepth == 1 else {
+                            throw Self.uncertainOwnerFailure()
+                        }
+                        try activity.validateSharedNormalizationRegistry(self)
+                        guard try operation
+                            .requireOriginalEraseNotificationRootPolicyUnderHeldG(
+                                registry: self, activity: activity,
+                                store: store) == cohort else {
+                            throw Self.uncertainOwnerFailure()
+                        }
+                    }, poison: {
+                        operation.failOriginalEraseNotificationRootPolicy()
+                    })
+                let observed = Result { try body(permit) }
+                permit.revoke()
+                scopeActive = false
+                let receipt = try observed.get()
+                try receipt.requireBound(operation: operation, store: store,
+                    registry: self, exclusion: exclusion, activity: activity)
+                guard try operation
+                        .requireOriginalEraseNotificationRootPolicyUnderHeldG(
+                            registry: self, activity: activity,
+                            store: store) == cohort,
+                      try readOriginalEraseAuxiliaryRegistryLocked(
+                        operation: operation) == cohort,
+                      try store.load() == intent,
+                      try store.loadPreparation() == preparation else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                try requireNoMigrationReservationLocked()
+                try verify()
+                try activity.validateSharedNormalizationRegistry(self)
+                result = .success(receipt)
+            } catch {
+                scopeActive = false
+                result = .failure(error)
+            }
+            guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+                originalEraseNotificationRootPolicyUncertain = true
+                operation.failOriginalEraseNotificationRootPolicy()
+                throw Self.uncertainOwnerFailure()
+            }
+            generationMutationLockDepth = 0
+            guard let result else {
+                originalEraseNotificationRootPolicyUncertain = true
+                operation.failOriginalEraseNotificationRootPolicy()
+                throw Self.uncertainOwnerFailure()
+            }
+            do { return try result.get() }
+            catch {
+                originalEraseNotificationRootPolicyUncertain = true
+                operation.failOriginalEraseNotificationRootPolicy()
+                throw error
+            }
+        }
+    }
+
+    /// The marker is a separate effect from the prior root-policy request.
+    /// Keep the AppLock fence outside this Registry's checked G and retain
+    /// both across the complete O_EXCL, policy, rename and postimage body.
+    @MainActor
+    func withOriginalEraseNotificationMarkerPublication(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        _ body: (OriginalEraseNotificationMarkerPermitV1)
+            throws -> OriginalEraseNotificationMarkerPublicationReceiptV1
+    ) throws -> OriginalEraseNotificationMarkerPublicationReceiptV1 {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try activity.validateSharedNormalizationRegistry(self)
+            Self.processMutationLock.lock()
+            defer { Self.processMutationLock.unlock() }
+            guard !originalEraseNotificationMarkerUncertain,
+                  generationMutationLockDepth == 0,
+                  flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+                originalEraseNotificationMarkerUncertain = true
+                operation.failOriginalEraseNotificationMarker()
+                throw Self.uncertainOwnerFailure()
+            }
+            generationMutationLockDepth = 1
+            var scopeActive = true
+            var result: Result<OriginalEraseNotificationMarkerPublicationReceiptV1,
+                Error>?
+            do {
+                try activity.validateSharedNormalizationRegistry(self)
+                try verify()
+                let cohort = try operation
+                    .requireOriginalEraseNotificationMarkerUnderHeldG(
+                        registry: self, activity: activity, store: store)
+                try requireNoMigrationReservationLocked()
+                guard let intent = try store.load(),
+                      intent.phase == .sessionActivated,
+                      let preparation = try store.loadPreparation(),
+                      preparation.matches(intent),
+                      try readOriginalEraseAuxiliaryRegistryLocked(
+                          operation: operation) == cohort else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                let permit = OriginalEraseNotificationMarkerPermitV1(
+                    check: {
+                        guard scopeActive,
+                              self.generationMutationLockDepth == 1 else {
+                            throw Self.uncertainOwnerFailure()
+                        }
+                        try activity.validateSharedNormalizationRegistry(self)
+                        guard try operation
+                            .requireOriginalEraseNotificationMarkerUnderHeldG(
+                                registry: self, activity: activity,
+                                store: store) == cohort else {
+                            throw Self.uncertainOwnerFailure()
+                        }
+                    }, poison: {
+                        operation.failOriginalEraseNotificationMarker()
+                    })
+                let observed = Result { try body(permit) }
+                permit.revoke()
+                scopeActive = false
+                let receipt = try observed.get()
+                try receipt.requireBound(control: operation
+                    .requireOriginalEraseNotificationMarkerControl(),
+                    operation: operation, store: store,
+                    registry: self, exclusion: exclusion, activity: activity)
+                guard try operation
+                        .requireOriginalEraseNotificationMarkerUnderHeldG(
+                            registry: self, activity: activity,
+                            store: store) == cohort,
+                      try readOriginalEraseAuxiliaryRegistryLocked(
+                        operation: operation) == cohort,
+                      try store.load() == intent,
+                      try store.loadPreparation() == preparation else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                try requireNoMigrationReservationLocked()
+                try verify()
+                try activity.validateSharedNormalizationRegistry(self)
+                result = .success(receipt)
+            } catch {
+                scopeActive = false
+                result = .failure(error)
+            }
+            guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+                originalEraseNotificationMarkerUncertain = true
+                operation.failOriginalEraseNotificationMarker()
+                throw Self.uncertainOwnerFailure()
+            }
+            generationMutationLockDepth = 0
+            guard let result else {
+                originalEraseNotificationMarkerUncertain = true
+                operation.failOriginalEraseNotificationMarker()
+                throw Self.uncertainOwnerFailure()
+            }
+            do { return try result.get() }
+            catch {
+                originalEraseNotificationMarkerUncertain = true
+                operation.failOriginalEraseNotificationMarker()
+                throw error
+            }
+        }
+    }
+
+    /// The OS-success record removal is distinct from marker publication.
+    /// Keep the AppLock fence outside this Registry's checked G and retain
+    /// both across the complete O_EXCL, policy, rename and postimage body.
+    @MainActor
+    func withOriginalEraseNotificationRecordRemoval(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        _ body: (OriginalEraseNotificationRemovalPermitV1)
+            throws -> OriginalEraseNotificationRecordRemovalReceiptV1
+    ) throws -> OriginalEraseNotificationRecordRemovalReceiptV1 {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try activity.validateSharedNormalizationRegistry(self)
+            Self.processMutationLock.lock()
+            defer { Self.processMutationLock.unlock() }
+            guard !originalEraseNotificationRemovalUncertain,
+                  generationMutationLockDepth == 0,
+                  flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+                originalEraseNotificationRemovalUncertain = true
+                operation.failOriginalEraseNotificationRemoval()
+                throw Self.uncertainOwnerFailure()
+            }
+            generationMutationLockDepth = 1
+            var scopeActive = true
+            var result: Result<OriginalEraseNotificationRecordRemovalReceiptV1,
+                Error>?
+            do {
+                try activity.validateSharedNormalizationRegistry(self)
+                try verify()
+                let cohort = try operation
+                    .requireOriginalEraseNotificationRemovalUnderHeldG(
+                        registry: self, activity: activity, store: store)
+                try requireNoMigrationReservationLocked()
+                guard let intent = try store.load(),
+                      intent.phase == .sessionActivated,
+                      let preparation = try store.loadPreparation(),
+                      preparation.matches(intent),
+                      try readOriginalEraseAuxiliaryRegistryLocked(
+                          operation: operation) == cohort else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                let permit = OriginalEraseNotificationRemovalPermitV1(
+                    check: {
+                        guard scopeActive,
+                              self.generationMutationLockDepth == 1 else {
+                            throw Self.uncertainOwnerFailure()
+                        }
+                        try activity.validateSharedNormalizationRegistry(self)
+                        guard try operation
+                            .requireOriginalEraseNotificationRemovalUnderHeldG(
+                                registry: self, activity: activity,
+                                store: store) == cohort else {
+                            throw Self.uncertainOwnerFailure()
+                        }
+                    }, poison: {
+                        operation.failOriginalEraseNotificationRemoval()
+                    })
+                let observed = Result { try body(permit) }
+                permit.revoke()
+                scopeActive = false
+                let receipt = try observed.get()
+                let context = try operation
+                    .requireOriginalEraseNotificationRemovalContext()
+                try receipt.requireBound(control: context.control,
+                    absence: context.absence, marker: context.marker)
+                guard try operation
+                        .requireOriginalEraseNotificationRemovalUnderHeldG(
+                            registry: self, activity: activity,
+                            store: store) == cohort,
+                      try readOriginalEraseAuxiliaryRegistryLocked(
+                        operation: operation) == cohort,
+                      try store.load() == intent,
+                      try store.loadPreparation() == preparation else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                try requireNoMigrationReservationLocked()
+                try verify()
+                try activity.validateSharedNormalizationRegistry(self)
+                result = .success(receipt)
+            } catch {
+                scopeActive = false
+                result = .failure(error)
+            }
+            guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+                originalEraseNotificationRemovalUncertain = true
+                operation.failOriginalEraseNotificationRemoval()
+                throw Self.uncertainOwnerFailure()
+            }
+            generationMutationLockDepth = 0
+            guard let result else {
+                originalEraseNotificationRemovalUncertain = true
+                operation.failOriginalEraseNotificationRemoval()
+                throw Self.uncertainOwnerFailure()
+            }
+            do { return try result.get() }
+            catch {
+                originalEraseNotificationRemovalUncertain = true
+                operation.failOriginalEraseNotificationRemoval()
+                throw error
+            }
+        }
+    }
+
+    /// One existing ingress-control root policy transition under the original
+    /// retained EX and this Registry's checked G. No generic producer SH or
+    /// repair-capable Scratch getter can be borrowed by this permit. A failed
+    /// body, postproof or unlock permanently blocks this operation's later
+    /// Scratch effects until a distinct typed replay classifies the cut.
+    @MainActor
+    func withOriginalEraseAuxiliaryScratchControlPolicy(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        _ body: (OriginalEraseAuxiliaryScratchControlPolicyPermitV1)
+            throws -> OriginalEraseScratchControlPolicyReceiptV1
+    ) throws -> OriginalEraseScratchControlPolicyReceiptV1 {
+        try activity.validateSharedNormalizationRegistry(self)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard !originalEraseAuxiliaryScratchControlPolicyUncertain,
+              generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            originalEraseAuxiliaryScratchControlPolicyUncertain = true
+            operation.failOriginalEraseAuxiliaryScratchControlPolicy()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var scopeActive = true
+        var result: Result<OriginalEraseScratchControlPolicyReceiptV1,
+            Error>?
+        do {
+            try activity.validateSharedNormalizationRegistry(self)
+            try verify()
+            let cohort = try operation
+                .requireOriginalEraseAuxiliaryScratchControlPolicyUnderHeldG(
+                    registry: self, activity: activity, store: store)
+            try requireNoMigrationReservationLocked()
+            guard let intent = try store.load(),
+                  intent.phase == .sessionActivated,
+                  let preparation = try store.loadPreparation(),
+                  preparation.matches(intent),
+                  try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == cohort else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let permit = OriginalEraseAuxiliaryScratchControlPolicyPermitV1(
+                check: {
+                    guard scopeActive,
+                          self.generationMutationLockDepth == 1 else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                    try activity.validateSharedNormalizationRegistry(self)
+                    guard try operation
+                        .requireOriginalEraseAuxiliaryScratchControlPolicyUnderHeldG(
+                            registry: self, activity: activity,
+                            store: store) == cohort else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                }, poison: {
+                    operation.failOriginalEraseAuxiliaryScratchControlPolicy()
+                })
+            let observed = Result { try body(permit) }
+            permit.revoke()
+            scopeActive = false
+            let receipt = try observed.get()
+            try receipt.requireBound(operation: operation, store: store,
+                registry: self, exclusion: exclusion, activity: activity)
+            guard try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == cohort,
+                  try store.load() == intent,
+                  try store.loadPreparation() == preparation else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try requireNoMigrationReservationLocked()
+            try verify()
+            try activity.validateSharedNormalizationRegistry(self)
+            result = .success(receipt)
+        } catch {
+            scopeActive = false
+            result = .failure(error)
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            originalEraseAuxiliaryScratchControlPolicyUncertain = true
+            operation.failOriginalEraseAuxiliaryScratchControlPolicy()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        guard let result else {
+            originalEraseAuxiliaryScratchControlPolicyUncertain = true
+            operation.failOriginalEraseAuxiliaryScratchControlPolicy()
+            throw Self.uncertainOwnerFailure()
+        }
+        do { return try result.get() }
+        catch {
+            originalEraseAuxiliaryScratchControlPolicyUncertain = true
+            operation.failOriginalEraseAuxiliaryScratchControlPolicy()
+            throw error
+        }
     }
 
     /// One original-owner Search publication under the same retained EX and

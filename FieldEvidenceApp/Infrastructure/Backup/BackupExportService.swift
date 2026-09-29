@@ -597,20 +597,25 @@ struct OriginalEraseRecoveryPriorRetiredImageV1: Equatable {
     let manifestBytes: Data
     let manifestSHA256: String
     let manifestFact: String
+    let operationsFact: String
+    let operationsNames: [String]
     let migrationFact: String
     let sourceRootFact: String
     let sourceTreeDigest: String
     let namespace: OriginalEraseRecoveryNamespaceSnapshotV1
 
     private init(generationID: UUID, manifest: StoreGenerationManifestV1,
-        manifestBytes: Data, manifestFact: String, migrationFact: String,
-        sourceRootFact: String, sourceTreeDigest: String,
+        manifestBytes: Data, manifestFact: String,
+        operationsFact: String, operationsNames: [String],
+        migrationFact: String, sourceRootFact: String, sourceTreeDigest: String,
         namespace: OriginalEraseRecoveryNamespaceSnapshotV1) {
         self.generationID = generationID
         self.manifest = manifest
         self.manifestBytes = manifestBytes
         self.manifestSHA256 = StoreMigrationCanonicalJSONV1.sha256(manifestBytes)
         self.manifestFact = manifestFact
+        self.operationsFact = operationsFact
+        self.operationsNames = operationsNames
         self.migrationFact = migrationFact
         self.sourceRootFact = sourceRootFact
         self.sourceTreeDigest = sourceTreeDigest
@@ -619,10 +624,20 @@ struct OriginalEraseRecoveryPriorRetiredImageV1: Equatable {
 
     static func capture(id: UUID, intent: EraseIntentV1,
         owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
-        authority: StoreRestoreGenerationAuthority) throws -> Self {
+        authority: StoreRestoreGenerationAuthority,
+        expectedAuxiliary: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
+    ) throws -> Self {
         try owner.withExclusiveSourceScratch { _ in
-            try captureInsideOriginalG(id: id, intent: intent,
+            let value = try captureInsideOriginalG(id: id, intent: intent,
                 owner: owner, authority: authority)
+            guard case .present(let firstOperationsFact, _) =
+                    expectedAuxiliary.operations,
+                  value.operationsFact == firstOperationsFact,
+                  value.operationsNames ==
+                    expectedAuxiliary.operationsChildren.keys.sorted() else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            return value
         }
     }
 
@@ -653,12 +668,19 @@ struct OriginalEraseRecoveryPriorRetiredImageV1: Equatable {
         }
         let tree = try authority.originalRecoverySourceTreeImage(id: id)
         let result = try owner.withCheckedSupportInsideOriginalRecoveryG { support, io in
-            try io.withOpen(parent: support, name: "FieldEvidenceData",
-                flags: O_RDONLY | O_DIRECTORY) { data in
-                try io.withOpen(parent: data, name: "migration",
+            try io.withOpen(parent: support, name: "FieldEvidenceOperations",
+                flags: O_RDONLY | O_DIRECTORY) { operations in
+                let operationsBefore = try heldAndNamedFact(
+                    fd: operations, parent: support,
+                    name: "FieldEvidenceOperations", kind: S_IFDIR)
+                let operationsNames = try io.names(in: operations)
+                guard operationsNames.contains("schema-migration") else {
+                    throw BackupExportServiceError.invalidGeneration
+                }
+                return try io.withOpen(parent: operations, name: "schema-migration",
                     flags: O_RDONLY | O_DIRECTORY) { migration in
                     let migrationBefore = try heldAndNamedFact(
-                        fd: migration, parent: data, name: "migration", kind: S_IFDIR)
+                        fd: migration, parent: operations, name: "schema-migration", kind: S_IFDIR)
                     let name = "manifest-" + id.uuidString.lowercased() + ".json"
                     return try io.withOpen(parent: migration, name: name,
                         flags: O_RDONLY | O_NONBLOCK) { leaf in
@@ -683,12 +705,18 @@ struct OriginalEraseRecoveryPriorRetiredImageV1: Equatable {
                         }
                         guard try heldAndNamedFact(fd: leaf, parent: migration,
                                 name: name, kind: S_IFREG) == manifestBefore,
-                              try heldAndNamedFact(fd: migration, parent: data,
-                                name: "migration", kind: S_IFDIR) == migrationBefore else {
+                              try heldAndNamedFact(fd: migration, parent: operations,
+                                name: "schema-migration", kind: S_IFDIR) == migrationBefore,
+                              try heldAndNamedFact(fd: operations, parent: support,
+                                name: "FieldEvidenceOperations", kind: S_IFDIR)
+                                == operationsBefore,
+                              try io.names(in: operations) == operationsNames else {
                             throw BackupExportServiceError.invalidGeneration
                         }
                         return Self(generationID: id, manifest: manifest,
                             manifestBytes: bytes, manifestFact: manifestBefore,
+                            operationsFact: operationsBefore,
+                            operationsNames: operationsNames,
                             migrationFact: migrationBefore, sourceRootFact: tree.rootFact,
                             sourceTreeDigest: tree.digest, namespace: namespace)
                     }
@@ -756,9 +784,9 @@ final class EraseRetainedCopiedSourceValidationV1:
         }
         return try owner.withExclusiveSourceScratch { _ in
             try owner.withCheckedSupportInsideOriginalRecoveryG { support, io in
-                try io.withOpen(parent: support, name: "FieldEvidenceData",
-                                flags: O_RDONLY | O_DIRECTORY) { data in
-                    try io.withOpen(parent: data, name: "migration",
+                try io.withOpen(parent: support, name: "FieldEvidenceOperations",
+                                flags: O_RDONLY | O_DIRECTORY) { operations in
+                    try io.withOpen(parent: operations, name: "schema-migration",
                                     flags: O_RDONLY | O_DIRECTORY) { migration in
                         let name = "manifest-"
                             + old.generationID.uuidString.lowercased() + ".json"
@@ -1017,20 +1045,23 @@ final class EraseRetainedCopiedSourceValidationV1:
                     current == expectedCurrent else {
                     throw BackupExportServiceError.invalidGeneration
                 }
-                try io.withOpen(parent: data, name: "migration",
-                                flags: O_RDONLY | O_DIRECTORY) { migration in
-                    let name = "manifest-" + generationID.uuidString.lowercased() + ".json"
-                    let (bytes, _) = try io.control(parent: migration, name: name)
-                    guard StoreMigrationCanonicalJSONV1.sha256(bytes)
-                            == (priorRetiredImage?.manifestSHA256 ?? old.generationManifestSHA256) else {
-                        throw BackupExportServiceError.invalidGeneration
-                    }
-                    let manifest = try StoreGenerationManifestV1.decodeCanonical(
-                        from: bytes)
-                    guard manifest.generationID == generationID,
-                          manifest.storeSchemaRelease
-                            == PersistentSchemaReleaseRegistryV1.activeRelease else {
-                        throw BackupExportServiceError.invalidGeneration
+                try io.withOpen(parent: support, name: "FieldEvidenceOperations",
+                                flags: O_RDONLY | O_DIRECTORY) { operations in
+                    try io.withOpen(parent: operations, name: "schema-migration",
+                                    flags: O_RDONLY | O_DIRECTORY) { migration in
+                        let name = "manifest-" + generationID.uuidString.lowercased() + ".json"
+                        let (bytes, _) = try io.control(parent: migration, name: name)
+                        guard StoreMigrationCanonicalJSONV1.sha256(bytes)
+                                == (priorRetiredImage?.manifestSHA256 ?? old.generationManifestSHA256) else {
+                            throw BackupExportServiceError.invalidGeneration
+                        }
+                        let manifest = try StoreGenerationManifestV1.decodeCanonical(
+                            from: bytes)
+                        guard manifest.generationID == generationID,
+                              manifest.storeSchemaRelease
+                                == PersistentSchemaReleaseRegistryV1.activeRelease else {
+                            throw BackupExportServiceError.invalidGeneration
+                        }
                     }
                 }
             }

@@ -706,6 +706,24 @@ final class ErasedRegistryRetirementProofV1 {
         terminalAuthorityClose = completed
     }
 
+    /// The transferred original EX still owns the complete drained cohort
+    /// after the generation authority closes and before namespace removal.
+    /// This is the last admissible read/checked-close point for its retained
+    /// Notification control descriptors.
+    func requireOriginalNotificationTerminalCloseAdmission() throws {
+        guard phase == .manifestPreserved,
+              terminalAuthorityClose?.matches(proof: self) == true,
+              let attempt = manifestAttempt,
+              drain.observesManifestRetirement(attempt),
+              attempt.matches(binding: binding, exclusion: exclusion,
+                  retirement: self) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try exclusion.requireSupport(binding: binding)
+        try exclusion.requireNoLeasesAfterDrain(proof: drain)
+        try drain.requireDrained(binding: binding)
+    }
+
     func requireManifestNamespaceRemovalAdmission(exclusion expected: EraseRetirementExclusionV1,
         attempt: EraseManifestRetirementAttemptV1) throws {
         guard expected === exclusion, phase == .manifestPreserved,
@@ -1244,6 +1262,12 @@ final class EraseAllService {
         "cleanup.notification-drain",
         "cleanup.prepare.complete",
         "cleanup.prepare.enter",
+        "cleanup.binding.enter",
+        "cleanup.empty-graph.enter",
+        "cleanup.notification.enter",
+        "cleanup.notification.complete",
+        "cleanup.scratch-construction.enter",
+        "cleanup.scratch-erase.enter",
         "cleanup.presence",
         "cleanup.session-and-content",
         "cleanup.target-reader.complete",
@@ -1351,6 +1375,138 @@ final class EraseAllService {
         "projection.private-discovery.begin",
         "projection.private-discovery.end",
         "recovery.activated-current",
+        "recovery.original.frame-enter",
+        "recovery.original.frame-complete",
+        "recovery.original.preflight-enter",
+        "recovery.original.preflight-complete",
+        "recovery.original.first.owner-enter",
+        "recovery.original.first.owner-held",
+        "recovery.original.first.controls-enter",
+        "recovery.original.first.controls-read",
+        "recovery.original.first.intent-classified",
+        "recovery.original.first.authority-enter",
+        "recovery.original.first.authority-held",
+        "recovery.original.first.aux-enter",
+        "recovery.original.first.aux-owner-retained",
+        "recovery.original.first.aux-captured",
+        "recovery.original.first.old-enter",
+        "recovery.original.first.old-valid",
+        "recovery.original.first.target-enter",
+        "recovery.original.first.target-valid",
+        "recovery.original.first.prior-enter",
+        "recovery.original.first.prior-valid",
+        "recovery.original.first.namespace-enter",
+        "recovery.original.first.namespace-captured",
+        "recovery.original.first.aux-reproof-enter",
+        "recovery.original.first.aux-reproof-complete",
+        "recovery.original.first.close-enter",
+        "recovery.original.first.authority-closed",
+        "recovery.original.first.closed",
+        "recovery.original.first.admit-enter",
+        "recovery.original.first.admit-returned",
+        "recovery.original.old.owner-pre-enter",
+        "recovery.original.old.owner-pre-complete",
+        "recovery.original.old.aux-pre-enter",
+        "recovery.original.old.aux-pre-complete",
+        "recovery.original.old.digest-enter",
+        "recovery.original.old.digest-complete",
+        "recovery.original.old.external-enter",
+        "recovery.original.old.external-complete",
+        "recovery.original.old.manifest-enter",
+        "recovery.original.old.manifest-complete",
+        "recovery.original.old.private-copy-enter",
+        "recovery.original.old.private-copy-complete",
+        "recovery.original.old.callback-enter",
+        "recovery.original.old.validation-enter",
+        "recovery.original.old.validation-complete",
+        "recovery.original.old.frozen-enter",
+        "recovery.original.old.frozen-complete",
+        "recovery.original.old.reads-enter",
+        "recovery.original.old.reads-complete",
+        "recovery.original.old.callback-complete",
+        "recovery.original.old.aux-post-enter",
+        "recovery.original.old.aux-post-complete",
+        "recovery.original.old.owner-post-enter",
+        "recovery.original.old.owner-post-complete",
+        "recovery.original.old.digest-post-enter",
+        "recovery.original.old.digest-post-complete",
+        "recovery.original.old.external-post-enter",
+        "recovery.original.old.external-post-complete",
+        "recovery.original.old.policy-enter",
+        "recovery.original.old.policy-complete",
+        "recovery.original.old.factory.owner-enter",
+        "recovery.original.old.factory.owner-complete",
+        "recovery.original.old.factory.files-enter",
+        "recovery.original.old.factory.files-complete",
+        "recovery.original.old.factory.request-enter",
+        "recovery.original.old.factory.request-complete",
+        "recovery.original.old.factory.scratch-enter",
+        "recovery.original.old.factory.scratch-complete",
+        "recovery.original.old.factory.read-enter",
+        "recovery.original.old.factory.copy-enter",
+        "recovery.original.old.factory.copy-complete",
+        "recovery.original.old.factory.input-proofs-enter",
+        "recovery.original.old.factory.input-proofs-complete",
+        "recovery.original.old.factory.shm-integrity-enter",
+        "recovery.original.old.factory.shm-integrity-complete",
+        "recovery.original.old.factory.container-enter",
+        "recovery.original.old.factory.container-complete",
+        "recovery.original.old.factory.callback-enter",
+        "recovery.original.old.factory.callback-complete",
+        "recovery.original.old.factory.postinput-enter",
+        "recovery.original.old.factory.postinput-complete",
+        "recovery.original.old.factory.final-owner-enter",
+        "recovery.original.old.factory.final-owner-complete",
+        "recovery.original.old.factory.final-files-enter",
+        "recovery.original.old.factory.final-files-complete",
+        "recovery.original.old.scratch.permit-enter",
+        "recovery.original.old.scratch.permit-complete",
+        "recovery.original.old.scratch.ingress-enter",
+        "recovery.original.old.scratch.ingress-complete",
+        "recovery.original.old.scratch.store-enter",
+        "recovery.original.old.scratch.store-complete",
+        "recovery.original.old.scratch.lock-enter",
+        "recovery.original.old.scratch.lock-complete",
+        "recovery.original.old.scratch.first-cut-enter",
+        "recovery.original.old.scratch.first-cut-complete",
+        "recovery.original.old.scratch.lease-enter",
+        "recovery.original.old.scratch.lease-complete",
+        "recovery.original.old.scratch.directory-enter",
+        "recovery.original.old.scratch.directory-complete",
+        "recovery.original.old.scratch.metadata-enter",
+        "recovery.original.old.scratch.metadata-complete",
+        "recovery.original.old.scratch.callback-enter",
+        "recovery.original.old.scratch.callback-returned",
+        "recovery.original.old.scratch.callback-failed",
+        "recovery.original.old.scratch.drain-enter",
+        "recovery.original.old.scratch.drain-complete",
+        "recovery.original.old.scratch.reader-close-enter",
+        "recovery.original.old.scratch.reader-close-complete",
+        "recovery.original.old.scratch.release-enter",
+        "recovery.original.old.scratch.release-complete",
+        "recovery.original.old.scratch.final-cut-enter",
+        "recovery.original.old.scratch.final-cut-complete",
+        "recovery.original.old.scratch.authority-close-enter",
+        "recovery.original.old.scratch.authority-close-complete",
+        "recovery.original.old.scratch.io-settle-enter",
+        "recovery.original.old.scratch.io-settle-complete",
+        "recovery.original.old.scratch.final-ingress-enter",
+        "recovery.original.old.scratch.final-ingress-complete",
+        "recovery.original.old.scratch.receipt-enter",
+        "recovery.original.old.scratch.receipt-complete",
+        "recovery.original.old.failure.scratch-invalid-root",
+        "recovery.original.old.failure.scratch-invalid-lease",
+        "recovery.original.old.failure.scratch-lease-collision",
+        "recovery.original.old.failure.scratch-lease-expired",
+        "recovery.original.old.failure.scratch-size-limit",
+        "recovery.original.old.failure.scratch-protected-data",
+        "recovery.original.old.failure.scratch-capacity",
+        "recovery.original.old.failure.generation-pointer",
+        "recovery.original.old.failure.generation-missing",
+        "recovery.original.old.failure.registry",
+        "recovery.original.old.failure.policy",
+        "recovery.original.old.failure.erase",
+        "recovery.original.old.failure.other",
         "recovery.admission",
         "recovery.admission-revalidation",
         "recovery.authority",
@@ -1362,6 +1518,7 @@ final class EraseAllService {
         "recovery.presence.inventory",
         "recovery.presence.preexisting-retired",
         "recovery.presence.published-empty",
+        "recovery.presence.transferred-prior-enter",
         "recovery.presence.retained-source",
         "recovery.retained.acquire.complete",
         "recovery.retained.acquire.enter",
@@ -2167,6 +2324,30 @@ final class EraseAllService {
     }
 #endif
 
+#if DEBUG
+    private static func originalOldDiagnosticFailureLabel(_ error: Error) -> String {
+        if let failure = error as? ScratchDataLeaseStoreFailureV1 {
+            switch failure {
+            case .invalidRoot: return "recovery.original.old.failure.scratch-invalid-root"
+            case .invalidLease: return "recovery.original.old.failure.scratch-invalid-lease"
+            case .leaseCollision: return "recovery.original.old.failure.scratch-lease-collision"
+            case .leaseExpired: return "recovery.original.old.failure.scratch-lease-expired"
+            case .sizeLimitExceeded: return "recovery.original.old.failure.scratch-size-limit"
+            case .protectedDataUnavailable: return "recovery.original.old.failure.scratch-protected-data"
+            case .insufficientCapacity: return "recovery.original.old.failure.scratch-capacity"
+            }
+        }
+        if let failure = error as? StoreGenerationFailure {
+            switch failure {
+            case .dataPointerInvalid: return "recovery.original.old.failure.generation-pointer"
+            case .dataGenerationMissing: return "recovery.original.old.failure.generation-missing"
+            }
+        }
+        if error is EraseAllServiceError { return "recovery.original.old.failure.erase" }
+        return "recovery.original.old.failure.other"
+    }
+#endif
+
     private func traceErasePhase(_ phase: String) {
 #if DEBUG
         // Only source-literal labels can reach the test; forwarded Factory
@@ -2460,6 +2641,11 @@ final class EraseAllService {
         try generationFactory.requireEraseReaderInventory(operation.inventory)
         try operation.beginPreparationServiceFrame(coordinator: coordinator)
         defer { operation.endPreparationServiceFrame() }
+        // A failed, fully returned OS add may retain its producer SH until
+        // exact admission cleanup succeeds. Settle it before requesting EX.
+        try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(
+            applicationSupportURL: applicationSupportURL)
+        try operation.requireLiveExecution(coordinator: coordinator)
         traceErasePhase("entry.integration-projections")
         try IntegrationProjectionEraseAllPolicyV1.validate()
         traceErasePhase("entry.scene-navigation")
@@ -3205,7 +3391,8 @@ final class EraseAllService {
             let prepared = try await prepareCleanupForRetirement(activated, session: session,
                 authority: generationAuthority, auxiliary: auxiliary, diagnosticsStore: diagnosticsStore,
                 intentStore: intentStore, binding: binding, inventory: operation.inventory,
-                reservation: reservation)
+                reservation: reservation, coordinator: coordinator,
+                originalAuxiliaryOperation: operation)
     #if DEBUG
         originalPreparedForPostRetired = prepared
 #endif
@@ -3351,10 +3538,12 @@ final class EraseAllService {
         originalFrameEmittedAbort = false
         defer { originalEraseFrameActive = false }
 #endif
+        traceErasePhase("recovery.original.frame-enter")
         try operation.requireRecoveryExecution(coordinator: coordinator)
         try generationFactory.requireEraseReaderInventory(operation.inventory)
         try operation.beginPreparationServiceFrame(coordinator: coordinator)
         defer { operation.endPreparationServiceFrame() }
+        traceErasePhase("recovery.original.frame-complete")
         traceErasePhase("recovery.support")
         var supportStatus = stat()
         let supportResult = applicationSupportURL.path.withCString {
@@ -3386,6 +3575,7 @@ final class EraseAllService {
         }
         var originalNoIntentPreparation: ErasePreparationV2?
         var originalNoIntentReader: EraseC05ColdPreparationJournalReaderV1?
+        traceErasePhase("recovery.original.preflight-enter")
         let noIntentAtPreflight = try !originalNamedLeafExists("erase.json")
         if noIntentAtPreflight {
             // An incomplete canonical journal write has no no-effect
@@ -3411,6 +3601,7 @@ final class EraseAllService {
                 originalNoIntentPreparation = observed
             }
         }
+        traceErasePhase("recovery.original.preflight-complete")
         // This is the sole pre-repair path for a schema-2 target-current
         // original recovery. It authenticates the original under its retained
         // EX/G before any ordinary store constructor or old live opening.
@@ -3492,9 +3683,16 @@ final class EraseAllService {
                 try validatedOriginal.authority.requireOriginalRecoveryCompletedExternalPolicy(
                     phaseResult.external)
                 validatedOriginal.completedPolicyPhase = phaseResult
-                try validatedOriginal.auxiliaryContinuity
-                    .closeCheckedAfterFirstPointerPhase(
+                let postPointerProjection = try validatedOriginal
+                    .auxiliaryContinuity.closeCheckedAfterFirstPointerPhase(
                         owner: validatedOriginal.owner)
+                if validatedOriginal.owner.retainedOriginalExclusion != nil {
+                    try operation.retainOriginalRecoveryPostPointerAuxiliaryProjection(
+                        postPointerProjection, owner: validatedOriginal.owner,
+                        coordinator: coordinator)
+                }
+                validatedOriginal.postPointerAuxiliaryProjection =
+                    postPointerProjection
                 try operation.releaseOriginalRecoveryAuxiliaryContinuity(
                     validatedOriginal.auxiliaryContinuity,
                     owner: validatedOriginal.owner,
@@ -3725,7 +3923,8 @@ final class EraseAllService {
         let prepared = try await prepareCleanupForRetirement(activated, session: session,
             authority: authority, auxiliary: auxiliary, diagnosticsStore: diagnosticsStore,
             intentStore: intentStore, binding: binding, inventory: operation.inventory,
-            reservation: reservation)
+            reservation: reservation, coordinator: coordinator,
+            originalAuxiliaryOperation: operation)
 #if DEBUG
         originalPreparedForPostRetired = prepared
 #endif
@@ -3968,6 +4167,11 @@ final class EraseAllService {
     ) async throws -> Bool {
         try await operation.beginServiceFrame()
         defer { operation.endServiceFrame() }
+        // This only resumes actual in-memory admissions, before freezing the
+        // first control observation or acquiring this cold operation's EX.
+        try await DeviceLocalNotificationOwnerV1.settleRetainedNotificationScheduling(
+            applicationSupportURL: applicationSupportURL)
+        try operation.requireServiceAccess()
         traceErasePhase("recovery.support")
         var supportStatus = stat()
         let supportResult = applicationSupportURL.path.withCString {
@@ -4385,7 +4589,8 @@ final class EraseAllService {
                             temporaryDirectoryURL: temporaryDirectoryURL,
                             operation: operation) { support, caches, temporary in
                             try observer.captureFirst(support: support,
-                                caches: caches, temporary: temporary)
+                                caches: caches, temporary: temporary,
+                                applicationSupportURL: applicationSupportURL)
                         }
                     try operation.bindSchema2ColdAuxiliaryFirstObservation(
                         first, observer: observer, store: store,
@@ -5304,20 +5509,38 @@ private extension EraseAllService {
               intent.targetPointer != nil else {
             throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("recovery.original.old.owner-pre-enter")
         try owner.requireObservationUnchanged()
+        traceErasePhase("recovery.original.old.owner-pre-complete")
         if owner.observation?.intent?.phase == .emptyGenerationPrepared {
             guard auxiliaryContinuity != nil else {
                 throw EraseAllServiceError.invalidAuthority
             }
         }
+        traceErasePhase("recovery.original.old.aux-pre-enter")
         _ = try auxiliaryContinuity?.requireProjected(owner: owner)
+        traceErasePhase("recovery.original.old.aux-pre-complete")
+        traceErasePhase("recovery.original.old.digest-enter")
         let treeDigest = try authority.originalRecoverySourceTreeDigest(
             id: intent.oldGenerationID)
+        traceErasePhase("recovery.original.old.digest-complete")
+        traceErasePhase("recovery.original.old.external-enter")
         let external = try owner.withExclusiveSourceScratch { _ in
             try authority.originalRecoveryExternalSnapshot()
         }
+        traceErasePhase("recovery.original.old.external-complete")
+        traceErasePhase("recovery.original.old.manifest-enter")
         let manifest = try EraseRetainedCopiedSourceValidationV1
             .checkedSourceManifest(intent: intent, owner: owner)
+        traceErasePhase("recovery.original.old.manifest-complete")
+        traceErasePhase("recovery.original.old.private-copy-enter")
+#if DEBUG
+        let privateSourceDiagnostic: (@MainActor (String) -> Void)? = {
+            [self] stage in traceErasePhase(stage)
+        }
+#else
+        let privateSourceDiagnostic: (@MainActor (String) -> Void)? = nil
+#endif
         let reads = try generationFactory.withOriginalEraseRecoveryPrivateSource(
             owner: owner,
             authority: authority,
@@ -5325,17 +5548,22 @@ private extension EraseAllService {
             treeDigest: treeDigest,
             migrationID: manifest.migrationID,
             operationID: operation.originalRecoveryPrivateCopyOperationID,
+            diagnosticPhase: privateSourceDiagnostic,
             onCheckedScratchSettlement: auxiliaryContinuity.map { retained in
                 { receipt in retained.retainScratchSettlement(receipt,
                     owner: owner) }
             }
         ) { context, copyModelURL in
+            traceErasePhase("recovery.original.old.callback-enter")
+            traceErasePhase("recovery.original.old.validation-enter")
             let validation = try EraseRetainedCopiedSourceValidationV1(
                 intent: intent, generationFactory: generationFactory,
                 owner: owner, authority: authority,
                 copyModelURL: copyModelURL,
                 sourceTreeDigest: treeDigest,
                 externalSnapshot: external)
+            traceErasePhase("recovery.original.old.validation-complete")
+            traceErasePhase("recovery.original.old.frozen-enter")
             try validateFrozenGeneration(
                 id: intent.oldGenerationID,
                 modelContext: context,
@@ -5343,25 +5571,41 @@ private extension EraseAllService {
                 workspaceIdentity: validation.workspaceIdentity,
                 authority: authority,
                 retainedEraseValidation: validation)
-            return try validation.checkedExternalReadObservations()
+            traceErasePhase("recovery.original.old.frozen-complete")
+            traceErasePhase("recovery.original.old.reads-enter")
+            let observations = try validation.checkedExternalReadObservations()
+            traceErasePhase("recovery.original.old.reads-complete")
+            traceErasePhase("recovery.original.old.callback-complete")
+            return observations
         }
+        traceErasePhase("recovery.original.old.private-copy-complete")
+        traceErasePhase("recovery.original.old.aux-post-enter")
         _ = try auxiliaryContinuity?.requireProjected(owner: owner)
+        traceErasePhase("recovery.original.old.aux-post-complete")
+        traceErasePhase("recovery.original.old.owner-post-enter")
         try owner.requireObservationUnchanged()
+        traceErasePhase("recovery.original.old.owner-post-complete")
+        traceErasePhase("recovery.original.old.digest-post-enter")
         guard try authority.originalRecoverySourceTreeDigest(
             id: intent.oldGenerationID) == treeDigest else {
             throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("recovery.original.old.digest-post-complete")
+        traceErasePhase("recovery.original.old.external-post-enter")
         try owner.withExclusiveSourceScratch { _ in
             try authority.requireOriginalRecoveryExternalSnapshot(external)
         }
+        traceErasePhase("recovery.original.old.external-post-complete")
         // This is a typed pending-or-strict observation, not policy admission.
         // The first-effect G scope must make fresh checked requests after all
         // post-admission semantic and target proofs have passed.
+        traceErasePhase("recovery.original.old.policy-enter")
         let policy = try owner.withExclusiveSourceScratch { _ in
             try owner.requireObservationUnchangedInsideOriginalRecoveryG()
             return try authority.originalRecoveryProvisionalPolicy(
                 id: intent.oldGenerationID, treeDigest: treeDigest)
         }
+        traceErasePhase("recovery.original.old.policy-complete")
         traceErasePhase("recovery.original-private-source.complete")
         return .init(policy: policy, external: external, reads: reads)
     }
@@ -5385,9 +5629,10 @@ private extension EraseAllService {
             StoreOriginalEraseRecoveryAuxiliaryContinuityV1
     ) throws -> OriginalRecoveryPriorRetiredCopyV1 {
         traceErasePhase("recovery.original-prior-retired-copy.enter")
-        _ = try auxiliaryContinuity.requireProjected(owner: owner)
+        let firstAuxiliary = try auxiliaryContinuity.requireProjected(owner: owner)
         let image = try OriginalEraseRecoveryPriorRetiredImageV1.capture(
-            id: id, intent: intent, owner: owner, authority: authority)
+            id: id, intent: intent, owner: owner, authority: authority,
+            expectedAuxiliary: firstAuxiliary)
         let external = try owner.withExclusiveSourceScratch { _ in
             try authority.originalRecoveryExternalSnapshot()
         }
@@ -5446,8 +5691,9 @@ private extension EraseAllService {
               target.generationID == intent.newGenerationID else {
             throw EraseAllServiceError.invalidAuthority
         }
-        let manifest = try owner.requireOriginalRecoveryTargetControls(intent: intent)
-        _ = try auxiliaryContinuity.requireProjected(owner: owner)
+        let firstAuxiliary = try auxiliaryContinuity.requireProjected(owner: owner)
+        let manifest = try owner.requireOriginalRecoveryTargetControls(
+            intent: intent, expectedAuxiliary: firstAuxiliary)
         let digest = try authority.originalRecoveryEmptyTargetTreeDigest(
             id: intent.newGenerationID)
         let identity = try WorkspaceReplicaIdentityV1(
@@ -5484,7 +5730,9 @@ private extension EraseAllService {
             id: intent.newGenerationID) == digest else {
             throw EraseAllServiceError.invalidAuthority
         }
-        _ = try owner.requireOriginalRecoveryTargetControls(intent: intent)
+        let finalAuxiliary = try auxiliaryContinuity.requireProjected(owner: owner)
+        _ = try owner.requireOriginalRecoveryTargetControls(
+            intent: intent, expectedAuxiliary: finalAuxiliary)
         return digest
     }
 
@@ -5495,6 +5743,8 @@ private extension EraseAllService {
     struct OriginalRecoveryValidatedSourceV1 {
         var completedPolicyPhase:
             StoreOriginalEraseRecoveryPreOpenOwnerV1.FirstPointerPhaseResultV1? = nil
+        var postPointerAuxiliaryProjection:
+            OriginalRecoveryPostPointerAuxiliaryProjectionV1? = nil
         let owner: StoreOriginalEraseRecoveryPreOpenOwnerV1
         let auxiliaryContinuity:
             StoreOriginalEraseRecoveryAuxiliaryContinuityV1
@@ -5523,11 +5773,15 @@ private extension EraseAllService {
             try owner.makeOriginalRecoveryNoCreateAuthority(
                 factory: generationFactory, observation: observation)
         }
+        traceErasePhase("recovery.original.first.owner-enter")
         let first = try await coordinator.beginOriginalEraseRecoveryPreOpen(
             operation: operation, factory: generationFactory)
+        traceErasePhase("recovery.original.first.owner-held")
         let observed: EraseIntentStore.OriginalRecoveryObservation
+        traceErasePhase("recovery.original.first.controls-enter")
         do { observed = try first.observeIntentAndPreparation() }
         catch { first.poisonOnUncertainScratch(); throw error }
+        traceErasePhase("recovery.original.first.controls-read")
         if observed.intent == nil {
             try first.closeReadOnlyBeforeAdmission()
             return nil
@@ -5555,6 +5809,7 @@ private extension EraseAllService {
             first.poisonOnUncertainScratch()
             throw EraseAllServiceError.invalidAuthority
         }
+        traceErasePhase("recovery.original.first.intent-classified")
         let subject = EraseAllOperationSubjectV1(
             eraseID: intent.eraseID,
             newGenerationID: intent.newGenerationID,
@@ -5562,11 +5817,14 @@ private extension EraseAllService {
             applicationSupportDevice: observed.supportDevice,
             applicationSupportInode: observed.supportInode)
         let firstAuthority: StoreRestoreGenerationAuthority
+        traceErasePhase("recovery.original.first.authority-enter")
         do { firstAuthority = try noCreateAuthority(
             observation: observed, owner: first) }
         catch { first.poisonOnUncertainScratch(); throw error }
+        traceErasePhase("recovery.original.first.authority-held")
         let auxiliaryContinuity:
             StoreOriginalEraseRecoveryAuxiliaryContinuityV1
+        traceErasePhase("recovery.original.first.aux-enter")
         do {
             let retained = try StoreOriginalEraseRecoveryAuxiliaryContinuityV1(
                 operation: operation, coordinator: coordinator,
@@ -5576,7 +5834,13 @@ private extension EraseAllService {
             try operation.retainOriginalRecoveryAuxiliaryContinuity(
                 retained, owner: first, coordinator: coordinator)
             auxiliaryContinuity = retained
-            _ = try retained.captureFirst(owner: first)
+            traceErasePhase("recovery.original.first.aux-owner-retained")
+            let firstAuxiliary = try retained.captureFirst(owner: first)
+            if first.retainedOriginalExclusion != nil {
+                try operation.requireOriginalRecoveryAuxiliaryFirstMatchesOriginalP(
+                    firstAuxiliary, owner: first, coordinator: coordinator)
+            }
+            traceErasePhase("recovery.original.first.aux-captured")
         } catch {
             _ = try? firstAuthority.closeCheckedForOriginalRecovery()
             first.poisonOnUncertainScratch()
@@ -5587,26 +5851,47 @@ private extension EraseAllService {
         let firstTargetTreeDigest: String
         let firstPriorRetired: [OriginalRecoveryPriorRetiredCopyV1]
         do {
-            let copied = try validateRetainedSourceFromOriginalRecoveryCopy(
-                intent, authority: firstAuthority,
-                owner: first, operation: operation,
-                auxiliaryContinuity: auxiliaryContinuity)
+            traceErasePhase("recovery.original.first.old-enter")
+            let copied: OriginalRecoveryCopiedContentV1
+            do {
+                copied = try validateRetainedSourceFromOriginalRecoveryCopy(
+                    intent, authority: firstAuthority,
+                    owner: first, operation: operation,
+                    auxiliaryContinuity: auxiliaryContinuity)
+            } catch {
+#if DEBUG
+                traceErasePhase(Self.originalOldDiagnosticFailureLabel(error))
+#endif
+                throw error
+            }
+            traceErasePhase("recovery.original.first.old-valid")
+            traceErasePhase("recovery.original.first.target-enter")
             let targetDigest = try validateOriginalRecoveryTargetFromCopy(
                 intent, authority: firstAuthority,
                 owner: first, operation: operation,
                 auxiliaryContinuity: auxiliaryContinuity)
+            traceErasePhase("recovery.original.first.target-valid")
+            traceErasePhase("recovery.original.first.prior-enter")
             let priorRetired = try priorRetiredIDs(intent).map { id in
                 try validatePriorRetiredFromOriginalRecoveryCopy(
                     id: id, intent: intent, authority: firstAuthority,
                     owner: first, operation: operation,
                     auxiliaryContinuity: auxiliaryContinuity)
             }
+            traceErasePhase("recovery.original.first.prior-valid")
+            traceErasePhase("recovery.original.first.namespace-enter")
             let namespace = try first.withExclusiveSourceScratch { _ in
                 try firstAuthority.originalRecoveryNamespaceSnapshot(intent: intent)
             }
+            traceErasePhase("recovery.original.first.namespace-captured")
+            traceErasePhase("recovery.original.first.aux-reproof-enter")
             _ = try auxiliaryContinuity.requireProjected(owner: first)
+            traceErasePhase("recovery.original.first.aux-reproof-complete")
+            traceErasePhase("recovery.original.first.close-enter")
             try firstAuthority.closeCheckedForOriginalRecovery()
+            traceErasePhase("recovery.original.first.authority-closed")
             try first.closeReadOnlyBeforeAdmission()
+            traceErasePhase("recovery.original.first.closed")
             firstNamespace = namespace
             firstCopiedContent = copied
             firstTargetTreeDigest = targetDigest
@@ -5616,7 +5901,9 @@ private extension EraseAllService {
             first.poisonOnUncertainScratch()
             throw error
         }
+        traceErasePhase("recovery.original.first.admit-enter")
         let reservation = try await admit(subject)
+        traceErasePhase("recovery.original.first.admit-returned")
         let second = try await coordinator.beginOriginalEraseRecoveryPreOpen(
             operation: operation, factory: generationFactory)
         let post: EraseIntentStore.OriginalRecoveryObservation
@@ -5721,9 +6008,40 @@ private extension EraseAllService {
             break
         }
         traceErasePhase("recovery.presence.current")
-        let currentID = try generationFactory.currentGenerationID(
-            authority: authority
-        )
+        // Genuine retained-original Q checks its immutable P→Q control
+        // postimage before any source read, while the first writer cohort is
+        // still exact. The same check runs after those reads below.
+        let deferOriginalPublishedTargetCheck =
+            originalRecoveryContinuation?.owner.retainedOriginalExclusion != nil
+            && intent.schemaVersion == 2
+            && intent.phase == .pointerSwitched
+        func requireRetainedPublishedTarget() throws {
+            guard let original = originalRecoveryContinuation,
+                  let coordinator, let operation,
+                  let projection = original.postPointerAuxiliaryProjection,
+                  intent.targetPointer?.generationID == intent.newGenerationID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try coordinator.withOriginalRecoveryPostPointerOperationsReproof(
+                owner: original.owner, operation: operation,
+                intent: intent, projection: projection) {
+                let pointerReceipt = try operation
+                    .requireOriginalEraseRetiredPointerReceiptFromIssuer()
+                try authority.requireOriginalRecoveryPublishedControls(
+                    receipt: pointerReceipt, intent: intent)
+                try authority.requireOriginalRecoveryTransferredSourceTree(
+                    id: intent.newGenerationID,
+                    expectedDigest: original.originalTargetTreeDigest)
+            }
+        }
+        let currentID: UUID
+        if deferOriginalPublishedTargetCheck {
+            try requireRetainedPublishedTarget()
+            currentID = intent.newGenerationID
+        } else {
+            currentID = try generationFactory.currentGenerationID(
+                authority: authority)
+        }
         if intent.schemaVersion == 2 {
             if currentID == intent.oldGenerationID {
                 try requireSourceLedgerBinding(intent, authority: authority)
@@ -5735,10 +6053,12 @@ private extension EraseAllService {
                 )
             } else if currentID == intent.newGenerationID {
                 traceErasePhase("recovery.presence.published-empty")
-                _ = try requirePublishedEmptySession(
-                    intent,
-                    authority: authority
-                )
+                if !deferOriginalPublishedTargetCheck {
+                    _ = try requirePublishedEmptySession(
+                        intent,
+                        authority: authority
+                    )
+                }
             } else {
                 throw EraseAllServiceError.invalidAuthority
             }
@@ -5774,12 +6094,33 @@ private extension EraseAllService {
                         owner: original.owner, operation: operation,
                         intent: intent)
                 }
-                try authority.requireOriginalRecoveryTransferredCompletedSource(
-                    receipt, originalAuthority: original.authority,
-                    expectedOriginalDigest: prior?.image.sourceTreeDigest
-                        ?? original.originalSourceTreeDigest,
-                    namespace: original.namespace, supportFact: original.external.support,
-                    priorImage: prior?.image)
+                if original.owner.retainedOriginalExclusion != nil {
+                    guard let projected = original.postPointerAuxiliaryProjection else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+#if DEBUG
+                    traceErasePhase("recovery.presence.transferred-prior-enter")
+#endif
+                    try coordinator.withOriginalRecoveryPostPointerOperationsReproof(
+                        owner: original.owner, operation: operation,
+                        intent: intent, projection: projected) {
+                        try authority.requireOriginalRecoveryTransferredCompletedSource(
+                            receipt, originalAuthority: original.authority,
+                            expectedOriginalDigest: prior?.image.sourceTreeDigest
+                                ?? original.originalSourceTreeDigest,
+                            namespace: original.namespace,
+                            supportFact: original.external.support,
+                            priorImage: prior?.image)
+                    }
+                } else {
+                    try authority.requireOriginalRecoveryTransferredCompletedSource(
+                        receipt, originalAuthority: original.authority,
+                        expectedOriginalDigest: prior?.image.sourceTreeDigest
+                            ?? original.originalSourceTreeDigest,
+                        namespace: original.namespace,
+                        supportFact: original.external.support,
+                        priorImage: prior?.image)
+                }
                 if original.owner.retainedOriginalExclusion != nil {
                     try coordinator.requireOriginalRecoveryRetainedSourceContinuation(
                         owner: original.owner, operation: operation,
@@ -5860,6 +6201,10 @@ private extension EraseAllService {
                 workspaceIdentity: session.workspaceIdentity,
                 authority: authority
             )
+        }
+        if deferOriginalPublishedTargetCheck {
+            traceErasePhase("recovery.presence.published-empty")
+            try requireRetainedPublishedTarget()
         }
     }
 
@@ -6197,14 +6542,20 @@ private extension EraseAllService {
     ) throws {
         if intent.schemaVersion == 2, let originalAuxiliaryOperation {
             let receipt = try originalAuxiliaryOperation
-                .requireOriginalEraseRetiredPointerReceipt(
-                    authority: authority)
+                .requireOriginalEraseRetiredPointerReceiptFromIssuer()
             guard try receipt.currentGenerationID()
                     == intent.newGenerationID,
                   try receipt.retiredGenerationIDs()
-                    == intent.generationIDsToDelete else {
+                    == intent.generationIDsToDelete,
+                  let target = intent.targetPointer,
+                  target.generationID == intent.newGenerationID else {
                 throw EraseAllServiceError.invalidAuthority
             }
+            // The issuer-bound receipt supplies the immutable original Q
+            // controls. The distinct recovery authority independently reads
+            // their exact held/named full postimage without any repair path.
+            try authority.requireOriginalRecoveryPublishedControls(
+                receipt: receipt, intent: intent)
         } else {
             guard try generationFactory.currentGenerationID(authority: authority)
                     == intent.newGenerationID,
@@ -11554,7 +11905,7 @@ private final class EraseOriginalColdExitPreDeletionWitnessV1 {
 /// this object is formed; it retains no service, session or ModelContext.
 @MainActor
 final class EraseCleanupAfterRetirementV1 {
-    private enum Phase: Equatable { case prepared, generationsRemoved, manifestPreserved, authorityClosed, removingNamespace, namespaceRemoved,
+    private enum Phase: Equatable { case prepared, generationsRemoved, manifestPreserved, authorityClosed, notificationClosed, removingNamespace, namespaceRemoved,
         preferencesPrepared, diagnosticsVerified, phaseWritten, preparationRemoved,
         intentRemoved, eraseRootRemoved, released, abandonmentPending, abandoned, closeUncertain }
     let binding: EraseRetirementBindingV1
@@ -11568,6 +11919,8 @@ final class EraseCleanupAfterRetirementV1 {
     private let targetReader: GenerationLeaseHandleV1
     private let diagnosticsStore: DiagnosticsStore
     private let notificationControl: AppLockNotificationControlStoreV1
+    private let originalNotificationTerminalClose:
+        OriginalEraseNotificationTerminalCloseWitnessV1?
     private let userDefaults: UserDefaults
     private let defaultsDomainName: String
     private let fileManager: FileManager
@@ -11826,6 +12179,8 @@ final class EraseCleanupAfterRetirementV1 {
         observation: EraseIntentStore.RetirementObservation,
         manifestScope: EraseCurrentManifestScopeV1, targetReader: GenerationLeaseHandleV1,
         diagnosticsStore: DiagnosticsStore, notificationControl: AppLockNotificationControlStoreV1,
+        originalNotificationTerminalClose:
+            OriginalEraseNotificationTerminalCloseWitnessV1? = nil,
         userDefaults: UserDefaults, defaultsDomainName: String, fileManager: FileManager,
         failureInjection: EraseAllFailureInjection?, reservation: AppAccessGateV1.EraseAdoptionToken?,
         completion: (@MainActor (CompletedEraseReceiptV1) -> Void)?) {
@@ -11833,6 +12188,7 @@ final class EraseCleanupAfterRetirementV1 {
         self.authority = authority; self.auxiliary = auxiliary; self.intentStore = intentStore
         self.observation = observation; self.manifestScope = manifestScope; self.targetReader = targetReader
         self.diagnosticsStore = diagnosticsStore; self.notificationControl = notificationControl
+        self.originalNotificationTerminalClose = originalNotificationTerminalClose
         self.userDefaults = userDefaults; self.defaultsDomainName = defaultsDomainName
         self.fileManager = fileManager; self.failureInjection = failureInjection; self.reservation = reservation
         self.completion = completion
@@ -12187,6 +12543,40 @@ final class EraseCleanupAfterRetirementV1 {
                       try notificationControl.loadPrivateNotificationMapping() == nil else {
                     throw EraseAllServiceError.recoveryRequired
                 }
+                if let originalNotificationTerminalClose {
+                    var closeStarted = false
+                    do {
+                        try proof.requireOriginalNotificationTerminalCloseAdmission()
+                        try originalNotificationTerminalClose.requireBeforeClose(
+                            control: notificationControl,
+                            eraseID: intent.eraseID)
+                        try originalNotificationTerminalClose.beginClose()
+                        closeStarted = true
+                        try notificationControl.closeCheckedForOriginalErase()
+                        try originalNotificationTerminalClose.finishCheckedClose(
+                            control: notificationControl)
+                        phase = .notificationClosed
+                    } catch {
+                        if closeStarted { phase = .closeUncertain }
+                        throw error
+                    }
+                } else {
+#if DEBUG
+                print("C46_ERASE_ADVANCE_V1 stage=namespace-begin-enter")
+#endif
+                try proof.beginFrozenTargetRemoval(using: auxiliary)
+                phase = .removingNamespace
+                }
+            }
+        }
+        if phase == .notificationClosed {
+            guard let originalNotificationTerminalClose else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try originalNotificationTerminalClose.requireClosed(
+                control: notificationControl, eraseID: intent.eraseID)
+            try proof.requireOriginalNotificationTerminalCloseAdmission()
+            try AppLockNotificationTransactionFenceV1.perform {
 #if DEBUG
                 print("C46_ERASE_ADVANCE_V1 stage=namespace-begin-enter")
 #endif
@@ -12331,22 +12721,112 @@ private extension EraseAllService {
         authority: StoreRestoreGenerationAuthority, auxiliary: EraseAuxiliaryAuthority,
         diagnosticsStore: DiagnosticsStore, intentStore: EraseIntentStore,
         binding: EraseRetirementBindingV1, inventory: EraseReaderRetirementInventoryV1,
-        reservation: AppAccessGateV1.EraseAdoptionToken?) async throws -> EraseCleanupAfterRetirementV1 {
+        reservation: AppAccessGateV1.EraseAdoptionToken?,
+        coordinator: StoreSessionCoordinator,
+        originalAuxiliaryOperation: EraseRouterOperationV1?) async throws -> EraseCleanupAfterRetirementV1 {
+#if DEBUG
+        traceErasePhase("cleanup.binding.enter")
+#endif
         guard value.eraseID == binding.subject.eraseID,
               value.newGenerationID == binding.subject.newGenerationID,
               value.phase == .sessionActivated || value.phase == .cleanupComplete,
               reservation == nil || reservation?.subject == binding.subject else {
             throw EraseAllServiceError.invalidAuthority
         }
+#if DEBUG
+        traceErasePhase("cleanup.empty-graph.enter")
+#endif
         try Self.requireEmptyErasePublishedGraph(context: session.modelContext,
             generationID: session.generationID, identity: session.workspaceIdentity,
             activated: value.advancing(to: .sessionActivated))
         if value.phase != .cleanupComplete { try inject(.beforeCleanup) }
+#if DEBUG
+        traceErasePhase("cleanup.notification.enter")
+#endif
         let preferences = PreferencesAdapterV1(defaults: userDefaults)
         let notifications = try AppLockNotificationControlStoreV1(
-            applicationSupportURL: applicationSupportURL, preferences: preferences)
+            applicationSupportURL: applicationSupportURL,
+            preferences: preferences,
+            mustExistForOriginalErase: originalAuxiliaryOperation != nil)
 #if DEBUG
         var originalNotificationAfterOSReadback: ErasePostRetiredNotificationSnapshotV1?
+#endif
+        if let originalAuxiliaryOperation {
+            do {
+                _ = try originalAuxiliaryOperation
+                    .settleOriginalEraseNotificationRootPolicy(
+                        store: intentStore, coordinator: coordinator)
+#if DEBUG
+                if let originalColdExitFrame {
+                    try originalColdExitFrame.retainOriginalNotificationControl(
+                        notifications)
+                }
+#endif
+                let receipt = try await DeviceLocalNotificationOwnerV1
+                    .eraseForOriginalRetainedOwner(
+                        control: notifications, system: notificationSystem,
+                        operationID: value.eraseID,
+                        beginMarker: {
+                            try originalAuxiliaryOperation
+                                .publishOriginalEraseAuxiliaryNotificationMarker(
+                                    control: notifications,
+                                    coordinator: coordinator,
+                                    store: intentStore)
+                        },
+                        removeRecords: { absence in
+                            try originalAuxiliaryOperation
+                                .removeOriginalEraseAuxiliaryNotificationRecords(
+                                    absence, control: notifications,
+                                    coordinator: coordinator,
+                                    store: intentStore)
+                        },
+                        beforeBegin: {
+                            try originalAuxiliaryOperation
+                                .beginOriginalEraseAuxiliaryNotification(
+                                    control: notifications,
+                                    coordinator: coordinator,
+                                    store: intentStore)
+#if DEBUG
+                            try self.originalColdExitFrame?
+                                .beforeOriginalNotificationRevocation()
+#endif
+                        }, afterBegin: { revocation in
+#if DEBUG
+                            try self.originalColdExitFrame?
+                                .afterOriginalNotificationRevocation(revocation)
+#endif
+                        }, observedOwnedRefusal: { revocation, owned,
+                            observedOwned in
+#if DEBUG
+                            try self.originalColdExitFrame?
+                                .recordOriginalNotificationRefusal(
+                                    revocation: revocation, owned: owned,
+                                    observedOwned: observedOwned,
+                                    subject: binding.subject)
+#endif
+                        }, afterSuccess: { revocation in
+                            try originalAuxiliaryOperation
+                                .observeOriginalEraseAuxiliaryNotificationSuccess(
+                                    revocation, control: notifications,
+                                    coordinator: coordinator)
+#if DEBUG
+                            try self.originalColdExitFrame?
+                                .afterOriginalNotificationSuccess(revocation)
+                            originalNotificationAfterOSReadback = try notifications
+                                .postRetiredSnapshot(subject: binding.subject)
+#endif
+                        })
+                try originalAuxiliaryOperation
+                    .finishOriginalEraseAuxiliaryNotification(
+                        receipt, control: notifications,
+                        coordinator: coordinator)
+            } catch {
+                originalAuxiliaryOperation
+                    .failOriginalEraseAuxiliaryNotification()
+                throw error
+            }
+        } else {
+#if DEBUG
         if let originalColdExitFrame {
             try originalColdExitFrame.retainOriginalNotificationControl(notifications)
             try await DeviceLocalNotificationOwnerV1
@@ -12393,14 +12873,29 @@ private extension EraseAllService {
         try await DeviceLocalNotificationOwnerV1.erase(control: notifications,
             system: notificationSystem, operationID: value.eraseID)
 #endif
+        }
+        if let originalAuxiliaryOperation {
+            _ = try originalAuxiliaryOperation
+                .settleOriginalEraseAuxiliaryScratchControlPolicy(
+                    store: intentStore, coordinator: coordinator)
+        }
+#if DEBUG
+        traceErasePhase("cleanup.notification.complete")
+#endif
         #if DEBUG
         try originalColdExitFrame?.beforeScratchConstruction()
         #endif
+#if DEBUG
+        traceErasePhase("cleanup.scratch-construction.enter")
+#endif
         let scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: applicationSupportURL,
             fileManager: fileManager, clock: Date.init)
         #if DEBUG
         try originalColdExitFrame?.afterScratchConstruction(scratch)
         #endif
+#if DEBUG
+        traceErasePhase("cleanup.scratch-erase.enter")
+#endif
         try await scratch.eraseScratchData()
         #if DEBUG
         try originalColdExitFrame?.afterScratchErase(scratch)
@@ -12457,13 +12952,21 @@ private extension EraseAllService {
         #if DEBUG
         traceErasePhase("cleanup.intent-observation.complete")
         #endif
+        let terminalNotification = try originalAuxiliaryOperation?
+            .makeOriginalEraseNotificationTerminalCloseWitness(
+                control: notifications, coordinator: coordinator)
         let prepared = EraseCleanupAfterRetirementV1(binding: binding, intent: value, factory: generationFactory,
             authority: authority, auxiliary: auxiliary, intentStore: intentStore, observation: observation,
             manifestScope: scope, targetReader: reader, diagnosticsStore: diagnosticsStore,
-            notificationControl: notifications, userDefaults: userDefaults, defaultsDomainName: defaultsDomainName,
+            notificationControl: notifications,
+            originalNotificationTerminalClose: terminalNotification,
+            userDefaults: userDefaults, defaultsDomainName: defaultsDomainName,
             fileManager: fileManager, failureInjection: failureInjection, reservation: reservation,
             completion: didCompleteErase)
 #if DEBUG
+        guard let originalNotificationAfterOSReadback else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         try prepared.sealOriginalPostEffectNotificationForTesting(
             originalNotificationAfterOSReadback)
         if let hook = afterOldGenerationDeletionBeforeRetiredPointerClearForTesting {

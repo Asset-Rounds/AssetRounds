@@ -2372,13 +2372,25 @@ final class AppAccessPresentationV1: ObservableObject {
                 guard let coordinator = pending.coordinator, let makeService = pending.makeRecoveryService else {
                     throw AppAccessContractFailureV1.staleAttempt
                 }
+#if DEBUG
+                diagnosticPhase = "original-owner-resume"
+#endif
                 try startupRouter.resumeOriginalErasePreparation(pending.operation, coordinator: coordinator)
                 if pending.operation.hasPreparedCleanup {
+#if DEBUG
+                    diagnosticPhase = "original-prepared-detach"
+#endif
                     try await pending.operation.detach(coordinator: coordinator)
                 } else {
+#if DEBUG
+                    diagnosticPhase = "original-service-configuration"
+#endif
                     let service = try startupRouter.configureEraseService(makeService(), operation: pending.operation)
 #if DEBUG
                     pending.originalServiceForShutdown = service
+#endif
+#if DEBUG
+                    diagnosticPhase = "original-service-reconcile"
 #endif
                     _ = try await service.reconcileForOriginalErase(diagnosticsStore: pending.diagnostics,
                         coordinator: coordinator, operation: pending.operation) { [weak self, weak pending] recovered in
@@ -2392,6 +2404,9 @@ final class AppAccessPresentationV1: ObservableObject {
                         } catch { pending.activationFailed = true }
                     }
                 }
+#if DEBUG
+                diagnosticPhase = "original-detachment-result"
+#endif
                 guard pending.operation.detached, !pending.activationFailed else {
                     throw AppAccessContractFailureV1.staleAttempt
                 }
