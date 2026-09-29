@@ -78,6 +78,142 @@ final class S6_6EraseRecoveryTests: XCTestCase {
         [(URL, EraseAllService)] = []
 
     @MainActor
+    func testOriginalPointerRefusesRetainedPrivateTargetPreflightAliasBeforeEffect() async throws {
+        let harness = try await makeHarness("target-preflight-alias")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let owner = harness.originalOwner
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
+        let data = harness.support.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+        let current = data.appendingPathComponent("current.json")
+        let retired = data.appendingPathComponent("retired.json")
+        let currentBefore = try Data(contentsOf: current)
+        let retiredBefore = try Data(contentsOf: retired)
+        var retainedTarget: StoreGenerationSession?
+        var hookCount = 0
+        try StoreGenerationFactory.installOriginalErasePointerTestHook(
+            operation: operation, applicationSupportURL: harness.support,
+            stage: .semanticSessionProved
+        ) { session in
+            hookCount += 1
+            retainedTarget = session
+        }
+        defer {
+            StoreGenerationFactory.clearOriginalErasePointerTestHook(
+                operation: operation)
+            retainedTarget = nil
+        }
+        let service = try owner.configure(EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
+            admitErase: { try await owner.admitSubject($0) }
+        ))
+        Self.retainedS6EraseServices.append((harness.root, service))
+        do {
+            try await owner.prepareCompatibility(service: service,
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnostics: harness.diagnostics)
+            XCTFail("A live private target alias must stop pointer publication")
+        } catch {
+            XCTAssertEqual(error as? GenerationLeaseRegistryFailureV1,
+                .uncertainOwner)
+        }
+        XCTAssertEqual(hookCount, 1)
+        XCTAssertNotNil(retainedTarget)
+        XCTAssertEqual(try Data(contentsOf: current), currentBefore)
+        XCTAssertEqual(try Data(contentsOf: retired), retiredBefore)
+        XCTAssertFalse(fileManager.fileExists(atPath:
+            data.appendingPathComponent(".current.json.restore-next").path))
+        weak var releasedTarget = retainedTarget
+        retainedTarget = nil
+        XCTAssertNil(releasedTarget)
+    }
+
+    @MainActor
+    func testOriginalPointerRefusesChangedSourceSiblingBeforeFirstEffect() async throws {
+        let harness = try await makeHarness("source-sibling-drift")
+        defer { cleanup(harness) }
+        let coordinator = try XCTUnwrap(harness.coordinator)
+        let owner = harness.originalOwner
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
+        let data = harness.support.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+        let current = data.appendingPathComponent("current.json")
+        let retired = data.appendingPathComponent("retired.json")
+        let currentBefore = try Data(contentsOf: current)
+        let retiredBefore = try Data(contentsOf: retired)
+        let sourceSHM = data.appendingPathComponent("generations", isDirectory: true)
+            .appendingPathComponent(coordinator.generationID.uuidString.lowercased(),
+                isDirectory: true)
+            .appendingPathComponent("model.sqlite-shm")
+        var hookCount = 0
+        try StoreGenerationFactory.installOriginalErasePointerTestHook(
+            operation: operation, applicationSupportURL: harness.support,
+            stage: .beforeFirstPointerEffect
+        ) { session in
+            guard session == nil else { throw FixtureError.invalid }
+            hookCount += 1
+            var before = stat(), after = stat()
+            guard Darwin.lstat(sourceSHM.path, &before) == 0,
+                  before.st_mode & S_IFMT == S_IFREG,
+                  before.st_size > 0 else { throw FixtureError.invalid }
+            let descriptor = Darwin.open(sourceSHM.path,
+                O_RDWR | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+            guard descriptor >= 0 else { throw FixtureError.invalid }
+            defer { XCTAssertEqual(Darwin.close(descriptor), 0) }
+            var byte: UInt8 = 0
+            let count = withUnsafeMutablePointer(to: &byte) {
+                Darwin.pread(descriptor, $0, 1, 0)
+            }
+            guard count == 1 else { throw FixtureError.invalid }
+            byte ^= 0x01
+            let written = withUnsafePointer(to: &byte) {
+                Darwin.pwrite(descriptor, $0, 1, 0)
+            }
+            guard written == 1, Darwin.fsync(descriptor) == 0,
+                  Darwin.lstat(sourceSHM.path, &after) == 0,
+                  after.st_dev == before.st_dev,
+                  after.st_ino == before.st_ino,
+                  after.st_size == before.st_size else {
+                throw FixtureError.invalid
+            }
+        }
+        defer {
+            StoreGenerationFactory.clearOriginalErasePointerTestHook(
+                operation: operation)
+        }
+        let service = try owner.configure(EraseAllService(
+            applicationSupportURL: harness.support,
+            cachesDirectoryURL: harness.caches,
+            temporaryDirectoryURL: harness.temporary,
+            userDefaults: harness.defaults,
+            bundleIdentifier: bundleID,
+            defaultsDomainName: harness.defaultsSuiteName,
+            admitErase: { try await owner.admitSubject($0) }
+        ))
+        Self.retainedS6EraseServices.append((harness.root, service))
+        do {
+            try await owner.prepareCompatibility(service: service,
+                confirmation: "ERASE", coordinator: coordinator,
+                diagnostics: harness.diagnostics)
+            XCTFail("A changed source sibling must stop pointer publication")
+        } catch {
+            XCTAssertEqual(error as? StoreGenerationFailure,
+                .dataPointerInvalid)
+        }
+        XCTAssertEqual(hookCount, 1)
+        XCTAssertEqual(try Data(contentsOf: current), currentBefore)
+        XCTAssertEqual(try Data(contentsOf: retired), retiredBefore)
+        XCTAssertFalse(fileManager.fileExists(atPath:
+            data.appendingPathComponent(".current.json.restore-next").path))
+    }
+
+    @MainActor
     private final class WeakKernelSourceAliases {
         weak var context: ModelContext?
         weak var container: ModelContainer?

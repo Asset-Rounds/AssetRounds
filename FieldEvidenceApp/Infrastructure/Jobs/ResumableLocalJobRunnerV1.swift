@@ -48,6 +48,85 @@ private enum PendingLifecycleCancellationV1: Equatable, Sendable {
 /// The actor owns every child task, retains a reader generation lease for the
 /// full duration of long reads, and serializes exactly one terminal store
 /// transition per claimed attempt. Operations never run on the UI actor.
+private final class LocalJobCleanupCheckedIOV1 {
+    private var owned: [Int32] = []
+    private(set) var uncertainDescriptors: [Int32] = []
+    private(set) var uncertainDirectories: [UnsafeMutablePointer<DIR>] = []
+
+    func retain(_ descriptor: Int32) {
+        owned.append(descriptor)
+    }
+
+    func close(_ descriptor: Int32) throws {
+        guard let index = owned.firstIndex(of: descriptor) else {
+            throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+        }
+        owned.remove(at: index)
+        guard Darwin.close(descriptor) == 0 else {
+            uncertainDescriptors.append(descriptor)
+            throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+        }
+    }
+
+    func closeRemaining() throws {
+        var failed = false
+        for descriptor in Array(owned.reversed()) {
+            do { try close(descriptor) } catch { failed = true }
+        }
+        guard !failed, uncertainDescriptors.isEmpty,
+              uncertainDirectories.isEmpty else {
+            throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+        }
+    }
+
+    /// A separate file description avoids `dup` sharing a consumed directory
+    /// offset with the owner. A failed `closedir` is retained and never retried.
+    func names(in parent: Int32) throws -> [String] {
+        let descriptor = Darwin.openat(parent, ".",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+        }
+        guard let directory = Darwin.fdopendir(descriptor) else {
+            retain(descriptor)
+            try close(descriptor)
+            throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+        }
+        var closeAttempted = false
+        do {
+            var names = [String]()
+            errno = 0
+            while let entry = Darwin.readdir(directory) {
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+                }
+                if name != "." && name != ".." {
+                    guard names.count
+                        < JobScaleBudgetPolicyV1.maximumStagingCleanupEntryCount else {
+                        throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+                    }
+                    names.append(name)
+                }
+                errno = 0
+            }
+            guard errno == 0 else {
+                throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+            }
+            closeAttempted = true
+            guard Darwin.closedir(directory) == 0 else {
+                uncertainDirectories.append(directory)
+                throw ResumableLocalJobRunnerFailureV1.unsafeStagingPath
+            }
+            return names.sorted()
+        } catch {
+            if !closeAttempted, Darwin.closedir(directory) != 0 {
+                uncertainDirectories.append(directory)
+            }
+            throw error
+        }
+    }
+}
+
 actor ResumableLocalJobRunnerV1:
     ResumableLocalJobPortV1,
     ResumableLocalJobLifecyclePortV1,
@@ -55,7 +134,7 @@ actor ResumableLocalJobRunnerV1:
     private let store: LocalJobStoreV1
     private let stagingRootURL: URL
     private let generationLeaseRegistry: GenerationLeaseRegistryV1?
-    private let generationPublicationAdapter: GenerationLocalJobPublicationAdapterV1?
+    private var generationPublicationAdapter: GenerationLocalJobPublicationAdapterV1?
     private let lifecycleHook: ResumableLocalJobLifecycleHookV1
     private let maximumConcurrency: Int
 
@@ -82,10 +161,48 @@ actor ResumableLocalJobRunnerV1:
     ] = [:]
     private var userCancellationRequests: Set<LocalJobIDV1> = []
     private var globalDestructiveGate = false
+    private enum OriginalEraseFencePhase: Equatable {
+        case settling(UUID)
+        case observing(UUID)
+        case draining(UUID)
+        case storeEmpty(UUID)
+        case rootRemoved(UUID)
+        case retired(UUID)
+        case uncertain(UUID)
+
+        var operationID: UUID {
+            switch self {
+            case .settling(let id), .observing(let id), .draining(let id),
+                 .storeEmpty(let id), .rootRemoved(let id),
+                 .retired(let id), .uncertain(let id): return id
+            }
+        }
+    }
+    private var originalEraseFencePhase: OriginalEraseFencePhase?
+    private var originalEraseNoRepairBaseline:
+        LocalJobStoreV1.OriginalEraseNoRepairSnapshotV1?
+    private enum ColdEraseFencePhase: Equatable {
+        case opening(UUID)
+        case observing(UUID)
+        case draining(UUID)
+        case storeEmpty(UUID)
+        case uncertain(UUID)
+
+        var operationID: UUID {
+            switch self {
+            case .opening(let id), .observing(let id), .draining(let id),
+                 .storeEmpty(let id), .uncertain(let id): return id
+            }
+        }
+    }
+    private var coldEraseFencePhase: ColdEraseFencePhase?
+    private var coldEraseNoRepairBaseline:
+        LocalJobStoreV1.OriginalEraseNoRepairSnapshotV1?
     private var workspaceDestructiveGates: Set<UUID> = []
     private var globalMutationCount = 0
     private var workspaceMutationCounts: [UUID: Int] = [:]
     private var lastInfrastructureFailureCode: String?
+    private var originalEraseCleanupUncertainIO: LocalJobCleanupCheckedIOV1?
 
     init(
         store: LocalJobStoreV1,
@@ -116,10 +233,18 @@ actor ResumableLocalJobRunnerV1:
         _ kind: ResumableLocalJobKindV1,
         operation: @escaping ResumableLocalJobOperationV1
     ) {
+        guard originalEraseFencePhase == nil, coldEraseFencePhase == nil else {
+            rejectFencedRegistration()
+            return
+        }
         operations[kind] = operation
     }
 
     func unregister(_ kind: ResumableLocalJobKindV1) {
+        guard coldEraseFencePhase == nil else {
+            rejectFencedRegistration()
+            return
+        }
         operations.removeValue(forKey: kind)
     }
 
@@ -127,10 +252,18 @@ actor ResumableLocalJobRunnerV1:
         _ kind: ResumableLocalJobKindV1,
         publisher: @escaping ResumableLocalJobPublisherV1
     ) {
+        guard originalEraseFencePhase == nil, coldEraseFencePhase == nil else {
+            rejectFencedRegistration()
+            return
+        }
         publishers[kind] = publisher
     }
 
     func unregisterPublisher(_ kind: ResumableLocalJobKindV1) {
+        guard coldEraseFencePhase == nil else {
+            rejectFencedRegistration()
+            return
+        }
         publishers.removeValue(forKey: kind)
     }
 
@@ -138,7 +271,21 @@ actor ResumableLocalJobRunnerV1:
         _ kind: ResumableLocalJobKindV1,
         cleanup: @escaping ResumableLocalJobTerminalCleanupV1
     ) {
+        guard originalEraseFencePhase == nil, coldEraseFencePhase == nil else {
+            rejectFencedRegistration()
+            return
+        }
         terminalCleanups[kind] = cleanup
+    }
+
+    private func rejectFencedRegistration() {
+        if let phase = originalEraseFencePhase {
+            if case .retired = phase { return }
+            originalEraseFencePhase = .uncertain(phase.operationID)
+        }
+        if let phase = coldEraseFencePhase {
+            coldEraseFencePhase = .uncertain(phase.operationID)
+        }
     }
 
     @discardableResult
@@ -245,14 +392,352 @@ actor ResumableLocalJobRunnerV1:
     func eraseAll() async throws {
         try beginDestructiveRemoval(workspaceID: nil)
         defer { endDestructiveRemoval(workspaceID: nil) }
+        try await eraseAllUnderDestructiveGate()
+    }
+
+    /// Closes new producer admission without changing C05 durable bytes or
+    /// cancelling existing tasks. Waits for real producer tails before a
+    /// read-only source/job witness can be frozen. Any uncertain tail leaves
+    /// the exact owner fenced instead of reopening admission.
+    func beginOriginalEraseObservationFence(
+        _ operationID: UUID,
+        expectedSupportIdentity: StoreApplicationSupportIdentity
+    ) async throws {
+        guard originalEraseFencePhase == nil else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        try beginDestructiveRemoval(workspaceID: nil)
+        originalEraseFencePhase = .settling(operationID)
+        let tasks = Array(activeTasks.values)
+        for task in tasks { await task.value }
+        guard originalEraseFencePhase == .settling(operationID),
+              activeTasks.isEmpty,
+              globalMutationCount == 0,
+              workspaceMutationCounts.isEmpty,
+              lastInfrastructureFailureCode == nil else {
+            originalEraseFencePhase = .uncertain(operationID)
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        do {
+            originalEraseNoRepairBaseline = try await store
+                .beginOriginalEraseNoRepairObservation(
+                    operationID: operationID,
+                    expectedSupportIdentity: expectedSupportIdentity)
+        } catch {
+            originalEraseFencePhase = .uncertain(operationID)
+            throw error
+        }
+        originalEraseFencePhase = .observing(operationID)
+    }
+
+    /// Only a proven no-effect abort may reopen the producer gate. A pending
+    /// durable preparation or any drain attempt makes this transition stale.
+    func releaseOriginalEraseObservationFence(_ operationID: UUID) async throws {
+        guard originalEraseFencePhase == .observing(operationID),
+              globalDestructiveGate,
+              activeTasks.isEmpty,
+              globalMutationCount == 0,
+              workspaceMutationCounts.isEmpty else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        try await store.releaseOriginalEraseNoRepairObservation(
+            operationID: operationID)
+        originalEraseNoRepairBaseline = nil
+        originalEraseFencePhase = nil
+        endDestructiveRemoval(workspaceID: nil)
+    }
+
+    func requireOriginalEraseObservationFence(_ operationID: UUID) async throws
+        -> LocalJobStoreV1.OriginalEraseNoRepairSnapshotV1? {
+        guard originalEraseFencePhase == .observing(operationID),
+              globalDestructiveGate,
+              activeTasks.isEmpty,
+              globalMutationCount == 0,
+              workspaceMutationCounts.isEmpty,
+              lastInfrastructureFailureCode == nil else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        let observed = try await store.requireOriginalEraseNoRepairBaseline(
+            operationID: operationID)
+        guard observed == originalEraseNoRepairBaseline else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        return observed
+    }
+
+    /// The Router may call this only after genuine AppLock admission and the
+    /// versioned pending preparation have become durable. No helper here can
+    /// manufacture that authority from the UUID alone.
+    func eraseAllForOriginalOperation(
+        _ operationID: UUID,
+        authority: OriginalC05PendingDrainAuthorityV1
+    ) async throws {
+        guard authority.operationID == operationID else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        guard try await requireOriginalEraseObservationFence(operationID) != nil else {
+            // The proven absent-C05 path retains schema-2/no-effect abort.
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        originalEraseFencePhase = .draining(operationID)
+        do {
+            try await eraseAllUnderDestructiveGate()
+            guard activeTasks.isEmpty,
+                  lastInfrastructureFailureCode == nil,
+                  try await store.jobs(workspaceID: nil).isEmpty else {
+                throw ResumableLocalJobRunnerFailureV1.generationLeaseLost
+            }
+            originalEraseFencePhase = .storeEmpty(operationID)
+        } catch {
+            originalEraseFencePhase = .uncertain(operationID)
+            throw error
+        }
+    }
+
+    /// This is only the store-empty phase. Checked physical scratch-parent
+    /// absence and durable witness publication are proved by Erase itself.
+    func requireOriginalEraseStoreEmpty(_ operationID: UUID) async throws
+        -> LocalJobStoreV1.OriginalEraseNoRepairSnapshotV1 {
+        guard originalEraseFencePhase == .storeEmpty(operationID),
+              globalDestructiveGate,
+              activeTasks.isEmpty,
+              lastInfrastructureFailureCode == nil else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        let empty = try await store.requireOriginalEraseEmptySnapshot(
+            operationID: operationID)
+        guard originalEraseFencePhase == .storeEmpty(operationID),
+              globalDestructiveGate,
+              activeTasks.isEmpty,
+              lastInfrastructureFailureCode == nil else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        return empty
+    }
+
+    /// The same retained producer remains fenced while the exact DRAINED
+    /// record authorizes forward-only removal of its own empty C05 root.
+    func removeOriginalEraseDrainedRoot(
+        _ drain: EraseC05JobDrainV3,
+        operationID: UUID
+    ) async throws {
+        guard originalEraseFencePhase == .storeEmpty(operationID),
+              globalDestructiveGate,
+              activeTasks.isEmpty,
+              lastInfrastructureFailureCode == nil else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        do {
+            try await store.removeOriginalEraseDrainedRoot(drain)
+        } catch {
+            originalEraseFencePhase = .uncertain(operationID)
+            throw error
+        }
+        guard originalEraseFencePhase == .storeEmpty(operationID),
+              globalDestructiveGate,
+              activeTasks.isEmpty else {
+            originalEraseFencePhase = .uncertain(operationID)
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        originalEraseFencePhase = .rootRemoved(operationID)
+    }
+
+    /// Terminally revoke every retained effect callback and the publication
+    /// adapter's captured writer handle after the ROOT_REMOVED CAS. The global
+    /// producer fence remains closed for this original actor's lifetime.
+    func retireOriginalEraseEffects(_ operationID: UUID) throws {
+        guard originalEraseFencePhase == .rootRemoved(operationID),
+              globalDestructiveGate,
+              activeTasks.isEmpty,
+              globalMutationCount == 0,
+              workspaceMutationCounts.isEmpty else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        originalEraseFencePhase = .retired(operationID)
+        operations.removeAll()
+        publishers.removeAll()
+        terminalCleanups.removeAll()
+        generationPublicationAdapter = nil
+    }
+
+    /// A cold relaunch has no original producer actor or callback authority.
+    /// The actual startup operation retains this actor and its one store
+    /// before the first no-repair read. The global gate never reopens here.
+    func beginColdEraseObservationFence(
+        operation: EraseColdPreparationOperationV1,
+        pending: EraseC05JobDrainV3,
+        expectedSupportIdentity: StoreApplicationSupportIdentity
+    ) async throws -> LocalJobStoreV1.OriginalEraseNoRepairSnapshotV1 {
+        guard let generationLeaseRegistry else {
+            throw ResumableLocalJobRunnerFailureV1.generationLeaseUnavailable
+        }
+        try await operation.requireC05ColdRunner(self, store: store,
+            registry: generationLeaseRegistry)
+        let operationID = try await operation.requireC05ColdPending(pending)
+        try await operation.requireC05ColdPredecessorCheckedCompletion(
+            registry: generationLeaseRegistry)
+        guard originalEraseFencePhase == nil,
+              coldEraseFencePhase == nil else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        try beginDestructiveRemoval(workspaceID: nil)
+        coldEraseFencePhase = .opening(operationID)
+        do {
+            guard activeTasks.isEmpty,
+                  globalMutationCount == 0,
+                  workspaceMutationCounts.isEmpty,
+                  lastInfrastructureFailureCode == nil else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            let observed = try await store.beginColdEraseNoRepairObservation(
+                operation: operation, pending: pending,
+                expectedSupportIdentity: expectedSupportIdentity)
+            try await operation.requireC05ColdRunner(self, store: store,
+                registry: generationLeaseRegistry)
+            try await operation.requireC05ColdPredecessorCheckedCompletion(
+                registry: generationLeaseRegistry)
+            guard try await operation.requireC05ColdPending(pending)
+                    == operationID,
+                  coldEraseFencePhase == .opening(operationID),
+                  globalDestructiveGate,
+                  activeTasks.isEmpty,
+                  globalMutationCount == 0,
+                  workspaceMutationCounts.isEmpty,
+                  lastInfrastructureFailureCode == nil else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            coldEraseNoRepairBaseline = observed
+            coldEraseFencePhase = .observing(operationID)
+            return observed
+        } catch {
+            coldEraseFencePhase = .uncertain(operationID)
+            throw error
+        }
+    }
+
+    /// This is the sole cold mutation entry. Before the first mutation it
+    /// refuses awaiting-publication rows until a separate genuine cold
+    /// adopt-only readback can be bound, and refuses jobs lacking the real
+    /// terminal-cleanup callback from the reconstructed source workflow.
+    func drainColdEraseAfterPendingPreparation(
+        operation: EraseColdPreparationOperationV1,
+        pending: EraseC05JobDrainV3
+    ) async throws {
+        guard let generationLeaseRegistry else {
+            throw ResumableLocalJobRunnerFailureV1.generationLeaseUnavailable
+        }
+        try await operation.requireC05ColdRunner(self, store: store,
+            registry: generationLeaseRegistry)
+        let operationID = try await operation.requireC05ColdPending(pending)
+        try await operation.requireC05ColdPredecessorCheckedCompletion(
+            registry: generationLeaseRegistry)
+        guard coldEraseFencePhase == .observing(operationID),
+              globalDestructiveGate,
+              activeTasks.isEmpty,
+              globalMutationCount == 0,
+              workspaceMutationCounts.isEmpty,
+              lastInfrastructureFailureCode == nil,
+              let coldEraseNoRepairBaseline else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        do {
+            guard try await store.requireOriginalEraseNoRepairBaseline(
+                operationID: operationID) == coldEraseNoRepairBaseline else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            let jobs = try await store.jobs(workspaceID: nil)
+            for job in jobs {
+                guard terminalCleanups[job.kind] != nil else {
+                    throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+                }
+                if job.state == .awaitingPublication {
+                    throw ResumableLocalJobRunnerFailureV1
+                        .publicationAuthorityUnavailable
+                }
+            }
+            try await operation.requireC05ColdRunner(self, store: store,
+                registry: generationLeaseRegistry)
+            try await operation.requireC05ColdPredecessorCheckedCompletion(
+                registry: generationLeaseRegistry)
+            guard try await operation.requireC05ColdPending(pending)
+                    == operationID,
+                  coldEraseFencePhase == .observing(operationID),
+                  globalDestructiveGate,
+                  activeTasks.isEmpty,
+                  globalMutationCount == 0,
+                  workspaceMutationCounts.isEmpty,
+                  lastInfrastructureFailureCode == nil else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            // This is the final actor hop before the first effect. The store
+            // rechecks exact canonical bytes/rows and seals every generic
+            // mutation; only operation-bound transitions can now write.
+            try await store.beginColdEraseDrain(
+                operationID: operationID,
+                expected: coldEraseNoRepairBaseline,
+                expectedJobs: jobs)
+            coldEraseFencePhase = .draining(operationID)
+            try await eraseAllUnderDestructiveGate(
+                coldOperationID: operationID)
+            guard coldEraseFencePhase == .draining(operationID),
+                  globalDestructiveGate,
+                  activeTasks.isEmpty,
+                  globalMutationCount == 0,
+                  workspaceMutationCounts.isEmpty,
+                  lastInfrastructureFailureCode == nil,
+                  try await store.jobs(workspaceID: nil).isEmpty else {
+                throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+            }
+            coldEraseFencePhase = .storeEmpty(operationID)
+        } catch {
+            coldEraseFencePhase = .uncertain(operationID)
+            throw error
+        }
+    }
+
+    func requireColdEraseStoreEmpty(
+        operation: EraseColdPreparationOperationV1,
+        pending: EraseC05JobDrainV3
+    ) async throws -> LocalJobStoreV1.OriginalEraseNoRepairSnapshotV1 {
+        guard let generationLeaseRegistry else {
+            throw ResumableLocalJobRunnerFailureV1.generationLeaseUnavailable
+        }
+        try await operation.requireC05ColdRunner(self, store: store,
+            registry: generationLeaseRegistry)
+        let operationID = try await operation.requireC05ColdPending(pending)
+        guard coldEraseFencePhase == .storeEmpty(operationID),
+              globalDestructiveGate, activeTasks.isEmpty,
+              lastInfrastructureFailureCode == nil else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        let empty = try await store.requireOriginalEraseEmptySnapshot(
+            operationID: operationID)
+        guard coldEraseFencePhase == .storeEmpty(operationID),
+              globalDestructiveGate, activeTasks.isEmpty,
+              lastInfrastructureFailureCode == nil else {
+            throw ResumableLocalJobRunnerFailureV1.destructiveScopeBusy
+        }
+        return empty
+    }
+
+    private func eraseAllUnderDestructiveGate(
+        coldOperationID: UUID? = nil
+    ) async throws {
         let allJobs = try await store.jobs(workspaceID: nil)
         for job in allJobs where !job.state.isTerminal {
-            _ = try await store.requestCancellation(id: job.id)
+            if let coldOperationID {
+                _ = try await store.requestCancellationForColdErase(
+                    id: job.id, expected: job,
+                    operationID: coldOperationID)
+            } else {
+                _ = try await store.requestCancellation(id: job.id)
+            }
         }
         let tasks = Array(activeTasks.values)
         tasks.forEach { $0.cancel() }
         for task in tasks { await task.value }
-        try await reconcileForDestructiveRemoval(workspaceID: nil)
+        try await reconcileForDestructiveRemoval(
+            workspaceID: nil, coldOperationID: coldOperationID)
         let terminal = try await store.jobs(workspaceID: nil)
         guard terminal.allSatisfy({ $0.state.isTerminal }) else {
             throw LocalJobStoreFailureV1.invalidTransition
@@ -261,7 +746,11 @@ actor ResumableLocalJobRunnerV1:
             try await performRegisteredTerminalCleanup(for: job)
             try cleanupStaging(for: job)
         }
-        try await store.eraseAll()
+        if let coldOperationID {
+            try await store.eraseAllForColdErase(operationID: coldOperationID)
+        } else {
+            try await store.eraseAll()
+        }
     }
 
     func waitUntilIdle() async {
@@ -494,7 +983,8 @@ private extension ResumableLocalJobRunnerV1 {
     func endDestructiveRemoval(workspaceID: UUID?) {
         if let workspaceID {
             workspaceDestructiveGates.remove(workspaceID)
-        } else {
+        } else if originalEraseFencePhase == nil,
+                  coldEraseFencePhase == nil {
             globalDestructiveGate = false
         }
     }
@@ -504,20 +994,32 @@ private extension ResumableLocalJobRunnerV1 {
             || workspaceDestructiveGates.contains(workspaceID)
     }
 
-    func reconcileForDestructiveRemoval(workspaceID: UUID?) async throws {
+    func reconcileForDestructiveRemoval(
+        workspaceID: UUID?, coldOperationID: UUID? = nil
+    ) async throws {
         let pending = try await store.jobs(workspaceID: workspaceID)
         for job in pending where job.state == .cancellationRequested {
             try cleanupStaging(for: job)
-            _ = try await store.markCancelled(
-                id: job.id,
-                expectedAttemptCount: job.attemptCount
-            )
+            if let coldOperationID {
+                _ = try await store.markCancelledForColdErase(
+                    id: job.id, expected: job,
+                    expectedAttemptCount: job.attemptCount,
+                    operationID: coldOperationID)
+            } else {
+                _ = try await store.markCancelled(
+                    id: job.id,
+                    expectedAttemptCount: job.attemptCount)
+            }
         }
         let afterCancellation = try await store.jobs(workspaceID: workspaceID)
         let awaiting = afterCancellation.filter {
             $0.state == .awaitingPublication
         }
         for job in awaiting {
+            guard coldOperationID == nil else {
+                throw ResumableLocalJobRunnerFailureV1
+                    .publicationAuthorityUnavailable
+            }
             // requestCancellation persistently selected adopt-only. A failed
             // or ambiguous readback leaves the row intact and blocks removal.
             await reconcilePublication(job, ownsTaskSlot: false)
@@ -1004,6 +1506,29 @@ private extension ResumableLocalJobRunnerV1 {
     }
 
     func cleanupStaging(for job: ResumableLocalJobV1) throws {
+        guard originalEraseCleanupUncertainIO == nil else {
+            throw cleanupFailure()
+        }
+        let io = LocalJobCleanupCheckedIOV1()
+        var operationFailure: Error?
+        do {
+            try cleanupStagingBody(for: job, io: io)
+        } catch {
+            operationFailure = error
+        }
+        do {
+            try io.closeRemaining()
+        } catch {
+            originalEraseCleanupUncertainIO = io
+            throw error
+        }
+        if let operationFailure { throw operationFailure }
+    }
+
+    private func cleanupStagingBody(
+        for job: ResumableLocalJobV1,
+        io: LocalJobCleanupCheckedIOV1
+    ) throws {
         let components = job.stagingRelativePath
             .split(separator: "/", omittingEmptySubsequences: false)
             .map(String.init)
@@ -1021,13 +1546,13 @@ private extension ResumableLocalJobRunnerV1 {
         )
         if rootDescriptor < 0, errno == ENOENT { return }
         guard rootDescriptor >= 0 else { throw cleanupFailure() }
+        io.retain(rootDescriptor)
         var opened = [OpenedCleanupDirectory(
             descriptor: rootDescriptor,
             parentDescriptor: nil,
             name: nil,
             identity: try cleanupIdentity(rootDescriptor, directory: true)
         )]
-        defer { opened.reversed().forEach { _ = Darwin.close($0.descriptor) } }
 
         for component in components.dropLast() {
             let parent = opened[opened.count - 1].descriptor
@@ -1038,11 +1563,11 @@ private extension ResumableLocalJobRunnerV1 {
             )
             if descriptor < 0, errno == ENOENT { return }
             guard descriptor >= 0 else { throw cleanupFailure() }
+            io.retain(descriptor)
             do {
                 let identity = try cleanupIdentity(descriptor, directory: true)
                 guard try cleanupNamedIdentity(parent, component)
                         .hasSameStableIdentity(as: identity) else {
-                    _ = Darwin.close(descriptor)
                     throw cleanupFailure()
                 }
                 opened.append(OpenedCleanupDirectory(
@@ -1052,7 +1577,6 @@ private extension ResumableLocalJobRunnerV1 {
                     identity: identity
                 ))
             } catch {
-                _ = Darwin.close(descriptor)
                 throw error
             }
         }
@@ -1071,6 +1595,7 @@ private extension ResumableLocalJobRunnerV1 {
                 O_RDONLY | O_DIRECTORY | O_NOFOLLOW
             )
             guard leafDescriptor >= 0 else { throw cleanupFailure() }
+            io.retain(leafDescriptor)
             let leafIdentity: CleanupIdentity
             do {
                 leafIdentity = try cleanupIdentity(
@@ -1082,7 +1607,6 @@ private extension ResumableLocalJobRunnerV1 {
                     throw cleanupFailure()
                 }
             } catch {
-                _ = Darwin.close(leafDescriptor)
                 throw error
             }
             guard Darwin.renameat(
@@ -1091,7 +1615,6 @@ private extension ResumableLocalJobRunnerV1 {
                 parent,
                 quarantineName
             ) == 0 else {
-                _ = Darwin.close(leafDescriptor)
                 throw cleanupFailure()
             }
             guard Darwin.fsync(parent) == 0,
@@ -1099,12 +1622,9 @@ private extension ResumableLocalJobRunnerV1 {
                     .hasSameStableIdentity(as: leafIdentity),
                   try cleanupIdentity(leafDescriptor, directory: true)
                     .hasSameStableIdentity(as: leafIdentity) else {
-                _ = Darwin.close(leafDescriptor)
                 throw cleanupFailure()
             }
-            guard Darwin.close(leafDescriptor) == 0 else {
-                throw cleanupFailure()
-            }
+            try io.close(leafDescriptor)
         } else if !quarantineExists {
             return
         }
@@ -1115,13 +1635,13 @@ private extension ResumableLocalJobRunnerV1 {
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
         )
         guard quarantineDescriptor >= 0 else { throw cleanupFailure() }
+        io.retain(quarantineDescriptor)
         let quarantineIdentity = try cleanupIdentity(
             quarantineDescriptor,
             directory: true
         )
         guard try cleanupNamedIdentity(parent, quarantineName)
                 .hasSameStableIdentity(as: quarantineIdentity) else {
-            _ = Darwin.close(quarantineDescriptor)
             throw cleanupFailure()
         }
         var removedEntryCount = 0
@@ -1129,7 +1649,8 @@ private extension ResumableLocalJobRunnerV1 {
             try removeCleanupContents(
                 descriptor: quarantineDescriptor,
                 depth: 0,
-                removedEntryCount: &removedEntryCount
+                removedEntryCount: &removedEntryCount,
+                io: io
             )
             guard try cleanupIdentity(quarantineDescriptor, directory: true)
                     .hasSameStableIdentity(as: quarantineIdentity),
@@ -1138,13 +1659,9 @@ private extension ResumableLocalJobRunnerV1 {
                 throw cleanupFailure()
             }
         } catch {
-            _ = Darwin.close(quarantineDescriptor)
-            quarantineDescriptor = -1
             throw error
         }
-        guard Darwin.close(quarantineDescriptor) == 0 else {
-            throw cleanupFailure()
-        }
+        try io.close(quarantineDescriptor)
         quarantineDescriptor = -1
         guard Darwin.unlinkat(parent, quarantineName, AT_REMOVEDIR) == 0,
               Darwin.fsync(parent) == 0 else {
@@ -1187,15 +1704,16 @@ private extension ResumableLocalJobRunnerV1 {
         let identity: CleanupIdentity
     }
 
-    func removeCleanupContents(
+    private func removeCleanupContents(
         descriptor: Int32,
         depth: Int,
-        removedEntryCount: inout Int
+        removedEntryCount: inout Int,
+        io: LocalJobCleanupCheckedIOV1
     ) throws {
         guard depth < JobScaleBudgetPolicyV1.maximumStagingPathDepth else {
             throw cleanupFailure()
         }
-        let names = try cleanupNames(descriptor)
+        let names = try io.names(in: descriptor)
         for name in names {
             guard removedEntryCount
                     < JobScaleBudgetPolicyV1.maximumStagingCleanupEntryCount else {
@@ -1210,6 +1728,7 @@ private extension ResumableLocalJobRunnerV1 {
                     O_RDONLY | O_DIRECTORY | O_NOFOLLOW
                 )
                 guard child >= 0 else { throw cleanupFailure() }
+                io.retain(child)
                 do {
                     guard try cleanupIdentity(child, directory: true)
                             .hasSameStableIdentity(as: identity),
@@ -1220,7 +1739,8 @@ private extension ResumableLocalJobRunnerV1 {
                     try removeCleanupContents(
                         descriptor: child,
                         depth: depth + 1,
-                        removedEntryCount: &removedEntryCount
+                        removedEntryCount: &removedEntryCount,
+                        io: io
                     )
                     guard try cleanupIdentity(child, directory: true)
                             .hasSameStableIdentity(as: identity),
@@ -1229,23 +1749,22 @@ private extension ResumableLocalJobRunnerV1 {
                         throw cleanupFailure()
                     }
                 } catch {
-                    _ = Darwin.close(child)
                     throw error
                 }
-                guard Darwin.close(child) == 0,
-                      Darwin.unlinkat(descriptor, name, AT_REMOVEDIR) == 0 else {
+                try io.close(child)
+                guard Darwin.unlinkat(descriptor, name, AT_REMOVEDIR) == 0 else {
                     throw cleanupFailure()
                 }
             } else if identity.kind == mode_t(S_IFREG) {
                 guard identity.linkCount == 1 else { throw cleanupFailure() }
                 let file = Darwin.openat(descriptor, name, O_RDONLY | O_NOFOLLOW)
                 guard file >= 0 else { throw cleanupFailure() }
+                io.retain(file)
                 let pinned = try cleanupIdentity(file, directory: false)
-                let closeResult = Darwin.close(file)
+                try io.close(file)
                 guard pinned.hasSameStableIdentity(as: identity),
                       pinned.linkCount == 1,
                       identity.linkCount == 1,
-                      closeResult == 0,
                       try cleanupNamedIdentity(descriptor, name)
                         .hasSameStableIdentity(as: identity),
                       Darwin.unlinkat(descriptor, name, 0) == 0 else {
@@ -1262,32 +1781,6 @@ private extension ResumableLocalJobRunnerV1 {
             }
         }
         guard Darwin.fsync(descriptor) == 0 else { throw cleanupFailure() }
-    }
-
-    func cleanupNames(_ descriptor: Int32) throws -> [String] {
-        let duplicate = Darwin.dup(descriptor)
-        guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
-            if duplicate >= 0 { _ = Darwin.close(duplicate) }
-            throw cleanupFailure()
-        }
-        defer { _ = Darwin.closedir(directory) }
-        var names = [String]()
-        errno = 0
-        while let entry = Darwin.readdir(directory) {
-            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
-                throw cleanupFailure()
-            }
-            if name != "." && name != ".." {
-                guard names.count
-                        < JobScaleBudgetPolicyV1.maximumStagingCleanupEntryCount else {
-                    throw cleanupFailure()
-                }
-                names.append(name)
-            }
-            errno = 0
-        }
-        guard errno == 0 else { throw cleanupFailure() }
-        return names.sorted()
     }
 
     func cleanupIdentity(

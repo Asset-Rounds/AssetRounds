@@ -1129,7 +1129,6 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
         if operationsDescriptor >= 0 && !operationsCloseAttempted { _ = Darwin.close(operationsDescriptor) }
     }
 
-#if DEBUG
     func closeCheckedForExclusiveOriginalEraseRead(
         verifyBeforeClose: Bool = true
     ) throws {
@@ -1155,7 +1154,6 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
         }
         if failed { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
     }
-#endif
 
     func verify(rootName: String) throws {
         var operations = stat()
@@ -1206,6 +1204,50 @@ struct EraseOriginalNotificationPhysicalSnapshotV1: Equatable {
     let eraseIdentity: String?
 }
 #endif
+
+/// A complete checked cut of the cold notification root. The first cut is
+/// retained by Manifest; each owned effect produces a separate checked cut
+/// and may project only its exact stage-specific difference.
+struct EraseSchema2ColdNotificationCheckedCutV1: Equatable {
+    let rootFact: EraseColdControlLeafFactV1?
+    let names: [String]
+    let leafBytes: [String: Data]
+    let leafFacts: [String: EraseColdControlLeafFactV1]
+}
+
+/// Storage constructs this only after its exact syscall, fsync, policy
+/// readback and every transient checked close. Manifest independently scans
+/// the same held root before accepting a one-way projection.
+@MainActor final class EraseSchema2ColdNotificationMutationReceiptV1 {
+    let token: EraseSchema2ColdNotificationMutationTokenV1
+    let stage: EraseSchema2ColdNotificationMutationStageV1
+    let before: EraseSchema2ColdNotificationCheckedCutV1
+    let after: EraseSchema2ColdNotificationCheckedCutV1
+    let temporaryFact: EraseColdControlLeafFactV1?
+    /// Non-nil only when the first held empty/canonical-prefix temp was
+    /// checked-unlinked, fsynced and proved absent before O_EXCL rewrite.
+    let settledCapturedTemporaryFact: EraseColdControlLeafFactV1?
+    let policyDisposition: ProtectedFileVerificationDispositionV1?
+    let checkedSettled: Bool
+
+    fileprivate init(token: EraseSchema2ColdNotificationMutationTokenV1,
+        before: EraseSchema2ColdNotificationCheckedCutV1,
+        after: EraseSchema2ColdNotificationCheckedCutV1,
+        temporaryFact: EraseColdControlLeafFactV1?,
+        settledCapturedTemporaryFact:
+            EraseColdControlLeafFactV1? = nil,
+        policyDisposition: ProtectedFileVerificationDispositionV1?) {
+        self.token = token
+        stage = token.stage
+        self.before = before
+        self.after = after
+        self.temporaryFact = temporaryFact
+        self.settledCapturedTemporaryFact =
+            settledCapturedTemporaryFact
+        self.policyDisposition = policyDisposition
+        checkedSettled = true
+    }
+}
 
 final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     static let rootName = "AppLockNotificationControlV1"
@@ -1493,6 +1535,33 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
                     }
                 }
             }
+        }
+    }
+
+    /// Pure post-effect check used when a caller needs a typed Erase drain
+    /// receipt. The ordinary erase entry retains its existing call sequence.
+    func requireNotificationEraseRevocation(
+        _ revocation: NotificationEraseRevocationV1
+    ) throws {
+        try AppLockNotificationTransactionFenceV1.perform {
+            try verifyRoot()
+            guard revocation.rootIdentity == notificationRootIdentity,
+                  let bytes = try readFile(Self.eraseName,
+                    kind: .journal),
+                  try Self.decodeAuxiliary(
+                    NotificationEraseRevocationV1.self,
+                    bytes: bytes) == revocation else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            for name in [Self.recordName, Self.pendingName,
+                         Self.mappingName, Self.mappingPendingName,
+                         Self.erasePendingName] {
+                guard try information(name) == nil else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+            }
+            try verifyRoot()
         }
     }
 
@@ -1967,6 +2036,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     #endif
     private var active: [UUID: ScratchDataLeaseV1] = [:]
     private var exclusiveNoRepairRead = false
+    // Retained by the already-owned exclusive Store before the first receipt
+    // scan. An ambiguous checked close cannot escape with a local IO value.
+    private var originalEraseSourceReceiptIO: EraseAbortCheckedSnapshotIOV1?
 
     private func applySourceReadPolicy(
         _ kind: OwnedFileKindV1, at url: URL,
@@ -2088,11 +2160,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             }
             try authority.verify(rootName: Self.rootName)
         } catch {
-#if DEBUG
             // A failed checked close is quarantined by the pinned owner; the
             // exclusive caller poisons its original Erase operation as well.
             try? authority.closeCheckedForExclusiveOriginalEraseRead(verifyBeforeClose: false)
-#endif
             throw error
         }
     }
@@ -3731,7 +3801,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         private var unlocked = false
         private var descriptorCloseAttempted = false
         private let producerActivity: OwnedStorageProducerActivityV1?
-        private let exclusivePermit: CompletedAbortExclusiveScratchPermitV1?
+        private let exclusivePermit: ExclusiveEraseSourceReadPermit?
         private var exclusiveOwnedInodes: [String: (device: UInt64, inode: UInt64)] = [:]
         private static let sqliteNames: Set<String> = ["model.sqlite", "model.sqlite-wal", "model.sqlite-shm"]
         var modelURL: URL { directoryURL.appendingPathComponent("model.sqlite") }
@@ -3739,7 +3809,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
 
         fileprivate init(store: ScratchDataLeaseStoreV1, lease: ScratchDataLeaseV1,
                          readerIsDrained: @escaping @MainActor () -> Bool,
-                         exclusivePermit: CompletedAbortExclusiveScratchPermitV1? = nil) throws {
+                         exclusivePermit: ExclusiveEraseSourceReadPermit? = nil) throws {
             try exclusivePermit?.requireHeld()
             let retainedActivity: OwnedStorageProducerActivityV1?
             if exclusivePermit == nil {
@@ -4120,14 +4190,168 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     // An unexpectedly retained reader keeps its directory lock until it drains
     // or the process ends. Existing cold lease recovery remains the sole owner.
     @MainActor private static var retainedSourceReaders: [SourceReadDirectory] = []
-#if DEBUG
     @MainActor private static var retainedExclusiveSourceStores: [ScratchDataLeaseStoreV1] = []
+
+    @MainActor
+    struct OriginalEraseExclusiveSourceReadReceiptV1 {
+        let ownerOperationID: UUID
+        let leaseID: UUID
+        let leaseName: String
+        let operationsFact: String
+        let operationsNames: [String]
+        let beforeScratchRootFact: String
+        let beforeScratchDigest: String
+        let afterScratchRootFact: String
+        let afterScratchDigest: String
+        private let checkedSettled: Bool
+
+        fileprivate init(request: ScratchDataLeaseRequestV1,
+                         leaseName: String,
+                         before: OriginalEraseExclusiveSourceCutV1,
+                         after: OriginalEraseExclusiveSourceCutV1) {
+            ownerOperationID = request.ownerOperationID
+            leaseID = request.leaseID
+            self.leaseName = leaseName
+            operationsFact = before.operationsFact
+            operationsNames = before.operationsNames
+            beforeScratchRootFact = before.scratchRootFact
+            beforeScratchDigest = before.scratchDigest
+            afterScratchRootFact = after.scratchRootFact
+            afterScratchDigest = after.scratchDigest
+            checkedSettled = true
+        }
+
+        func requireCheckedSettlement() throws {
+            guard checkedSettled, !leaseName.isEmpty,
+                  StoreMigrationCanonicalJSONV1
+                    .isLowercaseSHA256(beforeScratchDigest),
+                  StoreMigrationCanonicalJSONV1
+                    .isLowercaseSHA256(afterScratchDigest) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidLease
+            }
+        }
+    }
+
+    fileprivate struct OriginalEraseExclusiveSourceCutV1 {
+        let scratch: stat
+        let operationsFact: String
+        let operationsNames: [String]
+        let scratchRootFact: String
+        let scratchDigest: String
+    }
+
+    private static func originalEraseSourceFullFact(_ value: stat) -> String {
+        "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+    }
+
+    @MainActor
+    private func checkedOriginalEraseSourceCut()
+        throws -> OriginalEraseExclusiveSourceCutV1 {
+        guard exclusiveNoRepairRead, let io = originalEraseSourceReceiptIO else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try io.requireSettled()
+        try authority.verify(rootName: Self.rootName)
+        let operationsFD = authority.operationsDescriptor
+        let rootFD = authority.rootDescriptor
+        let operationsURL = rootURL.deletingLastPathComponent()
+        var operations = stat(), namedOperations = stat(),
+            scratch = stat(), namedScratch = stat()
+        guard Darwin.fstat(operationsFD, &operations) == 0,
+              Darwin.lstat(operationsURL.path, &namedOperations) == 0,
+              Darwin.fstat(rootFD, &scratch) == 0,
+              Darwin.fstatat(operationsFD, Self.rootName,
+                  &namedScratch, AT_SYMLINK_NOFOLLOW) == 0,
+              operations.st_mode & S_IFMT == S_IFDIR,
+              scratch.st_mode & S_IFMT == S_IFDIR,
+              Self.originalEraseSourceFullFact(operations)
+                == Self.originalEraseSourceFullFact(namedOperations),
+              Self.originalEraseSourceFullFact(scratch)
+                == Self.originalEraseSourceFullFact(namedScratch) else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let operationsNames = try io.names(in: operationsFD)
+        guard operationsNames.contains(Self.rootName),
+              try io.names(in: rootFD).isEmpty else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let digest = try io.postRetiredTree(
+            parent: operationsFD, name: Self.rootName)
+        var operationsAfter = stat(), namedOperationsAfter = stat(),
+            scratchAfter = stat(), namedScratchAfter = stat()
+        guard Darwin.fstat(operationsFD, &operationsAfter) == 0,
+              Darwin.lstat(operationsURL.path,
+                  &namedOperationsAfter) == 0,
+              Darwin.fstat(rootFD, &scratchAfter) == 0,
+              Darwin.fstatat(operationsFD, Self.rootName,
+                  &namedScratchAfter, AT_SYMLINK_NOFOLLOW) == 0,
+              Self.originalEraseSourceFullFact(operationsAfter)
+                == Self.originalEraseSourceFullFact(operations),
+              Self.originalEraseSourceFullFact(namedOperationsAfter)
+                == Self.originalEraseSourceFullFact(operations),
+              Self.originalEraseSourceFullFact(scratchAfter)
+                == Self.originalEraseSourceFullFact(scratch),
+              Self.originalEraseSourceFullFact(namedScratchAfter)
+                == Self.originalEraseSourceFullFact(scratch),
+              try io.names(in: operationsFD) == operationsNames,
+              try io.names(in: rootFD).isEmpty else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try io.requireSettled()
+        return OriginalEraseExclusiveSourceCutV1(
+            scratch: scratch,
+            operationsFact: Self.originalEraseSourceFullFact(operations),
+            operationsNames: operationsNames,
+            scratchRootFact: Self.originalEraseSourceFullFact(scratch),
+            scratchDigest: digest)
+    }
 
     /// Used only within the original Erase Registry's synchronous G scope and
     /// already-held Support-root EX. No new producer SH or scratch recovery is
     /// permitted; any existing scratch member makes this read fail closed.
+    // Only this file can erase the distinction after a typed entry point.
+    // These cases retain the original revocable operation scope, not a new permit.
+    @MainActor
+    fileprivate enum ExclusiveEraseSourceReadPermit {
+        case original(OriginalEraseExclusiveScratchPermitV1)
+        case completedAbort(CompletedAbortExclusiveScratchPermitV1)
+
+        func requireHeld() throws {
+            switch self {
+            case .original(let permit): try permit.requireHeld()
+            case .completedAbort(let permit): try permit.requireHeld()
+            }
+        }
+
+        func poisonOnUncertainCleanup() {
+            switch self {
+            case .original(let permit): permit.poisonOnUncertainCleanup()
+            case .completedAbort(let permit): permit.poisonOnUncertainCleanup()
+            }
+        }
+    }
+
     @MainActor
     static func withExclusiveOriginalEraseSourceRead<Value>(
+        applicationSupportURL: URL,
+        request: ScratchDataLeaseRequestV1,
+        permit: OriginalEraseExclusiveScratchPermitV1,
+        requireProtectedIngressUnchanged: @escaping @MainActor () throws -> Void,
+        readerIsDrained: @escaping @MainActor () -> Bool,
+        onCheckedSettlement: (@MainActor (
+            OriginalEraseExclusiveSourceReadReceiptV1) -> Void)? = nil,
+        _ read: (SourceReadDirectory) throws -> Value
+    ) throws -> Value {
+        try withExclusiveEraseSourceRead(
+            applicationSupportURL: applicationSupportURL,
+            request: request, permit: .original(permit),
+            requireProtectedIngressUnchanged: requireProtectedIngressUnchanged,
+            readerIsDrained: readerIsDrained,
+            onCheckedSettlement: onCheckedSettlement, read)
+    }
+
+    @MainActor
+    static func withExclusiveCompletedAbortSourceRead<Value>(
         applicationSupportURL: URL,
         request: ScratchDataLeaseRequestV1,
         permit: CompletedAbortExclusiveScratchPermitV1,
@@ -4135,11 +4359,34 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         readerIsDrained: @escaping @MainActor () -> Bool,
         _ read: (SourceReadDirectory) throws -> Value
     ) throws -> Value {
+        try withExclusiveEraseSourceRead(
+            applicationSupportURL: applicationSupportURL,
+            request: request, permit: .completedAbort(permit),
+            requireProtectedIngressUnchanged: requireProtectedIngressUnchanged,
+            readerIsDrained: readerIsDrained, read)
+    }
+
+    @MainActor
+    private static func withExclusiveEraseSourceRead<Value>(
+        applicationSupportURL: URL,
+        request: ScratchDataLeaseRequestV1,
+        permit: ExclusiveEraseSourceReadPermit,
+        requireProtectedIngressUnchanged: @escaping @MainActor () throws -> Void,
+        readerIsDrained: @escaping @MainActor () -> Bool,
+        onCheckedSettlement: (@MainActor (
+            OriginalEraseExclusiveSourceReadReceiptV1) -> Void)? = nil,
+        _ read: (SourceReadDirectory) throws -> Value
+    ) throws -> Value {
         try permit.requireHeld()
         guard request.purpose == .source, request.owner == .source else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
         try request.validate()
+        if onCheckedSettlement != nil {
+            guard case .original = permit else {
+                throw ScratchDataLeaseStoreFailureV1.invalidLease
+            }
+        }
         // The sibling is owned by the original pre-authentication ingress
         // lifecycle. Its exact tree was sealed by the original Erase Service
         // before the fault; this read neither opens an ingress Store nor
@@ -4159,12 +4406,18 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             throw error
         }
         store.exclusiveNoRepairRead = true
+        if onCheckedSettlement != nil {
+            store.originalEraseSourceReceiptIO = EraseAbortCheckedSnapshotIOV1()
+        }
         var directory: SourceReadDirectory?
         var cleanupProved = false
         do {
             return try Self.filesystemLock.withLock {
                 try permit.requireHeld()
                 try requireProtectedIngressUnchanged()
+                let firstCut = try onCheckedSettlement.map { _ in
+                    try store.checkedOriginalEraseSourceCut()
+                }
                 let lease = try store.acquireScratchLeaseSynchronously(
                     request, recoverExisting: false)
                 directory = try SourceReadDirectory(
@@ -4192,9 +4445,31 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 guard store.active.isEmpty else {
                     throw ScratchDataLeaseStoreFailureV1.leaseCollision
                 }
+                let finalCut = try firstCut.map { _ in
+                    try store.checkedOriginalEraseSourceCut()
+                }
+                if let firstCut, let finalCut {
+                    guard firstCut.operationsFact == finalCut.operationsFact,
+                          firstCut.operationsNames == finalCut.operationsNames,
+                          firstCut.scratch.st_dev == finalCut.scratch.st_dev,
+                          firstCut.scratch.st_ino == finalCut.scratch.st_ino,
+                          firstCut.scratch.st_mode == finalCut.scratch.st_mode,
+                          firstCut.scratch.st_uid == finalCut.scratch.st_uid,
+                          firstCut.scratch.st_gid == finalCut.scratch.st_gid,
+                          firstCut.scratch.st_nlink == finalCut.scratch.st_nlink else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                }
                 try store.authority.closeCheckedForExclusiveOriginalEraseRead()
+                try store.originalEraseSourceReceiptIO?.requireSettled()
                 try requireProtectedIngressUnchanged()
                 cleanupProved = true
+                if case .success = result,
+                   let firstCut, let finalCut, let onCheckedSettlement {
+                    onCheckedSettlement(OriginalEraseExclusiveSourceReadReceiptV1(
+                        request: request, leaseName: lease.relativeDirectory,
+                        before: firstCut, after: finalCut))
+                }
                 return try result.get()
             }
         } catch {
@@ -4208,7 +4483,6 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             throw error
         }
     }
-#endif
 
     @MainActor
     func withSourceReadScratch<Value>(request: ScratchDataLeaseRequestV1,
@@ -6676,4 +6950,1332 @@ final class TemporalNormalizationSourceTargetV1: @unchecked Sendable {
     }
     func close() { lock.withLock { if descriptor >= 0 { _ = Darwin.close(descriptor); descriptor = -1 } } }
     deinit { close() }
+}
+
+/// Read-only cold observer. Manifest supplies the retained root FD and
+/// re-proves its first/projected facts around this synchronous callback.
+/// Every child and policy probe descriptor has checked, sticky close state.
+@MainActor final class EraseSchema2ColdNotificationCheckedReadV1 {
+    private let source: EraseSchema2ColdNotificationSourceV1
+    private let io = EraseAbortCheckedSnapshotIOV1()
+    private var uncertainPolicyDescriptors: [Int32] = []
+
+    init(source: EraseSchema2ColdNotificationSourceV1) {
+        self.source = source
+    }
+
+    func requireSettled() throws {
+        try io.requireSettled()
+        guard uncertainPolicyDescriptors.isEmpty else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+    }
+
+    func cut() throws -> EraseSchema2ColdNotificationCheckedCutV1 {
+        return try source.withHeldRoot { rootFD, rootURL in
+            try cutBorrowed(rootFD: rootFD, rootURL: rootURL)
+        }
+    }
+
+    /// The Manifest's mutation scope supplies this exact retained root FD;
+    /// it is never returned or used after the scoped callback.
+    func cutBorrowed(rootFD: Int32, rootURL: URL)
+        throws -> EraseSchema2ColdNotificationCheckedCutV1 {
+        try requireSettled()
+            var beforeRoot = stat(), afterRoot = stat()
+            guard Darwin.fstat(rootFD, &beforeRoot) == 0,
+                  beforeRoot.st_mode & S_IFMT == S_IFDIR else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let firstPolicy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: rootURL,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainPolicyDescriptors.append(value)
+                    })
+            guard firstPolicy.device == UInt64(beforeRoot.st_dev),
+                  firstPolicy.inode == UInt64(beforeRoot.st_ino),
+                  firstPolicy.linkCount == UInt64(beforeRoot.st_nlink),
+                  firstPolicy.state == .strictComplete ||
+                    firstPolicy.state == .pendingSimulatorRequest else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let names = try io.names(in: rootFD)
+            let allowed: Set<String> = [
+                AppLockNotificationControlStoreV1.recordName,
+                AppLockNotificationControlStoreV1.pendingName,
+                AppLockNotificationControlStoreV1.mappingName,
+                AppLockNotificationControlStoreV1.mappingPendingName,
+                AppLockNotificationControlStoreV1.eraseName,
+                AppLockNotificationControlStoreV1.erasePendingName,
+                EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+                EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName,
+                EraseSchema2ColdNotificationSourceV1.drainName,
+                EraseSchema2ColdNotificationSourceV1.drainTemporaryName,
+            ]
+            guard Set(names).isSubset(of: allowed) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            var bytes: [String: Data] = [:]
+            var facts: [String: EraseColdControlLeafFactV1] = [:]
+            for name in names {
+                let value = try checkedLeaf(
+                    rootFD: rootFD, rootURL: rootURL, name: name)
+                bytes[name] = value.bytes
+                facts[name] = value.fact
+            }
+            let secondPolicy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: rootURL,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainPolicyDescriptors.append(value)
+                    })
+            guard firstPolicy == secondPolicy,
+                  try io.names(in: rootFD) == names,
+                  Darwin.fstat(rootFD, &afterRoot) == 0,
+                  EraseColdControlLeafFactV1(beforeRoot)
+                    == EraseColdControlLeafFactV1(afterRoot) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            try requireSettled()
+            return EraseSchema2ColdNotificationCheckedCutV1(
+                rootFact: EraseColdControlLeafFactV1(afterRoot),
+                names: names, leafBytes: bytes, leafFacts: facts)
+    }
+
+    private func checkedLeaf(
+        rootFD: Int32, rootURL: URL, name: String
+    ) throws -> (bytes: Data, fact: EraseColdControlLeafFactV1) {
+        try io.withOpen(parent: rootFD, name: name,
+            flags: O_RDONLY | O_NONBLOCK) { fd in
+            var before = stat(), after = stat(), named = stat()
+            guard Darwin.fstat(fd, &before) == 0,
+                  before.st_mode & S_IFMT == S_IFREG,
+                  before.st_nlink == 1,
+                  before.st_size >= 0,
+                  (before.st_size > 0 ||
+                    [AppLockNotificationControlStoreV1.pendingName,
+                     AppLockNotificationControlStoreV1.mappingPendingName,
+                     AppLockNotificationControlStoreV1.erasePendingName,
+                     EraseSchema2ColdNotificationSourceV1
+                        .ownedIDsTemporaryName,
+                     EraseSchema2ColdNotificationSourceV1
+                        .drainTemporaryName].contains(name)),
+                  before.st_size <= off_t(
+                    AppLockNotificationControlStoreV1.maximumRecordBytes),
+                  Darwin.fstatat(rootFD, name, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseColdControlLeafFactV1(before)
+                    == EraseColdControlLeafFactV1(named) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let firstFact = EraseColdControlLeafFactV1(before)
+            let kind: OwnedFileKindV1 =
+                [AppLockNotificationControlStoreV1.pendingName,
+                 AppLockNotificationControlStoreV1.mappingPendingName,
+                 AppLockNotificationControlStoreV1.erasePendingName,
+                 EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName,
+                 EraseSchema2ColdNotificationSourceV1.drainTemporaryName]
+                    .contains(name) ? .journalTemporary : .journal
+            let url = rootURL.appendingPathComponent(name)
+            let reservedTemporary = kind == .journalTemporary
+            let firstPolicy: TemporalPolicyObservationV1?
+            do {
+                firstPolicy = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(kind,
+                        at: url, retainUncertainDescriptor: { value in
+                            self.uncertainPolicyDescriptors.append(value)
+                        })
+            } catch ProtectedFilePolicyError.resourceValueMismatch {
+                // O_EXCL creation and a prefix write precede the checked
+                // policy setter. This exact reserved temp remains opaque
+                // data; only publishCanonical may request complete policy
+                // under the retained operation before any unlink/adoption.
+                guard reservedTemporary,
+                      before.st_mode & 0o777 == 0o600 else {
+                    throw ProtectedFilePolicyError.resourceValueMismatch
+                }
+                firstPolicy = nil
+            }
+            if let firstPolicy {
+                guard firstPolicy.device == UInt64(before.st_dev),
+                      firstPolicy.inode == UInt64(before.st_ino),
+                      firstPolicy.linkCount == 1,
+                      firstPolicy.state == .strictComplete ||
+                        firstPolicy.state == .pendingSimulatorRequest else {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+            }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+            while true {
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.read(fd, $0.baseAddress, $0.count)
+                }
+                if count > 0 {
+                    guard data.count <= Int(before.st_size) - count else {
+                        throw AppAccessContractFailureV1.configurationUnknown
+                    }
+                    data.append(contentsOf: buffer.prefix(count))
+                } else if count == 0 { break }
+                else if errno != EINTR {
+                    throw AppAccessContractFailureV1.configurationUnknown
+                }
+            }
+            let secondPolicy: TemporalPolicyObservationV1?
+            do {
+                secondPolicy = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(kind,
+                        at: url, retainUncertainDescriptor: { value in
+                            self.uncertainPolicyDescriptors.append(value)
+                        })
+            } catch ProtectedFilePolicyError.resourceValueMismatch {
+                guard reservedTemporary,
+                      before.st_mode & 0o777 == 0o600 else {
+                    throw ProtectedFilePolicyError.resourceValueMismatch
+                }
+                secondPolicy = nil
+            }
+            guard data.count == Int(before.st_size),
+                  Darwin.fstat(fd, &after) == 0,
+                  Darwin.fstatat(rootFD, name, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  firstFact == EraseColdControlLeafFactV1(after),
+                  firstFact == EraseColdControlLeafFactV1(named),
+                  firstPolicy == secondPolicy else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            return (data, firstFact)
+        }
+    }
+}
+
+/// Cold-only notification control. Construction retains the operation and
+/// Manifest source without opening a second application-support owner. Every
+/// read remains scoped to the held root and uses checked transient IO.
+#if DEBUG
+enum EraseSchema2ColdNotificationTemporaryFaultCutV1 {
+    case afterCreateBeforePolicy
+    case afterStrictPrefixBeforePolicy
+}
+#endif
+
+@MainActor final class EraseSchema2ColdNotificationControlV1:
+    Schema2ColdNotificationEraseControlV1 {
+    private let source: EraseSchema2ColdNotificationSourceV1
+    private let operation: EraseColdPreparationOperationV1
+    private let checkedRead: EraseSchema2ColdNotificationCheckedReadV1
+    private let mutationIO = EraseAbortCheckedSnapshotIOV1()
+    private var uncertainPolicyDescriptors: [Int32] = []
+    private var rootIdentityValue: String
+    private var rootPolicyDisposition:
+        ProtectedFileVerificationDispositionV1?
+    private var canonicalCreationSettled = false
+    private var reservedProvenance:
+        NotificationEraseOwnedIDsProvenanceV1?
+    private var osAbsence: EraseSchema2ColdNotificationOSAbsenceReceiptV1?
+
+    #if DEBUG
+    var temporaryFaultForTesting:
+        (@MainActor (EraseSchema2ColdNotificationMutationStageV1,
+            EraseSchema2ColdNotificationTemporaryFaultCutV1)
+            throws -> Void)?
+    #endif
+
+    init(source: EraseSchema2ColdNotificationSourceV1,
+         operation: EraseColdPreparationOperationV1) {
+        self.source = source
+        self.operation = operation
+        checkedRead = EraseSchema2ColdNotificationCheckedReadV1(
+            source: source)
+        rootIdentityValue = source.rootIdentity ?? ""
+    }
+
+    var notificationRootIdentity: String { rootIdentityValue }
+
+    func requireCheckedSettled() throws {
+        try checkedRead.requireSettled()
+        try mutationIO.requireSettled()
+        guard uncertainPolicyDescriptors.isEmpty else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+    }
+
+    private func ensureRoot() throws {
+        try requireCheckedSettled()
+        if source.rootIdentity == nil && rootIdentityValue.isEmpty {
+            let created = try source.createRootFromFirstAbsence()
+            guard created.source === source,
+                  created.checkedSettled else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            rootIdentityValue = created.rootIdentity
+            rootPolicyDisposition = created.policyDisposition
+        }
+        if source.rootIdentity != nil,
+           source.hasAuthenticatedCreationRecord,
+           source.names.isEmpty,
+           !canonicalCreationSettled {
+            let settled = try source.settleCanonicalCreationAfterReplay()
+            guard settled.source === source,
+                  settled.rootIdentity == rootIdentityValue,
+                  settled.checkedSettled else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            rootPolicyDisposition = settled.policyDisposition
+            canonicalCreationSettled = true
+        }
+        // A raw first-present canonical root has no proof that this Erase
+        // created it. It remains data-only until a separate creation-record
+        // replay proves provenance; ordinary policy repair is not authority.
+        if source.rootIdentity != nil, source.rootPolicy == nil,
+           !canonicalCreationSettled {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        guard !rootIdentityValue.isEmpty,
+              try source.requireCurrentRootIdentity()
+                == rootIdentityValue else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        if rootPolicyDisposition == nil {
+            let url = try source.withHeldRoot { _, rootURL in rootURL }
+            rootPolicyDisposition = try ProtectedFilePolicyV1
+                .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                    .stagingDirectory, at: url,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainPolicyDescriptors.append(value)
+                    }, unchangedWitness: {
+                        try self.checkedRead.cut()
+                    })
+        } else {
+            let cut = try checkedRead.cut()
+            let url = try source.withHeldRoot { _, rootURL in rootURL }
+            let observed = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: url,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainPolicyDescriptors.append(value)
+                    })
+            guard let fact = cut.rootFact,
+                  observed.device == UInt64(fact.device),
+                  observed.inode == UInt64(fact.inode),
+                  observed.linkCount == UInt64(fact.links),
+                  observed.state == .strictComplete ||
+                    observed.state == .pendingSimulatorRequest,
+                  try checkedRead.cut() == cut else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+        }
+        try requireCheckedSettled()
+    }
+
+    private func requireLeafPolicy(
+        _ name: String, kind: OwnedFileKindV1
+    ) throws {
+        try ensureRoot()
+        let url = try source.withHeldRoot { _, rootURL in
+            rootURL.appendingPathComponent(name)
+        }
+        let initial = try checkedRead.cut()
+        guard initial.leafFacts[name] != nil else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        _ = try ProtectedFilePolicyV1
+            .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                kind, at: url,
+                retainUncertainDescriptor: { value in
+                    self.uncertainPolicyDescriptors.append(value)
+                }, unchangedWitness: {
+                    let current = try self.checkedRead.cut()
+                    guard current == initial else {
+                        throw AppAccessContractFailureV1.configurationUnknown
+                    }
+                    return current.leafFacts[name]
+                })
+        guard try checkedRead.cut() == initial else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try requireCheckedSettled()
+    }
+
+    private func decodeCanonical<Value: Codable>(
+        _ type: Value.Type, bytes: Data
+    ) throws -> Value {
+        guard !bytes.isEmpty,
+              bytes.count <= AppLockNotificationControlStoreV1
+                .maximumRecordBytes else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let value = try JSONDecoder().decode(type, from: bytes)
+        guard try CompatibilityCanonicalV1.encode(value) == bytes else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return value
+    }
+
+    private func decodeCanonicalControl(
+        _ bytes: Data
+    ) throws -> AppLockNotificationControlV1 {
+        let value = try decodeCanonical(
+            AppLockNotificationControlV1.self, bytes: bytes)
+        let checked = try AppLockNotificationControlV1(
+            journal: value.journal,
+            priorReminderPolicy: value.priorReminderPolicy,
+            settingWrite: value.settingWrite,
+            phase: value.phase,
+            reminderPolicyContinuation:
+                value.reminderPolicyContinuation)
+        guard checked == value else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        return checked
+    }
+
+    func verifyNotificationStorage() throws {
+        try ensureRoot()
+        _ = try checkedRead.cut()
+    }
+
+    func loadPrivateNotificationMapping()
+        throws -> NotificationPrivateMappingV1? {
+        try ensureRoot()
+        let before = try checkedRead.cut()
+        guard let bytes = before.leafBytes[
+            AppLockNotificationControlStoreV1.mappingName] else {
+            return nil
+        }
+        try requireLeafPolicy(
+            AppLockNotificationControlStoreV1.mappingName,
+            kind: .journal)
+        guard try checkedRead.cut() == before else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let value = try decodeCanonical(
+            NotificationPrivateMappingV1.self, bytes: bytes)
+        try value.validate()
+        return value
+    }
+
+    func loadControl() throws -> AppLockNotificationControlV1? {
+        try ensureRoot()
+        let before = try checkedRead.cut()
+        guard let bytes = before.leafBytes[
+            AppLockNotificationControlStoreV1.recordName] else {
+            return nil
+        }
+        try requireLeafPolicy(
+            AppLockNotificationControlStoreV1.recordName,
+            kind: .journal)
+        guard try checkedRead.cut() == before else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return try decodeCanonicalControl(bytes)
+    }
+
+    func requireSchema2ColdRevocation(
+        _ revocation: NotificationEraseRevocationV1
+    ) throws {
+        try ensureRoot()
+        try revocation.validate()
+        guard revocation.operationID == source.eraseID,
+              revocation.rootIdentity == rootIdentityValue else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try requireLeafPolicy(
+            AppLockNotificationControlStoreV1.eraseName,
+            kind: .journal)
+        let cut = try checkedRead.cut()
+        guard let bytes = cut.leafBytes[
+                AppLockNotificationControlStoreV1.eraseName],
+              try decodeCanonical(
+                NotificationEraseRevocationV1.self, bytes: bytes)
+                == revocation else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+    }
+
+    func requireNotificationEraseRevocation(
+        _ revocation: NotificationEraseRevocationV1
+    ) throws {
+        try requireSchema2ColdRevocation(revocation)
+        let cut = try checkedRead.cut()
+        let remaining: Set<String> = [
+            AppLockNotificationControlStoreV1.eraseName,
+            EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+            EraseSchema2ColdNotificationSourceV1.drainName]
+        guard Set(cut.names) == remaining,
+              cut.leafBytes[
+                EraseSchema2ColdNotificationSourceV1.drainName] != nil else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+    }
+
+    func loadSchema2ColdDrainRecord(
+        revocation: NotificationEraseRevocationV1
+    ) throws -> NotificationEraseDrainRecordV1? {
+        try requireSchema2ColdRevocation(revocation)
+        let cut = try checkedRead.cut()
+        guard let bytes = cut.leafBytes[
+            EraseSchema2ColdNotificationSourceV1.drainName] else {
+            // A first-captured marker with no surviving mapping or control
+            // has lost its owned-ID witness. Do not reinterpret that legacy
+            // cut as an empty owned set on fresh recovery.
+            if source.names.contains(
+                    AppLockNotificationControlStoreV1.eraseName),
+               !source.names.contains(
+                    AppLockNotificationControlStoreV1.mappingName),
+               !source.names.contains(
+                    AppLockNotificationControlStoreV1.recordName),
+               !source.names.contains(
+                    EraseSchema2ColdNotificationSourceV1.ownedIDsName) {
+                throw AppAccessContractFailureV1
+                    .notificationReconciliationRequired
+            }
+            return nil
+        }
+        try requireLeafPolicy(
+            EraseSchema2ColdNotificationSourceV1.drainName,
+            kind: .journal)
+        guard try checkedRead.cut() == cut else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let record = try decodeCanonical(
+            NotificationEraseDrainRecordV1.self, bytes: bytes)
+        try record.validate(revocation: revocation)
+        return record
+    }
+
+    func requireSchema2ColdDrainRecord(
+        _ record: NotificationEraseDrainRecordV1,
+        revocation: NotificationEraseRevocationV1
+    ) throws {
+        guard try loadSchema2ColdDrainRecord(
+                revocation: revocation) == record else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+    }
+
+    func retainSchema2ColdOSAbsence(
+        _ receipt: EraseSchema2ColdNotificationOSAbsenceReceiptV1
+    ) throws {
+        if let prior = osAbsence {
+            try prior.requireRetained(to: self,
+                operationID: source.eraseID)
+            guard prior.drainRecord == receipt.drainRecord else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
+        try receipt.requireBound(to: self,
+            operationID: source.eraseID, drainPublished: false)
+        osAbsence = receipt
+    }
+
+    func requireSchema2ColdOSAbsence(
+        stage: EraseSchema2ColdNotificationMutationStageV1
+    ) throws {
+        guard let osAbsence,
+              stage == .publishDrainReceipt || stage == .removeMapping
+                || stage == .removeControl else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+        // Manifest independently checks the exact stage's physical cut. A
+        // generic source re-entry here would demand pre-effect root metadata.
+        try osAbsence.requireRetained(to: self,
+            operationID: source.eraseID)
+    }
+
+    func beginNotificationErase(
+        operationID: UUID
+    ) throws -> NotificationEraseRevocationV1 {
+        guard operationID == source.eraseID else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try ensureRoot()
+        guard let reservedProvenance else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+        try requireSchema2ColdOwnedIDs(reservedProvenance)
+        let value = NotificationEraseRevocationV1(schemaVersion: 1,
+            operationID: operationID, rootIdentity: rootIdentityValue)
+        try value.validate()
+        let cut = try checkedRead.cut()
+        if let bytes = cut.leafBytes[
+            AppLockNotificationControlStoreV1.eraseName] {
+            try requireLeafPolicy(
+                AppLockNotificationControlStoreV1.eraseName,
+                kind: .journal)
+            guard try decodeCanonical(
+                    NotificationEraseRevocationV1.self, bytes: bytes)
+                    == value,
+                  try checkedRead.cut() == cut else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            return value
+        }
+        try publishCanonical(
+            try CompatibilityCanonicalV1.encode(value),
+            name: AppLockNotificationControlStoreV1.eraseName,
+            temporary: AppLockNotificationControlStoreV1.erasePendingName,
+            stage: .publishRevocation)
+        try requireSchema2ColdRevocation(value)
+        return value
+    }
+
+    func reserveSchema2ColdOwnedIDs(
+        operationID: UUID
+    ) throws -> NotificationEraseOwnedIDsProvenanceV1 {
+        guard operationID == source.eraseID else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try ensureRoot()
+        let cut = try checkedRead.cut()
+        let ownedName = EraseSchema2ColdNotificationSourceV1
+            .ownedIDsName
+        let ownedTemporary = EraseSchema2ColdNotificationSourceV1
+            .ownedIDsTemporaryName
+        let markerName = AppLockNotificationControlStoreV1.eraseName
+        let markerTemporary =
+            AppLockNotificationControlStoreV1.erasePendingName
+        let drainName = EraseSchema2ColdNotificationSourceV1.drainName
+        let drainTemporary = EraseSchema2ColdNotificationSourceV1
+            .drainTemporaryName
+        for pending in [AppLockNotificationControlStoreV1.pendingName,
+            AppLockNotificationControlStoreV1.mappingPendingName,
+            markerTemporary, ownedTemporary, drainTemporary]
+            where cut.leafBytes[pending] != nil {
+            // Only a temp in the exact next stage is data-only admissible.
+            // Its canonical prefix is checked below before any OS effect;
+            // publishCanonical later makes the checked policy request before
+            // unlink/adoption. Unknown and crossed stages still refuse.
+            if pending == ownedTemporary {
+                guard cut.leafBytes[ownedName] == nil,
+                      cut.leafBytes[markerName] == nil,
+                      cut.leafBytes[markerTemporary] == nil,
+                      cut.leafBytes[drainName] == nil,
+                      cut.leafBytes[drainTemporary] == nil else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+            } else if pending == markerTemporary {
+                guard cut.leafBytes[ownedName] != nil,
+                      cut.leafBytes[ownedTemporary] == nil,
+                      cut.leafBytes[markerName] == nil,
+                      cut.leafBytes[drainName] == nil,
+                      cut.leafBytes[drainTemporary] == nil else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+            } else if pending == drainTemporary {
+                guard cut.leafBytes[ownedName] != nil,
+                      cut.leafBytes[ownedTemporary] == nil,
+                      cut.leafBytes[markerName] != nil,
+                      cut.leafBytes[markerTemporary] == nil,
+                      cut.leafBytes[drainName] == nil else {
+                    throw AppAccessContractFailureV1
+                        .notificationReconciliationRequired
+                }
+            } else {
+                throw AppAccessContractFailureV1
+                    .notificationReconciliationRequired
+            }
+        }
+        let mappingBytes = cut.leafBytes[
+            AppLockNotificationControlStoreV1.mappingName]
+        let controlBytes = cut.leafBytes[
+            AppLockNotificationControlStoreV1.recordName]
+        if mappingBytes != nil {
+            try requireLeafPolicy(
+                AppLockNotificationControlStoreV1.mappingName,
+                kind: .journal)
+        }
+        if controlBytes != nil {
+            try requireLeafPolicy(
+                AppLockNotificationControlStoreV1.recordName,
+                kind: .journal)
+        }
+        guard try checkedRead.cut() == cut else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let mapping: NotificationPrivateMappingV1? = try mappingBytes
+            .map { try decodeCanonical(
+                NotificationPrivateMappingV1.self, bytes: $0) }
+        try mapping?.validate()
+        guard mapping?.entries.allSatisfy({ $0.admissionID == nil })
+                ?? true else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+        let control: AppLockNotificationControlV1? = try controlBytes
+            .map { try decodeCanonicalControl($0) }
+        let owned = Set((mapping?.ownedRequestIDs ?? []) +
+            (control?.journal.projections.map(\.requestID) ?? []))
+        if let bytes = cut.leafBytes[
+            EraseSchema2ColdNotificationSourceV1.ownedIDsName] {
+            guard cut.leafBytes[
+                EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName] == nil else {
+                throw AppAccessContractFailureV1
+                    .notificationReconciliationRequired
+            }
+            try requireLeafPolicy(
+                EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+                kind: .journal)
+            let current = try decodeCanonical(
+                NotificationEraseOwnedIDsProvenanceV1.self,
+                bytes: bytes)
+            try current.validate()
+            var completedDrain: NotificationEraseDrainRecordV1?
+            if let drainBytes = cut.leafBytes[
+                EraseSchema2ColdNotificationSourceV1.drainName] {
+                let revocation = NotificationEraseRevocationV1(
+                    schemaVersion: 1, operationID: operationID,
+                    rootIdentity: rootIdentityValue)
+                guard cut.leafBytes[
+                    AppLockNotificationControlStoreV1.eraseName]
+                    == (try CompatibilityCanonicalV1.encode(revocation))
+                    else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+                try requireLeafPolicy(
+                    EraseSchema2ColdNotificationSourceV1.drainName,
+                    kind: .journal)
+                let parsed = try decodeCanonical(
+                    NotificationEraseDrainRecordV1.self,
+                    bytes: drainBytes)
+                try parsed.validate(revocation: revocation)
+                completedDrain = parsed
+            }
+            let mappingSHA = try mappingBytes.map {
+                try CompatibilityCanonicalV1.sha256($0)
+            }
+            let controlSHA = try controlBytes.map {
+                try CompatibilityCanonicalV1.sha256($0)
+            }
+            guard current.operationID == operationID,
+                  current.rootIdentity == rootIdentityValue,
+                  (completedDrain != nil ||
+                    ((mappingBytes != nil)
+                        == (current.mappingSHA256 != nil)
+                     && (controlBytes != nil)
+                        == (current.controlSHA256 != nil))),
+                  (mappingBytes == nil ||
+                    current.mappingSHA256 == mappingSHA),
+                  (mappingBytes == nil || current.mappingFact ==
+                    cut.leafFacts[
+                        AppLockNotificationControlStoreV1.mappingName]
+                        .map(NotificationEraseOwnedLeafFactV1.init)),
+                  (controlBytes == nil ||
+                    current.controlSHA256 == controlSHA),
+                  (controlBytes == nil || current.controlFact ==
+                    cut.leafFacts[
+                        AppLockNotificationControlStoreV1.recordName]
+                        .map(NotificationEraseOwnedLeafFactV1.init)),
+                  (completedDrain == nil
+                    ? owned == Set(current.ownedRequestIDs)
+                    : completedDrain?.ownedRequestIDs
+                        == current.ownedRequestIDs),
+                  try checkedRead.cut() == cut else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            if let prefix = cut.leafBytes[markerTemporary] {
+                let revocation = NotificationEraseRevocationV1(
+                    schemaVersion: 1, operationID: operationID,
+                    rootIdentity: rootIdentityValue)
+                let expected = try CompatibilityCanonicalV1
+                    .encode(revocation)
+                guard prefix.count <= expected.count,
+                      expected.starts(with: prefix) else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            }
+            if let prefix = cut.leafBytes[drainTemporary] {
+                let revocation = NotificationEraseRevocationV1(
+                    schemaVersion: 1, operationID: operationID,
+                    rootIdentity: rootIdentityValue)
+                let expected = try CompatibilityCanonicalV1.encode(
+                    NotificationEraseDrainRecordV1(
+                        revocation: revocation,
+                        ownedRequestIDs: Set(current.ownedRequestIDs)))
+                guard prefix.count <= expected.count,
+                      expected.starts(with: prefix) else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+            }
+            guard try checkedRead.cut() == cut else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            reservedProvenance = current
+            return current
+        }
+        // A first-captured marker without durable ID provenance may be an
+        // older partial cleanup. One surviving predecessor proves only a
+        // subset of the IDs that could have been removed with the other.
+        guard !(source.names.contains(
+                AppLockNotificationControlStoreV1.eraseName)
+            && (mappingBytes == nil || controlBytes == nil)) else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+        let provenance = try NotificationEraseOwnedIDsProvenanceV1(
+            operationID: operationID,
+            rootIdentity: rootIdentityValue,
+            mappingBytes: mappingBytes,
+            mappingFact: cut.leafFacts[
+                AppLockNotificationControlStoreV1.mappingName],
+            controlBytes: controlBytes,
+            controlFact: cut.leafFacts[
+                AppLockNotificationControlStoreV1.recordName],
+            ownedRequestIDs: owned)
+        try publishCanonical(
+            try CompatibilityCanonicalV1.encode(provenance),
+            name: EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+            temporary:
+                EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName,
+            stage: .publishOwnedIDs)
+        try requireSchema2ColdOwnedIDs(provenance)
+        reservedProvenance = provenance
+        return provenance
+    }
+
+    func requireSchema2ColdOwnedIDs(
+        _ provenance: NotificationEraseOwnedIDsProvenanceV1
+    ) throws {
+        try provenance.validate()
+        try ensureRoot()
+        try requireLeafPolicy(
+            EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+            kind: .journal)
+        let cut = try checkedRead.cut()
+        guard provenance.operationID == source.eraseID,
+              provenance.rootIdentity == rootIdentityValue,
+              cut.leafBytes[
+                EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName] == nil,
+              cut.leafBytes[
+                EraseSchema2ColdNotificationSourceV1.ownedIDsName]
+                == (try CompatibilityCanonicalV1.encode(provenance)) else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        if cut.leafBytes[
+                EraseSchema2ColdNotificationSourceV1.drainName]
+                == nil {
+            guard (cut.leafBytes[
+                    AppLockNotificationControlStoreV1.mappingName] != nil)
+                    == (provenance.mappingFact != nil),
+                  (cut.leafBytes[
+                    AppLockNotificationControlStoreV1.recordName] != nil)
+                    == (provenance.controlFact != nil) else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        } else {
+            let revocation = NotificationEraseRevocationV1(
+                schemaVersion: 1, operationID: source.eraseID,
+                rootIdentity: rootIdentityValue)
+            guard try loadSchema2ColdDrainRecord(
+                    revocation: revocation)?.ownedRequestIDs
+                    == provenance.ownedRequestIDs else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
+        if let mappingBytes = cut.leafBytes[
+            AppLockNotificationControlStoreV1.mappingName] {
+            guard provenance.mappingSHA256 ==
+                    (try CompatibilityCanonicalV1.sha256(mappingBytes)),
+                  provenance.mappingFact == cut.leafFacts[
+                    AppLockNotificationControlStoreV1.mappingName]
+                    .map(NotificationEraseOwnedLeafFactV1.init)
+                else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
+        if let controlBytes = cut.leafBytes[
+            AppLockNotificationControlStoreV1.recordName] {
+            guard provenance.controlSHA256 ==
+                    (try CompatibilityCanonicalV1.sha256(controlBytes)),
+                  provenance.controlFact == cut.leafFacts[
+                    AppLockNotificationControlStoreV1.recordName]
+                    .map(NotificationEraseOwnedLeafFactV1.init)
+                else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
+    }
+
+    func publishSchema2ColdDrainRecord(
+        _ record: NotificationEraseDrainRecordV1,
+        revocation: NotificationEraseRevocationV1
+    ) throws {
+        try record.validate(revocation: revocation)
+        try requireSchema2ColdRevocation(revocation)
+        try requireSchema2ColdOSAbsence(
+            stage: .publishDrainReceipt)
+        if let existing = try loadSchema2ColdDrainRecord(
+            revocation: revocation) {
+            guard existing == record else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            return
+        }
+        try publishCanonical(
+            try CompatibilityCanonicalV1.encode(record),
+            name: EraseSchema2ColdNotificationSourceV1.drainName,
+            temporary:
+                EraseSchema2ColdNotificationSourceV1.drainTemporaryName,
+            stage: .publishDrainReceipt)
+        try requireSchema2ColdDrainRecord(
+            record, revocation: revocation)
+    }
+
+    /// Only an exact reserved temporary can be adopted. Unknown bytes,
+    /// prefixes, type, link or policy remain retained and refuse this cut.
+    private func publishCanonical(
+        _ canonical: Data, name: String, temporary: String,
+        stage: EraseSchema2ColdNotificationMutationStageV1
+    ) throws {
+        try ensureRoot()
+        guard !canonical.isEmpty,
+              canonical.count <= AppLockNotificationControlStoreV1
+                .maximumRecordBytes else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let token = try source.beginMutation(stage: stage)
+        let receipt = try source.withHeldRootForMutation(
+            token: token) { rootFD, rootURL in
+            let before = try checkedRead.cutBorrowed(
+                rootFD: rootFD, rootURL: rootURL)
+            var settledCapturedTemporaryFact:
+                EraseColdControlLeafFactV1?
+            guard before.leafBytes[name] == nil,
+                  before.leafBytes[temporary].map({
+                    $0.count <= canonical.count &&
+                        canonical.starts(with: $0)
+                  })
+                    ?? true else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            if let prefix = before.leafBytes[temporary],
+               prefix != canonical {
+                guard let firstFact = before.leafFacts[temporary],
+                      prefix.count < canonical.count else {
+                    throw AppAccessContractFailureV1.effectMismatch
+                }
+                let policyCut = try requestCheckedTemporaryPolicy(
+                    temporary, rootFD: rootFD, rootURL: rootURL,
+                    before: before)
+                var linked = stat()
+                guard Darwin.fstatat(rootFD, temporary,
+                        &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                      EraseColdControlLeafFactV1(linked)
+                        == policyCut.leafFacts[temporary],
+                      try checkedRead.cutBorrowed(
+                        rootFD: rootFD, rootURL: rootURL) == policyCut,
+                      Darwin.unlinkat(rootFD, temporary, 0) == 0,
+                      Darwin.fsync(rootFD) == 0 else {
+                    throw AppAccessContractFailureV1
+                        .configurationUnknown
+                }
+                let removed = try checkedRead.cutBorrowed(
+                    rootFD: rootFD, rootURL: rootURL)
+                guard removed.leafBytes[temporary] == nil,
+                      sameRootIdentity(before, removed),
+                      unchangedLeaves(before, removed,
+                        changing: [temporary]),
+                      Set(removed.names) == Set(before.names)
+                        .subtracting([temporary]) else {
+                    throw AppAccessContractFailureV1
+                        .configurationUnknown
+                }
+                settledCapturedTemporaryFact = firstFact
+            }
+            if before.leafBytes[temporary] == nil ||
+                before.leafBytes[temporary] != canonical {
+                try mutationIO.withOpen(parent: rootFD,
+                    name: temporary,
+                    flags: O_WRONLY | O_CREAT | O_EXCL,
+                    mode: 0o600) { fd in
+                    var offset = 0
+                    #if DEBUG
+                    if let temporaryFaultForTesting {
+                        // The fault observes an actual durable O_EXCL cut.
+                        // The operation retains the stage and every checked
+                        // descriptor when the callback throws.
+                        guard Darwin.fsync(rootFD) == 0 else {
+                            throw AppAccessContractFailureV1
+                                .configurationUnknown
+                        }
+                        try temporaryFaultForTesting(stage,
+                            .afterCreateBeforePolicy)
+                        if canonical.count > 1 {
+                            while true {
+                                let count = canonical.withUnsafeBytes {
+                                    raw -> Int in
+                                    guard let base = raw.baseAddress else {
+                                        return 0
+                                    }
+                                    return Darwin.write(fd, base, 1)
+                                }
+                                if count < 0 && errno == EINTR { continue }
+                                guard count == 1 else {
+                                    throw AppAccessContractFailureV1
+                                        .configurationUnknown
+                                }
+                                break
+                            }
+                            offset = 1
+                            guard Darwin.fsync(fd) == 0,
+                                  Darwin.fsync(rootFD) == 0 else {
+                                throw AppAccessContractFailureV1
+                                    .configurationUnknown
+                            }
+                            try temporaryFaultForTesting(stage,
+                                .afterStrictPrefixBeforePolicy)
+                        }
+                    }
+                    #endif
+                    while offset < canonical.count {
+                        let count = canonical.withUnsafeBytes {
+                            raw -> Int in
+                            guard let base = raw.baseAddress else {
+                                return 0
+                            }
+                            return Darwin.write(fd,
+                                base.advanced(by: offset),
+                                raw.count - offset)
+                        }
+                        if count < 0 && errno == EINTR { continue }
+                        guard count > 0 else {
+                            throw AppAccessContractFailureV1
+                                .configurationUnknown
+                        }
+                        offset += count
+                    }
+                    guard Darwin.fsync(fd) == 0 else {
+                        throw AppAccessContractFailureV1
+                            .configurationUnknown
+                    }
+                }
+            }
+            let written = try checkedRead.cutBorrowed(
+                rootFD: rootFD, rootURL: rootURL)
+            guard written.leafBytes[temporary] == canonical,
+                  written.leafBytes[name] == nil,
+                  unchangedLeaves(before, written,
+                    changing: [temporary]),
+                  sameRootIdentity(before, written),
+                  written.leafFacts[temporary] != nil else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let policyWritten = try requestCheckedTemporaryPolicy(
+                temporary, rootFD: rootFD, rootURL: rootURL,
+                before: written)
+            guard let protectedTemporaryFact =
+                policyWritten.leafFacts[temporary] else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            try mutationIO.withOpen(parent: rootFD,
+                name: temporary, flags: O_RDWR) { fd in
+                var held = stat(), named = stat()
+                guard Darwin.fstat(fd, &held) == 0,
+                      Darwin.fstatat(rootFD, temporary,
+                        &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      EraseColdControlLeafFactV1(held)
+                        == protectedTemporaryFact,
+                      EraseColdControlLeafFactV1(named)
+                        == protectedTemporaryFact,
+                      Darwin.fsync(fd) == 0 else {
+                    throw AppAccessContractFailureV1
+                        .configurationUnknown
+                }
+            }
+            guard Darwin.fsync(rootFD) == 0,
+                  try checkedRead.cutBorrowed(
+                    rootFD: rootFD, rootURL: rootURL) == policyWritten,
+                  Darwin.renameatx_np(rootFD, temporary,
+                    rootFD, name, UInt32(RENAME_EXCL)) == 0,
+                  Darwin.fsync(rootFD) == 0 else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let after = try checkedRead.cutBorrowed(
+                rootFD: rootFD, rootURL: rootURL)
+            guard after.leafBytes[name] == canonical,
+                  after.leafBytes[temporary] == nil,
+                  sameRootIdentity(before, after),
+                  unchangedLeaves(before, after,
+                    changing: [name, temporary]) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let publishedURL = rootURL.appendingPathComponent(name)
+            let disposition = try ProtectedFilePolicyV1
+                .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                    .journal, at: publishedURL,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainPolicyDescriptors.append(value)
+                    }, unchangedWitness: {
+                        let current = try self.checkedRead.cutBorrowed(
+                            rootFD: rootFD, rootURL: rootURL)
+                        guard current == after else {
+                            throw AppAccessContractFailureV1
+                                .configurationUnknown
+                        }
+                        return current.leafFacts[name]
+                    })
+            guard try checkedRead.cutBorrowed(
+                    rootFD: rootFD, rootURL: rootURL) == after else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            try requireCheckedSettled()
+            return EraseSchema2ColdNotificationMutationReceiptV1(
+                token: token, before: before, after: after,
+                temporaryFact: protectedTemporaryFact,
+                settledCapturedTemporaryFact:
+                    settledCapturedTemporaryFact,
+                policyDisposition: disposition)
+        }
+        try source.finishMutation(token: token, receipt: receipt)
+        try requireCheckedSettled()
+    }
+
+    private func sameRootIdentity(
+        _ before: EraseSchema2ColdNotificationCheckedCutV1,
+        _ after: EraseSchema2ColdNotificationCheckedCutV1
+    ) -> Bool {
+        guard let lhs = before.rootFact,
+              let rhs = after.rootFact else { return false }
+        guard lhs.device == rhs.device, lhs.inode == rhs.inode,
+              lhs.mode == rhs.mode,
+              Set(before.names).count == before.names.count,
+              Set(after.names).count == after.names.count else {
+            return false
+        }
+        // The closed child vocabulary contains regular files only. Some
+        // filesystems keep a directory at two links for file entry changes;
+        // APFS can count each entry. Bind both cuts to the same one of those
+        // laws and the exact observed name-count transition. No observed
+        // link count is adopted as a fresh baseline.
+        let stableDirectoryLinks = lhs.links == 2 && rhs.links == 2
+        guard before.names.count <= Int.max - 2,
+              after.names.count <= Int.max - 2 else { return false }
+        let entryCountedLinks =
+            UInt64(lhs.links) == UInt64(2 + before.names.count)
+            && UInt64(rhs.links) == UInt64(2 + after.names.count)
+        return stableDirectoryLinks || entryCountedLinks
+    }
+
+    /// A reserved temp may be captured after its O_EXCL create or prefix
+    /// write but before the writer's policy request. That first observation
+    /// is opaque data. Only this retained mutation may complete its policy,
+    /// and the request may project the temp's ctime without replacing its
+    /// inode, bytes, name, or any sibling fact.
+    private func requestCheckedTemporaryPolicy(
+        _ temporary: String, rootFD: Int32, rootURL: URL,
+        before: EraseSchema2ColdNotificationCheckedCutV1
+    ) throws -> EraseSchema2ColdNotificationCheckedCutV1 {
+        guard let firstFact = before.leafFacts[temporary],
+              let firstBytes = before.leafBytes[temporary],
+              [AppLockNotificationControlStoreV1.pendingName,
+               AppLockNotificationControlStoreV1.mappingPendingName,
+               AppLockNotificationControlStoreV1.erasePendingName,
+               EraseSchema2ColdNotificationSourceV1
+                .ownedIDsTemporaryName,
+               EraseSchema2ColdNotificationSourceV1
+                .drainTemporaryName].contains(temporary) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        let url = rootURL.appendingPathComponent(temporary)
+        let initialPolicy: TemporalPolicyObservationV1?
+        do {
+            initialPolicy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .journalTemporary, at: url,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainPolicyDescriptors.append(value)
+                    })
+        } catch ProtectedFilePolicyError.resourceValueMismatch {
+            initialPolicy = nil
+        }
+        guard try checkedRead.cutBorrowed(rootFD: rootFD,
+            rootURL: rootURL) == before else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        if initialPolicy == nil {
+            var firstEffectStarted = false
+            _ = try ProtectedFilePolicyV1
+                .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                    .journalTemporary, at: url,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainPolicyDescriptors.append(value)
+                    }, authorityCheck: {
+                        guard try self.source.requireCurrentRootIdentity()
+                            == self.rootIdentityValue else {
+                            throw AppAccessContractFailureV1
+                                .configurationUnknown
+                        }
+                        let current = try self.checkedRead.cutBorrowed(
+                            rootFD: rootFD, rootURL: rootURL)
+                        guard current.rootFact == before.rootFact,
+                              current.names == before.names,
+                              self.unchangedLeaves(before, current,
+                                changing: [temporary]),
+                              current.leafBytes[temporary] == firstBytes,
+                              let fact = current.leafFacts[temporary],
+                              self.sameLeafExceptChangedTime(firstFact,
+                                fact),
+                              firstEffectStarted || current == before else {
+                            throw AppAccessContractFailureV1
+                                .configurationUnknown
+                        }
+                    }, beforeFirstEffect: {
+                        guard try self.source.requireCurrentRootIdentity()
+                            == self.rootIdentityValue,
+                              try self.checkedRead.cutBorrowed(
+                            rootFD: rootFD, rootURL: rootURL) == before else {
+                            throw AppAccessContractFailureV1
+                                .configurationUnknown
+                        }
+                        firstEffectStarted = true
+                    })
+        } else {
+            _ = try ProtectedFilePolicyV1
+                .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                    .journalTemporary, at: url,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainPolicyDescriptors.append(value)
+                    }, unchangedWitness: {
+                        let current = try self.checkedRead.cutBorrowed(
+                            rootFD: rootFD, rootURL: rootURL)
+                        guard current == before else {
+                            throw AppAccessContractFailureV1
+                                .configurationUnknown
+                        }
+                        return current.leafFacts[temporary]
+                    })
+        }
+        let after = try checkedRead.cutBorrowed(rootFD: rootFD,
+            rootURL: rootURL)
+        guard after.rootFact == before.rootFact,
+              after.names == before.names,
+              unchangedLeaves(before, after, changing: [temporary]),
+              after.leafBytes[temporary] == firstBytes,
+              let afterFact = after.leafFacts[temporary],
+              sameLeafExceptChangedTime(firstFact, afterFact) else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        return after
+    }
+
+    private func sameLeafExceptChangedTime(
+        _ first: EraseColdControlLeafFactV1,
+        _ next: EraseColdControlLeafFactV1
+    ) -> Bool {
+        first.device == next.device && first.inode == next.inode
+            && first.mode == next.mode && first.links == next.links
+            && first.size == next.size
+            && first.modifiedSeconds == next.modifiedSeconds
+            && first.modifiedNanoseconds == next.modifiedNanoseconds
+    }
+
+    private func unchangedLeaves(
+        _ before: EraseSchema2ColdNotificationCheckedCutV1,
+        _ after: EraseSchema2ColdNotificationCheckedCutV1,
+        changing: Set<String>
+    ) -> Bool {
+        for name in Set(before.names).union(after.names)
+            where !changing.contains(name) {
+            guard before.leafBytes[name] == after.leafBytes[name],
+                  before.leafFacts[name] == after.leafFacts[name] else {
+                return false
+            }
+        }
+        return true
+    }
+
+    func removeNotificationRecordsAfterErase(
+        _ revocation: NotificationEraseRevocationV1
+    ) throws {
+        try requireSchema2ColdRevocation(revocation)
+        guard let record = try loadSchema2ColdDrainRecord(
+                revocation: revocation),
+              let osAbsence else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+        try osAbsence.requireBound(to: self,
+            operationID: source.eraseID, drainPublished: true)
+        try record.validate(revocation: revocation)
+        let first = try checkedRead.cut()
+        for pending in [AppLockNotificationControlStoreV1.pendingName,
+            AppLockNotificationControlStoreV1.mappingPendingName,
+            AppLockNotificationControlStoreV1.erasePendingName,
+            EraseSchema2ColdNotificationSourceV1
+                .ownedIDsTemporaryName,
+            EraseSchema2ColdNotificationSourceV1.drainTemporaryName] {
+            guard first.leafBytes[pending] == nil else {
+                throw AppAccessContractFailureV1
+                    .notificationReconciliationRequired
+            }
+        }
+        if first.leafBytes[
+            AppLockNotificationControlStoreV1.mappingName] != nil {
+            try removeCanonical(
+                AppLockNotificationControlStoreV1.mappingName,
+                stage: .removeMapping)
+        }
+        if (try checkedRead.cut()).leafBytes[
+            AppLockNotificationControlStoreV1.recordName] != nil {
+            try removeCanonical(
+                AppLockNotificationControlStoreV1.recordName,
+                stage: .removeControl)
+        }
+        try requireNotificationEraseRevocation(revocation)
+    }
+
+    private func removeCanonical(
+        _ name: String,
+        stage: EraseSchema2ColdNotificationMutationStageV1
+    ) throws {
+        try ensureRoot()
+        try requireSchema2ColdOSAbsence(stage: stage)
+        let token = try source.beginMutation(stage: stage)
+        let receipt = try source.withHeldRootForMutation(
+            token: token) { rootFD, rootURL in
+            let before = try checkedRead.cutBorrowed(
+                rootFD: rootFD, rootURL: rootURL)
+            guard let expected = before.leafFacts[name],
+                  before.leafBytes[name] != nil else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+            var linked = stat()
+            guard Darwin.fstatat(rootFD, name,
+                    &linked, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseColdControlLeafFactV1(linked) == expected,
+                  try checkedRead.cutBorrowed(
+                    rootFD: rootFD, rootURL: rootURL) == before,
+                  Darwin.unlinkat(rootFD, name, 0) == 0,
+                  Darwin.fsync(rootFD) == 0 else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            let after = try checkedRead.cutBorrowed(
+                rootFD: rootFD, rootURL: rootURL)
+            guard after.leafBytes[name] == nil,
+                  sameRootIdentity(before, after),
+                  unchangedLeaves(before, after,
+                    changing: [name]),
+                  Set(after.names) == Set(before.names)
+                    .subtracting([name]) else {
+                throw AppAccessContractFailureV1.configurationUnknown
+            }
+            try requireCheckedSettled()
+            return EraseSchema2ColdNotificationMutationReceiptV1(
+                token: token, before: before, after: after,
+                temporaryFact: nil, policyDisposition: nil)
+        }
+        try source.finishMutation(token: token, receipt: receipt)
+        try requireCheckedSettled()
+    }
 }

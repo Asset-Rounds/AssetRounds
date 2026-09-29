@@ -1,4 +1,3 @@
-#if DEBUG
 import CryptoKit
 import Darwin
 import Foundation
@@ -297,4 +296,3 @@ struct CompletedAbortSQLitePhysicalImageV1: Equatable {
         return Data(bytes.prefix(readCount))
     }
 }
-#endif

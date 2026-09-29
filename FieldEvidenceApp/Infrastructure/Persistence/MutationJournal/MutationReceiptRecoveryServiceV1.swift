@@ -16,16 +16,39 @@ final class MutationReceiptRecoveryServiceV1 {
             throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
         }
         try store.withAuthorizedRecovery {
-            try store.validateAll()
-            try validateFastSurveyInboxRecoveryParity()
-            try validateReinspectionExceptionRecoveryParity()
-            try validateEntityIdentityResolutionRecoveryParity()
-            try validateWorkspaceExperienceRecoveryParity()
-            try validateLightingDayInventoryRecoveryParity()
-            try validateLightingNightWorkflowRecoveryParity()
-            try validatePartyContactSiteRoleImportRecoveryParity()
-            try store.restageValidatedLegacyCheckpointIfNeeded()
+            try recoverCanonicalJournal()
         }
+    }
+
+    /// Original Erase carries one retained EX through target activation. The
+    /// store and fence keep every recovery read/save inside its checked G
+    /// interval instead of trying to acquire a second SH activity.
+    func recoverBeforeOriginalEraseTargetWriterActivation(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        targetHandle: GenerationLeaseHandleV1
+    ) throws -> OriginalEraseRetainedWriterRecoveryReceiptV1 {
+        guard C50IncumbentFileExchangeRecoveryBoundaryV1.validate() else {
+            throw WorkspaceMutationFailureV1.receiptHistoryCorrupt
+        }
+        return try store.withAuthorizedOriginalEraseWriterRecovery(
+            activity: activity, operation: operation,
+            targetAllocation: targetAllocation, targetHandle: targetHandle) {
+            try recoverCanonicalJournal()
+        }
+    }
+
+    private func recoverCanonicalJournal() throws {
+        try store.validateAll()
+        try validateFastSurveyInboxRecoveryParity()
+        try validateReinspectionExceptionRecoveryParity()
+        try validateEntityIdentityResolutionRecoveryParity()
+        try validateWorkspaceExperienceRecoveryParity()
+        try validateLightingDayInventoryRecoveryParity()
+        try validateLightingNightWorkflowRecoveryParity()
+        try validatePartyContactSiteRoleImportRecoveryParity()
+        try store.restageValidatedLegacyCheckpointIfNeeded()
     }
 
     /// Field-draft saga recovery shares the canonical journal repair boundary;

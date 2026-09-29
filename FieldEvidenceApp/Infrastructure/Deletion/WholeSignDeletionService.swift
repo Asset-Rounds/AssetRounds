@@ -4310,6 +4310,14 @@ private struct SiteSearchPurgeMarkerV1: Codable, Equatable {
     }
 }
 
+enum EraseSchema2ColdDeletionCodecV1 {
+    static func decode(name: String, bytes: Data)
+        throws -> (generationID: UUID, recordID: UUID) {
+        try DeletionJournalStore.decodeSchema2ColdRecord(
+            name: name, bytes: bytes)
+    }
+}
+
 private final class DeletionJournalStore {
     private static let maximumJournalEntryCount = 1_024
     private static let maximumJournalFileByteCount = 64 * 1_024 * 1_024
@@ -5591,6 +5599,31 @@ private final class DeletionJournalStore {
         } catch {
             throw Self.journalInvalidFailure()
         }
+    }
+
+    /// Pure cold classification of a surviving legacy deletion leaf. No
+    /// DeletionJournalStore constructor or reconcile/remove method is used.
+    static func decodeSchema2ColdRecord(name: String, bytes: Data)
+        throws -> (generationID: UUID, recordID: UUID) {
+        guard bytes.count <= maximumJournalFileByteCount else {
+            throw journalInvalidFailure()
+        }
+        if let identifier = journalIdentifier(name) {
+            let intent = try decode(bytes)
+            guard intent.deletionID == identifier else {
+                throw journalInvalidFailure()
+            }
+            return (intent.generationID, identifier)
+        }
+        if let identifier = siteMarkerIdentifier(name) {
+            let marker = try decodeSiteMarker(bytes)
+            guard marker.deletionID == identifier else {
+                throw journalInvalidFailure()
+            }
+            return (marker.generationID, identifier)
+        }
+        // A pending/temp leaf is never a completed historical subset.
+        throw journalInvalidFailure()
     }
 
     private struct Identity: Equatable {

@@ -1863,6 +1863,7 @@ extension ProtectedFilePolicyV1 {
         _ kind: OwnedFileKindV1,
         at url: URL,
         retainUncertainDescriptor: (Int32) -> Void,
+        willRequestCompleteProtection: (() throws -> Void)? = nil,
         unchangedWitness: () throws -> Witness
     ) throws -> ProtectedFileVerificationDispositionV1 {
         var diagnosticStage = "initial-witness"
@@ -1900,6 +1901,16 @@ extension ProtectedFilePolicyV1 {
               beforeReadback.volumeSupportsProtection == false else {
             throw ProtectedFilePolicyError.resourceValueMismatch
         }
+        diagnosticStage = "pre-request-witness-reproof"
+        guard try unchangedWitness() == original else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        // The optional caller boundary is reached only for an actual pending
+        // request. It can require the exact last preimage before allowing its
+        // witness to account for this setter's own metadata transition.
+        // It grants no success: the checked request/readback below must finish.
+        diagnosticStage = "complete-request-boundary"
+        try willRequestCompleteProtection?()
         diagnosticStage = "complete-request"
         do {
             try (url as NSURL).setResourceValue(

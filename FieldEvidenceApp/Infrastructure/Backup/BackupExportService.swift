@@ -49,41 +49,75 @@ enum BackupExportServiceError: Error, Equatable {
 /// Read-only authority for the immediate source of a persisted schema-2 Erase.
 /// It never owns a context or container, so validation cannot prevent old-session drain.
 @MainActor
-final class EraseRetainedSourceValidationV1 {
+protocol EraseRetainedSourceValidationAuthorityV1: AnyObject {
+    var generationRootURL: URL { get }
+    var workspaceIdentity: WorkspaceReplicaIdentityV1 { get }
+    func revalidate(modelContext: ModelContext) throws
+}
+
+@MainActor
+final class EraseRetainedSourceValidationV1: EraseRetainedSourceValidationAuthorityV1 {
+    let generationID: UUID
     let generationRootURL: URL
     let workspaceIdentity: WorkspaceReplicaIdentityV1
 
     private let intent: EraseIntentV1
     private let generationFactory: StoreGenerationFactory
-    private let authority: StoreRestoreGenerationAuthority
-    private let intentStore: EraseIntentStore
-    private let manifestStore: StoreMigrationJournalStoreV1
+    private enum Controls {
+        case ordinary(authority: StoreRestoreGenerationAuthority,
+            intentStore: EraseIntentStore,
+            manifestStore: StoreMigrationJournalStoreV1,
+            rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+            targetRootIdentity: ReportPDFAnchoredFile.RootIdentity)
+        case cold(operation: EraseColdPreparationOperationV1,
+            intentStore: EraseIntentStore,
+            source: EraseSchema2ColdRetainedSourceV1,
+            attempt: EraseSchema2ColdPrivateSourceAttemptV1,
+            preparation: ErasePreparationV2,
+            rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+            targetRootIdentity: ReportPDFAnchoredFile.RootIdentity,
+            targetPointer: CurrentGenerationPointerV3)
+        case coldRetired(operation: EraseColdPreparationOperationV1,
+            intentStore: EraseIntentStore,
+            source: EraseSchema2ColdRetiredSourceV1,
+            attempt: EraseSchema2ColdPrivateSourceAttemptV1,
+            preparation: ErasePreparationV2,
+            rootIdentity: ReportPDFAnchoredFile.RootIdentity,
+            targetRootIdentity: ReportPDFAnchoredFile.RootIdentity,
+            targetPointer: CurrentGenerationPointerV3)
+    }
+    private let controls: Controls
     private let manifest: StoreGenerationManifestV1
-    private let rootIdentity: ReportPDFAnchoredFile.RootIdentity
-    private let targetRootIdentity: ReportPDFAnchoredFile.RootIdentity
+    private let retiredLedger: DeletionLedgerProofV2?
+    private let retiredHistory: MutationHistorySnapshotV1?
+    private let retiredRevision: Int64?
+    private let retiredSequence: Int64?
+    private let retiredSemanticSHA256: String?
 
     private init(
         intent: EraseIntentV1,
         generationFactory: StoreGenerationFactory,
-        authority: StoreRestoreGenerationAuthority,
-        intentStore: EraseIntentStore,
-        manifestStore: StoreMigrationJournalStoreV1,
+        controls: Controls,
         manifest: StoreGenerationManifestV1,
         workspaceIdentity: WorkspaceReplicaIdentityV1,
-        rootIdentity: ReportPDFAnchoredFile.RootIdentity,
-        targetRootIdentity: ReportPDFAnchoredFile.RootIdentity
+        generationID: UUID,
+        retiredLedger: DeletionLedgerProofV2? = nil,
+        retiredHistory: MutationHistorySnapshotV1? = nil,
+        retiredState: WorkspaceMutationStateRow? = nil
     ) {
         self.intent = intent
         self.generationFactory = generationFactory
-        self.authority = authority
-        self.intentStore = intentStore
-        self.manifestStore = manifestStore
+        self.controls = controls
         self.manifest = manifest
         self.workspaceIdentity = workspaceIdentity
-        self.rootIdentity = rootIdentity
-        self.targetRootIdentity = targetRootIdentity
+        self.generationID = generationID
+        self.retiredLedger = retiredLedger
+        self.retiredHistory = retiredHistory
+        self.retiredRevision = retiredState?.workspaceRevision
+        self.retiredSequence = retiredState?.lastLocalSequence
+        self.retiredSemanticSHA256 = retiredState?.mutableSemanticSHA256
         generationRootURL = generationFactory.installedGenerationURL(
-            id: intent.oldGenerationID
+            id: generationID
         )
     }
 
@@ -127,35 +161,284 @@ final class EraseRetainedSourceValidationV1 {
             throw BackupExportServiceError.invalidGeneration
         }
         let validation = EraseRetainedSourceValidationV1(
-            intent: intent, generationFactory: generationFactory, authority: authority,
-            intentStore: intentStore, manifestStore: manifestStore, manifest: manifest,
+            intent: intent, generationFactory: generationFactory,
+            controls: .ordinary(authority: authority, intentStore: intentStore,
+                manifestStore: manifestStore, rootIdentity: rootIdentity,
+                targetRootIdentity: targetRootIdentity), manifest: manifest,
             workspaceIdentity: try WorkspaceReplicaIdentityV1(
                 workspaceID: WorkspaceID(rawValue: oldPointer.workspaceID),
                 replicaID: ReplicaID(rawValue: oldPointer.replicaID)
             ),
-            rootIdentity: rootIdentity, targetRootIdentity: targetRootIdentity
+            generationID: intent.oldGenerationID
         )
         try validation.revalidateControls()
         return validation
     }
 
+    /// The original SQLite file is never opened as a SwiftData store on this
+    /// cold route. Only the exact operation-retained private copy may supply
+    /// a ModelContext; the held no-repair controls still bind the original
+    /// root, manifest, pointer, intent and target on every revalidation.
+    static func acquireCold(
+        intent: EraseIntentV1,
+        generationFactory: StoreGenerationFactory,
+        intentStore: EraseIntentStore,
+        source: EraseSchema2ColdRetainedSourceV1,
+        attempt: EraseSchema2ColdPrivateSourceAttemptV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseRetainedSourceValidationV1 {
+        guard intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared
+                || intent.phase == .pointerSwitched
+                || intent.phase == .sessionActivated,
+              EraseIntentCodecV1.valid(intent),
+              let oldPointer = intent.oldPointer,
+              oldPointer.generationID == intent.oldGenerationID,
+              oldPointer.generationManifestSHA256
+                == source.manifestDigest,
+              source.generationID == intent.oldGenerationID,
+              source.generationRootURL.standardizedFileURL
+                == generationFactory.installedGenerationURL(
+                    id: intent.oldGenerationID).standardizedFileURL,
+              source.manifest.generationID == intent.oldGenerationID,
+              source.manifest.storeSchemaRelease
+                == PersistentSchemaReleaseRegistryV1.activeRelease,
+              source.intent == intent else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        try operation.requireSchema2ColdRetainedSource(source)
+        try operation.requireSchema2ColdPrivateSourceAttempt(attempt)
+        try operation.requireSchema2ColdIntentStore(intentStore)
+        try attempt.requireSource()
+        guard let preparation = try intentStore.loadPreparation(),
+              try intentStore.load() == intent,
+              preparation.matches(intent),
+              source.preparation == preparation else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let rootIdentity = try attempt.checkedOriginalRootIdentity()
+        try source.requireOriginalUnchanged()
+        let targetRootIdentity = try source.requireTargetRootIdentity(
+            targetID: intent.newGenerationID)
+        let targetPointer = try source.requireCurrentTargetPointer(intent: intent)
+        let validation = EraseRetainedSourceValidationV1(
+            intent: intent, generationFactory: generationFactory,
+            controls: .cold(operation: operation, intentStore: intentStore,
+                source: source, attempt: attempt,
+                preparation: preparation, rootIdentity: rootIdentity,
+                targetRootIdentity: targetRootIdentity,
+                targetPointer: targetPointer),
+            manifest: source.manifest, workspaceIdentity: source.workspaceIdentity,
+            generationID: intent.oldGenerationID)
+        try validation.revalidateControls()
+        return validation
+    }
+
+    /// Another present retired generation has no `intent.sourceLedger`:
+    /// that ledger belongs to the former current source. Seal its complete
+    /// V53 state, journal history and deletion ledger from the one checked
+    /// private read, then reprove those exact values throughout export.
+    static func acquireColdRetired(
+        intent: EraseIntentV1,
+        generationFactory: StoreGenerationFactory,
+        intentStore: EraseIntentStore,
+        source: EraseSchema2ColdRetiredSourceV1,
+        attempt: EraseSchema2ColdPrivateSourceAttemptV1,
+        operation: EraseColdPreparationOperationV1,
+        modelContext: ModelContext
+    ) throws -> EraseRetainedSourceValidationV1 {
+        guard intent.schemaVersion == 2,
+              intent.phase == .pointerSwitched ||
+                intent.phase == .sessionActivated,
+              EraseIntentCodecV1.valid(intent),
+              source.intent == intent,
+              source.generationID != intent.oldGenerationID,
+              source.generationID != intent.newGenerationID,
+              intent.generationIDsToDelete.contains(source.generationID),
+              source.manifest.generationID == source.generationID,
+              source.manifest.storeSchemaRelease == .v53,
+              source.generationRootURL.standardizedFileURL
+                == generationFactory.installedGenerationURL(
+                    id: source.generationID).standardizedFileURL,
+              !modelContext.hasChanges else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        try operation.requireSchema2ColdRetiredPrivateAttempt(
+            attempt, source: source)
+        try operation.requireSchema2ColdIntentStore(intentStore)
+        try attempt.requireSource()
+        guard let preparation = try intentStore.loadPreparation(),
+              try intentStore.load() == intent,
+              preparation.matches(intent),
+              source.preparation == preparation else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let identity = try generationFactory
+            .acceptedSchema2ColdRetiredSemanticIdentity(
+                in: modelContext, source: source, operation: operation)
+        let states = try modelContext.fetch(
+            FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first,
+              state.generationID == source.generationID else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let journal = try MutationJournalStoreV1(modelContext: modelContext,
+            identity: identity, generationID: source.generationID,
+            allowStateBootstrap: false)
+        let history = try journal.exportSnapshot()
+        let ledger = try DeletionLedgerStore(context: modelContext).snapshot()
+        let ledgerProof = try DeletionLedgerProofV2(
+            entryCount: ledger.entries.count,
+            canonicalSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                try ledger.canonicalData()))
+        let rootIdentity = try attempt.checkedOriginalRootIdentity()
+        let targetRootIdentity = try source.requireTargetRootIdentity(
+            targetID: intent.newGenerationID)
+        let targetPointer = try source.requireCurrentTargetPointer(
+            intent: intent)
+        let validation = EraseRetainedSourceValidationV1(
+            intent: intent, generationFactory: generationFactory,
+            controls: .coldRetired(operation: operation,
+                intentStore: intentStore, source: source, attempt: attempt,
+                preparation: preparation, rootIdentity: rootIdentity,
+                targetRootIdentity: targetRootIdentity,
+                targetPointer: targetPointer),
+            manifest: source.manifest, workspaceIdentity: identity,
+            generationID: source.generationID,
+            retiredLedger: ledgerProof, retiredHistory: history,
+            retiredState: state)
+        try validation.revalidate(modelContext: modelContext)
+        return validation
+    }
+
+    func checkedColdRootIdentity() throws
+        -> ReportPDFAnchoredFile.RootIdentity {
+        try coldAttemptWithoutReproof().checkedOriginalRootIdentity()
+    }
+
+    private func coldAttemptWithoutReproof()
+        throws -> EraseSchema2ColdPrivateSourceAttemptV1 {
+        switch controls {
+        case .cold(_, _, _, let attempt, _, _, _, _),
+             .coldRetired(_, _, _, let attempt, _, _, _, _):
+            return attempt
+        case .ordinary:
+            throw BackupExportServiceError.invalidGeneration
+        }
+    }
+
+    func resolveColdContentReference(_ reference: ContentReferenceV1)
+        throws -> ContentReferenceV1? {
+        let attempt = try coldAttemptWithoutReproof()
+        return try attempt.resolveOriginalContentReference(reference)
+    }
+
+    func readColdAssetLabelArtifacts(jobID: LocalJobIDV1)
+        throws -> AssetLabelPublishedContentReadbackV1? {
+        let attempt = try coldAttemptWithoutReproof()
+        return try attempt.readOriginalAssetLabelArtifacts(jobID: jobID)
+    }
+
+    var isColdPrivateSource: Bool {
+        switch controls {
+        case .cold, .coldRetired: return true
+        case .ordinary: return false
+        }
+    }
+
+    func coldPrivateAttempt() throws -> EraseSchema2ColdPrivateSourceAttemptV1 {
+        let attempt = try coldAttemptWithoutReproof()
+        try revalidateControls()
+        return attempt
+    }
+
+    func readColdOriginal(_ relativePath: String,
+        kind: OwnedFileKindV1, maximumBytes: Int64) throws -> Data {
+        let attempt = try coldAttemptWithoutReproof()
+        let bytes = try attempt.readOriginalRegular(relativePath,
+            kind: kind, maximumBytes: maximumBytes)
+        try revalidateControls()
+        return bytes
+    }
+
+    func coldOriginalLeafIsAbsent(_ relativePath: String) throws -> Bool {
+        let attempt = try coldAttemptWithoutReproof()
+        let absent = try attempt.originalLeafIsAbsent(relativePath)
+        try revalidateControls()
+        return absent
+    }
+
+    func readColdApplicationSupport(_ url: URL,
+        kind: OwnedFileKindV1, maximumBytes: Int64) throws -> Data? {
+        let attempt = try coldAttemptWithoutReproof()
+        let bytes = try attempt.readApplicationSupportRegular(url,
+            kind: kind, maximumBytes: maximumBytes)
+        try revalidateControls()
+        return bytes
+    }
+
     func revalidate(modelContext: ModelContext) throws {
         try revalidateControls()
         let configurations = Array(modelContext.container.configurations)
+        let expectedModelURL: URL
+        switch controls {
+        case .ordinary:
+            expectedModelURL = generationRootURL
+                .appendingPathComponent("model.sqlite")
+        case .cold(_, _, _, let attempt, _, _, _, _),
+             .coldRetired(_, _, _, let attempt, _, _, _, _):
+            try attempt.requireSource()
+            expectedModelURL = attempt.modelURL
+        }
         guard !modelContext.hasChanges,
               configurations.count == 1,
               !configurations[0].isStoredInMemoryOnly,
               configurations[0].url.standardizedFileURL
-                == generationRootURL.appendingPathComponent("model.sqlite").standardizedFileURL else {
+                == expectedModelURL.standardizedFileURL else {
             throw BackupExportServiceError.invalidGeneration
+        }
+        if case let .coldRetired(operation, _, source, _, _, _, _, _) = controls {
+            guard try generationFactory
+                .acceptedSchema2ColdRetiredSemanticIdentity(
+                    in: modelContext, source: source, operation: operation)
+                    == workspaceIdentity else {
+                throw BackupExportServiceError.invalidGeneration
+            }
         }
         let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
         guard states.count == 1, let state = states.first,
-              state.generationID == intent.oldGenerationID,
+              state.generationID == generationID,
               state.workspaceID == workspaceIdentity.workspaceID.rawValue,
-              state.activeReplicaID == workspaceIdentity.replicaID.rawValue,
-              let expectedLedger = intent.sourceLedger else {
+              state.activeReplicaID == workspaceIdentity.replicaID.rawValue else {
             throw BackupExportServiceError.invalidGeneration
+        }
+        let expectedLedger: DeletionLedgerProofV2
+        switch controls {
+        case .ordinary, .cold:
+            guard let sourceLedger = intent.sourceLedger,
+                  generationID == intent.oldGenerationID else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            expectedLedger = sourceLedger
+        case .coldRetired:
+            guard let retiredLedger,
+                  let retiredHistory,
+                  let retiredRevision,
+                  let retiredSequence,
+                  generationID != intent.oldGenerationID,
+                  intent.generationIDsToDelete.contains(generationID),
+                  state.workspaceRevision == retiredRevision,
+                  state.lastLocalSequence == retiredSequence,
+                  state.mutableSemanticSHA256 == retiredSemanticSHA256 else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            let journal = try MutationJournalStoreV1(
+                modelContext: modelContext, identity: workspaceIdentity,
+                generationID: generationID, allowStateBootstrap: false)
+            guard try journal.exportSnapshot() == retiredHistory else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            expectedLedger = retiredLedger
         }
         let ledger = try DeletionLedgerStore(context: modelContext).snapshot()
         let actualLedger = try DeletionLedgerProofV2(
@@ -168,31 +451,74 @@ final class EraseRetainedSourceValidationV1 {
         try revalidateControls()
     }
 
-    private func revalidateControls() throws {
-        try authority.verify()
-        try Self.requireSettledIntent(
-            applicationSupportURL: generationFactory.restoreApplicationSupportURL
-        )
-        guard try intentStore.load() == intent,
-              let oldPointer = intent.oldPointer,
-              try Self.requireRoot(
-                  id: intent.oldGenerationID, generationFactory: generationFactory,
-                  authority: authority
-              ) == rootIdentity,
-              try Self.requireRoot(
-                  id: intent.newGenerationID, generationFactory: generationFactory,
-                  authority: authority
-              ) == targetRootIdentity,
-              try manifestStore.loadManifest(
-                  targetGenerationID: oldPointer.generationID,
-                  expectedDigest: oldPointer.generationManifestSHA256
-              ) == manifest else {
-            throw BackupExportServiceError.invalidGeneration
+    func revalidateControls() throws {
+        switch controls {
+        case let .ordinary(authority, intentStore, manifestStore,
+            rootIdentity, targetRootIdentity):
+            try authority.verify()
+            try Self.requireSettledIntent(
+                applicationSupportURL: generationFactory.restoreApplicationSupportURL)
+            guard try intentStore.load() == intent,
+                  let oldPointer = intent.oldPointer,
+                  try Self.requireRoot(id: intent.oldGenerationID,
+                      generationFactory: generationFactory,
+                      authority: authority) == rootIdentity,
+                  try Self.requireRoot(id: intent.newGenerationID,
+                      generationFactory: generationFactory,
+                      authority: authority) == targetRootIdentity,
+                  try manifestStore.loadManifest(
+                      targetGenerationID: oldPointer.generationID,
+                      expectedDigest: oldPointer.generationManifestSHA256)
+                    == manifest else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            _ = try Self.requireTargetPointer(intent: intent,
+                generationFactory: generationFactory, authority: authority)
+            try authority.verify()
+        case let .cold(operation, intentStore, source, attempt, preparation,
+            rootIdentity, targetRootIdentity, targetPointer):
+            try operation.requireSchema2ColdRetainedSource(source)
+            try operation.requireSchema2ColdPrivateSourceAttempt(attempt)
+            try operation.requireSchema2ColdIntentStore(intentStore)
+            try attempt.requireSource()
+            guard try intentStore.load() == intent,
+                  try intentStore.loadPreparation() == preparation,
+                  preparation.matches(intent),
+                  try attempt.checkedOriginalRootIdentity() == rootIdentity,
+                  try source.requireTargetRootIdentity(
+                      targetID: intent.newGenerationID) == targetRootIdentity,
+                  try source.requireCurrentTargetPointer(intent: intent)
+                    == targetPointer,
+                  source.intent == intent,
+                  source.preparation == preparation,
+                  source.manifest == manifest else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            try source.requireOriginalUnchanged()
+            try attempt.requireSource()
+        case let .coldRetired(operation, intentStore, source, attempt,
+            preparation, rootIdentity, targetRootIdentity, targetPointer):
+            try operation.requireSchema2ColdRetiredPrivateAttempt(
+                attempt, source: source)
+            try operation.requireSchema2ColdIntentStore(intentStore)
+            try attempt.requireSource()
+            guard try intentStore.load() == intent,
+                  try intentStore.loadPreparation() == preparation,
+                  preparation.matches(intent),
+                  try attempt.checkedOriginalRootIdentity() == rootIdentity,
+                  try source.requireTargetRootIdentity(
+                      targetID: intent.newGenerationID) == targetRootIdentity,
+                  try source.requireCurrentTargetPointer(intent: intent)
+                    == targetPointer,
+                  source.intent == intent,
+                  source.preparation == preparation,
+                  source.manifest == manifest,
+                  source.generationID == generationID else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            try source.requireOriginalUnchanged()
+            try attempt.requireSource()
         }
-        _ = try Self.requireTargetPointer(
-            intent: intent, generationFactory: generationFactory, authority: authority
-        )
-        try authority.verify()
     }
 
     private static func requireTargetPointer(
@@ -254,6 +580,462 @@ final class EraseRetainedSourceValidationV1 {
               errno == ENOENT else {
             throw BackupExportServiceError.invalidGeneration
         }
+    }
+}
+
+/// V949's old source is validated from an operation-owned SQLite copy. The
+/// checked original tree, intent, pointer and manifest stay anchored to the
+/// real source under its retained EX/G; only the ModelContext URL names the
+/// copy. This value is constructed inside that same lexical scratch scope.
+/// An immutable data image of one prior-retired source. It is not a reader,
+/// policy, deletion or phase capability. The actual original owner supplies
+/// EX/G for capture and every reproof; copied semantic validation is separate.
+@MainActor
+struct OriginalEraseRecoveryPriorRetiredImageV1: Equatable {
+    let generationID: UUID
+    let manifest: StoreGenerationManifestV1
+    let manifestBytes: Data
+    let manifestSHA256: String
+    let manifestFact: String
+    let migrationFact: String
+    let sourceRootFact: String
+    let sourceTreeDigest: String
+    let namespace: OriginalEraseRecoveryNamespaceSnapshotV1
+
+    private init(generationID: UUID, manifest: StoreGenerationManifestV1,
+        manifestBytes: Data, manifestFact: String, migrationFact: String,
+        sourceRootFact: String, sourceTreeDigest: String,
+        namespace: OriginalEraseRecoveryNamespaceSnapshotV1) {
+        self.generationID = generationID
+        self.manifest = manifest
+        self.manifestBytes = manifestBytes
+        self.manifestSHA256 = StoreMigrationCanonicalJSONV1.sha256(manifestBytes)
+        self.manifestFact = manifestFact
+        self.migrationFact = migrationFact
+        self.sourceRootFact = sourceRootFact
+        self.sourceTreeDigest = sourceTreeDigest
+        self.namespace = namespace
+    }
+
+    static func capture(id: UUID, intent: EraseIntentV1,
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        authority: StoreRestoreGenerationAuthority) throws -> Self {
+        try owner.withExclusiveSourceScratch { _ in
+            try captureInsideOriginalG(id: id, intent: intent,
+                owner: owner, authority: authority)
+        }
+    }
+
+    func requireUnchangedInsideOriginalG(intent: EraseIntentV1,
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        authority: StoreRestoreGenerationAuthority) throws {
+        guard try Self.captureInsideOriginalG(id: generationID,
+            intent: intent, owner: owner, authority: authority) == self else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+    }
+
+    private static func captureInsideOriginalG(id: UUID, intent: EraseIntentV1,
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        authority: StoreRestoreGenerationAuthority) throws -> Self {
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        guard intent.schemaVersion == 2, EraseIntentCodecV1.valid(intent),
+              intent.phase == .emptyGenerationPrepared,
+              owner.observation?.intent == intent,
+              owner.observation?.preparation?.matches(intent) == true,
+              id != intent.oldGenerationID, id != intent.newGenerationID,
+              intent.generationIDsToDelete.contains(id) else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let namespace = try authority.originalRecoveryNamespaceSnapshot(intent: intent)
+        guard namespace.installedNames.contains(id.uuidString.lowercased()) else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let tree = try authority.originalRecoverySourceTreeImage(id: id)
+        let result = try owner.withCheckedSupportInsideOriginalRecoveryG { support, io in
+            try io.withOpen(parent: support, name: "FieldEvidenceData",
+                flags: O_RDONLY | O_DIRECTORY) { data in
+                try io.withOpen(parent: data, name: "migration",
+                    flags: O_RDONLY | O_DIRECTORY) { migration in
+                    let migrationBefore = try heldAndNamedFact(
+                        fd: migration, parent: data, name: "migration", kind: S_IFDIR)
+                    let name = "manifest-" + id.uuidString.lowercased() + ".json"
+                    return try io.withOpen(parent: migration, name: name,
+                        flags: O_RDONLY | O_NONBLOCK) { leaf in
+                        let manifestBefore = try heldAndNamedFact(
+                            fd: leaf, parent: migration, name: name, kind: S_IFREG)
+                        var heldManifest = stat()
+                        guard Darwin.fstat(leaf, &heldManifest) == 0,
+                              fullFact(heldManifest) == manifestBefore else {
+                            throw BackupExportServiceError.invalidGeneration
+                        }
+                        let expectedReadFact = "\(heldManifest.st_dev)|\(heldManifest.st_ino)|\(heldManifest.st_mode)|\(heldManifest.st_nlink)|\(heldManifest.st_size)|\(heldManifest.st_mtimespec.tv_sec)|\(heldManifest.st_mtimespec.tv_nsec)|\(heldManifest.st_ctimespec.tv_sec)|\(heldManifest.st_ctimespec.tv_nsec)"
+                        let (bytes, readFact) = try io.control(parent: migration, name: name)
+                        guard readFact == expectedReadFact,
+                              try heldAndNamedFact(fd: leaf, parent: migration,
+                                name: name, kind: S_IFREG) == manifestBefore else {
+                            throw BackupExportServiceError.invalidGeneration
+                        }
+                        let manifest = try StoreGenerationManifestV1.decodeCanonical(from: bytes)
+                        guard manifest.generationID == id,
+                              manifest.storeSchemaRelease == .v53 else {
+                            throw BackupExportServiceError.invalidGeneration
+                        }
+                        guard try heldAndNamedFact(fd: leaf, parent: migration,
+                                name: name, kind: S_IFREG) == manifestBefore,
+                              try heldAndNamedFact(fd: migration, parent: data,
+                                name: "migration", kind: S_IFDIR) == migrationBefore else {
+                            throw BackupExportServiceError.invalidGeneration
+                        }
+                        return Self(generationID: id, manifest: manifest,
+                            manifestBytes: bytes, manifestFact: manifestBefore,
+                            migrationFact: migrationBefore, sourceRootFact: tree.rootFact,
+                            sourceTreeDigest: tree.digest, namespace: namespace)
+                    }
+                }
+            }
+        }
+        guard try authority.originalRecoveryNamespaceSnapshot(intent: intent) == namespace,
+              try authority.originalRecoverySourceTreeImage(id: id) == tree else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        return result
+    }
+
+    private static func heldAndNamedFact(fd: Int32, parent: Int32,
+        name: String, kind: mode_t) throws -> String {
+        var held = stat(), named = stat()
+        guard Darwin.fstat(fd, &held) == 0,
+              Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              held.st_mode & S_IFMT == kind,
+              kind != S_IFREG || held.st_nlink == 1,
+              fullFact(held) == fullFact(named) else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        return fullFact(held)
+    }
+
+    private static func fullFact(_ value: stat) -> String {
+        "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+    }
+}
+
+@MainActor
+final class EraseRetainedCopiedSourceValidationV1:
+    EraseRetainedSourceValidationAuthorityV1 {
+    let generationRootURL: URL
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+    struct PriorRetiredSemanticImage: Equatable {
+        let workspaceIdentity: WorkspaceReplicaIdentityV1
+        let workspaceRevision: Int64
+        let localSequence: Int64
+        let mutableSemanticSHA256: String?
+        let history: MutationHistorySnapshotV1
+    }
+
+    private let generationID: UUID
+    private let generationFactory: StoreGenerationFactory
+    private let priorRetiredImage: OriginalEraseRecoveryPriorRetiredImageV1?
+    private let priorRetiredSemantic: PriorRetiredSemanticImage?
+    private weak var priorRetiredContext: ModelContext?
+    private let intent: EraseIntentV1
+    private let owner: StoreOriginalEraseRecoveryPreOpenOwnerV1
+    private let authority: StoreRestoreGenerationAuthority
+    private let copyModelURL: URL
+    private let sourceTreeDigest: String
+    private let externalSnapshot: OriginalEraseRecoveryExternalSnapshotV1
+    private var externalReads: [String: OriginalEraseRecoveryExternalReadV1] = [:]
+
+    static func checkedSourceManifest(
+        intent: EraseIntentV1,
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1
+    ) throws -> StoreGenerationManifestV1 {
+        guard let old = intent.oldPointer else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        return try owner.withExclusiveSourceScratch { _ in
+            try owner.withCheckedSupportInsideOriginalRecoveryG { support, io in
+                try io.withOpen(parent: support, name: "FieldEvidenceData",
+                                flags: O_RDONLY | O_DIRECTORY) { data in
+                    try io.withOpen(parent: data, name: "migration",
+                                    flags: O_RDONLY | O_DIRECTORY) { migration in
+                        let name = "manifest-"
+                            + old.generationID.uuidString.lowercased() + ".json"
+                        let (bytes, _) = try io.control(parent: migration,
+                            name: name)
+                        guard StoreMigrationCanonicalJSONV1.sha256(bytes)
+                                == old.generationManifestSHA256 else {
+                            throw BackupExportServiceError.invalidGeneration
+                        }
+                        let manifest = try StoreGenerationManifestV1.decodeCanonical(
+                            from: bytes)
+                        guard manifest.generationID == intent.oldGenerationID,
+                              manifest.storeSchemaRelease
+                                == PersistentSchemaReleaseRegistryV1.activeRelease else {
+                            throw BackupExportServiceError.invalidGeneration
+                        }
+                        return manifest
+                    }
+                }
+            }
+        }
+    }
+
+    init(intent: EraseIntentV1,
+         generationFactory: StoreGenerationFactory,
+         owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+         authority: StoreRestoreGenerationAuthority,
+         copyModelURL: URL,
+         sourceTreeDigest: String,
+         externalSnapshot: OriginalEraseRecoveryExternalSnapshotV1) throws {
+        guard intent.schemaVersion == 2, EraseIntentCodecV1.valid(intent),
+              let oldPointer = intent.oldPointer,
+              intent.targetPointer?.generationID == intent.newGenerationID,
+              intent.sourceLedger != nil else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        self.generationID = intent.oldGenerationID
+        self.generationFactory = generationFactory
+        self.priorRetiredImage = nil
+        self.priorRetiredSemantic = nil
+        self.intent = intent
+        self.owner = owner
+        self.authority = authority
+        self.copyModelURL = copyModelURL.standardizedFileURL
+        self.sourceTreeDigest = sourceTreeDigest
+        self.externalSnapshot = externalSnapshot
+        generationRootURL = generationFactory.installedGenerationURL(
+            id: intent.oldGenerationID)
+        workspaceIdentity = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: oldPointer.workspaceID),
+            replicaID: ReplicaID(rawValue: oldPointer.replicaID))
+        try requireCheckedControls()
+    }
+
+    /// Prior-retired copies keep their own manifest, identity and mutable
+    /// history. The old-pointer/source-ledger initializer above stays intact.
+    init(priorRetired image: OriginalEraseRecoveryPriorRetiredImageV1,
+         intent: EraseIntentV1, generationFactory: StoreGenerationFactory,
+         owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+         authority: StoreRestoreGenerationAuthority,
+         modelContext: ModelContext, copyModelURL: URL,
+         externalSnapshot: OriginalEraseRecoveryExternalSnapshotV1) throws {
+        let identity = try generationFactory.acceptedOriginalRecoveryRetiredSemanticIdentity(
+            in: modelContext, image: image, intent: intent,
+            owner: owner, authority: authority)
+        self.generationID = image.generationID
+        self.generationFactory = generationFactory
+        self.priorRetiredImage = image
+        self.priorRetiredSemantic = try Self.capturePriorRetiredSemantic(
+            in: modelContext, identity: identity, generationID: image.generationID)
+        self.priorRetiredContext = modelContext
+        self.intent = intent
+        self.owner = owner
+        self.authority = authority
+        self.copyModelURL = copyModelURL.standardizedFileURL
+        self.sourceTreeDigest = image.sourceTreeDigest
+        self.externalSnapshot = externalSnapshot
+        self.generationRootURL = generationFactory.installedGenerationURL(id: image.generationID)
+        self.workspaceIdentity = identity
+        try revalidate(modelContext: modelContext)
+    }
+
+    func checkedPriorRetiredSemanticImage(in context: ModelContext) throws
+        -> PriorRetiredSemanticImage {
+        try revalidate(modelContext: context)
+        guard let priorRetiredSemantic else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        return priorRetiredSemantic
+    }
+
+    private static func capturePriorRetiredSemantic(in context: ModelContext,
+        identity: WorkspaceReplicaIdentityV1, generationID: UUID) throws
+        -> PriorRetiredSemanticImage {
+        guard !context.hasChanges else { throw BackupExportServiceError.invalidGeneration }
+        let states = try context.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first,
+              state.generationID == generationID,
+              state.workspaceID == identity.workspaceID.rawValue,
+              state.activeReplicaID == identity.replicaID.rawValue else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let journal = try MutationJournalStoreV1(modelContext: context,
+            identity: identity, generationID: generationID, allowStateBootstrap: false)
+        let history = try journal.exportSnapshot()
+        guard !context.hasChanges else { throw BackupExportServiceError.invalidGeneration }
+        return PriorRetiredSemanticImage(workspaceIdentity: identity,
+            workspaceRevision: state.workspaceRevision,
+            localSequence: state.lastLocalSequence,
+            mutableSemanticSHA256: state.mutableSemanticSHA256, history: history)
+    }
+
+    /// All installed-file reads for this copied original are operation-owned.
+    /// The original EX/G and full source-tree digest remain held across each
+    /// visitor call; the private SQLite context supplies rows only.
+    func checkedSourceBytes(_ path: String, maximum: Int64,
+        verifyReportReadPolicy: Bool = false) throws -> Data {
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        let bytes = try authority.originalRecoveryCheckedSourceBytes(
+            id: generationID, path: path,
+            treeDigest: sourceTreeDigest, maximum: maximum,
+            verifyReportReadPolicy: verifyReportReadPolicy)
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        return bytes
+    }
+
+    func checkedContentReference(_ reference: ContentReferenceV1) throws
+        -> ContentReferenceV1 {
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        let value = try authority.originalRecoveryCheckedContentReference(
+            id: generationID, reference: reference,
+            treeDigest: sourceTreeDigest)
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        return value
+    }
+
+    func checkedRootIdentity() throws -> ReportPDFAnchoredFile.RootIdentity {
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        let value = try authority.originalRecoveryCheckedSourceRootIdentity(
+            id: generationID, treeDigest: sourceTreeDigest)
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        return value
+    }
+
+    func checkedSourceFilePresent(_ path: String) throws -> Bool {
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        let present = try authority.originalRecoveryCheckedSourceFilePresent(
+            id: generationID, path: path,
+            treeDigest: sourceTreeDigest)
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        return present
+    }
+
+    func checkedExternalBytes(
+        family: OriginalEraseRecoveryExternalSnapshotV1.Family,
+        path: String, maximum: Int64,
+        policyKind: OwnedFileKindV1? = nil
+    ) throws -> Data? {
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        let result = try authority.originalRecoveryExternalBytes(
+            family: family, path: path, snapshot: externalSnapshot,
+            maximum: maximum, policyKind: policyKind)
+        if let policyKind, let policy = result?.1 {
+            let key = family.rawValue + ":" + path
+            let read = OriginalEraseRecoveryExternalReadV1(
+                family: family, path: path, kind: policyKind,
+                maximum: maximum, policy: policy)
+            if let prior = externalReads[key], prior != read {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            externalReads[key] = read
+        }
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        return result?.0
+    }
+
+    func checkedExternalReadObservations() throws
+        -> [OriginalEraseRecoveryExternalReadV1] {
+        try authority.requireOriginalRecoveryExternalSnapshot(externalSnapshot)
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        return externalReads.values.sorted {
+            ($0.family.rawValue, $0.path) < ($1.family.rawValue, $1.path)
+        }
+    }
+
+    func revalidate(modelContext: ModelContext) throws {
+        try requireCheckedControls()
+        let configurations = Array(modelContext.container.configurations)
+        guard !modelContext.hasChanges,
+              configurations.count == 1,
+              !configurations[0].isStoredInMemoryOnly,
+              configurations[0].url.standardizedFileURL == copyModelURL else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        if let image = priorRetiredImage, let semantic = priorRetiredSemantic {
+            guard modelContext === priorRetiredContext,
+                  try generationFactory.acceptedOriginalRecoveryRetiredSemanticIdentity(
+                    in: modelContext, image: image, intent: intent,
+                    owner: owner, authority: authority) == workspaceIdentity,
+                  try Self.capturePriorRetiredSemantic(in: modelContext,
+                    identity: workspaceIdentity, generationID: generationID) == semantic else {
+                throw BackupExportServiceError.invalidGeneration
+            }
+            try requireCheckedControls()
+            return
+        }
+        let states = try modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+        guard states.count == 1, let state = states.first,
+              state.generationID == generationID,
+              state.workspaceID == workspaceIdentity.workspaceID.rawValue,
+              state.activeReplicaID == workspaceIdentity.replicaID.rawValue,
+              let expectedLedger = intent.sourceLedger else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        let ledger = try DeletionLedgerStore(context: modelContext).snapshot()
+        let actualLedger = try DeletionLedgerProofV2(
+            entryCount: ledger.entries.count,
+            canonicalSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                try ledger.canonicalData()))
+        guard actualLedger == expectedLedger, !modelContext.hasChanges else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        try requireCheckedControls()
+    }
+
+    private func requireCheckedControls() throws {
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
+        if let image = priorRetiredImage {
+            try image.requireUnchangedInsideOriginalG(
+                intent: intent, owner: owner, authority: authority)
+        }
+        try authority.requireOriginalRecoveryExternalSnapshot(externalSnapshot)
+        guard try authority.originalRecoverySourceTreeDigest(
+            id: generationID) == sourceTreeDigest,
+              let target = intent.targetPointer,
+              let old = intent.oldPointer else {
+            throw BackupExportServiceError.invalidGeneration
+        }
+        try owner.withCheckedSupportInsideOriginalRecoveryG { support, io in
+            try io.withOpen(parent: support, name: "FieldEvidenceData",
+                            flags: O_RDONLY | O_DIRECTORY) { data in
+                let (currentBytes, _) = try io.control(parent: data,
+                    name: "current.json")
+                let expectedCurrent = try CurrentGenerationPointerV3(
+                    generationID: target.generationID,
+                    generationManifestSHA256: target.generationManifestSHA256,
+                    workspaceID: WorkspaceID(rawValue: target.workspaceID),
+                    replicaID: ReplicaID(rawValue: target.replicaID),
+                    knownReplicaIDs: Set(target.knownReplicaIDs.map {
+                        ReplicaID(rawValue: $0)
+                    }),
+                    storeSchemaVersion:
+                        PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major)
+                guard case .v3(let current, _) = try CurrentPointerCodecV1.decode(
+                    currentBytes),
+                    current == expectedCurrent else {
+                    throw BackupExportServiceError.invalidGeneration
+                }
+                try io.withOpen(parent: data, name: "migration",
+                                flags: O_RDONLY | O_DIRECTORY) { migration in
+                    let name = "manifest-" + generationID.uuidString.lowercased() + ".json"
+                    let (bytes, _) = try io.control(parent: migration, name: name)
+                    guard StoreMigrationCanonicalJSONV1.sha256(bytes)
+                            == (priorRetiredImage?.manifestSHA256 ?? old.generationManifestSHA256) else {
+                        throw BackupExportServiceError.invalidGeneration
+                    }
+                    let manifest = try StoreGenerationManifestV1.decodeCanonical(
+                        from: bytes)
+                    guard manifest.generationID == generationID,
+                          manifest.storeSchemaRelease
+                            == PersistentSchemaReleaseRegistryV1.activeRelease else {
+                        throw BackupExportServiceError.invalidGeneration
+                    }
+                }
+            }
+        }
+        try owner.requireObservationUnchangedInsideOriginalRecoveryG()
     }
 }
 
@@ -501,11 +1283,22 @@ final class BackupExportService {
     private var prepared: PreparedV4BackupV1?
     private var streamingPrepared: StreamingPrepared?
     private var recoveryRetiredEraseValidation: EraseRecoveryRetiredSourceValidationV1?
-    private var retainedEraseValidation: EraseRetainedSourceValidationV1?
+    private var retainedEraseValidation: (any EraseRetainedSourceValidationAuthorityV1)?
     private var preexistingRetiredEraseValidation: ErasePreexistingRetiredSourceValidationV1?
     private var temporalNormalizationReadAuthority: TemporalNormalizationSourceReadAuthorityV1?
     /// Set only for the synchronous body of `validateFrozenCanonical`.
     private var lockedPublicationStore: StoreSessionCoordinator?
+
+    private func observedRootIdentity() throws -> ReportPDFAnchoredFile.RootIdentity {
+        if let cold = retainedEraseValidation as? EraseRetainedSourceValidationV1,
+           cold.isColdPrivateSource {
+            return try cold.checkedColdRootIdentity()
+        }
+        if let copied = retainedEraseValidation as? EraseRetainedCopiedSourceValidationV1 {
+            return try copied.checkedRootIdentity()
+        }
+        return try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+    }
 #if DEBUG
     var afterArchivePublicationForTesting: (@MainActor () throws -> Void)?
 #endif
@@ -514,6 +1307,7 @@ final class BackupExportService {
         modelContext: ModelContext,
         generationRootURL: URL,
         lifecycleRoute: BackupPackageLifecycleRouteV1,
+        checkedOriginalRecoveryRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil,
         storagePreflight: StoragePreflightService = StoragePreflightService(),
         archiveLimits: StreamingArchiveLimitsV1 = .card17,
         now: @escaping () -> Date = Date.init,
@@ -527,7 +1321,8 @@ final class BackupExportService {
                 as? String ?? "0"
         },
         fileManager: FileManager = .default,
-        generationLeaseValidation: @escaping @Sendable () throws -> Void = {}
+        generationLeaseValidation: @escaping @Sendable () throws -> Void = {},
+        coldValidation: EraseRetainedSourceValidationV1? = nil
     ) {
         self.modelContext = modelContext
         self.generationRootURL = generationRootURL.standardizedFileURL
@@ -546,12 +1341,18 @@ final class BackupExportService {
         self.generationLeaseValidation = generationLeaseValidation
         let root = generationRootURL.standardizedFileURL
         let dataRoot = root.deletingLastPathComponent().deletingLastPathComponent()
-        if root.isFileURL,
+        if coldValidation != nil && checkedOriginalRecoveryRootIdentity != nil {
+            rootIdentity = nil
+        } else if let coldValidation {
+            rootIdentity = coldValidation.isColdPrivateSource
+                ? try? coldValidation.checkedColdRootIdentity() : nil
+        } else if root.isFileURL,
            root.deletingLastPathComponent().lastPathComponent == "generations",
            dataRoot.lastPathComponent == "FieldEvidenceData",
            let id = UUID(uuidString: root.lastPathComponent),
            id.uuidString.lowercased() == root.lastPathComponent {
-            rootIdentity = try? ReportPDFAnchoredFile.rootIdentity(at: root)
+            rootIdentity = checkedOriginalRecoveryRootIdentity
+                ?? (try? ReportPDFAnchoredFile.rootIdentity(at: root))
         } else {
             rootIdentity = nil
         }
@@ -608,12 +1409,15 @@ final class BackupExportService {
         },
         fileManager: FileManager = .default,
         generationLeaseValidation: @escaping @Sendable () throws -> Void = {},
-        compatibilityPosture: BackupPackageCompatibilityPostureV1 = .frozenLegacyCallersOnly
+        checkedOriginalRecoveryRootIdentity: ReportPDFAnchoredFile.RootIdentity? = nil,
+        compatibilityPosture: BackupPackageCompatibilityPostureV1 = .frozenLegacyCallersOnly,
+        coldValidation: EraseRetainedSourceValidationV1? = nil
     ) {
         self.init(
             modelContext: modelContext,
             generationRootURL: generationRootURL,
             lifecycleRoute: .expiringCompatibility(compatibilityPosture),
+            checkedOriginalRecoveryRootIdentity: checkedOriginalRecoveryRootIdentity,
             storagePreflight: storagePreflight,
             archiveLimits: archiveLimits,
             now: now,
@@ -621,7 +1425,8 @@ final class BackupExportService {
             appVersion: appVersion,
             appBuild: appBuild,
             fileManager: fileManager,
-            generationLeaseValidation: generationLeaseValidation
+            generationLeaseValidation: generationLeaseValidation,
+            coldValidation: coldValidation
         )
     }
 
@@ -706,13 +1511,18 @@ final class BackupExportService {
 
     static func prepareRetainedEraseSummary(
         modelContext: ModelContext,
-        validation: EraseRetainedSourceValidationV1
+        validation: any EraseRetainedSourceValidationAuthorityV1
     ) throws -> BackupExportPreviewV1 {
         try validation.revalidate(modelContext: modelContext)
         let exporter = BackupExportService(
             modelContext: modelContext,
             generationRootURL: validation.generationRootURL,
-            compatibilityPosture: .frozenLegacyCallersOnly
+            checkedOriginalRecoveryRootIdentity:
+                try (validation as? EraseRetainedCopiedSourceValidationV1)?
+                    .checkedRootIdentity(),
+            compatibilityPosture: .frozenLegacyCallersOnly,
+            coldValidation: (validation as? EraseRetainedSourceValidationV1)
+                .flatMap { $0.isColdPrivateSource ? $0 : nil }
         )
         exporter.retainedEraseValidation = validation
         let preview = try exporter.prepare()
@@ -1456,6 +2266,15 @@ private extension BackupExportService {
         guard original.envelope.mutationID == mutationID else { throw BackupExportServiceError.stalePreview }
     }
 
+    private func checkedCurrentRootIdentity() throws
+        -> ReportPDFAnchoredFile.RootIdentity {
+        if let retainedEraseValidation = retainedEraseValidation as? EraseRetainedSourceValidationV1,
+           retainedEraseValidation.isColdPrivateSource {
+            return try retainedEraseValidation.checkedColdRootIdentity()
+        }
+        return try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+    }
+
     private func buildStreamingPrepared(
         previewID: UUID,
         exportedAt: Date,
@@ -1475,7 +2294,7 @@ private extension BackupExportService {
         guard let rootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
-        guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+        guard try observedRootIdentity()
                 == rootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
@@ -1711,7 +2530,29 @@ private extension BackupExportService {
             }
             let relative=DraftAttachmentStagingAdapterV1.relativeDataPath(draftID:item.draftID,stageID:item.stageID)
             let draftRoot=generationRootURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(DraftAttachmentStagingAdapterV1.directoryName,isDirectory:true)
-            let bytes=try Data(contentsOf:draftRoot.appendingPathComponent(relative),options:.mappedIfSafe)
+            let draftURL = draftRoot.appendingPathComponent(relative)
+            let bytes: Data
+            if let retainedEraseValidation = retainedEraseValidation as? EraseRetainedSourceValidationV1,
+               retainedEraseValidation.isColdPrivateSource {
+                guard let checked = try retainedEraseValidation
+                    .readColdApplicationSupport(draftURL,
+                        kind: .fieldDraftStagingFile,
+                        maximumBytes: Int64(FieldDraftLimitsV1.maximumPayloadBytes)) else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                bytes = checked
+            } else if let copied = retainedEraseValidation
+                    as? EraseRetainedCopiedSourceValidationV1 {
+                guard let checked = try copied.checkedExternalBytes(
+                    family: .draft, path: relative,
+                    maximum: Int64(FieldDraftLimitsV1.maximumPayloadBytes),
+                    policyKind: .stagingFile) else {
+                    throw BackupExportServiceError.invalidAuthority
+                }
+                bytes = checked
+            } else {
+                bytes = try Data(contentsOf: draftURL, options: .mappedIfSafe)
+            }
             let expectedSHA=item.contentReference?.digests.digest(for:.sha256)?.hexadecimalValue ?? (item.contentDigest?.algorithm == .sha256 ? item.contentDigest?.hexadecimalValue:nil)
             guard bytes.count==Int(byteCount),let expectedSHA,CanonicalJSONV1.sha256(bytes)==expectedSHA else{throw BackupExportServiceError.invalidAuthority}
             sources.append(.init(path:"draft-staging/\(Self.uuid(item.draftID))/\(Self.uuid(item.stageID)).bin",mimeType:"application/octet-stream",byteCount:bytes.count,sha256:expectedSHA,location:.draftRelative(relative)))
@@ -1734,13 +2575,35 @@ private extension BackupExportService {
             try validateGenerationLease()
             let profile = try lifecycleProfile(for: report, rows: rows)
             let delivery: ReportDeliveryCoordinator
+            let maximumReportSourceBytes = archiveLimits.maximumUncompressedEntryByteCount
             do {
-                delivery = try ReportDeliveryCoordinator(
-                    modelContext: modelContext,
-                    generationRootURL: generationRootURL,
-                    signPack: profile.package,
-                    expectedRootIdentity: rootIdentity
-                )
+                if let retainedEraseValidation = retainedEraseValidation as? EraseRetainedSourceValidationV1,
+                   retainedEraseValidation.isColdPrivateSource {
+                    delivery = try ReportDeliveryCoordinator(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        signPack: profile.package,
+                        expectedRootIdentity: rootIdentity,
+                        coldSourceAttempt: retainedEraseValidation.coldPrivateAttempt())
+                } else if let copied = retainedEraseValidation as? EraseRetainedCopiedSourceValidationV1 {
+                    delivery = try ReportDeliveryCoordinator(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        signPack: profile.package,
+                        checkedOriginalEraseRecovery: .init(
+                            rootIdentity: rootIdentity,
+                            read: { try copied.checkedSourceBytes($0,
+                                maximum: maximumReportSourceBytes,
+                                verifyReportReadPolicy: true) },
+                            isAbsent: { !(try copied.checkedSourceFilePresent($0)) },
+                            reproveRoot: { try copied.checkedRootIdentity() }))
+                } else {
+                    delivery = try ReportDeliveryCoordinator(
+                        modelContext: modelContext,
+                        generationRootURL: generationRootURL,
+                        signPack: profile.package,
+                        expectedRootIdentity: rootIdentity)
+                }
                 try delivery.validateRecoveryAuthority(id: report.id)
             }
             catch { throw BackupExportServiceError.invalidAuthority }
@@ -1801,7 +2664,7 @@ private extension BackupExportService {
                 throw BackupExportServiceError.invalidAuthority
             }
         }
-        guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+        guard try observedRootIdentity()
                 == rootIdentity,
               try currentStreamingWorkspaceIdentity() == sourceIdentity,
               try DeletionLedgerStore(context: modelContext).snapshot()
@@ -2060,10 +2923,32 @@ private extension BackupExportService {
         let applicationSupportURL = generationRootURL
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let source = try PortableExchangeSessionStoreV2.snapshotForBackup(
-            applicationSupportURL: applicationSupportURL,
-            fileManager: fileManager
-        )
+        let source: PortableExchangeBackupSnapshotV2
+        if let retainedEraseValidation = retainedEraseValidation as? EraseRetainedSourceValidationV1,
+           retainedEraseValidation.isColdPrivateSource {
+            source = try PortableExchangeSessionStoreV2.snapshotForBackupCold(
+                applicationSupportURL: applicationSupportURL,
+                validation: retainedEraseValidation)
+        } else if let copied = retainedEraseValidation
+                as? EraseRetainedCopiedSourceValidationV1 {
+            source = try PortableExchangeSessionStoreV2
+                .snapshotForOriginalEraseRecovery(
+                    applicationSupportURL: applicationSupportURL) {
+                        path, maximum in
+                        guard maximum <= UInt64(Int64.max) else {
+                            throw BackupExportServiceError.invalidAuthority
+                        }
+                        return try copied.checkedExternalBytes(
+                            family: .portable, path: path,
+                            maximum: Int64(maximum),
+                            policyKind: .portableExchangeSessionFile)
+                    }
+        } else {
+            source = try PortableExchangeSessionStoreV2.snapshotForBackup(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager
+            )
+        }
         let normalized = try PortableExchangeBackupSnapshotV2(
             snapshotID: snapshotID,
             createdAt: createdAt,
@@ -2095,7 +2980,7 @@ private extension BackupExportService {
         guard let rootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
-        guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+        guard try observedRootIdentity()
                 == rootIdentity else {
             throw BackupExportServiceError.invalidGeneration
         }
@@ -2265,7 +3150,7 @@ private extension BackupExportService {
 #if DEBUG
         legacyBackupTracePhase = "root-revalidation"
 #endif
-        guard try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+        guard try observedRootIdentity()
                 == rootIdentity,
               !modelContext.hasChanges else {
             throw BackupExportServiceError.invalidGeneration
@@ -2369,6 +3254,31 @@ private extension BackupExportService {
               }) ?? true else {
             throw BackupExportServiceError.invalidAuthority
         }
+        if let retainedEraseValidation = retainedEraseValidation as? EraseRetainedSourceValidationV1,
+           retainedEraseValidation.isColdPrivateSource {
+            let bytes = try retainedEraseValidation.readColdOriginal(
+                relativePath, kind: try coldOriginalKind(relativePath),
+                maximumBytes: archiveLimits.maximumUncompressedEntryByteCount)
+            guard expectedByteCount.map({ $0 == Int64(bytes.count) }) ?? true,
+                  CanonicalJSONV1.sha256(bytes) == expectedSHA256 else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            return bytes
+        }
+        if let copied = retainedEraseValidation as? EraseRetainedCopiedSourceValidationV1 {
+            guard try copied.checkedRootIdentity() == rootIdentity else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let bytes = try copied.checkedSourceBytes(relativePath,
+                maximum: archiveLimits.maximumUncompressedEntryByteCount)
+            let sameRoot = try copied.checkedRootIdentity() == rootIdentity
+            guard expectedByteCount.map({ Int64(bytes.count) == $0 }) ?? true,
+                  CanonicalJSONV1.sha256(bytes) == expectedSHA256,
+                  sameRoot else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            return bytes
+        }
         let opened = try openStreamingSource(
             relativePath,
             rootIdentity: rootIdentity
@@ -2425,7 +3335,7 @@ private extension BackupExportService {
                   relativePath,
                   rootIdentity: rootIdentity
               ) == before,
-              try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL)
+              try observedRootIdentity()
                 == rootIdentity,
               data.count == Int(before.byteCount),
               CanonicalJSONV1.sha256(data) == expectedSHA256 else {
@@ -2575,6 +3485,24 @@ private extension BackupExportService {
         guard validRelativePath(relativePath) else {
             throw BackupExportServiceError.invalidAuthority
         }
+        if let retainedEraseValidation = retainedEraseValidation as? EraseRetainedSourceValidationV1,
+           retainedEraseValidation.isColdPrivateSource {
+            return try retainedEraseValidation.readColdOriginal(
+                relativePath, kind: try coldOriginalKind(relativePath),
+                maximumBytes: archiveLimits.maximumUncompressedEntryByteCount)
+        }
+        if let copied = retainedEraseValidation as? EraseRetainedCopiedSourceValidationV1 {
+            guard try copied.checkedRootIdentity() == rootIdentity else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            let data = try copied.checkedSourceBytes(relativePath,
+                maximum: EvidenceCurationLimitsV1.maximumSourceBytes,
+                verifyReportReadPolicy: true)
+            guard try copied.checkedRootIdentity() == rootIdentity else {
+                throw BackupExportServiceError.invalidAuthority
+            }
+            return data
+        }
         do {
             return try ReportPDFAnchoredFile.readRegularFile(
                 at: generationRootURL.appendingPathComponent(relativePath),
@@ -2605,7 +3533,18 @@ private extension BackupExportService {
             guard components.count == 2 else { throw BackupExportServiceError.invalidAuthority }
             let directory = "content/\(components[0])/\(components[1])"
             let markerPath = "\(directory)/derivative-publication.json"
-            guard try Self.itemType(at: generationRootURL.appendingPathComponent(markerPath)) != nil else {
+            let markerPresent: Bool
+            if let retainedEraseValidation = retainedEraseValidation as? EraseRetainedSourceValidationV1,
+               retainedEraseValidation.isColdPrivateSource {
+                markerPresent = try !retainedEraseValidation
+                    .coldOriginalLeafIsAbsent(markerPath)
+            } else if let copied = retainedEraseValidation as? EraseRetainedCopiedSourceValidationV1 {
+                markerPresent = try copied.checkedSourceFilePresent(markerPath)
+            } else {
+                markerPresent = try Self.itemType(
+                    at: generationRootURL.appendingPathComponent(markerPath)) != nil
+            }
+            guard markerPresent else {
                 continue // Incumbent original/temporal content has its existing archive owner.
             }
             let markerData = try anchoredRead(markerPath, rootIdentity: rootIdentity)
@@ -2630,6 +3569,31 @@ private extension BackupExportService {
             result.append((bytesPath, marker.result.derivative.mediaType, bytes))
         }
         return result.sorted { $0.path < $1.path }
+    }
+
+    private func coldOriginalKind(_ relativePath: String) throws
+        -> OwnedFileKindV1 {
+        if relativePath.hasPrefix("pdfs/") { return .reportPDF }
+        if relativePath.hasPrefix("snapshots/") { return .reportSnapshot }
+        if relativePath.hasPrefix("evidence/") {
+            if relativePath.hasSuffix("/thumbnail.jpg") {
+                return .mediaThumbnail
+            }
+            if relativePath.hasSuffix("/original.jpg") {
+                return .mediaOriginal
+            }
+            throw BackupExportServiceError.invalidAuthority
+        }
+        if relativePath.hasPrefix("content/") {
+            if relativePath.hasSuffix("/derivative-publication.json") {
+                return .reportSnapshot
+            }
+            if relativePath.hasSuffix("/original.bin") {
+                return .mediaOriginal
+            }
+            throw BackupExportServiceError.invalidAuthority
+        }
+        throw BackupExportServiceError.invalidAuthority
     }
 
     private func fetchRows() throws -> Rows {

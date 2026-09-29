@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "f869dd07bed5b193f41247197468820f514ba60a",
+  "generatedAtHead": "de779b09e013e7cf4f560594d2bc49a8feec3db3",
   "sweepOrder": [
     "S01",
     "S02",
@@ -381,7 +381,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 2530.0,
+      "estimatedSeconds": 2650.0,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -434,6 +434,8 @@
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testMalformedAuxiliaryTreeFailsBeforeAnyDeletion",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNoEraseCheckedOwnerCloseMeasuresSQLiteAndSidecarTransition",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testNotificationPreferenceEraseFencePreservesExactCooldownAndRejectsHeldSettingAuthority",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalPointerRefusesChangedSourceSiblingBeforeFirstEffect",
+        "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testOriginalPointerRefusesRetainedPrivateTargetPreflightAliasBeforeEffect",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPinnedEmptyGenerationCreationRejectsReplacementBeforeSQLiteWrite",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPostRetiredFaultRefusesReplacedMismatchedOrExtraNotificationMarker",
         "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testPostRetiredOwnerGuardLinkTransitionRetainsOtherTreeFacts",
@@ -1174,7 +1176,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 2383.5,
+      "estimatedSeconds": 2443.5,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1325,6 +1327,7 @@
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationConsumesAuthenticAbortAndASecondEraseUsesNewAuthority",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationDeferredEraseRetainsDrainAcrossPauseAndResumesWithFreshService",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationRestoreRejectsItsOriginalTicketAfterAdmissionRevocation",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationRetriesOriginalEraseAfterPointerSwitchToReady",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testProductionEraseAdoptsFreshSettingOwnerAndNextToggleCommits",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testRestorePreviewRetainsOriginalAccessAcrossLifecycleAndRejectsStaleCallbacks",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testScenePreferencesPersistBoundedSnapshotsAndDiscardCorruptionAcrossReopen",
@@ -3917,8 +3920,19 @@
     {
       "id": "S33",
       "tier": "D50C",
-      "estimatedSeconds": 480.0,
+      "estimatedSeconds": 1140.0,
       "selectors": [
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2DrainActualPrefixTemporaryCut",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2DrainActualZeroTemporaryCut",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2MultiRetiredOriginalRCutColdCleansEntireFrozenRoster",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2OriginalSessionPhaseCutColdRResumesActualTargetAndReady",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2OwnedIDsActualPrefixTemporaryCut",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2OwnedIDsActualZeroTemporaryCut",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PointerSwitchedColdOpensActualEmptyTargetBeforeSessionPhaseCAS",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PointerSwitchedWrongRetiredTemporaryRefusesWithoutCanonicalEffects",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PopulatedNotificationColdRDrainsBeforeFirstGenerationUnlink",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2RevocationActualPrefixTemporaryCut",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2RevocationActualZeroTemporaryCut",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testAlreadyClearedRetiredPointerCompletesGenuineErase",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testCompletePreSwapTemporaryCompletesGenuineErase",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testEmptyReservedTemporaryCompletesGenuineErase",

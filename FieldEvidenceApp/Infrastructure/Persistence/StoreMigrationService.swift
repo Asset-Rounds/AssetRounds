@@ -1,6 +1,9838 @@
 import Darwin
 import Foundation
 
+enum EraseSchema2ColdPointerCutV1: Equatable {
+    case old
+    case target
+}
+
+#if DEBUG
+/// Minted only after the same original shutdown witness and already-held EX
+/// activity have passed their complete locked writer/foreign-lease census.
+/// Coordinator consumes the exact identity, then may break its own retained
+/// exclusion owner link without inventing a second activity or EX.
+@MainActor
+final class OriginalEraseRetainedExclusionShutdownRegistryReceiptV1 {
+    let registry: GenerationLeaseRegistryV1
+    let witness: EraseOriginalShutdownWitnessV1
+    let activity: GenerationTemporalActivityHandleV1
+    let retainedWriter: GenerationLeaseTokenV1
+
+    fileprivate init(registry: GenerationLeaseRegistryV1,
+        witness: EraseOriginalShutdownWitnessV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retainedWriter: GenerationLeaseTokenV1) {
+        self.registry = registry
+        self.witness = witness
+        self.activity = activity
+        self.retainedWriter = retainedWriter
+    }
+
+    func requireBound(registry expectedRegistry: GenerationLeaseRegistryV1,
+        witness expectedWitness: EraseOriginalShutdownWitnessV1,
+        activity expectedActivity: GenerationTemporalActivityHandleV1,
+        retainedWriter expectedWriter: GenerationLeaseTokenV1) throws {
+        try expectedWriter.validate()
+        guard registry === expectedRegistry,
+              witness === expectedWitness,
+              activity === expectedActivity,
+              retainedWriter == expectedWriter else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+#endif
+
+/// A checked, complete pre-effect inventory for prospective auxiliary replay.
+/// This value is data only. The retained Manifest/Store owners must seal and
+/// publish it before an auxiliary unlink, then independently prove every
+/// interrupted prefix against its named survivors. A digest alone cannot do
+/// that after the first file disappears.
+@MainActor
+struct EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+    struct Node: Codable, Equatable {
+        let path: String
+        let kind: String
+        let fact: String
+        let members: [String]?
+        let sha256: String?
+    }
+
+    struct Tree: Codable, Equatable {
+        let key: String
+        let state: String
+        let rootFact: String?
+        let digest: String?
+        let nodes: [Node]?
+        let deletionOrder: [String]?
+    }
+
+    struct Record: Codable, Equatable {
+        let schemaVersion: Int
+        let eraseID: String
+        let firstIntentPhase: String
+        let firstIntentSHA256: String
+        let preparationSHA256: String
+        let supportDevice: Int64
+        let supportInode: UInt64
+        let supportMode: UInt32
+        let supportUser: UInt32
+        let supportGroup: UInt32
+        let cachesDevice: Int64
+        let cachesInode: UInt64
+        let cachesMode: UInt32
+        let cachesUser: UInt32
+        let cachesGroup: UInt32
+        let temporaryDevice: Int64
+        let temporaryInode: UInt64
+        let temporaryMode: UInt32
+        let temporaryUser: UInt32
+        let temporaryGroup: UInt32
+        let firstSupportFact: String
+        let firstSupportNames: [String]
+        let trees: [Tree]
+    }
+
+    static let canonicalName = "auxiliary-retirement.json"
+    static let temporaryName = ".auxiliary-retirement.json.next"
+
+    let record: Record
+    let canonicalBytes: Data
+    let canonicalSHA256: String
+
+    private static let supportTargets = [
+        "FieldEvidenceRestore", "FieldEvidenceCommerce",
+        "FieldEvidenceDiagnostics", LocalSearchIndexStoreV1.directoryName,
+        PortableExchangeSessionStoreLayoutV2.directoryName,
+        LocalJobStoreSchemaV1.directoryName
+    ]
+
+    private static var keys: [String] {
+        supportTargets.map { "support/\($0)" } + [
+            "support/FieldEvidenceOperations", "caches/FieldEvidenceApp",
+            "temporary/FieldEvidenceApp"
+        ]
+    }
+
+    /// Called only within the Manifest's scoped first-observation callback.
+    /// The observer and this walker see the same borrowed held parents. The
+    /// caller retains both checked IO owners before the first descriptor open.
+    static func captureFirst(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        support: Int32, caches: Int32, temporary: Int32,
+        io: EraseAbortCheckedSnapshotIOV1
+    ) throws -> Self {
+        try captureFirst(intent: intent, preparation: preparation,
+            observer: observer, snapshot: snapshot, support: support,
+            caches: caches, temporary: temporary, io: io,
+            expectedPhase: .pointerSwitched)
+    }
+
+    /// Shares only the physical record grammar with cold P. The original
+    /// operation supplies its own retained exclusion and publication seal.
+    static func captureFirstOriginal(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        support: Int32, caches: Int32, temporary: Int32,
+        io: EraseAbortCheckedSnapshotIOV1
+    ) throws -> Self {
+        try captureFirst(intent: intent, preparation: preparation,
+            observer: observer, snapshot: snapshot, support: support,
+            caches: caches, temporary: temporary, io: io,
+            expectedPhase: .emptyGenerationPrepared)
+    }
+
+    private static func captureFirst(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        support: Int32, caches: Int32, temporary: Int32,
+        io: EraseAbortCheckedSnapshotIOV1,
+        expectedPhase: EraseIntentPhaseV1
+    ) throws -> Self {
+        guard intent.schemaVersion == 2,
+              intent.phase == expectedPhase,
+              preparation.matches(intent),
+              try observer.firstObservation() == snapshot,
+              snapshot.supportIdentity.device >= 0,
+              snapshot.cacheIdentity.device >= 0,
+              snapshot.temporaryIdentity.device >= 0,
+              snapshot.supportIdentity.inode > 0,
+              snapshot.cacheIdentity.inode > 0,
+              snapshot.temporaryIdentity.inode > 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try io.requireSettled()
+        var trees: [Tree] = []
+        for name in supportTargets {
+            guard let first = snapshot.supportTrees[name] else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            trees.append(try captureTree(key: "support/\(name)",
+                first: first, parent: support, name: name, io: io))
+        }
+        trees.append(try captureTree(
+            key: "support/FieldEvidenceOperations",
+            first: snapshot.operations, parent: support,
+            name: "FieldEvidenceOperations", io: io))
+        trees.append(try captureTree(key: "caches/FieldEvidenceApp",
+            first: snapshot.cacheTree, parent: caches,
+            name: "FieldEvidenceApp", io: io))
+        trees.append(try captureTree(key: "temporary/FieldEvidenceApp",
+            first: snapshot.temporaryTree, parent: temporary,
+            name: "FieldEvidenceApp", io: io))
+        try io.requireSettled()
+        let intentBytes = try EraseIntentCodecV1.encode(intent)
+        let preparationBytes = try ErasePreparationCodecV2.encode(
+            preparation)
+        let record = Record(schemaVersion: 1,
+            eraseID: intent.eraseID.uuidString.lowercased(),
+            firstIntentPhase: intent.phase.rawValue,
+            firstIntentSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                intentBytes),
+            preparationSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                preparationBytes),
+            supportDevice: Int64(snapshot.supportIdentity.device),
+            supportInode: UInt64(snapshot.supportIdentity.inode),
+            supportMode: UInt32(snapshot.supportIdentity.mode),
+            supportUser: UInt32(snapshot.supportIdentity.user),
+            supportGroup: UInt32(snapshot.supportIdentity.group),
+            cachesDevice: Int64(snapshot.cacheIdentity.device),
+            cachesInode: UInt64(snapshot.cacheIdentity.inode),
+            cachesMode: UInt32(snapshot.cacheIdentity.mode),
+            cachesUser: UInt32(snapshot.cacheIdentity.user),
+            cachesGroup: UInt32(snapshot.cacheIdentity.group),
+            temporaryDevice: Int64(snapshot.temporaryIdentity.device),
+            temporaryInode: UInt64(snapshot.temporaryIdentity.inode),
+            temporaryMode: UInt32(snapshot.temporaryIdentity.mode),
+            temporaryUser: UInt32(snapshot.temporaryIdentity.user),
+            temporaryGroup: UInt32(snapshot.temporaryIdentity.group),
+            firstSupportFact: snapshot.supportFact,
+            firstSupportNames: snapshot.supportNames,
+            trees: trees)
+        return try Self(checked: record)
+    }
+
+    static func decodeCanonical(_ bytes: Data,
+        intent: EraseIntentV1, preparation: ErasePreparationV2
+    ) throws -> Self {
+        let record = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+            Record.self, from: bytes)
+        let firstPhase: EraseIntentPhaseV1
+        switch record.firstIntentPhase {
+        case EraseIntentPhaseV1.emptyGenerationPrepared.rawValue:
+            firstPhase = .emptyGenerationPrepared
+        case EraseIntentPhaseV1.pointerSwitched.rawValue:
+            firstPhase = .pointerSwitched
+        default:
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard intent.phase == .emptyGenerationPrepared ||
+                intent.phase == .pointerSwitched ||
+                intent.phase == .sessionActivated ||
+                intent.phase == .cleanupComplete else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if firstPhase == .pointerSwitched,
+           intent.phase == .emptyGenerationPrepared {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let firstIntent = intent.advancing(to: firstPhase)
+        guard record.eraseID == intent.eraseID.uuidString.lowercased(),
+              record.preparationSHA256 == StoreMigrationCanonicalJSONV1
+                .sha256(try ErasePreparationCodecV2.encode(preparation)),
+              preparation.matches(intent),
+              record.firstIntentSHA256 == StoreMigrationCanonicalJSONV1
+                .sha256(try EraseIntentCodecV1.encode(firstIntent)) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let value = try Self(checked: record)
+        guard value.canonicalBytes == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return value
+    }
+
+    private init(checked record: Record) throws {
+        guard record.schemaVersion == 1,
+              UUID(uuidString: record.eraseID) != nil,
+              (record.firstIntentPhase
+                == EraseIntentPhaseV1.pointerSwitched.rawValue
+                || record.firstIntentPhase
+                    == EraseIntentPhaseV1.emptyGenerationPrepared.rawValue),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                record.firstIntentSHA256),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                record.preparationSHA256),
+              record.supportDevice >= 0, record.supportInode > 0,
+              record.cachesDevice >= 0, record.cachesInode > 0,
+              record.temporaryDevice >= 0, record.temporaryInode > 0,
+              record.supportMode & UInt32(S_IFMT) == UInt32(S_IFDIR),
+              record.cachesMode & UInt32(S_IFMT) == UInt32(S_IFDIR),
+              record.temporaryMode & UInt32(S_IFMT) == UInt32(S_IFDIR),
+              record.trees.map(\.key) == Self.keys,
+              record.firstSupportNames == record.firstSupportNames.sorted(),
+              Set(record.firstSupportNames).count
+                == record.firstSupportNames.count,
+              Set(record.firstSupportNames).isSubset(of:
+                Set(Self.supportTargets).union([
+                    "FieldEvidenceData", "FieldEvidenceErase",
+                    "FieldEvidenceOperations"
+                ])),
+              Set(record.firstSupportNames).isSuperset(of: [
+                "FieldEvidenceData", "FieldEvidenceErase",
+                "FieldEvidenceOperations"
+              ]),
+              Self.supportFactMatchesParent(record) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for tree in record.trees { try Self.validate(tree) }
+        for tree in record.trees where tree.key.hasPrefix("support/") {
+            let name = String(tree.key.dropFirst("support/".count))
+            guard record.firstSupportNames.contains(name)
+                == (tree.state == "present") else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        self.record = record
+        canonicalBytes = try StoreMigrationCanonicalJSONV1.encode(record)
+        canonicalSHA256 = StoreMigrationCanonicalJSONV1.sha256(
+            canonicalBytes)
+    }
+
+    private static func captureTree(
+        key: String,
+        first: EraseSchema2ColdAuxiliaryFirstObserverV1.Tree,
+        parent: Int32, name: String, io: EraseAbortCheckedSnapshotIOV1
+    ) throws -> Tree {
+        switch first {
+        case .absent:
+            var named = stat()
+            guard Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return Tree(key: key, state: "absent", rootFact: nil,
+                digest: nil, nodes: nil, deletionOrder: nil)
+        case let .present(rootFact, firstDigest):
+            var nodes: [Node] = []
+            let digest = try io.postRetiredTree(parent: parent,
+                name: name, observeNode: { path, kind, fact, members, sha in
+                nodes.append(Node(path: path, kind: kind, fact: fact,
+                    members: members, sha256: sha))
+            })
+            guard digest == firstDigest else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            nodes.sort {
+                $0.path.utf8.lexicographicallyPrecedes($1.path.utf8)
+            }
+            let order = nodes.map(\.path).sorted { lhs, rhs in
+                let leftDepth = lhs.isEmpty ? 0
+                    : lhs.filter { $0 == "/" }.count + 1
+                let rightDepth = rhs.isEmpty ? 0
+                    : rhs.filter { $0 == "/" }.count + 1
+                if leftDepth != rightDepth { return leftDepth > rightDepth }
+                return lhs.utf8.lexicographicallyPrecedes(rhs.utf8)
+            }
+            let tree = Tree(key: key, state: "present",
+                rootFact: rootFact, digest: digest, nodes: nodes,
+                deletionOrder: order)
+            try validate(tree)
+            return tree
+        }
+    }
+
+    private static func validate(_ tree: Tree) throws {
+        if tree.state == "absent" {
+            guard tree.rootFact == nil, tree.digest == nil,
+                  tree.nodes == nil, tree.deletionOrder == nil else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return
+        }
+        guard tree.state == "present", let rootFact = tree.rootFact,
+              let digest = tree.digest,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(digest),
+              let nodes = tree.nodes, let order = tree.deletionOrder,
+              !nodes.isEmpty, nodes.first?.path == "",
+              nodes.count < 100_000,
+              nodes.first?.kind == "directory",
+              nodes.map(\.path) == nodes.map(\.path).sorted(by: {
+                $0.utf8.lexicographicallyPrecedes($1.utf8)
+              }),
+              Set(nodes.map(\.path)).count == nodes.count,
+              order.count == nodes.count, order.last == "",
+              Set(order) == Set(nodes.map(\.path)),
+              rootFactMatchesNode(rootFact, nodes[0].fact),
+              try digestOf(nodes) == digest else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let byPath = Dictionary(uniqueKeysWithValues:
+            nodes.map { ($0.path, $0) })
+        var directChildren: [String: [String]] = [:]
+        var totalRegularBytes: Int64 = 0
+        for node in nodes where !node.path.isEmpty {
+            if node.kind == "file" {
+                let fields = node.fact.split(separator: "|",
+                    omittingEmptySubsequences: false)
+                guard fields.count == 9,
+                      let size = Int64(fields[4]),
+                      size >= 0, size <= 1_073_741_824,
+                      totalRegularBytes <= 1_073_741_824 - size else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                totalRegularBytes += size
+            }
+            let parent: String
+            let child: String
+            if let slash = node.path.lastIndex(of: "/") {
+                parent = String(node.path[..<slash])
+                child = String(node.path[node.path.index(after: slash)...])
+            } else {
+                parent = ""
+                child = node.path
+            }
+            directChildren[parent, default: []].append(child)
+        }
+        for node in nodes {
+            try validateNode(node, byPath: byPath,
+                directChildren: directChildren)
+        }
+        let expectedOrder = nodes.map(\.path).sorted { lhs, rhs in
+            let leftDepth = lhs.isEmpty ? 0
+                : lhs.filter { $0 == "/" }.count + 1
+            let rightDepth = rhs.isEmpty ? 0
+                : rhs.filter { $0 == "/" }.count + 1
+            if leftDepth != rightDepth { return leftDepth > rightDepth }
+            return lhs.utf8.lexicographicallyPrecedes(rhs.utf8)
+        }
+        guard order == expectedOrder else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    private static func validateNode(_ node: Node,
+        byPath: [String: Node],
+        directChildren: [String: [String]]) throws {
+        let fields = node.fact.split(separator: "|", omittingEmptySubsequences: false)
+        guard validNodeFact(fields),
+              let mode = UInt32(fields[2]),
+              let links = UInt64(fields[3]) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if !node.path.isEmpty {
+            let parts = node.path.split(separator: "/",
+                omittingEmptySubsequences: false)
+            guard !parts.isEmpty,
+                  parts.count <= (node.kind == "directory" ? 64 : 65),
+                  parts.allSatisfy({ !$0.isEmpty && $0 != "."
+                    && $0 != ".." }),
+                  let parent = byPath[parts.dropLast().joined(separator: "/")],
+                  parent.kind == "directory" else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        switch node.kind {
+        case "directory":
+            guard mode & UInt32(S_IFMT) == UInt32(S_IFDIR),
+                  node.sha256 == nil,
+                  let members = node.members,
+                  members == members.sorted(),
+                  Set(members).count == members.count,
+                  members.allSatisfy({ !$0.isEmpty && $0 != "."
+                    && $0 != ".." && !$0.contains("/") }) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let actual = (directChildren[node.path] ?? []).sorted()
+            guard actual == members else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        case "file":
+            guard mode & UInt32(S_IFMT) == UInt32(S_IFREG), links == 1,
+                  node.members == nil,
+                  let sha = node.sha256,
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        default:
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    private static func rootFactMatchesNode(_ full: String,
+        _ node: String) -> Bool {
+        let first = full.split(separator: "|", omittingEmptySubsequences: false)
+        let second = node.split(separator: "|", omittingEmptySubsequences: false)
+        guard validFullFact(first), validNodeFact(second) else {
+            return false
+        }
+        return first[0] == second[0] && first[1] == second[1]
+            && first[2] == second[2] && first[5] == second[3]
+            && first[6] == second[4] && first[7] == second[5]
+            && first[8] == second[6] && first[9] == second[7]
+            && first[10] == second[8]
+    }
+
+    private static func supportFactMatchesParent(_ record: Record) -> Bool {
+        let fields = record.firstSupportFact.split(separator: "|",
+            omittingEmptySubsequences: false)
+        guard validFullFact(fields) else { return false }
+        return fields[0] == String(record.supportDevice)
+            && fields[1] == String(record.supportInode)
+            && fields[2] == String(record.supportMode)
+            && fields[3] == String(record.supportUser)
+            && fields[4] == String(record.supportGroup)
+    }
+
+    private static func validNodeFact(_ fields: [Substring]) -> Bool {
+        guard fields.count == 9,
+              let device = Int64(fields[0]), device >= 0,
+              let inode = UInt64(fields[1]), inode > 0,
+              let mode = UInt32(fields[2]), mode != 0,
+              let links = UInt64(fields[3]), links > 0,
+              let size = Int64(fields[4]), size >= 0,
+              let modifiedSeconds = Int64(fields[5]),
+              let modifiedNanoseconds = Int64(fields[6]),
+              (0..<1_000_000_000).contains(modifiedNanoseconds),
+              let changedSeconds = Int64(fields[7]),
+              let changedNanoseconds = Int64(fields[8]),
+              (0..<1_000_000_000).contains(changedNanoseconds) else {
+            return false
+        }
+        return fields.map(String.init) == [String(device), String(inode),
+            String(mode), String(links), String(size),
+            String(modifiedSeconds), String(modifiedNanoseconds),
+            String(changedSeconds), String(changedNanoseconds)]
+    }
+
+    private static func validFullFact(_ fields: [Substring]) -> Bool {
+        guard fields.count == 11,
+              let device = Int64(fields[0]), device >= 0,
+              let inode = UInt64(fields[1]), inode > 0,
+              let mode = UInt32(fields[2]), mode != 0,
+              let user = UInt32(fields[3]),
+              let group = UInt32(fields[4]),
+              let links = UInt64(fields[5]), links > 0,
+              let size = Int64(fields[6]), size >= 0,
+              let modifiedSeconds = Int64(fields[7]),
+              let modifiedNanoseconds = Int64(fields[8]),
+              (0..<1_000_000_000).contains(modifiedNanoseconds),
+              let changedSeconds = Int64(fields[9]),
+              let changedNanoseconds = Int64(fields[10]),
+              (0..<1_000_000_000).contains(changedNanoseconds) else {
+            return false
+        }
+        return fields.map(String.init) == [String(device), String(inode),
+            String(mode), String(user), String(group), String(links),
+            String(size), String(modifiedSeconds),
+            String(modifiedNanoseconds), String(changedSeconds),
+            String(changedNanoseconds)]
+    }
+
+    private static func digestOf(_ nodes: [Node]) throws -> String {
+        func hex(_ value: String) -> String {
+            value.utf8.map { String(format: "%02x", $0) }.joined()
+        }
+        let tokens = try nodes.map { node -> String in
+            switch node.kind {
+            case "directory":
+                guard let members = node.members else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                return "D|\(hex(node.path))|\(node.fact)|\(members.map(hex).joined(separator: ","))"
+            case "file":
+                guard let sha = node.sha256 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                return "F|\(hex(node.path))|\(node.fact)|\(sha)"
+            default:
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        return StoreMigrationCanonicalJSONV1.sha256(
+            Data(tokens.sorted().joined(separator: "\n").utf8))
+    }
+}
+
+/// The Router retains this exact checked I/O owner before the Manifest lends
+/// any parent descriptor for the complete first-node capture. A failed walk
+/// leaves the attempted state and uncertain descriptors with the operation;
+/// it cannot be retried as a fresh baseline.
+@MainActor
+final class EraseSchema2ColdAuxiliaryRosterCaptureV1 {
+    private let io = EraseAbortCheckedSnapshotIOV1()
+    private var attempted = false
+    private var first: EraseSchema2ColdAuxiliaryPhysicalRosterV1?
+
+    func captureFirst(intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        support: Int32, caches: Int32, temporary: Int32
+    ) throws -> EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+        guard !attempted, first == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        attempted = true
+        let captured = try EraseSchema2ColdAuxiliaryPhysicalRosterV1
+            .captureFirst(intent: intent, preparation: preparation,
+                observer: observer, snapshot: snapshot,
+                support: support, caches: caches,
+                temporary: temporary, io: io)
+        try io.requireSettled()
+        first = captured
+        return captured
+    }
+
+    func requireFirst() throws -> EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+        try io.requireSettled()
+        guard attempted, let first else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return first
+    }
+}
+
+/// Original Erase captures the prepared P image under its own retained EX.
+/// This object is not a cold operation or a cold Manifest seal. Every reread
+/// uses the same immutable first observer and a newly retained checked IO
+/// owner; any failed reproof is terminal for this capture.
+@MainActor
+final class EraseSchema2OriginalAuxiliaryRosterCaptureV1 {
+    private let firstIO = EraseAbortCheckedSnapshotIOV1()
+    private var rereadIO: [EraseAbortCheckedSnapshotIOV1] = []
+    private var firstAttempted = false
+    private var rereadInFlight = false
+    private var rereadFailed = false
+    private var rereadSucceeded = false
+    private var sealAttempted = false
+    private var first: EraseSchema2ColdAuxiliaryPhysicalRosterV1?
+
+    func captureFirst(intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        support: Int32, caches: Int32, temporary: Int32
+    ) throws -> EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+        guard !firstAttempted, first == nil,
+              intent.phase == .emptyGenerationPrepared else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        firstAttempted = true
+        let value = try EraseSchema2ColdAuxiliaryPhysicalRosterV1
+            .captureFirstOriginal(intent: intent,
+                preparation: preparation, observer: observer,
+                snapshot: snapshot, support: support,
+                caches: caches, temporary: temporary, io: firstIO)
+        try firstIO.requireSettled()
+        first = value
+        return value
+    }
+
+    func requireSameFirstSourceFacts(intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        support: Int32, caches: Int32, temporary: Int32
+    ) throws -> EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+        guard firstAttempted, let first,
+              !rereadInFlight, !rereadFailed,
+              intent.phase == .emptyGenerationPrepared else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        rereadInFlight = true
+        let io = EraseAbortCheckedSnapshotIOV1()
+        rereadIO.append(io)
+        do {
+            try firstIO.requireSettled()
+            let value = try EraseSchema2ColdAuxiliaryPhysicalRosterV1
+                .captureFirstOriginal(intent: intent,
+                    preparation: preparation, observer: observer,
+                    snapshot: snapshot, support: support,
+                    caches: caches, temporary: temporary, io: io)
+            try io.requireSettled()
+            guard value.canonicalBytes == first.canonicalBytes,
+                  value.canonicalSHA256 == first.canonicalSHA256 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            rereadSucceeded = true
+            rereadInFlight = false
+            return first
+        } catch {
+            rereadFailed = true
+            throw error
+        }
+    }
+
+    func requireFirst() throws
+        -> EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+        try firstIO.requireSettled()
+        guard firstAttempted, let first, !rereadFailed,
+              !rereadInFlight else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return first
+    }
+
+    func sealOriginal(intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        operation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        store: EraseIntentStore
+    ) throws -> EraseSchema2OriginalAuxiliaryRosterPublicationSealV1 {
+        guard !sealAttempted else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        sealAttempted = true
+        try operation.requireOriginalEraseAuxiliaryFirstCaptureOwner(
+            owner, observer: observer, coordinator: coordinator,
+            exclusion: exclusion, intent: intent,
+            preparation: preparation, store: store)
+        guard rereadSucceeded, !rereadFailed,
+              try owner.requireFirst() == snapshot,
+              try observer.firstObservation() == snapshot else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try EraseSchema2OriginalAuxiliaryRosterPublicationSealV1(
+            capture: self, observer: observer, snapshot: snapshot,
+            owner: owner, operation: operation,
+            coordinator: coordinator, exclusion: exclusion,
+            intent: intent, preparation: preparation, store: store,
+            roster: requireFirst())
+    }
+}
+
+/// Private original-operation seal for the one exact P physical image.
+/// A cold-P seal has different authority and cannot be substituted here.
+@MainActor
+final class EraseSchema2OriginalAuxiliaryRosterPublicationSealV1 {
+    let canonicalBytes: Data
+    let canonicalSHA256: String
+    let firstRoster: EraseSchema2ColdAuxiliaryPhysicalRosterV1
+    private let captureIdentity: ObjectIdentifier
+    private let observerIdentity: ObjectIdentifier
+    private let ownerIdentity: ObjectIdentifier
+    private let operationIdentity: ObjectIdentifier
+    private let coordinatorIdentity: ObjectIdentifier
+    private let exclusionIdentity: ObjectIdentifier
+    private let storeIdentity: ObjectIdentifier
+    private let firstSnapshot:
+        EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
+    private let intent: EraseIntentV1
+    private let preparation: ErasePreparationV2
+
+    fileprivate init(capture: EraseSchema2OriginalAuxiliaryRosterCaptureV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        operation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        roster: EraseSchema2ColdAuxiliaryPhysicalRosterV1
+    ) throws {
+        guard intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared,
+              preparation.matches(intent),
+              roster.record.firstIntentPhase == intent.phase.rawValue,
+              roster.record.eraseID
+                == intent.eraseID.uuidString.lowercased(),
+              roster.record.firstIntentSHA256
+                == StoreMigrationCanonicalJSONV1.sha256(
+                    try EraseIntentCodecV1.encode(intent)),
+              roster.record.preparationSHA256
+                == StoreMigrationCanonicalJSONV1.sha256(
+                    try ErasePreparationCodecV2.encode(preparation)),
+              try capture.requireFirst().canonicalBytes
+                == roster.canonicalBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        canonicalBytes = roster.canonicalBytes
+        canonicalSHA256 = roster.canonicalSHA256
+        firstRoster = roster
+        captureIdentity = ObjectIdentifier(capture)
+        observerIdentity = ObjectIdentifier(observer)
+        ownerIdentity = ObjectIdentifier(owner)
+        operationIdentity = ObjectIdentifier(operation)
+        coordinatorIdentity = ObjectIdentifier(coordinator)
+        exclusionIdentity = ObjectIdentifier(exclusion)
+        storeIdentity = ObjectIdentifier(store)
+        firstSnapshot = snapshot
+        self.intent = intent
+        self.preparation = preparation
+    }
+
+    func requireBound(capture: EraseSchema2OriginalAuxiliaryRosterCaptureV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        operation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        store: EraseIntentStore
+    ) throws {
+        guard captureIdentity == ObjectIdentifier(capture),
+              observerIdentity == ObjectIdentifier(observer),
+              ownerIdentity == ObjectIdentifier(owner),
+              operationIdentity == ObjectIdentifier(operation),
+              coordinatorIdentity == ObjectIdentifier(coordinator),
+              exclusionIdentity == ObjectIdentifier(exclusion),
+              storeIdentity == ObjectIdentifier(store),
+              firstSnapshot == snapshot,
+              self.intent == intent,
+              self.preparation == preparation,
+              try owner.requireFirst() == snapshot,
+              try observer.firstObservation() == snapshot,
+              try capture.requireFirst().canonicalBytes == canonicalBytes,
+              StoreMigrationCanonicalJSONV1.sha256(canonicalBytes)
+                == canonicalSHA256 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+}
+
+/// This seal carries only the previously captured first-P bytes. Its private
+/// initializer can be reached only through the retained Manifest owner after
+/// Router reproof; the Store still needs its own checked publication cut.
+@MainActor
+final class EraseSchema2ColdAuxiliaryRosterPublicationSealV1 {
+    let canonicalBytes: Data
+    let canonicalSHA256: String
+    let firstRoster: EraseSchema2ColdAuxiliaryPhysicalRosterV1
+    private let manifestIdentity: ObjectIdentifier
+    private let operationIdentity: ObjectIdentifier
+    private let captureIdentity: ObjectIdentifier
+    private let observerIdentity: ObjectIdentifier
+    private let intent: EraseIntentV1
+    private let preparation: ErasePreparationV2
+    private let firstSnapshot:
+        EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
+
+    fileprivate init(
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        capture: EraseSchema2ColdAuxiliaryRosterCaptureV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        roster: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
+        intent: EraseIntentV1, preparation: ErasePreparationV2
+    ) throws {
+        guard intent.schemaVersion == 2,
+              intent.phase == .pointerSwitched,
+              preparation.matches(intent),
+              try capture.requireFirst().canonicalBytes
+                == roster.canonicalBytes,
+              try observer.firstObservation() == snapshot,
+              roster.record.eraseID
+                == intent.eraseID.uuidString.lowercased(),
+              roster.record.firstIntentSHA256
+                == StoreMigrationCanonicalJSONV1.sha256(
+                    try EraseIntentCodecV1.encode(intent)),
+              roster.record.preparationSHA256
+                == StoreMigrationCanonicalJSONV1.sha256(
+                    try ErasePreparationCodecV2.encode(preparation)) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        firstRoster = roster
+        canonicalBytes = roster.canonicalBytes
+        canonicalSHA256 = roster.canonicalSHA256
+        manifestIdentity = ObjectIdentifier(manifest)
+        operationIdentity = ObjectIdentifier(operation)
+        captureIdentity = ObjectIdentifier(capture)
+        observerIdentity = ObjectIdentifier(observer)
+        self.intent = intent
+        self.preparation = preparation
+        firstSnapshot = snapshot
+    }
+
+    func requireBound(
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        capture: EraseSchema2ColdAuxiliaryRosterCaptureV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        intent: EraseIntentV1, preparation: ErasePreparationV2
+    ) throws {
+        guard manifestIdentity == ObjectIdentifier(manifest),
+              operationIdentity == ObjectIdentifier(operation),
+              captureIdentity == ObjectIdentifier(capture),
+              observerIdentity == ObjectIdentifier(observer),
+              firstSnapshot == snapshot,
+              self.intent == intent,
+              self.preparation == preparation,
+              try observer.firstObservation() == snapshot,
+              try capture.requireFirst().canonicalBytes == canonicalBytes,
+              StoreMigrationCanonicalJSONV1.sha256(canonicalBytes)
+                == canonicalSHA256 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+}
+
+/// A first R cut with target-current, target-only installed names and empty
+/// retired.json is only data until the operation authenticates its published
+/// roster and proves every recorded generation node absent. It cannot by
+/// itself authorize cleanup or mint a replacement reader/session.
+@MainActor
+struct EraseSchema2ColdPostDeletionCandidateV1 {
+    let eraseID: UUID
+    let targetGenerationID: UUID
+    fileprivate let manifestIdentity: ObjectIdentifier
+    fileprivate let snapshot: EraseSchema2ColdTargetSnapshotV1
+    fileprivate let retiredBytes: Data
+    fileprivate let installedNames: [String]
+
+    fileprivate init(eraseID: UUID, targetGenerationID: UUID,
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        snapshot: EraseSchema2ColdTargetSnapshotV1,
+        retiredBytes: Data, installedNames: [String]) {
+        self.eraseID = eraseID
+        self.targetGenerationID = targetGenerationID
+        manifestIdentity = ObjectIdentifier(manifest)
+        self.snapshot = snapshot
+        self.retiredBytes = retiredBytes
+        self.installedNames = installedNames
+    }
+}
+
+/// The first no-repair notification namespace is only observation data.
+/// The cold notification adapter must later authenticate canonical control,
+/// mapping, owned-ID provenance and drain contents, request exact policy,
+/// and prove OS absence
+/// before any generation unlink. An absent root is changed only by the
+/// operation-bound checked createRootFromFirstAbsence effect.
+@MainActor
+final class EraseSchema2ColdNotificationSourceV1 {
+    static let creationRecordName = "notification-root-create.json"
+    static let creationTemporaryName =
+        ".notification-root-create.json.next"
+    static let creationStageName =
+        ".AppLockNotificationControlV1.create-next"
+    static let ownedIDsName = "notification-owned-ids.json"
+    static let ownedIDsTemporaryName =
+        ".notification-owned-ids.json.next"
+    static let drainName = "notification-drain.json"
+    static let drainTemporaryName =
+        ".notification-drain.json.next"
+    private weak var manifestOwner: EraseSchema2ColdManifestOwnerV1?
+    private weak var operation: EraseColdPreparationOperationV1?
+    let eraseID: UUID
+    let rootIdentity: String?
+    fileprivate var projectedRootIdentity: String?
+    let names: [String]
+    let rootFact: EraseColdControlLeafFactV1?
+    let rootPolicy: TemporalPolicyObservationV1?
+    let hasAuthenticatedCreationRecord: Bool
+    let leafBytes: [String: Data]
+    let leafFacts: [String: EraseColdControlLeafFactV1]
+    let leafPolicies: [String: TemporalPolicyObservationV1]
+    fileprivate let manifestIdentity: ObjectIdentifier
+
+    fileprivate init(manifest: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        eraseID: UUID, rootIdentity: String?, names: [String],
+        rootFact: EraseColdControlLeafFactV1?,
+        rootPolicy: TemporalPolicyObservationV1?,
+        hasAuthenticatedCreationRecord: Bool,
+        leafBytes: [String: Data],
+        leafFacts: [String: EraseColdControlLeafFactV1],
+        leafPolicies: [String: TemporalPolicyObservationV1]) {
+        manifestIdentity = ObjectIdentifier(manifest)
+        manifestOwner = manifest
+        self.operation = operation
+        self.eraseID = eraseID
+        self.rootIdentity = rootIdentity
+        self.names = names
+        self.rootFact = rootFact
+        self.rootPolicy = rootPolicy
+        self.hasAuthenticatedCreationRecord =
+            hasAuthenticatedCreationRecord
+        self.leafBytes = leafBytes
+        self.leafFacts = leafFacts
+        self.leafPolicies = leafPolicies
+    }
+
+    func withHeldRoot<T>(_ body: (Int32, URL) throws -> T)
+        throws -> T {
+        guard let manifestOwner, let operation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try manifestOwner.withHeldSchema2ColdNotificationRoot(
+            source: self, operation: operation, body)
+    }
+
+    func withHeldRootForMutation<T>(
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        _ body: (Int32, URL) throws -> T
+    ) throws -> T {
+        guard let manifestOwner, let operation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try manifestOwner.withHeldSchema2ColdNotificationRootForMutation(
+            source: self, token: token, operation: operation, body)
+    }
+
+    func beginMutation(
+        stage: EraseSchema2ColdNotificationMutationStageV1
+    ) throws -> EraseSchema2ColdNotificationMutationTokenV1 {
+        guard let manifestOwner, let operation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try manifestOwner.beginSchema2ColdNotificationMutation(
+            stage: stage, source: self, operation: operation)
+    }
+
+    func finishMutation(
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        receipt: EraseSchema2ColdNotificationMutationReceiptV1
+    ) throws {
+        guard let manifestOwner, let operation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try manifestOwner.finishSchema2ColdNotificationMutation(
+            token: token, receipt: receipt, operation: operation)
+    }
+
+    func createRootFromFirstAbsence()
+        throws -> EraseSchema2ColdNotificationRootCreatedV1 {
+        guard let manifestOwner, let operation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try manifestOwner
+            .createSchema2ColdNotificationRootFromFirstAbsence(
+                source: self, operation: operation)
+    }
+
+    func requireCurrentRootIdentity() throws -> String {
+        guard let manifestOwner, let operation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try manifestOwner.requireSchema2ColdNotificationCurrentRootIdentity(
+            source: self, operation: operation)
+    }
+
+    func settleCanonicalCreationAfterReplay()
+        throws -> EraseSchema2ColdNotificationRootCreatedV1 {
+        guard let manifestOwner, let operation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try manifestOwner
+            .settleSchema2ColdNotificationCanonicalCreationAfterReplay(
+                source: self, operation: operation)
+    }
+}
+
+/// Authenticates a prospective absent-root cut before a notification
+/// directory is created. This record lives in the already held Operations
+/// directory, outside the root whose creation it authorizes.
+private struct EraseSchema2ColdNotificationRootCreationRecordV1:
+    Codable, Equatable {
+    let schemaVersion: Int
+    let eraseID: String
+    let targetGenerationID: String
+    let intentSHA256: String
+    let preparationSHA256: String
+    let supportDevice: UInt64
+    let supportInode: UInt64
+    let operationsDevice: UInt64
+    let operationsInode: UInt64
+    let canonicalName: String
+    let stagingName: String
+
+    init(intent: EraseIntentV1, preparation: ErasePreparationV2,
+        support: stat, operations: stat) throws {
+        schemaVersion = 1
+        eraseID = intent.eraseID.uuidString.lowercased()
+        targetGenerationID = intent.newGenerationID.uuidString.lowercased()
+        intentSHA256 = StoreMigrationCanonicalJSONV1.sha256(
+            try EraseIntentCodecV1.encode(intent))
+        preparationSHA256 = StoreMigrationCanonicalJSONV1.sha256(
+            try ErasePreparationCodecV2.encode(preparation))
+        supportDevice = UInt64(support.st_dev)
+        supportInode = UInt64(support.st_ino)
+        operationsDevice = UInt64(operations.st_dev)
+        operationsInode = UInt64(operations.st_ino)
+        canonicalName = AppLockNotificationControlStoreV1.rootName
+        stagingName = EraseSchema2ColdNotificationSourceV1.creationStageName
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == 1,
+              UUID(uuidString: eraseID)?.uuidString.lowercased() == eraseID,
+              UUID(uuidString: targetGenerationID)?.uuidString.lowercased()
+                == targetGenerationID,
+              [intentSHA256, preparationSHA256].allSatisfy({
+                   StoreMigrationCanonicalJSONV1.isLowercaseSHA256($0)
+               }),
+              supportDevice > 0, supportInode > 0,
+              operationsDevice > 0, operationsInode > 0,
+              canonicalName == AppLockNotificationControlStoreV1.rootName,
+              stagingName == EraseSchema2ColdNotificationSourceV1
+                .creationStageName else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    static func decodeCanonical(_ bytes: Data) throws -> Self {
+        try StoreMigrationCanonicalJSONV1.decodeCanonicalContract(
+            Self.self, from: bytes, validate: { try $0.validate() })
+    }
+}
+
+enum EraseSchema2ColdNotificationMutationStageV1: Equatable {
+    case createRoot
+    case settleCreatedRoot
+    case publishOwnedIDs
+    case publishRevocation
+    case publishDrainReceipt
+    case removeMapping
+    case removeControl
+}
+
+/// Only the retained Manifest owner can create this one-way effect token.
+/// Its first facts are fixed before a Storage adapter opens any mutating FD.
+@MainActor
+final class EraseSchema2ColdNotificationMutationTokenV1 {
+    let stage: EraseSchema2ColdNotificationMutationStageV1
+    let source: EraseSchema2ColdNotificationSourceV1
+    fileprivate let manifestIdentity: ObjectIdentifier
+    fileprivate let beforeRootFact: EraseColdControlLeafFactV1?
+    fileprivate let beforeNames: [String]
+    fileprivate let beforeLeafBytes: [String: Data]
+    fileprivate let beforeLeafFacts:
+        [String: EraseColdControlLeafFactV1]
+    fileprivate var firstEffectStarted = false
+
+    fileprivate init(stage: EraseSchema2ColdNotificationMutationStageV1,
+        source: EraseSchema2ColdNotificationSourceV1,
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        beforeRootFact: EraseColdControlLeafFactV1?,
+        beforeNames: [String], beforeLeafBytes: [String: Data],
+        beforeLeafFacts: [String: EraseColdControlLeafFactV1]) {
+        self.stage = stage
+        self.source = source
+        manifestIdentity = ObjectIdentifier(manifest)
+        self.beforeRootFact = beforeRootFact
+        self.beforeNames = beforeNames
+        self.beforeLeafBytes = beforeLeafBytes
+        self.beforeLeafFacts = beforeLeafFacts
+    }
+}
+
+/// Returned only after an absent first cut is changed to a checked, retained
+/// empty root and both the new root and its parent have been fsynced.
+@MainActor
+final class EraseSchema2ColdNotificationRootCreatedV1 {
+    let source: EraseSchema2ColdNotificationSourceV1
+    let rootIdentity: String
+    let rootFact: EraseColdControlLeafFactV1
+    let policyDisposition: ProtectedFileVerificationDispositionV1
+    let checkedSettled: Bool
+
+    fileprivate init(source: EraseSchema2ColdNotificationSourceV1,
+        rootIdentity: String, rootFact: EraseColdControlLeafFactV1,
+        policyDisposition: ProtectedFileVerificationDispositionV1) {
+        self.source = source
+        self.rootIdentity = rootIdentity
+        self.rootFact = rootFact
+        self.policyDisposition = policyDisposition
+        checkedSettled = true
+    }
+}
+
+/// Durable pre-effect authority for one nondeterministic target reader token.
+/// All fields before zEntropy are derivable from the authenticated Erase and
+/// the exact prior Registry. A torn creation prefix is never a token; the
+/// bounded suffix grammar exists only so that exact reserved partial cuts
+/// can be checked-removed before any Registry publication.
+private struct EraseSchema2ColdReaderPublicationRecordV1: Codable, Equatable {
+    static let schema = 1
+    static let entropyLength = 80
+    let eraseID: UUID
+    let priorRegistrySHA256: String
+    let schemaVersion: Int
+    let targetGenerationID: UUID
+    let targetManifestSHA256: String
+    let zEntropy: String
+
+    private init(eraseID: UUID, priorRegistrySHA256: String,
+                 schemaVersion: Int, targetGenerationID: UUID,
+                 targetManifestSHA256: String, zEntropy: String) {
+        self.eraseID = eraseID
+        self.priorRegistrySHA256 = priorRegistrySHA256
+        self.schemaVersion = schemaVersion
+        self.targetGenerationID = targetGenerationID
+        self.targetManifestSHA256 = targetManifestSHA256
+        self.zEntropy = zEntropy
+    }
+
+    init(intent: EraseIntentV1, priorSHA256: String,
+         token: GenerationLeaseTokenV1) throws {
+        guard let target = intent.targetPointer,
+              target.generationID == intent.newGenerationID,
+              token.epoch.generationID == intent.newGenerationID,
+              token.epoch.generationManifestSHA256
+                == target.generationManifestSHA256,
+              token.role == .reader,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(priorSHA256)
+        else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        eraseID = intent.eraseID
+        priorRegistrySHA256 = priorSHA256
+        schemaVersion = Self.schema
+        targetGenerationID = intent.newGenerationID
+        targetManifestSHA256 = target.generationManifestSHA256
+        let bits = token.acquiredAt.timeIntervalSinceReferenceDate.bitPattern
+        let bitText = String(bits, radix: 16)
+        zEntropy = Self.compact(token.ownerID)
+            + Self.compact(token.leaseID)
+            + String(repeating: "0", count: 16 - bitText.count) + bitText
+        try validate()
+    }
+
+    private static func compact(_ id: UUID) -> String {
+        id.uuidString.lowercased().replacingOccurrences(of: "-", with: "")
+    }
+
+    private static func uuid(_ compact: String) throws -> UUID {
+        let chars = Array(compact)
+        guard chars.count == 32,
+              chars.allSatisfy({ $0.isASCII && $0.isHexDigit }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let text = String(chars[0..<8]) + "-" + String(chars[8..<12])
+            + "-" + String(chars[12..<16]) + "-"
+            + String(chars[16..<20]) + "-" + String(chars[20..<32])
+        guard let result = UUID(uuidString: text),
+              Self.compact(result) == compact else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return result
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schema,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                priorRegistrySHA256),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                targetManifestSHA256),
+              zEntropy.count == Self.entropyLength,
+              zEntropy.utf8.allSatisfy({ byte in
+                  (48...57).contains(byte) || (97...102).contains(byte)
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        _ = try Self.uuid(String(zEntropy.prefix(32)))
+        _ = try Self.uuid(String(zEntropy.dropFirst(32).prefix(32)))
+        guard let bits = UInt64(zEntropy.suffix(16), radix: 16),
+              Double(bitPattern: bits).isFinite else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    static func decodeCanonical(_ bytes: Data) throws -> Self {
+        let result = try StoreMigrationCanonicalJSONV1
+            .decodeCanonicalContract(Self.self, from: bytes,
+                validate: { try $0.validate() })
+        return result
+    }
+
+    func token(epoch: GenerationEpochV1) throws
+        -> GenerationLeaseTokenV1 {
+        try validate()
+        guard epoch.generationID == targetGenerationID,
+              epoch.generationManifestSHA256 == targetManifestSHA256,
+              let bits = UInt64(zEntropy.suffix(16), radix: 16) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try GenerationLeaseTokenV1(
+            leaseID: Self.uuid(String(zEntropy.dropFirst(32).prefix(32))),
+            ownerID: Self.uuid(String(zEntropy.prefix(32))),
+            epoch: epoch, role: .reader,
+            acquiredAt: Date(timeIntervalSinceReferenceDate:
+                Double(bitPattern: bits)))
+    }
+
+    /// The sole allowed incomplete record is a prefix of the deterministic
+    /// header followed by at most 80 lowercase hex entropy characters and
+    /// canonical closing syntax. No partial record authorizes a lease.
+    static func isAdmissiblePrefix(_ bytes: Data,
+        intent: EraseIntentV1, priorSHA256: String) throws -> Bool {
+        guard let target = intent.targetPointer else { return false }
+        let template = Self(eraseID: intent.eraseID,
+            priorRegistrySHA256: priorSHA256,
+            schemaVersion: schema,
+            targetGenerationID: intent.newGenerationID,
+            targetManifestSHA256: target.generationManifestSHA256,
+            zEntropy: String(repeating: "0", count: entropyLength))
+        let canonical = try template.canonicalData()
+        guard canonical.count >= entropyLength + 2,
+              bytes.count < canonical.count else { return false }
+        let headerCount = canonical.count - entropyLength - 2
+        let shared = min(bytes.count, headerCount)
+        guard bytes.prefix(shared) == canonical.prefix(shared) else {
+            return false
+        }
+        if bytes.count <= headerCount { return true }
+        let entropyPrefix = bytes.dropFirst(headerCount)
+        let hex = entropyPrefix.prefix(entropyLength)
+        guard hex.allSatisfy({ byte in
+                (48...57).contains(byte) || (97...102).contains(byte)
+            }) else { return false }
+        if entropyPrefix.count <= entropyLength { return true }
+        return entropyPrefix.count == entropyLength + 1
+            && entropyPrefix.last == 34
+    }
+}
+
+/// Separate original-operation publication record. A canonical value binds the
+/// real retained P target, exact prior Registry digest and one minted token.
+/// Prefixes only classify refused/settled cuts; they never mint a reader.
+private struct OriginalEraseRetainedTargetReaderPublicationRecordV1: Codable, Equatable {
+    static let schema = 1
+    static let entropyLength = 80
+    let eraseID: UUID
+    let route: String
+    let currentPointerSHA256: String
+    let priorRegistrySHA256: String
+    let schemaVersion: Int
+    let targetGenerationID: UUID
+    let targetManifestSHA256: String
+    let zEntropy: String
+
+    private init(eraseID: UUID, currentPointerSHA256: String,
+                 priorRegistrySHA256: String,
+                 schemaVersion: Int, targetGenerationID: UUID,
+                 targetManifestSHA256: String, zEntropy: String) {
+        self.eraseID = eraseID
+        route = "original-retained"
+        self.currentPointerSHA256 = currentPointerSHA256
+        self.priorRegistrySHA256 = priorRegistrySHA256
+        self.schemaVersion = schemaVersion
+        self.targetGenerationID = targetGenerationID
+        self.targetManifestSHA256 = targetManifestSHA256
+        self.zEntropy = zEntropy
+    }
+
+    init(intent: EraseIntentV1, priorSHA256: String,
+         expectedPointerData: Data,
+         token: GenerationLeaseTokenV1) throws {
+        guard let target = intent.targetPointer,
+              target.generationID == intent.newGenerationID,
+              token.epoch.generationID == intent.newGenerationID,
+              token.epoch.generationManifestSHA256
+                == target.generationManifestSHA256,
+              token.role == .reader,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(priorSHA256)
+        else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        eraseID = intent.eraseID
+        route = "original-retained"
+        currentPointerSHA256 = StoreMigrationCanonicalJSONV1.sha256(
+            expectedPointerData)
+        priorRegistrySHA256 = priorSHA256
+        schemaVersion = Self.schema
+        targetGenerationID = intent.newGenerationID
+        targetManifestSHA256 = target.generationManifestSHA256
+        let bits = token.acquiredAt.timeIntervalSinceReferenceDate.bitPattern
+        let bitText = String(bits, radix: 16)
+        zEntropy = Self.compact(token.ownerID)
+            + Self.compact(token.leaseID)
+            + String(repeating: "0", count: 16 - bitText.count) + bitText
+        try validate()
+    }
+
+    private static func compact(_ id: UUID) -> String {
+        id.uuidString.lowercased().replacingOccurrences(of: "-", with: "")
+    }
+
+    private static func uuid(_ compact: String) throws -> UUID {
+        let chars = Array(compact)
+        guard chars.count == 32,
+              chars.allSatisfy({ $0.isASCII && $0.isHexDigit }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let text = String(chars[0..<8]) + "-" + String(chars[8..<12])
+            + "-" + String(chars[12..<16]) + "-"
+            + String(chars[16..<20]) + "-" + String(chars[20..<32])
+        guard let result = UUID(uuidString: text),
+              Self.compact(result) == compact else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return result
+    }
+
+    func validate() throws {
+        guard route == "original-retained",
+              schemaVersion == Self.schema,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                currentPointerSHA256),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                priorRegistrySHA256),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                targetManifestSHA256),
+              zEntropy.count == Self.entropyLength,
+              zEntropy.utf8.allSatisfy({ byte in
+                  (48...57).contains(byte) || (97...102).contains(byte)
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        _ = try Self.uuid(String(zEntropy.prefix(32)))
+        _ = try Self.uuid(String(zEntropy.dropFirst(32).prefix(32)))
+        guard let bits = UInt64(zEntropy.suffix(16), radix: 16),
+              Double(bitPattern: bits).isFinite else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func canonicalData() throws -> Data {
+        try validate()
+        return try StoreMigrationCanonicalJSONV1.encode(self)
+    }
+
+    static func decodeCanonical(_ bytes: Data) throws -> Self {
+        let result = try StoreMigrationCanonicalJSONV1
+            .decodeCanonicalContract(Self.self, from: bytes,
+                validate: { try $0.validate() })
+        return result
+    }
+
+    func token(epoch: GenerationEpochV1) throws
+        -> GenerationLeaseTokenV1 {
+        try validate()
+        guard epoch.generationID == targetGenerationID,
+              epoch.generationManifestSHA256 == targetManifestSHA256,
+              let bits = UInt64(zEntropy.suffix(16), radix: 16) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try GenerationLeaseTokenV1(
+            leaseID: Self.uuid(String(zEntropy.dropFirst(32).prefix(32))),
+            ownerID: Self.uuid(String(zEntropy.prefix(32))),
+            epoch: epoch, role: .reader,
+            acquiredAt: Date(timeIntervalSinceReferenceDate:
+                Double(bitPattern: bits)))
+    }
+
+    /// The sole allowed incomplete original-route record is a prefix of the deterministic
+    /// header followed by at most 80 lowercase hex entropy characters and
+    /// canonical closing syntax. No partial record authorizes a lease.
+    static func isAdmissiblePrefix(_ bytes: Data,
+        intent: EraseIntentV1, priorSHA256: String,
+        expectedPointerData: Data) throws -> Bool {
+        guard let target = intent.targetPointer else { return false }
+        let template = Self(eraseID: intent.eraseID,
+            currentPointerSHA256: StoreMigrationCanonicalJSONV1
+                .sha256(expectedPointerData),
+            priorRegistrySHA256: priorSHA256,
+            schemaVersion: schema,
+            targetGenerationID: intent.newGenerationID,
+            targetManifestSHA256: target.generationManifestSHA256,
+            zEntropy: String(repeating: "0", count: entropyLength))
+        let canonical = try template.canonicalData()
+        guard canonical.count >= entropyLength + 2,
+              bytes.count < canonical.count else { return false }
+        let headerCount = canonical.count - entropyLength - 2
+        let shared = min(bytes.count, headerCount)
+        guard bytes.prefix(shared) == canonical.prefix(shared) else {
+            return false
+        }
+        if bytes.count <= headerCount { return true }
+        let entropyPrefix = bytes.dropFirst(headerCount)
+        let hex = entropyPrefix.prefix(entropyLength)
+        guard hex.allSatisfy({ byte in
+                (48...57).contains(byte) || (97...102).contains(byte)
+            }) else { return false }
+        if entropyPrefix.count <= entropyLength { return true }
+        return entropyPrefix.count == entropyLength + 1
+            && entropyPrefix.last == 34
+    }
+}
+
+/// Typed projection of exactly one original-operation reader publication.
+/// The first lease-tree digest must match the immutable original P observer;
+/// the after digest is accepted only with this same-process checked effect.
+@MainActor
+final class OriginalEraseRetainedTargetReaderProjectionV1 {
+    private weak var registry: GenerationLeaseRegistryV1?
+    private weak var operation: EraseRouterOperationV1?
+    private weak var allocation: GenerationLeaseAllocationAttemptV1?
+    private weak var handle: GenerationLeaseHandleV1?
+    let firstLeaseRootFact: String
+    let firstLeaseDigest: String
+    let afterLeaseRootFact: String
+    let afterLeaseDigest: String
+    let operationsFact: String
+    let firstOperationsDigest: String
+    let afterOperationsDigest: String
+    let firstLeaseNames: [String]
+    let afterLeaseNames: [String]
+    let firstRegistryFact: String
+    let preparedTemporaryFact: String
+    let afterRegistryFact: String
+    let recordFact: String
+    let recordBytes: Data
+    let replacementRegistryBytes: Data
+    let priorRegistrySHA256: String
+    let priorTokens: [GenerationLeaseTokenV1]
+    let afterTokens: [GenerationLeaseTokenV1]
+    let publishedToken: GenerationLeaseTokenV1
+    let checkedSettled: Bool
+
+    fileprivate init(registry: GenerationLeaseRegistryV1,
+        operation: EraseRouterOperationV1,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        handle: GenerationLeaseHandleV1,
+        firstLeaseRootFact: String, firstLeaseDigest: String,
+        afterLeaseRootFact: String, afterLeaseDigest: String,
+        operationsFact: String,
+        firstOperationsDigest: String,
+        afterOperationsDigest: String,
+        firstLeaseNames: [String], afterLeaseNames: [String],
+        firstRegistryFact: String, preparedTemporaryFact: String,
+        afterRegistryFact: String,
+        recordFact: String, recordBytes: Data,
+        replacementRegistryBytes: Data,
+        priorRegistrySHA256: String,
+        priorTokens: [GenerationLeaseTokenV1],
+        afterTokens: [GenerationLeaseTokenV1]) {
+        self.registry = registry; self.operation = operation
+        self.allocation = allocation; self.handle = handle
+        self.firstLeaseRootFact = firstLeaseRootFact
+        self.firstLeaseDigest = firstLeaseDigest
+        self.afterLeaseRootFact = afterLeaseRootFact
+        self.afterLeaseDigest = afterLeaseDigest
+        self.operationsFact = operationsFact
+        self.firstOperationsDigest = firstOperationsDigest
+        self.afterOperationsDigest = afterOperationsDigest
+        self.firstLeaseNames = firstLeaseNames
+        self.afterLeaseNames = afterLeaseNames
+        self.firstRegistryFact = firstRegistryFact
+        self.preparedTemporaryFact = preparedTemporaryFact
+        self.afterRegistryFact = afterRegistryFact
+        self.recordFact = recordFact
+        self.recordBytes = recordBytes
+        self.replacementRegistryBytes = replacementRegistryBytes
+        self.priorRegistrySHA256 = priorRegistrySHA256
+        self.priorTokens = priorTokens
+        self.afterTokens = afterTokens
+        publishedToken = handle.token
+        checkedSettled = true
+    }
+
+    func requireBound(registry: GenerationLeaseRegistryV1,
+        operation: EraseRouterOperationV1,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        handle: GenerationLeaseHandleV1) throws {
+        guard self.registry === registry,
+              self.operation === operation,
+              self.allocation === allocation,
+              self.handle === handle,
+              allocation.allocatedHandle === handle,
+              allocation.originalEraseRetainedPublishedToken == handle.token,
+              checkedSettled else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registry.requireOriginalEraseRetainedTargetReaderProjection(
+            self, allocation: allocation)
+    }
+}
+
+struct OriginalEraseRetainedWriterProjectionFactsV1 {
+    let operationsFact: String
+    let firstOperationsDigest: String
+    let afterOperationsDigest: String
+    let firstLeaseRootFact: String
+    let firstLeaseDigest: String
+    let afterLeaseRootFact: String
+    let afterLeaseDigest: String
+    let firstLeaseNames: [String]
+    let afterLeaseNames: [String]
+    let firstRegistryFact: String
+    let preparedTemporaryFact: String
+    let afterRegistryFact: String
+    let firstRegistryBytes: Data
+    let afterRegistryBytes: Data
+    let priorTokens: [GenerationLeaseTokenV1]
+    let afterTokens: [GenerationLeaseTokenV1]
+}
+
+private struct OriginalEraseRetainedLeaseSiblingV1: Equatable {
+    let name: String
+    let kind: String
+    let fullFact: String
+    let digest: String
+}
+
+private struct OriginalEraseRetainedLeaseTreeImageV1: Equatable {
+    let operationsFact: String
+    let operationsDigest: String
+    let leaseFact: String
+    let leaseDigest: String
+    let names: [String]
+    let siblings: [OriginalEraseRetainedLeaseSiblingV1]
+}
+
+/// One checked original EX/G insertion of the target writer. The first
+/// physical tree must be the retained target-reader receipt's after image.
+@MainActor
+final class OriginalEraseRetainedWriterPublicationProjectionV1 {
+    private weak var registry: GenerationLeaseRegistryV1?
+    private weak var operation: EraseRouterOperationV1?
+    private weak var oldWriter: GenerationLeaseHandleV1?
+    private weak var allocation: GenerationWriterAllocationAttemptV1?
+    private weak var targetHandle: GenerationLeaseHandleV1?
+    let facts: OriginalEraseRetainedWriterProjectionFactsV1
+    let checkedSettled: Bool
+    var operationsFact: String { facts.operationsFact }
+    var firstOperationsDigest: String { facts.firstOperationsDigest }
+    var afterOperationsDigest: String { facts.afterOperationsDigest }
+    var firstLeaseRootFact: String { facts.firstLeaseRootFact }
+    var firstLeaseDigest: String { facts.firstLeaseDigest }
+    var afterLeaseRootFact: String { facts.afterLeaseRootFact }
+    var afterLeaseDigest: String { facts.afterLeaseDigest }
+    var firstLeaseNames: [String] { facts.firstLeaseNames }
+    var afterLeaseNames: [String] { facts.afterLeaseNames }
+    var priorTokens: [GenerationLeaseTokenV1] { facts.priorTokens }
+    var afterTokens: [GenerationLeaseTokenV1] { facts.afterTokens }
+
+    fileprivate init(registry: GenerationLeaseRegistryV1,
+        operation: EraseRouterOperationV1,
+        oldWriter: GenerationLeaseHandleV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        targetHandle: GenerationLeaseHandleV1,
+        facts: OriginalEraseRetainedWriterProjectionFactsV1) {
+        self.registry = registry; self.operation = operation
+        self.oldWriter = oldWriter; allocation = targetAllocation
+        self.targetHandle = targetHandle; self.facts = facts
+        checkedSettled = true
+    }
+
+    func requireBound(registry: GenerationLeaseRegistryV1,
+        operation: EraseRouterOperationV1,
+        oldWriter: GenerationLeaseHandleV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        targetHandle: GenerationLeaseHandleV1) throws {
+        guard self.registry === registry,
+              self.operation === operation,
+              self.oldWriter === oldWriter,
+              allocation === targetAllocation,
+              self.targetHandle === targetHandle,
+              targetAllocation.originalEraseRetainedWriterPublicationProjection
+                === self,
+              targetAllocation.allocatedHandle === targetHandle,
+              checkedSettled else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registry.requireOriginalEraseWriterProjectionSettled(
+            allocation: targetAllocation)
+    }
+}
+
+/// The second checked original EX/G mutation closes the old writer and
+/// projects only dual-writer Registry state to target-only state.
+@MainActor
+final class OriginalEraseRetainedOldWriterReleaseProjectionV1 {
+    private weak var registry: GenerationLeaseRegistryV1?
+    private weak var operation: EraseRouterOperationV1?
+    private weak var oldWriter: GenerationLeaseHandleV1?
+    private weak var allocation: GenerationWriterAllocationAttemptV1?
+    private weak var targetHandle: GenerationLeaseHandleV1?
+    let publication:
+        OriginalEraseRetainedWriterPublicationProjectionV1
+    let facts: OriginalEraseRetainedWriterProjectionFactsV1
+    let checkedSettled: Bool
+    var operationsFact: String { facts.operationsFact }
+    var firstOperationsDigest: String { facts.firstOperationsDigest }
+    var afterOperationsDigest: String { facts.afterOperationsDigest }
+    var firstLeaseRootFact: String { facts.firstLeaseRootFact }
+    var firstLeaseDigest: String { facts.firstLeaseDigest }
+    var afterLeaseRootFact: String { facts.afterLeaseRootFact }
+    var afterLeaseDigest: String { facts.afterLeaseDigest }
+    var firstLeaseNames: [String] { facts.firstLeaseNames }
+    var afterLeaseNames: [String] { facts.afterLeaseNames }
+    var priorTokens: [GenerationLeaseTokenV1] { facts.priorTokens }
+    var afterTokens: [GenerationLeaseTokenV1] { facts.afterTokens }
+
+    fileprivate init(registry: GenerationLeaseRegistryV1,
+        operation: EraseRouterOperationV1,
+        oldWriter: GenerationLeaseHandleV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        targetHandle: GenerationLeaseHandleV1,
+        publication: OriginalEraseRetainedWriterPublicationProjectionV1,
+        facts: OriginalEraseRetainedWriterProjectionFactsV1) {
+        self.registry = registry; self.operation = operation
+        self.oldWriter = oldWriter; allocation = targetAllocation
+        self.targetHandle = targetHandle
+        self.publication = publication; self.facts = facts
+        checkedSettled = true
+    }
+
+    func requireBound(registry: GenerationLeaseRegistryV1,
+        operation: EraseRouterOperationV1,
+        oldWriter: GenerationLeaseHandleV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        targetHandle: GenerationLeaseHandleV1) throws {
+        guard self.registry === registry,
+              self.operation === operation,
+              self.oldWriter === oldWriter,
+              allocation === targetAllocation,
+              self.targetHandle === targetHandle,
+              targetAllocation.originalEraseRetainedOldWriterReleaseProjection
+                === self,
+              targetAllocation.allocatedHandle === targetHandle,
+              checkedSettled else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try publication.requireBound(registry: registry,
+            operation: operation, oldWriter: oldWriter,
+            targetAllocation: targetAllocation,
+            targetHandle: targetHandle)
+        try oldWriter.requireClosedForOriginalEraseWriterTransition(
+            registry: registry)
+        try registry.requireOriginalEraseWriterProjectionSettled(
+            allocation: targetAllocation)
+    }
+}
+
+/// The Registry is itself retained by the cold operation before this owner is
+/// installed. Each opened replay descriptor is placed here immediately;
+/// failed close/unlock remains terminal and cannot be retried by FD number.
+@MainActor
+private final class EraseSchema2ColdReaderSettlementV1 {
+    var recordFD: Int32 = -1
+    var guardFD: Int32 = -1
+    var registryOriginalFD: Int32 = -1
+    var registryTemporaryFD: Int32 = -1
+    var guardLocked = false
+    var uncertain = false
+    var completed = false
+
+    private func closeDescriptor(_ descriptor: Int32) throws {
+        guard !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard descriptor >= 0 else { return }
+        guard Darwin.close(descriptor) == 0 else {
+            uncertain = true
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func closeRecordChecked() throws {
+        try closeDescriptor(recordFD)
+        recordFD = -1
+    }
+
+    func closeRegistryOriginalChecked() throws {
+        try closeDescriptor(registryOriginalFD)
+        registryOriginalFD = -1
+    }
+
+    func closeRegistryTemporaryChecked() throws {
+        try closeDescriptor(registryTemporaryFD)
+        registryTemporaryFD = -1
+    }
+
+    func unlockGuardChecked() throws {
+        guard !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if guardLocked {
+            guard guardFD >= 0,
+                  flock(guardFD, LOCK_UN) == 0 else {
+                uncertain = true
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            guardLocked = false
+        }
+        try closeDescriptor(guardFD)
+        guardFD = -1
+    }
+
+    func finishChecked() throws {
+        try closeRegistryTemporaryChecked()
+        try closeRegistryOriginalChecked()
+        try closeRecordChecked()
+        try unlockGuardChecked()
+        completed = true
+    }
+}
+
+/// A pointer replacement never relies on a deferred close. The Manifest
+/// owner registers this attempt before opening or creating the reserved leaf;
+/// an ambiguous descriptor close keeps the entire cold operation uncertain.
+@MainActor
+private final class EraseSchema2ColdPointerPublicationAttemptV1 {
+    let name: String
+    private(set) var descriptor: Int32 = -1
+    private(set) var closeAttempted = false
+    private(set) var uncertain = false
+
+    init(name: String) { self.name = name }
+
+    func retain(_ value: Int32) throws {
+        guard descriptor < 0, !closeAttempted, !uncertain else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        descriptor = value
+    }
+
+    func requireOpen() throws -> Int32 {
+        guard descriptor >= 0, !closeAttempted, !uncertain else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return descriptor
+    }
+
+    func closeChecked() throws {
+        guard !uncertain else { throw StoreMigrationFailure.invalidIdentity }
+        if closeAttempted { return }
+        closeAttempted = true
+        guard descriptor >= 0 else { return }
+        let held = descriptor
+        descriptor = -1
+        guard Darwin.close(held) == 0 else {
+            uncertain = true
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    func transferToManifest() throws -> Int32 {
+        let value = try requireOpen()
+        descriptor = -1
+        closeAttempted = true
+        return value
+    }
+
+    var isCheckedClosed: Bool {
+        closeAttempted && !uncertain && descriptor < 0
+    }
+}
+
+/// The original-P auxiliary record is retained as a first physical witness.
+/// Its canonical data alone does not authorize Search or deletion effects.
+@MainActor
+final class EraseSchema2ColdObservedOriginalAuxiliaryRosterV1 {
+    let roster: EraseSchema2ColdAuxiliaryPhysicalRosterV1
+    let firstFileFact: EraseColdControlLeafFactV1
+    let projectedFileFact: EraseColdControlLeafFactV1
+    private let manifestIdentity: ObjectIdentifier
+    private let storeIdentity: ObjectIdentifier
+    private let operationIdentity: ObjectIdentifier
+
+    fileprivate init(roster: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
+                     firstFileFact: EraseColdControlLeafFactV1,
+                     projectedFileFact: EraseColdControlLeafFactV1,
+                     manifest: EraseSchema2ColdManifestOwnerV1,
+                     store: EraseIntentStore,
+                     operation: EraseColdPreparationOperationV1) {
+        self.roster = roster
+        self.firstFileFact = firstFileFact
+        self.projectedFileFact = projectedFileFact
+        manifestIdentity = ObjectIdentifier(manifest)
+        storeIdentity = ObjectIdentifier(store)
+        operationIdentity = ObjectIdentifier(operation)
+    }
+
+    func requireBound(manifest: EraseSchema2ColdManifestOwnerV1,
+                      store: EraseIntentStore,
+                      operation: EraseColdPreparationOperationV1) throws {
+        guard manifestIdentity == ObjectIdentifier(manifest),
+              storeIdentity == ObjectIdentifier(store),
+              operationIdentity == ObjectIdentifier(operation) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+}
+
+/// A schema-2 cold Erase reads the already published current manifest without
+/// constructing StoreMigrationJournalStoreV1. Its ordinary initializer may
+/// create/reconcile Operations controls. The Router retains this owner before
+/// its first descriptor open and keeps any ambiguous close terminally held.
+@MainActor
+final class EraseSchema2ColdManifestOwnerV1 {
+    /// Physical first image only. It cannot authorize adoption of a surviving
+    /// private stage or publication of a canonical retired pointer.
+    struct OriginalRetiredFirstCutV1 {
+        struct Leaf {
+            let bytes: Data
+            let fact: FullRetiredFact
+            let policy: TemporalPolicyObservationV1
+        }
+        let controlBytes: [String: Data]
+        let controlRoot: EraseColdControlLeafFactV1
+        let controlNames: [String]
+        let dataFact: FullRetiredFact
+        let dataNames: [String]
+        let generationsFact: FullRetiredFact
+        let currentBytes: Data
+        let currentFact: FullRetiredFact
+        let retiredBytes: Data
+        let retiredFact: FullRetiredFact
+        let privateStage: Leaf?
+        let canonicalTemporary: Leaf?
+    }
+
+    /// Read-only semantic binding of the durable original P records to this
+    /// owner's first held physical cut. It exposes no decoded namespace or
+    /// replay-effect permit; the Manifest re-decodes exact first bytes itself.
+    final class OriginalRetiredSemanticObservationV1 {
+        private weak var manifest: EraseSchema2ColdManifestOwnerV1?
+        private weak var store: EraseIntentStore?
+        private weak var operation: EraseColdPreparationOperationV1?
+
+        fileprivate init(
+            manifest: EraseSchema2ColdManifestOwnerV1,
+            store: EraseIntentStore,
+            operation: EraseColdPreparationOperationV1
+        ) {
+            self.manifest = manifest; self.store = store
+            self.operation = operation
+        }
+
+        func requireBound(manifest: EraseSchema2ColdManifestOwnerV1,
+            store: EraseIntentStore,
+            operation: EraseColdPreparationOperationV1) throws {
+            guard self.manifest === manifest, self.store === store,
+                  self.operation === operation else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+
+    /// P-only binding of the first durable original-owner roster to the
+    /// operation's first checked physical image. It is observation, not a
+    /// publication or cleanup permit.
+    final class PreparedOriginalAuxiliaryObservationV1 {
+        private weak var manifest: EraseSchema2ColdManifestOwnerV1?
+        private weak var store: EraseIntentStore?
+        private weak var operation: EraseColdPreparationOperationV1?
+        fileprivate init(manifest: EraseSchema2ColdManifestOwnerV1,
+            store: EraseIntentStore,
+            operation: EraseColdPreparationOperationV1) {
+            self.manifest = manifest
+            self.store = store
+            self.operation = operation
+        }
+        func requireBound(manifest: EraseSchema2ColdManifestOwnerV1,
+            store: EraseIntentStore,
+            operation: EraseColdPreparationOperationV1) throws {
+            guard self.manifest === manifest, self.store === store,
+                  self.operation === operation else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+
+    struct FullRetiredFact: Equatable {
+        let device: dev_t, inode: ino_t, mode: mode_t, links: nlink_t
+        let user: uid_t, group: gid_t, size: off_t
+        let modifiedSeconds: Int64, modifiedNanoseconds: Int64
+        let changedSeconds: Int64, changedNanoseconds: Int64
+        init(_ value: stat) {
+            device = value.st_dev; inode = value.st_ino
+            mode = value.st_mode; links = value.st_nlink
+            user = value.st_uid; group = value.st_gid; size = value.st_size
+            modifiedSeconds = Int64(value.st_mtimespec.tv_sec)
+            modifiedNanoseconds = Int64(value.st_mtimespec.tv_nsec)
+            changedSeconds = Int64(value.st_ctimespec.tv_sec)
+            changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
+        }
+    }
+
+    private struct Fact: Equatable {
+        let device: dev_t, inode: ino_t, mode: mode_t, links: nlink_t
+        let size: off_t
+        let modifiedSeconds: Int64, modifiedNanoseconds: Int64
+        let changedSeconds: Int64, changedNanoseconds: Int64
+        init(_ value: stat) {
+            device = value.st_dev; inode = value.st_ino
+            mode = value.st_mode; links = value.st_nlink; size = value.st_size
+            modifiedSeconds = Int64(value.st_mtimespec.tv_sec)
+            modifiedNanoseconds = Int64(value.st_mtimespec.tv_nsec)
+            changedSeconds = Int64(value.st_ctimespec.tv_sec)
+            changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
+        }
+    }
+
+    private struct Opened {
+        let descriptor: Int32
+        let parent: Int32?
+        let name: String?
+        let path: URL
+        let fact: Fact
+    }
+    private struct AuxiliaryIdentity {
+        let device: dev_t, inode: ino_t, mode: mode_t
+        let user: uid_t, group: gid_t
+        init(_ value: stat) {
+            device = value.st_dev; inode = value.st_ino
+            mode = value.st_mode; user = value.st_uid
+            group = value.st_gid
+        }
+    }
+    private struct AuxiliaryParent {
+        let descriptor: Int32
+        let path: URL
+        let first: AuxiliaryIdentity?
+    }
+    private var held: [Opened] = []
+    private var uncertainFDs: [Int32] = []
+    private var enumerationFD: Int32?
+    private var directoryStream: UnsafeMutablePointer<DIR>?
+    private var uncertainStreamClose = false
+    private var opened = false
+    private var closeAttempted = false
+    private var support: Opened?
+    private var auxiliaryCachesParent: AuxiliaryParent?
+    private var auxiliaryTemporaryParent: AuxiliaryParent?
+    private var auxiliaryCaptureAttempted = false
+    private var auxiliaryCaptureInFlight = false
+    private var preparedAuxiliaryReproofInFlight = false
+    private var auxiliaryRosterRereadAttempted = false
+    private var auxiliaryRosterRereadInFlight = false
+    private var auxiliaryRosterSealAttempted = false
+    private var auxiliaryRosterSeal:
+        EraseSchema2ColdAuxiliaryRosterPublicationSealV1?
+    private var data: Opened?
+    private var operations: Opened?
+    private var migration: Opened?
+    private var operationsAbsent = false
+    private var migrationAbsent = false
+    private var currentPointer: Opened?
+    private var capturedPointerBytes: Data?
+    private var firstCapturedPointerBytes: Data?
+    private var capturedManifestBytes: Data?
+    private var firstCapturedManifestBytes: Data?
+    private var capturedCurrentCut: EraseSchema2ColdPointerCutV1?
+    private var targetManifest: Opened?
+    private var capturedTargetManifestBytes: Data?
+    private var retiredPointer: Opened?
+    private var firstRetiredPointerBytes: Data?
+    private var generations: Opened?
+    private var capturedGenerationNames: [String]?
+    private var targetSource: EraseSchema2ColdTargetSourceV1?
+    private var originalSource: EraseSchema2ColdRetainedSourceV1?
+    private var originalManifest: Opened?
+    private var capturedOriginalManifestBytes: Data?
+    private var retiredSources: [UUID: EraseSchema2ColdRetiredSourceV1]?
+    private var retiredSourceManifests: [UUID: Opened] = [:]
+    private var retiredSourceManifestBytes: [UUID: Data] = [:]
+    private var firstAbsentRetiredSourceIDs: Set<UUID>?
+    private var retiredSourceCaptureComplete = false
+    private var capturedRetiredSourceIntent: EraseIntentV1?
+    private var capturedRetiredSourcePreparation: ErasePreparationV2?
+    private var retainedSourcePhaseProjectionInFlight = false
+    private var retainedSourcePublishedIntent: EraseIntentV1?
+    private var retainedSourcePublishedStore: EraseIntentStore?
+    private var deletionRosterPublicationInFlight = false
+    private var sealedDeletionRosterPublication:
+        EraseSchema2ColdDeletionRosterPublicationSealV1?
+    private var sealedDeletionRosterIntent: EraseIntentV1?
+    private var sealedDeletionRosterPreparation: ErasePreparationV2?
+    private var publishedDeletionRoster: EraseSchema2ColdDeletionRosterV1?
+    private var publishedDeletionRosterIntent: EraseIntentV1?
+    private var publishedDeletionRosterPreparation: ErasePreparationV2?
+    private var originalAuxiliaryReplayAttempted = false
+    private var originalAuxiliaryReplayInFlight = false
+    private var observedOriginalAuxiliaryRoster:
+        EraseSchema2ColdObservedOriginalAuxiliaryRosterV1?
+    private var preparedOriginalAuxiliaryReplayAttempted = false
+    private var preparedOriginalAuxiliaryReplayInFlight = false
+    private var preparedOriginalAuxiliaryObservation:
+        PreparedOriginalAuxiliaryObservationV1?
+    private var originalRetiredFirstCut: OriginalRetiredFirstCutV1?
+    private var originalRetiredStageNode: Opened?
+    private var originalRetiredTemporaryNode: Opened?
+    private var originalRetiredSemanticObservation:
+        OriginalRetiredSemanticObservationV1?
+    private var deletionRosterReplayInFlight = false
+    private var deletionStepInFlight = false
+    private var completedDeletionSteps = 0
+    private var deletionProjectedGenerationNames: [String]?
+    private var deletionProjectedSurvivorSHA256: String?
+    private var firstPostDeletionCandidate:
+        EraseSchema2ColdPostDeletionCandidateV1?
+    private var postDeletionCandidateValidated = false
+    private var targetControlRoot: Opened?
+    private enum TargetLiveOpenState: Equatable {
+        case idle, inFlight, settled
+    }
+    private var targetLiveOpenState: TargetLiveOpenState = .idle
+    private var pointerPublicationAttempts:
+        [EraseSchema2ColdPointerPublicationAttemptV1] = []
+    private var pointerPublicationInFlight = false
+    private var handoff: Opened?
+    private var manifest: Opened?
+    private var handoffAbsent = false
+    private var manifestAbsent = false
+    private var erasePhase: EraseIntentPhaseV1?
+    private var operationsChildren: [String: Opened] = [:]
+    private var capturedOperationsNames: [String]?
+    private var leaseReaderPublicationInFlight = false
+    private var leaseReaderSettlementInFlight = false
+    private var leaseReaderPublicationNames: [String]?
+    private var leaseReaderPublicationOwnerNames: [String]?
+    private var leaseReaderPublicationOwners: Opened?
+    private var leaseReaderPublicationSiblingBytes: [(Opened, Data)] = []
+    private var capturedNotificationNames: [String]?
+    private var capturedNotificationFiles: [String: Opened] = [:]
+    private var capturedNotificationBytes: [String: Data] = [:]
+    private var schema2ColdNotificationWitness:
+        EraseSchema2ColdNotificationSourceV1?
+    private var schema2ColdNotificationCaptureInFlight = false
+    private var schema2ColdNotificationFiles: [String: Opened] = [:]
+    private var schema2ColdNotificationProjectedNames: [String]?
+    private var schema2ColdNotificationProjectedBytes: [String: Data]?
+    private var schema2ColdNotificationProjectedFacts:
+        [String: EraseColdControlLeafFactV1]?
+    private var schema2ColdNotificationMutationInFlight = false
+    private var schema2ColdNotificationMutationToken:
+        EraseSchema2ColdNotificationMutationTokenV1?
+    private var schema2ColdNotificationCreationRecord:
+        EraseSchema2ColdNotificationRootCreationRecordV1?
+    private var schema2ColdNotificationCreationBytes: Data?
+    private var schema2ColdNotificationCapturedCreationTemporaryBytes:
+        Data?
+    private var schema2ColdNotificationExpectedCreationRecord:
+        EraseSchema2ColdNotificationRootCreationRecordV1?
+    private var schema2ColdNotificationExpectedCreationBytes: Data?
+    private var capturedFinalizationNames: [String]?
+    private var finalizationFiles: [String: Opened] = [:]
+    private var capturedFinalizationBytes: [String: Data] = [:]
+    private var capturedDeletionNames: [String]?
+    private var deletionFiles: [String: Opened] = [:]
+    private var capturedDeletionBytes: [String: Data] = [:]
+    private var capturedMigrationNames: [String]?
+    private var migrationFiles: [String: Opened] = [:]
+    private var capturedMigrationBytes: [String: Data] = [:]
+
+    private static let coldOperationsOwnerNames: Set<String> = [
+        "generation-leases", "schema-migration", "deletion", "finalization",
+        "AppLockNotificationControlV1", "ScratchDataV1",
+        EraseSchema2ColdNotificationSourceV1.creationRecordName,
+        EraseSchema2ColdNotificationSourceV1.creationTemporaryName,
+        EraseSchema2ColdNotificationSourceV1.creationStageName,
+    ]
+
+    private static let coldLeaseOwnerNames: Set<String> = [
+        "registry.json", "mutation.lock", "owners", "prune-intent.json",
+        "last-prune-receipt.json",
+    ]
+
+    func openExisting(applicationSupportURL: URL,
+        expectedSupportDevice: dev_t, expectedSupportInode: ino_t,
+        phase: EraseIntentPhaseV1?,
+        operation: EraseColdPreparationOperationV1) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard !opened, !closeAttempted, applicationSupportURL.isFileURL else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        opened = true
+        erasePhase = phase
+        let root = applicationSupportURL.standardizedFileURL
+        support = try openDirectory(path: root)
+        guard let support, support.fact.device == expectedSupportDevice,
+              support.fact.inode == expectedSupportInode else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        data = try openDirectory(parent: support, name: "FieldEvidenceData")
+        operations = try openOptionalDirectory(parent: support,
+            name: "FieldEvidenceOperations")
+        if let operations {
+            migration = try openOptionalDirectory(parent: operations,
+                name: "schema-migration")
+            migrationAbsent = migration == nil
+        } else {
+            operationsAbsent = true
+        }
+        if operationsAbsent || migrationAbsent {
+            guard phase == .sessionActivated || phase == .cleanupComplete else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let migration { try requireMigrationNames(migration) }
+        try requireHeldNamed()
+    }
+
+    /// The first auxiliary scan is data only. Service supplies its configured
+    /// Caches and Temporary parents; this owner opens neither a child nor a
+    /// new namespace. The observer is retained by the operation before this
+    /// callback and cannot keep or close any borrowed descriptor.
+    func withHeldSchema2ColdAuxiliaryCapture<T>(
+        cachesDirectoryURL: URL,
+        temporaryDirectoryURL: URL,
+        operation: EraseColdPreparationOperationV1,
+        _ body: (Int32, Int32, Int32) throws -> T
+    ) throws -> T {
+        try operation.requireSchema2ColdAuxiliaryCaptureOwner(
+            manifest: self)
+        guard opened, !closeAttempted,
+              !auxiliaryCaptureAttempted,
+              !auxiliaryCaptureInFlight,
+              auxiliaryCachesParent == nil,
+              auxiliaryTemporaryParent == nil,
+              cachesDirectoryURL.isFileURL,
+              temporaryDirectoryURL.isFileURL,
+              let support else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        auxiliaryCaptureAttempted = true
+        auxiliaryCaptureInFlight = true
+        auxiliaryCachesParent = try openAuxiliaryParent(
+            cachesDirectoryURL.standardizedFileURL) { value in
+                self.auxiliaryCachesParent = value
+            }
+        auxiliaryTemporaryParent = try openAuxiliaryParent(
+            temporaryDirectoryURL.standardizedFileURL) { value in
+                self.auxiliaryTemporaryParent = value
+            }
+        guard let caches = auxiliaryCachesParent,
+              let temporary = auxiliaryTemporaryParent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        let outcome = Result<T, Error> {
+            try body(support.descriptor, caches.descriptor,
+                temporary.descriptor)
+        }
+        try operation.requireSchema2ColdAuxiliaryCaptureOwner(
+            manifest: self)
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        let result = try outcome.get()
+        auxiliaryCaptureInFlight = false
+        return result
+    }
+
+    /// Rewalk the immutable P image through the same held parents after a
+    /// suspension. A failed scan leaves this owner sticky with its FDs held.
+    func requireSchema2ColdPreparedAuxiliaryUnchanged(
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdPreparedAuxiliaryFirstOwner(
+            manifest: self, observer: observer)
+        guard opened, !closeAttempted, auxiliaryCaptureAttempted,
+              !auxiliaryCaptureInFlight,
+              !preparedAuxiliaryReproofInFlight,
+              let support, let caches = auxiliaryCachesParent,
+              let temporary = auxiliaryTemporaryParent,
+              caches.first != nil, temporary.first != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        preparedAuxiliaryReproofInFlight = true
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        try observer.requireUnchanged(support: support.descriptor,
+            caches: caches.descriptor, temporary: temporary.descriptor)
+        try operation.requireSchema2ColdPreparedAuxiliaryFirstOwner(
+            manifest: self, observer: observer)
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        preparedAuxiliaryReproofInFlight = false
+    }
+
+    /// One operation-bound reread of the same held parents before a sealed
+    /// auxiliary roster can be published. This does not recapture a first
+    /// state: the body must match its checked nodes to the already retained
+    /// first observer. A failed body or postcheck leaves this owner sticky.
+    func withHeldSchema2ColdAuxiliaryRosterReread<T>(
+        operation: EraseColdPreparationOperationV1,
+        _ body: (Int32, Int32, Int32) throws -> T
+    ) throws -> T {
+        try operation.requireSchema2ColdAuxiliaryCaptureOwner(
+            manifest: self)
+        guard opened, !closeAttempted,
+              auxiliaryCaptureAttempted,
+              !auxiliaryCaptureInFlight,
+              !auxiliaryRosterRereadAttempted,
+              !auxiliaryRosterRereadInFlight,
+              let support, let caches = auxiliaryCachesParent,
+              let temporary = auxiliaryTemporaryParent,
+              caches.first != nil, temporary.first != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        auxiliaryRosterRereadAttempted = true
+        auxiliaryRosterRereadInFlight = true
+        let outcome = Result<T, Error> {
+            try body(support.descriptor, caches.descriptor,
+                temporary.descriptor)
+        }
+        try operation.requireSchema2ColdAuxiliaryCaptureOwner(
+            manifest: self)
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        let result = try outcome.get()
+        auxiliaryRosterRereadInFlight = false
+        return result
+    }
+
+    /// Seal only the first P image already captured through the same held
+    /// parents. A fresh R survivor inventory cannot enter this constructor.
+    /// Router must retain the returned object before Store's first temp FD.
+    func sealSchema2ColdAuxiliaryRoster(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        capture: EraseSchema2ColdAuxiliaryRosterCaptureV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdAuxiliaryRosterPublicationSealV1 {
+        try operation.requireSchema2ColdAuxiliaryRosterCapture(capture,
+            observer: observer, snapshot: snapshot, intent: intent,
+            preparation: preparation)
+        guard opened, !closeAttempted,
+              !auxiliaryRosterSealAttempted,
+              auxiliaryCaptureAttempted,
+              auxiliaryRosterRereadAttempted,
+              !auxiliaryCaptureInFlight,
+              !auxiliaryRosterRereadInFlight,
+              intent.phase == .pointerSwitched,
+              let caches = auxiliaryCachesParent,
+              let temporary = auxiliaryTemporaryParent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        auxiliaryRosterSealAttempted = true
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        let roster = try capture.requireFirst()
+        let seal = try EraseSchema2ColdAuxiliaryRosterPublicationSealV1(
+            manifest: self, operation: operation, capture: capture,
+            observer: observer, snapshot: snapshot, roster: roster,
+            intent: intent, preparation: preparation)
+        auxiliaryRosterSeal = seal
+        return seal
+    }
+
+    private func openAuxiliaryParent(
+        _ path: URL, retain: (AuxiliaryParent) -> Void
+    ) throws -> AuxiliaryParent {
+        let descriptor = Darwin.open(path.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        retain(AuxiliaryParent(descriptor: descriptor,
+            path: path, first: nil))
+        var heldValue = stat(), namedValue = stat()
+        guard Darwin.fstat(descriptor, &heldValue) == 0,
+              Darwin.lstat(path.path, &namedValue) == 0,
+              Fact(heldValue) == Fact(namedValue),
+              heldValue.st_mode & S_IFMT == S_IFDIR,
+              heldValue.st_nlink > 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return AuxiliaryParent(descriptor: descriptor,
+            path: path, first: AuxiliaryIdentity(heldValue))
+    }
+
+    private func requireAuxiliaryParent(
+        _ parent: AuxiliaryParent
+    ) throws {
+        guard let first = parent.first else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var heldValue = stat(), namedValue = stat()
+        guard Darwin.fstat(parent.descriptor, &heldValue) == 0,
+              Darwin.lstat(parent.path.path, &namedValue) == 0,
+              Fact(heldValue) == Fact(namedValue),
+              heldValue.st_dev == first.device,
+              heldValue.st_ino == first.inode,
+              heldValue.st_mode == first.mode,
+              heldValue.st_uid == first.user,
+              heldValue.st_gid == first.group,
+              heldValue.st_mode & S_IFMT == S_IFDIR,
+              heldValue.st_nlink > 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// Capture every surviving Operations owner from the same held directory.
+    /// This does not adopt any child as cleanup authority: each owner still
+    /// needs its own canonical record and phase-specific terminal proof.
+    func captureOperationsOwners(operation: EraseColdPreparationOperationV1)
+        throws -> Set<String> {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard capturedOperationsNames == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard let operations else {
+            capturedOperationsNames = []
+            return []
+        }
+        let names = try namesChecked(in: operations)
+        guard Set(names).isSubset(of: Self.coldOperationsOwnerNames),
+              names.count == Set(names).count else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        // Both recursive completion cuts follow a successful scratch erase.
+        // Its reappearance cannot be treated as a deletable historical subset.
+        if erasePhase == .sessionActivated || erasePhase == .cleanupComplete {
+            guard !names.contains("ScratchDataV1") else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        for name in names {
+            let child: Opened
+            if name == AppLockNotificationControlStoreV1.rootName
+                || name == EraseSchema2ColdNotificationSourceV1
+                    .creationStageName {
+                // This first read is pure. A pending Simulator policy may
+                // become admissible only after the complete six-name/byte
+                // witness and a checked request under the retained EX/G.
+                let descriptor = Darwin.openat(operations.descriptor,
+                    name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                guard descriptor >= 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                child = try retain(descriptor,
+                    parent: operations.descriptor, name: name,
+                    path: operations.path.appendingPathComponent(
+                        name, isDirectory: true),
+                    expectedType: S_IFDIR, observePolicy: false)
+            } else if name == EraseSchema2ColdNotificationSourceV1
+                    .creationRecordName
+                || name == EraseSchema2ColdNotificationSourceV1
+                    .creationTemporaryName {
+                let descriptor = Darwin.openat(operations.descriptor,
+                    name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                guard descriptor >= 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                child = try retain(descriptor,
+                    parent: operations.descriptor, name: name,
+                    path: operations.path.appendingPathComponent(name),
+                    expectedType: S_IFREG, observePolicy: false)
+            } else {
+                child = try openDirectory(parent: operations,
+                    name: name)
+            }
+            operationsChildren[name] = child
+        }
+        capturedOperationsNames = names
+        try requireHeldNamed()
+        return Set(names)
+    }
+
+    func requireCapturedOperationsOwners(
+        _ expected: Set<String>, operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard let capturedOperationsNames,
+              Set(capturedOperationsNames) == expected else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// The Registry's random reader record and canonical replacement are
+    /// one operation-owned mutation of this already held child. The first
+    /// directory image remains frozen while G is held; ordinary manifest
+    /// reproof refuses until the Registry has attested the exact postimage.
+    func beginSchema2ColdTargetReaderPublication(
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard !leaseReaderPublicationInFlight,
+              !leaseReaderSettlementInFlight,
+              leaseReaderPublicationNames == nil,
+              let lease = operationsChildren["generation-leases"] else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let names = try namesChecked(in: lease)
+        guard Set(names).isSubset(of: Self.coldLeaseOwnerNames),
+              names.contains("registry.json"),
+              names.contains("mutation.lock"),
+              names.contains("owners") else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdFirstLeaseChildTypes(
+            lease: lease, names: names)
+        leaseReaderPublicationInFlight = true
+        // Only registry.json and this operation's new record may change.
+        // Retain every sibling inode, its full metadata and, for durable
+        // controls, exact bytes before the first record O_EXCL. Retain the
+        // owners directory and all lock children as well; equal names alone
+        // cannot authorize a foreign replacement during our own mutation.
+        for name in names where name != "registry.json"
+            && name != "owners" {
+            let sibling = try openRegular(parent: lease, name: name,
+                kind: .generationLeaseControl)
+            if name == "mutation.lock" {
+                guard sibling.fact.size == 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            } else {
+                let bytes = try readExact(sibling,
+                    kind: .generationLeaseControl)
+                leaseReaderPublicationSiblingBytes.append(
+                    (sibling, bytes))
+            }
+        }
+        let owners = try openDirectory(parent: lease, name: "owners")
+        let ownerNames = try namesChecked(in: owners)
+        guard ownerNames.count <= GenerationLeaseRegistryV1.maximumOwnerCount,
+              ownerNames.allSatisfy({ name in
+                  guard name.hasSuffix(".lock") else { return false }
+                  let id = String(name.dropLast(5))
+                  return UUID(uuidString: id)?.uuidString.lowercased()
+                    == id
+              }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for name in ownerNames {
+            let child = try openRegular(parent: owners, name: name,
+                kind: .generationLeaseOwnerLock)
+            guard child.fact.size == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        leaseReaderPublicationOwners = owners
+        leaseReaderPublicationOwnerNames = ownerNames
+        leaseReaderPublicationNames = names
+    }
+
+    /// Called synchronously by the same G-held Registry writer only after it
+    /// has proved its own exact record, token, rename and checked descriptors.
+    /// This projects one named directory's own metadata transition; it does
+    /// not admit a fresh Operations baseline or another child name.
+    func finishSchema2ColdTargetReaderPublication(
+        operation: EraseColdPreparationOperationV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        try operation.requireConstructedSchema2ColdRegistry(registry)
+        guard leaseReaderPublicationInFlight,
+              !leaseReaderSettlementInFlight,
+              let firstNames = leaseReaderPublicationNames,
+              let lease = operationsChildren["generation-leases"],
+              let parent = lease.parent,
+              let name = lease.name else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let afterNames = try namesChecked(in: lease,
+            allowOwnedLeaseMutation: true)
+        guard Set(afterNames) == Set(firstNames)
+                .union(["cold-reader-publication.v1"]),
+              !afterNames.contains("registry.next.json") else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard let owners = leaseReaderPublicationOwners,
+              let ownerNames = leaseReaderPublicationOwnerNames,
+              try namesChecked(in: owners) == ownerNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for (sibling, bytes) in leaseReaderPublicationSiblingBytes {
+            guard try readExact(sibling,
+                    kind: .generationLeaseControl) == bytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        var heldValue = stat(), namedValue = stat()
+        guard Darwin.fstat(lease.descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(heldValue) == Fact(namedValue) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let post = Fact(heldValue)
+        let expectedLinks = try schema2ColdExpectedLeaseLinks(
+            lease: lease)
+        guard post.device == lease.fact.device,
+              post.inode == lease.fact.inode,
+              post.mode == lease.fact.mode,
+              post.links == expectedLinks else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let projected = Opened(descriptor: lease.descriptor,
+            parent: lease.parent, name: lease.name,
+            path: lease.path, fact: post)
+        guard let index = held.firstIndex(where: {
+            $0.descriptor == lease.descriptor
+        }) else { throw StoreMigrationFailure.invalidIdentity }
+        held[index] = projected
+        operationsChildren["generation-leases"] = projected
+        leaseReaderPublicationInFlight = false
+        do {
+            try requireHeldNamed()
+        } catch {
+            leaseReaderPublicationInFlight = true
+            throw error
+        }
+    }
+
+    /// Fresh-owner replay may remove only the exact recorded old reader and
+    /// its reserved temp/record. This runs before the later old-token census
+    /// is bound; it relies on the already retained Manifest, Support EX and
+    /// actual Registry G, never on a fabricated original-session receipt.
+    func beginSchema2ColdRecordedReaderSettlement(
+        operation: EraseColdPreparationOperationV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireConstructedSchema2ColdRegistry(registry)
+        try requireHeldNamed()
+        guard !leaseReaderPublicationInFlight,
+              !leaseReaderSettlementInFlight,
+              leaseReaderPublicationNames == nil,
+              let lease = operationsChildren["generation-leases"] else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let names = try namesChecked(in: lease)
+        let replayNames: Set<String> = ["cold-reader-publication.v1",
+            "registry.next.json"]
+        guard Set(names).isSubset(of:
+                Self.coldLeaseOwnerNames.union(replayNames)),
+              names.contains("registry.json"),
+              names.contains("mutation.lock"),
+              names.contains("owners") else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdFirstLeaseChildTypes(
+            lease: lease, names: names)
+        leaseReaderSettlementInFlight = true
+        for name in names where name != "registry.json"
+            && name != "owners" && !replayNames.contains(name) {
+            let sibling = try openRegular(parent: lease, name: name,
+                kind: .generationLeaseControl)
+            if name == "mutation.lock" {
+                guard sibling.fact.size == 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            } else {
+                leaseReaderPublicationSiblingBytes.append((sibling,
+                    try readExact(sibling,
+                        kind: .generationLeaseControl)))
+            }
+        }
+        let owners = try openDirectory(parent: lease, name: "owners")
+        let ownerNames = try namesChecked(in: owners)
+        guard ownerNames.count <= GenerationLeaseRegistryV1.maximumOwnerCount,
+              ownerNames.allSatisfy({ name in
+                  guard name.hasSuffix(".lock") else { return false }
+                  let id = String(name.dropLast(5))
+                  return UUID(uuidString: id)?.uuidString.lowercased()
+                    == id
+              }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for name in ownerNames {
+            let child = try openRegular(parent: owners, name: name,
+                kind: .generationLeaseOwnerLock)
+            guard child.fact.size == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        leaseReaderPublicationOwners = owners
+        leaseReaderPublicationOwnerNames = ownerNames
+        leaseReaderPublicationNames = names
+    }
+
+    func finishSchema2ColdRecordedReaderSettlement(
+        operation: EraseColdPreparationOperationV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        try operation.requireConstructedSchema2ColdRegistry(registry)
+        guard leaseReaderSettlementInFlight,
+              !leaseReaderPublicationInFlight,
+              let firstNames = leaseReaderPublicationNames,
+              let lease = operationsChildren["generation-leases"],
+              let parent = lease.parent, let name = lease.name,
+              let owners = leaseReaderPublicationOwners,
+              let ownerNames = leaseReaderPublicationOwnerNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let afterNames = try namesChecked(in: lease,
+            allowOwnedLeaseMutation: true)
+        let removed: Set<String> = ["cold-reader-publication.v1",
+            "registry.next.json"]
+        guard Set(afterNames) == Set(firstNames).subtracting(removed),
+              try namesChecked(in: owners) == ownerNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for (sibling, bytes) in leaseReaderPublicationSiblingBytes {
+            guard try readExact(sibling,
+                    kind: .generationLeaseControl) == bytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        var heldValue = stat(), namedValue = stat()
+        guard Darwin.fstat(lease.descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(heldValue) == Fact(namedValue) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let post = Fact(heldValue)
+        let expectedLinks = try schema2ColdExpectedLeaseLinks(
+            lease: lease)
+        if !firstNames.contains("cold-reader-publication.v1") {
+            // A fresh original R owner has no recorded cold reader to
+            // settle. This bracket has no owned directory effect at all.
+            guard post == lease.fact else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        guard post.device == lease.fact.device,
+              post.inode == lease.fact.inode,
+              post.mode == lease.fact.mode,
+              post.links == expectedLinks,
+              let index = held.firstIndex(where: {
+                  $0.descriptor == lease.descriptor
+              }) else { throw StoreMigrationFailure.invalidIdentity }
+        let projected = Opened(descriptor: lease.descriptor,
+            parent: lease.parent, name: lease.name,
+            path: lease.path, fact: post)
+        held[index] = projected
+        operationsChildren["generation-leases"] = projected
+        leaseReaderSettlementInFlight = false
+        do { try requireHeldNamed() }
+        catch {
+            leaseReaderSettlementInFlight = true
+            throw error
+        }
+        leaseReaderPublicationNames = nil
+        leaseReaderPublicationOwnerNames = nil
+        leaseReaderPublicationOwners = nil
+        leaseReaderPublicationSiblingBytes.removeAll()
+    }
+
+    /// Capture the first notification owner as data under the retained
+    /// Support EX and genuine Registry G. The ten reserved names are closed,
+    /// but no observed policy or leaf name grants a revocation, OS, or unlink
+    /// effect. The adapter must authenticate every canonical record later.
+    func captureSchema2ColdNotificationOwner(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdNotificationSourceV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdOriginalAuthority()
+        try requireHeldNamed()
+        guard erasePhase == .sessionActivated,
+              schema2ColdNotificationWitness == nil,
+              !schema2ColdNotificationCaptureInFlight,
+              schema2ColdNotificationFiles.isEmpty,
+              capturedOperationsNames != nil,
+              let support, let operations,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        schema2ColdNotificationCaptureInFlight = true
+        let eraseID = intent.eraseID
+        let recordName = EraseSchema2ColdNotificationSourceV1
+            .creationRecordName
+        let temporaryName = EraseSchema2ColdNotificationSourceV1
+            .creationTemporaryName
+        let stagingName = EraseSchema2ColdNotificationSourceV1
+            .creationStageName
+        var supportStat = stat(), operationsStat = stat()
+        guard Darwin.fstat(support.descriptor, &supportStat) == 0,
+              Darwin.fstat(operations.descriptor, &operationsStat) == 0,
+              Fact(supportStat) == support.fact,
+              Fact(operationsStat) == operations.fact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let expectedCreation = try
+            EraseSchema2ColdNotificationRootCreationRecordV1(
+                intent: intent, preparation: preparation,
+                support: supportStat, operations: operationsStat)
+        let expectedCreationBytes = try expectedCreation.canonicalData()
+        schema2ColdNotificationExpectedCreationRecord = expectedCreation
+        schema2ColdNotificationExpectedCreationBytes =
+            expectedCreationBytes
+        let creationRecord = operationsChildren[recordName]
+        let creationTemporary = operationsChildren[temporaryName]
+        let creationStage = operationsChildren[stagingName]
+        guard !(creationRecord != nil && creationTemporary != nil),
+              !(creationStage != nil && operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] != nil),
+              creationRecord != nil || creationStage == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let creationRecord {
+            guard try readSchema2ColdNotificationBytes(creationRecord)
+                    == expectedCreationBytes,
+                  try EraseSchema2ColdNotificationRootCreationRecordV1
+                    .decodeCanonical(expectedCreationBytes)
+                    == expectedCreation else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            schema2ColdNotificationCreationRecord = expectedCreation
+            schema2ColdNotificationCreationBytes = expectedCreationBytes
+        }
+        if let creationTemporary {
+            let firstTemporaryBytes = try
+                readSchema2ColdCreationFile(creationTemporary).0
+            guard creationRecord == nil,
+                  creationStage == nil,
+                  operationsChildren[
+                    AppLockNotificationControlStoreV1.rootName] == nil,
+                  try expectedCreationBytes.starts(with:
+                    firstTemporaryBytes) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            schema2ColdNotificationCapturedCreationTemporaryBytes =
+                firstTemporaryBytes
+        }
+        guard let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] else {
+            var absent = stat()
+            guard Darwin.fstatat(operations.descriptor,
+                    AppLockNotificationControlStoreV1.rootName,
+                    &absent, AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let source = EraseSchema2ColdNotificationSourceV1(
+                manifest: self, operation: operation, eraseID: eraseID,
+                rootIdentity: nil, names: [], rootFact: nil,
+                rootPolicy: nil,
+                hasAuthenticatedCreationRecord: creationRecord != nil,
+                leafBytes: [:], leafFacts: [:], leafPolicies: [:])
+            schema2ColdNotificationWitness = source
+            capturedNotificationNames = []
+            try requireHeldNamed()
+            schema2ColdNotificationCaptureInFlight = false
+            return source
+        }
+        let names = try namesChecked(in: root)
+        let allowed: Set<String> = [
+            AppLockNotificationControlStoreV1.recordName,
+            AppLockNotificationControlStoreV1.pendingName,
+            AppLockNotificationControlStoreV1.mappingName,
+            AppLockNotificationControlStoreV1.mappingPendingName,
+            AppLockNotificationControlStoreV1.eraseName,
+            AppLockNotificationControlStoreV1.erasePendingName,
+            EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+            EraseSchema2ColdNotificationSourceV1.ownedIDsTemporaryName,
+            EraseSchema2ColdNotificationSourceV1.drainName,
+            EraseSchema2ColdNotificationSourceV1.drainTemporaryName,
+        ]
+        guard Set(names).isSubset(of: allowed),
+              names.count == Set(names).count,
+              capturedNotificationNames == nil
+                || capturedNotificationNames == names else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let rootPolicy: TemporalPolicyObservationV1?
+        do {
+            rootPolicy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: root.path,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainFDs.append(value)
+                    })
+        } catch ProtectedFilePolicyError.resourceValueMismatch {
+            // mkdirat can be interrupted before backup/protection setters.
+            // Preserve only the exact empty, private-mode physical root as
+            // data. A later operation-owned checked request is mandatory
+            // before any leaf or notification effect.
+            guard names.isEmpty,
+                  root.fact.mode & 0o777 == 0o700 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            rootPolicy = nil
+        }
+        var rootStat = stat()
+        guard Darwin.fstat(root.descriptor, &rootStat) == 0,
+              Fact(rootStat) == root.fact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let rootPolicy {
+            guard rootPolicy.device == UInt64(root.fact.device),
+                  rootPolicy.inode == UInt64(root.fact.inode),
+                  rootPolicy.linkCount == UInt64(root.fact.links),
+                  rootPolicy.state == .strictComplete
+                    || rootPolicy.state == .pendingSimulatorRequest else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        var bytes: [String: Data] = [:]
+        var facts: [String: EraseColdControlLeafFactV1] = [:]
+        var policies: [String: TemporalPolicyObservationV1] = [:]
+        for name in names {
+            let file: Opened
+            if let captured = capturedNotificationFiles[name] {
+                try requireNamed(captured)
+                file = captured
+            } else {
+                let descriptor = Darwin.openat(root.descriptor, name,
+                    O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                guard descriptor >= 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                file = try retain(descriptor, parent: root.descriptor,
+                    name: name, path: root.path.appendingPathComponent(name),
+                    expectedType: S_IFREG, observePolicy: false)
+            }
+            schema2ColdNotificationFiles[name] = file
+            let isReservedTemporary = Set([
+                AppLockNotificationControlStoreV1.pendingName,
+                AppLockNotificationControlStoreV1.mappingPendingName,
+                AppLockNotificationControlStoreV1.erasePendingName,
+                EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName,
+                EraseSchema2ColdNotificationSourceV1
+                    .drainTemporaryName,
+            ]).contains(name)
+            let kind: OwnedFileKindV1 = isReservedTemporary
+                ? .journalTemporary : .journal
+            let contents = try readSchema2ColdNotificationBytes(file)
+            if let captured = capturedNotificationBytes[name] {
+                guard contents == captured else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+            // An O_EXCL crash can leave only a reserved temporary before
+            // the first backup/protection request. It remains exact held
+            // data, never an effect owner, until Storage requests policy on
+            // the same captured inode under the operation's EX/G.
+            func observePolicy() throws -> TemporalPolicyObservationV1? {
+                do {
+                    return try ProtectedFilePolicyV1
+                        .observeTemporalPolicyWithCheckedClose(kind,
+                            at: file.path,
+                            retainUncertainDescriptor: { value in
+                                self.uncertainFDs.append(value)
+                            })
+                } catch ProtectedFilePolicyError.resourceValueMismatch {
+                    guard isReservedTemporary,
+                          file.fact.mode & 0o777 == 0o600 else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                    return nil
+                }
+            }
+            let first = try observePolicy()
+            if let first {
+                guard first.device == UInt64(file.fact.device),
+                      first.inode == UInt64(file.fact.inode),
+                      first.linkCount == 1,
+                      first.state == .strictComplete
+                        || first.state == .pendingSimulatorRequest else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+            let second = try observePolicy()
+            guard second == first else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            var leafStat = stat()
+            guard Darwin.fstat(file.descriptor, &leafStat) == 0,
+                  Fact(leafStat) == file.fact else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            bytes[name] = contents
+            facts[name] = EraseColdControlLeafFactV1(leafStat)
+            if let first { policies[name] = first }
+        }
+        let identity = "\(support.fact.device):\(support.fact.inode):\(root.fact.device):\(root.fact.inode)"
+        let source = EraseSchema2ColdNotificationSourceV1(
+            manifest: self, operation: operation, eraseID: eraseID,
+            rootIdentity: identity, names: names,
+            rootFact: EraseColdControlLeafFactV1(rootStat),
+            rootPolicy: rootPolicy,
+            hasAuthenticatedCreationRecord: creationRecord != nil,
+            leafBytes: bytes,
+            leafFacts: facts, leafPolicies: policies)
+        schema2ColdNotificationWitness = source
+        capturedNotificationNames = names
+        try requireHeldNamed()
+        schema2ColdNotificationCaptureInFlight = false
+        return source
+    }
+
+    func withHeldSchema2ColdNotificationRoot<T>(
+        source: EraseSchema2ColdNotificationSourceV1,
+        operation: EraseColdPreparationOperationV1,
+        _ body: (Int32, URL) throws -> T
+    ) throws -> T {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdOriginalAuthority()
+        guard schema2ColdNotificationWitness === source,
+              source.manifestIdentity == ObjectIdentifier(self),
+              !schema2ColdNotificationMutationInFlight,
+              !schema2ColdNotificationCaptureInFlight,
+              let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName],
+              let support,
+              (source.projectedRootIdentity ?? source.rootIdentity) ==
+                "\(support.fact.device):\(support.fact.inode):\(root.fact.device):\(root.fact.inode)" else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        let result = Result<T, Error> {
+            try body(root.descriptor, root.path)
+        }
+        try requireHeldNamed()
+        return try result.get()
+    }
+
+    /// Router may inspect this retained source without acquiring a new
+    /// notification FD or treating a leaf name as effect authority.
+    func requireSchema2ColdNotificationSource(
+        _ source: EraseSchema2ColdNotificationSourceV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdOriginalAuthority()
+        guard schema2ColdNotificationWitness === source,
+              source.manifestIdentity == ObjectIdentifier(self) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if schema2ColdNotificationMutationInFlight {
+            guard let token = schema2ColdNotificationMutationToken,
+                  token.source === source else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if token.stage == .createRoot {
+                try requireSchema2ColdNotificationRootCreationScope(
+                    source: source, token: token, operation: operation)
+            } else if token.stage == .settleCreatedRoot {
+                try requireSchema2ColdNotificationSettledCreationScope(
+                    source: source, token: token, operation: operation)
+            } else {
+                try requireSchema2ColdNotificationMutationPhysicalScope(
+                    source: source, token: token, operation: operation)
+            }
+            return
+        }
+        try requireHeldNamed()
+        let expectedNames = schema2ColdNotificationProjectedNames
+            ?? source.names
+        let expectedBytes = schema2ColdNotificationProjectedBytes
+            ?? source.leafBytes
+        let expectedFacts = schema2ColdNotificationProjectedFacts
+            ?? source.leafFacts
+        guard Set(expectedNames) == Set(expectedBytes.keys),
+              Set(expectedNames) == Set(expectedFacts.keys) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let root = operationsChildren[
+            AppLockNotificationControlStoreV1.rootName] {
+            guard try namesChecked(in: root) == expectedNames else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            for name in expectedNames {
+                guard let file = schema2ColdNotificationFiles[name],
+                      try readSchema2ColdNotificationBytes(file)
+                        == expectedBytes[name],
+                      let fact = expectedFacts[name],
+                      file.fact.device == fact.device,
+                      file.fact.inode == fact.inode,
+                      file.fact.mode == fact.mode,
+                      file.fact.links == fact.links else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        } else {
+            guard source.rootIdentity == nil,
+                  expectedNames.isEmpty, let operations else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            var absent = stat()
+            guard Darwin.fstatat(operations.descriptor,
+                AppLockNotificationControlStoreV1.rootName,
+                &absent, AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+
+    func requireSchema2ColdNotificationCurrentRootIdentity(
+        source: EraseSchema2ColdNotificationSourceV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> String {
+        try requireSchema2ColdNotificationSource(
+            source, operation: operation)
+        guard let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName],
+              let support,
+              let identity = source.projectedRootIdentity
+                ?? source.rootIdentity else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if schema2ColdNotificationMutationInFlight,
+           let token = schema2ColdNotificationMutationToken,
+           token.stage != .createRoot,
+           token.stage != .settleCreatedRoot {
+            let current = try schema2ColdNotificationRootFactInFlight(
+                root, token: token)
+            let names = try namesChecked(in: root,
+                allowOwnedNotificationMutation: true)
+            guard current == (try schema2ColdNotificationRootFactInFlight(
+                    root, token: token)) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSchema2ColdNotificationRootLinks(
+                token: token, names: names,
+                observedLinks: current.links)
+        } else {
+            try requireSameNamedDirectoryIdentity(root)
+        }
+        let actual =
+            "\(support.fact.device):\(support.fact.inode):\(root.fact.device):\(root.fact.inode)"
+        guard identity == actual else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return actual
+    }
+
+    private func settleSchema2ColdNotificationCreationRecord(
+        source: EraseSchema2ColdNotificationSourceV1,
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard let operations,
+              let expected = schema2ColdNotificationExpectedCreationRecord,
+              let bytes = schema2ColdNotificationExpectedCreationBytes,
+              schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken === token else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let name = EraseSchema2ColdNotificationSourceV1
+            .creationRecordName
+        let next = EraseSchema2ColdNotificationSourceV1
+            .creationTemporaryName
+        if let record = operationsChildren[name] {
+            try requireNamed(record)
+            guard operationsChildren[next] == nil,
+                  try readSchema2ColdCreationFile(record).0 == bytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            _ = try ProtectedFilePolicyV1
+                .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                    .journal, at: record.path,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainFDs.append(value)
+                    }, unchangedWitness: {
+                        try operation
+                            .requireSchema2ColdNotificationMutationOwner(
+                                source: source, stage: .createRoot)
+                        let (read, fact) = try self
+                            .readSchema2ColdCreationFile(record)
+                        guard read == bytes else {
+                            throw StoreMigrationFailure.invalidIdentity
+                        }
+                        return "\(fact.device):\(fact.inode):\(fact.mode):\(fact.links):\(StoreMigrationCanonicalJSONV1.sha256(read))"
+                    })
+            _ = try projectSchema2ColdCreationNode(record,
+                name: name, parent: operations)
+            guard Darwin.fsync(operations.descriptor) == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSchema2ColdNotificationRootCreationScope(
+                source: source, token: token, operation: operation)
+            schema2ColdNotificationCreationRecord = expected
+            schema2ColdNotificationCreationBytes = bytes
+            return
+        }
+        if let prior = operationsChildren[next] {
+            try requireNamed(prior)
+            let (prefix, _) = try readSchema2ColdCreationFile(prior)
+            guard prefix ==
+                    schema2ColdNotificationCapturedCreationTemporaryBytes,
+                  bytes.starts(with: prefix),
+                  operationsChildren[
+                    EraseSchema2ColdNotificationSourceV1.creationStageName]
+                    == nil else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            _ = try ProtectedFilePolicyV1
+                .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                    .journalTemporary, at: prior.path,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainFDs.append(value)
+                    }, authorityCheck: {
+                        try operation
+                            .requireSchema2ColdNotificationMutationOwner(
+                                source: source, stage: .createRoot)
+                        guard try self.readSchema2ColdCreationFile(prior).0
+                                == prefix else {
+                            throw StoreMigrationFailure.invalidIdentity
+                        }
+                    })
+            let (after, _) = try readSchema2ColdCreationFile(prior)
+            guard after == prefix,
+                  Darwin.unlinkat(operations.descriptor, next, 0) == 0,
+                  Darwin.fsync(operations.descriptor) == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            // close(2) uncertainty retains this numeric descriptor and the
+            // one-way owner. Only a checked close removes it from held.
+            guard Darwin.close(prior.descriptor) == 0 else {
+                uncertainFDs.append(prior.descriptor)
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            held.removeAll(where: { $0.descriptor == prior.descriptor })
+            operationsChildren.removeValue(forKey: next)
+        }
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        let fd = Darwin.openat(operations.descriptor, next,
+            O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC,
+            mode_t(0o600))
+        guard fd >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var temporary = try retain(fd, parent: operations.descriptor,
+            name: next, path: operations.path.appendingPathComponent(next),
+            expectedType: S_IFREG, observePolicy: false)
+        operationsChildren[next] = temporary
+        try bytes.withUnsafeBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let count = Darwin.write(fd,
+                    raw.baseAddress!.advanced(by: offset),
+                    raw.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                offset += count
+            }
+        }
+        guard Darwin.fsync(fd) == 0,
+              try readSchema2ColdCreationFile(temporary).0 == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        _ = try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                .journalTemporary, at: temporary.path,
+                retainUncertainDescriptor: { value in
+                    self.uncertainFDs.append(value)
+                }, authorityCheck: {
+                    try operation
+                        .requireSchema2ColdNotificationMutationOwner(
+                            source: source, stage: .createRoot)
+                    guard try self.readSchema2ColdCreationFile(temporary).0
+                            == bytes else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                })
+        temporary = try projectSchema2ColdCreationNode(
+            temporary, name: next, parent: operations)
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        guard operationsChildren[name] == nil,
+              Darwin.renameatx_np(operations.descriptor, next,
+                operations.descriptor, name, UInt32(RENAME_EXCL)) == 0,
+              Darwin.fsync(operations.descriptor) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let published = try projectSchema2ColdCreationNode(
+            temporary, name: name, parent: operations)
+        guard try readSchema2ColdCreationFile(published).0 == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        schema2ColdNotificationCreationRecord = expected
+        schema2ColdNotificationCreationBytes = bytes
+    }
+
+    /// The only cold root creation route starts from the held first absent
+    /// name, under the same operation and the Router's typed R-stage owner.
+    /// Any syscall/policy/close failure leaves the one-way latch and numeric
+    /// descriptors retained. A fresh launch may classify the resulting
+    /// physical cut; this operation never adopts it as a new baseline.
+    func createSchema2ColdNotificationRootFromFirstAbsence(
+        source: EraseSchema2ColdNotificationSourceV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdNotificationRootCreatedV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdNotificationMutationOwner(
+            source: source, stage: .createRoot)
+        try requireSchema2ColdNotificationSource(
+            source, operation: operation)
+        guard schema2ColdNotificationWitness === source,
+              source.rootIdentity == nil, source.rootFact == nil,
+              source.names.isEmpty, source.leafBytes.isEmpty,
+              schema2ColdNotificationProjectedNames == nil,
+              !schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken == nil,
+              operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] == nil,
+              let operations, let support,
+              let capturedOperationsNames,
+              !capturedOperationsNames.contains(
+                AppLockNotificationControlStoreV1.rootName),
+              schema2ColdNotificationExpectedCreationRecord != nil,
+              schema2ColdNotificationExpectedCreationBytes != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        var absent = stat()
+        guard Darwin.fstatat(operations.descriptor,
+            AppLockNotificationControlStoreV1.rootName,
+            &absent, AT_SYMLINK_NOFOLLOW) != 0,
+              errno == ENOENT else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let token = EraseSchema2ColdNotificationMutationTokenV1(
+            stage: .createRoot, source: source, manifest: self,
+            beforeRootFact: nil, beforeNames: [],
+            beforeLeafBytes: [:], beforeLeafFacts: [:])
+        schema2ColdNotificationMutationToken = token
+        schema2ColdNotificationMutationInFlight = true
+        // The record is outside the not-yet-created root and is made durable
+        // before the first directory inode can be allocated.
+        try settleSchema2ColdNotificationCreationRecord(
+            source: source, token: token, operation: operation)
+        let stageName = EraseSchema2ColdNotificationSourceV1
+            .creationStageName
+        var stage: Opened
+        if let captured = operationsChildren[stageName] {
+            try requireNamed(captured)
+            stage = captured
+        } else {
+            try requireSchema2ColdNotificationRootCreationScope(
+                source: source, token: token, operation: operation)
+            guard Darwin.mkdirat(operations.descriptor,
+                stageName, 0o700) == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let descriptor = Darwin.openat(operations.descriptor,
+                stageName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                    | O_CLOEXEC)
+            guard descriptor >= 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            stage = try retain(descriptor,
+                parent: operations.descriptor, name: stageName,
+                path: operations.path.appendingPathComponent(
+                    stageName, isDirectory: true),
+                expectedType: S_IFDIR, observePolicy: false)
+            operationsChildren[stageName] = stage
+        }
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        let disposition = try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                .stagingDirectory, at: stage.path,
+                retainUncertainDescriptor: { value in
+                    self.uncertainFDs.append(value)
+                }, authorityCheck: {
+                    try operation
+                        .requireSchema2ColdNotificationMutationOwner(
+                            source: source, stage: .createRoot)
+                    try self.requireSchema2ColdNotificationRootCreationScope(
+                        source: source, token: token,
+                        operation: operation)
+                })
+        stage = try projectSchema2ColdCreationNode(stage,
+            name: stageName, parent: operations)
+        guard Darwin.fsync(stage.descriptor) == 0,
+              Darwin.fsync(operations.descriptor) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        guard operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] == nil,
+              Darwin.renameatx_np(operations.descriptor, stageName,
+                operations.descriptor,
+                AppLockNotificationControlStoreV1.rootName,
+                UInt32(RENAME_EXCL)) == 0,
+              Darwin.fsync(operations.descriptor) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let root = try projectSchema2ColdCreationNode(stage,
+            name: AppLockNotificationControlStoreV1.rootName,
+            parent: operations)
+        try requireSchema2ColdNotificationRootCreationScope(
+            source: source, token: token, operation: operation)
+        try operation.requireSchema2ColdNotificationMutationOwner(
+            source: source, stage: .createRoot)
+        var rootStat = stat(), operationsStat = stat()
+        guard Darwin.fstat(root.descriptor, &rootStat) == 0,
+              Darwin.fstat(operations.descriptor, &operationsStat) == 0,
+              let rootIndex = held.firstIndex(where: {
+                $0.descriptor == root.descriptor
+              }),
+              let operationsIndex = held.firstIndex(where: {
+                $0.descriptor == operations.descriptor
+              }),
+              let record = operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName],
+              let creationBytes = schema2ColdNotificationCreationBytes,
+              try readSchema2ColdCreationFile(record).0
+                == creationBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let projectedRoot = Opened(descriptor: root.descriptor,
+            parent: root.parent, name: root.name,
+            path: root.path, fact: Fact(rootStat))
+        let projectedOperations = Opened(
+            descriptor: operations.descriptor,
+            parent: operations.parent, name: operations.name,
+            path: operations.path, fact: Fact(operationsStat))
+        let currentOperationsNames = try namesChecked(in:
+            operations, allowOwnedNotificationRootCreation: true)
+        held[rootIndex] = projectedRoot
+        held[operationsIndex] = projectedOperations
+        operationsChildren[AppLockNotificationControlStoreV1.rootName]
+            = projectedRoot
+        self.operations = projectedOperations
+        self.capturedOperationsNames = currentOperationsNames
+        schema2ColdNotificationProjectedNames = []
+        schema2ColdNotificationProjectedBytes = [:]
+        schema2ColdNotificationProjectedFacts = [:]
+        let identity =
+            "\(support.fact.device):\(support.fact.inode):\(rootStat.st_dev):\(rootStat.st_ino)"
+        source.projectedRootIdentity = identity
+        schema2ColdNotificationMutationInFlight = false
+        do { try requireHeldNamed() }
+        catch {
+            schema2ColdNotificationMutationInFlight = true
+            throw error
+        }
+        schema2ColdNotificationMutationToken = nil
+        return EraseSchema2ColdNotificationRootCreatedV1(
+            source: source, rootIdentity: identity,
+            rootFact: EraseColdControlLeafFactV1(rootStat),
+            policyDisposition: disposition)
+    }
+
+    /// A post-rename fresh launch completes the parent fsync only when the
+    /// outside-root creation record is exact and the same canonical inode is
+    /// already protected. A raw canonical root without the record never
+    /// reaches this method.
+    func settleSchema2ColdNotificationCanonicalCreationAfterReplay(
+        source: EraseSchema2ColdNotificationSourceV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdNotificationRootCreatedV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdNotificationMutationOwner(
+            source: source, stage: .settleCreatedRoot)
+        try requireSchema2ColdNotificationSource(
+            source, operation: operation)
+        guard source.hasAuthenticatedCreationRecord,
+              source.rootIdentity != nil,
+              source.rootPolicy != nil,
+              source.names.isEmpty,
+              schema2ColdNotificationCreationRecord
+                == schema2ColdNotificationExpectedCreationRecord,
+              schema2ColdNotificationCreationBytes
+                == schema2ColdNotificationExpectedCreationBytes,
+              !schema2ColdNotificationMutationInFlight,
+              let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName],
+              let operations,
+              operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationStageName]
+                    == nil,
+              operationsChildren[
+                EraseSchema2ColdNotificationSourceV1
+                    .creationTemporaryName] == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let token = EraseSchema2ColdNotificationMutationTokenV1(
+            stage: .settleCreatedRoot, source: source,
+            manifest: self, beforeRootFact: source.rootFact,
+            beforeNames: [], beforeLeafBytes: [:],
+            beforeLeafFacts: [:])
+        schema2ColdNotificationMutationToken = token
+        schema2ColdNotificationMutationInFlight = true
+        try requireSchema2ColdNotificationSettledCreationScope(
+            source: source, token: token, operation: operation)
+        let disposition = try ProtectedFilePolicyV1
+            .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                .stagingDirectory, at: root.path,
+                retainUncertainDescriptor: { value in
+                    self.uncertainFDs.append(value)
+                }, unchangedWitness: {
+                    try operation
+                        .requireSchema2ColdNotificationMutationOwner(
+                            source: source, stage: .settleCreatedRoot)
+                    try self.requireSchema2ColdNotificationSettledCreationScope(
+                        source: source, token: token,
+                        operation: operation)
+                    return try source.requireCurrentRootIdentity()
+                })
+        guard Darwin.fsync(root.descriptor) == 0,
+              Darwin.fsync(operations.descriptor) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdNotificationSettledCreationScope(
+            source: source, token: token, operation: operation)
+        var rootStat = stat(), operationsStat = stat()
+        guard Darwin.fstat(root.descriptor, &rootStat) == 0,
+              Darwin.fstat(operations.descriptor, &operationsStat) == 0,
+              let rootIndex = held.firstIndex(where: {
+                  $0.descriptor == root.descriptor
+              }),
+              let operationsIndex = held.firstIndex(where: {
+                  $0.descriptor == operations.descriptor
+              }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let projectedRoot = Opened(descriptor: root.descriptor,
+            parent: root.parent, name: root.name,
+            path: root.path, fact: Fact(rootStat))
+        let projectedOperations = Opened(
+            descriptor: operations.descriptor,
+            parent: operations.parent, name: operations.name,
+            path: operations.path, fact: Fact(operationsStat))
+        held[rootIndex] = projectedRoot
+        held[operationsIndex] = projectedOperations
+        operationsChildren[AppLockNotificationControlStoreV1.rootName]
+            = projectedRoot
+        self.operations = projectedOperations
+        schema2ColdNotificationMutationInFlight = false
+        do { try requireHeldNamed() }
+        catch {
+            schema2ColdNotificationMutationInFlight = true
+            throw error
+        }
+        schema2ColdNotificationMutationToken = nil
+        return EraseSchema2ColdNotificationRootCreatedV1(
+            source: source,
+            rootIdentity: try source.requireCurrentRootIdentity(),
+            rootFact: EraseColdControlLeafFactV1(rootStat),
+            policyDisposition: disposition)
+    }
+
+    /// A mutation starts only from the exact first or own-projected cut. The
+    /// latch is set before Storage may open a temporary or unlink a leaf.
+    /// A failed callback/close leaves it set and retains this owner.
+    func beginSchema2ColdNotificationMutation(
+        stage: EraseSchema2ColdNotificationMutationStageV1,
+        source: EraseSchema2ColdNotificationSourceV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdNotificationMutationTokenV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdNotificationMutationOwner(
+            source: source, stage: stage)
+        guard schema2ColdNotificationWitness === source,
+              source.manifestIdentity == ObjectIdentifier(self),
+              (source.projectedRootIdentity
+                ?? source.rootIdentity) != nil,
+              // A raw empty canonical root is observation data only. The
+              // prospective create-record/staging successor must establish
+              // its own durable authority before any root mutation.
+              source.rootPolicy != nil || source.rootIdentity == nil,
+              stage != .createRoot,
+              !schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken == nil,
+              let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        let names = schema2ColdNotificationProjectedNames ?? source.names
+        let bytes = schema2ColdNotificationProjectedBytes
+            ?? source.leafBytes
+        let facts = schema2ColdNotificationProjectedFacts
+            ?? source.leafFacts
+        guard names == (try namesChecked(in: root)),
+              Set(bytes.keys) == Set(names),
+              Set(facts.keys) == Set(names) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        switch stage {
+        case .createRoot, .settleCreatedRoot:
+            throw StoreMigrationFailure.invalidIdentity
+        case .publishOwnedIDs:
+            guard !names.contains(
+                    EraseSchema2ColdNotificationSourceV1.ownedIDsName),
+                  (!names.contains(
+                    AppLockNotificationControlStoreV1.eraseName)
+                    || names.contains(
+                        AppLockNotificationControlStoreV1.mappingName)
+                    || names.contains(
+                        AppLockNotificationControlStoreV1.recordName)) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        case .publishRevocation:
+            guard !names.contains(
+                    AppLockNotificationControlStoreV1.eraseName),
+                  names.contains(
+                    EraseSchema2ColdNotificationSourceV1.ownedIDsName) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        case .publishDrainReceipt:
+            guard names.contains(
+                    AppLockNotificationControlStoreV1.eraseName),
+                  names.contains(
+                    EraseSchema2ColdNotificationSourceV1.ownedIDsName),
+                  !names.contains(
+                    EraseSchema2ColdNotificationSourceV1.drainName) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        case .removeMapping:
+            guard names.contains(
+                    EraseSchema2ColdNotificationSourceV1.drainName),
+                  names.contains(
+                    EraseSchema2ColdNotificationSourceV1.ownedIDsName),
+                  names.contains(
+                    AppLockNotificationControlStoreV1.mappingName),
+                  !names.contains(
+                    AppLockNotificationControlStoreV1.pendingName),
+                  !names.contains(
+                    AppLockNotificationControlStoreV1.mappingPendingName),
+                  !names.contains(
+                    AppLockNotificationControlStoreV1.erasePendingName),
+                  !names.contains(
+                    EraseSchema2ColdNotificationSourceV1
+                        .ownedIDsTemporaryName),
+                  !names.contains(
+                    EraseSchema2ColdNotificationSourceV1
+                        .drainTemporaryName) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        case .removeControl:
+            guard names.contains(
+                    EraseSchema2ColdNotificationSourceV1.drainName),
+                  names.contains(
+                    EraseSchema2ColdNotificationSourceV1.ownedIDsName),
+                  names.contains(
+                    AppLockNotificationControlStoreV1.recordName),
+                  !names.contains(
+                    AppLockNotificationControlStoreV1.mappingName),
+                  !names.contains(
+                    AppLockNotificationControlStoreV1.mappingPendingName),
+                  !names.contains(
+                    AppLockNotificationControlStoreV1.pendingName),
+                  !names.contains(
+                    AppLockNotificationControlStoreV1.erasePendingName),
+                  !names.contains(
+                    EraseSchema2ColdNotificationSourceV1
+                        .ownedIDsTemporaryName),
+                  !names.contains(
+                    EraseSchema2ColdNotificationSourceV1
+                        .drainTemporaryName) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        var rootStat = stat()
+        guard Darwin.fstat(root.descriptor, &rootStat) == 0,
+              Fact(rootStat) == root.fact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let token = EraseSchema2ColdNotificationMutationTokenV1(
+            stage: stage, source: source, manifest: self,
+            beforeRootFact: EraseColdControlLeafFactV1(rootStat),
+            beforeNames: names, beforeLeafBytes: bytes,
+            beforeLeafFacts: facts)
+        schema2ColdNotificationMutationToken = token
+        schema2ColdNotificationMutationInFlight = true
+        return token
+    }
+
+    /// Storage borrows the already retained root FD only for this one
+    /// mutation. Other held controls and all unaffected notification leaves
+    /// are checked on both sides; the changed leaf is proved at finish.
+    func withHeldSchema2ColdNotificationRootForMutation<T>(
+        source: EraseSchema2ColdNotificationSourceV1,
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        operation: EraseColdPreparationOperationV1,
+        _ body: (Int32, URL) throws -> T
+    ) throws -> T {
+        try requireSchema2ColdNotificationMutationScope(
+            source: source, token: token, operation: operation)
+        guard let root = operationsChildren[
+            AppLockNotificationControlStoreV1.rootName] else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if !token.firstEffectStarted {
+            try requireSchema2ColdNotificationExactBeforeCut(
+                root: root, token: token)
+            // This is deliberately one-way even if the callback throws
+            // before its first syscall. A retry may only use this same
+            // retained token and Storage's checked cut, never a new baseline.
+            token.firstEffectStarted = true
+        }
+        let outcome = Result<T, Error> {
+            try body(root.descriptor, root.path)
+        }
+        try requireSchema2ColdNotificationMutationScope(
+            source: source, token: token, operation: operation)
+        return try outcome.get()
+    }
+
+    private func requireSchema2ColdNotificationExactBeforeCut(
+        root: Opened,
+        token: EraseSchema2ColdNotificationMutationTokenV1
+    ) throws {
+        guard let beforeRoot = token.beforeRootFact,
+              try namesChecked(in: root,
+                allowOwnedNotificationMutation: true)
+                    == token.beforeNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var value = stat()
+        guard Darwin.fstat(root.descriptor, &value) == 0,
+              EraseColdControlLeafFactV1(value) == beforeRoot else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for name in token.beforeNames {
+            guard let file = schema2ColdNotificationFiles[name],
+                  let bytes = token.beforeLeafBytes[name],
+                  let fact = token.beforeLeafFacts[name],
+                  try readSchema2ColdNotificationBytes(file) == bytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            var leaf = stat()
+            guard Darwin.fstat(file.descriptor, &leaf) == 0,
+                  EraseColdControlLeafFactV1(leaf) == fact else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+
+    private func requireSchema2ColdNotificationMutationScope(
+        source: EraseSchema2ColdNotificationSourceV1,
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdNotificationMutationOwner(
+            source: source, stage: token.stage)
+        try requireSchema2ColdNotificationMutationPhysicalScope(
+            source: source, token: token, operation: operation)
+    }
+
+    private func requireSchema2ColdNotificationMutationPhysicalScope(
+        source: EraseSchema2ColdNotificationSourceV1,
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken === token,
+              token.source === source,
+              token.manifestIdentity == ObjectIdentifier(self),
+              let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName],
+              let operations,
+              let capturedOperationsNames,
+              try namesChecked(in: operations) == capturedOperationsNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let changing = try schema2ColdNotificationMutableNames(
+            for: token.stage)
+        let allowed = Set(token.beforeNames).union(changing)
+        let currentNames = try namesChecked(in: root,
+            allowOwnedNotificationMutation: true)
+        guard Set(currentNames).isSubset(of: allowed) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        // A reserved name created by this mutation is never enough on its
+        // own: even an interrupted temporary remains a private one-link
+        // regular leaf under the same held directory.
+        for name in currentNames where changing.contains(name) {
+            var leaf = stat()
+            guard Darwin.fstatat(root.descriptor, name, &leaf,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  leaf.st_mode & S_IFMT == S_IFREG,
+                  leaf.st_nlink == 1 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if token.stage == .removeMapping
+                || token.stage == .removeControl {
+                guard let first = token.beforeLeafFacts[name],
+                      EraseColdControlLeafFactV1(leaf) == first else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            } else {
+                // A newly written/adopted publication leaf or reserved
+                // temporary is always private, even before checked policy.
+                guard leaf.st_mode & 0o777 == 0o600 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+        guard !leaseReaderPublicationInFlight,
+              !leaseReaderSettlementInFlight,
+              targetLiveOpenState != .inFlight,
+              !pointerPublicationInFlight,
+              !deletionRosterPublicationInFlight,
+              !deletionStepInFlight else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for node in held {
+            if node.descriptor == root.descriptor
+                || (changing.contains(node.name ?? "")
+                    && node.parent == root.descriptor) {
+                continue
+            }
+            try requireNamed(node)
+        }
+        if let migration { try requireMigrationNames(migration) }
+        if let expectedGenerationNames =
+                deletionProjectedGenerationNames ?? capturedGenerationNames,
+           let generations {
+            guard try namesChecked(in: generations)
+                    == expectedGenerationNames else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let targetSource, !targetSource.isCheckedClosed {
+            try targetSource.requirePhysicalIdentity()
+        }
+        if let originalSource, !originalSource.isCheckedClosed {
+            try originalSource.requirePhysicalIdentity()
+        }
+        for name in token.beforeNames where !changing.contains(name) {
+            guard currentNames.contains(name),
+                  let file = schema2ColdNotificationFiles[name],
+                  let bytes = token.beforeLeafBytes[name],
+                  let fact = token.beforeLeafFacts[name],
+                  try readSchema2ColdNotificationBytes(file) == bytes,
+                  file.fact.device == fact.device,
+                  file.fact.inode == fact.inode,
+                  file.fact.mode == fact.mode,
+                  file.fact.links == fact.links else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        // Generic Manifest reproof remains closed while the changed leaf or
+        // root metadata is in flight. This scoped borrow never projects it.
+        guard opened, !closeAttempted, uncertainFDs.isEmpty,
+              !uncertainStreamClose, enumerationFD == nil,
+              directoryStream == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    private func schema2ColdNotificationMutableNames(
+        for stage: EraseSchema2ColdNotificationMutationStageV1
+    ) throws -> Set<String> {
+        switch stage {
+        case .createRoot, .settleCreatedRoot:
+            throw StoreMigrationFailure.invalidIdentity
+        case .publishOwnedIDs:
+            return [
+                EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+                EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName,
+            ]
+        case .publishRevocation:
+            return [
+                AppLockNotificationControlStoreV1.eraseName,
+                AppLockNotificationControlStoreV1.erasePendingName,
+            ]
+        case .publishDrainReceipt:
+            return [
+                EraseSchema2ColdNotificationSourceV1.drainName,
+                EraseSchema2ColdNotificationSourceV1.drainTemporaryName,
+            ]
+        case .removeMapping:
+            return [AppLockNotificationControlStoreV1.mappingName]
+        case .removeControl:
+            return [AppLockNotificationControlStoreV1.recordName]
+        }
+    }
+
+    private func requireSchema2ColdNotificationRootCreationScope(
+        source: EraseSchema2ColdNotificationSourceV1,
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken === token,
+              token.stage == .createRoot,
+              token.source === source,
+              token.manifestIdentity == ObjectIdentifier(self),
+              schema2ColdNotificationWitness === source,
+              source.rootFact == nil, source.names.isEmpty,
+              let operations, let firstNames = capturedOperationsNames,
+              !firstNames.contains(
+                AppLockNotificationControlStoreV1.rootName),
+              opened, !closeAttempted,
+              uncertainFDs.isEmpty, !uncertainStreamClose,
+              enumerationFD == nil, directoryStream == nil,
+              !leaseReaderPublicationInFlight,
+              !leaseReaderSettlementInFlight,
+              targetLiveOpenState != .inFlight,
+              !pointerPublicationInFlight else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let root = operationsChildren[
+            AppLockNotificationControlStoreV1.rootName]
+        let stage = operationsChildren[
+            EraseSchema2ColdNotificationSourceV1.creationStageName]
+        try requireSchema2ColdNotificationCreationParent(
+            operations, rootExists: root != nil || stage != nil)
+        for node in held {
+            if node.descriptor == operations.descriptor
+                || node.descriptor == root?.descriptor
+                || node.descriptor == stage?.descriptor
+                || node.descriptor == operationsChildren[
+                    EraseSchema2ColdNotificationSourceV1
+                        .creationTemporaryName]?.descriptor
+                || node.descriptor == operationsChildren[
+                    EraseSchema2ColdNotificationSourceV1
+                        .creationRecordName]?.descriptor {
+                continue
+            }
+            try requireNamed(node)
+        }
+        let observed = try namesChecked(in: operations,
+            allowOwnedNotificationRootCreation: true)
+        let owned: Set<String> = [
+            AppLockNotificationControlStoreV1.rootName,
+            EraseSchema2ColdNotificationSourceV1.creationRecordName,
+            EraseSchema2ColdNotificationSourceV1.creationTemporaryName,
+            EraseSchema2ColdNotificationSourceV1.creationStageName,
+        ]
+        let firstUnowned = Set(firstNames).subtracting(owned)
+        let observedOwned = Set(observed).intersection(owned)
+        let heldOwned = Set(operationsChildren.keys).intersection(owned)
+        guard Set(observed).subtracting(owned) == firstUnowned,
+              observedOwned == heldOwned,
+              observed.count == Set(observed).count,
+              !(root != nil && stage != nil),
+              !(operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName]
+                    != nil && operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationTemporaryName]
+                    != nil),
+              (root == nil && stage == nil) || operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName]
+                    != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for candidate in [root, stage].compactMap({ $0 }) {
+            let isStage = candidate.descriptor == stage?.descriptor
+            guard try namesChecked(in: candidate,
+                allowOwnedNotificationCreationStage: isStage,
+                allowOwnedNotificationCreationRoot: !isStage).isEmpty else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let record = operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName],
+           let bytes = schema2ColdNotificationCreationBytes {
+            guard try readSchema2ColdCreationFile(record).0 == bytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+
+    private func requireSchema2ColdNotificationSettledCreationScope(
+        source: EraseSchema2ColdNotificationSourceV1,
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard schema2ColdNotificationMutationInFlight,
+              schema2ColdNotificationMutationToken === token,
+              token.stage == .settleCreatedRoot,
+              token.source === source,
+              schema2ColdNotificationWitness === source,
+              source.hasAuthenticatedCreationRecord,
+              let operations,
+              let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName],
+              let record = operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationRecordName],
+              let bytes = schema2ColdNotificationCreationBytes,
+              operationsChildren[
+                EraseSchema2ColdNotificationSourceV1.creationStageName]
+                    == nil,
+              operationsChildren[
+                EraseSchema2ColdNotificationSourceV1
+                    .creationTemporaryName] == nil,
+              opened, !closeAttempted,
+              uncertainFDs.isEmpty, !uncertainStreamClose,
+              enumerationFD == nil, directoryStream == nil,
+              !leaseReaderPublicationInFlight,
+              !leaseReaderSettlementInFlight,
+              targetLiveOpenState != .inFlight,
+              !pointerPublicationInFlight else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdNotificationCreationParent(
+            operations, rootExists: true)
+        guard try namesChecked(in: operations,
+                allowOwnedNotificationRootCreation: true)
+                == capturedOperationsNames,
+              try namesChecked(in: root,
+                allowOwnedNotificationCreationRoot: true).isEmpty,
+              try readSchema2ColdCreationFile(record).0 == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for node in held where node.descriptor != operations.descriptor
+            && node.descriptor != root.descriptor
+            && node.descriptor != record.descriptor {
+            try requireNamed(node)
+        }
+    }
+
+    private func requireSchema2ColdNotificationCreationParent(
+        _ operations: Opened, rootExists: Bool
+    ) throws {
+        guard let parent = operations.parent,
+              let name = operations.name else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var heldValue = stat(), namedValue = stat(), pathValue = stat()
+        guard Darwin.fstat(operations.descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(operations.path.path, &pathValue) == 0,
+              Fact(heldValue) == Fact(namedValue),
+              Fact(heldValue) == Fact(pathValue),
+              heldValue.st_dev == operations.fact.device,
+              heldValue.st_ino == operations.fact.inode,
+              heldValue.st_mode == operations.fact.mode,
+              operations.fact.links < nlink_t.max else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let firstHasDirectory = (capturedOperationsNames ?? []).contains(
+            EraseSchema2ColdNotificationSourceV1.creationStageName)
+            || (capturedOperationsNames ?? []).contains(
+                AppLockNotificationControlStoreV1.rootName)
+        let expectedLinks: nlink_t
+        if rootExists && !firstHasDirectory {
+            expectedLinks = operations.fact.links + 1
+        } else if !rootExists && firstHasDirectory {
+            guard operations.fact.links > 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            expectedLinks = operations.fact.links - 1
+        } else {
+            expectedLinks = operations.fact.links
+        }
+        guard heldValue.st_nlink == expectedLinks else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// The Storage receipt is evidence of completed checked syscalls, not
+    /// permission to adopt a new directory image. Re-read the same held root
+    /// and each retained/new leaf, compare every unaffected first fact and
+    /// byte, then project exactly the one stage's postimage.
+    func finishSchema2ColdNotificationMutation(
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        receipt: EraseSchema2ColdNotificationMutationReceiptV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        let source = token.source
+        try requireSchema2ColdNotificationMutationScope(
+            source: source, token: token, operation: operation)
+        guard token.firstEffectStarted,
+              receipt.token === token, receipt.stage == token.stage,
+              receipt.checkedSettled,
+              receipt.before == EraseSchema2ColdNotificationCheckedCutV1(
+                rootFact: token.beforeRootFact,
+                names: token.beforeNames,
+                leafBytes: token.beforeLeafBytes,
+                leafFacts: token.beforeLeafFacts),
+              let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let afterNames = try namesChecked(in: root,
+            allowOwnedNotificationMutation: true)
+        var rootValue = stat(), namedRoot = stat(), pathRoot = stat()
+        guard Darwin.fstat(root.descriptor, &rootValue) == 0,
+              let operations = root.parent,
+              let rootName = root.name,
+              Darwin.fstatat(operations, rootName, &namedRoot,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(root.path.path, &pathRoot) == 0,
+              Fact(rootValue) == Fact(namedRoot),
+              Fact(rootValue) == Fact(pathRoot),
+              let firstRoot = token.beforeRootFact,
+              rootValue.st_dev == firstRoot.device,
+              rootValue.st_ino == firstRoot.inode,
+              rootValue.st_mode == firstRoot.mode else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdNotificationRootLinks(
+            token: token, names: afterNames,
+            observedLinks: rootValue.st_nlink)
+        let rootFact = EraseColdControlLeafFactV1(rootValue)
+        var afterBytes: [String: Data] = [:]
+        var afterFacts: [String: EraseColdControlLeafFactV1] = [:]
+        var newFiles: [String: Opened] = [:]
+        let mutableNames = try schema2ColdNotificationMutableNames(
+            for: token.stage)
+        for name in afterNames {
+            let file: Opened
+            if let unchanged = schema2ColdNotificationFiles[name],
+               unchanged.parent == root.descriptor,
+               token.beforeNames.contains(name),
+               !mutableNames.contains(name) {
+                file = unchanged
+            } else {
+                let descriptor = Darwin.openat(root.descriptor, name,
+                    O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                guard descriptor >= 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                file = try retain(descriptor, parent: root.descriptor,
+                    name: name, path: root.path.appendingPathComponent(name),
+                    expectedType: S_IFREG, observePolicy: false)
+                newFiles[name] = file
+            }
+            let bytes = try readSchema2ColdNotificationBytes(file)
+            var value = stat()
+            guard Darwin.fstat(file.descriptor, &value) == 0,
+                  Fact(value) == file.fact else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            afterBytes[name] = bytes
+            afterFacts[name] = EraseColdControlLeafFactV1(value)
+        }
+        let scanned = EraseSchema2ColdNotificationCheckedCutV1(
+            rootFact: rootFact, names: afterNames,
+            leafBytes: afterBytes, leafFacts: afterFacts)
+        guard scanned == receipt.after else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let changed: Set<String>
+        let expectedAdded: String?
+        let expectedRemoved: String?
+        switch token.stage {
+        case .createRoot, .settleCreatedRoot:
+            throw StoreMigrationFailure.invalidIdentity
+        case .publishOwnedIDs:
+            changed = [
+                EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+                EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName,
+            ]
+            expectedAdded =
+                EraseSchema2ColdNotificationSourceV1.ownedIDsName
+            expectedRemoved = token.beforeNames.contains(
+                EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName)
+                ? EraseSchema2ColdNotificationSourceV1
+                    .ownedIDsTemporaryName : nil
+        case .publishRevocation:
+            changed = [
+                AppLockNotificationControlStoreV1.eraseName,
+                AppLockNotificationControlStoreV1.erasePendingName,
+            ]
+            expectedAdded = AppLockNotificationControlStoreV1.eraseName
+            expectedRemoved = token.beforeNames.contains(
+                AppLockNotificationControlStoreV1.erasePendingName)
+                ? AppLockNotificationControlStoreV1.erasePendingName : nil
+        case .publishDrainReceipt:
+            changed = [
+                EraseSchema2ColdNotificationSourceV1.drainName,
+                EraseSchema2ColdNotificationSourceV1.drainTemporaryName,
+            ]
+            expectedAdded = EraseSchema2ColdNotificationSourceV1.drainName
+            expectedRemoved = token.beforeNames.contains(
+                EraseSchema2ColdNotificationSourceV1.drainTemporaryName)
+                ? EraseSchema2ColdNotificationSourceV1.drainTemporaryName
+                : nil
+        case .removeMapping:
+            changed = [AppLockNotificationControlStoreV1.mappingName]
+            expectedAdded = nil
+            expectedRemoved = AppLockNotificationControlStoreV1.mappingName
+        case .removeControl:
+            changed = [AppLockNotificationControlStoreV1.recordName]
+            expectedAdded = nil
+            expectedRemoved = AppLockNotificationControlStoreV1.recordName
+        }
+        var expectedNames = Set(token.beforeNames)
+        if let expectedRemoved { expectedNames.remove(expectedRemoved) }
+        if let expectedAdded { expectedNames.insert(expectedAdded) }
+        guard Set(afterNames) == expectedNames,
+              afterNames.count == expectedNames.count else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for name in token.beforeNames where !changed.contains(name) {
+            guard afterBytes[name] == token.beforeLeafBytes[name],
+                  afterFacts[name] == token.beforeLeafFacts[name] else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if expectedAdded != nil {
+            guard receipt.policyDisposition == .verifiedComplete
+                    || receipt.policyDisposition
+                        == .simulatorFileProtectionUnsupported,
+                  let temporary = receipt.temporaryFact,
+                  let expectedAdded,
+                  let published = afterFacts[expectedAdded],
+                  published.device == temporary.device,
+                  published.inode == temporary.inode,
+                  published.mode == temporary.mode,
+                  published.links == temporary.links else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if let expectedRemoved,
+               let firstTemp = token.beforeLeafFacts[expectedRemoved] {
+                if let settled = receipt.settledCapturedTemporaryFact {
+                    guard settled == firstTemp,
+                          firstTemp.inode != temporary.inode else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                } else {
+                    guard firstTemp.device == temporary.device,
+                          firstTemp.inode == temporary.inode,
+                          firstTemp.mode == temporary.mode,
+                          firstTemp.links == temporary.links else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                }
+            } else {
+                guard receipt.settledCapturedTemporaryFact == nil else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+            if receipt.policyDisposition
+                == .simulatorFileProtectionUnsupported {
+                #if DEBUG && os(iOS) && targetEnvironment(simulator)
+                // This disposition is only a checked request/readback result
+                // for the owner-approved pinned functional Simulator route.
+                #else
+                throw StoreMigrationFailure.invalidIdentity
+                #endif
+            }
+        } else {
+            guard receipt.policyDisposition == nil,
+                  receipt.temporaryFact == nil else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        // Retired leaf FDs stay held until their checked close succeeds. A
+        // failed close leaves the mutation latch and numeric descriptor live.
+        for name in token.beforeNames where !afterNames.contains(name) {
+            guard let old = schema2ColdNotificationFiles[name] else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            guard Darwin.close(old.descriptor) == 0 else {
+                uncertainFDs.append(old.descriptor)
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            held.removeAll(where: {
+                $0.descriptor == old.descriptor
+            })
+            schema2ColdNotificationFiles.removeValue(forKey: name)
+        }
+        for (name, file) in newFiles {
+            schema2ColdNotificationFiles[name] = file
+        }
+        guard let index = held.firstIndex(where: {
+            $0.descriptor == root.descriptor
+        }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let projected = Opened(descriptor: root.descriptor,
+            parent: root.parent, name: root.name, path: root.path,
+            fact: Fact(rootValue))
+        held[index] = projected
+        operationsChildren[AppLockNotificationControlStoreV1.rootName]
+            = projected
+        schema2ColdNotificationProjectedNames = afterNames
+        schema2ColdNotificationProjectedBytes = afterBytes
+        schema2ColdNotificationProjectedFacts = afterFacts
+        schema2ColdNotificationMutationInFlight = false
+        do { try requireHeldNamed() }
+        catch {
+            schema2ColdNotificationMutationInFlight = true
+            throw error
+        }
+        schema2ColdNotificationMutationToken = nil
+    }
+
+    /// Freeze the closed late notification tree as opaque held data before
+    /// Registry and notification effect admission. Canonical semantics,
+    /// policy requests, and OS absence are proved by the later typed owner.
+    func captureLateNotificationControl(
+        eraseID: UUID, operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard erasePhase == .sessionActivated || erasePhase == .cleanupComplete,
+              capturedOperationsNames != nil,
+              capturedNotificationNames == nil,
+              let support else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard let root = operationsChildren["AppLockNotificationControlV1"] else {
+            capturedNotificationNames = []
+            return
+        }
+        let names = try namesChecked(in: root)
+        let allowed: Set<String> = [
+            AppLockNotificationControlStoreV1.recordName,
+            AppLockNotificationControlStoreV1.pendingName,
+            AppLockNotificationControlStoreV1.mappingName,
+            AppLockNotificationControlStoreV1.mappingPendingName,
+            AppLockNotificationControlStoreV1.eraseName,
+            AppLockNotificationControlStoreV1.erasePendingName,
+            EraseSchema2ColdNotificationSourceV1.ownedIDsName,
+            EraseSchema2ColdNotificationSourceV1.ownedIDsTemporaryName,
+            EraseSchema2ColdNotificationSourceV1.drainName,
+            EraseSchema2ColdNotificationSourceV1.drainTemporaryName,
+        ]
+        guard Set(names).isSubset(of: allowed),
+              names.count == Set(names).count else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for name in names {
+            let descriptor = Darwin.openat(root.descriptor, name,
+                O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard descriptor >= 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let file = try retain(descriptor, parent: root.descriptor,
+                name: name, path: root.path.appendingPathComponent(name),
+                expectedType: S_IFREG, observePolicy: false)
+            capturedNotificationFiles[name] = file
+            capturedNotificationBytes[name] =
+                try readSchema2ColdNotificationBytes(file)
+        }
+        if let markerBytes = capturedNotificationBytes[
+                AppLockNotificationControlStoreV1.eraseName] {
+            let marker = try JSONDecoder().decode(
+                NotificationEraseRevocationV1.self,
+                from: markerBytes)
+            try marker.validate()
+            guard try CompatibilityCanonicalV1.encode(marker)
+                    == markerBytes,
+                  marker.operationID == eraseID,
+                  marker.rootIdentity ==
+                    "\(support.fact.device):\(support.fact.inode):\(root.fact.device):\(root.fact.inode)" else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        capturedNotificationNames = names
+        try requireHeldNamed()
+    }
+
+    /// The historical recursive cut can leave any completed subset of old
+    /// finalization intents. Decode each surviving canonical record with the
+    /// production codec; a name alone never grants cleanup authority.
+    func captureLateFinalizationControl(
+        deletedGenerationIDs: Set<UUID>,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard erasePhase == .sessionActivated || erasePhase == .cleanupComplete,
+              capturedOperationsNames != nil,
+              capturedFinalizationNames == nil,
+              !deletedGenerationIDs.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard let root = operationsChildren["finalization"] else {
+            capturedFinalizationNames = []
+            return
+        }
+        let names = try namesChecked(in: root)
+        guard names.count <= 256 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for name in names {
+            guard name.count == 41, name.hasSuffix(".json"),
+                  let mutationID = UUID(uuidString:
+                    String(name.dropLast(5))),
+                  mutationID.uuidString.lowercased() + ".json" == name else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let file = try openRegular(parent: root, name: name,
+                kind: .journal)
+            let bytes = try readExact(file, kind: .journal)
+            let intent = try FinalizationContractDecoderV1()
+                .decodeIntent(bytes)
+            let report = intent.reportID.uuidString.lowercased()
+            guard intent.finalizationMutationID == mutationID,
+                  deletedGenerationIDs.contains(intent.generationID),
+                  [1, 2].contains(intent.schemaVersion),
+                  intent.snapshotStagingRelativePath
+                    == ".staging/snapshots/\(report).json",
+                  intent.snapshotFinalRelativePath
+                    == "snapshots/\(report).json",
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                    intent.finalizationPayloadSHA256),
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                    intent.snapshotSHA256) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            finalizationFiles[name] = file
+            capturedFinalizationBytes[name] = bytes
+        }
+        capturedFinalizationNames = names
+        try requireHeldNamed()
+    }
+
+    /// Preserve the production deletion/site-marker canonical decoders while
+    /// observing only the old frozen generations. Pending leaves cannot be a
+    /// completed recursive-cut subset and are refused without reconciliation.
+    func captureLateDeletionControl(
+        deletedGenerationIDs: Set<UUID>,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard erasePhase == .sessionActivated || erasePhase == .cleanupComplete,
+              capturedOperationsNames != nil,
+              capturedDeletionNames == nil,
+              !deletedGenerationIDs.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard let root = operationsChildren["deletion"] else {
+            capturedDeletionNames = []
+            return
+        }
+        let names = try namesChecked(in: root)
+        guard names.count <= 1_024 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var totalBytes: Int64 = 0
+        for name in names {
+            let file = try openRegular(parent: root, name: name,
+                kind: .journal)
+            guard file.fact.size >= 0,
+                  file.fact.size <= 64 * 1_024 * 1_024,
+                  totalBytes <= 64 * 1_024 * 1_024
+                    - Int64(file.fact.size) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            totalBytes += Int64(file.fact.size)
+            let bytes = try readExact(file, kind: .journal,
+                maximumBytes: 64 * 1_024 * 1_024)
+            let record = try EraseSchema2ColdDeletionCodecV1.decode(
+                name: name, bytes: bytes)
+            guard deletedGenerationIDs.contains(record.generationID) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            deletionFiles[name] = file
+            capturedDeletionBytes[name] = bytes
+        }
+        capturedDeletionNames = names
+        try requireHeldNamed()
+    }
+
+    /// The Data handoff has already bound the current target manifest. A
+    /// surviving migration leaf is accepted only by its canonical production
+    /// codec and the Erase generation closure; pending allocations/journals
+    /// require a different pre-retirement owner and cannot be silently pruned.
+    func captureLateMigrationControl(
+        generationIDsToDelete: Set<UUID>,
+        targetGenerationID: UUID,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard erasePhase == .sessionActivated || erasePhase == .cleanupComplete,
+              capturedOperationsNames != nil,
+              capturedMigrationNames == nil,
+              !generationIDsToDelete.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard let migration else {
+            capturedMigrationNames = []
+            return
+        }
+        let names = try namesChecked(in: migration)
+        guard names.count <= 257 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let allowedIDs = generationIDsToDelete.union([targetGenerationID])
+        for name in names {
+            guard name == "aggregate.json"
+                    || (name.hasPrefix("manifest-")
+                        && name.hasSuffix(".json")) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let file = try openRegular(parent: migration,
+                name: name, kind: .journal)
+            let bytes = try readExact(file, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024)
+            if name == "aggregate.json" {
+                let aggregate = try StoreAggregateMigrationJournalV1
+                    .decodeCanonical(from: bytes)
+                guard !aggregate.reservationIsActive,
+                      allowedIDs.contains(
+                        aggregate.targetGenerationID) else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            } else {
+                let textID = String(name.dropFirst(9).dropLast(5))
+                guard let id = UUID(uuidString: textID),
+                      id.uuidString.lowercased() == textID,
+                      allowedIDs.contains(id) else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                let decoded = try StoreGenerationManifestV1
+                    .decodeCanonical(from: bytes)
+                guard decoded.generationID == id else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                if id == targetGenerationID {
+                    guard let capturedManifestBytes,
+                          capturedManifestBytes == bytes else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                }
+            }
+            migrationFiles[name] = file
+            capturedMigrationBytes[name] = bytes
+        }
+        capturedMigrationNames = names
+        try requireHeldNamed()
+    }
+
+    /// Both locations are authenticated against the same genuine current
+    /// pointer; a moved handoff cannot become a new manifest baseline.
+    func readCurrentManifest(expectedPointer: RestorePointerIdentityV1,
+        operation: EraseColdPreparationOperationV1)
+        throws -> (pointer: CurrentPointerEnvelopeV1,
+                   manifest: StoreGenerationManifestV1) {
+        let result = try readCurrentManifestBound(
+            allowed: [(expectedPointer, .target)], operation: operation)
+        return (result.pointer, result.manifest)
+    }
+
+    func readCurrentManifestForSchema2Cold(intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1)
+        throws -> (pointer: CurrentPointerEnvelopeV1,
+                   manifest: StoreGenerationManifestV1,
+                   cut: EraseSchema2ColdPointerCutV1) {
+        guard intent.schemaVersion == 2,
+              let target = intent.targetPointer,
+              let old = intent.oldPointer,
+              target.generationID == intent.newGenerationID,
+              old.generationID == intent.oldGenerationID,
+              old != target else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        switch intent.phase {
+        case .pointerSwitched:
+            return try readCurrentManifestBound(
+                allowed: [(old, .old), (target, .target)],
+                operation: operation)
+        case .sessionActivated, .cleanupComplete:
+            return try readCurrentManifestBound(
+                allowed: [(target, .target)], operation: operation)
+        case .emptyGenerationPrepared:
+            // P can survive either side of the original pointer effect.
+            // Capture that physical first cut once; only the target-current
+            // cut may later own the prepared private-source continuation.
+            return try readCurrentManifestBound(
+                allowed: [(old, .old), (target, .target)],
+                operation: operation)
+        }
+    }
+
+    private func readCurrentManifestBound(
+        allowed: [(RestorePointerIdentityV1, EraseSchema2ColdPointerCutV1)],
+        operation: EraseColdPreparationOperationV1
+    ) throws -> (pointer: CurrentPointerEnvelopeV1,
+                 manifest: StoreGenerationManifestV1,
+                 cut: EraseSchema2ColdPointerCutV1) {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard currentPointer == nil, handoff == nil, manifest == nil,
+              capturedCurrentCut == nil, let data else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        currentPointer = try openRegular(parent: data, name: "current.json",
+            kind: .generationPointer)
+        guard let currentPointer else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let pointer = try CurrentPointerCodecV1.decode(
+            readExact(currentPointer, kind: .generationPointer))
+        guard case .v3(let current, _) = pointer,
+              let matched = allowed.first(where: { pair in
+                  let expected = pair.0
+                  return current.generationID == expected.generationID.uuidString.lowercased()
+                    && current.generationManifestSHA256
+                        == expected.generationManifestSHA256
+                    && current.workspaceID
+                        == expected.workspaceID.uuidString.lowercased()
+                    && current.replicaID
+                        == expected.replicaID.uuidString.lowercased()
+                    && current.knownReplicaIDs
+                        == expected.knownReplicaIDs.map({
+                            $0.uuidString.lowercased()
+                        })
+              }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let expectedPointer = matched.0
+        let expectedDigest = current.generationManifestSHA256
+        let expectedSchema = current.storeSchemaVersion
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(expectedDigest) else {
+            throw StoreMigrationFailure.invalidDigest
+        }
+        handoff = try openOptionalRegular(parent: data,
+            name: "erase-current-manifest.json")
+        handoffAbsent = handoff == nil
+        if let migration {
+            manifest = try openOptionalRegular(parent: migration,
+                name: "manifest-\(pointer.generationID).json")
+            manifestAbsent = manifest == nil
+        }
+        guard handoff != nil || manifest != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let handoffBytes = try handoff.map { try readExact($0, kind: .journal) }
+        let manifestBytes = try manifest.map { try readExact($0, kind: .journal) }
+        guard handoffBytes == nil || manifestBytes == nil ||
+                handoffBytes == manifestBytes,
+              let bytes = handoffBytes ?? manifestBytes,
+              StoreMigrationCanonicalJSONV1.sha256(bytes) == expectedDigest else {
+            throw StoreMigrationFailure.digestMismatch
+        }
+        let decoded = try StoreGenerationManifestV1.decodeCanonical(from: bytes)
+        guard decoded.generationID == expectedPointer.generationID,
+              decoded.storeSchemaRelease.versionIdentifier.major == expectedSchema else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        guard try readExact(currentPointer, kind: .generationPointer)
+                == pointer.data else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        capturedPointerBytes = pointer.data
+        firstCapturedPointerBytes = pointer.data
+        capturedManifestBytes = bytes
+        firstCapturedManifestBytes = bytes
+        capturedCurrentCut = matched.1
+        return (pointer, decoded, matched.1)
+    }
+
+    /// The one retained current pointer may be the authenticated old or
+    /// target cut while the durable intent is pointer-switched. Later phases
+    /// require target-current. This never reads a new pointer baseline.
+    func observeAllowedCurrentCut(intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdPointerCutV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard let currentPointer, let bytes = capturedPointerBytes,
+              let capturedCurrentCut,
+              try readExact(currentPointer, kind: .generationPointer)
+                == bytes,
+              case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(bytes),
+              intent.schemaVersion == 2,
+              let old = intent.oldPointer,
+              let target = intent.targetPointer else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let expected: RestorePointerIdentityV1
+        switch capturedCurrentCut {
+        case .old:
+            guard intent.phase == .emptyGenerationPrepared
+                    || intent.phase == .pointerSwitched else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            expected = old
+        case .target:
+            guard intent.phase == .emptyGenerationPrepared
+                    || intent.phase == .pointerSwitched
+                    || intent.phase == .sessionActivated
+                    || intent.phase == .cleanupComplete else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            expected = target
+        }
+        guard pointer.generationID
+                == expected.generationID.uuidString.lowercased(),
+              pointer.generationManifestSHA256
+                == expected.generationManifestSHA256,
+              pointer.workspaceID
+                == expected.workspaceID.uuidString.lowercased(),
+              pointer.replicaID
+                == expected.replicaID.uuidString.lowercased(),
+              pointer.knownReplicaIDs
+                == expected.knownReplicaIDs.map({
+                    $0.uuidString.lowercased()
+                }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return capturedCurrentCut
+    }
+
+    /// Target is read from the held migration manifest even when current
+    /// still points to old. Both canonical bytes and target directory census
+    /// are captured before any target FD or pointer effect.
+    func observeSchema2ColdTarget(intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdTargetSnapshotV1 {
+        let cut = try observeAllowedCurrentCut(intent: intent,
+            operation: operation)
+        guard let currentPointer, let currentBytes = capturedPointerBytes,
+              let target = intent.targetPointer,
+              let generations, let retiredPointer,
+              let names = capturedGenerationNames,
+              names.contains(intent.newGenerationID.uuidString.lowercased()),
+              target.generationID == intent.newGenerationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let targetBytes: Data
+        if cut == .target {
+            guard let capturedManifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            targetBytes = capturedManifestBytes
+        } else {
+            guard targetManifest == nil,
+                  capturedTargetManifestBytes == nil,
+                  let migration else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let name = "manifest-\(intent.newGenerationID.uuidString.lowercased()).json"
+            let opened = try openRegular(parent: migration,
+                name: name, kind: .journal)
+            targetManifest = opened
+            let bytes = try readExact(opened, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024)
+            capturedTargetManifestBytes = bytes
+            targetBytes = bytes
+        }
+        guard StoreMigrationCanonicalJSONV1.sha256(targetBytes)
+                == target.generationManifestSHA256,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                target.generationManifestSHA256) else {
+            throw StoreMigrationFailure.digestMismatch
+        }
+        let targetDecoded = try StoreGenerationManifestV1.decodeCanonical(
+            from: targetBytes)
+        guard targetDecoded.generationID == intent.newGenerationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let targetPointer = try CurrentGenerationPointerV3(
+            generationID: target.generationID,
+            generationManifestSHA256: target.generationManifestSHA256,
+            workspaceID: WorkspaceID(rawValue: target.workspaceID),
+            replicaID: ReplicaID(rawValue: target.replicaID),
+            knownReplicaIDs: Set(target.knownReplicaIDs.map({
+                ReplicaID(rawValue: $0)
+            })),
+            storeSchemaVersion:
+                targetDecoded.storeSchemaRelease.versionIdentifier.major)
+        guard case .v3(let actualCurrent, _) =
+                try CurrentPointerCodecV1.decode(currentBytes),
+              cut != .target || actualCurrent == targetPointer,
+              try readExact(currentPointer, kind: .generationPointer)
+                == currentBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let retiredBytes = try readExact(retiredPointer,
+            kind: .generationPointer)
+        let retired = try JSONDecoder().decode(RetiredPointerV1.self,
+            from: retiredBytes)
+        guard try StoreMigrationCanonicalJSONV1.encode(retired)
+                == retiredBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try StorePointerSchemaRegistry.requireRetired(retired.schemaVersion)
+        let retiredNames = retired.generationIDs
+        guard retiredNames == retiredNames.sorted(),
+              Set(retiredNames).count == retiredNames.count,
+              retiredNames.allSatisfy({ UUID(uuidString: $0)?
+                    .uuidString.lowercased() == $0 }),
+              names.count == Set(names).count,
+              names.allSatisfy({ UUID(uuidString: $0)?
+                    .uuidString.lowercased() == $0 }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdFirstRetiredTemporaryCut(
+            retired: retired, retiredNames: retiredNames,
+            currentCut: cut, intent: intent)
+        if intent.phase == .emptyGenerationPrepared
+            || intent.phase == .pointerSwitched {
+            let prior = intent.generationIDsToDelete
+                .filter { $0 != intent.oldGenerationID }
+                .map { $0.uuidString.lowercased() }.sorted()
+            let final = intent.generationIDsToDelete
+                .map { $0.uuidString.lowercased() }.sorted()
+            guard retiredNames == prior
+                    || (cut == .target && retiredNames == final),
+                  Set(names) == Set(final).union([
+                    intent.newGenerationID.uuidString.lowercased()
+                  ]) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let targetManifest {
+            guard try readExact(targetManifest, kind: .journal,
+                    maximumBytes: 32 * 1_024 * 1_024)
+                    == targetBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        try requireHeldNamed()
+        return EraseSchema2ColdTargetSnapshotV1(
+            currentPointer: actualCurrent,
+            pointer: targetPointer,
+            manifest: targetDecoded,
+            retiredGenerationIDs:
+                retiredNames.compactMap(UUID.init(uuidString:)),
+            installedGenerationIDs: Set(names.compactMap(UUID.init(uuidString:))))
+    }
+
+    /// Reprove the first target bytes and census after an asynchronous
+    /// private read. It does not open another manifest or choose a new cut.
+    func requireSchema2ColdTargetSnapshot(
+        _ expected: EraseSchema2ColdTargetSnapshotV1,
+        intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        let cut = try observeAllowedCurrentCut(intent: intent,
+            operation: operation)
+        guard let currentPointer, let currentBytes = capturedPointerBytes,
+              let retiredPointer,
+              let names = capturedGenerationNames,
+              let target = intent.targetPointer,
+              expected.pointer.generationID
+                == target.generationID.uuidString.lowercased(),
+              expected.pointer.generationManifestSHA256
+                == target.generationManifestSHA256,
+              expected.installedGenerationIDs
+                == Set(names.compactMap(UUID.init(uuidString:))),
+              try readExact(currentPointer, kind: .generationPointer)
+                == currentBytes,
+              case .v3(let current, _) = try CurrentPointerCodecV1.decode(
+                currentBytes),
+              current == expected.currentPointer,
+              (cut == .target) == (current == expected.pointer) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let bytes: Data
+        if cut == .target {
+            guard let capturedManifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            bytes = capturedManifestBytes
+        } else {
+            guard let targetManifest,
+                  let capturedTargetManifestBytes,
+                  try readExact(targetManifest, kind: .journal,
+                    maximumBytes: 32 * 1_024 * 1_024)
+                    == capturedTargetManifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            bytes = capturedTargetManifestBytes
+        }
+        guard StoreMigrationCanonicalJSONV1.sha256(bytes)
+                == target.generationManifestSHA256,
+              try StoreGenerationManifestV1.decodeCanonical(from: bytes)
+                == expected.manifest else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let retiredBytes = try readExact(retiredPointer,
+            kind: .generationPointer)
+        let retired = try JSONDecoder().decode(RetiredPointerV1.self,
+            from: retiredBytes)
+        guard try StoreMigrationCanonicalJSONV1.encode(retired)
+                == retiredBytes,
+              retired.generationIDs
+                == expected.retiredGenerationIDs.map({
+                    $0.uuidString.lowercased()
+                }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+    }
+
+    /// Phase CAS is reachable only once both ordinary pointer effects have
+    /// their exact authenticated final bytes. An intermediate target-current
+    /// / prior-retired cut remains a retry state, not activation authority.
+    func requireSchema2ColdFinalPointerCut(
+        intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard intent.phase != .emptyGenerationPrepared,
+              try observeAllowedCurrentCut(intent: intent,
+                  operation: operation) == .target,
+              let retiredPointer else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let bytes = try readExact(retiredPointer,
+            kind: .generationPointer)
+        let retired = try JSONDecoder().decode(
+            RetiredPointerV1.self, from: bytes)
+        guard try StoreMigrationCanonicalJSONV1.encode(retired)
+                == bytes,
+              retired.generationIDs == intent.generationIDsToDelete
+                .map({ $0.uuidString.lowercased() }).sorted() else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        // The final canonical pointer has consumed its reserved writer leaf.
+        // A leftover temporary cannot be adopted as an already-final cut.
+        try requireSchema2ColdRetiredTemporaryAbsent()
+        try requireHeldNamed()
+    }
+
+    private func requireSchema2ColdRetiredTemporaryAbsent() throws {
+        guard let data else { throw StoreMigrationFailure.invalidIdentity }
+        var named = stat()
+        guard Darwin.fstatat(data.descriptor,
+                ".retired.json.restore-next", &named,
+                AT_SYMLINK_NOFOLLOW) != 0,
+              errno == ENOENT else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// Observe a reserved P writer cut before any cold pointer or session
+    /// effect. This is data only: the later publisher must still authenticate
+    /// its own held temporary and complete its checked policy request.
+    private func requireSchema2ColdFirstRetiredTemporaryCut(
+        retired: RetiredPointerV1,
+        retiredNames: [String],
+        currentCut: EraseSchema2ColdPointerCutV1,
+        intent: EraseIntentV1
+    ) throws {
+        guard let data else { throw StoreMigrationFailure.invalidIdentity }
+        var named = stat()
+        let exists = Darwin.fstatat(data.descriptor,
+            ".retired.json.restore-next", &named,
+            AT_SYMLINK_NOFOLLOW) == 0
+        guard exists || errno == ENOENT else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if !exists { return }
+        let prior = intent.generationIDsToDelete
+            .filter { $0 != intent.oldGenerationID }
+            .map { $0.uuidString.lowercased() }.sorted()
+        guard intent.phase == .pointerSwitched,
+              currentCut == .target,
+              retiredNames == prior,
+              named.st_mode & S_IFMT == S_IFREG,
+              named.st_mode & 0o777 == 0o600,
+              named.st_nlink == 1 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let final = intent.generationIDsToDelete
+            .map { $0.uuidString.lowercased() }.sorted()
+        let expected = try StoreMigrationCanonicalJSONV1.encode(
+            RetiredPointerV1(generationIDs: final,
+                schemaVersion: retired.schemaVersion))
+        guard named.st_size >= 0,
+              named.st_size <= off_t(expected.count) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let descriptor = Darwin.openat(data.descriptor,
+            ".retired.json.restore-next",
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let temporary = Opened(descriptor: descriptor,
+            parent: data.descriptor,
+            name: ".retired.json.restore-next",
+            path: data.path.appendingPathComponent(
+                ".retired.json.restore-next"), fact: Fact(named))
+        held.append(temporary)
+        let checked = named.st_size == off_t(expected.count)
+            ? try requirePointerTemporary(descriptor, parent: data,
+                name: ".retired.json.restore-next", bytes: expected)
+            : try requirePointerTemporaryPrefix(descriptor, parent: data,
+                name: ".retired.json.restore-next", bytes: expected)
+        guard checked == temporary.fact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard Darwin.close(descriptor) == 0 else {
+            uncertainFDs.append(descriptor)
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        held.removeAll { $0.descriptor == descriptor }
+        try requireHeldNamed()
+    }
+
+    /// Capture only the first physical postdeletion-shaped cut. The caller
+    /// must separately authenticate an R roster under EX/G, then let the
+    /// retained executor prove its entire global deleted prefix before this
+    /// value can become a cleanup authority.
+    func observeSchema2ColdPostDeletionCandidate(
+        snapshot: EraseSchema2ColdTargetSnapshotV1,
+        intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdPostDeletionCandidateV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard firstPostDeletionCandidate == nil,
+              intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              erasePhase == intent.phase,
+              snapshot.currentPointer == snapshot.pointer,
+              snapshot.retiredGenerationIDs.isEmpty,
+              snapshot.installedGenerationIDs == [intent.newGenerationID],
+              let names = capturedGenerationNames,
+              names == [intent.newGenerationID.uuidString.lowercased()],
+              let retiredPointer,
+              !deletionRosterPublicationInFlight,
+              !deletionRosterReplayInFlight,
+              !deletionStepInFlight,
+              publishedDeletionRoster == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdTargetSnapshot(snapshot,
+            intent: intent, operation: operation)
+        let bytes = try readExact(retiredPointer,
+            kind: .generationPointer)
+        let decoded = try JSONDecoder().decode(
+            RetiredPointerV1.self, from: bytes)
+        guard try StoreMigrationCanonicalJSONV1.encode(decoded) == bytes,
+              decoded.generationIDs.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let value = EraseSchema2ColdPostDeletionCandidateV1(
+            eraseID: intent.eraseID,
+            targetGenerationID: intent.newGenerationID,
+            manifest: self, snapshot: snapshot,
+            retiredBytes: bytes,
+            installedNames: names)
+        firstPostDeletionCandidate = value
+        return value
+    }
+
+    func requireSchema2ColdPostDeletionCandidate(
+        _ value: EraseSchema2ColdPostDeletionCandidateV1,
+        snapshot: EraseSchema2ColdTargetSnapshotV1,
+        intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard let first = firstPostDeletionCandidate,
+              first.manifestIdentity == ObjectIdentifier(self),
+              first.eraseID == value.eraseID,
+              first.targetGenerationID == value.targetGenerationID,
+              first.retiredBytes == value.retiredBytes,
+              first.installedNames == value.installedNames,
+              first.snapshot.currentPointer
+                == snapshot.currentPointer,
+              first.snapshot.pointer == snapshot.pointer,
+              first.snapshot.manifest == snapshot.manifest,
+              first.snapshot.installedGenerationIDs
+                == snapshot.installedGenerationIDs,
+              first.snapshot.retiredGenerationIDs
+                == snapshot.retiredGenerationIDs,
+              value.eraseID == intent.eraseID,
+              value.targetGenerationID == intent.newGenerationID,
+              intent.phase == .sessionActivated,
+              snapshot.currentPointer == snapshot.pointer,
+              snapshot.retiredGenerationIDs.isEmpty,
+              snapshot.installedGenerationIDs == [intent.newGenerationID],
+              capturedGenerationNames == value.installedNames,
+              let retiredPointer,
+              try readExact(retiredPointer,
+                kind: .generationPointer) == value.retiredBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdTargetSnapshot(snapshot,
+            intent: intent, operation: operation)
+        try requireHeldNamed()
+    }
+
+    /// After this exact owner published target-current, keep the first old
+    /// pointer and manifest as immutable evidence. A later caller cannot use
+    /// a fresh target-current observation as a preactivation baseline.
+    func requireSchema2ColdOwnPublishedSnapshot(
+        _ expected: EraseSchema2ColdTargetSnapshotV1,
+        intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        if expected.currentPointer == expected.pointer {
+            // A restart may begin at the genuine target-current/prior-retired
+            // cut. Its first held bytes are already the authenticated target;
+            // reprove that original observation rather than pretending this
+            // process performed the older current-pointer effect.
+            guard let currentPointer, let retiredPointer,
+                  let capturedPointerBytes,
+                  let capturedManifestBytes,
+                  let firstCapturedPointerBytes,
+                  let firstCapturedManifestBytes,
+                  let names = capturedGenerationNames,
+                  capturedCurrentCut == .target,
+                  capturedPointerBytes
+                    == (try expected.pointer.canonicalData()),
+                  firstCapturedPointerBytes == capturedPointerBytes,
+                  firstCapturedManifestBytes == capturedManifestBytes,
+                  StoreMigrationCanonicalJSONV1.sha256(
+                    capturedManifestBytes)
+                    == expected.pointer.generationManifestSHA256,
+                  try StoreGenerationManifestV1.decodeCanonical(
+                    from: capturedManifestBytes) == expected.manifest,
+                  try readExact(currentPointer,
+                    kind: .generationPointer) == capturedPointerBytes,
+                  Set(names) == Set(expected.installedGenerationIDs
+                    .map { $0.uuidString.lowercased() }) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let bytes = try readExact(retiredPointer,
+                kind: .generationPointer)
+            let retired = try JSONDecoder().decode(
+                RetiredPointerV1.self, from: bytes)
+            let prior = expected.retiredGenerationIDs
+                .map { $0.uuidString.lowercased() }.sorted()
+            let final = intent.generationIDsToDelete
+                .map { $0.uuidString.lowercased() }.sorted()
+            guard try StoreMigrationCanonicalJSONV1.encode(retired)
+                    == bytes,
+                  retired.generationIDs == prior
+                    || retired.generationIDs == final else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return
+        }
+        guard intent.schemaVersion == 2,
+              intent.phase == .pointerSwitched,
+              capturedCurrentCut == .target,
+              let firstCapturedPointerBytes,
+              let firstCapturedManifestBytes,
+              let capturedPointerBytes,
+              let capturedManifestBytes,
+              let currentPointer, let retiredPointer,
+              let targetManifest,
+              firstCapturedPointerBytes
+                == (try expected.currentPointer.canonicalData()),
+              firstCapturedManifestBytes != capturedManifestBytes,
+              capturedPointerBytes
+                == (try expected.pointer.canonicalData()),
+              capturedManifestBytes == capturedTargetManifestBytes,
+              try readExact(currentPointer, kind: .generationPointer)
+                == capturedPointerBytes,
+              try readExact(targetManifest, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024)
+                == capturedManifestBytes,
+              Set(capturedGenerationNames ?? [])
+                == Set(expected.installedGenerationIDs.map({
+                    $0.uuidString.lowercased()
+                })) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let retiredBytes = try readExact(retiredPointer,
+            kind: .generationPointer)
+        let retired = try JSONDecoder().decode(RetiredPointerV1.self,
+            from: retiredBytes)
+        let prior = expected.retiredGenerationIDs
+            .map { $0.uuidString.lowercased() }.sorted()
+        let final = intent.generationIDsToDelete
+            .map { $0.uuidString.lowercased() }.sorted()
+        guard try StoreMigrationCanonicalJSONV1.encode(retired)
+                == retiredBytes,
+              retired.generationIDs == prior
+                || retired.generationIDs == final else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// The first pointer effect is allowed only by the already completed
+    /// private target proof. Its bytes come from the first authenticated
+    /// target manifest, never from a post-failure current-pointer read.
+    func publishTargetPointerForSchema2Cold(
+        intent: EraseIntentV1,
+        snapshot: EraseSchema2ColdTargetSnapshotV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard erasePhase == .pointerSwitched,
+              !pointerPublicationInFlight,
+              let currentPointer, let data,
+              let capturedPointerBytes,
+              let targetManifest,
+              let capturedTargetManifestBytes,
+              let target = intent.targetPointer,
+              capturedCurrentCut == .old,
+              snapshot.currentPointer.generationID
+                == intent.oldGenerationID.uuidString.lowercased(),
+              snapshot.pointer.generationID
+                == intent.newGenerationID.uuidString.lowercased(),
+              StoreMigrationCanonicalJSONV1.sha256(
+                capturedTargetManifestBytes)
+                == target.generationManifestSHA256,
+              try readExact(targetManifest, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024)
+                == capturedTargetManifestBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let replacement = try snapshot.pointer.canonicalData()
+        guard replacement != capturedPointerBytes,
+              case .v3(let original, _) =
+                try CurrentPointerCodecV1.decode(capturedPointerBytes),
+              original == snapshot.currentPointer,
+              try readExact(currentPointer, kind: .generationPointer)
+                == capturedPointerBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let next = try publishPointerLeafForSchema2Cold(
+            parent: data, original: currentPointer,
+            originalBytes: capturedPointerBytes,
+            replacementBytes: replacement,
+            temporaryName: ".current.json.restore-next")
+        self.currentPointer = next
+        self.capturedPointerBytes = replacement
+        self.capturedCurrentCut = .target
+        self.manifest = targetManifest
+        self.manifestAbsent = false
+        self.capturedManifestBytes = capturedTargetManifestBytes
+        try requireHeldNamed()
+    }
+
+    /// The second ordinary pointer effect adds exactly the authenticated old
+    /// generation to retired.json. A target-current/prior-retired cut remains
+    /// an intermediate replay state and cannot activate the new session.
+    func publishFinalRetiredForSchema2Cold(
+        intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard erasePhase == .pointerSwitched,
+              !pointerPublicationInFlight,
+              capturedCurrentCut == .target,
+              let retiredPointer, let data else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let before = try readExact(retiredPointer,
+            kind: .generationPointer)
+        let prior = intent.generationIDsToDelete
+            .filter { $0 != intent.oldGenerationID }
+            .map { $0.uuidString.lowercased() }.sorted()
+        let final = intent.generationIDsToDelete
+            .map { $0.uuidString.lowercased() }.sorted()
+        let decoded = try JSONDecoder().decode(RetiredPointerV1.self,
+            from: before)
+        guard try StoreMigrationCanonicalJSONV1.encode(decoded) == before,
+              decoded.generationIDs == prior,
+              prior != final else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let replacement = try StoreMigrationCanonicalJSONV1.encode(
+            RetiredPointerV1(generationIDs: final,
+                schemaVersion: decoded.schemaVersion))
+        let next = try publishPointerLeafForSchema2Cold(
+            parent: data, original: retiredPointer,
+            originalBytes: before,
+            replacementBytes: replacement,
+            temporaryName: ".retired.json.restore-next")
+        self.retiredPointer = next
+        try requireSchema2ColdFinalPointerCut(intent: intent,
+            operation: operation)
+    }
+
+    private func requirePointerTemporary(
+        _ descriptor: Int32, parent: Opened, name: String,
+        bytes expected: Data
+    ) throws -> Fact {
+        var heldValue = stat(), named = stat()
+        guard expected.count > 0, expected.count <= 4 * 1024 * 1024,
+              Darwin.fstat(descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent.descriptor, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              heldValue.st_mode & S_IFMT == S_IFREG,
+              heldValue.st_nlink == 1,
+              Fact(heldValue) == Fact(named),
+              heldValue.st_size == off_t(expected.count),
+              Darwin.lseek(descriptor, 0, SEEK_SET) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let before = Fact(heldValue)
+        var actual = Data(count: expected.count)
+        try actual.withUnsafeMutableBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let count = Darwin.read(descriptor,
+                    raw.baseAddress!.advanced(by: offset),
+                    raw.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                offset += count
+            }
+        }
+        guard actual == expected,
+              Darwin.fstat(descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent.descriptor, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(heldValue) == before,
+              Fact(named) == before else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return before
+    }
+
+    /// A reserved leaf left between O_EXCL and the completed write is never
+    /// a pointer. Its only admissible bytes are a prefix of this operation's
+    /// canonical replacement. The held and named inode must be identical
+    /// throughout this one observation, including the empty-file cut.
+    private func requirePointerTemporaryPrefix(
+        _ descriptor: Int32, parent: Opened, name: String,
+        bytes expected: Data
+    ) throws -> Fact {
+        var heldValue = stat(), named = stat()
+        guard expected.count > 0, expected.count <= 4 * 1024 * 1024,
+              Darwin.fstat(descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent.descriptor, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              heldValue.st_mode & S_IFMT == S_IFREG,
+              heldValue.st_nlink == 1,
+              Fact(heldValue) == Fact(named),
+              heldValue.st_size >= 0,
+              heldValue.st_size < off_t(expected.count),
+              Darwin.lseek(descriptor, 0, SEEK_SET) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let before = Fact(heldValue)
+        let length = Int(heldValue.st_size)
+        var actual = Data(count: length)
+        try actual.withUnsafeMutableBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let count = Darwin.read(descriptor,
+                    raw.baseAddress!.advanced(by: offset),
+                    raw.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                offset += count
+            }
+        }
+        guard actual == Data(expected.prefix(length)),
+              Darwin.fstat(descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent.descriptor, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(heldValue) == before,
+              Fact(named) == before else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return before
+    }
+
+    private func publishPointerLeafForSchema2Cold(
+        parent: Opened, original: Opened,
+        originalBytes: Data, replacementBytes: Data,
+        temporaryName: String
+    ) throws -> Opened {
+        guard !pointerPublicationInFlight,
+              let name = original.name,
+              name == "current.json" || name == "retired.json",
+              temporaryName == ".\(name).restore-next",
+              parent.descriptor == data?.descriptor,
+              original.parent == parent.descriptor,
+              pointerPublicationAttempts.allSatisfy({
+                  $0.isCheckedClosed
+              }),
+              try readExact(original, kind: .generationPointer)
+                == originalBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        // Register the exact attempt before a transient descriptor is opened
+        // or a directory child is created. Subsequent failures remain on the
+        // original operation and cannot grant another pointer effect.
+        var attempt = EraseSchema2ColdPointerPublicationAttemptV1(
+            name: temporaryName)
+        pointerPublicationAttempts.append(attempt)
+        pointerPublicationInFlight = true
+        try requireHeldNamed(allowPointerPublication: true)
+        var named = stat()
+        let existing = Darwin.fstatat(parent.descriptor, temporaryName,
+            &named, AT_SYMLINK_NOFOLLOW) == 0
+        guard existing || errno == ENOENT else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let flags = O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
+            | (existing ? 0 : O_CREAT | O_EXCL)
+        var opened = Darwin.openat(parent.descriptor, temporaryName,
+            flags, mode_t(0o600))
+        guard opened >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        try attempt.retain(opened)
+        var needsWrite = !existing
+        if existing {
+            // A complete, byte-identical reserved leaf is the ordinary
+            // rename replay. A prefix is only a construction cut. Check its
+            // exact inode, bytes and admissible policy, remove that inode,
+            // fsync the parent, then create a fresh deterministic replacement.
+            // No prefix is ever promoted to a current or retired pointer.
+            var observed = stat()
+            guard Darwin.fstat(opened, &observed) == 0,
+                  observed.st_size >= 0,
+                  observed.st_size <= off_t(replacementBytes.count) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if observed.st_size < off_t(replacementBytes.count) {
+                let prior = try requirePointerTemporaryPrefix(opened,
+                    parent: parent, name: temporaryName,
+                    bytes: replacementBytes)
+                let tempURL = parent.path.appendingPathComponent(temporaryName)
+                _ = try ProtectedFilePolicyV1
+                    .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                        .generationPointerTemporary, at: tempURL,
+                        retainUncertainDescriptor: { value in
+                            self.uncertainFDs.append(value)
+                        }, unchangedWitness: {
+                            try self.requireHeldNamed(
+                                allowPointerPublication: true)
+                            return try self.requirePointerTemporaryPrefix(
+                                opened, parent: parent,
+                                name: temporaryName,
+                                bytes: replacementBytes)
+                        })
+                guard try requirePointerTemporaryPrefix(opened,
+                        parent: parent, name: temporaryName,
+                        bytes: replacementBytes) == prior,
+                      Darwin.unlinkat(parent.descriptor,
+                        temporaryName, 0) == 0,
+                      Darwin.fsync(parent.descriptor) == 0,
+                      Darwin.fstat(opened, &observed) == 0,
+                      observed.st_dev == prior.device,
+                      observed.st_ino == prior.inode,
+                      observed.st_nlink == 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                try attempt.closeChecked()
+                attempt = EraseSchema2ColdPointerPublicationAttemptV1(
+                    name: temporaryName)
+                pointerPublicationAttempts.append(attempt)
+                opened = Darwin.openat(parent.descriptor, temporaryName,
+                    O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC
+                        | O_CREAT | O_EXCL, mode_t(0o600))
+                guard opened >= 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                try attempt.retain(opened)
+                needsWrite = true
+            }
+        }
+        if needsWrite {
+            try replacementBytes.withUnsafeBytes { raw in
+                var offset = 0
+                while offset < raw.count {
+                    let written = Darwin.write(opened,
+                        raw.baseAddress!.advanced(by: offset),
+                        raw.count - offset)
+                    if written < 0 && errno == EINTR { continue }
+                    guard written > 0 else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                    offset += written
+                }
+            }
+            guard Darwin.fsync(opened) == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        _ = try requirePointerTemporary(opened, parent: parent,
+            name: temporaryName, bytes: replacementBytes)
+        let tempURL = parent.path.appendingPathComponent(temporaryName)
+        _ = try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                .generationPointerTemporary, at: tempURL,
+                retainUncertainDescriptor: { value in
+                    self.uncertainFDs.append(value)
+                }, authorityCheck: {
+                    try self.requireHeldNamed(
+                        allowPointerPublication: true)
+                    _ = try self.requirePointerTemporary(opened,
+                        parent: parent, name: temporaryName,
+                        bytes: replacementBytes)
+                }, beforeFirstEffect: {
+                    try self.requireHeldNamed(
+                        allowPointerPublication: true)
+                })
+        _ = try requirePointerTemporary(opened, parent: parent,
+            name: temporaryName, bytes: replacementBytes)
+        try requireHeldNamed(allowPointerPublication: true)
+        guard try readExact(original, kind: .generationPointer)
+                == originalBytes,
+              Darwin.renameat(parent.descriptor, temporaryName,
+                parent.descriptor, name) == 0,
+              Darwin.fsync(parent.descriptor) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var replaced = stat(), current = stat(), currentNamed = stat()
+        guard Darwin.fstat(original.descriptor, &replaced) == 0,
+              replaced.st_dev == original.fact.device,
+              replaced.st_ino == original.fact.inode,
+              replaced.st_mode == original.fact.mode,
+              replaced.st_nlink == 0,
+              Darwin.fstat(opened, &current) == 0,
+              Darwin.fstatat(parent.descriptor, name, &currentNamed,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(current) == Fact(currentNamed),
+              current.st_dev == parent.fact.device,
+              current.st_nlink == 1 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        // The old inode was unlinked by this exact rename. Its checked close
+        // is required before the new named leaf is accepted by the owner.
+        guard Darwin.close(original.descriptor) == 0 else {
+            uncertainFDs.append(original.descriptor)
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        held.removeAll { $0.descriptor == original.descriptor }
+        let transferred = try attempt.transferToManifest()
+        let next = Opened(descriptor: transferred,
+            parent: parent.descriptor, name: name,
+            path: parent.path.appendingPathComponent(name),
+            fact: Fact(current))
+        held.append(next)
+        let projected = try projectedDataDirectory(parent)
+        guard let index = held.firstIndex(where: {
+            $0.descriptor == parent.descriptor
+        }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        held[index] = projected
+        data = projected
+        pointerPublicationInFlight = false
+        return next
+    }
+
+    private func projectedDataDirectory(_ original: Opened)
+        throws -> Opened {
+        var heldValue = stat(), named = stat()
+        guard Darwin.fstat(original.descriptor, &heldValue) == 0,
+              let parent = original.parent, let name = original.name,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(heldValue) == Fact(named),
+              heldValue.st_dev == original.fact.device,
+              heldValue.st_ino == original.fact.inode,
+              heldValue.st_mode == original.fact.mode,
+              heldValue.st_nlink == original.fact.links else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return Opened(descriptor: original.descriptor,
+            parent: original.parent, name: original.name,
+            path: original.path, fact: Fact(heldValue))
+    }
+
+    func closeChecked(operation: EraseColdPreparationOperationV1) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard opened, !closeAttempted,
+              !retainedSourcePhaseProjectionInFlight,
+              !deletionRosterPublicationInFlight,
+              !deletionRosterReplayInFlight,
+              !deletionStepInFlight,
+              !originalAuxiliaryReplayInFlight,
+              !auxiliaryCaptureInFlight,
+              !auxiliaryRosterRereadInFlight,
+              !(auxiliaryRosterSealAttempted && auxiliaryRosterSeal == nil),
+              !schema2ColdNotificationCaptureInFlight,
+              !schema2ColdNotificationMutationInFlight,
+              targetSource == nil || targetSource?.isCheckedClosed == true,
+              originalSource == nil || originalSource?.isCheckedClosed == true,
+              retiredSources?.values.allSatisfy({ $0.isCheckedClosed })
+                ?? true else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        closeAttempted = true
+        if let directoryStream {
+            self.directoryStream = nil
+            if Darwin.closedir(directoryStream) != 0 {
+                uncertainStreamClose = true
+            }
+        }
+        if let enumerationFD {
+            self.enumerationFD = nil
+            if Darwin.close(enumerationFD) != 0 {
+                uncertainFDs.append(enumerationFD)
+            }
+        }
+        if let temporary = auxiliaryTemporaryParent {
+            if Darwin.close(temporary.descriptor) != 0 {
+                uncertainFDs.append(temporary.descriptor)
+            } else {
+                auxiliaryTemporaryParent = nil
+            }
+        }
+        if let caches = auxiliaryCachesParent {
+            if Darwin.close(caches.descriptor) != 0 {
+                uncertainFDs.append(caches.descriptor)
+            } else {
+                auxiliaryCachesParent = nil
+            }
+        }
+        for node in held.reversed() {
+            if Darwin.close(node.descriptor) != 0 {
+                uncertainFDs.append(node.descriptor)
+            }
+        }
+        held.removeAll()
+        guard uncertainFDs.isEmpty, !uncertainStreamClose else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// Factory receives only value snapshots. This owner keeps the exact
+    /// pointer and directory FDs through semantic validation and later reproof.
+    func readGenerationInventory(operation: EraseColdPreparationOperationV1)
+        throws -> (retiredPointerBytes: Data, installedNames: [String]) {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard let currentPointer, let capturedPointerBytes,
+              let capturedManifestBytes, retiredPointer == nil,
+              generations == nil, let data,
+              try readExact(currentPointer, kind: .generationPointer)
+                == capturedPointerBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let handoff {
+            guard try readExact(handoff, kind: .journal)
+                    == capturedManifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let manifest {
+            guard try readExact(manifest, kind: .journal)
+                    == capturedManifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        retiredPointer = try openRegular(parent: data,
+            name: "retired.json", kind: .generationPointer)
+        generations = try openDirectory(parent: data, name: "generations")
+        guard let retiredPointer, let generations else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let retiredBytes = try readExact(retiredPointer,
+            kind: .generationPointer)
+        firstRetiredPointerBytes = retiredBytes
+        let names = try namesChecked(in: generations)
+        guard names.allSatisfy({ name in
+            UUID(uuidString: name)?.uuidString.lowercased() == name
+        }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        capturedGenerationNames = names
+        try requireHeldNamed()
+        return (retiredBytes, names)
+    }
+
+    /// Capture the two original-operation Erase records and the first Data
+    /// stage cut while their parents are held. The Store captured the record
+    /// bytes before EX; this method does not decode them or grant a replay
+    /// mutation. An absent leaf remains absent in this first image.
+    func observeSchema2ColdOriginalRetiredFirstCut(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> OriginalRetiredFirstCutV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard originalRetiredFirstCut == nil,
+              intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared,
+              preparation.matches(intent),
+              let data, let generations, let retiredPointer,
+              let firstRetiredPointerBytes,
+              let currentPointer, let capturedPointerBytes,
+              try readExact(currentPointer, kind: .generationPointer)
+                == capturedPointerBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        let controls = try store
+            .requireSchema2ColdObservedOriginalRetiredControls(
+                intent: intent, preparation: preparation,
+                operation: operation)
+        let commitment = "original-retired-transition.json"
+        let stageIdentity = "original-retired-stage-identity.json"
+        guard Set(controls.records.keys).isSubset(of:
+                [commitment, ".original-retired-transition.json.next",
+                 stageIdentity, ".original-retired-stage-identity.json.next"]),
+              controls.records[stageIdentity] == nil ||
+                controls.records[commitment] != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let stageName = ".retired.json.original-erase-\(intent.eraseID.uuidString.lowercased()).stage"
+        let temporaryName = ".retired.json.restore-next"
+        let firstData = try fullRetiredDirectoryFact(data)
+        let firstGenerations = try fullRetiredDirectoryFact(generations)
+        let firstCurrent = try fullRetiredLeafFact(currentPointer)
+        let firstRetired = try fullRetiredLeafFact(retiredPointer)
+        let firstNames = try namesChecked(in: data)
+        let expectedBase = ["current.json", "generations", "retired.json"]
+        guard Set(expectedBase).isSubset(of: Set(firstNames)),
+              Set(firstNames).isSubset(of: Set(expectedBase +
+                [stageName, temporaryName])),
+              firstNames.count == Set(firstNames).count,
+              !(firstNames.contains(stageName) &&
+                firstNames.contains(temporaryName)) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let privateStage = try observeOpaqueOriginalRetiredDataLeaf(
+            parent: data, name: stageName,
+            expectedPresent: firstNames.contains(stageName))
+        let canonicalTemporary = try observeOpaqueOriginalRetiredDataLeaf(
+            parent: data, name: temporaryName,
+            expectedPresent: firstNames.contains(temporaryName))
+        guard try fullRetiredDirectoryFact(data) == firstData,
+              try fullRetiredDirectoryFact(generations)
+                == firstGenerations,
+              try namesChecked(in: data) == firstNames,
+              try fullRetiredLeafFact(currentPointer) == firstCurrent,
+              try fullRetiredLeafFact(retiredPointer) == firstRetired,
+              try readExact(retiredPointer, kind: .generationPointer)
+                == firstRetiredPointerBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let controlsAfter = try store
+            .requireSchema2ColdObservedOriginalRetiredControls(
+                intent: intent, preparation: preparation,
+                operation: operation)
+        guard controlsAfter.records == controls.records,
+              controlsAfter.eraseRoot == controls.eraseRoot,
+              controlsAfter.names == controls.names else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        let first = OriginalRetiredFirstCutV1(
+            controlBytes: controls.records.mapValues { $0.bytes },
+            controlRoot: controls.eraseRoot,
+            controlNames: controls.names,
+            dataFact: firstData, dataNames: firstNames,
+            generationsFact: firstGenerations,
+            currentBytes: capturedPointerBytes,
+            currentFact: firstCurrent,
+            retiredBytes: firstRetiredPointerBytes,
+            retiredFact: firstRetired,
+            privateStage: privateStage,
+            canonicalTemporary: canonicalTemporary)
+        originalRetiredFirstCut = first
+        return first
+    }
+
+    private func fullRetiredDirectoryFact(_ directory: Opened)
+        throws -> FullRetiredFact {
+        var heldValue = stat(), namedValue = stat()
+        guard let parent = directory.parent, let name = directory.name,
+              Darwin.fstat(directory.descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              heldValue.st_mode & S_IFMT == S_IFDIR,
+              FullRetiredFact(heldValue) == FullRetiredFact(namedValue) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return FullRetiredFact(heldValue)
+    }
+
+    private func observeOpaqueOriginalRetiredDataLeaf(
+        parent: Opened, name: String, expectedPresent: Bool
+    ) throws -> OriginalRetiredFirstCutV1.Leaf? {
+        if !expectedPresent {
+            var value = stat()
+            guard Darwin.fstatat(parent.descriptor, name, &value,
+                    AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return nil
+        }
+        let descriptor = Darwin.openat(parent.descriptor, name,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let node = try retain(descriptor, parent: parent.descriptor,
+            name: name, path: parent.path.appendingPathComponent(name),
+            expectedType: S_IFREG, observePolicy: false)
+        if name == ".retired.json.restore-next" {
+            originalRetiredTemporaryNode = node
+        } else {
+            originalRetiredStageNode = node
+        }
+        var heldValue = stat(), namedValue = stat()
+        guard Darwin.fstat(descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent.descriptor, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              FullRetiredFact(heldValue) == FullRetiredFact(namedValue),
+              heldValue.st_mode & S_IFMT == S_IFREG,
+              heldValue.st_mode & 0o777 == 0o600,
+              heldValue.st_nlink == 1,
+              heldValue.st_uid == Darwin.getuid(),
+              heldValue.st_gid == Darwin.getgid(),
+              heldValue.st_size >= 0,
+              heldValue.st_size <= 4 * 1_024 * 1_024,
+              Darwin.lseek(descriptor, 0, SEEK_SET) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var bytes = Data(count: Int(heldValue.st_size))
+        try bytes.withUnsafeMutableBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let count = Darwin.read(descriptor,
+                    raw.baseAddress!.advanced(by: offset),
+                    raw.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                offset += count
+            }
+        }
+        let policy = try ProtectedFilePolicyV1
+            .observeTemporalPolicyWithCheckedClose(
+                .generationPointerTemporary, at: node.path,
+                retainUncertainDescriptor: { value in
+                    self.uncertainFDs.append(value)
+                })
+        guard policy.device == UInt64(heldValue.st_dev),
+              policy.inode == UInt64(heldValue.st_ino),
+              try fullRetiredLeafFact(node) == FullRetiredFact(heldValue),
+              uncertainFDs.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return OriginalRetiredFirstCutV1.Leaf(bytes: bytes,
+            fact: FullRetiredFact(heldValue), policy: policy)
+    }
+
+    /// The same held Data parents and any first private leaves must survive
+    /// suspension unchanged. The Store independently reopens its exact first
+    /// Erase records; no later survivor can become a new expected image.
+    private func requireSchema2ColdOriginalRetiredFirstCutUnchanged(
+        _ first: OriginalRetiredFirstCutV1,
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard let data, let generations, let currentPointer,
+              let retiredPointer,
+              try fullRetiredDirectoryFact(data) == first.dataFact,
+              try fullRetiredDirectoryFact(generations)
+                == first.generationsFact,
+              try namesChecked(in: data) == first.dataNames,
+              try fullRetiredLeafFact(currentPointer)
+                == first.currentFact,
+              try fullRetiredLeafFact(retiredPointer)
+                == first.retiredFact,
+              try readExact(currentPointer, kind: .generationPointer)
+                == first.currentBytes,
+              try readExact(retiredPointer, kind: .generationPointer)
+                == first.retiredBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        func reprove(_ leaf: OriginalRetiredFirstCutV1.Leaf?,
+            node: Opened?) throws {
+            guard (leaf == nil) == (node == nil) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            guard let leaf, let node else { return }
+            guard try fullRetiredLeafFact(node) == leaf.fact,
+                  node.fact.size == off_t(leaf.bytes.count),
+                  Darwin.lseek(node.descriptor, 0, SEEK_SET) == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            var bytes = Data(count: leaf.bytes.count)
+            try bytes.withUnsafeMutableBytes { raw in
+                var offset = 0
+                while offset < raw.count {
+                    let count = Darwin.read(node.descriptor,
+                        raw.baseAddress!.advanced(by: offset),
+                        raw.count - offset)
+                    if count < 0 && errno == EINTR { continue }
+                    guard count > 0 else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                    offset += count
+                }
+            }
+            let policy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .generationPointerTemporary, at: node.path,
+                    retainUncertainDescriptor: { value in
+                        self.uncertainFDs.append(value)
+                    })
+            guard bytes == leaf.bytes, policy == leaf.policy,
+                  try fullRetiredLeafFact(node) == leaf.fact,
+                  uncertainFDs.isEmpty else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        try reprove(first.privateStage, node: originalRetiredStageNode)
+        try reprove(first.canonicalTemporary,
+            node: originalRetiredTemporaryNode)
+        let controls = try store
+            .requireSchema2ColdObservedOriginalRetiredControls(
+                intent: intent, preparation: preparation,
+                operation: operation)
+        guard controls.records.mapValues({ $0.bytes })
+                == first.controlBytes,
+              controls.eraseRoot == first.controlRoot,
+              controls.names == first.controlNames,
+              try fullRetiredDirectoryFact(data) == first.dataFact,
+              try namesChecked(in: data) == first.dataNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+    }
+
+    func observeSchema2ColdOriginalRetiredSemantic(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> OriginalRetiredSemanticObservationV1 {
+        try operation.requireSchema2ColdOriginalAuthority()
+        guard originalRetiredSemanticObservation == nil,
+              let first = originalRetiredFirstCut,
+              intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared,
+              preparation.matches(intent) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdOriginalRetiredFirstCutUnchanged(
+            first, intent: intent, preparation: preparation,
+            store: store, operation: operation)
+        let controls = try store
+            .requireSchema2ColdSemanticOriginalRetiredControls(
+                intent: intent, preparation: preparation,
+                operation: operation)
+        typealias RecordedFact = OriginalRecoveryRetiredCommitmentRecordV1.Fact
+        func recorded(_ value: FullRetiredFact) -> RecordedFact {
+            RecordedFact(device: value.device, inode: value.inode,
+                mode: value.mode, links: value.links,
+                user: value.user, group: value.group,
+                size: value.size,
+                modifiedSeconds: value.modifiedSeconds,
+                modifiedNanoseconds: value.modifiedNanoseconds,
+                changedSeconds: value.changedSeconds,
+                changedNanoseconds: value.changedNanoseconds)
+        }
+        func matchesTarget(_ pointer: CurrentGenerationPointerV3,
+            _ target: RestorePointerIdentityV1) -> Bool {
+            pointer.generationID == target.generationID.uuidString.lowercased()
+                && pointer.generationManifestSHA256
+                    == target.generationManifestSHA256
+                && pointer.knownReplicaIDs == target.knownReplicaIDs.map {
+                    $0.uuidString.lowercased()
+                }
+                && pointer.workspaceID
+                    == target.workspaceID.uuidString.lowercased()
+                && pointer.replicaID
+                    == target.replicaID.uuidString.lowercased()
+        }
+        guard controls.first.mapValues({ $0.bytes })
+                == first.controlBytes,
+              controls.root == first.controlRoot,
+              controls.names == first.controlNames,
+              let targetPointer = intent.targetPointer,
+              case .v3(let recordedCurrent, _) = try
+                CurrentPointerCodecV1.decode(
+                    controls.commitment.namespace.currentBytes),
+              case .v3(let firstCurrent, _) = try
+                CurrentPointerCodecV1.decode(first.currentBytes),
+              matchesTarget(recordedCurrent, targetPointer),
+              matchesTarget(firstCurrent, targetPointer),
+              controls.commitment.namespace.currentBytes
+                == first.currentBytes,
+              controls.commitment.namespace.currentFact
+                == recorded(first.currentFact),
+              controls.commitment.namespace.retiredBytes
+                == first.retiredBytes,
+              controls.commitment.namespace.retiredFact
+                == recorded(first.retiredFact),
+              controls.commitment.namespace.installedParent
+                == recorded(first.generationsFact),
+              controls.commitment.namespace.dataNames
+                == ["current.json", "generations", "retired.json"],
+              first.canonicalTemporary == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let stage = controls.stage {
+            guard let privateStage = first.privateStage,
+                  privateStage.bytes
+                    == controls.commitment.replacementBytes,
+                  privateStage.policy.state == .strictComplete,
+                  privateStage.policy.backupExcluded == true,
+                  stage.stageFact == recorded(privateStage.fact),
+                  stage.afterDataFact == recorded(first.dataFact),
+                  stage.afterDataNames == first.dataNames else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        } else {
+            // Before a durable inode record, a surviving private stage is
+            // ambiguous even when its bytes and deterministic name match.
+            guard first.privateStage == nil,
+                  controls.commitment.namespace.data
+                    == recorded(first.dataFact),
+                  first.dataNames
+                    == ["current.json", "generations", "retired.json"] else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        let witness = OriginalRetiredSemanticObservationV1(
+            manifest: self, store: store, operation: operation)
+        originalRetiredSemanticObservation = witness
+        return witness
+    }
+
+    func requireSchema2ColdOriginalRetiredSemantic(
+        _ witness: OriginalRetiredSemanticObservationV1,
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try witness.requireBound(manifest: self, store: store,
+            operation: operation)
+        try operation.requireSchema2ColdOriginalAuthority()
+        guard originalRetiredSemanticObservation === witness,
+              let first = originalRetiredFirstCut else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdOriginalRetiredFirstCutUnchanged(
+            first, intent: intent, preparation: preparation,
+            store: store, operation: operation)
+        let controls = try store
+            .requireSchema2ColdSemanticOriginalRetiredControls(
+                intent: intent, preparation: preparation,
+                operation: operation)
+        guard controls.first.mapValues({ $0.bytes })
+                == first.controlBytes,
+              controls.root == first.controlRoot,
+              controls.names == first.controlNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    private func fullRetiredLeafFact(_ node: Opened)
+        throws -> FullRetiredFact {
+        guard let parent = node.parent, let name = node.name else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var heldValue = stat(), namedValue = stat()
+        guard Darwin.fstat(node.descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              FullRetiredFact(heldValue) == FullRetiredFact(namedValue) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return FullRetiredFact(heldValue)
+    }
+
+    /// The old generation is opened only after the actual Registry-present G
+    /// census and Support EX have been retained. A late cut with no Registry
+    /// cannot borrow this source or mint an equivalent reader token.
+    func captureRetainedOriginalSource(
+        id: UUID, expectedOldPointer: RestorePointerIdentityV1,
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdRetainedSourceV1 {
+        if intent.phase == .emptyGenerationPrepared {
+            try operation.requireSchema2ColdPreparedTargetCurrentControls(
+                intent: intent, preparation: preparation)
+        } else {
+            try operation.requireSchema2ColdOriginalControls(
+                intent: intent, preparation: preparation)
+        }
+        try operation.requireSchema2ColdOriginalAuthority()
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        let oldName = id.uuidString.lowercased()
+        guard originalSource == nil, originalManifest == nil,
+              capturedOriginalManifestBytes == nil,
+              erasePhase == intent.phase,
+              intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared
+                || intent.phase == .pointerSwitched
+                || intent.phase == .sessionActivated,
+              intent.oldGenerationID == id,
+              intent.oldPointer == expectedOldPointer,
+              preparation.oldPointer == expectedOldPointer,
+              preparation.c05JobDrainV3 == nil,
+              preparation.coldPredecessorReclaim == nil,
+              let generations, let migration,
+              capturedGenerationNames?.contains(oldName) == true,
+              capturedGenerationNames?.contains(
+                intent.newGenerationID.uuidString.lowercased()) == true,
+              capturedPointerBytes != nil,
+              capturedManifestBytes != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let manifestName = "manifest-\(oldName).json"
+        let oldManifest: Opened
+        let bytes: Data
+        if capturedMigrationNames != nil {
+            guard let retained = migrationFiles[manifestName],
+                  let retainedBytes = capturedMigrationBytes[manifestName] else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            oldManifest = retained
+            bytes = retainedBytes
+        } else {
+            oldManifest = try openRegular(parent: migration,
+                name: manifestName, kind: .journal)
+            bytes = try readExact(oldManifest, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024)
+        }
+        self.originalManifest = oldManifest
+        capturedOriginalManifestBytes = bytes
+        let digest = StoreMigrationCanonicalJSONV1.sha256(bytes)
+        guard digest == expectedOldPointer.generationManifestSHA256,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(digest) else {
+            throw StoreMigrationFailure.digestMismatch
+        }
+        let decoded = try StoreGenerationManifestV1.decodeCanonical(
+            from: bytes)
+        guard decoded.generationID == id else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let cut = try observeAllowedCurrentCut(intent: intent,
+            operation: operation)
+        guard intent.phase != .emptyGenerationPrepared
+                || cut == .target else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        _ = try requireTargetRootIdentity(
+            targetID: intent.newGenerationID, operation: operation)
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: WorkspaceID(rawValue: expectedOldPointer.workspaceID),
+            replicaID: ReplicaID(rawValue: expectedOldPointer.replicaID))
+        let source = EraseSchema2ColdRetainedSourceV1(
+            manifestOwner: self, operation: operation,
+            generationID: id,
+            generationRootURL: generations.path.appendingPathComponent(
+                oldName, isDirectory: true),
+            manifest: decoded, manifestDigest: digest,
+            workspaceIdentity: identity,
+            intent: intent, preparation: preparation)
+        try operation.retainSchema2ColdRetainedSource(source)
+        originalSource = source
+        try source.open(parent: generations.descriptor, name: oldName)
+        try requireOriginalSource(source, operation: operation)
+        return source
+    }
+
+    /// Only this operation's checked P→R phase publication can change the
+    /// retained sources' control reproof. Their original tree digests and
+    /// held root descriptors remain unchanged. An interrupted projection
+    /// stays sticky and cannot become a new R baseline on a later call.
+    func projectSchema2ColdRetainedSourcesAfterOwnPhaseCAS(
+        firstIntent: EraseIntentV1, replacement: EraseIntentV1,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard !retainedSourcePhaseProjectionInFlight,
+              retainedSourcePublishedIntent == nil,
+              retainedSourcePublishedStore == nil,
+              firstIntent.phase == .pointerSwitched,
+              replacement == firstIntent.advancing(to: .sessionActivated),
+              capturedRetiredSourceIntent == firstIntent,
+              let preparation = capturedRetiredSourcePreparation,
+              preparation.matches(firstIntent),
+              retiredSourceCaptureComplete,
+              erasePhase == .pointerSwitched,
+              let originalSource,
+              originalSource.intent == firstIntent,
+              !originalSource.isCheckedClosed,
+              let retiredSources,
+              retiredSources.values.allSatisfy({ !$0.isCheckedClosed }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        _ = try operation.requireSchema2ColdPointerPhasePublished(
+            expected: replacement, store: store)
+        // The durable CAS is already proved. Every subsequent failure is a
+        // terminal retained-owner uncertainty, never a second observation.
+        retainedSourcePhaseProjectionInFlight = true
+        guard try store.loadPreparation() == preparation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdFinalPointerCut(
+            intent: replacement, operation: operation)
+        try requireHeldNamed()
+        try requireCapturedRetainedManifestBytes()
+        try originalSource.requireHeldTreeAfterOwnPhaseCAS()
+        for source in retiredSources.values {
+            try source.requireHeldTreeAfterOwnPhaseCAS()
+        }
+        try requireCapturedRetainedManifestBytes()
+        try requireSchema2ColdFinalPointerCut(
+            intent: replacement, operation: operation)
+        retainedSourcePublishedStore = store
+        retainedSourcePublishedIntent = replacement
+        retainedSourcePhaseProjectionInFlight = false
+    }
+
+    private func requireCapturedRetainedManifestBytes() throws {
+        guard let originalManifest,
+              let capturedOriginalManifestBytes,
+              let retiredSources,
+              Set(retiredSourceManifests.keys) == Set(retiredSources.keys),
+              Set(retiredSourceManifestBytes.keys)
+                == Set(retiredSources.keys),
+              try readExact(originalManifest, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024)
+                == capturedOriginalManifestBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for id in retiredSources.keys {
+            guard let file = retiredSourceManifests[id],
+                  let bytes = retiredSourceManifestBytes[id],
+                  try readExact(file, kind: .journal,
+                    maximumBytes: 32 * 1_024 * 1_024) == bytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+
+    private func requireRetainedSourceControls(
+        firstIntent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard !retainedSourcePhaseProjectionInFlight else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let published = retainedSourcePublishedIntent {
+            guard let store = retainedSourcePublishedStore,
+                  published == firstIntent.advancing(
+                    to: .sessionActivated),
+                  try store.loadPreparation() == preparation else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            _ = try operation.requireSchema2ColdPointerPhasePublished(
+                expected: published, store: store)
+        } else {
+            if firstIntent.phase == .emptyGenerationPrepared {
+                try operation.requireSchema2ColdPreparedTargetCurrentControls(
+                    intent: firstIntent, preparation: preparation)
+            } else {
+                try operation.requireSchema2ColdOriginalControls(
+                    intent: firstIntent, preparation: preparation)
+            }
+        }
+    }
+
+    func requireOriginalSource(_ expected: EraseSchema2ColdRetainedSourceV1,
+        operation: EraseColdPreparationOperationV1) throws {
+        try requireRetainedSourceControls(
+            firstIntent: expected.intent,
+            preparation: expected.preparation,
+            operation: operation)
+        try operation.requireSchema2ColdOriginalAuthority()
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard originalSource === expected,
+              let originalManifest,
+              let bytes = capturedOriginalManifestBytes,
+              StoreMigrationCanonicalJSONV1.sha256(bytes)
+                == expected.manifestDigest else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        guard try readExact(originalManifest, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024) == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let cut = try observeAllowedCurrentCut(
+            intent: expected.intent, operation: operation)
+        guard expected.intent.phase != .emptyGenerationPrepared
+                || cut == .target else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        _ = try requireTargetRootIdentity(
+            targetID: expected.intent.newGenerationID,
+            operation: operation)
+        try expected.requirePhysicalIdentity()
+    }
+
+    /// The first closed installed-name observation classifies every other
+    /// frozen generation before a retired root is opened. Absence is only a
+    /// phase-bound whole-root cut, never authority to accept a partial tree.
+    func captureRetainedRetiredSources(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> [UUID: EraseSchema2ColdRetiredSourceV1] {
+        try operation.requireSchema2ColdOriginalControls(
+            intent: intent, preparation: preparation)
+        try operation.requireSchema2ColdOriginalAuthority()
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard retiredSources == nil,
+              firstAbsentRetiredSourceIDs == nil,
+              !retiredSourceCaptureComplete,
+              capturedRetiredSourceIntent == nil,
+              capturedRetiredSourcePreparation == nil,
+              erasePhase == intent.phase,
+              intent.schemaVersion == 2,
+              intent.phase == .pointerSwitched
+                || intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              let generations,
+              let capturedGenerationNames,
+              let currentPointer,
+              let capturedPointerBytes,
+              try readExact(currentPointer,
+                kind: .generationPointer) == capturedPointerBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let otherIDs = intent.generationIDsToDelete.filter {
+            $0 != intent.oldGenerationID
+        }
+        let firstNames = Set(capturedGenerationNames)
+        let allowedNames = Set(
+            (intent.generationIDsToDelete + [intent.newGenerationID])
+                .map { $0.uuidString.lowercased() })
+        guard firstNames.contains(
+                intent.newGenerationID.uuidString.lowercased()),
+              firstNames.isSubset(of: allowedNames),
+              intent.phase != .pointerSwitched
+                || firstNames == allowedNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let present = otherIDs.filter {
+            firstNames.contains($0.uuidString.lowercased())
+        }
+        let absent = Set(otherIDs).subtracting(present)
+        guard intent.phase != .pointerSwitched || absent.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if !absent.isEmpty {
+            try requireSchema2ColdFinalPointerCut(
+                intent: intent, operation: operation)
+        }
+        var sources: [UUID: EraseSchema2ColdRetiredSourceV1] = [:]
+        for id in present {
+            guard let migration else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let manifestName = "manifest-\(id.uuidString.lowercased()).json"
+            let file: Opened
+            let bytes: Data
+            if let capturedMigrationNames {
+                guard capturedMigrationNames.contains(manifestName),
+                      let retained = migrationFiles[manifestName],
+                      let retainedBytes = capturedMigrationBytes[manifestName] else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                file = retained
+                bytes = retainedBytes
+            } else {
+                file = try openRegular(parent: migration,
+                    name: manifestName, kind: .journal)
+                bytes = try readExact(file, kind: .journal,
+                    maximumBytes: 32 * 1_024 * 1_024)
+            }
+            let decoded = try StoreGenerationManifestV1.decodeCanonical(
+                from: bytes)
+            guard decoded.generationID == id,
+                  decoded.storeSchemaRelease == .v53 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            retiredSourceManifests[id] = file
+            retiredSourceManifestBytes[id] = bytes
+            sources[id] = EraseSchema2ColdRetiredSourceV1(
+                manifestOwner: self, operation: operation,
+                generationID: id,
+                generationRootURL: generations.path
+                    .appendingPathComponent(id.uuidString.lowercased(),
+                        isDirectory: true),
+                manifest: decoded,
+                manifestDigest: StoreMigrationCanonicalJSONV1.sha256(bytes),
+                intent: intent, preparation: preparation)
+        }
+        // The operation retains every source object before opening the first
+        // retired generation descriptor. Any later open failure remains owned.
+        try operation.retainSchema2ColdRetiredSources(sources)
+        retiredSources = sources
+        firstAbsentRetiredSourceIDs = absent
+        capturedRetiredSourceIntent = intent
+        capturedRetiredSourcePreparation = preparation
+        for id in present {
+            guard let source = sources[id] else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try source.open(parent: generations.descriptor,
+                name: id.uuidString.lowercased())
+        }
+        try requireHeldNamed()
+        for source in sources.values {
+            try source.requirePhysicalIdentity()
+        }
+        retiredSourceCaptureComplete = true
+        return sources
+    }
+
+    func requireRetiredSource(_ expected: EraseSchema2ColdRetiredSourceV1,
+        operation: EraseColdPreparationOperationV1) throws {
+        try requireRetainedSourceControls(
+            firstIntent: expected.intent,
+            preparation: expected.preparation,
+            operation: operation)
+        try operation.requireSchema2ColdOriginalAuthority()
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard retiredSourceCaptureComplete,
+              capturedRetiredSourceIntent == expected.intent,
+              capturedRetiredSourcePreparation == expected.preparation,
+              erasePhase == expected.intent.phase,
+              retiredSources?[expected.generationID] === expected,
+              let file = retiredSourceManifests[expected.generationID],
+              let bytes = retiredSourceManifestBytes[expected.generationID],
+              StoreMigrationCanonicalJSONV1.sha256(bytes)
+                == expected.manifestDigest,
+              let firstAbsentRetiredSourceIDs,
+              !firstAbsentRetiredSourceIDs.contains(expected.generationID),
+              let capturedGenerationNames,
+              capturedGenerationNames.contains(
+                expected.generationID.uuidString.lowercased()) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        guard try readExact(file, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024) == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        _ = try observeAllowedCurrentCut(
+            intent: expected.intent, operation: operation)
+        _ = try requireTargetRootIdentity(
+            targetID: expected.intent.newGenerationID,
+            operation: operation)
+        try expected.requirePhysicalIdentity()
+    }
+
+    func requireFirstAbsentRetiredSourceIDs(
+        intent: EraseIntentV1, operation: EraseColdPreparationOperationV1
+    ) throws -> Set<UUID> {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard let preparation = capturedRetiredSourcePreparation,
+              capturedRetiredSourceIntent == intent,
+              retiredSourceCaptureComplete,
+              erasePhase == intent.phase else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireRetainedSourceControls(
+            firstIntent: intent, preparation: preparation,
+            operation: operation)
+        try operation.requireSchema2ColdOriginalAuthority()
+        try requireHeldNamed()
+        guard let firstAbsentRetiredSourceIDs,
+              let retiredSources,
+              let capturedGenerationNames,
+              Set(retiredSources.keys).union(firstAbsentRetiredSourceIDs)
+                == Set(intent.generationIDsToDelete).subtracting(
+                    [intent.oldGenerationID]),
+              firstAbsentRetiredSourceIDs.isSubset(of:
+                Set(intent.generationIDsToDelete)),
+              !firstAbsentRetiredSourceIDs.contains(intent.oldGenerationID),
+              firstAbsentRetiredSourceIDs.allSatisfy({
+                  !capturedGenerationNames.contains(
+                    $0.uuidString.lowercased())
+              }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if !firstAbsentRetiredSourceIDs.isEmpty {
+            try requireSchema2ColdFinalPointerCut(
+                intent: intent, operation: operation)
+        }
+        for source in retiredSources.values {
+            try requireRetiredSource(source, operation: operation)
+            _ = try source.checkedOriginalTree()
+        }
+        return firstAbsentRetiredSourceIDs
+    }
+
+    /// R may start after the old root was wholly removed. This proves that
+    /// absence from the first closed installed-name census, rather than
+    /// treating a later missing pathname as evidence of completed cleanup.
+    /// P always requires its old source to be present and cannot use this cut.
+    func requireFirstOldSourceAbsence(
+        intent: EraseIntentV1, operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard let preparation = capturedRetiredSourcePreparation,
+              capturedRetiredSourceIntent == intent,
+              retiredSourceCaptureComplete,
+              erasePhase == .sessionActivated,
+              intent.phase == .sessionActivated,
+              intent.schemaVersion == 2,
+              preparation.matches(intent),
+              originalSource == nil,
+              originalManifest == nil,
+              capturedOriginalManifestBytes == nil,
+              let names = capturedGenerationNames,
+              !names.contains(
+                intent.oldGenerationID.uuidString.lowercased()),
+              names.contains(
+                intent.newGenerationID.uuidString.lowercased()) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdOriginalControls(
+            intent: intent, preparation: preparation)
+        try operation.requireSchema2ColdOriginalAuthority()
+        try requireSchema2ColdFinalPointerCut(
+            intent: intent, operation: operation)
+        try requireHeldNamed()
+        _ = try requireFirstAbsentRetiredSourceIDs(
+            intent: intent, operation: operation)
+    }
+
+    /// P observes the original owner's immutable first roster. Both the
+    /// record and the first checked tree must agree; neither pending policy
+    /// nor these decoded bytes grant a Q/R effect.
+    func decodeSchema2ColdObservedPreparedOriginalAuxiliaryRoster(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> PreparedOriginalAuxiliaryObservationV1 {
+        let first = try operation
+            .requireSchema2ColdPreparedAuxiliaryObservationOwner(
+                store: store, manifest: self)
+        guard first.0 === observer, first.1 == snapshot,
+              !preparedOriginalAuxiliaryReplayAttempted,
+              !preparedOriginalAuxiliaryReplayInFlight,
+              preparedOriginalAuxiliaryObservation == nil,
+              intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared,
+              preparation.matches(intent),
+              let support, let caches = auxiliaryCachesParent,
+              let temporary = auxiliaryTemporaryParent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        preparedOriginalAuxiliaryReplayAttempted = true
+        preparedOriginalAuxiliaryReplayInFlight = true
+        try requireSchema2ColdPreparedAuxiliaryUnchanged(
+            observer: observer, operation: operation)
+        let cut = try store.requireSchema2ColdObservedPreparedAuxiliaryRosterCut(
+            intent: intent, preparation: preparation,
+            manifest: self, operation: operation)
+        let roster = try EraseSchema2ColdAuxiliaryPhysicalRosterV1
+            .decodeCanonical(cut.bytes, intent: intent,
+                preparation: preparation)
+        let record = roster.record
+        guard record.firstIntentPhase == intent.phase.rawValue,
+              record.firstSupportFact == snapshot.supportFact,
+              record.firstSupportNames == snapshot.supportNames,
+              record.supportDevice == Int64(snapshot.supportIdentity.device),
+              record.supportInode == UInt64(snapshot.supportIdentity.inode),
+              record.supportMode == UInt32(snapshot.supportIdentity.mode),
+              record.supportUser == UInt32(snapshot.supportIdentity.user),
+              record.supportGroup == UInt32(snapshot.supportIdentity.group),
+              record.cachesDevice == Int64(snapshot.cacheIdentity.device),
+              record.cachesInode == UInt64(snapshot.cacheIdentity.inode),
+              record.cachesMode == UInt32(snapshot.cacheIdentity.mode),
+              record.cachesUser == UInt32(snapshot.cacheIdentity.user),
+              record.cachesGroup == UInt32(snapshot.cacheIdentity.group),
+              record.temporaryDevice == Int64(snapshot.temporaryIdentity.device),
+              record.temporaryInode == UInt64(snapshot.temporaryIdentity.inode),
+              record.temporaryMode == UInt32(snapshot.temporaryIdentity.mode),
+              record.temporaryUser == UInt32(snapshot.temporaryIdentity.user),
+              record.temporaryGroup == UInt32(snapshot.temporaryIdentity.group) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for tree in record.trees {
+            let expected: EraseSchema2ColdAuxiliaryFirstObserverV1.Tree?
+            switch tree.key {
+            case "support/FieldEvidenceOperations":
+                expected = snapshot.operations
+            case "caches/FieldEvidenceApp":
+                expected = snapshot.cacheTree
+            case "temporary/FieldEvidenceApp":
+                expected = snapshot.temporaryTree
+            default:
+                guard tree.key.hasPrefix("support/") else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                expected = snapshot.supportTrees[String(
+                    tree.key.dropFirst("support/".count))]
+            }
+            guard let expected else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            switch expected {
+            case .absent:
+                guard tree.state == "absent", tree.rootFact == nil,
+                      tree.digest == nil else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            case .present(let fact, let digest):
+                guard tree.state == "present", tree.rootFact == fact,
+                      tree.digest == digest else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+        try requireSchema2ColdOriginalAuxiliaryParents(roster,
+            support: support, caches: caches, temporary: temporary)
+        try requireSchema2ColdPreparedAuxiliaryUnchanged(
+            observer: observer, operation: operation)
+        let after = try store.requireSchema2ColdObservedPreparedAuxiliaryRosterCut(
+            intent: intent, preparation: preparation,
+            manifest: self, operation: operation)
+        guard after.bytes == cut.bytes, after.fact == cut.fact,
+              after.eraseRoot == cut.eraseRoot,
+              after.names == cut.names else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let witness = PreparedOriginalAuxiliaryObservationV1(
+            manifest: self, store: store, operation: operation)
+        preparedOriginalAuxiliaryObservation = witness
+        preparedOriginalAuxiliaryReplayInFlight = false
+        return witness
+    }
+
+    /// Decode the first held original-P auxiliary record only after authentic
+    /// R controls, target pointer and retained parent identities are proved.
+    /// This is one-way data admission; no current survivor tree is a baseline.
+    func decodeSchema2ColdObservedOriginalAuxiliaryRoster(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdObservedOriginalAuxiliaryRosterV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdRosterObservationOwner(store: store)
+        guard !originalAuxiliaryReplayAttempted,
+              !originalAuxiliaryReplayInFlight,
+              observedOriginalAuxiliaryRoster == nil,
+              !deletionStepInFlight,
+              intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              auxiliaryCaptureAttempted,
+              !auxiliaryCaptureInFlight,
+              let caches = auxiliaryCachesParent,
+              let temporary = auxiliaryTemporaryParent,
+              let support else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        originalAuxiliaryReplayAttempted = true
+        originalAuxiliaryReplayInFlight = true
+        try requireSchema2ColdFinalPointerCut(
+            intent: intent, operation: operation)
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        let controls = try store.requireSchema2ColdCanonicalControls(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        let cut = try store.requireSchema2ColdObservedOriginalAuxiliaryRosterCut(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        let firstNames = ["erase.json", "preparation.json",
+            EraseSchema2ColdAuxiliaryPhysicalRosterV1.canonicalName]
+            .sorted()
+        let publishedNames = (firstNames + [
+            EraseSchema2ColdDeletionRosterV1.canonicalName]).sorted()
+        guard controls.eraseRoot == cut.eraseRoot,
+              controls.names == cut.names,
+              [firstNames, publishedNames]
+                .contains(cut.names),
+              cut.fact.mode & S_IFMT == S_IFREG,
+              cut.fact.links == 1,
+              cut.fact.size == off_t(cut.bytes.count) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let roster = try EraseSchema2ColdAuxiliaryPhysicalRosterV1
+            .decodeCanonical(cut.bytes, intent: intent,
+                preparation: preparation)
+        guard roster.record.firstIntentPhase ==
+                EraseIntentPhaseV1.emptyGenerationPrepared.rawValue else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdOriginalAuxiliaryParents(
+            roster, support: support, caches: caches,
+            temporary: temporary)
+        let projectedFact = try store
+            .requireSchema2ColdVerifiedObservedOriginalAuxiliaryRosterPolicy(
+                roster: roster, intent: intent,
+                preparation: preparation, operation: operation)
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        let after = try store.requireSchema2ColdObservedOriginalAuxiliaryRosterCut(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        guard after.bytes == cut.bytes,
+              after.fact == cut.fact,
+              after.eraseRoot == cut.eraseRoot,
+              after.names == cut.names else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdOriginalAuxiliaryParents(
+            roster, support: support, caches: caches,
+            temporary: temporary)
+        let witness = EraseSchema2ColdObservedOriginalAuxiliaryRosterV1(
+            roster: roster, firstFileFact: cut.fact,
+            projectedFileFact: projectedFact, manifest: self,
+            store: store, operation: operation)
+        observedOriginalAuxiliaryRoster = witness
+        originalAuxiliaryReplayInFlight = false
+        return witness
+    }
+
+    private func requireSchema2ColdOriginalAuxiliaryParents(
+        _ roster: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
+        support: Opened, caches: AuxiliaryParent,
+        temporary: AuxiliaryParent
+    ) throws {
+        var supportFact = stat(), cachesFact = stat(), temporaryFact = stat()
+        guard Darwin.fstat(support.descriptor, &supportFact) == 0,
+              Darwin.fstat(caches.descriptor, &cachesFact) == 0,
+              Darwin.fstat(temporary.descriptor, &temporaryFact) == 0,
+              roster.record.supportDevice == Int64(supportFact.st_dev),
+              roster.record.supportInode == UInt64(supportFact.st_ino),
+              roster.record.supportMode == UInt32(supportFact.st_mode),
+              roster.record.supportUser == UInt32(supportFact.st_uid),
+              roster.record.supportGroup == UInt32(supportFact.st_gid),
+              roster.record.cachesDevice == Int64(cachesFact.st_dev),
+              roster.record.cachesInode == UInt64(cachesFact.st_ino),
+              roster.record.cachesMode == UInt32(cachesFact.st_mode),
+              roster.record.cachesUser == UInt32(cachesFact.st_uid),
+              roster.record.cachesGroup == UInt32(cachesFact.st_gid),
+              roster.record.temporaryDevice == Int64(temporaryFact.st_dev),
+              roster.record.temporaryInode == UInt64(temporaryFact.st_ino),
+              roster.record.temporaryMode == UInt32(temporaryFact.st_mode),
+              roster.record.temporaryUser == UInt32(temporaryFact.st_uid),
+              roster.record.temporaryGroup == UInt32(temporaryFact.st_gid) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// Pre-deletion reproof only. A distinct projected Store/Router owner is
+    /// required after the first generation unlink changes the final cut.
+    func requireSchema2ColdPublishedOriginalAuxiliaryRoster(
+        _ witness: EraseSchema2ColdObservedOriginalAuxiliaryRosterV1,
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try witness.requireBound(manifest: self, store: store,
+            operation: operation)
+        try operation.requireSchema2ColdRosterObservationOwner(store: store)
+        guard observedOriginalAuxiliaryRoster === witness,
+              originalAuxiliaryReplayAttempted,
+              !originalAuxiliaryReplayInFlight,
+              !deletionStepInFlight,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              let support, let caches = auxiliaryCachesParent,
+              let temporary = auxiliaryTemporaryParent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdFinalPointerCut(
+            intent: intent, operation: operation)
+        try requireHeldNamed()
+        try requireAuxiliaryParent(caches)
+        try requireAuxiliaryParent(temporary)
+        try requireSchema2ColdOriginalAuxiliaryParents(
+            witness.roster, support: support, caches: caches,
+            temporary: temporary)
+        let cut = try store.requireSchema2ColdObservedOriginalAuxiliaryRosterCut(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        guard cut.bytes == witness.roster.canonicalBytes,
+              cut.fact == witness.firstFileFact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let projected = try store
+            .requireSchema2ColdVerifiedObservedOriginalAuxiliaryRosterPolicy(
+                roster: witness.roster, intent: intent,
+                preparation: preparation, operation: operation)
+        guard projected == witness.projectedFileFact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// Publish the prospective complete deletion roster while every present
+    /// generation still has its first held source and validated semantic
+    /// witness. Store owns the Erase-root FD, checked temporary write and
+    /// exact projection; this Manifest owner never opens an ordinary Store or
+    /// invents a survivor inventory after an unlink.
+    func publishSchema2ColdDeletionRoster(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdDeletionRosterV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard !deletionRosterPublicationInFlight,
+              publishedDeletionRoster == nil,
+              intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              retiredSourceCaptureComplete,
+              let firstIntent = capturedRetiredSourceIntent,
+              capturedRetiredSourcePreparation == preparation,
+              firstIntent == intent
+                || retainedSourcePublishedIntent == intent,
+              let generations,
+              let capturedGenerationNames,
+              let targetSource,
+              targetSource.generationID == intent.newGenerationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRosterAdmission(
+            intent: intent, store: store)
+        try requireSchema2ColdFinalPointerCut(
+            intent: intent, operation: operation)
+        try requireHeldNamed()
+        guard try namesChecked(in: generations)
+                == capturedGenerationNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let witnesses = try operation
+            .requireSchema2ColdValidatedGenerationTrees()
+        guard Set(witnesses.present.keys)
+                .isDisjoint(with: witnesses.absent),
+              Set(witnesses.present.keys)
+                .union(witnesses.absent)
+                == Set(intent.generationIDsToDelete),
+              witnesses.present.count + witnesses.absent.count
+                == intent.generationIDsToDelete.count else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let firstAbsent = try requireFirstAbsentRetiredSourceIDs(
+            intent: firstIntent, operation: operation)
+        guard witnesses.absent.subtracting([intent.oldGenerationID])
+                == firstAbsent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if witnesses.absent.contains(intent.oldGenerationID) {
+            try requireFirstOldSourceAbsence(
+                intent: intent, operation: operation)
+        } else {
+            guard let source = originalSource,
+                  let witness = witnesses.present[intent.oldGenerationID],
+                  source.generationID == witness.generationID,
+                  source.manifestDigest == witness.manifestDigest,
+                  try source.checkedOriginalTree().digest
+                    == witness.digest else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        for (id, witness) in witnesses.present
+            where id != intent.oldGenerationID {
+            guard let source = retiredSources?[id],
+                  source.generationID == witness.generationID,
+                  source.manifestDigest == witness.manifestDigest,
+                  try source.checkedOriginalTree().digest
+                    == witness.digest else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        let controls = try store.requireSchema2ColdCanonicalControls(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        if let auxiliary = observedOriginalAuxiliaryRoster {
+            try requireSchema2ColdPublishedOriginalAuxiliaryRoster(
+                auxiliary, intent: intent,
+                preparation: preparation, store: store,
+                operation: operation)
+        }
+        let cleanNames = (["erase.json", "preparation.json"] +
+            (observedOriginalAuxiliaryRoster == nil ? [] :
+                [EraseSchema2ColdAuxiliaryPhysicalRosterV1.canonicalName]))
+            .sorted()
+        let temporaryNames = (cleanNames + [
+            EraseSchema2ColdDeletionRosterV1.temporaryName]).sorted()
+        guard (controls.names == cleanNames
+                || controls.names == temporaryNames),
+              generations.fact.device == controls.eraseRoot.device,
+              generations.fact.inode > 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let record = try EraseSchema2ColdDeletionRosterV1.canonicalRecord(
+            intent: intent, intentBytes: controls.intentBytes,
+            preparation: preparation,
+            preparationBytes: controls.preparationBytes,
+            generationsDevice: generations.fact.device,
+            generationsInode: generations.fact.inode,
+            present: witnesses.present, absent: witnesses.absent)
+        let canonicalBytes = try StoreMigrationCanonicalJSONV1.encode(record)
+        let seal = try EraseSchema2ColdDeletionRosterPublicationSealV1(
+            record: record, bytes: canonicalBytes, manifest: self,
+            operation: operation)
+        try operation.retainSchema2ColdRosterPublicationSeal(
+            seal, intent: intent, store: store)
+        sealedDeletionRosterPublication = seal
+        sealedDeletionRosterIntent = intent
+        sealedDeletionRosterPreparation = preparation
+        // Once the operation holds the exact sealed bytes, any failure in
+        // Store begin or publication leaves this owner terminal. A retry must
+        // replay the same durable cut, never derive a second source roster.
+        deletionRosterPublicationInFlight = true
+        if controls.names == temporaryNames {
+            try store.settleSchema2ColdObservedRosterTemporary(
+                seal: seal, intent: intent,
+                preparation: preparation, operation: operation)
+            try requireSchema2ColdRosterSourceFactsBeforeTempRemoval(
+                seal: seal, operation: operation)
+        }
+        let receipt = try store.beginSchema2ColdRosterPublication(
+            intent: intent, preparation: preparation, seal: seal,
+            operation: operation)
+        let fact = try store.publishSchema2ColdRosterBytes(
+            receipt: receipt, seal: seal,
+            operation: operation)
+        guard fact.device == generations.fact.device,
+              fact.inode > 0, fact.mode & S_IFMT == S_IFREG,
+              fact.links == 1,
+              fact.size == off_t(canonicalBytes.count) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try store.finishSchema2ColdRosterPublication(
+            receipt: receipt, seal: seal,
+            recordFact: fact, operation: operation)
+        try requireSchema2ColdRosterSourceFactsDuringPublication(
+            seal: seal, operation: operation)
+        try requireHeldNamed()
+        let roster = try EraseSchema2ColdDeletionRosterV1(
+            record: record, bytes: canonicalBytes,
+            manifest: self, fileFact: fact)
+        publishedDeletionRoster = roster
+        publishedDeletionRosterIntent = intent
+        publishedDeletionRosterPreparation = preparation
+        try operation.bindSchema2ColdPublishedRoster(
+            roster, seal: seal, store: store, recordFact: fact)
+        deletionRosterPublicationInFlight = false
+        return roster
+    }
+
+    /// Reprove the first complete old/retired roster without asking the
+    /// borrowed Erase Store to load while its own root is in flight. This is
+    /// called before its rename effect and again after checked publication;
+    /// every directory and file fact is compared, including fields omitted
+    /// from the checked tree digest. No new source baseline is captured.
+    func requireSchema2ColdRosterSourceFactsDuringPublication(
+        seal: EraseSchema2ColdDeletionRosterPublicationSealV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard deletionRosterPublicationInFlight,
+              sealedDeletionRosterPublication === seal,
+              let intent = sealedDeletionRosterIntent,
+              let preparation = sealedDeletionRosterPreparation,
+              retiredSourceCaptureComplete,
+              let generations,
+              let firstNames = capturedGenerationNames,
+              seal.record.frozenGenerationIDs ==
+                intent.generationIDsToDelete.map({
+                    $0.uuidString.lowercased() }),
+              seal.record.generations.map(\.generationID) ==
+                seal.record.frozenGenerationIDs else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try seal.requireBound(manifest: self, intent: intent,
+            preparation: preparation, operation: operation)
+        guard try EraseSchema2ColdDeletionRosterV1.decodeCanonicalRecord(
+                seal.canonicalBytes, intent: intent,
+                intentBytes: EraseIntentCodecV1.encode(intent),
+                preparation: preparation,
+                preparationBytes: ErasePreparationCodecV2.encode(
+                    preparation),
+                generationsDevice: generations.fact.device,
+                generationsInode: generations.fact.inode)
+                == seal.record else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireSchema2ColdFinalPointerCut(
+            intent: intent, operation: operation)
+        try requireHeldNamed()
+        guard try namesChecked(in: generations) == firstNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for generation in seal.record.generations {
+            guard let id = UUID(uuidString: generation.generationID),
+                  intent.generationIDsToDelete.contains(id) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            switch generation.state {
+            case "absent":
+                guard !firstNames.contains(generation.generationID),
+                      generation.nodes == nil else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                if id == intent.oldGenerationID {
+                    guard originalSource == nil else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                } else {
+                    guard retiredSources?[id] == nil else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                }
+            case "present":
+                guard firstNames.contains(generation.generationID),
+                      let expected = generation.nodes else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                if id == intent.oldGenerationID {
+                    guard let source = originalSource else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                    guard source.generationID == id,
+                          source.manifestDigest ==
+                            generation.manifestSHA256 else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                    try source.requireHeldRosterNodes(expected)
+                } else {
+                    guard let retired = retiredSources?[id],
+                          retired.generationID == id,
+                          retired.manifestDigest ==
+                            generation.manifestSHA256 else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                    try retired.requireHeldRosterNodes(expected)
+                }
+            default:
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        try requireHeldNamed()
+    }
+
+    /// The borrowed Store calls this immediately before and after removing
+    /// only its first captured empty/canonical-prefix roster temporary. It
+    /// reuses the complete first held source and absence witness above; no
+    /// post-effect inventory or Store.load() is admitted in this interval.
+    func requireSchema2ColdRosterSourceFactsBeforeTempRemoval(
+        seal: EraseSchema2ColdDeletionRosterPublicationSealV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try requireSchema2ColdRosterSourceFactsDuringPublication(
+            seal: seal, operation: operation)
+    }
+
+    /// Reproof of this owner's exact prospective record, independent of the
+    /// Router's publication flag. Router composes it with its retained R
+    /// session, EX/G and roster identity when binding or advancing a step.
+    func requirePublishedSchema2ColdDeletionRoster(
+        _ roster: EraseSchema2ColdDeletionRosterV1,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard let held = publishedDeletionRoster,
+              held.canonicalBytes == roster.canonicalBytes,
+              held.canonicalSHA256 == roster.canonicalSHA256,
+              held.recordFileFact == roster.recordFileFact,
+              let intent = publishedDeletionRosterIntent,
+              let preparation = publishedDeletionRosterPreparation,
+              intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              roster.record.eraseID ==
+                intent.eraseID.uuidString.lowercased(),
+              roster.manifestIdentity == ObjectIdentifier(self),
+              !closeAttempted else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let candidate = firstPostDeletionCandidate {
+            guard postDeletionCandidateValidated else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSchema2ColdPostDeletionCandidate(candidate,
+                snapshot: candidate.snapshot, intent: intent,
+                operation: operation)
+        } else {
+            try requireSchema2ColdFinalPointerCut(
+                intent: intent, operation: operation)
+        }
+        try requireHeldNamed()
+        try store.requireSchema2ColdPublishedRoster(
+            intent: intent, preparation: preparation,
+            canonicalBytes: roster.canonicalBytes,
+            recordFact: roster.recordFileFact,
+            operation: operation)
+    }
+
+    /// Return only the one-way progress already retained by this Manifest
+    /// owner. The Service must not infer a new prefix from a fresh namespace
+    /// scan between checked deletion steps.
+    func requireSchema2ColdDeletionProgress(
+        roster: EraseSchema2ColdDeletionRosterV1,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> Int {
+        try operation.requireSchema2ColdRosterStepOwner(
+            roster: roster, store: store)
+        try requirePublishedSchema2ColdDeletionRoster(
+            roster, store: store, operation: operation)
+        guard !deletionRosterReplayInFlight,
+              !deletionRosterPublicationInFlight,
+              !deletionStepInFlight else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        _ = try roster.step(at: completedDeletionSteps)
+        return completedDeletionSteps
+    }
+
+    /// Decode the first held R roster leaf as data. This grants no deletion
+    /// authority and does not infer a new generation tree from survivors.
+    /// The operation must separately retain a checked executor and prove the
+    /// complete global prefix before this record can be admitted.
+    func decodeSchema2ColdObservedRoster(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdDeletionRosterV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try operation.requireSchema2ColdRosterObservationOwner(store: store)
+        guard !deletionRosterPublicationInFlight,
+              !deletionStepInFlight,
+              publishedDeletionRoster == nil,
+              intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              let generations,
+              !closeAttempted else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let candidate = firstPostDeletionCandidate {
+            try requireSchema2ColdPostDeletionCandidate(candidate,
+                snapshot: candidate.snapshot, intent: intent,
+                operation: operation)
+        } else {
+            try requireSchema2ColdFinalPointerCut(
+                intent: intent, operation: operation)
+        }
+        try requireHeldNamed()
+        let controls = try store.requireSchema2ColdCanonicalControls(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        let cut = try store.requireSchema2ColdObservedRosterCut(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        if let auxiliary = observedOriginalAuxiliaryRoster {
+            try requireSchema2ColdPublishedOriginalAuxiliaryRoster(
+                auxiliary, intent: intent,
+                preparation: preparation, store: store,
+                operation: operation)
+        }
+        let expectedNames = (["erase.json", "preparation.json",
+            EraseSchema2ColdDeletionRosterV1.canonicalName] +
+            (observedOriginalAuxiliaryRoster == nil ? [] :
+                [EraseSchema2ColdAuxiliaryPhysicalRosterV1.canonicalName]))
+            .sorted()
+        guard controls.eraseRoot == cut.eraseRoot,
+              controls.names == cut.names,
+              cut.names == expectedNames,
+              cut.temporary == nil,
+              let leaf = cut.published,
+              leaf.fact.device == generations.fact.device,
+              leaf.fact.mode & S_IFMT == S_IFREG,
+              leaf.fact.links == 1,
+              leaf.fact.size == off_t(leaf.bytes.count) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let record = try EraseSchema2ColdDeletionRosterV1
+            .decodeCanonicalRecord(
+                leaf.bytes, intent: intent,
+                intentBytes: controls.intentBytes,
+                preparation: preparation,
+                preparationBytes: controls.preparationBytes,
+                generationsDevice: generations.fact.device,
+                generationsInode: generations.fact.inode)
+        let roster = try EraseSchema2ColdDeletionRosterV1(
+            record: record, bytes: leaf.bytes,
+            manifest: self, fileFact: leaf.fact)
+        // Only the borrowed Store may turn the first opaque policy result
+        // into a verified complete request. Raw pending is never roster
+        // admission, including on the pinned DEBUG Simulator.
+        try store.requireSchema2ColdVerifiedObservedRosterPolicy(
+            roster: roster, intent: intent,
+            preparation: preparation, operation: operation)
+        try requireHeldNamed()
+        let after = try store.requireSchema2ColdObservedRosterCut(
+            intent: intent, preparation: preparation,
+            operation: operation)
+        guard after.eraseRoot == cut.eraseRoot,
+              after.names == cut.names,
+              after.temporary == nil,
+              after.published?.bytes == leaf.bytes,
+              after.published?.fact == leaf.fact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return roster
+    }
+
+    /// Promote the exact first observed R record only after the operation's
+    /// retained executor proves every surviving node and one global missing
+    /// postorder prefix. A failed scan leaves this owner terminal; there is
+    /// no second observation or post-failure roster baseline.
+    func admitExistingSchema2ColdDeletionRoster(
+        _ roster: EraseSchema2ColdDeletionRosterV1,
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1,
+        executor: EraseSchema2ColdCheckedDeletionExecutorV1
+    ) throws -> Int {
+        try operation.requireSchema2ColdReplayExecutorAdmission(
+            executor: executor, roster: roster, store: store)
+        guard !deletionRosterReplayInFlight,
+              !deletionRosterPublicationInFlight,
+              !deletionStepInFlight,
+              publishedDeletionRoster == nil,
+              roster.manifestIdentity == ObjectIdentifier(self),
+              intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              let generations,
+              let firstNames = capturedGenerationNames,
+              !closeAttempted else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let candidate = firstPostDeletionCandidate {
+            try requireSchema2ColdPostDeletionCandidate(candidate,
+                snapshot: candidate.snapshot, intent: intent,
+                operation: operation)
+        } else {
+            try requireSchema2ColdFinalPointerCut(
+                intent: intent, operation: operation)
+        }
+        try requireHeldNamed()
+        let firstRoster = try decodeSchema2ColdObservedRoster(
+            intent: intent, preparation: preparation,
+            store: store, operation: operation)
+        guard firstRoster.canonicalBytes == roster.canonicalBytes,
+              firstRoster.canonicalSHA256 == roster.canonicalSHA256,
+              firstRoster.recordFileFact == roster.recordFileFact,
+              try namesChecked(in: generations) == firstNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        deletionRosterReplayInFlight = true
+        let cut = try executor.requireCurrentCut(roster: roster,
+            borrowedGenerationsFD: generations.descriptor,
+            derivedGenerationsURL: generations.path,
+            operation: operation)
+        var parentStat = stat(), namedStat = stat()
+        guard Darwin.fstat(generations.descriptor, &parentStat) == 0,
+              let parent = generations.parent,
+              let name = generations.name,
+              Darwin.fstatat(parent, name, &namedStat,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(parentStat) == generations.fact,
+              Fact(namedStat) == generations.fact,
+              cut.generationsFact == EraseColdControlLeafFactV1(parentStat),
+              cut.names == firstNames,
+              cut.deletedCount >= 0,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                cut.sha256) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        _ = try roster.step(at: cut.deletedCount)
+        if let candidate = firstPostDeletionCandidate {
+            guard try roster.step(at: cut.deletedCount) == nil,
+                  cut.names == candidate.installedNames,
+                  candidate.installedNames
+                    == [intent.newGenerationID.uuidString.lowercased()] else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        publishedDeletionRoster = roster
+        publishedDeletionRosterIntent = intent
+        publishedDeletionRosterPreparation = preparation
+        completedDeletionSteps = cut.deletedCount
+        deletionProjectedGenerationNames = cut.names
+        deletionProjectedSurvivorSHA256 = cut.sha256
+        postDeletionCandidateValidated = firstPostDeletionCandidate != nil
+        try operation.bindSchema2ColdObservedRosterAfterReplay(
+            roster, store: store)
+        try requirePublishedSchema2ColdDeletionRoster(
+            roster, store: store, operation: operation)
+        deletionRosterReplayInFlight = false
+        return cut.deletedCount
+    }
+
+    /// Advance exactly one postorder roster slot using the operation's sole
+    /// checked executor. A failed executor or ambiguous close leaves this
+    /// owner in-flight; the same operation cannot derive a fresh survivor
+    /// baseline or repeat the unlink. Fresh recovery uses the durable roster.
+    func advanceSchema2ColdRosteredDeletion(
+        roster: EraseSchema2ColdDeletionRosterV1,
+        store: EraseIntentStore,
+        operation: EraseColdPreparationOperationV1,
+        executor: EraseSchema2ColdCheckedDeletionExecutorV1
+    ) throws -> EraseSchema2ColdCheckedDeletionStepReceiptV1 {
+        try operation.requireSchema2ColdDeletionExecutor(executor)
+        try operation.requireSchema2ColdRosterStepOwner(
+            roster: roster, store: store)
+        try requirePublishedSchema2ColdDeletionRoster(
+            roster, store: store, operation: operation)
+        guard !deletionRosterReplayInFlight,
+              !deletionRosterPublicationInFlight,
+              !deletionStepInFlight,
+              let generations,
+              let step = try roster.step(at: completedDeletionSteps),
+              originalSource == nil
+                || originalSource?.isCheckedClosed == true,
+              retiredSources?.values.allSatisfy({ $0.isCheckedClosed })
+                ?? true,
+              let beforeNames = deletionProjectedGenerationNames
+                ?? capturedGenerationNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var beforeStat = stat()
+        guard Darwin.fstat(generations.descriptor, &beforeStat) == 0,
+              Fact(beforeStat) == generations.fact,
+              try namesChecked(in: generations) == beforeNames else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let beforeFact = EraseColdControlLeafFactV1(beforeStat)
+        deletionStepInFlight = true
+        let receipt = try executor.execute(
+            step: step, roster: roster,
+            borrowedGenerationsFD: generations.descriptor,
+            derivedGenerationsURL: generations.path,
+            operation: operation)
+        guard receipt.checkedSettled,
+              receipt.step == step,
+              receipt.beforeDeletedCount == completedDeletionSteps,
+              receipt.afterDeletedCount == completedDeletionSteps + 1,
+              receipt.beforeGenerationsFact == beforeFact,
+              receipt.beforeNames == beforeNames,
+              receipt.afterNames == (try namesChecked(in: generations)),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                receipt.beforeSurvivorSHA256),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                receipt.afterSurvivorSHA256) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let prior = deletionProjectedSurvivorSHA256 {
+            guard receipt.beforeSurvivorSHA256 == prior else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        } else {
+            guard completedDeletionSteps == 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if step.path.isEmpty {
+            let removed = step.generationID.uuidString.lowercased()
+            guard beforeNames.contains(removed),
+                  receipt.afterNames == beforeNames.filter({
+                    $0 != removed }),
+                  receipt.afterGenerationsFact.device
+                    == beforeFact.device,
+                  receipt.afterGenerationsFact.inode
+                    == beforeFact.inode,
+                  receipt.afterGenerationsFact.mode
+                    == beforeFact.mode,
+                  beforeFact.links > 0,
+                  receipt.afterGenerationsFact.links
+                    == beforeFact.links - 1 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        } else {
+            guard receipt.afterNames == beforeNames,
+                  receipt.afterGenerationsFact == beforeFact else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        var afterStat = stat(), named = stat(), pathNamed = stat()
+        guard Darwin.fstat(generations.descriptor, &afterStat) == 0,
+              let parent = generations.parent,
+              let name = generations.name,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(generations.path.path, &pathNamed) == 0,
+              Fact(afterStat) == Fact(named),
+              Fact(afterStat) == Fact(pathNamed),
+              EraseColdControlLeafFactV1(afterStat)
+                == receipt.afterGenerationsFact,
+              let index = held.firstIndex(where: {
+                $0.descriptor == generations.descriptor
+              }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let projected = Opened(descriptor: generations.descriptor,
+            parent: generations.parent, name: generations.name,
+            path: generations.path, fact: Fact(afterStat))
+        held[index] = projected
+        self.generations = projected
+        deletionProjectedGenerationNames = receipt.afterNames
+        deletionProjectedSurvivorSHA256 = receipt.afterSurvivorSHA256
+        completedDeletionSteps = receipt.afterDeletedCount
+        // The executor's complete survivor cut settles the changed parent;
+        // now reprove all other retained controls and the exact Erase record
+        // before the next step can be entered on this operation.
+        try requirePublishedSchema2ColdDeletionRoster(
+            roster, store: store, operation: operation)
+        deletionStepInFlight = false
+        return receipt
+    }
+
+    func requireCurrentTargetPointer(intent: EraseIntentV1,
+        operation: EraseColdPreparationOperationV1)
+        throws -> CurrentGenerationPointerV3 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard let currentPointer, let capturedPointerBytes,
+              let expected = intent.targetPointer,
+              try readExact(currentPointer, kind: .generationPointer)
+                == capturedPointerBytes,
+              case .v3(let pointer, _) = try CurrentPointerCodecV1
+                .decode(capturedPointerBytes),
+              try pointer.canonicalData() == capturedPointerBytes,
+              pointer.generationID
+                == expected.generationID.uuidString.lowercased(),
+              pointer.generationManifestSHA256
+                == expected.generationManifestSHA256,
+              pointer.workspaceID
+                == expected.workspaceID.uuidString.lowercased(),
+              pointer.replicaID
+                == expected.replicaID.uuidString.lowercased(),
+              pointer.knownReplicaIDs
+                == expected.knownReplicaIDs.map({
+                    $0.uuidString.lowercased() }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return pointer
+    }
+
+    func requireTargetRootIdentity(targetID: UUID,
+        operation: EraseColdPreparationOperationV1)
+        throws -> ReportPDFAnchoredFile.RootIdentity {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard let generations,
+              capturedGenerationNames?.contains(
+                targetID.uuidString.lowercased()) == true else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if targetControlRoot == nil {
+            let name = targetID.uuidString.lowercased()
+            let opened = Darwin.openat(generations.descriptor, name,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard opened >= 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            targetControlRoot = try retain(opened,
+                parent: generations.descriptor, name: name,
+                path: generations.path.appendingPathComponent(
+                    name, isDirectory: true), expectedType: S_IFDIR,
+                policyKind: .durableDirectory)
+        }
+        guard let targetControlRoot else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        return ReportPDFAnchoredFile.RootIdentity(
+            device: targetControlRoot.fact.device,
+            inode: targetControlRoot.fact.inode)
+    }
+
+    /// Transfer an installed target FD to a distinct operation-retained
+    /// owner before Factory makes any private copy or model context. A target
+    /// name is not permission to open a fresh generation or mint a lease.
+    func captureTargetSource(id: UUID,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdTargetSourceV1 {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        let name = id.uuidString.lowercased()
+        guard targetSource == nil, let generations,
+              capturedGenerationNames?.contains(name) == true,
+              capturedPointerBytes != nil,
+              capturedManifestBytes != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let source = EraseSchema2ColdTargetSourceV1(
+            manifestOwner: self, operation: operation, generationID: id)
+        try operation.retainSchema2ColdTargetSource(source)
+        targetSource = source
+        try source.open(parent: generations.descriptor,
+            name: name, path: generations.path.appendingPathComponent(
+                name, isDirectory: true))
+        try requireHeldNamed()
+        return source
+    }
+
+    func requireTargetSource(_ expected: EraseSchema2ColdTargetSourceV1,
+        operation: EraseColdPreparationOperationV1) throws {
+        guard targetLiveOpenState != .inFlight else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard targetSource === expected else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed()
+        guard let currentPointer, let pointerBytes = capturedPointerBytes,
+              try readExact(currentPointer, kind: .generationPointer)
+                == pointerBytes,
+              let manifestBytes = capturedManifestBytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if let handoff {
+            guard try readExact(handoff, kind: .journal)
+                    == manifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let manifest {
+            guard try readExact(manifest, kind: .journal)
+                    == manifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        try expected.requirePhysicalIdentity()
+    }
+
+    /// Only the exact Factory constructor interval may temporarily change
+    /// target SQLite and root timestamps. Other retained controls remain
+    /// checked while the old target tree is deliberately inadmissible.
+    func beginTargetLiveOpen(
+        source: EraseSchema2ColdTargetSourceV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try requireTargetSource(source, operation: operation)
+        guard targetLiveOpenState == .idle, targetControlRoot != nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        targetLiveOpenState = .inFlight
+    }
+
+    func requireTargetLiveOpenControls(
+        source: EraseSchema2ColdTargetSourceV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try operation.requireSchema2ColdManifestOwner(self)
+        guard targetLiveOpenState == .inFlight, targetSource === source else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireHeldNamed(allowTargetLiveOpen: true)
+    }
+
+    func finishTargetLiveOpen(
+        source: EraseSchema2ColdTargetSourceV1,
+        physical: EraseSchema2ColdTargetLiveOpenPhysicalV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try requireTargetLiveOpenControls(source: source,
+            operation: operation)
+        try physical.requireExactProof()
+        guard let before = physical.beforeNodes.first(where: {
+                  $0.path.isEmpty }),
+              let after = physical.afterNodes.first(where: {
+                  $0.path.isEmpty }),
+              let control = targetControlRoot,
+              control.fact == Fact(before.fact),
+              before.fact.st_dev == after.fact.st_dev,
+              before.fact.st_ino == after.fact.st_ino,
+              before.fact.st_mode == after.fact.st_mode,
+              before.fact.st_nlink == after.fact.st_nlink,
+              let index = held.firstIndex(where: {
+                  $0.descriptor == control.descriptor }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try source.projectOwnedLiveOpenRoot(before: before.fact,
+            after: after.fact)
+        let projected = Opened(descriptor: control.descriptor,
+            parent: control.parent, name: control.name,
+            path: control.path, fact: Fact(after.fact))
+        held[index] = projected
+        targetControlRoot = projected
+        targetLiveOpenState = .settled
+        try requireHeldNamed()
+    }
+
+    fileprivate func requireHeldApplicationSupportIdentity(
+        operation: EraseColdPreparationOperationV1
+    ) throws -> (device: dev_t, inode: ino_t) {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireHeldNamed()
+        guard let support else { throw StoreMigrationFailure.invalidIdentity }
+        return (support.fact.device, support.fact.inode)
+    }
+
+    fileprivate func withHeldApplicationSupport<T>(
+        source: EraseSchema2ColdRetainedSourceV1,
+        operation: EraseColdPreparationOperationV1,
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireOriginalSource(source, operation: operation)
+        guard let support else { throw StoreMigrationFailure.invalidIdentity }
+        let outcome = Result<T, Error> { try body(support.descriptor) }
+        try requireOriginalSource(source, operation: operation)
+        return try outcome.get()
+    }
+
+    fileprivate func withHeldApplicationSupport<T>(
+        retiredSource: EraseSchema2ColdRetiredSourceV1,
+        operation: EraseColdPreparationOperationV1,
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        try operation.requireSchema2ColdManifestOwner(self)
+        try requireRetiredSource(retiredSource, operation: operation)
+        guard let support else { throw StoreMigrationFailure.invalidIdentity }
+        let outcome = Result<T, Error> { try body(support.descriptor) }
+        try requireRetiredSource(retiredSource, operation: operation)
+        return try outcome.get()
+    }
+
+    private func openDirectory(path: URL) throws -> Opened {
+        let descriptor = Darwin.open(path.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        return try retain(descriptor, parent: nil, name: nil, path: path,
+            expectedType: S_IFDIR, observePolicy: false)
+    }
+
+    private func openDirectory(parent: Opened, name: String) throws -> Opened {
+        let descriptor = Darwin.openat(parent.descriptor, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        return try retain(descriptor, parent: parent.descriptor, name: name,
+            path: parent.path.appendingPathComponent(name, isDirectory: true),
+            expectedType: S_IFDIR,
+            policyKind: name == "FieldEvidenceData" || name == "generations"
+                ? .durableDirectory
+                : name == "generation-leases" || name == "owners"
+                    ? .generationLeaseDirectory : .stagingDirectory)
+    }
+
+    private func openOptionalDirectory(parent: Opened, name: String) throws -> Opened? {
+        var named = stat()
+        if Darwin.fstatat(parent.descriptor, name, &named, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+            return nil
+        }
+        return try openDirectory(parent: parent, name: name)
+    }
+
+    private func openOptionalRegular(parent: Opened, name: String) throws -> Opened? {
+        let descriptor = Darwin.openat(parent.descriptor, name,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        if descriptor < 0 {
+            guard errno == ENOENT else { throw StoreMigrationFailure.invalidIdentity }
+            return nil
+        }
+        return try retain(descriptor, parent: parent.descriptor, name: name,
+            path: parent.path.appendingPathComponent(name), expectedType: S_IFREG)
+    }
+
+    private func openRegular(parent: Opened, name: String,
+        kind: OwnedFileKindV1) throws -> Opened {
+        let descriptor = Darwin.openat(parent.descriptor, name,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        return try retain(descriptor, parent: parent.descriptor, name: name,
+            path: parent.path.appendingPathComponent(name), expectedType: S_IFREG,
+            policyKind: kind)
+    }
+
+    private func retain(_ descriptor: Int32, parent: Int32?, name: String?,
+        path: URL, expectedType: mode_t,
+        policyKind: OwnedFileKindV1? = nil,
+        observePolicy: Bool = true) throws -> Opened {
+        // Record the descriptor before stat, policy, or decoding can fail.
+        var value = stat()
+        let provisional = Opened(descriptor: descriptor, parent: parent,
+            name: name, path: path, fact: Fact(value))
+        held.append(provisional)
+        guard Darwin.fstat(descriptor, &value) == 0,
+              value.st_mode & S_IFMT == expectedType,
+              value.st_nlink == (expectedType == S_IFREG ? 1 : value.st_nlink),
+              value.st_nlink > 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let node = Opened(descriptor: descriptor, parent: parent,
+            name: name, path: path, fact: Fact(value))
+        held[held.count - 1] = node
+        try requireNamed(node)
+        if observePolicy {
+            try requirePolicy(node, kind: policyKind
+                ?? (expectedType == S_IFDIR ? .stagingDirectory : .journal))
+        }
+        return node
+    }
+
+    private func requireHeldNamed(
+        allowTargetLiveOpen: Bool = false,
+        allowPointerPublication: Bool = false
+    ) throws {
+        guard opened, !closeAttempted, uncertainFDs.isEmpty,
+              !uncertainStreamClose, enumerationFD == nil,
+              directoryStream == nil,
+              !leaseReaderPublicationInFlight,
+              !leaseReaderSettlementInFlight,
+              !schema2ColdNotificationMutationInFlight,
+              targetLiveOpenState != .inFlight || allowTargetLiveOpen,
+              !pointerPublicationInFlight || allowPointerPublication else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for node in held {
+            if allowTargetLiveOpen,
+               targetLiveOpenState == .inFlight,
+               node.descriptor == targetControlRoot?.descriptor {
+                continue
+            }
+            if allowPointerPublication,
+               pointerPublicationInFlight,
+               (node.descriptor == data?.descriptor
+                || node.descriptor == currentPointer?.descriptor
+                || node.descriptor == retiredPointer?.descriptor) {
+                continue
+            }
+            try requireNamed(node)
+        }
+        if operationsAbsent, let support {
+            var observed = stat()
+            guard Darwin.fstatat(support.descriptor,
+                    "FieldEvidenceOperations", &observed,
+                    AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if migrationAbsent, let operations {
+            var observed = stat()
+            guard Darwin.fstatat(operations.descriptor,
+                    "schema-migration", &observed,
+                    AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if handoffAbsent, let data {
+            var observed = stat()
+            guard Darwin.fstatat(data.descriptor,
+                    "erase-current-manifest.json", &observed,
+                    AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if manifestAbsent, !allowPointerPublication,
+           let migration, let currentPointer {
+            let pointerBytes = try readExact(currentPointer,
+                kind: .generationPointer)
+            let pointer = try CurrentPointerCodecV1.decode(pointerBytes)
+            var observed = stat()
+            guard Darwin.fstatat(migration.descriptor,
+                    "manifest-\(pointer.generationID).json", &observed,
+                    AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let migration { try requireMigrationNames(migration) }
+        if let capturedOperationsNames, let operations {
+            guard try namesChecked(in: operations) == capturedOperationsNames,
+                  Set(operationsChildren.keys) == Set(capturedOperationsNames) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let creationBytes = schema2ColdNotificationCreationBytes {
+            guard let record = operationsChildren[
+                    EraseSchema2ColdNotificationSourceV1
+                        .creationRecordName],
+                  operationsChildren[
+                    EraseSchema2ColdNotificationSourceV1
+                        .creationTemporaryName] == nil,
+                  try readSchema2ColdNotificationBytes(record)
+                    == creationBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let expectedGenerationNames =
+                deletionProjectedGenerationNames ?? capturedGenerationNames,
+           let generations {
+            guard try namesChecked(in: generations)
+                    == expectedGenerationNames else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let targetSource, !targetSource.isCheckedClosed,
+           targetLiveOpenState != .inFlight {
+            try targetSource.requirePhysicalIdentity()
+        }
+        if let originalSource, !originalSource.isCheckedClosed {
+            try originalSource.requirePhysicalIdentity()
+        }
+        if let targetManifest, let capturedTargetManifestBytes {
+            guard try readExact(targetManifest, kind: .journal,
+                    maximumBytes: 32 * 1_024 * 1_024)
+                    == capturedTargetManifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if let originalManifest, let capturedOriginalManifestBytes {
+            guard try readExact(originalManifest, kind: .journal,
+                maximumBytes: 32 * 1_024 * 1_024)
+                    == capturedOriginalManifestBytes else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        if schema2ColdNotificationWitness == nil,
+           let capturedNotificationNames,
+           let root = operationsChildren["AppLockNotificationControlV1"] {
+            guard try namesChecked(in: root) == capturedNotificationNames else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            guard Set(capturedNotificationFiles.keys)
+                    == Set(capturedNotificationNames),
+                  Set(capturedNotificationBytes.keys)
+                    == Set(capturedNotificationNames) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            for name in capturedNotificationNames {
+                guard let file = capturedNotificationFiles[name],
+                      let bytes = capturedNotificationBytes[name],
+                      try readSchema2ColdNotificationBytes(file) == bytes else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+        if let first = schema2ColdNotificationWitness,
+           let operations {
+            if let root = operationsChildren[
+                AppLockNotificationControlStoreV1.rootName] {
+                let expectedNames = schema2ColdNotificationProjectedNames
+                    ?? first.names
+                let expectedBytes = schema2ColdNotificationProjectedBytes
+                    ?? first.leafBytes
+                guard try namesChecked(in: root) == expectedNames,
+                      Set(schema2ColdNotificationFiles.keys)
+                        == Set(expectedNames),
+                      Set(expectedBytes.keys) == Set(expectedNames) else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                for name in expectedNames {
+                    guard let file = schema2ColdNotificationFiles[name],
+                          let bytes = expectedBytes[name],
+                          try readSchema2ColdNotificationBytes(file)
+                            == bytes else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                }
+            } else {
+                var absent = stat()
+                guard first.rootIdentity == nil,
+                      Darwin.fstatat(operations.descriptor,
+                        AppLockNotificationControlStoreV1.rootName,
+                        &absent, AT_SYMLINK_NOFOLLOW) != 0,
+                      errno == ENOENT else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+        if let capturedFinalizationNames,
+           let root = operationsChildren["finalization"] {
+            guard try namesChecked(in: root) == capturedFinalizationNames,
+                  Set(finalizationFiles.keys) == Set(capturedFinalizationNames),
+                  Set(capturedFinalizationBytes.keys)
+                    == Set(capturedFinalizationNames) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            for name in capturedFinalizationNames {
+                guard let file = finalizationFiles[name],
+                      let expected = capturedFinalizationBytes[name],
+                      try readExact(file, kind: .journal) == expected else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+        if let capturedDeletionNames,
+           let root = operationsChildren["deletion"] {
+            guard try namesChecked(in: root) == capturedDeletionNames,
+                  Set(deletionFiles.keys) == Set(capturedDeletionNames),
+                  Set(capturedDeletionBytes.keys)
+                    == Set(capturedDeletionNames) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            for name in capturedDeletionNames {
+                guard let file = deletionFiles[name],
+                      let expected = capturedDeletionBytes[name],
+                      try readExact(file, kind: .journal,
+                        maximumBytes: 64 * 1_024 * 1_024) == expected else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+        if let capturedMigrationNames, let migration {
+            guard try namesChecked(in: migration)
+                    == capturedMigrationNames,
+                  Set(migrationFiles.keys) == Set(capturedMigrationNames),
+                  Set(capturedMigrationBytes.keys)
+                    == Set(capturedMigrationNames) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            for name in capturedMigrationNames {
+                guard let file = migrationFiles[name],
+                      let expected = capturedMigrationBytes[name],
+                      try readExact(file, kind: .journal,
+                        maximumBytes: 32 * 1_024 * 1_024) == expected else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            }
+        }
+    }
+
+    private func requireNamed(_ node: Opened) throws {
+        var heldValue = stat(), named = stat()
+        guard Darwin.fstat(node.descriptor, &heldValue) == 0,
+              Fact(heldValue) == node.fact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let result: Int32
+        if let parent = node.parent, let name = node.name {
+            result = Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW)
+        } else {
+            result = Darwin.lstat(node.path.path, &named)
+        }
+        guard result == 0, Fact(named) == node.fact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// Classify the first closed child set by physical type before any owned
+    /// record/temp mutation; names alone cannot establish the link-count law.
+    private func requireSchema2ColdFirstLeaseChildTypes(
+        lease: Opened, names: [String]
+    ) throws {
+        guard Set(names).count == names.count else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for name in names {
+            var child = stat()
+            guard Darwin.fstatat(lease.descriptor, name, &child,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  (child.st_mode & S_IFMT)
+                    == (name == "owners" ? S_IFDIR : S_IFREG),
+                  child.st_nlink > 0,
+                  name == "owners" || child.st_nlink == 1 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+
+    /// The first closed census selects one of two supported physical laws:
+    /// Apple filesystems count all directory entries in st_nlink, whereas
+    /// traditional POSIX filesystems count only subdirectories. `owners` is
+    /// the sole admitted directory child. A recorded law and exact first
+    /// census determine the only permitted post-effect link count; neither
+    /// a generic changed count nor a fresh poststate baseline is accepted.
+    private func schema2ColdExpectedLeaseLinks(
+        lease: Opened
+    ) throws -> nlink_t {
+        guard lease.descriptor
+                == operationsChildren["generation-leases"]?.descriptor,
+              let firstNames = leaseReaderPublicationNames,
+              firstNames.contains("owners"),
+              firstNames.contains("registry.json"),
+              firstNames.contains("mutation.lock"),
+              firstNames.count <= Int(nlink_t.max) - 2 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let allEntriesFirst = nlink_t(firstNames.count + 2)
+        let countsAllEntries = lease.fact.links == allEntriesFirst
+        let countsSubdirectories = lease.fact.links == nlink_t(3)
+        guard countsAllEntries != countsSubdirectories else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        if leaseReaderPublicationInFlight,
+           !leaseReaderSettlementInFlight {
+            guard !firstNames.contains("cold-reader-publication.v1"),
+                  !firstNames.contains("registry.next.json"),
+                  !countsAllEntries || lease.fact.links < nlink_t.max
+            else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return countsAllEntries
+                ? lease.fact.links + 1 : lease.fact.links
+        }
+        if leaseReaderSettlementInFlight,
+           !leaseReaderPublicationInFlight {
+            let removed = ["cold-reader-publication.v1",
+                "registry.next.json"].filter(firstNames.contains).count
+            if !firstNames.contains("cold-reader-publication.v1") {
+                guard removed == 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                return lease.fact.links
+            }
+            guard removed > 0,
+                  !countsAllEntries
+                    || lease.fact.links >= nlink_t(removed) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return countsAllEntries
+                ? lease.fact.links - nlink_t(removed)
+                : lease.fact.links
+        }
+        throw StoreMigrationFailure.invalidIdentity
+    }
+
+    private func requireSameNamedDirectoryIdentity(
+        _ node: Opened,
+        expectedLinks: nlink_t? = nil
+    ) throws {
+        guard let parent = node.parent, let name = node.name else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var heldValue = stat(), namedValue = stat()
+        guard Darwin.fstat(node.descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(heldValue) == Fact(namedValue) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let after = Fact(heldValue)
+        guard after.device == node.fact.device,
+              after.inode == node.fact.inode,
+              after.mode == node.fact.mode,
+              after.links == (expectedLinks ?? node.fact.links),
+              after.mode & S_IFMT == S_IFDIR else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// Only the exact notification mutation token may project the held
+    /// directory's link count. Every first child was captured as a one-link
+    /// regular file. The first closed name set therefore admits either the
+    /// all-entry or subdirectory-only directory-link law; an empty first set
+    /// admits both, without selecting a law from the post-effect image.
+    private func requireSchema2ColdNotificationRootLinks(
+        token: EraseSchema2ColdNotificationMutationTokenV1,
+        names: [String], observedLinks: nlink_t
+    ) throws {
+        guard let first = token.beforeRootFact,
+              token.beforeNames.count <= 10,
+              Set(token.beforeNames).count == token.beforeNames.count,
+              Set(token.beforeLeafFacts.keys) == Set(token.beforeNames),
+              token.beforeLeafFacts.values.allSatisfy({
+                $0.mode & S_IFMT == S_IFREG && $0.links == 1
+              }),
+              names.count <= 10,
+              Set(names).count == names.count else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let firstAll = nlink_t(2 + token.beforeNames.count)
+        let firstSubdirectories = nlink_t(2)
+        let allEntriesPossible = first.links == firstAll
+        let subdirectoriesPossible = first.links == firstSubdirectories
+        guard allEntriesPossible || subdirectoriesPossible else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let mutable = try schema2ColdNotificationMutableNames(
+            for: token.stage)
+        let firstSet = Set(token.beforeNames)
+        let currentSet = Set(names)
+        guard currentSet.isSubset(of: firstSet.union(mutable)),
+              firstSet.subtracting(mutable).isSubset(of: currentSet),
+              (allEntriesPossible
+                && observedLinks == nlink_t(2 + names.count))
+                || (subdirectoriesPossible
+                    && observedLinks == firstSubdirectories) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    /// Check the same held and named inode and its complete current Fact on
+    /// each side of one checked enumeration. Its metadata may differ from
+    /// the first Fact only under the exact mutation token above.
+    private func schema2ColdNotificationRootFactInFlight(
+        _ root: Opened,
+        token: EraseSchema2ColdNotificationMutationTokenV1
+    ) throws -> Fact {
+        guard let parent = root.parent, let name = root.name,
+              let first = token.beforeRootFact else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var heldValue = stat(), namedValue = stat()
+        guard Darwin.fstat(root.descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent, name, &namedValue,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(heldValue) == Fact(namedValue) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let current = Fact(heldValue)
+        guard current.device == first.device,
+              current.inode == first.inode,
+              current.mode == first.mode,
+              current.mode & S_IFMT == S_IFDIR else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return current
+    }
+
+    private func requireMigrationNames(_ directory: Opened) throws {
+        try requireNamed(directory)
+        let names = try namesChecked(in: directory)
+        guard names.allSatisfy({ name in
+                  if name == "aggregate.json" { return true }
+                  guard name.hasPrefix("manifest-"), name.hasSuffix(".json") else {
+                      return false
+                  }
+                  let id = String(name.dropFirst(9).dropLast(5))
+                  return UUID(uuidString: id)?.uuidString.lowercased() == id
+              }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    private func namesChecked(in directory: Opened,
+        allowOwnedLeaseMutation: Bool = false,
+        allowOwnedNotificationMutation: Bool = false,
+        allowOwnedNotificationRootCreation: Bool = false,
+        allowOwnedNotificationCreationStage: Bool = false,
+        allowOwnedNotificationCreationRoot: Bool = false)
+        throws -> [String] {
+        var notificationBefore: Fact?
+        if allowOwnedLeaseMutation {
+            guard leaseReaderPublicationInFlight
+                    || leaseReaderSettlementInFlight,
+                  directory.descriptor
+                    == operationsChildren["generation-leases"]?.descriptor else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSameNamedDirectoryIdentity(directory,
+                expectedLinks: schema2ColdExpectedLeaseLinks(
+                    lease: directory))
+        } else if allowOwnedNotificationMutation {
+            guard schema2ColdNotificationMutationInFlight,
+                  directory.descriptor == operationsChildren[
+                    AppLockNotificationControlStoreV1.rootName]?.descriptor,
+                  let token = schema2ColdNotificationMutationToken else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            notificationBefore = try schema2ColdNotificationRootFactInFlight(
+                directory, token: token)
+        } else if allowOwnedNotificationRootCreation {
+            guard schema2ColdNotificationMutationInFlight,
+                  (schema2ColdNotificationMutationToken?.stage
+                    == .createRoot
+                    || schema2ColdNotificationMutationToken?.stage
+                        == .settleCreatedRoot),
+                  directory.descriptor == operations?.descriptor else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSchema2ColdNotificationCreationParent(
+                directory, rootExists: operationsChildren[
+                    AppLockNotificationControlStoreV1.rootName] != nil
+                    || operationsChildren[
+                        EraseSchema2ColdNotificationSourceV1
+                            .creationStageName] != nil)
+        } else if allowOwnedNotificationCreationStage
+            || allowOwnedNotificationCreationRoot {
+            let name = allowOwnedNotificationCreationStage
+                ? EraseSchema2ColdNotificationSourceV1.creationStageName
+                : AppLockNotificationControlStoreV1.rootName
+            guard schema2ColdNotificationMutationInFlight,
+                  (schema2ColdNotificationMutationToken?.stage == .createRoot
+                    || schema2ColdNotificationMutationToken?.stage
+                        == .settleCreatedRoot),
+                  directory.descriptor == operationsChildren[name]?.descriptor
+                else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSameNamedDirectoryIdentity(directory)
+        } else {
+            try requireNamed(directory)
+        }
+        guard enumerationFD == nil, directoryStream == nil,
+              uncertainFDs.isEmpty, !uncertainStreamClose else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let duplicate = Darwin.openat(directory.descriptor, ".",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard duplicate >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        enumerationFD = duplicate
+        guard let stream = Darwin.fdopendir(duplicate) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        enumerationFD = nil
+        directoryStream = stream
+        var names: [String] = []
+        errno = 0
+        while let entry = Darwin.readdir(stream) {
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if name != "." && name != ".." { names.append(name) }
+            errno = 0
+        }
+        let readError = errno
+        directoryStream = nil
+        guard Darwin.closedir(stream) == 0 else {
+            uncertainStreamClose = true
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        guard readError == 0 else { throw StoreMigrationFailure.invalidIdentity }
+        if allowOwnedLeaseMutation {
+            try requireSameNamedDirectoryIdentity(directory,
+                expectedLinks: schema2ColdExpectedLeaseLinks(
+                    lease: directory))
+        } else if allowOwnedNotificationMutation {
+            guard let token = schema2ColdNotificationMutationToken,
+                  let notificationBefore,
+                  notificationBefore
+                    == (try schema2ColdNotificationRootFactInFlight(
+                        directory, token: token)) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try requireSchema2ColdNotificationRootLinks(
+                token: token, names: names,
+                observedLinks: notificationBefore.links)
+        } else if allowOwnedNotificationRootCreation {
+            try requireSchema2ColdNotificationCreationParent(
+                directory, rootExists: operationsChildren[
+                    AppLockNotificationControlStoreV1.rootName] != nil
+                    || operationsChildren[
+                        EraseSchema2ColdNotificationSourceV1
+                            .creationStageName] != nil)
+        } else if allowOwnedNotificationCreationStage
+            || allowOwnedNotificationCreationRoot {
+            try requireSameNamedDirectoryIdentity(directory)
+        } else {
+            try requireNamed(directory)
+        }
+        return names.sorted()
+    }
+
+    private func requirePolicy(_ node: Opened, kind: OwnedFileKindV1) throws {
+        guard uncertainFDs.isEmpty else { throw StoreMigrationFailure.invalidIdentity }
+        let policy = try ProtectedFilePolicyV1
+            .observeTemporalPolicyWithCheckedClose(
+                kind, at: node.path, retainUncertainDescriptor: { descriptor in
+                    self.uncertainFDs.append(descriptor)
+                })
+        guard policy.state == .strictComplete,
+              policy.device == UInt64(node.fact.device),
+              policy.inode == UInt64(node.fact.inode) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireNamed(node)
+        guard uncertainFDs.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    private func readExact(_ node: Opened,
+        kind: OwnedFileKindV1,
+        maximumBytes: Int = 4 * 1024 * 1024) throws -> Data {
+        try requireNamed(node)
+        guard node.fact.mode & S_IFMT == S_IFREG,
+              node.fact.size > 0,
+              node.fact.size <= off_t(maximumBytes),
+              Darwin.lseek(node.descriptor, 0, SEEK_SET) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var result = Data(count: Int(node.fact.size))
+        try result.withUnsafeMutableBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let count = Darwin.read(node.descriptor,
+                    raw.baseAddress!.advanced(by: offset), raw.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else { throw StoreMigrationFailure.invalidIdentity }
+                offset += count
+            }
+        }
+        try requireNamed(node)
+        try requirePolicy(node, kind: kind)
+        return result
+    }
+
+    /// The first notification leaf is read without turning an observed
+    /// pending Simulator policy into authority. Its exact FD, named inode,
+    /// bytes and full fact remain held; the adapter must later make and
+    /// reprove any checked complete-policy request before an effect.
+    private func readSchema2ColdNotificationBytes(
+        _ node: Opened
+    ) throws -> Data {
+        try requireNamed(node)
+        guard node.fact.mode & S_IFMT == S_IFREG,
+              node.fact.links == 1,
+              node.fact.size >= 0,
+              node.fact.size <= off_t(
+                AppLockNotificationControlStoreV1.maximumRecordBytes),
+              Darwin.lseek(node.descriptor, 0, SEEK_SET) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var result = Data(count: Int(node.fact.size))
+        try result.withUnsafeMutableBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let count = Darwin.read(node.descriptor,
+                    raw.baseAddress!.advanced(by: offset),
+                    raw.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                offset += count
+            }
+        }
+        try requireNamed(node)
+        return result
+    }
+
+    /// A creation-record FD may undergo only this operation's checked policy
+    /// request. Each read independently binds held, named and path facts, so
+    /// its new timestamp is never silently substituted for a prior fact.
+    private func readSchema2ColdCreationFile(
+        _ node: Opened, maximumBytes: Int = 4096
+    ) throws -> (Data, Fact) {
+        guard let parent = node.parent, let name = node.name,
+              maximumBytes >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var heldValue = stat(), named = stat(), path = stat()
+        guard Darwin.fstat(node.descriptor, &heldValue) == 0,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(node.path.path, &path) == 0,
+              Fact(heldValue) == Fact(named),
+              Fact(heldValue) == Fact(path),
+              heldValue.st_mode & S_IFMT == S_IFREG,
+              heldValue.st_nlink == 1,
+              heldValue.st_dev == node.fact.device,
+              heldValue.st_ino == node.fact.inode,
+              heldValue.st_mode == node.fact.mode,
+              heldValue.st_size >= 0,
+              heldValue.st_size <= off_t(maximumBytes),
+              Darwin.lseek(node.descriptor, 0, SEEK_SET) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var bytes = Data(count: Int(heldValue.st_size))
+        try bytes.withUnsafeMutableBytes { raw in
+            var offset = 0
+            while offset < raw.count {
+                let count = Darwin.read(node.descriptor,
+                    raw.baseAddress!.advanced(by: offset),
+                    raw.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                offset += count
+            }
+        }
+        var after = stat(), afterNamed = stat()
+        guard Darwin.fstat(node.descriptor, &after) == 0,
+              Darwin.fstatat(parent, name, &afterNamed,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(after) == Fact(heldValue),
+              Fact(afterNamed) == Fact(heldValue) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return (bytes, Fact(after))
+    }
+
+    private func projectSchema2ColdCreationNode(
+        _ node: Opened, name: String, parent: Opened
+    ) throws -> Opened {
+        var value = stat(), named = stat()
+        guard Darwin.fstat(node.descriptor, &value) == 0,
+              Darwin.fstatat(parent.descriptor, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Fact(value) == Fact(named),
+              value.st_dev == node.fact.device,
+              value.st_ino == node.fact.inode,
+              value.st_mode == node.fact.mode,
+              value.st_nlink == node.fact.links,
+              let index = held.firstIndex(where: {
+                  $0.descriptor == node.descriptor
+              }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let projected = Opened(descriptor: node.descriptor,
+            parent: parent.descriptor, name: name,
+            path: parent.path.appendingPathComponent(name,
+                isDirectory: value.st_mode & S_IFMT == S_IFDIR),
+            fact: Fact(value))
+        held[index] = projected
+        if let prior = node.name {
+            operationsChildren.removeValue(forKey: prior)
+        }
+        operationsChildren[name] = projected
+        try requireNamed(projected)
+        return projected
+    }
+}
+
+/// The physical old generation belongs to the exact cold operation. It is
+/// scanned and copied through held descriptors under the original Support EX
+/// and Registry-present G; no SwiftData context opens its live SQLite files.
+@MainActor
+final class EraseSchema2ColdRetainedSourceV1 {
+    private weak var manifestOwner: EraseSchema2ColdManifestOwnerV1?
+    private weak var operation: EraseColdPreparationOperationV1?
+    let generationID: UUID
+    let generationRootURL: URL
+    let manifest: StoreGenerationManifestV1
+    let manifestDigest: String
+    let workspaceIdentity: WorkspaceReplicaIdentityV1
+    let intent: EraseIntentV1
+    let preparation: ErasePreparationV2
+    private let checkedIO = EraseAbortCheckedSnapshotIOV1()
+    private var descriptor: Int32 = -1
+    private var parent: Int32 = -1
+    private var name = ""
+    private var identity: (device: dev_t, inode: ino_t,
+        mode: mode_t, links: nlink_t, size: off_t,
+        mtimeSeconds: Int64, mtimeNanoseconds: Int64,
+        ctimeSeconds: Int64, ctimeNanoseconds: Int64)?
+    private var originalTreeDigest: String?
+    private var closeAttempted = false
+    private var uncertain = false
+    private var uncertainFDs: [Int32] = []
+    var isCheckedClosed: Bool {
+        closeAttempted && !uncertain && descriptor < 0
+            && uncertainFDs.isEmpty
+    }
+
+    init(manifestOwner: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        generationID: UUID, generationRootURL: URL,
+        manifest: StoreGenerationManifestV1, manifestDigest: String,
+        workspaceIdentity: WorkspaceReplicaIdentityV1,
+        intent: EraseIntentV1, preparation: ErasePreparationV2) {
+        self.manifestOwner = manifestOwner
+        self.operation = operation
+        self.generationID = generationID
+        self.generationRootURL = generationRootURL
+        self.manifest = manifest
+        self.manifestDigest = manifestDigest
+        self.workspaceIdentity = workspaceIdentity
+        self.intent = intent
+        self.preparation = preparation
+    }
+
+    fileprivate func open(parent: Int32, name: String) throws {
+        guard descriptor < 0, !closeAttempted, !uncertain,
+              originalTreeDigest == nil,
+              name == generationID.uuidString.lowercased() else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let opened = Darwin.openat(parent, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard opened >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        descriptor = opened // operation retained this object before open
+        self.parent = parent
+        self.name = name
+        var held = stat(), named = stat()
+        guard Darwin.fstat(opened, &held) == 0,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              held.st_mode & S_IFMT == S_IFDIR,
+              held.st_nlink > 0,
+              Self.sameFact(held, named) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        identity = Self.fact(held)
+        try requirePhysicalIdentity()
+        let baseline = try checkedIO.treeWithNodes(
+            parent: opened, name: ".")
+        try checkedIO.requireSettled()
+        try requirePhysicalIdentity()
+        originalTreeDigest = baseline.digest
+    }
+
+    private static func fact(_ value: stat) -> (
+        device: dev_t, inode: ino_t, mode: mode_t,
+        links: nlink_t, size: off_t,
+        mtimeSeconds: Int64, mtimeNanoseconds: Int64,
+        ctimeSeconds: Int64, ctimeNanoseconds: Int64
+    ) {
+        (value.st_dev, value.st_ino, value.st_mode,
+         value.st_nlink, value.st_size,
+         Int64(value.st_mtimespec.tv_sec),
+         Int64(value.st_mtimespec.tv_nsec),
+         Int64(value.st_ctimespec.tv_sec),
+         Int64(value.st_ctimespec.tv_nsec))
+    }
+
+    private static func sameFact(_ lhs: stat, _ rhs: stat) -> Bool {
+        let a = fact(lhs), b = fact(rhs)
+        return a.device == b.device && a.inode == b.inode
+            && a.mode == b.mode && a.links == b.links
+            && a.size == b.size
+            && a.mtimeSeconds == b.mtimeSeconds
+            && a.mtimeNanoseconds == b.mtimeNanoseconds
+            && a.ctimeSeconds == b.ctimeSeconds
+            && a.ctimeNanoseconds == b.ctimeNanoseconds
+    }
+
+    fileprivate func requirePhysicalIdentity() throws {
+        guard descriptor >= 0, !closeAttempted, !uncertain,
+              uncertainFDs.isEmpty, let original = identity else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var held = stat(), named = stat(), pathNamed = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(generationRootURL.path, &pathNamed) == 0,
+              Self.equal(Self.fact(held), original),
+              Self.equal(Self.fact(named), original),
+              Self.equal(Self.fact(pathNamed), original) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try checkedIO.requireSettled()
+    }
+
+    private static func equal(_ lhs: (
+        device: dev_t, inode: ino_t, mode: mode_t,
+        links: nlink_t, size: off_t, mtimeSeconds: Int64,
+        mtimeNanoseconds: Int64, ctimeSeconds: Int64,
+        ctimeNanoseconds: Int64), _ rhs: (
+        device: dev_t, inode: ino_t, mode: mode_t,
+        links: nlink_t, size: off_t, mtimeSeconds: Int64,
+        mtimeNanoseconds: Int64, ctimeSeconds: Int64,
+        ctimeNanoseconds: Int64)
+    ) -> Bool {
+        lhs.device == rhs.device && lhs.inode == rhs.inode
+            && lhs.mode == rhs.mode && lhs.links == rhs.links
+            && lhs.size == rhs.size
+            && lhs.mtimeSeconds == rhs.mtimeSeconds
+            && lhs.mtimeNanoseconds == rhs.mtimeNanoseconds
+            && lhs.ctimeSeconds == rhs.ctimeSeconds
+            && lhs.ctimeNanoseconds == rhs.ctimeNanoseconds
+    }
+
+    func withHeldOriginalRoot<T>(_ body: (Int32) throws -> T) throws -> T {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetainedSource(self)
+        try manifestOwner.requireOriginalSource(self,
+            operation: operation)
+        let outcome = Result<T, Error> { try body(descriptor) }
+        try manifestOwner.requireOriginalSource(self,
+            operation: operation)
+        return try outcome.get()
+    }
+
+    func checkedOriginalTree() throws
+        -> (digest: String,
+            nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]) {
+        try withHeldOriginalRoot { held in
+            let result = try checkedIO.treeWithNodes(
+                parent: held, name: ".")
+            guard let originalTreeDigest,
+                  result.digest == originalTreeDigest else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try checkedIO.requireSettled()
+            return result
+        }
+    }
+
+    /// ManifestOwner alone calls this inside its sticky post-CAS projection.
+    /// It uses the original held FD and first tree digest without asking the
+    /// still-P source control wrapper to accept newly published R bytes.
+    fileprivate func requireHeldTreeAfterOwnPhaseCAS() throws {
+        try requirePhysicalIdentity()
+        let result = try checkedIO.treeWithNodes(
+            parent: descriptor, name: ".")
+        guard let originalTreeDigest,
+              result.digest == originalTreeDigest else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try checkedIO.requireSettled()
+        try requirePhysicalIdentity()
+    }
+
+    /// The Erase-root roster write cannot call the ordinary source control
+    /// wrapper. Compare the same held root and every exact node fact directly
+    /// against the sealed first witness under the caller's retained EX/G.
+    fileprivate func requireHeldRosterNodes(
+        _ expected: [EraseSchema2ColdDeletionRosterV1.Node]
+    ) throws {
+        try requirePhysicalIdentity()
+        let tree = try checkedIO.treeWithNodes(
+            parent: descriptor, name: ".")
+        let observed = try tree.nodes.map(
+            EraseSchema2ColdDeletionRosterV1.Node.init).sorted {
+                $0.path.utf8.lexicographicallyPrecedes($1.path.utf8)
+            }
+        guard let originalTreeDigest,
+              tree.digest == originalTreeDigest,
+              observed == expected else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try checkedIO.requireSettled()
+        try requirePhysicalIdentity()
+    }
+
+    /// Schema-2 has no V3 C05 transient record. The retained no-repair
+    /// preparation proves that absence on every call; any operational child
+    /// is still rejected by the ordinary full frozen-tree validator.
+    func checkedOriginalC05TransientWitness() throws
+        -> StoreRestoreGenerationAuthority.C05GenerationTransientWitnessV1? {
+        guard preparation.c05JobDrainV3 == nil,
+              preparation.coldPredecessorReclaim == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let tree = try checkedOriginalTree()
+        guard !tree.nodes.contains(where: { node in
+            node.path == "operational"
+                || node.path.hasPrefix("operational/")
+        }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return nil
+    }
+
+    func requireOriginalUnchanged() throws {
+        _ = try checkedOriginalTree()
+    }
+
+    func requireHeldApplicationSupportIdentity()
+        throws -> (device: dev_t, inode: ino_t) {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetainedSource(self)
+        try manifestOwner.requireOriginalSource(self,
+            operation: operation)
+        return try manifestOwner.requireHeldApplicationSupportIdentity(
+            operation: operation)
+    }
+
+    /// Borrow the operation's already held Support directory for one checked,
+    /// synchronous no-create walk. Callers must not retain or close this
+    /// borrowed descriptor; the manifest owner re-proves its held/name chain on both
+    /// success and failure before any result is returned.
+    func withHeldApplicationSupport<T>(
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetainedSource(self)
+        return try manifestOwner.withHeldApplicationSupport(
+            source: self, operation: operation, body)
+    }
+
+    func requireTargetRootIdentity(targetID: UUID) throws
+        -> ReportPDFAnchoredFile.RootIdentity {
+        guard let operation, let manifestOwner,
+              targetID == intent.newGenerationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetainedSource(self)
+        try manifestOwner.requireOriginalSource(self,
+            operation: operation)
+        return try manifestOwner.requireTargetRootIdentity(
+            targetID: targetID, operation: operation)
+    }
+
+    func requireCurrentTargetPointer(intent expected: EraseIntentV1) throws
+        -> CurrentGenerationPointerV3 {
+        guard let operation, let manifestOwner,
+              expected == intent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetainedSource(self)
+        try manifestOwner.requireOriginalSource(self,
+            operation: operation)
+        return try manifestOwner.requireCurrentTargetPointer(
+            intent: expected, operation: operation)
+    }
+
+    func closeChecked() throws {
+        guard descriptor >= 0, !closeAttempted, !uncertain,
+              uncertainFDs.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireOriginalUnchanged()
+        closeAttempted = true
+        let owned = descriptor
+        descriptor = -1
+        guard Darwin.close(owned) == 0 else {
+            uncertain = true
+            uncertainFDs.append(owned)
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+}
+
+/// A semantic-validation receipt can only be built from a checked-closed
+/// private read and the same still-held physical source. This is a value
+/// witness, not unlink authority; ManifestOwner must reprove its source and
+/// publish a complete durable roster before a deletion cut may begin.
+@MainActor
+struct EraseSchema2ColdValidatedGenerationTreeV1 {
+    let generationID: UUID
+    let manifestDigest: String
+    let digest: String
+    let nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]
+
+    private init(generationID: UUID, manifestDigest: String,
+        tree: (digest: String,
+            nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode])) throws {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(
+                manifestDigest),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(tree.digest),
+              !tree.nodes.isEmpty,
+              tree.nodes[0].path.isEmpty,
+              tree.nodes[0].fact.st_mode & S_IFMT == S_IFDIR else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var paths = Set<String>()
+        for node in tree.nodes {
+            guard paths.insert(node.path).inserted else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if node.path.isEmpty { continue }
+            let parent = node.path.split(separator: "/")
+                .dropLast().joined(separator: "/")
+            guard paths.contains(parent) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            switch node.fact.st_mode & S_IFMT {
+            case S_IFDIR:
+                guard node.sha256 == nil else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                _ = try GenerationOwnedPathV1.classify(
+                    node.path, nodeType: .directory)
+            case S_IFREG:
+                guard let sha = node.sha256,
+                      StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha),
+                      node.fact.st_nlink == 1,
+                      node.fact.st_size >= 0 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                _ = try GenerationOwnedPathV1.classify(
+                    node.path, nodeType: .regularFile)
+            default:
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        self.generationID = generationID
+        self.manifestDigest = manifestDigest
+        self.digest = tree.digest
+        self.nodes = tree.nodes
+    }
+
+    static func captureOld(
+        source: EraseSchema2ColdRetainedSourceV1,
+        attempt: EraseSchema2ColdPrivateSourceAttemptV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> Self {
+        try operation.requireSchema2ColdRetainedSource(source)
+        try operation.requireSchema2ColdPrivateSourceAttempt(attempt)
+        guard attempt.isCheckedClosed else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try Self(generationID: source.generationID,
+            manifestDigest: source.manifestDigest,
+            tree: source.checkedOriginalTree())
+    }
+
+    static func captureRetired(
+        source: EraseSchema2ColdRetiredSourceV1,
+        attempt: EraseSchema2ColdPrivateSourceAttemptV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> Self {
+        try operation.requireSchema2ColdRetiredSource(source)
+        try operation.requireSchema2ColdRetiredPrivateAttempt(
+            attempt, source: source)
+        guard attempt.isCheckedClosed else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return try Self(generationID: source.generationID,
+            manifestDigest: source.manifestDigest,
+            tree: source.checkedOriginalTree())
+    }
+
+#if DEBUG
+    /// Pure codec regression seam. It never returns a validated-generation
+    /// witness or a durable roster owner, and cannot publish or unlink.
+    static func rosterCodecFixtureForTesting(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        checkedTree: (digest: String,
+            nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]),
+        generationsDevice: dev_t, generationsInode: ino_t
+    ) throws -> (record: EraseSchema2ColdDeletionRosterV1.Record,
+        bytes: Data) {
+        guard intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              intent.generationIDsToDelete == [intent.oldGenerationID],
+              preparation.matches(intent),
+              let old = intent.oldPointer else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let witness = try Self(
+            generationID: intent.oldGenerationID,
+            manifestDigest: old.generationManifestSHA256,
+            tree: checkedTree)
+        let intentBytes = try EraseIntentCodecV1.encode(intent)
+        let preparationBytes = try ErasePreparationCodecV2.encode(
+            preparation)
+        let record = try EraseSchema2ColdDeletionRosterV1
+            .canonicalRecord(intent: intent, intentBytes: intentBytes,
+                preparation: preparation,
+                preparationBytes: preparationBytes,
+                generationsDevice: generationsDevice,
+                generationsInode: generationsInode,
+                present: [intent.oldGenerationID: witness], absent: [])
+        let bytes = try StoreMigrationCanonicalJSONV1.encode(record)
+        _ = try EraseSchema2ColdDeletionRosterV1.decodeCanonicalRecord(
+            bytes, intent: intent, intentBytes: intentBytes,
+            preparation: preparation,
+            preparationBytes: preparationBytes,
+            generationsDevice: generationsDevice,
+            generationsInode: generationsInode)
+        return (record, bytes)
+    }
+#endif
+}
+
+/// A single prospective publication capability constructed only from the
+/// Manifest owner's complete, operation-held typed witnesses before any
+/// roster temporary inode can be created. Store may write only these bytes.
+@MainActor
+final class EraseSchema2ColdDeletionRosterPublicationSealV1 {
+    let canonicalBytes: Data
+    let canonicalSHA256: String
+    fileprivate let record: EraseSchema2ColdDeletionRosterV1.Record
+    fileprivate let manifestIdentity: ObjectIdentifier
+    fileprivate let operationIdentity: ObjectIdentifier
+
+    fileprivate init(record: EraseSchema2ColdDeletionRosterV1.Record,
+        bytes: Data, manifest: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1) throws {
+        guard record.schemaVersion == 1,
+              try StoreMigrationCanonicalJSONV1.encode(record) == bytes else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.record = record
+        canonicalBytes = bytes
+        canonicalSHA256 = StoreMigrationCanonicalJSONV1.sha256(bytes)
+        manifestIdentity = ObjectIdentifier(manifest)
+        operationIdentity = ObjectIdentifier(operation)
+    }
+
+    func requireBound(manifest: EraseSchema2ColdManifestOwnerV1,
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1) throws {
+        guard manifestIdentity == ObjectIdentifier(manifest),
+              operationIdentity == ObjectIdentifier(operation),
+              intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              record.eraseID == intent.eraseID.uuidString.lowercased(),
+              record.intentSHA256 == StoreMigrationCanonicalJSONV1.sha256(
+                try EraseIntentCodecV1.encode(intent)),
+              record.preparationSHA256 ==
+                StoreMigrationCanonicalJSONV1.sha256(
+                  try ErasePreparationCodecV2.encode(preparation)),
+              record.targetGenerationID ==
+                intent.newGenerationID.uuidString.lowercased(),
+              record.targetManifestSHA256 ==
+                intent.targetPointer?.generationManifestSHA256,
+              StoreMigrationCanonicalJSONV1.sha256(canonicalBytes) ==
+                canonicalSHA256 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+}
+
+/// One immutable postorder deletion slot from the sealed roster. Merely
+/// holding this value is not unlink authority; the Manifest owner must still
+/// prove its durable record, exact ordinal and retained EX/G before an
+/// operation-retained executor may touch the held generations descriptor.
+@MainActor
+struct EraseSchema2ColdDeletionStepV1: Equatable {
+    let rosterSHA256: String
+    let generationID: UUID
+    let ordinal: Int
+    let path: String
+    let expected: EraseSchema2ColdDeletionRosterV1.Node
+
+    fileprivate init(roster: EraseSchema2ColdDeletionRosterV1,
+        generationID: UUID, ordinal: Int,
+        expected: EraseSchema2ColdDeletionRosterV1.Node) {
+        rosterSHA256 = roster.canonicalSHA256
+        self.generationID = generationID
+        self.ordinal = ordinal
+        path = expected.path
+        self.expected = expected
+    }
+}
+
+/// Canonical prospective replay plan. It is data until the retained Manifest
+/// owner has published and re-read its exact file under Support EX/Registry G.
+/// A historical partial generation cannot construct this from its survivors.
+@MainActor
+struct EraseSchema2ColdDeletionRosterV1 {
+    static let canonicalName = "schema2-cold-deletion-roster.json"
+    static let temporaryName = ".schema2-cold-deletion-roster.json.next"
+
+    struct Node: Codable, Equatable {
+        let path: String
+        let kind: String
+        let device: Int64
+        let inode: UInt64
+        let mode: UInt32
+        let links: UInt64
+        let size: Int64
+        let mtimeSeconds: Int64
+        let mtimeNanoseconds: Int64
+        let ctimeSeconds: Int64
+        let ctimeNanoseconds: Int64
+        let sha256: String?
+
+        init(_ value: EraseAbortCheckedSnapshotIOV1.CheckedTreeNode)
+            throws {
+            let fact = value.fact
+            guard fact.st_dev >= 0, fact.st_nlink > 0,
+                  fact.st_size >= 0 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            switch fact.st_mode & S_IFMT {
+            case S_IFDIR:
+                guard value.sha256 == nil else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                kind = "directory"
+            case S_IFREG:
+                guard fact.st_nlink == 1,
+                      let sha = value.sha256,
+                      StoreMigrationCanonicalJSONV1
+                        .isLowercaseSHA256(sha) else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                kind = "regular"
+            default:
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            path = value.path
+            device = Int64(fact.st_dev)
+            inode = UInt64(fact.st_ino)
+            mode = UInt32(fact.st_mode)
+            links = UInt64(fact.st_nlink)
+            size = Int64(fact.st_size)
+            mtimeSeconds = Int64(fact.st_mtimespec.tv_sec)
+            mtimeNanoseconds = Int64(fact.st_mtimespec.tv_nsec)
+            ctimeSeconds = Int64(fact.st_ctimespec.tv_sec)
+            ctimeNanoseconds = Int64(fact.st_ctimespec.tv_nsec)
+            sha256 = value.sha256
+        }
+    }
+
+    struct Generation: Codable, Equatable {
+        let generationID: String
+        let state: String // exactly "present" or "absent"
+        let manifestSHA256: String?
+        let treeSHA256: String?
+        let nodes: [Node]?
+        let deletionOrder: [String]?
+    }
+
+    struct Record: Codable, Equatable {
+        let schemaVersion: Int
+        let eraseID: String
+        let intentSHA256: String
+        let preparationSHA256: String
+        let oldGenerationID: String
+        let targetGenerationID: String
+        let targetManifestSHA256: String
+        let generationsDevice: Int64
+        let generationsInode: UInt64
+        let frozenGenerationIDs: [String]
+        let generations: [Generation]
+    }
+
+    let record: Record
+    let canonicalBytes: Data
+    let canonicalSHA256: String
+    fileprivate let manifestIdentity: ObjectIdentifier
+    fileprivate let fileFact: EraseColdControlLeafFactV1
+    var recordFileFact: EraseColdControlLeafFactV1 { fileFact }
+
+    /// Returns only the named next slot from immutable canonical bytes.
+    /// An exhausted roster returns nil; it never re-enumerates survivors or
+    /// guesses a new deletion order after a partial cut.
+    func step(at ordinal: Int) throws -> EraseSchema2ColdDeletionStepV1? {
+        guard ordinal >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var remaining = ordinal
+        for generation in record.generations {
+            guard generation.state == "present",
+                  let order = generation.deletionOrder,
+                  let nodes = generation.nodes,
+                  let id = UUID(uuidString: generation.generationID) else {
+                if generation.state == "absent" { continue }
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            guard order.count == nodes.count else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if remaining >= order.count {
+                remaining -= order.count
+                continue
+            }
+            let path = order[remaining]
+            guard let node = nodes.first(where: { $0.path == path }) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            return EraseSchema2ColdDeletionStepV1(roster: self,
+                generationID: id, ordinal: ordinal, expected: node)
+        }
+        guard remaining == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return nil
+    }
+
+    fileprivate init(record: Record, bytes: Data,
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        fileFact: EraseColdControlLeafFactV1) throws {
+        guard try StoreMigrationCanonicalJSONV1.encode(record) == bytes,
+              record.schemaVersion == 1,
+              record.generations.map(\.generationID)
+                == record.frozenGenerationIDs,
+              Int64(fileFact.device) == record.generationsDevice,
+              fileFact.inode > 0,
+              fileFact.mode & S_IFMT == S_IFREG,
+              fileFact.links == 1,
+              fileFact.size == off_t(bytes.count) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        self.record = record
+        canonicalBytes = bytes
+        canonicalSHA256 = StoreMigrationCanonicalJSONV1.sha256(bytes)
+        manifestIdentity = ObjectIdentifier(manifest)
+        self.fileFact = fileFact
+    }
+
+    fileprivate static func canonicalRecord(
+        intent: EraseIntentV1, intentBytes: Data,
+        preparation: ErasePreparationV2,
+        preparationBytes: Data,
+        generationsDevice: dev_t,
+        generationsInode: ino_t,
+        present: [UUID: EraseSchema2ColdValidatedGenerationTreeV1],
+        absent: Set<UUID>
+    ) throws -> Record {
+        guard intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              intentBytes == (try EraseIntentCodecV1.encode(intent)),
+              preparationBytes ==
+                (try ErasePreparationCodecV2.encode(preparation)),
+              let target = intent.targetPointer,
+              generationsDevice >= 0,
+              generationsInode > 0,
+              Set(present.keys).isDisjoint(with: absent),
+              Set(present.keys).union(absent)
+                == Set(intent.generationIDsToDelete) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var generations: [Generation] = []
+        for id in intent.generationIDsToDelete {
+            let textID = id.uuidString.lowercased()
+            if absent.contains(id) {
+                generations.append(Generation(generationID: textID,
+                    state: "absent", manifestSHA256: nil,
+                    treeSHA256: nil, nodes: nil,
+                    deletionOrder: nil))
+                continue
+            }
+            guard let tree = present[id],
+                  tree.generationID == id,
+                  StoreMigrationCanonicalJSONV1
+                    .isLowercaseSHA256(tree.manifestDigest),
+                  StoreMigrationCanonicalJSONV1
+                    .isLowercaseSHA256(tree.digest),
+                  let root = tree.nodes.first,
+                  root.path.isEmpty,
+                  root.fact.st_mode & S_IFMT == S_IFDIR else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if id == intent.oldGenerationID {
+                guard tree.manifestDigest
+                    == intent.oldPointer?.generationManifestSHA256 else {
+                    throw StoreMigrationFailure.digestMismatch
+                }
+            }
+            // The checked walker is depth-first. The durable record uses a
+            // single lexical order so replay does not depend on traversal
+            // order when a directory and similarly prefixed sibling coexist.
+            let nodes = try tree.nodes.map(Node.init).sorted {
+                $0.path.utf8.lexicographicallyPrecedes($1.path.utf8)
+            }
+            guard try checkedTreeDigest(from: nodes) == tree.digest else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            let deletionOrder = nodes.map(\.path).sorted { lhs, rhs in
+                let lhsDepth = lhs.isEmpty ? 0
+                    : lhs.filter { $0 == "/" }.count + 1
+                let rhsDepth = rhs.isEmpty ? 0
+                    : rhs.filter { $0 == "/" }.count + 1
+                if lhsDepth != rhsDepth { return lhsDepth > rhsDepth }
+                return lhs.utf8.lexicographicallyPrecedes(rhs.utf8)
+            }
+            guard deletionOrder.last?.isEmpty == true else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            generations.append(Generation(generationID: textID,
+                state: "present",
+                manifestSHA256: tree.manifestDigest,
+                treeSHA256: tree.digest, nodes: nodes,
+                deletionOrder: deletionOrder))
+        }
+        return Record(schemaVersion: 1,
+            eraseID: intent.eraseID.uuidString.lowercased(),
+            intentSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                intentBytes),
+            preparationSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                preparationBytes),
+            oldGenerationID: intent.oldGenerationID.uuidString.lowercased(),
+            targetGenerationID: intent.newGenerationID.uuidString.lowercased(),
+            targetManifestSHA256: target.generationManifestSHA256,
+            generationsDevice: Int64(generationsDevice),
+            generationsInode: UInt64(generationsInode),
+            frozenGenerationIDs: intent.generationIDsToDelete.map {
+                $0.uuidString.lowercased() },
+            generations: generations)
+    }
+
+    fileprivate static func decodeCanonicalRecord(
+        _ bytes: Data, intent: EraseIntentV1,
+        intentBytes: Data, preparation: ErasePreparationV2,
+        preparationBytes: Data,
+        generationsDevice: dev_t,
+        generationsInode: ino_t
+    ) throws -> Record {
+        let record = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+            Record.self, from: bytes)
+        guard record.schemaVersion == 1,
+              intent.schemaVersion == 2,
+              intent.phase == .sessionActivated,
+              preparation.matches(intent),
+              intentBytes == (try EraseIntentCodecV1.encode(intent)),
+              preparationBytes ==
+                (try ErasePreparationCodecV2.encode(preparation)),
+              record.eraseID == intent.eraseID.uuidString.lowercased(),
+              record.intentSHA256 == StoreMigrationCanonicalJSONV1.sha256(
+                intentBytes),
+              record.preparationSHA256
+                == StoreMigrationCanonicalJSONV1.sha256(
+                    preparationBytes),
+              record.oldGenerationID
+                == intent.oldGenerationID.uuidString.lowercased(),
+              record.targetGenerationID
+                == intent.newGenerationID.uuidString.lowercased(),
+              record.targetManifestSHA256
+                == intent.targetPointer?.generationManifestSHA256,
+              record.generationsDevice == Int64(generationsDevice),
+              record.generationsInode == UInt64(generationsInode),
+              record.frozenGenerationIDs
+                == intent.generationIDsToDelete.map({
+                    $0.uuidString.lowercased() }),
+              record.generations.map(\.generationID)
+                == record.frozenGenerationIDs else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for generation in record.generations {
+            switch generation.state {
+            case "absent":
+                guard generation.manifestSHA256 == nil,
+                      generation.treeSHA256 == nil,
+                      generation.nodes == nil,
+                      generation.deletionOrder == nil else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+            case "present":
+                guard let manifestSHA = generation.manifestSHA256,
+                      let treeSHA = generation.treeSHA256,
+                      StoreMigrationCanonicalJSONV1
+                        .isLowercaseSHA256(manifestSHA),
+                      StoreMigrationCanonicalJSONV1
+                        .isLowercaseSHA256(treeSHA),
+                      let nodes = generation.nodes,
+                      let deletionOrder = generation.deletionOrder,
+                      !nodes.isEmpty,
+                      nodes[0].path.isEmpty,
+                      nodes[0].kind == "directory",
+                      nodes[0].device == record.generationsDevice,
+                      deletionOrder.count == nodes.count else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                var paths = Set<String>()
+                for node in nodes {
+                    guard paths.insert(node.path).inserted,
+                          node.device >= 0, node.inode > 0,
+                          node.links > 0, node.size >= 0 else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                    if node.path.isEmpty { continue }
+                    let parent = node.path.split(separator: "/")
+                        .dropLast().joined(separator: "/")
+                    guard paths.contains(parent) else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                    switch node.kind {
+                    case "directory":
+                        guard node.sha256 == nil,
+                              mode_t(node.mode) & S_IFMT == S_IFDIR else {
+                            throw StoreMigrationFailure.invalidIdentity
+                        }
+                        _ = try GenerationOwnedPathV1.classify(
+                            node.path, nodeType: .directory)
+                    case "regular":
+                        guard node.links == 1,
+                              mode_t(node.mode) & S_IFMT == S_IFREG,
+                              let sha = node.sha256,
+                              StoreMigrationCanonicalJSONV1
+                                .isLowercaseSHA256(sha) else {
+                            throw StoreMigrationFailure.invalidIdentity
+                        }
+                        _ = try GenerationOwnedPathV1.classify(
+                            node.path, nodeType: .regularFile)
+                    default:
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                }
+                let lexical = paths.sorted {
+                    $0.utf8.lexicographicallyPrecedes($1.utf8)
+                }
+                guard nodes.map(\.path) == lexical else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                let expectedOrder = nodes.map(\.path).sorted {
+                    lhs, rhs in
+                    let lhsDepth = lhs.isEmpty ? 0
+                        : lhs.filter { $0 == "/" }.count + 1
+                    let rhsDepth = rhs.isEmpty ? 0
+                        : rhs.filter { $0 == "/" }.count + 1
+                    if lhsDepth != rhsDepth { return lhsDepth > rhsDepth }
+                    return lhs.utf8.lexicographicallyPrecedes(rhs.utf8)
+                }
+                guard deletionOrder == expectedOrder,
+                      deletionOrder.last?.isEmpty == true,
+                      try checkedTreeDigest(from: nodes) == treeSHA else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                if generation.generationID
+                    == intent.oldGenerationID.uuidString.lowercased() {
+                    guard manifestSHA
+                        == intent.oldPointer?.generationManifestSHA256 else {
+                        throw StoreMigrationFailure.digestMismatch
+                    }
+                }
+            default:
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        return record
+    }
+
+#if DEBUG
+    /// Decoder-only companion for hostile byte mutations in codec tests.
+    /// Parsing a Record is not admission of its inode or deletion authority.
+    static func decodeRosterCodecForTesting(
+        _ bytes: Data, intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        generationsDevice: dev_t, generationsInode: ino_t
+    ) throws -> Record {
+        try decodeCanonicalRecord(bytes, intent: intent,
+            intentBytes: EraseIntentCodecV1.encode(intent),
+            preparation: preparation,
+            preparationBytes: ErasePreparationCodecV2.encode(preparation),
+            generationsDevice: generationsDevice,
+            generationsInode: generationsInode)
+    }
+#endif
+
+    /// Reconstruct the existing checked walk's token digest from the exact
+    /// typed roster, so a replay record cannot pair an arbitrary node list
+    /// with an unrelated tree SHA. The on-disk source still has to match the
+    /// retained inode/leaf facts at each subsequent deletion cut.
+    private static func checkedTreeDigest(from nodes: [Node]) throws
+        -> String {
+        let paths = Set(nodes.map(\.path))
+        guard paths.count == nodes.count,
+              nodes.first?.path.isEmpty == true else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var tokens: [String] = []
+        for node in nodes {
+            if node.kind == "directory" {
+                let prefix = node.path.isEmpty ? "" : node.path + "/"
+                let children = nodes.compactMap { candidate -> String? in
+                    guard candidate.path != node.path,
+                          candidate.path.hasPrefix(prefix) else {
+                        return nil
+                    }
+                    let suffix = String(candidate.path.dropFirst(
+                        prefix.count))
+                    return !suffix.isEmpty && !suffix.contains("/")
+                        ? suffix : nil
+                }.sorted()
+                tokens.append("D|\(node.path)|\(node.device)|\(node.inode)|\(node.mode)|\(node.mtimeSeconds)|\(node.mtimeNanoseconds)|\(node.ctimeSeconds)|\(node.ctimeNanoseconds)|\(children.joined(separator: ","))")
+            } else if node.kind == "regular" {
+                guard let sha = node.sha256 else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                tokens.append("F|\(node.path)|\(node.device)|\(node.inode)|\(node.mode)|\(node.links)|\(node.size)|\(node.mtimeSeconds)|\(node.mtimeNanoseconds)|\(node.ctimeSeconds)|\(node.ctimeNanoseconds)|\(sha)")
+            } else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        return StoreMigrationCanonicalJSONV1.sha256(
+            Data(tokens.sorted().joined(separator: "\n").utf8))
+    }
+}
+
+/// A previously retired installed generation has its own held source and
+/// canonical migration manifest. It is not the current old pointer and is
+/// never given a live SQLite reader on the original filesystem.
+@MainActor
+final class EraseSchema2ColdRetiredSourceV1 {
+    private weak var manifestOwner: EraseSchema2ColdManifestOwnerV1?
+    private weak var operation: EraseColdPreparationOperationV1?
+    let generationID: UUID
+    let generationRootURL: URL
+    let manifest: StoreGenerationManifestV1
+    let manifestDigest: String
+    let intent: EraseIntentV1
+    let preparation: ErasePreparationV2
+    private let checkedIO = EraseAbortCheckedSnapshotIOV1()
+    private var descriptor: Int32 = -1
+    private var parent: Int32 = -1
+    private var name = ""
+    private var original: Fact?
+    private var originalTreeDigest: String?
+    private var closeAttempted = false
+    private var uncertain = false
+    private var uncertainFDs: [Int32] = []
+
+    private struct Fact: Equatable {
+        let device: dev_t, inode: ino_t, mode: mode_t, links: nlink_t
+        let size: off_t
+        let mtimeSeconds: Int64, mtimeNanoseconds: Int64
+        let ctimeSeconds: Int64, ctimeNanoseconds: Int64
+        init(_ value: stat) {
+            device = value.st_dev; inode = value.st_ino
+            mode = value.st_mode; links = value.st_nlink
+            size = value.st_size
+            mtimeSeconds = Int64(value.st_mtimespec.tv_sec)
+            mtimeNanoseconds = Int64(value.st_mtimespec.tv_nsec)
+            ctimeSeconds = Int64(value.st_ctimespec.tv_sec)
+            ctimeNanoseconds = Int64(value.st_ctimespec.tv_nsec)
+        }
+    }
+
+    var isCheckedClosed: Bool {
+        closeAttempted && !uncertain && descriptor < 0
+            && uncertainFDs.isEmpty
+    }
+
+    init(manifestOwner: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        generationID: UUID, generationRootURL: URL,
+        manifest: StoreGenerationManifestV1, manifestDigest: String,
+        intent: EraseIntentV1, preparation: ErasePreparationV2) {
+        self.manifestOwner = manifestOwner
+        self.operation = operation
+        self.generationID = generationID
+        self.generationRootURL = generationRootURL
+        self.manifest = manifest
+        self.manifestDigest = manifestDigest
+        self.intent = intent
+        self.preparation = preparation
+    }
+
+    fileprivate func open(parent: Int32, name: String) throws {
+        guard descriptor < 0, !closeAttempted, !uncertain,
+              originalTreeDigest == nil,
+              name == generationID.uuidString.lowercased(),
+              let operation else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetiredSource(self)
+        let opened = Darwin.openat(parent, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard opened >= 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        descriptor = opened
+        self.parent = parent
+        self.name = name
+        var held = stat(), named = stat()
+        guard Darwin.fstat(opened, &held) == 0,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              held.st_mode & S_IFMT == S_IFDIR,
+              held.st_nlink > 0,
+              Fact(held) == Fact(named) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        original = Fact(held)
+        try requirePhysicalIdentity()
+        let tree = try checkedIO.treeWithNodes(parent: opened, name: ".")
+        try checkedIO.requireSettled()
+        try requirePhysicalIdentity()
+        originalTreeDigest = tree.digest
+    }
+
+    fileprivate func requirePhysicalIdentity() throws {
+        guard descriptor >= 0, !closeAttempted, !uncertain,
+              uncertainFDs.isEmpty, let original else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var held = stat(), named = stat(), pathNamed = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(generationRootURL.path, &pathNamed) == 0,
+              Fact(held) == original,
+              Fact(named) == original,
+              Fact(pathNamed) == original else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try checkedIO.requireSettled()
+    }
+
+    func withHeldOriginalRoot<T>(
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetiredSource(self)
+        try manifestOwner.requireRetiredSource(self,
+            operation: operation)
+        let outcome = Result<T, Error> { try body(descriptor) }
+        try manifestOwner.requireRetiredSource(self,
+            operation: operation)
+        return try outcome.get()
+    }
+
+    func checkedOriginalTree() throws
+        -> (digest: String,
+            nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]) {
+        try withHeldOriginalRoot { held in
+            let tree = try checkedIO.treeWithNodes(
+                parent: held, name: ".")
+            guard let originalTreeDigest,
+                  tree.digest == originalTreeDigest else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try checkedIO.requireSettled()
+            return tree
+        }
+    }
+
+    /// ManifestOwner calls this only inside its one-way own P→R projection.
+    /// The original held descriptor and first complete tree digest stay fixed.
+    fileprivate func requireHeldTreeAfterOwnPhaseCAS() throws {
+        try requirePhysicalIdentity()
+        let tree = try checkedIO.treeWithNodes(
+            parent: descriptor, name: ".")
+        guard let originalTreeDigest,
+              tree.digest == originalTreeDigest else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try checkedIO.requireSettled()
+        try requirePhysicalIdentity()
+    }
+
+    fileprivate func requireHeldRosterNodes(
+        _ expected: [EraseSchema2ColdDeletionRosterV1.Node]
+    ) throws {
+        try requirePhysicalIdentity()
+        let tree = try checkedIO.treeWithNodes(
+            parent: descriptor, name: ".")
+        let observed = try tree.nodes.map(
+            EraseSchema2ColdDeletionRosterV1.Node.init).sorted {
+                $0.path.utf8.lexicographicallyPrecedes($1.path.utf8)
+            }
+        guard let originalTreeDigest,
+              tree.digest == originalTreeDigest,
+              observed == expected else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try checkedIO.requireSettled()
+        try requirePhysicalIdentity()
+    }
+
+    func requireOriginalUnchanged() throws {
+        _ = try checkedOriginalTree()
+    }
+
+    func checkedOriginalC05TransientWitness() throws
+        -> StoreRestoreGenerationAuthority.C05GenerationTransientWitnessV1? {
+        guard preparation.c05JobDrainV3 == nil,
+              preparation.coldPredecessorReclaim == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let tree = try checkedOriginalTree()
+        guard !tree.nodes.contains(where: { node in
+            node.path == "operational"
+                || node.path.hasPrefix("operational/")
+        }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return nil
+    }
+
+    func requireHeldApplicationSupportIdentity() throws
+        -> (device: dev_t, inode: ino_t) {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetiredSource(self)
+        try manifestOwner.requireRetiredSource(self,
+            operation: operation)
+        return try manifestOwner.requireHeldApplicationSupportIdentity(
+            operation: operation)
+    }
+
+    func withHeldApplicationSupport<T>(
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetiredSource(self)
+        return try manifestOwner.withHeldApplicationSupport(
+            retiredSource: self, operation: operation, body)
+    }
+
+    func requireTargetRootIdentity(targetID: UUID) throws
+        -> ReportPDFAnchoredFile.RootIdentity {
+        guard let operation, let manifestOwner,
+              targetID == intent.newGenerationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetiredSource(self)
+        try manifestOwner.requireRetiredSource(self,
+            operation: operation)
+        return try manifestOwner.requireTargetRootIdentity(
+            targetID: targetID, operation: operation)
+    }
+
+    func requireCurrentTargetPointer(intent expected: EraseIntentV1)
+        throws -> CurrentGenerationPointerV3 {
+        guard let operation, let manifestOwner,
+              expected == intent else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdRetiredSource(self)
+        try manifestOwner.requireRetiredSource(self,
+            operation: operation)
+        return try manifestOwner.requireCurrentTargetPointer(
+            intent: expected, operation: operation)
+    }
+
+    func closeChecked() throws {
+        guard descriptor >= 0, !closeAttempted, !uncertain,
+              uncertainFDs.isEmpty else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireOriginalUnchanged()
+        closeAttempted = true
+        let owned = descriptor
+        guard Darwin.close(owned) == 0 else {
+            uncertain = true
+            uncertainFDs.append(owned)
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        descriptor = -1
+    }
+}
+
+/// The exact late Erase target directory is opened from the manifest owner's
+/// already held generations parent. Its FD stays on the cold operation while
+/// a private validation copy is built and semantically read. This owner has
+/// no Registry, lease, deletion, or target-publication authority.
+@MainActor
+final class EraseSchema2ColdTargetSourceV1 {
+    private weak var manifestOwner: EraseSchema2ColdManifestOwnerV1?
+    private weak var operation: EraseColdPreparationOperationV1?
+    let generationID: UUID
+    private var descriptor: Int32 = -1
+    private var parent: Int32 = -1
+    private var name = ""
+    private var path: URL?
+    private var identity: (device: dev_t, inode: ino_t,
+        mode: mode_t, links: nlink_t, size: off_t,
+        mtimeSeconds: Int64, mtimeNanoseconds: Int64,
+        ctimeSeconds: Int64, ctimeNanoseconds: Int64)?
+    // The P target-current tree is first observed before the old-source
+    // private read suspends. The checked IO and any uncertain close remain
+    // retained by this operation-owned target source.
+    private let preparedTargetIO = EraseAbortCheckedSnapshotIOV1()
+    private var preparedFirstTree:
+        (digest: String,
+         nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode])?
+    private var closeAttempted = false
+    private var uncertain = false
+    var isCheckedClosed: Bool {
+        closeAttempted && !uncertain && descriptor < 0
+    }
+
+    init(manifestOwner: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        generationID: UUID) {
+        self.manifestOwner = manifestOwner
+        self.operation = operation
+        self.generationID = generationID
+    }
+
+    fileprivate func open(parent: Int32, name: String,
+        path: URL) throws {
+        guard descriptor < 0, !closeAttempted, !uncertain,
+              name == generationID.uuidString.lowercased() else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let opened = Darwin.openat(parent, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard opened >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        descriptor = opened // retain before any fallible fstat or policy
+        self.parent = parent
+        self.name = name
+        self.path = path
+        var value = stat(), named = stat()
+        guard Darwin.fstat(opened, &value) == 0,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              value.st_mode & S_IFMT == S_IFDIR,
+              value.st_nlink > 0,
+              value.st_dev == named.st_dev,
+              value.st_ino == named.st_ino else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        identity = Self.fact(value)
+        try requirePhysicalIdentity()
+    }
+
+    private static func fact(_ value: stat) -> (
+        device: dev_t, inode: ino_t, mode: mode_t,
+        links: nlink_t, size: off_t,
+        mtimeSeconds: Int64, mtimeNanoseconds: Int64,
+        ctimeSeconds: Int64, ctimeNanoseconds: Int64
+    ) {
+        (value.st_dev, value.st_ino, value.st_mode, value.st_nlink,
+         value.st_size, Int64(value.st_mtimespec.tv_sec),
+         Int64(value.st_mtimespec.tv_nsec),
+         Int64(value.st_ctimespec.tv_sec),
+         Int64(value.st_ctimespec.tv_nsec))
+    }
+
+    fileprivate func requirePhysicalIdentity() throws {
+        guard descriptor >= 0, !closeAttempted, !uncertain,
+              let original = identity, let path else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var held = stat(), named = stat(), pathNamed = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(path.path, &pathNamed) == 0,
+              Self.equal(Self.fact(held), original),
+              Self.equal(Self.fact(named), original),
+              Self.equal(Self.fact(pathNamed), original) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+
+    private static func samePreparedNodeFact(_ a: stat, _ b: stat) -> Bool {
+        a.st_dev == b.st_dev && a.st_ino == b.st_ino &&
+        a.st_mode == b.st_mode && a.st_nlink == b.st_nlink &&
+        a.st_uid == b.st_uid && a.st_gid == b.st_gid &&
+        a.st_size == b.st_size &&
+        a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec &&
+        a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec &&
+        a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec &&
+        a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec
+    }
+
+    /// A genuine P/target-current source gets exactly one first complete
+    /// image. A later scan is always comparison, never a replacement image.
+    func capturePreparedTargetFirstTree() throws {
+        guard preparedFirstTree == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let first = try withHeldTargetRoot { root in
+            try preparedTargetIO.treeWithNodes(parent: root, name: ".")
+        }
+        try preparedTargetIO.requireSettled()
+        preparedFirstTree = first
+    }
+
+    func requirePreparedTargetFirstTreeUnchanged() throws {
+        guard let first = preparedFirstTree else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let observed = try withHeldTargetRoot { root in
+            try preparedTargetIO.treeWithNodes(parent: root, name: ".")
+        }
+        guard first.digest == observed.digest,
+              first.nodes.count == observed.nodes.count else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for (before, after) in zip(first.nodes, observed.nodes) {
+            guard before.path == after.path,
+                  Self.samePreparedNodeFact(before.fact, after.fact),
+                  before.sha256 == after.sha256 else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+        try preparedTargetIO.requireSettled()
+    }
+
+    /// During the operation's sole live target constructor, the held root
+    /// inode and name stay fixed. Full target bytes are checked separately
+    /// by the Factory's retained pre/post physical witness.
+    fileprivate func requireOwnedLiveOpenRootIdentity() throws {
+        guard descriptor >= 0, !closeAttempted, !uncertain,
+              let original = identity, let path else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var held = stat(), named = stat(), pathNamed = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              Darwin.fstatat(parent, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.lstat(path.path, &pathNamed) == 0 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        for fact in [Self.fact(held), Self.fact(named),
+                     Self.fact(pathNamed)] {
+            guard fact.device == original.device,
+                  fact.inode == original.inode,
+                  fact.mode == original.mode,
+                  fact.links == original.links else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        }
+    }
+
+    fileprivate func projectOwnedLiveOpenRoot(
+        before: stat, after: stat
+    ) throws {
+        guard let original = identity,
+              Self.equal(Self.fact(before), original),
+              before.st_dev == after.st_dev,
+              before.st_ino == after.st_ino,
+              before.st_mode == after.st_mode,
+              before.st_nlink == after.st_nlink else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try requireOwnedLiveOpenRootIdentity()
+        identity = Self.fact(after)
+        try requirePhysicalIdentity()
+    }
+
+    private static func equal(_ lhs: (
+        device: dev_t, inode: ino_t, mode: mode_t, links: nlink_t,
+        size: off_t, mtimeSeconds: Int64, mtimeNanoseconds: Int64,
+        ctimeSeconds: Int64, ctimeNanoseconds: Int64), _ rhs: (
+        device: dev_t, inode: ino_t, mode: mode_t, links: nlink_t,
+        size: off_t, mtimeSeconds: Int64, mtimeNanoseconds: Int64,
+        ctimeSeconds: Int64, ctimeNanoseconds: Int64)
+    ) -> Bool {
+        lhs.device == rhs.device && lhs.inode == rhs.inode
+            && lhs.mode == rhs.mode && lhs.links == rhs.links
+            && lhs.size == rhs.size
+            && lhs.mtimeSeconds == rhs.mtimeSeconds
+            && lhs.mtimeNanoseconds == rhs.mtimeNanoseconds
+            && lhs.ctimeSeconds == rhs.ctimeSeconds
+            && lhs.ctimeNanoseconds == rhs.ctimeNanoseconds
+    }
+
+    /// The descriptor is scoped to one synchronous Factory walk. A caller
+    /// cannot carry this integer across an await and treat it as authority.
+    func withHeldTargetRoot<T>(_ body: (Int32) throws -> T) throws -> T {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdTargetSource(self)
+        try manifestOwner.requireTargetSource(self,
+            operation: operation)
+        let outcome = Result<T, Error> { try body(descriptor) }
+        try manifestOwner.requireTargetSource(self,
+            operation: operation)
+        return try outcome.get()
+    }
+
+    /// This scope is usable only by the exact retained Factory attempt after
+    /// Router entered the one-way live-open interval. It checks identity and
+    /// all other held controls without demanding the stale target root fact.
+    func withHeldTargetRootAfterOwnedLiveOpen<T>(
+        attempt: EraseSchema2ColdActivatedTargetAttemptV1,
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdTargetLiveOpenInFlight(
+            source: self, attempt: attempt)
+        try manifestOwner.requireTargetLiveOpenControls(source: self,
+            operation: operation)
+        try requireOwnedLiveOpenRootIdentity()
+        let outcome = Result<T, Error> { try body(descriptor) }
+        try requireOwnedLiveOpenRootIdentity()
+        try manifestOwner.requireTargetLiveOpenControls(source: self,
+            operation: operation)
+        return try outcome.get()
+    }
+
+    /// Factory's private staging parent must be physically outside the held
+    /// Support tree before its first mkdir. This returns only an identity;
+    /// the same retained cold operation proves actual Support EX and the
+    /// manifest owner's held/name tree on each use. No raw Support FD escapes.
+    func requireHeldApplicationSupportIdentity()
+        throws -> (device: dev_t, inode: ino_t) {
+        guard let operation, let manifestOwner else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try operation.requireSchema2ColdTargetSource(self)
+        try manifestOwner.requireTargetSource(self, operation: operation)
+        let identity = try manifestOwner.requireHeldApplicationSupportIdentity(
+            operation: operation)
+        try operation.requireSchema2ColdTargetSource(self)
+        return identity
+    }
+
+    func closeChecked() throws {
+        guard descriptor >= 0, !closeAttempted, !uncertain else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        try preparedTargetIO.requireSettled()
+        try requirePhysicalIdentity()
+        closeAttempted = true
+        let owned = descriptor
+        descriptor = -1
+        guard Darwin.close(owned) == 0 else {
+            uncertain = true
+            throw StoreMigrationFailure.invalidIdentity
+        }
+    }
+}
+
 /// Per-instance regression observations. Normal callers use nil; release
 /// builds never invoke a boundary or cleanup callback.
 struct StoreControlInitializationTestHooksV1 {
@@ -34,6 +9866,251 @@ struct StoreControlInitializationTestHooksV1 {
         #else
         _ = succeeded
         #endif
+    }
+}
+
+/// A cold C05 preparation must read the old manifest without constructing the
+/// ordinary migration store. Its constructor and loadManifest reconcile pending
+/// controls, which would change the source after the preparation was frozen.
+/// The cold operation retains this owner before calling open or readManifest.
+@MainActor
+final class EraseC05FrozenManifestReaderV1 {
+    private var supportFD: Int32?
+    private var operationsFD: Int32?
+    private var migrationFD: Int32?
+    private var manifestFD: Int32?
+    private var enumerationFD: Int32?
+    private var directoryStream: UnsafeMutablePointer<DIR>?
+    private var closeAttempted = false
+    private var closeUncertain = false
+    private var opened = false
+    private var supportURL: URL?
+    private var migrationURL: URL?
+    private var supportIdentity: (UInt64, UInt64)?
+    private var operationsIdentity: (UInt64, UInt64)?
+    private var migrationIdentity: (UInt64, UInt64)?
+
+    /// No deinit close: failed or ambiguous descriptors remain in the retained
+    /// cold operation and a numeric descriptor is never retried after close.
+    func openExisting(applicationSupportURL: URL,
+        expectedSupportDevice: UInt64, expectedSupportInode: UInt64) throws {
+        guard !opened, !closeAttempted, !closeUncertain,
+              supportFD == nil, operationsFD == nil, migrationFD == nil,
+              applicationSupportURL.isFileURL else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        opened = true
+        let root = applicationSupportURL.standardizedFileURL
+        let fd = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        supportFD = fd
+        let support = try directoryIdentity(fd)
+        guard UInt64(support.st_dev) == expectedSupportDevice,
+              UInt64(support.st_ino) == expectedSupportInode else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let operations = Darwin.openat(fd, "FieldEvidenceOperations",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard operations >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        operationsFD = operations
+        let operationsValue = try directoryIdentity(operations)
+        let migration = Darwin.openat(operations, "schema-migration",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard migration >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        migrationFD = migration
+        let migrationValue = try directoryIdentity(migration)
+        let operationsPath = root.appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+        let migrationPath = operationsPath.appendingPathComponent("schema-migration", isDirectory: true)
+        let operationsPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+            .stagingDirectory, at: operationsPath)
+        let migrationPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+            .stagingDirectory, at: migrationPath)
+        guard operationsPolicy.state == .strictComplete,
+              migrationPolicy.state == .strictComplete,
+              operationsPolicy.device == UInt64(operationsValue.st_dev),
+              operationsPolicy.inode == UInt64(operationsValue.st_ino),
+              migrationPolicy.device == UInt64(migrationValue.st_dev),
+              migrationPolicy.inode == UInt64(migrationValue.st_ino) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        supportURL = root
+        migrationURL = migrationPath
+        supportIdentity = (UInt64(support.st_dev), UInt64(support.st_ino))
+        operationsIdentity = (UInt64(operationsValue.st_dev), UInt64(operationsValue.st_ino))
+        migrationIdentity = (UInt64(migrationValue.st_dev), UInt64(migrationValue.st_ino))
+    }
+
+    func readManifest(generationID: UUID, expectedDigest: String)
+        throws -> StoreGenerationManifestV1 {
+        guard opened, !closeAttempted, !closeUncertain,
+              let supportFD, let operationsFD, let migrationFD,
+              let supportURL, let migrationURL,
+              let supportIdentity, let operationsIdentity,
+              let migrationIdentity,
+              manifestFD == nil, directoryStream == nil,
+              expectedDigest.utf8.count == 64,
+              expectedDigest.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let currentSupport = try directoryIdentity(supportFD)
+        let currentOperations = try directoryIdentity(operationsFD)
+        let currentMigration = try directoryIdentity(migrationFD)
+        guard (UInt64(currentSupport.st_dev), UInt64(currentSupport.st_ino))
+                  == supportIdentity,
+              (UInt64(currentOperations.st_dev), UInt64(currentOperations.st_ino))
+                  == operationsIdentity,
+              (UInt64(currentMigration.st_dev), UInt64(currentMigration.st_ino))
+                  == migrationIdentity else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var namedSupport = stat(), namedOperations = stat(), namedMigration = stat()
+        guard Darwin.lstat(supportURL.path, &namedSupport) == 0,
+              Self.sameIdentity(currentSupport, namedSupport),
+              Darwin.fstatat(supportFD, "FieldEvidenceOperations",
+                  &namedOperations, AT_SYMLINK_NOFOLLOW) == 0,
+              Self.sameIdentity(currentOperations, namedOperations),
+              Darwin.fstatat(operationsFD, "schema-migration",
+                  &namedMigration, AT_SYMLINK_NOFOLLOW) == 0,
+              Self.sameIdentity(currentMigration, namedMigration) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let name = "manifest-\(generationID.uuidString.lowercased()).json"
+        let names = try existingNames(migrationFD)
+        guard names.contains(name), names.allSatisfy({ candidate in
+            candidate == "aggregate.json" || Self.isManifestName(candidate)
+        }) else { throw StoreMigrationFailure.invalidPath }
+        let fd = Darwin.openat(migrationFD, name,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        manifestFD = fd
+        let before = try regularIdentity(fd)
+        guard before.st_size > 0, before.st_size <= 4 * 1024 * 1024 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let url = migrationURL.appendingPathComponent(name, isDirectory: false)
+        let initialPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+            .journal, at: url)
+        guard initialPolicy.state == .strictComplete,
+              initialPolicy.device == UInt64(before.st_dev),
+              initialPolicy.inode == UInt64(before.st_ino) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        var bytes = Data(count: Int(before.st_size))
+        let size = bytes.count
+        var offset = 0
+        try bytes.withUnsafeMutableBytes { buffer in
+            while offset < size {
+                let count = Darwin.read(fd, buffer.baseAddress!.advanced(by: offset), size - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else { throw StoreMigrationFailure.invalidIdentity }
+                offset += count
+            }
+        }
+        let after = try regularIdentity(fd)
+        var named = stat()
+        let finalPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+            .journal, at: url)
+        guard Self.sameIdentity(before, after),
+              Darwin.fstatat(migrationFD, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              Self.sameIdentity(before, named),
+              finalPolicy.state == .strictComplete,
+              finalPolicy.device == UInt64(before.st_dev),
+              finalPolicy.inode == UInt64(before.st_ino),
+              try existingNames(migrationFD) == names,
+              StoreMigrationCanonicalJSONV1.sha256(bytes) == expectedDigest else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let manifest = try StoreGenerationManifestV1.decodeCanonical(from: bytes)
+        guard manifest.generationID == generationID else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return manifest
+    }
+
+    /// A single terminal attempt. On any close error this owner stays retained
+    /// and no integer descriptor or DIR stream is retried.
+    func closeChecked() throws {
+        guard opened, !closeAttempted else { throw StoreMigrationFailure.invalidIdentity }
+        closeAttempted = true
+        if let stream = directoryStream {
+            directoryStream = nil
+            if Darwin.closedir(stream) != 0 { closeUncertain = true }
+        }
+        for keyPath in [\EraseC05FrozenManifestReaderV1.manifestFD,
+                        \EraseC05FrozenManifestReaderV1.enumerationFD,
+                        \EraseC05FrozenManifestReaderV1.migrationFD,
+                        \EraseC05FrozenManifestReaderV1.operationsFD,
+                        \EraseC05FrozenManifestReaderV1.supportFD] {
+            if let fd = self[keyPath: keyPath] {
+                self[keyPath: keyPath] = nil
+                if Darwin.close(fd) != 0 { closeUncertain = true }
+            }
+        }
+        guard !closeUncertain else { throw StoreMigrationFailure.invalidIdentity }
+    }
+
+    private func existingNames(_ fd: Int32) throws -> [String] {
+        guard enumerationFD == nil, directoryStream == nil else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        let duplicate = Darwin.openat(fd, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard duplicate >= 0 else { throw StoreMigrationFailure.invalidIdentity }
+        enumerationFD = duplicate
+        guard let stream = Darwin.fdopendir(duplicate) else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        enumerationFD = nil
+        directoryStream = stream
+        var result: [String] = []
+        errno = 0
+        while let entry = Darwin.readdir(stream) {
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            if name != "." && name != ".." { result.append(name) }
+            errno = 0
+        }
+        guard errno == 0 else { throw StoreMigrationFailure.invalidIdentity }
+        directoryStream = nil
+        guard Darwin.closedir(stream) == 0 else {
+            closeUncertain = true
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return result.sorted()
+    }
+
+    private func directoryIdentity(_ fd: Int32) throws -> stat {
+        var value = stat()
+        guard Darwin.fstat(fd, &value) == 0,
+              value.st_mode & S_IFMT == S_IFDIR, value.st_nlink >= 1 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return value
+    }
+
+    private func regularIdentity(_ fd: Int32) throws -> stat {
+        var value = stat()
+        guard Darwin.fstat(fd, &value) == 0,
+              value.st_mode & S_IFMT == S_IFREG, value.st_nlink == 1 else {
+            throw StoreMigrationFailure.invalidIdentity
+        }
+        return value
+    }
+
+    private static func sameIdentity(_ lhs: stat, _ rhs: stat) -> Bool {
+        lhs.st_dev == rhs.st_dev && lhs.st_ino == rhs.st_ino
+            && lhs.st_mode == rhs.st_mode && lhs.st_nlink == rhs.st_nlink
+            && lhs.st_size == rhs.st_size
+            && lhs.st_mtimespec.tv_sec == rhs.st_mtimespec.tv_sec
+            && lhs.st_mtimespec.tv_nsec == rhs.st_mtimespec.tv_nsec
+            && lhs.st_ctimespec.tv_sec == rhs.st_ctimespec.tv_sec
+            && lhs.st_ctimespec.tv_nsec == rhs.st_ctimespec.tv_nsec
+    }
+
+    private static func isManifestName(_ name: String) -> Bool {
+        guard name.hasPrefix("manifest-"), name.hasSuffix(".json") else { return false }
+        let value = String(name.dropFirst("manifest-".count).dropLast(".json".count))
+        return UUID(uuidString: value)?.uuidString.lowercased() == value
     }
 }
 
@@ -3187,6 +13264,32 @@ final class StoreMigrationJournalStoreV1 {
 /// wall-clock expiry as liveness authority. An owner is abandoned only when
 /// its exact owner-lock file can be locked exclusively.
 @MainActor
+final class OriginalEraseExclusiveScratchPermitV1 {
+    private let check: @MainActor () throws -> Void
+    private let poison: @MainActor () -> Void
+    private var active = true
+
+    fileprivate init(check: @escaping @MainActor () throws -> Void,
+                     poison: @escaping @MainActor () -> Void) {
+        self.check = check
+        self.poison = poison
+    }
+
+    func requireHeld() throws {
+        guard active else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try check()
+    }
+
+    func poisonOnUncertainCleanup() {
+        if active { poison() }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+
+// Completed-abort and original-recovery scopes mint distinct capabilities.
+// A scratch reader may share mechanics, but callers cannot substitute owners.
+@MainActor
 final class CompletedAbortExclusiveScratchPermitV1 {
     private let check: @MainActor () throws -> Void
     private let poison: @MainActor () -> Void
@@ -3208,6 +13311,43 @@ final class CompletedAbortExclusiveScratchPermitV1 {
     }
 
     fileprivate func revoke() { active = false }
+}
+
+
+/// A distinct, one-effect capability for the authentic original recovery
+/// pointer-phase CAS. It can be minted only inside that owner's checked G
+/// scope; the scratch capability alone is never accepted by a journal writer.
+@MainActor
+final class OriginalEraseRecoveryFirstEffectPermitV1 {
+    private let scope: OriginalEraseExclusiveScratchPermitV1
+    fileprivate init(scope: OriginalEraseExclusiveScratchPermitV1) {
+        self.scope = scope
+    }
+    func requireHeld() throws { try scope.requireHeld() }
+}
+
+/// A separate original-operation stage for the durable retired-pointer
+/// commitment before any Data temporary. It does not authorize the P→Q CAS.
+@MainActor
+final class OriginalEraseRecoveryRetiredCommitmentPermitV1 {
+    private let scope: OriginalEraseExclusiveScratchPermitV1
+    fileprivate init(scope: OriginalEraseExclusiveScratchPermitV1) {
+        self.scope = scope
+    }
+    func requireHeld() throws { try scope.requireHeld() }
+}
+
+/// The next same-owner G interval starts only after the first retired
+/// commitment is durable. It remains held across the private stage and its
+/// separate inode commitment; the first commitment permit cannot authorize
+/// either effect.
+@MainActor
+final class OriginalEraseRecoveryRetiredStagePermitV1 {
+    private let scope: OriginalEraseExclusiveScratchPermitV1
+    fileprivate init(scope: OriginalEraseExclusiveScratchPermitV1) {
+        self.scope = scope
+    }
+    func requireHeld() throws { try scope.requireHeld() }
 }
 
 final class GenerationLeaseRegistryV1: @unchecked Sendable {
@@ -3261,7 +13401,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         }
     }
 
-    private struct Identity: Equatable {
+    fileprivate struct Identity: Equatable {
         let device: dev_t
         let inode: ino_t
         let linkCount: nlink_t
@@ -3283,7 +13423,7 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         }
     }
 
-    private struct FileSnapshot: Equatable {
+    fileprivate struct FileSnapshot: Equatable {
         let identity: Identity
         let byteCount: off_t
         let modificationSeconds: Int64
@@ -3310,6 +13450,10 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     private static let ownerDirectoryName = "owners"
     private static let registryName = "registry.json"
     private static let registryTemporaryName = "registry.next.json"
+    private static let schema2ColdReaderRecordName =
+        "cold-reader-publication.v1"
+    private static let originalEraseRetainedReaderRecordName =
+        "original-reader-publication.v1"
     private static let mutationLockName = "mutation.lock"
     private static let pruneIntentName = "prune-intent.json"
     private static let pruneIntentTemporaryName = "prune-intent.next.json"
@@ -3374,6 +13518,12 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         var temporary: Int32 = -1
         var temporaryIdentity: Identity?
         var preparedSnapshot: FileSnapshot?
+        var preRenameFullFact: String?
+        var originalWriterCreatedTemporaryFact: String?
+        var originalWriterFirstImage:
+            OriginalEraseRetainedLeaseTreeImageV1?
+        var originalWriterFirstRegistryFact: String?
+        var originalWriterAllocationIdentity: ObjectIdentifier?
         var renamed = false
         var temporaryRemoved = false
         private var checkedClosed = Set<Int32>()
@@ -3429,9 +13579,24 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     }
     private var freshWriterPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
     private var freshReaderPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
+    private var originalEraseRetainedReaderPolicyUncertainDescriptors:
+        [Int32] = []
+    private var originalEraseRetainedReaderAbsenceUncertain = false
+    private var originalEraseRetainedReaderEffectUncertain = false
+    private var originalEraseWriterProjectionUncertain = false
+    private var originalEraseWriterRecoveryUncertain = false
+    private var originalErasePointerEffectUncertain = false
     private var preparationReaderPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
     private var coldPreparationReaderPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
     private var preparationWriterPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
+    private var eraseC05ColdWriterPublications: [ObjectIdentifier: FreshAdoptionReplacement] = [:]
+    private var eraseC05ColdOwnedTokens: Set<UUID> = []
+    private var eraseC05ColdGuardRemoved = false
+    private var eraseC05ColdGuardClosed = false
+    private var eraseC05ColdGuardCloseUncertain = false
+    /// Failed close from a no-repair C05 admission probe is terminal. Keep
+    /// the exact descriptor number as evidence, never retry its close.
+    private var eraseC05AdmissionProbeUncertainDescriptors: [Int32] = []
     private var freshAdoptionReleases: [UUID: FreshAdoptionReplacement] = [:]
     private var temporalReleaseAttempts: [UUID: TemporalReleaseAttempt] = [:]
     private var temporalReaderAllocations: [ObjectIdentifier: TemporalReleaseAttempt] = [:]
@@ -3474,6 +13639,46 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     private var restoreExitReaderRelease: RestoreExitReaderRelease?
     private var temporalColdGuardRemoved = false
     private var isTemporalColdOwner = false
+    private var isEraseC05ColdOwner = false
+    private var eraseC05ColdMutationUncertain = false
+    private var isEraseSchema2ColdOwner = false
+    private var eraseSchema2ColdReaderSettlement:
+        EraseSchema2ColdReaderSettlementV1?
+    private var eraseSchema2ColdPolicyUncertainDescriptors: [Int32] = []
+    private var originalEraseAuxiliaryPolicyUncertainDescriptors: [Int32] = []
+    private enum Schema2ColdReaderPublishStageV1: String {
+        case lock, allocation, admission, priorCensus, manifestOwner
+        case token, manifestBegin, recordCreate, recordPrefix, recordWrite
+        case recordPolicy, recordDurability, recordReproof
+        case registryOriginal, registryPrior, temporaryCreate
+        case temporaryPrefix, temporaryWrite, temporaryPolicy
+        case temporarySnapshot, rename, directoryDurability
+        case registryReadback, renamedSnapshot, replacementReproof
+        case originalClose, temporaryClose
+        case handle, manifestFinish, completed
+    }
+    private enum Schema2ColdReaderPublishCheckV1: String {
+        case none, owner, namedBytes, initialMode, currentMode
+        case stableIdentitySizeModification, checkedSetter, checkedClose
+    }
+#if DEBUG
+    private var schema2ColdReaderPublishStage:
+        Schema2ColdReaderPublishStageV1 = .lock
+    private var schema2ColdReaderPublishCheck:
+        Schema2ColdReaderPublishCheckV1 = .none
+#endif
+
+    @MainActor
+    private func markSchema2ColdReaderPublish(
+        _ stage: Schema2ColdReaderPublishStageV1,
+        check: Schema2ColdReaderPublishCheckV1 = .none
+    ) {
+#if DEBUG
+        schema2ColdReaderPublishStage = stage
+        schema2ColdReaderPublishCheck = check
+#endif
+    }
+    private var eraseSchema2ColdMutationUncertain = false
 #if DEBUG
     private var isV949HostileFixtureOwner = false
     private var v949HostileWitnessID: ObjectIdentifier?
@@ -4151,6 +14356,102 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         isTemporalColdOwner = true
     }
 
+
+    @MainActor
+    private init(eraseSchema2ColdAt applicationSupportURL: URL,
+                 operation: EraseColdPreparationOperationV1,
+                 construction: TemporalColdRegistryConstructionV1) throws {
+        try operation.requireSchema2ColdRegistryConstruction()
+        let ownerID = UUID()
+        let makeLeaseID: @Sendable () -> UUID = UUID.init
+        let now: @Sendable () -> Date = Date.init
+        let initializationTesting: StoreControlInitializationTestHooksV1? = nil
+        let root = applicationSupportURL.standardizedFileURL
+        let rootDescriptor = Darwin.open(
+            root.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+        )
+        guard rootDescriptor >= 0 else {
+            throw Self.mappedFailure()
+        }
+        construction.retain(rootDescriptor, at: root)
+        let rootIdentity = try Self.directoryIdentity(rootDescriptor)
+        let operationsURL = root.appendingPathComponent(
+            Self.operationsName, isDirectory: true)
+        let operationsDescriptor = try Self.openExistingEraseSchema2Directory(
+            parent: rootDescriptor, name: Self.operationsName,
+            at: operationsURL, construction: construction)
+        let operationsIdentity = try Self.directoryIdentity(
+            operationsDescriptor
+        )
+        let leaseURL = operationsURL.appendingPathComponent(
+            Self.leaseDirectoryName, isDirectory: true)
+        let leaseDescriptor = try Self.openExistingEraseSchema2Directory(
+            parent: operationsDescriptor, name: Self.leaseDirectoryName,
+            at: leaseURL, construction: construction)
+        let leaseIdentity = try Self.directoryIdentity(leaseDescriptor)
+        let ownersURL = leaseURL.appendingPathComponent(
+            Self.ownerDirectoryName, isDirectory: true)
+        let ownersDescriptor = try Self.openExistingEraseSchema2Directory(
+            parent: leaseDescriptor, name: Self.ownerDirectoryName,
+            at: ownersURL, construction: construction)
+        let ownersIdentity = try Self.directoryIdentity(ownersDescriptor)
+        let mutationDescriptor = Darwin.openat(leaseDescriptor, Self.mutationLockName,
+            O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard mutationDescriptor >= 0 else { throw Self.mappedFailure() }
+        construction.retain(mutationDescriptor, at: root.appendingPathComponent(Self.operationsName).appendingPathComponent(Self.leaseDirectoryName).appendingPathComponent(Self.mutationLockName))
+        let mutation = (descriptor: mutationDescriptor,
+                        identity: try Self.regularFileIdentity(mutationDescriptor))
+        let ownerName = Self.ownerLockName(ownerID)
+        let ownerDescriptor = Darwin.openat(ownersDescriptor, ownerName,
+            O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
+        guard ownerDescriptor >= 0 else { throw Self.mappedFailure() }
+        construction.retainCreatedGuard(ownerDescriptor, parent: ownersDescriptor, name: ownerName,
+            at: root.appendingPathComponent(Self.operationsName).appendingPathComponent(Self.leaseDirectoryName).appendingPathComponent(Self.ownerDirectoryName).appendingPathComponent(ownerName))
+        let owner = (descriptor: ownerDescriptor,
+                     identity: try Self.regularFileIdentity(ownerDescriptor))
+        guard flock(owner.descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.duplicateLease
+        }
+
+
+        #if DEBUG
+        try initializationTesting?.boundary(.beforeOwnershipTransfer)
+        #endif
+        self.ownerID = ownerID
+        self.applicationSupportURL = root
+        self.operationsURL = root.appendingPathComponent(
+            Self.operationsName,
+            isDirectory: true
+        )
+        self.leaseURL = self.operationsURL.appendingPathComponent(
+            Self.leaseDirectoryName,
+            isDirectory: true
+        )
+        self.ownersURL = self.leaseURL.appendingPathComponent(
+            Self.ownerDirectoryName,
+            isDirectory: true
+        )
+        self.rootDescriptor = rootDescriptor
+        self.operationsDescriptor = operationsDescriptor
+        self.leaseDescriptor = leaseDescriptor
+        self.ownersDescriptor = ownersDescriptor
+        self.mutationLockDescriptor = mutation.descriptor
+        self.ownerLockDescriptor = owner.descriptor
+        self.rootIdentity = rootIdentity
+        self.operationsIdentity = operationsIdentity
+        self.leaseIdentity = leaseIdentity
+        self.ownersIdentity = ownersIdentity
+        self.mutationLockIdentity = mutation.identity
+        self.ownerLockIdentity = owner.identity
+        self.makeLeaseID = makeLeaseID
+        self.now = now
+        self.initializationTesting = initializationTesting
+        // No further throwing work before the caller retains this registry.
+        construction.transferDescriptorsToRegistry()
+        isEraseSchema2ColdOwner = true
+    }
+
 #if DEBUG
     @MainActor
     private init(v949HostileAt applicationSupportURL: URL,
@@ -4251,6 +14552,99 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
 #endif
 
     @MainActor
+    private init(eraseC05ColdAt applicationSupportURL: URL,
+                 operation: EraseColdPreparationOperationV1,
+                 construction: EraseC05ColdRegistryConstructionV1) throws {
+        try operation.requireC05ColdRegistryConstruction()
+        let ownerID = UUID()
+        let makeLeaseID: @Sendable () -> UUID = UUID.init
+        let now: @Sendable () -> Date = Date.init
+        let initializationTesting: StoreControlInitializationTestHooksV1? = nil
+        let root = applicationSupportURL.standardizedFileURL
+        let rootDescriptor = Darwin.open(
+            root.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+        )
+        guard rootDescriptor >= 0 else {
+            throw Self.mappedFailure()
+        }
+        construction.retain(rootDescriptor, at: root)
+        let rootIdentity = try Self.directoryIdentity(rootDescriptor)
+        let operationsURL = root.appendingPathComponent(Self.operationsName, isDirectory: true)
+        let operationsDescriptor = try Self.openExistingEraseC05Directory(
+            parent: rootDescriptor, name: Self.operationsName,
+            url: operationsURL, construction: construction)
+        let operationsIdentity = try Self.directoryIdentity(
+            operationsDescriptor
+        )
+        let leaseURL = operationsURL.appendingPathComponent(Self.leaseDirectoryName, isDirectory: true)
+        let leaseDescriptor = try Self.openExistingEraseC05Directory(
+            parent: operationsDescriptor, name: Self.leaseDirectoryName,
+            url: leaseURL, construction: construction)
+        let leaseIdentity = try Self.directoryIdentity(leaseDescriptor)
+        let ownersURL = leaseURL.appendingPathComponent(Self.ownerDirectoryName, isDirectory: true)
+        let ownersDescriptor = try Self.openExistingEraseC05Directory(
+            parent: leaseDescriptor, name: Self.ownerDirectoryName,
+            url: ownersURL, construction: construction)
+        let ownersIdentity = try Self.directoryIdentity(ownersDescriptor)
+        let mutationDescriptor = Darwin.openat(leaseDescriptor, Self.mutationLockName,
+            O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard mutationDescriptor >= 0 else { throw Self.mappedFailure() }
+        construction.retain(mutationDescriptor, at: root.appendingPathComponent(Self.operationsName).appendingPathComponent(Self.leaseDirectoryName).appendingPathComponent(Self.mutationLockName))
+        let mutation = (descriptor: mutationDescriptor,
+                        identity: try Self.regularFileIdentity(mutationDescriptor))
+        let ownerName = Self.ownerLockName(ownerID)
+        let ownerDescriptor = Darwin.openat(ownersDescriptor, ownerName,
+            O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
+        guard ownerDescriptor >= 0 else { throw Self.mappedFailure() }
+        construction.retainCreatedGuard(ownerDescriptor, parent: ownersDescriptor, name: ownerName,
+            at: root.appendingPathComponent(Self.operationsName).appendingPathComponent(Self.leaseDirectoryName).appendingPathComponent(Self.ownerDirectoryName).appendingPathComponent(ownerName))
+        let owner = (descriptor: ownerDescriptor,
+                     identity: try Self.regularFileIdentity(ownerDescriptor))
+        guard flock(owner.descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.duplicateLease
+        }
+
+
+        #if DEBUG
+        try initializationTesting?.boundary(.beforeOwnershipTransfer)
+        #endif
+        self.ownerID = ownerID
+        self.applicationSupportURL = root
+        self.operationsURL = root.appendingPathComponent(
+            Self.operationsName,
+            isDirectory: true
+        )
+        self.leaseURL = self.operationsURL.appendingPathComponent(
+            Self.leaseDirectoryName,
+            isDirectory: true
+        )
+        self.ownersURL = self.leaseURL.appendingPathComponent(
+            Self.ownerDirectoryName,
+            isDirectory: true
+        )
+        self.rootDescriptor = rootDescriptor
+        self.operationsDescriptor = operationsDescriptor
+        self.leaseDescriptor = leaseDescriptor
+        self.ownersDescriptor = ownersDescriptor
+        self.mutationLockDescriptor = mutation.descriptor
+        self.ownerLockDescriptor = owner.descriptor
+        self.rootIdentity = rootIdentity
+        self.operationsIdentity = operationsIdentity
+        self.leaseIdentity = leaseIdentity
+        self.ownersIdentity = ownersIdentity
+        self.mutationLockIdentity = mutation.identity
+        self.ownerLockIdentity = owner.identity
+        self.makeLeaseID = makeLeaseID
+        self.now = now
+        self.initializationTesting = initializationTesting
+        // No further throwing work before the caller retains this registry.
+        construction.transferDescriptorsToRegistry()
+        isEraseC05ColdOwner = true
+    }
+
+
+    @MainActor
     func finishTemporalColdConstruction(operation: TemporalNormalizationColdOperationAuthorityV1,
         scope: TemporalNormalizationColdAccessScopeV1) throws {
         guard isTemporalColdOwner else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
@@ -4268,6 +14662,121 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         try scope.requireOperation(operation)
         // No generic init cleanup/reconciliation is enabled. The cold owner
         // later disposes this exact new guard under its retained EX.
+    }
+
+    /// The Erase startup owner has already retained the exact construction
+    /// attempt. Existing controls are observations; only the newly created
+    /// owner guard receives policy. There is no registry repair or bootstrap.
+    @MainActor
+    func finishEraseC05ColdConstruction(operation: EraseColdPreparationOperationV1) throws {
+        guard isEraseC05ColdOwner else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireConstructedC05ColdRegistry(self)
+        try verify()
+        for url in [operationsURL, leaseURL, ownersURL] {
+            let observed = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                .generationLeaseDirectory, at: url)
+            guard observed.state == .strictComplete else {
+                throw GenerationLeaseRegistryFailureV1.invalidIdentity
+            }
+        }
+        let mutationPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+            .generationLeaseControl,
+            at: leaseURL.appendingPathComponent(Self.mutationLockName))
+        guard mutationPolicy.state == .strictComplete else {
+            throw GenerationLeaseRegistryFailureV1.invalidIdentity
+        }
+        try protectFile(.generationLeaseOwnerLock, parent: ownersDescriptor,
+            directoryURL: ownersURL, name: Self.ownerLockName(ownerID),
+            expected: ownerLockIdentity)
+        try operation.requireConstructedC05ColdRegistry(self)
+    }
+
+    @MainActor
+    static func openExistingForEraseC05Cold(
+        applicationSupportURL: URL,
+        operation: EraseColdPreparationOperationV1,
+        construction: EraseC05ColdRegistryConstructionV1
+    ) throws -> GenerationLeaseRegistryV1 {
+        try operation.requireC05ColdRegistryConstruction()
+        let registry = try GenerationLeaseRegistryV1(
+            eraseC05ColdAt: applicationSupportURL,
+            operation: operation, construction: construction)
+        // No suspension or throwing step between transfer and retention.
+        operation.retainConstructedC05ColdRegistry(registry)
+        try registry.finishEraseC05ColdConstruction(operation: operation)
+        return registry
+    }
+
+    @MainActor
+    func finishEraseSchema2ColdConstruction(
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard isEraseSchema2ColdOwner else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireConstructedSchema2ColdRegistry(self)
+        try verify()
+        for url in [operationsURL, leaseURL, ownersURL] {
+            let observation = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .generationLeaseDirectory, at: url,
+                    retainUncertainDescriptor: { descriptor in
+                        self.eraseSchema2ColdPolicyUncertainDescriptors.append(descriptor)
+                    })
+            guard observation.state == .strictComplete,
+                  eraseSchema2ColdPolicyUncertainDescriptors.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+        let mutation = try ProtectedFilePolicyV1
+            .observeTemporalPolicyWithCheckedClose(
+                .generationLeaseControl,
+                at: leaseURL.appendingPathComponent(Self.mutationLockName),
+                retainUncertainDescriptor: { descriptor in
+                    self.eraseSchema2ColdPolicyUncertainDescriptors.append(descriptor)
+                })
+        guard mutation.state == .strictComplete,
+              eraseSchema2ColdPolicyUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // Only this fresh O_EXCL owner guard receives a policy setter. The
+        // original helper's transient pin closes are unchecked; this cold
+        // owner must retain any ambiguous descriptor and refuse all later
+        // authority instead of treating a completed setter as checked proof.
+        let ownerName = Self.ownerLockName(ownerID)
+        _ = try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                .generationLeaseOwnerLock,
+                at: ownersURL.appendingPathComponent(ownerName),
+                retainUncertainDescriptor: { descriptor in
+                    self.eraseSchema2ColdPolicyUncertainDescriptors.append(
+                        descriptor)
+                }, authorityCheck: {
+                    try self.verify()
+                    try self.requireNamedIdentity(parent: self.ownersDescriptor,
+                        name: ownerName, expected: self.ownerLockIdentity)
+                })
+        guard eraseSchema2ColdPolicyUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireConstructedSchema2ColdRegistry(self)
+    }
+
+    @MainActor
+    static func openExistingForEraseSchema2Cold(
+        applicationSupportURL: URL,
+        operation: EraseColdPreparationOperationV1,
+        construction: TemporalColdRegistryConstructionV1
+    ) throws -> GenerationLeaseRegistryV1 {
+        try operation.requireSchema2ColdRegistryConstruction()
+        let registry = try GenerationLeaseRegistryV1(
+            eraseSchema2ColdAt: applicationSupportURL,
+            operation: operation, construction: construction)
+        operation.retainConstructedSchema2ColdRegistry(registry)
+        try registry.finishEraseSchema2ColdConstruction(operation: operation)
+        return registry
     }
 
     @MainActor
@@ -4398,12 +14907,40 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
     }
 #endif
 
+    @MainActor
+    private static func openExistingEraseSchema2Directory(
+        parent: Int32, name: String, at url: URL,
+        construction: TemporalColdRegistryConstructionV1
+    ) throws -> Int32 {
+        try requireSafeName(name)
+        let descriptor = Darwin.openat(parent, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw Self.mappedFailure() }
+        construction.retain(descriptor, at: url)
+        _ = try directoryIdentity(descriptor)
+        return descriptor
+    }
+
     private static func openExistingTemporalDirectory(parent: Int32, name: String) throws -> Int32 {
         try requireSafeName(name)
         let descriptor = Darwin.openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else { throw Self.mappedFailure() }
         do { _ = try directoryIdentity(descriptor); return descriptor }
         catch { _ = Darwin.close(descriptor); throw error }
+    }
+
+    @MainActor
+    private static func openExistingEraseC05Directory(
+        parent: Int32, name: String, url: URL,
+        construction: EraseC05ColdRegistryConstructionV1
+    ) throws -> Int32 {
+        try requireSafeName(name)
+        let fd = Darwin.openat(parent, name,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw Self.mappedFailure() }
+        construction.retain(fd, at: url) // before fallible identity validation
+        _ = try directoryIdentity(fd)
+        return fd
     }
 
     deinit {
@@ -5650,6 +16187,13 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
               name != temporaryName else {
             throw Self.identityFailure()
         }
+        if name == Self.registryName,
+           !((try RegistryStateV1.decodeCanonical(from: data)).leases.isEmpty) {
+            // The first registry publication is also a lease insertion.
+            // It must not evade the durable C05 admission seal merely
+            // because no canonical registry file existed yet.
+            try requireNoDrainedC05PreparationForLeaseInsertionLocked()
+        }
 
         if try itemExistsLocked(name) {
             let current = try readControlLocked(name: name)
@@ -5725,6 +16269,17 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
             throw Self.identityFailure()
         }
         let expected = try readControlLocked(name: name)
+        if name == Self.registryName, expected.data != data {
+            let old = try RegistryStateV1.decodeCanonical(from: expected.data)
+            let next = try RegistryStateV1.decodeCanonical(from: data)
+            let oldIDs = Set(old.leases.map(\.leaseID))
+            if next.leases.contains(where: { !oldIDs.contains($0.leaseID) }) {
+                // All ordinary and temporal replacement insertions converge
+                // here while G is held. A durable DRAINED marker seals new
+                // leases across the later G-unlocked Store actor await.
+                try requireNoDrainedC05PreparationForLeaseInsertionLocked()
+            }
+        }
         if expected.data == data {
             if try itemExistsLocked(temporaryName) {
                 try removeControlLocked(
@@ -5780,6 +16335,125 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         guard persisted.identity == temporary.identity,
               persisted.data == data else {
             throw GenerationLeaseRegistryFailureV1.corruptRegistry
+        }
+    }
+
+    private func withCheckedC05AdmissionProbe<T>(
+        _ descriptor: Int32,
+        _ body: (Int32) throws -> T
+    ) throws -> T {
+        guard eraseC05AdmissionProbeUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let result = Result { try body(descriptor) }
+        guard Darwin.close(descriptor) == 0 else {
+            eraseC05AdmissionProbeUncertainDescriptors.append(descriptor)
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try result.get()
+    }
+
+    /// An observation, never a repair. It is called under G at the common
+    /// registry insertion edge; malformed or ambiguous controls deny a new
+    /// token. The cold operation's retained reader remains the authority for
+    /// advancing the preparation itself.
+    private func requireNoDrainedC05PreparationForLeaseInsertionLocked()
+        throws {
+        guard eraseC05AdmissionProbeUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let eraseFD = Darwin.openat(rootDescriptor, "FieldEvidenceErase",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        if eraseFD < 0 {
+            guard errno == ENOENT else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return
+        }
+        try withCheckedC05AdmissionProbe(eraseFD) { heldErase in
+            var directory = stat(), namedDirectory = stat(), temp = stat()
+            guard Darwin.fstat(heldErase, &directory) == 0,
+                  (directory.st_mode & S_IFMT) == S_IFDIR,
+                  Darwin.fstatat(rootDescriptor, "FieldEvidenceErase",
+                      &namedDirectory, AT_SYMLINK_NOFOLLOW) == 0,
+                  directory.st_dev == namedDirectory.st_dev,
+                  directory.st_ino == namedDirectory.st_ino,
+                  Darwin.fstatat(heldErase, ".preparation.json.next",
+                      &temp, AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let rootPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                .stagingDirectory,
+                at: applicationSupportURL.appendingPathComponent(
+                    "FieldEvidenceErase", isDirectory: true))
+            guard rootPolicy.state == .strictComplete,
+                  rootPolicy.device == UInt64(directory.st_dev),
+                  rootPolicy.inode == UInt64(directory.st_ino) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let preparationFD = Darwin.openat(heldErase,
+                "preparation.json", O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            if preparationFD < 0 {
+                guard errno == ENOENT else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                return
+            }
+            try withCheckedC05AdmissionProbe(preparationFD) { heldPreparation in
+                var leaf = stat(), namedLeaf = stat()
+                guard Darwin.fstat(heldPreparation, &leaf) == 0,
+                      (leaf.st_mode & S_IFMT) == S_IFREG,
+                      leaf.st_nlink == 1, leaf.st_size > 0,
+                      leaf.st_size <= 96 * 1024 * 1024,
+                      Darwin.fstatat(heldErase, "preparation.json",
+                          &namedLeaf, AT_SYMLINK_NOFOLLOW) == 0,
+                      leaf.st_dev == namedLeaf.st_dev,
+                      leaf.st_ino == namedLeaf.st_ino,
+                      Darwin.lseek(heldPreparation, 0, SEEK_SET) == 0 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                    .journal,
+                    at: applicationSupportURL
+                        .appendingPathComponent("FieldEvidenceErase")
+                        .appendingPathComponent("preparation.json"))
+                guard policy.state == .strictComplete,
+                      policy.device == UInt64(leaf.st_dev),
+                      policy.inode == UInt64(leaf.st_ino) else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                var bytes = Data(count: Int(leaf.st_size))
+                try bytes.withUnsafeMutableBytes { raw in
+                    var offset = 0
+                    while offset < raw.count {
+                        let count = Darwin.read(heldPreparation,
+                            raw.baseAddress!.advanced(by: offset),
+                            raw.count - offset)
+                        if count < 0 && errno == EINTR { continue }
+                        guard count > 0 else {
+                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                        }
+                        offset += count
+                    }
+                }
+                var after = stat(), namedAfter = stat()
+                guard Darwin.fstat(heldPreparation, &after) == 0,
+                      Darwin.fstatat(heldErase, "preparation.json",
+                          &namedAfter, AT_SYMLINK_NOFOLLOW) == 0,
+                      leaf.st_dev == after.st_dev,
+                      leaf.st_ino == after.st_ino,
+                      leaf.st_size == after.st_size,
+                      after.st_dev == namedAfter.st_dev,
+                      after.st_ino == namedAfter.st_ino else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                let preparation = try ErasePreparationCodecV2.decode(bytes)
+                if preparation.c05JobDrainV3?.phase == .drained
+                    || preparation.c05JobDrainV3?.phase == .rootRemoved {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
         }
     }
 
@@ -5905,12 +16579,85 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         guard !restoreSourceCloseLock.withLock({ restoreSourceTerminal }) else {
             throw Self.uncertainOwnerFailure()
         }
+        guard !originalEraseRetainedReaderAbsenceUncertain,
+              !originalEraseRetainedReaderEffectUncertain,
+              !originalEraseWriterProjectionUncertain,
+              !originalErasePointerEffectUncertain,
+              originalEraseRetainedReaderPolicyUncertainDescriptors.isEmpty else {
+            throw Self.uncertainOwnerFailure()
+        }
 #if DEBUG
         try requireOriginalEraseAdmission()
         guard eraseAbandonmentLock.withLock({ !eraseAbandonedForColdRestart }) else {
             throw Self.uncertainOwnerFailure()
         }
 #endif
+        if isEraseC05ColdOwner {
+            guard !eraseC05ColdMutationUncertain else {
+                throw Self.uncertainOwnerFailure()
+            }
+            // The exact cold owner already holds every directory/control FD.
+            // Reopening the root here would create an unretained descriptor on
+            // a post-marker failure, so use held and named identity only.
+            var namedRoot = stat()
+            guard Darwin.lstat(applicationSupportURL.path, &namedRoot) == 0,
+                  Identity(namedRoot) == rootIdentity,
+                  try Self.directoryIdentity(rootDescriptor) == rootIdentity,
+                  try Self.directoryIdentity(operationsDescriptor) == operationsIdentity,
+                  try Self.directoryIdentity(leaseDescriptor) == leaseIdentity,
+                  try Self.directoryIdentity(ownersDescriptor) == ownersIdentity,
+                  try Self.regularFileIdentity(mutationLockDescriptor) == mutationLockIdentity,
+                  try Self.regularFileIdentity(ownerLockDescriptor) == ownerLockIdentity else {
+                throw Self.identityFailure()
+            }
+            try requireNamedDirectoryIdentity(parent: rootDescriptor,
+                name: Self.operationsName, expected: operationsIdentity)
+            try requireNamedDirectoryIdentity(parent: operationsDescriptor,
+                name: Self.leaseDirectoryName, expected: leaseIdentity)
+            try requireNamedDirectoryIdentity(parent: leaseDescriptor,
+                name: Self.ownerDirectoryName, expected: ownersIdentity)
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.mutationLockName, expected: mutationLockIdentity)
+            try requireNamedIdentity(parent: ownersDescriptor,
+                name: Self.ownerLockName(ownerID), expected: ownerLockIdentity)
+            return
+        }
+        if isEraseSchema2ColdOwner {
+            guard eraseSchema2ColdPolicyUncertainDescriptors.isEmpty,
+                  !eraseSchema2ColdMutationUncertain else {
+                throw Self.uncertainOwnerFailure()
+            }
+            // The operation already retains the exact opened controls. Do not
+            // acquire an untracked transient descriptor to reprove them.
+            var named = stat()
+            guard Darwin.lstat(applicationSupportURL.path, &named) == 0,
+                  Identity(named) == rootIdentity,
+                  try Self.directoryIdentity(rootDescriptor) == rootIdentity,
+                  try Self.directoryIdentity(operationsDescriptor)
+                    == operationsIdentity,
+                  try Self.directoryIdentity(leaseDescriptor) == leaseIdentity,
+                  try Self.directoryIdentity(ownersDescriptor) == ownersIdentity,
+                  try Self.regularFileIdentity(mutationLockDescriptor)
+                    == mutationLockIdentity,
+                  try Self.regularFileIdentity(ownerLockDescriptor)
+                    == ownerLockIdentity else {
+                throw Self.identityFailure()
+            }
+            for (parent, name, expected) in [
+                (rootDescriptor, Self.operationsName, operationsIdentity),
+                (operationsDescriptor, Self.leaseDirectoryName, leaseIdentity),
+                (leaseDescriptor, Self.ownerDirectoryName, ownersIdentity),
+                (leaseDescriptor, Self.mutationLockName, mutationLockIdentity),
+                (ownersDescriptor, Self.ownerLockName(ownerID), ownerLockIdentity),
+            ] {
+                guard Darwin.fstatat(parent, name, &named,
+                        AT_SYMLINK_NOFOLLOW) == 0,
+                      Identity(named) == expected else {
+                    throw Self.identityFailure()
+                }
+            }
+            return
+        }
         let reopenedRoot = Darwin.open(
             applicationSupportURL.path,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
@@ -5963,6 +16710,16 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         name: String,
         expected: Identity
     ) throws {
+        if isEraseSchema2ColdOwner {
+            var named = stat()
+            guard eraseSchema2ColdPolicyUncertainDescriptors.isEmpty,
+                  Darwin.fstatat(parent, name, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  Identity(named) == expected else {
+                throw Self.identityFailure()
+            }
+            return
+        }
         try Self.requireNamedIdentity(
             parent: parent,
             name: name,
@@ -5990,6 +16747,16 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
         name: String,
         expected: Identity
     ) throws {
+        if isEraseSchema2ColdOwner {
+            var named = stat()
+            guard eraseSchema2ColdPolicyUncertainDescriptors.isEmpty,
+                  Darwin.fstatat(parent, name, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  Identity(named) == expected else {
+                throw Self.identityFailure()
+            }
+            return
+        }
         let descriptor = Darwin.openat(
             parent,
             name,
@@ -6121,6 +16888,8 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
              pruneReceiptTemporaryName:
             return .generationLeaseControlTemporary
         case registryName,
+             schema2ColdReaderRecordName,
+             originalEraseRetainedReaderRecordName,
              pruneIntentName,
              pruneReceiptName:
             return .generationLeaseControl
@@ -6256,6 +17025,344 @@ final class GenerationLeaseRegistryV1: @unchecked Sendable {
 // registry and writer lease, then performs the same no-suspension G-locked
 // writer/epoch reproof as a normal commit without crossing a MainActor fence.
 extension GenerationLeaseRegistryV1 {
+    /// A fresh cold Registry has a new ownerID. It cannot adopt the prior
+    /// process's target reader. Classify the exact durable record and
+    /// Registry cut under this operation's EX/G; if the recorded old owner
+    /// guard is provably dead, remove only that one old token and then let
+    /// the new operation mint its own token. No broad abandoned-owner sweep.
+    @MainActor
+    func settleEraseSchema2ColdRecordedTargetReader(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> [GenerationLeaseTokenV1] {
+        try operation.requireConstructedSchema2ColdRegistry(self)
+        try operation.requireSchema2ColdManifestOwner(manifest)
+        try operation.requireSchema2ColdOriginalControls(
+            intent: intent, preparation: preparation)
+        return try withEraseSchema2ColdMutationLock(
+            operation: operation, activity: activity) {
+            try manifest.beginSchema2ColdRecordedReaderSettlement(
+                operation: operation, registry: self)
+            let result = try settleEraseSchema2ColdRecordedTargetReaderLocked(
+                intent: intent, preparation: preparation,
+                operation: operation)
+            try manifest.finishSchema2ColdRecordedReaderSettlement(
+                operation: operation, registry: self)
+            return result
+        }
+    }
+
+    @MainActor
+    private func settleEraseSchema2ColdRecordedTargetReaderLocked(
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> [GenerationLeaseTokenV1] {
+        guard eraseSchema2ColdReaderSettlement == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let settlement = EraseSchema2ColdReaderSettlementV1()
+        eraseSchema2ColdReaderSettlement = settlement
+        let observed = try readEraseSchema2ColdRegistryLocked(
+            operation: operation)
+        var named = stat()
+        let recordExists = Darwin.fstatat(leaseDescriptor,
+            Self.schema2ColdReaderRecordName, &named,
+            AT_SYMLINK_NOFOLLOW) == 0
+        guard recordExists || errno == ENOENT else {
+            throw Self.identityFailure()
+        }
+        if !recordExists {
+            guard try !Self.itemExists(parent: leaseDescriptor,
+                    name: Self.registryTemporaryName) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            settlement.completed = true
+            return observed
+        }
+        let recordFD = Darwin.openat(leaseDescriptor,
+            Self.schema2ColdReaderRecordName,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard recordFD >= 0 else { throw Self.mappedFailure() }
+        settlement.recordFD = recordFD
+        let recordSnapshot = try Self.regularFileSnapshot(recordFD)
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: Self.schema2ColdReaderRecordName,
+            expected: recordSnapshot.identity)
+        let recordBytes = try Self.readAll(from: recordFD)
+        guard try Self.regularFileSnapshot(recordFD) == recordSnapshot else {
+            throw Self.identityFailure()
+        }
+        let currentBytes = try RegistryStateV1(leases: observed)
+            .canonicalData()
+        let currentSHA = StoreMigrationCanonicalJSONV1.sha256(
+            currentBytes)
+        if try EraseSchema2ColdReaderPublicationRecordV1
+                .isAdmissiblePrefix(recordBytes, intent: intent,
+                    priorSHA256: currentSHA) {
+            // Publication cannot precede a complete, fsynced record. The
+            // current Registry is therefore the prior state and no temp may
+            // exist. Check the actual partial inode before unlinking it.
+            guard try !Self.itemExists(parent: leaseDescriptor,
+                    name: Self.registryTemporaryName) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireSchema2ColdPublicationPolicy(
+                descriptor: recordFD,
+                name: Self.schema2ColdReaderRecordName,
+                kind: .generationLeaseControl,
+                bytes: recordBytes)
+            try unlinkSchema2ColdSettledFile(recordFD,
+                name: Self.schema2ColdReaderRecordName,
+                before: recordSnapshot)
+            try settlement.finishChecked()
+            return observed
+        }
+        let record = try EraseSchema2ColdReaderPublicationRecordV1
+            .decodeCanonical(recordBytes)
+        guard record.eraseID == intent.eraseID,
+              record.targetGenerationID == intent.newGenerationID,
+              record.targetManifestSHA256
+                == intent.targetPointer?.generationManifestSHA256 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let epoch = try GenerationEpochV1(
+            generationID: intent.newGenerationID,
+            generationManifestSHA256:
+                record.targetManifestSHA256)
+        let oldToken = try record.token(epoch: epoch)
+        guard oldToken.ownerID != ownerID else {
+            // Same-owner publication belongs to its original retained
+            // allocation. A fresh operation never reconstructs that owner.
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let matches = observed.filter({
+            $0.leaseID == oldToken.leaseID
+        })
+        guard matches.isEmpty || matches == [oldToken] else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let prior = observed.filter({
+            $0.leaseID != oldToken.leaseID
+        })
+        let priorBytes = try RegistryStateV1(leases: prior)
+            .canonicalData()
+        guard StoreMigrationCanonicalJSONV1.sha256(priorBytes)
+                == record.priorRegistrySHA256 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireSchema2ColdPublicationPolicy(
+            descriptor: recordFD,
+            name: Self.schema2ColdReaderRecordName,
+            kind: .generationLeaseControl,
+            bytes: recordBytes)
+        try lockDeadSchema2ColdRecordOwner(oldToken.ownerID,
+            settlement: settlement)
+        if try Self.itemExists(parent: leaseDescriptor,
+                name: Self.registryTemporaryName) {
+            // Before the original publication rename, current is `prior`
+            // and this temp is a prefix of `prior + oldToken`. After that
+            // rename, a fresh owner's checked removal can itself crash:
+            // current still contains exactly oldToken and its temp is a
+            // prefix of `prior`. These are distinct held cuts; a mismatch
+            // never becomes permission to adopt an arbitrary temp.
+            let replacement = try RegistryStateV1(leases:
+                matches.isEmpty ? prior + [oldToken] : prior)
+                .canonicalData()
+            let fd = Darwin.openat(leaseDescriptor,
+                Self.registryTemporaryName,
+                O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw Self.mappedFailure() }
+            settlement.registryTemporaryFD = fd
+            let snapshot = try requireSchema2ColdExactFilePrefix(
+                descriptor: fd, name: Self.registryTemporaryName,
+                expected: replacement)
+            let tempBytes = try Self.readAll(from: fd)
+            try requireSchema2ColdPublicationPolicy(
+                descriptor: fd, name: Self.registryTemporaryName,
+                kind: .generationLeaseControlTemporary,
+                bytes: tempBytes)
+            try unlinkSchema2ColdSettledFile(fd,
+                name: Self.registryTemporaryName,
+                before: snapshot)
+            try settlement.closeRegistryTemporaryChecked()
+        }
+        if matches == [oldToken] {
+            try removeSchema2ColdRecordedOldReader(oldToken,
+                observed: observed, prior: prior,
+                settlement: settlement,
+                intent: intent, preparation: preparation,
+                operation: operation)
+        }
+        guard try readEraseSchema2ColdRegistryLocked(
+                operation: operation) == prior else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try unlinkSchema2ColdSettledFile(recordFD,
+            name: Self.schema2ColdReaderRecordName,
+            before: recordSnapshot)
+        try settlement.finishChecked()
+        return prior
+    }
+
+    @MainActor
+    private func unlinkSchema2ColdSettledFile(
+        _ descriptor: Int32, name: String,
+        before: FileSnapshot
+    ) throws {
+        guard try Self.regularFileSnapshot(descriptor) == before else {
+            throw Self.identityFailure()
+        }
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        guard Darwin.unlinkat(leaseDescriptor, name, 0) == 0,
+              Darwin.fsync(leaseDescriptor) == 0 else {
+            throw Self.mappedFailure()
+        }
+        var held = stat(), named = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              held.st_dev == before.identity.device,
+              held.st_ino == before.identity.inode,
+              held.st_nlink == 0,
+              Darwin.fstatat(leaseDescriptor, name, &named,
+                AT_SYMLINK_NOFOLLOW) != 0,
+              errno == ENOENT else {
+            throw Self.identityFailure()
+        }
+    }
+
+    @MainActor
+    private func lockDeadSchema2ColdRecordOwner(
+        _ oldOwner: UUID,
+        settlement: EraseSchema2ColdReaderSettlementV1
+    ) throws {
+        let name = Self.ownerLockName(oldOwner)
+        let fd = Darwin.openat(ownersDescriptor, name,
+            O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw Self.mappedFailure() }
+        settlement.guardFD = fd
+        let before = try Self.regularFileSnapshot(fd)
+        try requireNamedIdentity(parent: ownersDescriptor,
+            name: name, expected: before.identity)
+        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        settlement.guardLocked = true
+        guard try Self.regularFileSnapshot(fd) == before else {
+            throw Self.identityFailure()
+        }
+        try requireNamedIdentity(parent: ownersDescriptor,
+            name: name, expected: before.identity)
+        _ = try ProtectedFilePolicyV1
+            .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                .generationLeaseOwnerLock,
+                at: ownersURL.appendingPathComponent(name),
+                retainUncertainDescriptor: { value in
+                    self.eraseSchema2ColdPolicyUncertainDescriptors.append(
+                        value)
+                }, unchangedWitness: {
+                    let observed = try Self.regularFileSnapshot(fd)
+                    try self.requireNamedIdentity(
+                        parent: self.ownersDescriptor,
+                        name: name, expected: observed.identity)
+                    return observed
+                })
+        guard eraseSchema2ColdPolicyUncertainDescriptors.isEmpty,
+              try Self.regularFileSnapshot(fd) == before else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    @MainActor
+    private func removeSchema2ColdRecordedOldReader(
+        _ token: GenerationLeaseTokenV1,
+        observed: [GenerationLeaseTokenV1],
+        prior: [GenerationLeaseTokenV1],
+        settlement: EraseSchema2ColdReaderSettlementV1,
+        intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        guard settlement.guardLocked,
+              observed.filter({ $0.leaseID == token.leaseID })
+                == [token] else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let original = Darwin.openat(leaseDescriptor,
+            Self.registryName,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard original >= 0 else { throw Self.mappedFailure() }
+        settlement.registryOriginalFD = original
+        let oldBytes = try RegistryStateV1(leases: observed)
+            .canonicalData()
+        let oldSnapshot = try requireSchema2ColdPublicationFile(
+            descriptor: original, name: Self.registryName,
+            bytes: oldBytes)
+        let replacement = try RegistryStateV1(leases: prior)
+            .canonicalData()
+        let temporary = Darwin.openat(leaseDescriptor,
+            Self.registryTemporaryName,
+            O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK
+                | O_NOFOLLOW | O_CLOEXEC,
+            mode_t(0o600))
+        guard temporary >= 0 else { throw Self.mappedFailure() }
+        settlement.registryTemporaryFD = temporary
+        try Self.writeAll(replacement, to: temporary)
+        guard Darwin.fsync(temporary) == 0 else {
+            throw Self.mappedFailure()
+        }
+        try applySchema2ColdNewPublicationPolicy(
+            descriptor: temporary,
+            name: Self.registryTemporaryName,
+            kind: .generationLeaseControlTemporary,
+            bytes: replacement,
+            diagnosticStage: .temporaryPolicy,
+            ownerCheck: {
+                try operation.requireSchema2ColdOriginalControls(
+                    intent: intent, preparation: preparation)
+            })
+        let prepared = try requireSchema2ColdPublicationFile(
+            descriptor: temporary,
+            name: Self.registryTemporaryName,
+            bytes: replacement)
+        var beforeRename = stat()
+        guard try Self.regularFileSnapshot(original) == oldSnapshot,
+              Darwin.fstat(temporary, &beforeRename) == 0,
+              FileSnapshot(beforeRename) == prepared,
+              Darwin.renameat(leaseDescriptor,
+                Self.registryTemporaryName,
+                leaseDescriptor, Self.registryName) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // A failed post-rename projection cannot be retried against a later
+        // ctime or a substituted same-name inode in this retained settlement.
+        do {
+            _ = try requireSchema2ColdOwnedRegistryRenamePostimage(
+                descriptor: temporary, bytes: replacement,
+                prepared: prepared, beforeRename: beforeRename)
+            guard Darwin.fsync(leaseDescriptor) == 0,
+                  try readEraseSchema2ColdRegistryLocked(
+                    operation: operation) == prior else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        } catch {
+            settlement.uncertain = true
+            throw error
+        }
+        var displaced = stat()
+        guard Darwin.fstat(original, &displaced) == 0,
+              displaced.st_dev == oldSnapshot.identity.device,
+              displaced.st_ino == oldSnapshot.identity.inode,
+              displaced.st_mode & S_IFMT == S_IFREG,
+              displaced.st_nlink == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try settlement.closeRegistryOriginalChecked()
+        try settlement.closeRegistryTemporaryChecked()
+    }
     func makeBoundLocalJobPublicationAdapter(
         writerHandle: GenerationLeaseHandleV1,
         expectedEpoch: GenerationEpochV1
@@ -6601,6 +17708,33 @@ final class GenerationLeaseHandleV1: @unchecked Sendable {
         }
     }
 
+    /// The original Erase writer was removed through the exact retained EX
+    /// transition, not through ordinary close or restore-transition authority.
+    func requireClosedForOriginalEraseWriterTransition(
+        registry expected: GenerationLeaseRegistryV1
+    ) throws {
+        try lock.withLock {
+            guard isClosed, registry === expected else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    @MainActor
+    fileprivate func closeForOriginalEraseWriterTransition(
+        registry expected: GenerationLeaseRegistryV1,
+        release: () throws -> Void
+    ) throws {
+        try lock.withLock {
+            guard registry === expected, !isClosed,
+                  token.role == .writer else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try release()
+            isClosed = true
+        }
+    }
+
     /// Fixed maintenance release through an actual still-held normalization
     /// EX. Ordinary close semantics are unchanged for all other callers.
     func closeForTemporalMaintenance(activity: GenerationTemporalActivityHandleV1) throws {
@@ -6720,6 +17854,26 @@ final class StaleWriterFenceV1 {
         }
     }
 
+    /// The original Erase's already-held EX supplies temporal exclusion;
+    /// Registry still proves this exact writer and epoch under its actual G.
+    func withAuthorizedOriginalEraseWriterRecovery(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        targetHandle: GenerationLeaseHandleV1,
+        _ body: () throws -> Void
+    ) throws -> OriginalEraseRetainedWriterRecoveryReceiptV1 {
+        guard writerLeaseToken == targetHandle.token,
+              writerLeaseToken.epoch == expectedGenerationEpoch else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try registry.withOriginalEraseRetainedWriterRecovery(
+            activity: activity, operation: operation,
+            targetAllocation: targetAllocation, targetHandle: targetHandle,
+            expectedEpoch: expectedGenerationEpoch,
+            currentEpoch: currentGenerationEpoch, body)
+    }
+
     private func validateCurrentLocked() throws {
         try registry.requireNoMigrationReservationLocked()
         try registry.validateActiveLocked(
@@ -6733,6 +17887,48 @@ final class StaleWriterFenceV1 {
 }
 
 
+/// Minted only after the original operation's exact dual-writer journal
+/// recovery, post-census and checked G unlock all succeeded. It grants one
+/// operation-bound transition to old-writer close, never a new Registry read.
+@MainActor
+final class OriginalEraseRetainedWriterRecoveryReceiptV1 {
+    private let registryID: ObjectIdentifier
+    private let operationID: ObjectIdentifier
+    private let activityID: ObjectIdentifier
+    private let allocationID: ObjectIdentifier
+    private let handleID: ObjectIdentifier
+    private let token: GenerationLeaseTokenV1
+
+    fileprivate init(registry: GenerationLeaseRegistryV1,
+                     operation: EraseRouterOperationV1,
+                     activity: GenerationTemporalActivityHandleV1,
+                     targetAllocation: GenerationWriterAllocationAttemptV1,
+                     targetHandle: GenerationLeaseHandleV1) {
+        registryID = ObjectIdentifier(registry)
+        operationID = ObjectIdentifier(operation)
+        activityID = ObjectIdentifier(activity)
+        allocationID = ObjectIdentifier(targetAllocation)
+        handleID = ObjectIdentifier(targetHandle)
+        token = targetHandle.token
+    }
+
+    func requireBound(registry: GenerationLeaseRegistryV1,
+                      operation: EraseRouterOperationV1,
+                      activity: GenerationTemporalActivityHandleV1,
+                      targetAllocation: GenerationWriterAllocationAttemptV1,
+                      targetHandle: GenerationLeaseHandleV1) throws {
+        guard registryID == ObjectIdentifier(registry),
+              operationID == ObjectIdentifier(operation),
+              activityID == ObjectIdentifier(activity),
+              allocationID == ObjectIdentifier(targetAllocation),
+              handleID == ObjectIdentifier(targetHandle),
+              token == targetHandle.token,
+              targetAllocation.allocatedHandle === targetHandle else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+
 /// An advisory activity lifetime, never canonical or filesystem mutation
 /// authority. Each handle owns a distinct open description of the already
 /// pinned registry directory. Keeping this object alive keeps its registry
@@ -6741,6 +17937,7 @@ final class GenerationTemporalActivityHandleV1: @unchecked Sendable {
     private let registry: GenerationLeaseRegistryV1
     private let lock = NSLock()
     private var descriptor: Int32
+    private var originalRecoveryUncertainCloseDescriptor: Int32?
     private enum RetirementCloseState { case open, closed, uncertain }
     private var retirementCloseState: RetirementCloseState = .open
     fileprivate let exclusive: Bool
@@ -6794,6 +17991,118 @@ final class GenerationTemporalActivityHandleV1: @unchecked Sendable {
         }
     }
 
+    /// Cold C05 writer registration/release owns this exact SH description.
+    /// It never upgrades to EX; a failed close is terminally uncertain.
+    func closeCheckedForEraseC05ColdWriter() throws {
+        try lock.withLock {
+            if retirementCloseState == .closed { return }
+            guard retirementCloseState == .open, !exclusive, descriptor >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try registry.validateTemporalActivityDescriptor(
+                descriptor, observationOnly: true)
+            guard flock(descriptor, LOCK_UN) == 0 else {
+                retirementCloseState = .uncertain
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let owned = descriptor
+            descriptor = -1
+            guard Darwin.close(owned) == 0 else {
+                retirementCloseState = .uncertain
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            retirementCloseState = .closed
+        }
+    }
+
+    fileprivate func validateAfterEraseC05GuardRemoval(
+        registry expected: GenerationLeaseRegistryV1
+    ) throws {
+        try lock.withLock {
+            guard registry === expected, !exclusive,
+                  retirementCloseState == .open, descriptor >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try registry.requireEraseC05PostGuardIdentity(
+                activityDescriptor: descriptor)
+        }
+    }
+
+    fileprivate func c05HeldDescriptorForGuardRemoval(
+        registry expected: GenerationLeaseRegistryV1
+    ) throws -> Int32 {
+        try lock.withLock {
+            guard registry === expected, !exclusive,
+                  retirementCloseState == .open, descriptor >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return descriptor
+        }
+    }
+
+    func closeCheckedAfterEraseC05GuardRemoval() throws {
+        try lock.withLock {
+            if retirementCloseState == .closed { return }
+            guard retirementCloseState == .open, !exclusive,
+                  descriptor >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try registry.requireEraseC05PostGuardIdentity(
+                activityDescriptor: descriptor)
+            guard flock(descriptor, LOCK_UN) == 0 else {
+                retirementCloseState = .uncertain
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let owned = descriptor
+            descriptor = -1
+            guard Darwin.close(owned) == 0 else {
+                retirementCloseState = .uncertain
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            retirementCloseState = .closed
+        }
+    }
+
+    /// The original recovery observer closes this EX only after its own
+    /// checked registry proof. An ambiguous unlock or close stays retained
+    /// and makes the Registry terminal; no deinit retry is permitted.
+    @MainActor
+    func closeCheckedForOriginalEraseRecovery() throws {
+        try lock.withLock {
+            guard retirementCloseState == .open, exclusive, descriptor >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try registry.requireOriginalEraseRecoveryActivityDescriptor(descriptor)
+            guard flock(descriptor, LOCK_UN) == 0 else {
+                registry.markOriginalEraseRecoveryUncertain()
+                retirementCloseState = .uncertain
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let owned = descriptor
+            descriptor = -1
+            guard Darwin.close(owned) == 0 else {
+                originalRecoveryUncertainCloseDescriptor = owned
+                registry.markOriginalEraseRecoveryUncertain()
+                retirementCloseState = .uncertain
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            retirementCloseState = .closed
+        }
+    }
+
+    @MainActor
+    fileprivate func requireOriginalEraseRecoveryCheckedRegistry(
+        _ expected: GenerationLeaseRegistryV1
+    ) throws {
+        try lock.withLock {
+            guard registry === expected, retirementCloseState == .open,
+                  exclusive, descriptor >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try registry.requireOriginalEraseRecoveryActivityDescriptor(descriptor)
+        }
+    }
+
     func closeAfterColdOwnerGuardRemoval() throws {
         try lock.withLock {
             if retirementCloseState == .closed { return }
@@ -6844,6 +18153,7 @@ final class GenerationTemporalActivityHandleV1: @unchecked Sendable {
     func close() {
         lock.lock()
         defer { lock.unlock() }
+        if case .uncertain = retirementCloseState { return }
         guard descriptor >= 0 else { return }
         let owned = descriptor
         descriptor = -1
@@ -6941,6 +18251,47 @@ extension GenerationLeaseRegistryV1 {
     }
 
 #if DEBUG
+    /// The original owner already retained this exact EX before its pointer
+    /// effect. Shutdown transfers that activity into the checked witness;
+    /// acquiring another activity here would contend with the same EX.
+    @MainActor
+    func retainExistingTemporalNormalizationActivityForOriginalEraseShutdown(
+        witness: EraseOriginalShutdownWitnessV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retainedWriter: GenerationLeaseTokenV1
+    ) throws -> OriginalEraseRetainedExclusionShutdownRegistryReceiptV1 {
+        return try withOriginalEraseShutdownScope(witness) {
+            try retainedWriter.validate()
+            guard retainedWriter.ownerID == ownerID,
+                  retainedWriter.role == .writer,
+                  originalEraseForeignLeases == nil,
+                  temporalReleaseAttempts.isEmpty,
+                  preparationWriterPublications.isEmpty else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try withTemporalNormalizationMutationLock(activity: activity) {
+                try requireNoMigrationReservationLocked()
+                let observed = try observeTemporalRegistryLocked()
+                guard observed.leases.filter({ $0.role == .writer })
+                        == [retainedWriter],
+                      observed.leases.filter({
+                          $0.leaseID == retainedWriter.leaseID
+                      }) == [retainedWriter],
+                      originalEraseForeignLeases == nil,
+                      temporalReleaseAttempts.isEmpty,
+                      preparationWriterPublications.isEmpty else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                originalEraseForeignLeases = observed.leases.filter {
+                    $0.ownerID != ownerID
+                }
+            }
+            return OriginalEraseRetainedExclusionShutdownRegistryReceiptV1(
+                registry: self, witness: witness, activity: activity,
+                retainedWriter: retainedWriter)
+        }
+    }
+
     /// The retained operation receives the exact EX before any validation or
     /// root construction can throw. A failure leaves that owner reachable.
     @MainActor
@@ -7000,6 +18351,33 @@ extension GenerationLeaseRegistryV1 {
 
 /// Raw, independently reread registry facts. This has no completion/admission
 /// bit: a source owner must classify every retained lease and its lifetime.
+/// One exact C05 cold registry read. The Router operation retains this owner
+/// before opening; a close error is terminal and its numeric FD is never retried.
+@MainActor
+final class EraseC05ColdRegistryObservationAttemptV1 {
+    private var descriptor: Int32 = -1
+    private var closeAttempted = false
+    private var closeUncertain = false
+    fileprivate func retain(_ value: Int32) {
+        precondition(descriptor < 0 && !closeAttempted)
+        descriptor = value
+    }
+    fileprivate func closeChecked() throws {
+        guard !closeUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if closeAttempted { return }
+        closeAttempted = true
+        guard descriptor >= 0 else { return }
+        let owned = descriptor
+        descriptor = -1
+        guard Darwin.close(owned) == 0 else {
+            closeUncertain = true
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+
 struct TemporalGenerationRegistryObservationV1 {
     let leases: [GenerationLeaseTokenV1]
     let registryBytes: Data
@@ -7030,6 +18408,53 @@ extension GenerationLeaseRegistryV1 {
         try verify()
         return TemporalGenerationRegistryObservationV1(leases: state.leases,
             registryBytes: data, registryPolicy: policy, directoryPolicy: directoryPolicy)
+    }
+
+    /// C05 cold observation retains the opened FD before any validation and
+    /// closes it exactly once. A failing close leaves the attempt on the
+    /// original cold operation and prevents a second numeric-FD attempt.
+    @MainActor
+    private func observeEraseC05ColdRegistryLocked(
+        operation: EraseColdPreparationOperationV1
+    ) throws -> TemporalGenerationRegistryObservationV1 {
+        try operation.requireConstructedC05ColdRegistry(self)
+        let attempt = EraseC05ColdRegistryObservationAttemptV1()
+        try operation.retainC05ColdRegistryObservation(attempt, registry: self)
+        let descriptor = Darwin.openat(leaseDescriptor, Self.registryName,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw Self.mappedFailure() }
+        attempt.retain(descriptor)
+        let result: TemporalGenerationRegistryObservationV1
+        do {
+            try verify()
+            let directoryPolicy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                .stagingDirectory, at: leaseURL)
+            let before = try Self.regularFileSnapshot(descriptor)
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: before.identity)
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                try Self.controlKind(for: Self.registryName),
+                at: leaseURL.appendingPathComponent(Self.registryName))
+            let data = try Self.readAll(from: descriptor)
+            guard try Self.regularFileSnapshot(descriptor) == before,
+                  data.count == Int(before.byteCount) else {
+                throw Self.identityFailure()
+            }
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: before.identity)
+            let state: RegistryStateV1
+            do { state = try RegistryStateV1.decodeCanonical(from: data) }
+            catch { throw GenerationLeaseRegistryFailureV1.corruptRegistry }
+            try verify()
+            result = TemporalGenerationRegistryObservationV1(
+                leases: state.leases, registryBytes: data,
+                registryPolicy: policy, directoryPolicy: directoryPolicy)
+        } catch {
+            try attempt.closeChecked()
+            throw error
+        }
+        try attempt.closeChecked()
+        return result
     }
 
     /// Pure observation under the actual retained registry's G. The exact EX
@@ -7463,8 +18888,25 @@ extension GenerationLeaseRegistryV1 {
 
 extension GenerationLeaseRegistryV1 {
     private func finishTemporalReplacementLocked(_ attempt: TemporalReleaseAttempt) throws {
+        try finishTemporalReplacementLocked(attempt,
+            observeAfterRename: { try observeTemporalRegistryLocked() })
+    }
+
+    private func finishTemporalReplacementLocked(_ attempt: TemporalReleaseAttempt,
+        capturePreRenameFullFact: Bool = false,
+        observeAfterRename: () throws -> TemporalGenerationRegistryObservationV1) throws {
     try attempt.requireCertainDescriptors()
     if !attempt.renamed {
+        let old = try RegistryStateV1.decodeCanonical(
+            from: attempt.originalBytes)
+        let replacement = try RegistryStateV1.decodeCanonical(
+            from: attempt.replacementBytes)
+        let oldIDs = Set(old.leases.map(\.leaseID))
+        if replacement.leases.contains(where: { !oldIDs.contains($0.leaseID) }) {
+            // Temporal registration uses its own checked replacement path,
+            // not replaceControlLocked. Seal that insertion under the same G.
+            try requireNoDrainedC05PreparationForLeaseInsertionLocked()
+        }
         try requireNamedIdentity(parent: leaseDescriptor, name: Self.registryName,
             expected: attempt.originalSnapshot.identity)
         guard try Self.regularFileSnapshot(attempt.original) == attempt.originalSnapshot else {
@@ -7479,6 +18921,18 @@ extension GenerationLeaseRegistryV1 {
             guard temporary >= 0 else { throw Self.mappedFailure() }
             attempt.temporary = temporary
             attempt.temporaryIdentity = try Self.regularFileIdentity(temporary)
+            if capturePreRenameFullFact {
+                let created = try originalEraseWriterHeldNamedRegularFact(
+                    descriptor: temporary,
+                    name: Self.registryTemporaryName)
+                var createdStat = stat()
+                guard Darwin.fstat(temporary, &createdStat) == 0,
+                      createdStat.st_mode & 0o7777 == 0o600,
+                      createdStat.st_size == 0 else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                attempt.originalWriterCreatedTemporaryFact = created
+            }
         }
         guard let temporaryIdentity = attempt.temporaryIdentity else { throw Self.identityFailure() }
         try requireNamedIdentity(parent: leaseDescriptor, name: Self.registryTemporaryName,
@@ -7513,6 +18967,15 @@ extension GenerationLeaseRegistryV1 {
         try requireNamedIdentity(parent: leaseDescriptor, name: Self.registryTemporaryName,
             expected: temporaryIdentity)
         try verify()
+        if capturePreRenameFullFact {
+            var preparedFull = stat()
+            guard Darwin.fstat(attempt.temporary, &preparedFull) == 0,
+                  FileSnapshot(preparedFull) == prepared else {
+                throw Self.identityFailure()
+            }
+            attempt.preRenameFullFact = Self.originalEraseRetainedFullFact(
+                preparedFull)
+        }
         guard Darwin.renameat(leaseDescriptor, Self.registryTemporaryName,
             leaseDescriptor, Self.registryName) == 0 else { throw Self.mappedFailure() }
         attempt.renamed = true
@@ -7522,7 +18985,7 @@ extension GenerationLeaseRegistryV1 {
     guard let identity = attempt.temporaryIdentity else { throw Self.identityFailure() }
     try requireNamedIdentity(parent: leaseDescriptor, name: Self.registryName, expected: identity)
     guard Darwin.fsync(leaseDescriptor) == 0 else { throw Self.mappedFailure() }
-    let persisted = try observeTemporalRegistryLocked()
+    let persisted = try observeAfterRename()
     guard persisted.registryBytes == attempt.replacementBytes else {
         throw GenerationLeaseRegistryFailureV1.corruptRegistry
     }
@@ -7555,6 +19018,42 @@ final class GenerationLeaseAllocationAttemptV1 {
     private weak var preparationOperation: EraseRouterOperationV1?
     private var freshAdoptionAcquisitionStarted = false
     private weak var freshAdoption: EraseFreshAdoptionOwnerV1?
+    private var schema2ColdTargetAcquisitionStarted = false
+    private weak var schema2ColdTargetOperation:
+        EraseColdPreparationOperationV1?
+    private var originalEraseRetainedAcquisitionStarted = false
+    private weak var originalEraseRetainedOperation: EraseRouterOperationV1?
+    fileprivate var originalEraseRetainedRecordDescriptor: Int32 = -1
+    fileprivate var originalEraseRetainedOriginalDescriptor: Int32 = -1
+    fileprivate var originalEraseRetainedTemporaryDescriptor: Int32 = -1
+    fileprivate var originalEraseRetainedRecordBytes: Data?
+    fileprivate var originalEraseRetainedPriorBytes: Data?
+    fileprivate var originalEraseRetainedReplacementBytes: Data?
+    fileprivate var originalEraseRetainedPriorSnapshot:
+        GenerationLeaseRegistryV1.FileSnapshot?
+    fileprivate var originalEraseRetainedTemporarySnapshot:
+        GenerationLeaseRegistryV1.FileSnapshot?
+    fileprivate var originalEraseRetainedRecordDurable = false
+    fileprivate var originalEraseRetainedRegistryRenamed = false
+    fileprivate var originalEraseRetainedRenameUncertain = false
+    fileprivate var originalEraseRetainedUncertainClose = false
+    fileprivate var originalEraseRetainedEnumerationUncertain = false
+    fileprivate var originalEraseRetainedTreeIO:
+        EraseAbortCheckedSnapshotIOV1?
+    fileprivate var originalEraseRetainedProjection:
+        OriginalEraseRetainedTargetReaderProjectionV1?
+    fileprivate var schema2ColdRecordDescriptor: Int32 = -1
+    fileprivate var schema2ColdOriginalDescriptor: Int32 = -1
+    fileprivate var schema2ColdTemporaryDescriptor: Int32 = -1
+    fileprivate var schema2ColdRecordBytes: Data?
+    fileprivate var schema2ColdOriginalBytes: Data?
+    fileprivate var schema2ColdReplacementBytes: Data?
+    fileprivate var schema2ColdOriginalSnapshot: GenerationLeaseRegistryV1.FileSnapshot?
+    fileprivate var schema2ColdTemporarySnapshot: GenerationLeaseRegistryV1.FileSnapshot?
+    fileprivate var schema2ColdRegistryRenamed = false
+    fileprivate var schema2ColdRenameProjectionUncertain = false
+    fileprivate var schema2ColdRecordDurable = false
+    fileprivate var schema2ColdUncertainClose = false
     func sealForRetirement() { sealedForRetirement = true }
     fileprivate init(registry: GenerationLeaseRegistryV1, epoch: GenerationEpochV1) {
         self.registry = registry; self.epoch = epoch
@@ -7590,6 +19089,56 @@ final class GenerationLeaseAllocationAttemptV1 {
     var preparationPublishedToken: GenerationLeaseTokenV1? {
         guard preparationAcquisitionStarted, !closed else { return nil }
         return registry.preparationPublishedToken(reader: self)
+    }
+    var originalEraseRetainedPublishedToken: GenerationLeaseTokenV1? {
+        guard originalEraseRetainedAcquisitionStarted, !closed,
+              !sealedForRetirement,
+              !originalEraseRetainedUncertainClose,
+              let handle, handle.token == token else { return nil }
+        return handle.token
+    }
+    var originalEraseRetainedPublicationProjection:
+        OriginalEraseRetainedTargetReaderProjectionV1? {
+        guard originalEraseRetainedPublishedToken != nil else { return nil }
+        return originalEraseRetainedProjection
+    }
+
+    func acquireReaderForOriginalEraseRetainedExclusion(
+        operation expected: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        expectedPointerData: Data
+    ) throws -> GenerationLeaseHandleV1 {
+        guard !originalEraseRetainedAcquisitionStarted,
+              !coldPreparationAcquisitionStarted,
+              !preparationAcquisitionStarted,
+              !freshAdoptionAcquisitionStarted,
+              !schema2ColdTargetAcquisitionStarted,
+              !closed, !sealedForRetirement,
+              token == nil, handle == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        originalEraseRetainedAcquisitionStarted = true
+        originalEraseRetainedOperation = expected
+        do {
+            return try registry.publishOriginalEraseRetainedTargetReader(
+                self, operation: expected, activity: activity,
+                expectedPointerData: expectedPointerData)
+        } catch {
+            sealedForRetirement = true
+            throw error
+        }
+    }
+
+    fileprivate func requireOriginalEraseRetainedAcquiring(
+        _ expected: EraseRouterOperationV1
+    ) throws {
+        guard originalEraseRetainedAcquisitionStarted,
+              originalEraseRetainedOperation === expected,
+              !closed, !sealedForRetirement,
+              !originalEraseRetainedUncertainClose,
+              !originalEraseRetainedRenameUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
     }
     func acquireReaderForErasePreparation(operation expected: EraseRouterOperationV1) throws -> GenerationLeaseHandleV1 {
         guard !coldPreparationAcquisitionStarted, !preparationAcquisitionStarted, !freshAdoptionAcquisitionStarted,
@@ -7654,6 +19203,80 @@ final class GenerationLeaseAllocationAttemptV1 {
         do { return try registry.publishColdPreparationReader(self, operation: expected) }
         catch { sealedForRetirement = true; throw error }
     }
+
+    /// An actual target reader is retained before its nondeterministic
+    /// token record, Registry temp, or live SQLite constructor exists.
+    func acquireReaderForEraseSchema2ColdTarget(
+        operation expected: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> GenerationLeaseHandleV1 {
+        enum DiagnosticStage: String {
+            case wrapperGuard, allocationProof, publisherEntry
+        }
+        var diagnosticStage: DiagnosticStage = .wrapperGuard
+        do {
+        guard !coldPreparationAcquisitionStarted,
+              !preparationAcquisitionStarted,
+              !freshAdoptionAcquisitionStarted,
+              !closed, !sealedForRetirement,
+              !schema2ColdUncertainClose,
+              (schema2ColdTargetAcquisitionStarted
+                && schema2ColdTargetOperation === expected)
+                || (!schema2ColdTargetAcquisitionStarted
+                    && token == nil && handle == nil) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        diagnosticStage = .allocationProof
+        try expected.requireSchema2ColdTargetReaderAllocation(self,
+            registry: registry)
+        schema2ColdTargetAcquisitionStarted = true
+        schema2ColdTargetOperation = expected
+        diagnosticStage = .publisherEntry
+        #if DEBUG
+        print("V23_C05_READER_PREPUBLISH_ENTRY_V1 stage=publisher-entry")
+        #endif
+        return try registry.publishEraseSchema2ColdTargetReader(self,
+            operation: expected, activity: activity)
+        } catch {
+            #if DEBUG
+            enum DiagnosticFamily: String {
+                case registry, migration, policy, other
+            }
+            let family: DiagnosticFamily
+            if error is GenerationLeaseRegistryFailureV1 {
+                family = .registry
+            } else if error is StoreMigrationFailure {
+                family = .migration
+            } else if error is ProtectedFilePolicyError {
+                family = .policy
+            } else {
+                family = .other
+            }
+            print("V23_C05_READER_ACQUIRE_DIAG_V1 stage=\(diagnosticStage.rawValue) family=\(family.rawValue)")
+            #endif
+            throw error
+        }
+    }
+    func acquireReaderForFrozenC05ColdErase(
+        operation expected: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> GenerationLeaseHandleV1 {
+        guard !coldPreparationAcquisitionStarted, !preparationAcquisitionStarted,
+              !freshAdoptionAcquisitionStarted, !closed, !sealedForRetirement,
+              token == nil, handle == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try expected.requireColdPreparationReaderAllocation(self, registry: registry)
+        coldPreparationAcquisitionStarted = true
+        coldPreparationOperation = expected
+        do {
+            return try registry.publishFrozenC05ColdPreparationReader(self,
+                operation: expected, activity: activity)
+        } catch {
+            sealedForRetirement = true
+            throw error
+        }
+    }
     fileprivate func requireColdPreparationAcquiring(_ expected: EraseColdPreparationOperationV1) throws {
         guard coldPreparationAcquisitionStarted, !preparationAcquisitionStarted, !freshAdoptionAcquisitionStarted,
               coldPreparationOperation === expected, !closed, !sealedForRetirement else {
@@ -7674,6 +19297,21 @@ final class GenerationLeaseAllocationAttemptV1 {
         if closed { return }
         try registry.closeColdPreparationReader(self, proof: proof)
         closed = true
+    }
+    func closeAfterFrozenC05Drain(
+        expected: ErasePreparationV2,
+        witness: EraseC05ColdSourceDrainWitnessV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        try witness.requireDrained(registry: registry)
+        try requireColdPreparationDisposalEligibility()
+        guard sealedForRetirement else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try registry.closeFrozenC05ColdSourceReader(self,
+            expected: expected, witness: witness,
+            operation: operation, activity: activity)
     }
     func acquireReader() throws -> GenerationLeaseHandleV1 {
         guard !coldPreparationAcquisitionStarted, !preparationAcquisitionStarted, !freshAdoptionAcquisitionStarted, !closed, !sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.leaseNotActive }
@@ -7699,6 +19337,1313 @@ extension GenerationLeaseRegistryV1 {
     func makeReaderAllocationAttempt(epoch: GenerationEpochV1) throws -> GenerationLeaseAllocationAttemptV1 {
         try epoch.validate()
         return GenerationLeaseAllocationAttemptV1(registry: self, epoch: epoch)
+    }
+
+    @MainActor
+    func makeEraseSchema2ColdTargetReaderAllocation(
+        epoch: GenerationEpochV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> GenerationLeaseAllocationAttemptV1 {
+        enum DiagnosticStage: String {
+            case epoch, exclusion, admission, priorCensus, allocation
+        }
+        var diagnosticStage: DiagnosticStage = .epoch
+        do {
+        try epoch.validate()
+        diagnosticStage = .exclusion
+        try requireEraseSchema2ColdExcluded(operation: operation,
+            activity: activity)
+        diagnosticStage = .admission
+        let admission = try operation.requireSchema2ColdTargetReaderAdmission(
+            epoch: epoch, registry: self, activity: activity)
+        diagnosticStage = .priorCensus
+        guard epoch.generationID == admission.intent.newGenerationID,
+              epoch.generationManifestSHA256
+                == admission.targetSnapshot.pointer.generationManifestSHA256,
+              try readEraseSchema2ColdRegistryLocked(operation: operation)
+                == admission.priorTokens else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        diagnosticStage = .allocation
+        return GenerationLeaseAllocationAttemptV1(registry: self,
+            epoch: epoch)
+        } catch {
+            #if DEBUG
+            enum DiagnosticFamily: String {
+                case registry, migration, policy, other
+            }
+            let family: DiagnosticFamily
+            if error is GenerationLeaseRegistryFailureV1 {
+                family = .registry
+            } else if error is StoreMigrationFailure {
+                family = .migration
+            } else if error is ProtectedFilePolicyError {
+                family = .policy
+            } else {
+                family = .other
+            }
+            print("V23_C05_READER_MAKE_DIAG_V1 stage=\(diagnosticStage.rawValue) family=\(family.rawValue)")
+            #endif
+            throw error
+        }
+    }
+
+    /// A surviving original-reader record or Registry temp is a refused
+    /// first-P cut. This checked no-create probe runs under the genuine
+    /// original EX/activity G before Operations can be captured as first.
+    @MainActor
+    func requireOriginalEraseRetainedReaderRecordAbsent(
+        operation: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        try activity.validateSharedNormalizationRegistry(self)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard !originalEraseRetainedReaderAbsenceUncertain,
+              generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            originalEraseRetainedReaderAbsenceUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var failure: (any Error)?
+        do {
+            try activity.validateSharedNormalizationRegistry(self)
+            try verify()
+            _ = try readOriginalEraseAuxiliaryRegistryLocked(
+                operation: operation)
+            guard try !Self.itemExists(parent: leaseDescriptor,
+                    name: Self.originalEraseRetainedReaderRecordName),
+                  try !Self.itemExists(parent: leaseDescriptor,
+                    name: Self.registryTemporaryName) else {
+                throw Self.uncertainOwnerFailure()
+            }
+            _ = try readOriginalEraseAuxiliaryRegistryLocked(
+                operation: operation)
+            try activity.validateSharedNormalizationRegistry(self)
+        } catch {
+            failure = error
+            originalEraseRetainedReaderAbsenceUncertain = true
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            originalEraseRetainedReaderAbsenceUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        if let failure { throw failure }
+    }
+
+    @MainActor
+    private func withOriginalEraseRetainedReaderG<Value>(
+        allocation: GenerationLeaseAllocationAttemptV1,
+        activity: GenerationTemporalActivityHandleV1,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        try activity.validateSharedNormalizationRegistry(self)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            allocation.originalEraseRetainedUncertainClose = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var result: Result<Value, any Error>?
+        do {
+            try activity.validateSharedNormalizationRegistry(self)
+            try verify()
+            result = Result { try body() }
+            try verify()
+            try activity.validateSharedNormalizationRegistry(self)
+        } catch {
+            result = .failure(error)
+            allocation.originalEraseRetainedUncertainClose = true
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            allocation.originalEraseRetainedUncertainClose = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        guard let result else { throw Self.uncertainOwnerFailure() }
+        return try result.get()
+    }
+
+    @MainActor
+    private func requireOriginalEraseRetainedPublicationFile(
+        descriptor: Int32, name: String, bytes: Data
+    ) throws -> FileSnapshot {
+        let before = try Self.regularFileSnapshot(descriptor)
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        guard try Self.readAll(from: descriptor) == bytes,
+              try Self.regularFileSnapshot(descriptor) == before else {
+            throw Self.identityFailure()
+        }
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        return before
+    }
+
+    private static func originalEraseRetainedFullFact(
+        _ value: stat
+    ) -> String {
+        "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+    }
+
+    /// Own temporary creation and rename may change a directory's size and
+    /// times, but cannot change its identity, type/mode, owner or link count.
+    /// A renamed regular leaf retains those fields, size and modification
+    /// time; ctime may change on rename. Both checks consume complete facts
+    /// captured from held and named descriptors in the same G interval.
+    private static func originalEraseRetainedStableFact(
+        _ full: String, through fieldCount: Int
+    ) throws -> String {
+        let fields = full.split(separator: "|", omittingEmptySubsequences: false)
+        guard fields.count == 11,
+              fieldCount == 5 || fieldCount == 6
+                || fieldCount == 9 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        return fields.prefix(fieldCount).joined(separator: "|")
+    }
+
+    private static func originalEraseRetainedLinks(
+        _ full: String
+    ) throws -> UInt64 {
+        let fields = full.split(separator: "|", omittingEmptySubsequences: false)
+        guard fields.count == 11,
+              let links = UInt64(fields[5]) else {
+            throw Self.uncertainOwnerFailure()
+        }
+        return links
+    }
+
+    private static func originalEraseExpectedRetryLeaseLinks(
+        first: OriginalEraseRetainedLeaseTreeImageV1,
+        namedTemporary: Bool
+    ) throws -> UInt64 {
+        guard first.names.contains(Self.registryName),
+              first.names.contains(Self.mutationLockName),
+              first.names.contains(Self.ownerDirectoryName),
+              first.siblings.filter({ $0.kind == "directory" })
+                .map(\.name) == [Self.ownerDirectoryName],
+              first.names.count <= Int(nlink_t.max) - 3 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let links = try originalEraseRetainedLinks(first.leaseFact)
+        let allEntryLinks = UInt64(first.names.count + 2)
+        let subdirectoryLinks: UInt64 = 3
+        let countsAllEntries = links == allEntryLinks
+        let countsSubdirectories = links == subdirectoryLinks
+        guard countsAllEntries != countsSubdirectories else {
+            throw Self.uncertainOwnerFailure()
+        }
+        return countsAllEntries && namedTemporary ? links + 1 : links
+    }
+
+    private func originalEraseWriterHeldNamedRegularFact(
+        descriptor: Int32, name: String
+    ) throws -> String {
+        var held = stat(), named = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              Darwin.fstatat(leaseDescriptor, name, &named,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              held.st_mode & S_IFMT == S_IFREG,
+              held.st_nlink == 1,
+              Self.originalEraseRetainedFullFact(held)
+                == Self.originalEraseRetainedFullFact(named) else {
+            throw Self.uncertainOwnerFailure()
+        }
+        return Self.originalEraseRetainedFullFact(held)
+    }
+
+    @MainActor
+    private func observeOriginalEraseRetainedLeaseTree(
+        allocation: GenerationLeaseAllocationAttemptV1
+    ) throws -> (operationsFact: String,
+        operationsDigest: String, leaseFact: String,
+        leaseDigest: String) {
+        guard let io = allocation.originalEraseRetainedTreeIO else {
+            throw Self.uncertainOwnerFailure()
+        }
+        return try observeOriginalEraseRetainedLeaseTree(io: io)
+    }
+
+    @MainActor
+    private func observeOriginalEraseRetainedLeaseTree(
+        io: EraseAbortCheckedSnapshotIOV1
+    ) throws -> (operationsFact: String,
+        operationsDigest: String, leaseFact: String,
+        leaseDigest: String) {
+        var parent = stat(), namedParent = stat()
+        var lease = stat(), namedLease = stat()
+        guard Darwin.fstat(operationsDescriptor, &parent) == 0,
+              Darwin.fstatat(rootDescriptor,
+                Self.operationsName, &namedParent,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              Darwin.fstat(leaseDescriptor, &lease) == 0,
+              Darwin.fstatat(operationsDescriptor,
+                Self.leaseDirectoryName, &namedLease,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              parent.st_mode & S_IFMT == S_IFDIR,
+              lease.st_mode & S_IFMT == S_IFDIR,
+              Self.originalEraseRetainedFullFact(parent)
+                == Self.originalEraseRetainedFullFact(namedParent),
+              Self.originalEraseRetainedFullFact(lease)
+                == Self.originalEraseRetainedFullFact(namedLease) else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let operationsDigest = try io.postRetiredTree(
+            parent: rootDescriptor, name: Self.operationsName)
+        let leaseDigest = try io.postRetiredTree(
+            parent: operationsDescriptor,
+            name: Self.leaseDirectoryName)
+        try io.requireSettled()
+        var afterParent = stat(), afterLease = stat()
+        guard Darwin.fstat(operationsDescriptor, &afterParent) == 0,
+              Darwin.fstat(leaseDescriptor, &afterLease) == 0,
+              Self.originalEraseRetainedFullFact(afterParent)
+                == Self.originalEraseRetainedFullFact(parent),
+              Self.originalEraseRetainedFullFact(afterLease)
+                == Self.originalEraseRetainedFullFact(lease) else {
+            throw Self.uncertainOwnerFailure()
+        }
+        return (Self.originalEraseRetainedFullFact(parent),
+            operationsDigest,
+            Self.originalEraseRetainedFullFact(lease), leaseDigest)
+    }
+
+    @MainActor
+    fileprivate func requireOriginalEraseRetainedTargetReaderProjection(
+        _ projection: OriginalEraseRetainedTargetReaderProjectionV1,
+        allocation: GenerationLeaseAllocationAttemptV1
+    ) throws {
+        guard allocation.registry === self,
+              allocation.originalEraseRetainedProjection === projection,
+              !originalEraseRetainedReaderEffectUncertain,
+              allocation.originalEraseRetainedRecordDurable,
+              allocation.originalEraseRetainedRegistryRenamed,
+              !allocation.originalEraseRetainedRenameUncertain,
+              !allocation.originalEraseRetainedUncertainClose,
+              !allocation.originalEraseRetainedEnumerationUncertain,
+              originalEraseRetainedReaderPolicyUncertainDescriptors.isEmpty,
+              let bytes = allocation.originalEraseRetainedRecordBytes,
+              bytes == projection.recordBytes,
+              allocation.originalEraseRetainedRecordDescriptor >= 0 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let record = allocation.originalEraseRetainedRecordDescriptor
+        _ = try requireOriginalEraseRetainedPublicationFile(
+            descriptor: record,
+            name: Self.originalEraseRetainedReaderRecordName,
+            bytes: bytes)
+        var held = stat(), named = stat()
+        guard Darwin.fstat(record, &held) == 0,
+              Darwin.fstatat(leaseDescriptor,
+                Self.originalEraseRetainedReaderRecordName,
+                &named, AT_SYMLINK_NOFOLLOW) == 0,
+              Self.originalEraseRetainedFullFact(held)
+                == projection.recordFact,
+              Self.originalEraseRetainedFullFact(named)
+                == projection.recordFact else {
+            throw Self.uncertainOwnerFailure()
+        }
+    }
+
+    @MainActor
+    private func requireOriginalEraseRetainedExactPrefix(
+        descriptor: Int32, name: String, expected: Data
+    ) throws -> FileSnapshot {
+        let before = try Self.regularFileSnapshot(descriptor)
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        let actual = try Self.readAll(from: descriptor)
+        guard actual.count <= expected.count,
+              actual == Data(expected.prefix(actual.count)),
+              try Self.regularFileSnapshot(descriptor) == before else {
+            throw Self.identityFailure()
+        }
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        return before
+    }
+
+    @MainActor
+    private func applyOriginalEraseRetainedNewControlPolicy(
+        descriptor: Int32, name: String,
+        bytes: Data, kind: OwnedFileKindV1,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        ownerCheck: @escaping () throws -> Void
+    ) throws {
+        try ownerCheck()
+        let before = try requireOriginalEraseRetainedPublicationFile(
+            descriptor: descriptor, name: name, bytes: bytes)
+        var first = stat()
+        guard Darwin.fstat(descriptor, &first) == 0,
+              FileSnapshot(first) == before,
+              first.st_mode & mode_t(0o7777) == mode_t(0o600),
+              first.st_nlink == 1 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let check: () throws -> Void = {
+            try ownerCheck()
+            let current = try self.requireOriginalEraseRetainedPublicationFile(
+                descriptor: descriptor, name: name, bytes: bytes)
+            var held = stat()
+            guard Darwin.fstat(descriptor, &held) == 0,
+                  FileSnapshot(held) == current,
+                  held.st_mode == first.st_mode,
+                  held.st_uid == first.st_uid,
+                  held.st_gid == first.st_gid,
+                  current.identity == before.identity,
+                  current.byteCount == before.byteCount,
+                  current.modificationSeconds == before.modificationSeconds,
+                  current.modificationNanoseconds
+                    == before.modificationNanoseconds,
+                  self.originalEraseRetainedReaderPolicyUncertainDescriptors
+                    .isEmpty else {
+                throw Self.uncertainOwnerFailure()
+            }
+        }
+        _ = try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                kind, at: leaseURL.appendingPathComponent(name),
+                retainUncertainDescriptor: { value in
+                    self.originalEraseRetainedReaderPolicyUncertainDescriptors
+                        .append(value)
+                    allocation.originalEraseRetainedUncertainClose = true
+                }, authorityCheck: check,
+                beforeFirstEffect: check)
+        try check()
+    }
+
+    @MainActor
+    private func closeOriginalEraseRetainedReaderFD(
+        _ descriptor: Int32,
+        allocation: GenerationLeaseAllocationAttemptV1
+    ) throws {
+        guard descriptor >= 0 else { return }
+        guard Darwin.close(descriptor) == 0 else {
+            allocation.originalEraseRetainedUncertainClose = true
+            throw Self.uncertainOwnerFailure()
+        }
+    }
+
+    @MainActor
+    private func requireOriginalEraseRetainedLeaseNames(
+        record: Bool, temporary: Bool,
+        allocation: GenerationLeaseAllocationAttemptV1
+    ) throws -> [String] {
+        guard !allocation.originalEraseRetainedEnumerationUncertain else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let descriptor = Darwin.openat(leaseDescriptor, ".",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw Self.mappedFailure() }
+        guard let stream = Darwin.fdopendir(descriptor) else {
+            guard Darwin.close(descriptor) == 0 else {
+                allocation.originalEraseRetainedEnumerationUncertain = true
+                throw Self.uncertainOwnerFailure()
+            }
+            throw Self.mappedFailure()
+        }
+        var names: [String] = []
+        var readFailure = false
+        errno = 0
+        while let entry = Darwin.readdir(stream) {
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                readFailure = true
+                break
+            }
+            if name != "." && name != ".." { names.append(name) }
+            errno = 0
+        }
+        if errno != 0 { readFailure = true }
+        guard Darwin.closedir(stream) == 0 else {
+            allocation.originalEraseRetainedEnumerationUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        let required = Set([Self.ownerDirectoryName,
+            Self.mutationLockName, Self.registryName])
+        let optional = Set([Self.pruneIntentName,
+            Self.pruneReceiptName,
+            Self.schema2ColdReaderRecordName])
+        let expected = required
+            .union(names.filter { optional.contains($0) })
+            .union(record ? [Self.originalEraseRetainedReaderRecordName] : [])
+            .union(temporary ? [Self.registryTemporaryName] : [])
+        guard !readFailure, names.count == Set(names).count,
+              Set(names) == expected else {
+            throw Self.uncertainOwnerFailure()
+        }
+        return names.sorted()
+    }
+
+    /// The original operation already owns EX. This single checked G scope
+    /// publishes one target reader from its frozen P cohort and exact pointer
+    /// bytes. The distinct durable record precedes registry.next.json; no
+    /// surviving pathname alone can construct an allocation or handle.
+    @MainActor
+    fileprivate func publishOriginalEraseRetainedTargetReader(
+        _ allocation: GenerationLeaseAllocationAttemptV1,
+        operation: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        expectedPointerData: Data
+    ) throws -> GenerationLeaseHandleV1 {
+        try allocation.requireOriginalEraseRetainedAcquiring(operation)
+        guard allocation.registry === self,
+              allocation.token == nil, allocation.handle == nil,
+              allocation.originalEraseRetainedRecordDescriptor < 0,
+              allocation.originalEraseRetainedOriginalDescriptor < 0,
+              allocation.originalEraseRetainedTemporaryDescriptor < 0,
+              !allocation.originalEraseRetainedRecordDurable,
+              !allocation.originalEraseRetainedRegistryRenamed,
+              originalEraseRetainedReaderPolicyUncertainDescriptors.isEmpty,
+              !originalEraseRetainedReaderAbsenceUncertain else {
+            throw Self.uncertainOwnerFailure()
+        }
+        do { return try withOriginalEraseRetainedReaderG(
+            allocation: allocation, activity: activity) {
+            try requireNoMigrationReservationLocked()
+            let admission = try operation
+                .requireOriginalEraseTargetReaderAdmissionUnderHeldG(
+                    allocation: allocation, registry: self,
+                    activity: activity,
+                    expectedPointerData: expectedPointerData)
+            let prior = admission.priorTokens
+            let intent = admission.intent
+            guard intent.phase == .pointerSwitched,
+                  let target = intent.targetPointer,
+                  target.generationID == allocation.epoch.generationID,
+                  target.generationManifestSHA256
+                    == allocation.epoch.generationManifestSHA256,
+                  prior.count < Self.maximumActiveLeaseCount,
+                  Set(prior.map(\.leaseID)).count == prior.count,
+                  prior.filter({ $0.role == .reader &&
+                    $0.epoch == allocation.epoch }).isEmpty,
+                  try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == prior else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let firstNames = try requireOriginalEraseRetainedLeaseNames(
+                record: false, temporary: false,
+                allocation: allocation)
+            let treeIO = EraseAbortCheckedSnapshotIOV1()
+            allocation.originalEraseRetainedTreeIO = treeIO
+            let firstTree = try observeOriginalEraseRetainedLeaseTree(
+                allocation: allocation)
+            guard try observeOriginalEraseRetainedLeaseTree(
+                    allocation: allocation) == firstTree else {
+                throw Self.uncertainOwnerFailure()
+            }
+            // The first physical Operations image is authoritative only when
+            // it is the immutable original P image retained before pointer
+            // effects. This pure Router proof runs in the same actual G and
+            // precedes the first original-reader record O_EXCL.
+            try operation
+                .requireOriginalEraseTargetReaderFirstOperationsUnderHeldG(
+                    registry: self, activity: activity,
+                    operationsFact: firstTree.operationsFact,
+                    operationsDigest: firstTree.operationsDigest,
+                    leaseRootFact: firstTree.leaseFact,
+                    leaseDigest: firstTree.leaseDigest)
+            let priorBytes = try RegistryStateV1(leases: prior)
+                .canonicalData()
+            let token = try GenerationLeaseTokenV1(
+                leaseID: makeLeaseID(), ownerID: ownerID,
+                epoch: allocation.epoch, role: .reader,
+                acquiredAt: now())
+            guard !prior.contains(where: { $0.leaseID == token.leaseID })
+            else { throw Self.uncertainOwnerFailure() }
+            allocation.token = token
+            let record = try
+                OriginalEraseRetainedTargetReaderPublicationRecordV1(
+                    intent: intent,
+                    priorSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                        priorBytes),
+                    expectedPointerData: expectedPointerData,
+                    token: token)
+            let recordBytes = try record.canonicalData()
+            let replacement = try RegistryStateV1(
+                leases: prior + [token]).canonicalData()
+            allocation.originalEraseRetainedRecordBytes = recordBytes
+            allocation.originalEraseRetainedPriorBytes = priorBytes
+            allocation.originalEraseRetainedReplacementBytes = replacement
+
+            let recordFD = Darwin.openat(leaseDescriptor,
+                Self.originalEraseRetainedReaderRecordName,
+                O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW
+                    | O_CLOEXEC, mode_t(0o600))
+            guard recordFD >= 0 else { throw Self.mappedFailure() }
+            allocation.originalEraseRetainedRecordDescriptor = recordFD
+            _ = try requireOriginalEraseRetainedLeaseNames(
+                record: true, temporary: false,
+                allocation: allocation)
+            _ = try requireOriginalEraseRetainedExactPrefix(
+                descriptor: recordFD,
+                name: Self.originalEraseRetainedReaderRecordName,
+                expected: recordBytes)
+            try Self.writeAll(recordBytes, to: recordFD)
+            guard Darwin.fsync(recordFD) == 0 else {
+                throw Self.mappedFailure()
+            }
+            try applyOriginalEraseRetainedNewControlPolicy(
+                descriptor: recordFD,
+                name: Self.originalEraseRetainedReaderRecordName,
+                bytes: recordBytes, kind: .generationLeaseControl,
+                allocation: allocation, ownerCheck: {
+                    try allocation.requireOriginalEraseRetainedAcquiring(
+                        operation)
+                    let checked = try operation
+                        .requireOriginalEraseTargetReaderAdmissionUnderHeldG(
+                            allocation: allocation, registry: self,
+                            activity: activity,
+                            expectedPointerData: expectedPointerData)
+                    guard checked.intent == intent,
+                          checked.priorTokens == prior else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                    guard allocation.originalEraseRetainedRecordDescriptor
+                            == recordFD,
+                          allocation.originalEraseRetainedRecordBytes
+                            == recordBytes,
+                          allocation.originalEraseRetainedPriorBytes
+                            == priorBytes,
+                          allocation.originalEraseRetainedReplacementBytes
+                            == replacement else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                })
+            guard Darwin.fsync(leaseDescriptor) == 0 else {
+                throw Self.mappedFailure()
+            }
+            allocation.originalEraseRetainedRecordDurable = true
+            _ = try requireOriginalEraseRetainedPublicationFile(
+                descriptor: recordFD,
+                name: Self.originalEraseRetainedReaderRecordName,
+                bytes: recordBytes)
+
+            let original = Darwin.openat(leaseDescriptor,
+                Self.registryName,
+                O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard original >= 0 else { throw Self.mappedFailure() }
+            allocation.originalEraseRetainedOriginalDescriptor = original
+            let originalSnapshot = try
+                requireOriginalEraseRetainedPublicationFile(
+                    descriptor: original, name: Self.registryName,
+                    bytes: priorBytes)
+            var firstRegistryStat = stat()
+            guard Darwin.fstat(original, &firstRegistryStat) == 0,
+                  FileSnapshot(firstRegistryStat) == originalSnapshot else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let firstRegistryFact =
+                Self.originalEraseRetainedFullFact(firstRegistryStat)
+            allocation.originalEraseRetainedPriorSnapshot =
+                originalSnapshot
+            guard try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == prior else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let temporary = Darwin.openat(leaseDescriptor,
+                Self.registryTemporaryName,
+                O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW
+                    | O_CLOEXEC, mode_t(0o600))
+            guard temporary >= 0 else { throw Self.mappedFailure() }
+            allocation.originalEraseRetainedTemporaryDescriptor = temporary
+            _ = try requireOriginalEraseRetainedLeaseNames(
+                record: true, temporary: true,
+                allocation: allocation)
+            _ = try requireOriginalEraseRetainedExactPrefix(
+                descriptor: temporary, name: Self.registryTemporaryName,
+                expected: replacement)
+            try Self.writeAll(replacement, to: temporary)
+            guard Darwin.fsync(temporary) == 0 else {
+                throw Self.mappedFailure()
+            }
+            try applyOriginalEraseRetainedNewControlPolicy(
+                descriptor: temporary,
+                name: Self.registryTemporaryName,
+                bytes: replacement,
+                kind: .generationLeaseControlTemporary,
+                allocation: allocation, ownerCheck: {
+                    try allocation.requireOriginalEraseRetainedAcquiring(
+                        operation)
+                    let checked = try operation
+                        .requireOriginalEraseTargetReaderAdmissionUnderHeldG(
+                            allocation: allocation, registry: self,
+                            activity: activity,
+                            expectedPointerData: expectedPointerData)
+                    guard checked.intent == intent,
+                          checked.priorTokens == prior else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                    guard allocation.originalEraseRetainedRecordDurable,
+                          allocation.originalEraseRetainedTemporaryDescriptor
+                            == temporary,
+                          allocation.originalEraseRetainedReplacementBytes
+                            == replacement else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                })
+            let prepared = try
+                requireOriginalEraseRetainedPublicationFile(
+                    descriptor: temporary,
+                    name: Self.registryTemporaryName,
+                    bytes: replacement)
+            allocation.originalEraseRetainedTemporarySnapshot = prepared
+            var preparedStat = stat()
+            guard Darwin.fstat(temporary, &preparedStat) == 0,
+                  FileSnapshot(preparedStat) == prepared else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let preparedFact = Self.originalEraseRetainedFullFact(
+                preparedStat)
+            guard try requireOriginalEraseRetainedPublicationFile(
+                    descriptor: original, name: Self.registryName,
+                    bytes: priorBytes) == originalSnapshot,
+                  try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == prior else {
+                throw Self.uncertainOwnerFailure()
+            }
+            var beforeRename = stat()
+            guard Darwin.fstat(temporary, &beforeRename) == 0,
+                  FileSnapshot(beforeRename) == prepared,
+                  Darwin.renameat(leaseDescriptor,
+                    Self.registryTemporaryName,
+                    leaseDescriptor, Self.registryName) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            allocation.originalEraseRetainedRegistryRenamed = true
+            allocation.originalEraseRetainedRenameUncertain = true
+            // This helper is physical only: it does not use a cold operation,
+            // cold permit, or cold Registry admission.
+            allocation.originalEraseRetainedTemporarySnapshot = try
+                requireSchema2ColdOwnedRegistryRenamePostimage(
+                    descriptor: temporary, bytes: replacement,
+                    prepared: prepared, beforeRename: beforeRename)
+            allocation.originalEraseRetainedRenameUncertain = false
+            let afterNames = try requireOriginalEraseRetainedLeaseNames(
+                record: true, temporary: false,
+                allocation: allocation)
+            guard Darwin.fsync(leaseDescriptor) == 0,
+                  try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) ==
+                    RegistryStateV1(leases: prior + [token]).leases,
+                  try requireOriginalEraseRetainedPublicationFile(
+                    descriptor: temporary, name: Self.registryName,
+                    bytes: replacement) ==
+                    allocation.originalEraseRetainedTemporarySnapshot else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let post = try operation
+                .requireOriginalEraseTargetReaderAdmissionUnderHeldG(
+                    allocation: allocation, registry: self,
+                    activity: activity,
+                    expectedPointerData: expectedPointerData)
+            guard post.intent == intent,
+                  post.priorTokens == prior else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let afterTree = try observeOriginalEraseRetainedLeaseTree(
+                allocation: allocation)
+            guard try observeOriginalEraseRetainedLeaseTree(
+                    allocation: allocation) == afterTree,
+                  firstTree.operationsFact == afterTree.operationsFact else {
+                throw Self.uncertainOwnerFailure()
+            }
+            var recordStat = stat(), afterRegistryStat = stat()
+            guard Darwin.fstat(recordFD, &recordStat) == 0,
+                  Darwin.fstat(temporary, &afterRegistryStat) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let recordFact = Self.originalEraseRetainedFullFact(recordStat)
+            let afterRegistryFact =
+                Self.originalEraseRetainedFullFact(afterRegistryStat)
+            var displaced = stat()
+            guard Darwin.fstat(original, &displaced) == 0,
+                  displaced.st_dev == originalSnapshot.identity.device,
+                  displaced.st_ino == originalSnapshot.identity.inode,
+                  displaced.st_mode & S_IFMT == S_IFREG,
+                  displaced.st_nlink == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try closeOriginalEraseRetainedReaderFD(original,
+                allocation: allocation)
+            allocation.originalEraseRetainedOriginalDescriptor = -1
+            try closeOriginalEraseRetainedReaderFD(temporary,
+                allocation: allocation)
+            allocation.originalEraseRetainedTemporaryDescriptor = -1
+            let handle = try GenerationLeaseHandleV1(registry: self,
+                publishedReaderToken: token)
+            allocation.handle = handle
+            let projection = OriginalEraseRetainedTargetReaderProjectionV1(
+                registry: self, operation: operation,
+                allocation: allocation, handle: handle,
+                firstLeaseRootFact: firstTree.leaseFact,
+                firstLeaseDigest: firstTree.leaseDigest,
+                afterLeaseRootFact: afterTree.leaseFact,
+                afterLeaseDigest: afterTree.leaseDigest,
+                operationsFact: firstTree.operationsFact,
+                firstOperationsDigest: firstTree.operationsDigest,
+                afterOperationsDigest: afterTree.operationsDigest,
+                firstLeaseNames: firstNames,
+                afterLeaseNames: afterNames,
+                firstRegistryFact: firstRegistryFact,
+                preparedTemporaryFact: preparedFact,
+                afterRegistryFact: afterRegistryFact,
+                recordFact: recordFact,
+                recordBytes: recordBytes,
+                replacementRegistryBytes: replacement,
+                priorRegistrySHA256: record.priorRegistrySHA256,
+                priorTokens: prior,
+                afterTokens: try RegistryStateV1(
+                    leases: prior + [token]).leases)
+            allocation.originalEraseRetainedProjection = projection
+            return handle
+        }
+        } catch {
+            originalEraseRetainedReaderEffectUncertain = true
+            throw error
+        }
+    }
+
+    @MainActor
+    fileprivate func publishEraseSchema2ColdTargetReader(
+        _ allocation: GenerationLeaseAllocationAttemptV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> GenerationLeaseHandleV1 {
+        markSchema2ColdReaderPublish(.lock)
+        do {
+            return try withEraseSchema2ColdMutationLock(operation: operation,
+                activity: activity) {
+                try publishEraseSchema2ColdTargetReaderLocked(allocation,
+                    operation: operation, activity: activity)
+            }
+        } catch {
+#if DEBUG
+            let family: String
+            if error is GenerationLeaseRegistryFailureV1 {
+                family = "registry"
+            } else if error is StoreMigrationFailure {
+                family = "migration"
+            } else if error is ProtectedFilePolicyError {
+                family = "policy"
+            } else {
+                family = "other"
+            }
+            print("V23_C05_READER_PUBLISH_DIAG_V1 stage=\(schema2ColdReaderPublishStage.rawValue) check=\(schema2ColdReaderPublishCheck.rawValue) family=\(family)")
+#endif
+            throw error
+        }
+    }
+
+    @MainActor
+    private func closeSchema2ColdPublicationFD(
+        _ descriptor: Int32,
+        allocation: GenerationLeaseAllocationAttemptV1
+    ) throws {
+        guard descriptor >= 0 else { return }
+        guard Darwin.close(descriptor) == 0 else {
+            allocation.schema2ColdUncertainClose = true
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    @MainActor
+    private func requireSchema2ColdPublicationFile(
+        descriptor: Int32, name: String, bytes: Data
+    ) throws -> FileSnapshot {
+        let before = try Self.regularFileSnapshot(descriptor)
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        guard try Self.readAll(from: descriptor) == bytes,
+              try Self.regularFileSnapshot(descriptor) == before else {
+            throw Self.identityFailure()
+        }
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        return before
+    }
+
+    /// Projects only the ctime transition of this owner's successful
+    /// registry.next.json -> registry.json rename. The retained descriptor,
+    /// named inode, entire bytes, mode, owner and all other stat fields stay
+    /// bound to the pre-rename witness; this is not a fresh poststate baseline.
+    @MainActor
+    private func requireSchema2ColdOwnedRegistryRenamePostimage(
+        descriptor: Int32, bytes: Data,
+        prepared: FileSnapshot, beforeRename: stat
+    ) throws -> FileSnapshot {
+        guard FileSnapshot(beforeRename) == prepared,
+              (beforeRename.st_mode & S_IFMT) == S_IFREG,
+              beforeRename.st_mode & mode_t(0o7777) == mode_t(0o600),
+              beforeRename.st_nlink == 1 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let after = try requireSchema2ColdPublicationFile(
+            descriptor: descriptor, name: Self.registryName, bytes: bytes)
+        var afterRename = stat()
+        guard Darwin.fstat(descriptor, &afterRename) == 0,
+              FileSnapshot(afterRename) == after,
+              after.identity == prepared.identity,
+              after.byteCount == prepared.byteCount,
+              after.modificationSeconds == prepared.modificationSeconds,
+              after.modificationNanoseconds == prepared.modificationNanoseconds,
+              afterRename.st_mode == beforeRename.st_mode,
+              afterRename.st_uid == beforeRename.st_uid,
+              afterRename.st_gid == beforeRename.st_gid,
+              afterRename.st_size == beforeRename.st_size,
+              afterRename.st_mtimespec.tv_sec
+                == beforeRename.st_mtimespec.tv_sec,
+              afterRename.st_mtimespec.tv_nsec
+                == beforeRename.st_mtimespec.tv_nsec else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return after
+    }
+
+    @MainActor
+    private func requireSchema2ColdPublicationFilePrefix(
+        descriptor: Int32, name: String, expected: Data,
+        intent: EraseIntentV1, priorSHA: String
+    ) throws -> FileSnapshot {
+        let before = try Self.regularFileSnapshot(descriptor)
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        let actual = try Self.readAll(from: descriptor)
+        let isExact = actual == expected
+        let isPartial = !isExact && actual.count < expected.count
+            ? try EraseSchema2ColdReaderPublicationRecordV1
+                .isAdmissiblePrefix(actual, intent: intent,
+                    priorSHA256: priorSHA)
+            : false
+        guard isExact || isPartial,
+              try Self.regularFileSnapshot(descriptor) == before else {
+            throw Self.identityFailure()
+        }
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        return before
+    }
+
+    @MainActor
+    private func requireSchema2ColdExactFilePrefix(
+        descriptor: Int32, name: String, expected: Data
+    ) throws -> FileSnapshot {
+        let before = try Self.regularFileSnapshot(descriptor)
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        let actual = try Self.readAll(from: descriptor)
+        guard actual.count <= expected.count,
+              actual == Data(expected.prefix(actual.count)),
+              try Self.regularFileSnapshot(descriptor) == before else {
+            throw Self.identityFailure()
+        }
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: name, expected: before.identity)
+        return before
+    }
+
+    @MainActor
+    private func requireSchema2ColdPublicationPolicy(
+        descriptor: Int32, name: String,
+        kind: OwnedFileKindV1, bytes: Data
+    ) throws {
+        let url = leaseURL.appendingPathComponent(name)
+        _ = try ProtectedFilePolicyV1
+            .verifyEraseColdTemporalPolicyWithCheckedRequest(
+                kind, at: url,
+                retainUncertainDescriptor: { value in
+                    self.eraseSchema2ColdPolicyUncertainDescriptors.append(
+                        value)
+                }, unchangedWitness: {
+                    try self.requireSchema2ColdPublicationFile(
+                        descriptor: descriptor, name: name,
+                        bytes: bytes)
+                })
+        guard eraseSchema2ColdPolicyUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// Only a descriptor retained from this operation's O_EXCL writer may
+    /// receive its first complete/backup request. Existing named controls
+    /// continue through requireSchema2ColdPublicationPolicy above, which
+    /// never repairs an observed preexisting inode.
+    @MainActor
+    private func applySchema2ColdNewPublicationPolicy(
+        descriptor: Int32, name: String,
+        kind: OwnedFileKindV1, bytes: Data,
+        diagnosticStage: Schema2ColdReaderPublishStageV1,
+        ownerCheck: @escaping () throws -> Void
+    ) throws {
+        markSchema2ColdReaderPublish(diagnosticStage, check: .owner)
+        try ownerCheck()
+        markSchema2ColdReaderPublish(diagnosticStage,
+            check: .namedBytes)
+        let before = try requireSchema2ColdPublicationFile(
+            descriptor: descriptor, name: name, bytes: bytes)
+        var firstStat = stat()
+        markSchema2ColdReaderPublish(diagnosticStage,
+            check: .initialMode)
+        guard Darwin.fstat(descriptor, &firstStat) == 0,
+              FileSnapshot(firstStat) == before,
+              firstStat.st_mode & mode_t(0o7777) == mode_t(0o600) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let check: () throws -> Void = {
+            self.markSchema2ColdReaderPublish(diagnosticStage,
+                check: .owner)
+            try ownerCheck()
+            self.markSchema2ColdReaderPublish(diagnosticStage,
+                check: .namedBytes)
+            let current = try self.requireSchema2ColdPublicationFile(
+                descriptor: descriptor, name: name, bytes: bytes)
+            var currentStat = stat()
+            self.markSchema2ColdReaderPublish(diagnosticStage,
+                check: .currentMode)
+            guard Darwin.fstat(descriptor, &currentStat) == 0,
+                  FileSnapshot(currentStat) == current,
+                  currentStat.st_mode == firstStat.st_mode,
+                  currentStat.st_uid == firstStat.st_uid,
+                  currentStat.st_gid == firstStat.st_gid else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            self.markSchema2ColdReaderPublish(diagnosticStage,
+                check: .stableIdentitySizeModification)
+            // The checked setter may change ctime while setting protection
+            // or backup exclusion. It may not replace the inode, change its
+            // links or content, or move its modification timestamp.
+            guard current.identity == before.identity,
+                  current.byteCount == before.byteCount,
+                  current.modificationSeconds
+                    == before.modificationSeconds,
+                  current.modificationNanoseconds
+                    == before.modificationNanoseconds,
+                  self.eraseSchema2ColdPolicyUncertainDescriptors.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+        markSchema2ColdReaderPublish(diagnosticStage,
+            check: .checkedSetter)
+        _ = try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(
+                kind, at: leaseURL.appendingPathComponent(name),
+                retainUncertainDescriptor: { value in
+                    self.eraseSchema2ColdPolicyUncertainDescriptors.append(
+                        value)
+                }, authorityCheck: check,
+                beforeFirstEffect: check)
+        markSchema2ColdReaderPublish(diagnosticStage,
+            check: .checkedClose)
+        try check()
+    }
+
+    @MainActor
+    private func publishEraseSchema2ColdTargetReaderLocked(
+        _ allocation: GenerationLeaseAllocationAttemptV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> GenerationLeaseHandleV1 {
+        markSchema2ColdReaderPublish(.allocation)
+        try operation.requireSchema2ColdTargetReaderAllocationUnderHeldG(
+            allocation, registry: self)
+        markSchema2ColdReaderPublish(.admission)
+        let admission = try operation.requireSchema2ColdTargetReaderAdmissionUnderHeldG(
+            epoch: allocation.epoch, registry: self,
+            activity: activity)
+        guard allocation.registry === self,
+              !allocation.schema2ColdUncertainClose,
+              !allocation.schema2ColdRenameProjectionUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let handle = allocation.handle {
+            markSchema2ColdReaderPublish(.recordReproof)
+            guard allocation.token == handle.token,
+                  allocation.schema2ColdRecordDurable,
+                  let recordBytes = allocation.schema2ColdRecordBytes,
+                  allocation.schema2ColdRecordDescriptor >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            _ = try requireSchema2ColdPublicationFile(
+                descriptor: allocation.schema2ColdRecordDescriptor,
+                name: Self.schema2ColdReaderRecordName,
+                bytes: recordBytes)
+            let observed = try readEraseSchema2ColdRegistryLocked(
+                operation: operation)
+            guard observed == (try RegistryStateV1(
+                leases: admission.priorTokens + [handle.token]).leases) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return handle
+        }
+        let prior = admission.priorTokens
+        markSchema2ColdReaderPublish(.priorCensus)
+        guard try readEraseSchema2ColdRegistryLocked(
+                operation: operation) == prior else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        markSchema2ColdReaderPublish(.manifestOwner)
+        let manifest = try operation
+            .requireSchema2ColdTargetReaderPublicationManifest(
+                registry: self, activity: activity)
+        let priorBytes = try RegistryStateV1(leases: prior)
+            .canonicalData()
+        let priorSHA = StoreMigrationCanonicalJSONV1.sha256(priorBytes)
+        markSchema2ColdReaderPublish(.token)
+        if allocation.token == nil {
+            allocation.token = try GenerationLeaseTokenV1(
+                leaseID: makeLeaseID(), ownerID: ownerID,
+                epoch: allocation.epoch, role: .reader,
+                acquiredAt: now())
+        }
+        guard let token = allocation.token,
+              token.ownerID == ownerID,
+              token.epoch == allocation.epoch,
+              !prior.contains(where: { $0.leaseID == token.leaseID }),
+              (admission.stage == .pointerPreactivation
+                || admission.stage == .activatedEntry
+                || admission.stage == .activatedRosterReplay) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let record = try EraseSchema2ColdReaderPublicationRecordV1(
+            intent: admission.intent, priorSHA256: priorSHA,
+            token: token)
+        let recordBytes = try record.canonicalData()
+        let replacement = try RegistryStateV1(
+            leases: prior + [token]).canonicalData()
+        guard allocation.schema2ColdRecordBytes == nil
+                || allocation.schema2ColdRecordBytes == recordBytes,
+              allocation.schema2ColdOriginalBytes == nil
+                || allocation.schema2ColdOriginalBytes == priorBytes,
+              allocation.schema2ColdReplacementBytes == nil
+                || allocation.schema2ColdReplacementBytes == replacement else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        allocation.schema2ColdRecordBytes = recordBytes
+        allocation.schema2ColdOriginalBytes = priorBytes
+        allocation.schema2ColdReplacementBytes = replacement
+
+        // The held Manifest owner freezes the lease-directory preimage
+        // before the first random record inode is created. A thrown writer
+        // leaves the exact owner in-flight and cannot expose a new baseline.
+        markSchema2ColdReaderPublish(.manifestBegin)
+        try manifest.beginSchema2ColdTargetReaderPublication(
+            operation: operation)
+
+        // The canonical token record is durable before any Registry temp is
+        // created. A same-process throw keeps every actual descriptor on the
+        // original allocation. A new process classifies it separately under
+        // the dead old owner guard; it never adopts this old owner token.
+        markSchema2ColdReaderPublish(.recordCreate)
+        if allocation.schema2ColdRecordDescriptor < 0 {
+            let fd = Darwin.openat(leaseDescriptor,
+                Self.schema2ColdReaderRecordName,
+                O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK | O_NOFOLLOW
+                    | O_CLOEXEC, mode_t(0o600))
+            guard fd >= 0 else { throw Self.mappedFailure() }
+            allocation.schema2ColdRecordDescriptor = fd
+        }
+        if !allocation.schema2ColdRecordDurable {
+            let fd = allocation.schema2ColdRecordDescriptor
+            markSchema2ColdReaderPublish(.recordPrefix)
+            _ = try requireSchema2ColdPublicationFilePrefix(
+                descriptor: fd,
+                name: Self.schema2ColdReaderRecordName,
+                expected: recordBytes,
+                intent: admission.intent, priorSHA: priorSHA)
+            markSchema2ColdReaderPublish(.recordWrite)
+            guard Darwin.ftruncate(fd, 0) == 0,
+                  Darwin.lseek(fd, 0, SEEK_SET) == 0 else {
+                throw Self.mappedFailure()
+            }
+            try Self.writeAll(recordBytes, to: fd)
+            guard Darwin.fsync(fd) == 0 else {
+                throw Self.mappedFailure()
+            }
+            markSchema2ColdReaderPublish(.recordPolicy)
+            try applySchema2ColdNewPublicationPolicy(
+                descriptor: fd,
+                name: Self.schema2ColdReaderRecordName,
+                kind: .generationLeaseControl,
+                bytes: recordBytes,
+                diagnosticStage: .recordPolicy,
+                ownerCheck: {
+                    try operation.requireSchema2ColdOriginalAuthority()
+                    guard allocation.schema2ColdRecordDescriptor == fd,
+                          allocation.schema2ColdRecordBytes == recordBytes,
+                          allocation.schema2ColdOriginalBytes == priorBytes,
+                          allocation.schema2ColdReplacementBytes
+                            == replacement else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                })
+            markSchema2ColdReaderPublish(.recordDurability)
+            guard Darwin.fsync(leaseDescriptor) == 0 else {
+                throw Self.mappedFailure()
+            }
+            allocation.schema2ColdRecordDurable = true
+        }
+        markSchema2ColdReaderPublish(.recordReproof)
+        _ = try requireSchema2ColdPublicationFile(
+            descriptor: allocation.schema2ColdRecordDescriptor,
+            name: Self.schema2ColdReaderRecordName,
+            bytes: recordBytes)
+
+        markSchema2ColdReaderPublish(.registryOriginal)
+        if allocation.schema2ColdOriginalDescriptor < 0 {
+            let fd = Darwin.openat(leaseDescriptor,
+                Self.registryName,
+                O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw Self.mappedFailure() }
+            allocation.schema2ColdOriginalDescriptor = fd
+            allocation.schema2ColdOriginalSnapshot =
+                try Self.regularFileSnapshot(fd)
+        }
+        let original = allocation.schema2ColdOriginalDescriptor
+        guard let oldSnapshot = allocation.schema2ColdOriginalSnapshot else {
+            throw Self.identityFailure()
+        }
+        if !allocation.schema2ColdRegistryRenamed {
+            markSchema2ColdReaderPublish(.registryPrior)
+            guard try Self.readAll(from: original) == priorBytes,
+                  try Self.regularFileSnapshot(original)
+                    == oldSnapshot else {
+                throw Self.identityFailure()
+            }
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName,
+                expected: oldSnapshot.identity)
+            guard try readEraseSchema2ColdRegistryLocked(
+                    operation: operation) == prior else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            markSchema2ColdReaderPublish(.temporaryCreate)
+            if allocation.schema2ColdTemporaryDescriptor < 0 {
+                let fd = Darwin.openat(leaseDescriptor,
+                    Self.registryTemporaryName,
+                    O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK
+                        | O_NOFOLLOW | O_CLOEXEC,
+                    mode_t(0o600))
+                guard fd >= 0 else { throw Self.mappedFailure() }
+                allocation.schema2ColdTemporaryDescriptor = fd
+            }
+            let temporary = allocation.schema2ColdTemporaryDescriptor
+            if allocation.schema2ColdTemporarySnapshot == nil {
+                markSchema2ColdReaderPublish(.temporaryPrefix)
+                _ = try requireSchema2ColdExactFilePrefix(
+                    descriptor: temporary,
+                    name: Self.registryTemporaryName,
+                    expected: replacement)
+                markSchema2ColdReaderPublish(.temporaryWrite)
+                guard Darwin.ftruncate(temporary, 0) == 0,
+                      Darwin.lseek(temporary, 0, SEEK_SET) == 0 else {
+                    throw Self.mappedFailure()
+                }
+                try Self.writeAll(replacement, to: temporary)
+                guard Darwin.fsync(temporary) == 0 else {
+                    throw Self.mappedFailure()
+                }
+                markSchema2ColdReaderPublish(.temporaryPolicy)
+                try applySchema2ColdNewPublicationPolicy(
+                    descriptor: temporary,
+                    name: Self.registryTemporaryName,
+                    kind: .generationLeaseControlTemporary,
+                    bytes: replacement,
+                    diagnosticStage: .temporaryPolicy,
+                    ownerCheck: {
+                        try operation.requireSchema2ColdOriginalAuthority()
+                        guard allocation.schema2ColdTemporaryDescriptor
+                                == temporary,
+                              allocation.schema2ColdRecordDurable,
+                              allocation.schema2ColdRecordBytes
+                                == recordBytes,
+                              allocation.schema2ColdReplacementBytes
+                                == replacement else {
+                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                        }
+                    })
+                markSchema2ColdReaderPublish(.temporarySnapshot)
+                allocation.schema2ColdTemporarySnapshot =
+                    try requireSchema2ColdPublicationFile(
+                        descriptor: temporary,
+                    name: Self.registryTemporaryName,
+                    bytes: replacement)
+            }
+            markSchema2ColdReaderPublish(.rename)
+            var beforeRename = stat()
+            guard let prepared =
+                    allocation.schema2ColdTemporarySnapshot,
+                  try Self.regularFileSnapshot(temporary) == prepared,
+                  try Self.regularFileSnapshot(original) == oldSnapshot,
+                  try requireSchema2ColdPublicationFile(
+                    descriptor: temporary,
+                    name: Self.registryTemporaryName,
+                    bytes: replacement) == prepared,
+                  Darwin.fstat(temporary, &beforeRename) == 0,
+                  FileSnapshot(beforeRename) == prepared,
+                  Darwin.renameat(leaseDescriptor,
+                    Self.registryTemporaryName,
+                    leaseDescriptor, Self.registryName) == 0 else {
+                throw Self.identityFailure()
+            }
+            allocation.schema2ColdRegistryRenamed = true
+            allocation.schema2ColdRenameProjectionUncertain = true
+            markSchema2ColdReaderPublish(.renamedSnapshot)
+            allocation.schema2ColdTemporarySnapshot =
+                try requireSchema2ColdOwnedRegistryRenamePostimage(
+                    descriptor: temporary, bytes: replacement,
+                    prepared: prepared, beforeRename: beforeRename)
+            allocation.schema2ColdRenameProjectionUncertain = false
+        }
+        markSchema2ColdReaderPublish(.directoryDurability)
+        guard Darwin.fsync(leaseDescriptor) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        markSchema2ColdReaderPublish(.registryReadback)
+        guard try readEraseSchema2ColdRegistryLocked(
+                operation: operation)
+                == (try RegistryStateV1(leases: prior + [token])).leases else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        markSchema2ColdReaderPublish(.renamedSnapshot)
+        guard try requireSchema2ColdPublicationFile(
+                descriptor: allocation.schema2ColdTemporaryDescriptor,
+                name: Self.registryName, bytes: replacement)
+                == allocation.schema2ColdTemporarySnapshot else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        markSchema2ColdReaderPublish(.replacementReproof)
+        var displaced = stat()
+        guard Darwin.fstat(original, &displaced) == 0,
+              displaced.st_dev == oldSnapshot.identity.device,
+              displaced.st_ino == oldSnapshot.identity.inode,
+              displaced.st_mode & S_IFMT == S_IFREG,
+              displaced.st_nlink == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        markSchema2ColdReaderPublish(.originalClose)
+        let originalToClose = allocation.schema2ColdOriginalDescriptor
+        try closeSchema2ColdPublicationFD(originalToClose,
+            allocation: allocation)
+        allocation.schema2ColdOriginalDescriptor = -1
+        markSchema2ColdReaderPublish(.temporaryClose)
+        let temporaryToClose = allocation.schema2ColdTemporaryDescriptor
+        try closeSchema2ColdPublicationFD(temporaryToClose,
+            allocation: allocation)
+        allocation.schema2ColdTemporaryDescriptor = -1
+        markSchema2ColdReaderPublish(.handle)
+        let handle = try GenerationLeaseHandleV1(registry: self,
+            publishedReaderToken: token)
+        allocation.handle = handle
+        markSchema2ColdReaderPublish(.manifestFinish)
+        try manifest.finishSchema2ColdTargetReaderPublication(
+            operation: operation, registry: self)
+        markSchema2ColdReaderPublish(.completed)
+        return handle
     }
     @MainActor
     fileprivate func publishOrdinaryReaderAllocation(_ allocation: GenerationLeaseAllocationAttemptV1) throws
@@ -7950,6 +20895,337 @@ final class TemporalColdRegistryConstructionV1 {
 }
 
 
+/// Retained exact guard handles for one C05 predecessor reconciliation. The
+/// cold Router operation owns this before any guard open. No deinit close and
+/// no retry after an uncertain unlock/close of a numeric descriptor.
+@MainActor
+final class EraseC05ColdPredecessorProbeV1 {
+    private struct Entry {
+        let ownerID: UUID
+        let descriptor: Int32
+        let device: UInt64
+        let inode: UInt64
+        let mode: UInt32
+        let linkCount: UInt64
+        var locked: Bool
+        var removed: Bool
+    }
+    private var entries: [Entry] = []
+    private var closeAttempted = false
+    private var uncertain = false
+    private var proofInvalid = false
+
+    fileprivate func retain(_ descriptor: Int32, ownerID: UUID) {
+        // Caller has already proved unique sorted owner IDs; this cannot
+        // throw between a successful open and retaining its exact FD.
+        // Retention precedes fstat, policy checks, or flock.
+        entries.append(Entry(ownerID: ownerID, descriptor: descriptor,
+            device: 0, inode: 0, mode: 0, linkCount: 0,
+            locked: false, removed: false))
+    }
+
+    fileprivate func proveAndLockLast(ownerID: UUID,
+        named: stat) throws -> EraseC05ColdPredecessorReclaimV1.Guard {
+        guard !closeAttempted, !uncertain, !proofInvalid,
+              let index = entries.indices.last,
+              entries[index].ownerID == ownerID,
+              !entries[index].locked else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let descriptor = entries[index].descriptor
+        var held = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              held.st_mode & S_IFMT == S_IFREG,
+              held.st_nlink == 1,
+              held.st_dev == named.st_dev,
+              held.st_ino == named.st_ino,
+              held.st_mode == named.st_mode,
+              held.st_nlink == named.st_nlink,
+              flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            proofInvalid = true
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        entries[index] = Entry(ownerID: ownerID,
+            descriptor: descriptor, device: UInt64(held.st_dev),
+            inode: UInt64(held.st_ino), mode: UInt32(held.st_mode),
+            linkCount: UInt64(held.st_nlink), locked: true,
+            removed: false)
+        return .init(ownerID: ownerID, device: UInt64(held.st_dev),
+            inode: UInt64(held.st_ino), mode: UInt32(held.st_mode),
+            linkCount: UInt64(held.st_nlink))
+    }
+
+    fileprivate func requireLocked(
+        _ expected: [EraseC05ColdPredecessorReclaimV1.Guard],
+        ownersDescriptor: Int32
+    ) throws {
+        guard !closeAttempted, !uncertain, !proofInvalid,
+              entries.count == expected.count else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        for (entry, guardIdentity) in zip(entries, expected) {
+            var held = stat(), named = stat()
+            let name = "\(guardIdentity.ownerID.uuidString.lowercased()).lock"
+            guard entry.locked, !entry.removed,
+                  entry.ownerID == guardIdentity.ownerID,
+                  entry.device == guardIdentity.device,
+                  entry.inode == guardIdentity.inode,
+                  entry.mode == guardIdentity.mode,
+                  entry.linkCount == guardIdentity.linkCount,
+                  Darwin.fstat(entry.descriptor, &held) == 0,
+                  Darwin.fstatat(ownersDescriptor, name,
+                      &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  held.st_dev == named.st_dev,
+                  held.st_ino == named.st_ino,
+                  held.st_mode == named.st_mode,
+                  held.st_nlink == named.st_nlink,
+                  UInt64(held.st_dev) == entry.device,
+                  UInt64(held.st_ino) == entry.inode,
+                  UInt32(held.st_mode) == entry.mode,
+                  UInt64(held.st_nlink) == entry.linkCount,
+                  flock(entry.descriptor, LOCK_EX | LOCK_NB) == 0 else {
+                proofInvalid = true
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    fileprivate func removeExactLockedGuards(
+        _ expected: [EraseC05ColdPredecessorReclaimV1.Guard],
+        ownersDescriptor: Int32
+    ) throws {
+        guard !closeAttempted, !uncertain, !proofInvalid,
+              entries.count == expected.count else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        for index in entries.indices {
+            let identity = expected[index]
+            let entry = entries[index]
+            let name = "\(identity.ownerID.uuidString.lowercased()).lock"
+            var held = stat(), named = stat()
+            guard entry.locked,
+                  entry.ownerID == identity.ownerID,
+                  entry.device == identity.device,
+                  entry.inode == identity.inode,
+                  entry.mode == identity.mode,
+                  Darwin.fstat(entry.descriptor, &held) == 0,
+                  UInt64(held.st_dev) == identity.device,
+                  UInt64(held.st_ino) == identity.inode,
+                  UInt32(held.st_mode) == identity.mode,
+                  flock(entry.descriptor, LOCK_EX | LOCK_NB) == 0 else {
+                proofInvalid = true
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if entry.removed {
+                guard held.st_nlink == 0,
+                      Darwin.fstatat(ownersDescriptor, name,
+                        &named, AT_SYMLINK_NOFOLLOW) != 0,
+                      errno == ENOENT else {
+                    proofInvalid = true
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                continue
+            }
+            guard held.st_nlink == 1,
+                  Darwin.fstatat(ownersDescriptor, name,
+                    &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  held.st_dev == named.st_dev,
+                  held.st_ino == named.st_ino,
+                  held.st_mode == named.st_mode,
+                  held.st_nlink == named.st_nlink,
+                  Darwin.unlinkat(ownersDescriptor, name, 0) == 0 else {
+                proofInvalid = true
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            entries[index].removed = true
+        }
+        guard Darwin.fsync(ownersDescriptor) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireAllRemoved(expected, ownersDescriptor: ownersDescriptor)
+    }
+
+    fileprivate func requireAllRemoved(
+        _ expected: [EraseC05ColdPredecessorReclaimV1.Guard],
+        ownersDescriptor: Int32
+    ) throws {
+        guard !closeAttempted, !uncertain, !proofInvalid,
+              entries.count == expected.count else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        for (entry, identity) in zip(entries, expected) {
+            let name = "\(identity.ownerID.uuidString.lowercased()).lock"
+            var held = stat(), named = stat()
+            guard entry.locked, entry.removed,
+                  entry.ownerID == identity.ownerID,
+                  Darwin.fstat(entry.descriptor, &held) == 0,
+                  UInt64(held.st_dev) == identity.device,
+                  UInt64(held.st_ino) == identity.inode,
+                  UInt32(held.st_mode) == identity.mode,
+                  held.st_nlink == 0,
+                  Darwin.fstatat(ownersDescriptor, name,
+                    &named, AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else {
+                proofInvalid = true
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    func closeChecked() throws {
+        guard !closeAttempted, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        closeAttempted = true
+        while let entry = entries.last {
+            if entry.locked, flock(entry.descriptor, LOCK_UN) != 0 {
+                // The FD is still held and remains in the retained probe.
+                uncertain = true
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            entries.removeLast()
+            // Remove before close. An ambiguous close is terminally retained
+            // as a failed attempt and cannot target a reused FD integer.
+            if Darwin.close(entry.descriptor) != 0 {
+                uncertain = true
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    func requireCheckedClosed() throws {
+        guard closeAttempted, !uncertain, !proofInvalid,
+              entries.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+
+/// The exact old and replacement Registry inodes remain owned by the cold
+/// operation across every fallible publication step. In particular, a
+/// post-rename failure must not be retried through a newly opened FD number.
+@MainActor
+final class EraseC05ColdPredecessorReplacementV1 {
+    fileprivate var oldFD: Int32?
+    fileprivate var replacementFD: Int32?
+    fileprivate var renamed = false
+    fileprivate var oldDevice: dev_t?
+    fileprivate var oldInode: ino_t?
+    private var closeAttempted = false
+    private var closeUncertain = false
+
+    fileprivate func retainOld(_ fd: Int32) {
+        precondition(oldFD == nil && !closeAttempted)
+        oldFD = fd
+    }
+
+    fileprivate func retainReplacement(_ fd: Int32) {
+        precondition(replacementFD == nil && !closeAttempted)
+        replacementFD = fd
+    }
+
+    fileprivate func requireUsable() throws {
+        guard !closeAttempted, !closeUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func closeChecked() throws {
+        try requireUsable()
+        closeAttempted = true
+        for keyPath in [\EraseC05ColdPredecessorReplacementV1.replacementFD,
+                        \EraseC05ColdPredecessorReplacementV1.oldFD] {
+            if let fd = self[keyPath: keyPath] {
+                self[keyPath: keyPath] = nil
+                if Darwin.close(fd) != 0 { closeUncertain = true }
+            }
+        }
+        guard !closeUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireCheckedClosed() throws {
+        guard closeAttempted, !closeUncertain,
+              oldFD == nil, replacementFD == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+
+/// Exact C05 Erase cold registry constructor owner, retained by the startup
+/// operation before opening. Only its newly created guard can be removed.
+@MainActor
+final class EraseC05ColdRegistryConstructionV1 {
+    private struct Entry { let fd: Int32; let url: URL }
+    private var entries: [Entry] = []
+    private var guardFD: Int32?
+    private var guardParent: Int32?
+    private var guardName: String?
+    private var guardRemoved = false
+    private var transferred = false
+    private var uncertainClose = false
+    fileprivate func retain(_ fd: Int32, at url: URL) { entries.append(Entry(fd: fd, url: url)) }
+    fileprivate func retainCreatedGuard(_ fd: Int32, parent: Int32, name: String, at url: URL) {
+        retain(fd, at: url); guardFD = fd; guardParent = parent; guardName = name
+    }
+    fileprivate func transferDescriptorsToRegistry() {
+        transferred = true; entries.removeAll(); guardFD = nil; guardParent = nil; guardName = nil
+    }
+    /// Caller retains the real support EX throughout this method. Failed checks
+    /// keep all handles; successful unlink is separately remembered for fsync retry.
+    func closeUntransferred() throws {
+        guard !uncertainClose else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        guard !transferred else { return }
+        for entry in entries {
+            var held = stat(); var named = stat()
+            guard fstat(entry.fd, &held) == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            if entry.fd == guardFD, guardRemoved {
+                errno = 0
+                guard held.st_nlink == 0, lstat(entry.url.path, &named) == -1, errno == ENOENT else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            } else {
+                guard lstat(entry.url.path, &named) == 0,
+                      held.st_dev == named.st_dev, held.st_ino == named.st_ino,
+                      (held.st_mode & S_IFMT) == (named.st_mode & S_IFMT),
+                      (held.st_mode & S_IFMT) != S_IFLNK else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+        }
+        if let guardFD, let guardParent, let guardName {
+            if !guardRemoved {
+                var held = stat(); var named = stat()
+                guard fstat(guardFD, &held) == 0, held.st_nlink == 1,
+                      (held.st_mode & S_IFMT) == S_IFREG,
+                      fstatat(guardParent, guardName, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      held.st_dev == named.st_dev, held.st_ino == named.st_ino,
+                      flock(guardFD, LOCK_EX | LOCK_NB) == 0 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                guard unlinkat(guardParent, guardName, 0) == 0 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                guardRemoved = true
+            }
+            guard fsync(guardParent) == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+        while let entry = entries.last {
+            // Remove the numeric descriptor before close: an ambiguous close
+            // must never retry against a possibly reused descriptor number.
+            entries.removeLast()
+            if Darwin.close(entry.fd) != 0 {
+                uncertainClose = true
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+        guardFD = nil; guardParent = nil; guardName = nil
+    }
+}
+
+
+
 /// Physical EX acquisition only. The genuine Router authority owns this
 /// attempt before opening; it grants neither access nor lease classification.
 @MainActor
@@ -7983,6 +21259,41 @@ final class GenerationTemporalColdActivityAcquisitionV1 {
         try registry.validateTemporalNormalizationActivity(handle, retainedWriter: nil)
         return handle
     }
+    /// Schema-2 may begin with an old crashed writer token. EX ownership is
+    /// established before the separately authenticated token/guard census;
+    /// `acquire()` would incorrectly require a zero-writer census first.
+    @MainActor
+    func acquireForEraseSchema2Cold(
+        operation: EraseColdPreparationOperationV1
+    ) throws -> GenerationTemporalActivityHandleV1 {
+        try operation.requireSchema2ColdActivityAcquisition(self,
+            registry: registry)
+        guard !closed, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let result {
+            try registry.requireEraseSchema2ColdExcluded(
+                operation: operation, activity: result)
+            return result
+        }
+        if descriptor < 0 {
+            descriptor = try registry.openColdRetirementActivityDescriptor()
+        }
+        try registry.validateColdRetirementActivityDescriptor(descriptor)
+        if !locked {
+            guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            locked = true
+        }
+        try registry.validateColdRetirementActivityDescriptor(descriptor)
+        let handle = GenerationTemporalActivityHandleV1(
+            registry: registry, descriptor: descriptor, exclusive: true)
+        result = handle; descriptor = -1; locked = false
+        try registry.requireEraseSchema2ColdExcluded(
+            operation: operation, activity: handle)
+        return handle
+    }
     func closeAfterFailure() throws {
         guard !uncertain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         if closed { return }
@@ -8004,7 +21315,1128 @@ final class GenerationTemporalColdActivityAcquisitionV1 {
     }
 }
 
+/// Exact SH acquisition for a C05 Erase-cold writer publication or release.
+/// The startup operation retains this attempt before it opens a descriptor.
+@MainActor
+final class EraseC05ColdWriterActivityAcquisitionV1 {
+    private let registry: GenerationLeaseRegistryV1
+    private var descriptor: Int32 = -1
+    private var locked = false
+    private var uncertain = false
+    private var closed = false
+    private var result: GenerationTemporalActivityHandleV1?
+    fileprivate init(registry: GenerationLeaseRegistryV1) { self.registry = registry }
+    func acquire() throws -> GenerationTemporalActivityHandleV1 {
+        guard !closed, !uncertain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        if let result {
+            try result.validate(for: registry, exclusive: false)
+            return result
+        }
+        if descriptor < 0 { descriptor = try registry.openColdRetirementActivityDescriptor() }
+        try registry.validateTemporalActivityDescriptor(descriptor, observationOnly: true)
+        if !locked {
+            guard flock(descriptor, LOCK_SH | LOCK_NB) == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            locked = true
+        }
+        try registry.validateTemporalActivityDescriptor(descriptor, observationOnly: true)
+        // Transfer the actual descriptor before any higher-level census check.
+        let handle = GenerationTemporalActivityHandleV1(registry: registry, descriptor: descriptor, exclusive: false)
+        result = handle; descriptor = -1; locked = false
+        try handle.validate(for: registry, exclusive: false)
+        return handle
+    }
+    func closeAfterFailure() throws {
+        guard !uncertain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        if closed { return }
+        if let result {
+            try result.closeCheckedForEraseC05ColdWriter()
+            self.result = nil
+        }
+        if descriptor >= 0 {
+            if locked {
+                guard flock(descriptor, LOCK_UN) == 0 else {
+                    uncertain = true
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                locked = false
+            }
+            let owned = descriptor; descriptor = -1
+            guard Darwin.close(owned) == 0 else {
+                uncertain = true; throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+        closed = true
+    }
+}
+
+
 extension GenerationLeaseRegistryV1 {
+    @MainActor
+    func makeEraseC05ColdWriterActivityAcquisition(
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseC05ColdWriterActivityAcquisitionV1 {
+        try operation.requireConstructedC05ColdRegistry(self)
+        let attempt = EraseC05ColdWriterActivityAcquisitionV1(registry: self)
+        try operation.retainC05ColdWriterActivityAcquisition(attempt,
+            registry: self)
+        return attempt
+    }
+
+    @MainActor
+    func makeEraseC05ColdWriterAllocation(
+        epoch: GenerationEpochV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseC05ColdWriterAllocationV1 {
+        try epoch.validate()
+        try operation.requireConstructedC05ColdRegistry(self)
+        let allocation = EraseC05ColdWriterAllocationV1(registry: self, epoch: epoch)
+        try operation.retainEraseC05ColdWriterAllocation(allocation, registry: self)
+        return allocation
+    }
+
+    /// Source-only capture helper for a future exact schema-3→4 CAS inside
+    /// the same retained SH→G interval. It performs no registry mutation.
+    @MainActor
+    fileprivate func captureEraseC05ColdPredecessorRecordLocked(
+        observed: TemporalGenerationRegistryObservationV1,
+        preparation: ErasePreparationV2,
+        operation: EraseColdPreparationOperationV1,
+        probe: EraseC05ColdPredecessorProbeV1
+    ) throws -> EraseC05ColdPredecessorReclaimV1 {
+        try operation.requireC05ColdPredecessorProbe(probe, registry: self)
+        guard let c05 = preparation.c05JobDrainV3,
+              c05.phase == .pending,
+              preparation.coldPredecessorReclaim == nil,
+              preparation.targetPointer == nil,
+              preparation.oldPointer.generationID == c05.sourceGenerationID,
+              try !itemExistsLocked(Self.registryTemporaryName) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let original = try RegistryStateV1.decodeCanonical(
+            from: observed.registryBytes)
+        guard original.leases == observed.leases,
+              !original.leases.isEmpty,
+              !original.leases.contains(where: { $0.ownerID == ownerID }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let predecessorIDs = Set(original.leases.map(\.ownerID)).sorted(
+            by: Self.idOrder)
+        var guards: [EraseC05ColdPredecessorReclaimV1.Guard] = []
+        for predecessorID in predecessorIDs {
+            let name = Self.ownerLockName(predecessorID)
+            let fd = Darwin.openat(ownersDescriptor, name,
+                O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw Self.uncertainOwnerFailure() }
+            probe.retain(fd, ownerID: predecessorID)
+            var named = stat()
+            guard Darwin.fstatat(ownersDescriptor, name,
+                    &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  named.st_mode & S_IFMT == S_IFREG,
+                  named.st_nlink == 1 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                .generationLeaseOwnerLock,
+                at: ownersURL.appendingPathComponent(name))
+            guard policy.state == .strictComplete,
+                  policy.device == UInt64(named.st_dev),
+                  policy.inode == UInt64(named.st_ino) else {
+                throw Self.uncertainOwnerFailure()
+            }
+            guards.append(try probe.proveAndLockLast(
+                ownerID: predecessorID, named: named))
+        }
+        try probe.requireLocked(guards, ownersDescriptor: ownersDescriptor)
+        let replacement = try RegistryStateV1(leases: [])
+        let record = EraseC05ColdPredecessorReclaimV1(
+            eraseID: c05.eraseID,
+            oldRegistryBytes: observed.registryBytes,
+            replacementRegistryBytes: try replacement.canonicalData(),
+            temporaryName: Self.registryTemporaryName,
+            predecessorLeaseIDs: original.leases.map(\.leaseID).sorted(by: Self.idOrder),
+            predecessorGuards: guards, phase: .pending)
+        try record.validate()
+        return record
+    }
+
+    /// The original C05 source is frozen. The ordinary migration control
+    /// constructor can create or reconcile files, so cold Erase observes the
+    /// exact existing control through the retained registry instead.
+    @MainActor
+    private func requireNoEraseC05ColdMigrationReservationLocked() throws {
+        let migrationName = StoreMigrationJournalStoreV1.migrationName
+        let migrationURL = applicationSupportURL
+            .appendingPathComponent(Self.operationsName, isDirectory: true)
+            .appendingPathComponent(migrationName, isDirectory: true)
+        try withLocalJobPublicationDirectory(
+            parent: operationsDescriptor, name: migrationName,
+            url: migrationURL, kind: .stagingDirectory
+        ) { migrationFD in
+            var named = stat()
+            guard Darwin.fstatat(migrationFD,
+                    StoreAggregateMigrationControlV1.temporaryName,
+                    &named, AT_SYMLINK_NOFOLLOW) != 0,
+                  errno == ENOENT else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let exists = Darwin.fstatat(migrationFD,
+                StoreAggregateMigrationControlV1.name,
+                &named, AT_SYMLINK_NOFOLLOW)
+            if exists != 0 {
+                guard errno == ENOENT else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                return
+            }
+            let bytes = try readLocalJobPublicationFile(
+                parent: migrationFD,
+                name: StoreAggregateMigrationControlV1.name,
+                url: migrationURL.appendingPathComponent(
+                    StoreAggregateMigrationControlV1.name),
+                kind: .journal,
+                maximumBytes: Self.maximumControlFileBytes)
+            let state = try StoreAggregateMigrationJournalV1.decodeCanonical(
+                from: bytes)
+            guard !state.reservationIsActive else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    @MainActor
+    private func requireBoundEraseC05ColdPredecessorRecordLocked(
+        _ record: EraseC05ColdPredecessorReclaimV1,
+        preparation: ErasePreparationV2
+    ) throws {
+        try record.validate()
+        guard let c05 = preparation.c05JobDrainV3,
+              c05.eraseID == record.eraseID,
+              c05.phase == .pending,
+              preparation.targetPointer == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let old = try RegistryStateV1.decodeCanonical(
+            from: record.oldRegistryBytes)
+        let replacement = try RegistryStateV1.decodeCanonical(
+            from: record.replacementRegistryBytes)
+        let leaseIDs = old.leases.map(\.leaseID).sorted(by: Self.idOrder)
+        let ownerIDs = Set(old.leases.map(\.ownerID)).sorted(
+            by: Self.idOrder)
+        guard replacement.leases.isEmpty,
+              leaseIDs == record.predecessorLeaseIDs,
+              ownerIDs == record.predecessorGuards.map(\.ownerID),
+              !ownerIDs.contains(ownerID) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// Publish exact schema-4 PENDING while the real cold SH and G are held.
+    /// No predecessor Registry byte or guard is changed in this step.
+    @MainActor
+    func publishEraseC05ColdPredecessorMarker(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        journal: EraseC05ColdPreparationJournalReaderV1
+    ) throws -> ErasePreparationV2 {
+        try operation.requireC05ColdJournalReader(journal)
+        return try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try requireNoEraseC05ColdMigrationReservationLocked()
+            let preparation = try journal.currentPredecessorPreparation(
+                operation: operation)
+            guard preparation.coldPredecessorReclaim == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let observed = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            let probe = EraseC05ColdPredecessorProbeV1()
+            try operation.retainC05ColdPredecessorProbe(probe, registry: self)
+            let record = try captureEraseC05ColdPredecessorRecordLocked(
+                observed: observed, preparation: preparation,
+                operation: operation, probe: probe)
+            try requireBoundEraseC05ColdPredecessorRecordLocked(record,
+                preparation: preparation)
+            try probe.requireLocked(record.predecessorGuards,
+                ownersDescriptor: ownersDescriptor)
+            let reread = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            guard reread.registryBytes == record.oldRegistryBytes,
+                  reread.leases == observed.leases else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let replacement = try preparation.recordingColdPredecessorReclaim(
+                record)
+            try journal.replacePredecessorPreparation(
+                expected: preparation, with: replacement,
+                operation: operation)
+            guard try journal.currentPredecessorPreparation(
+                    operation: operation) == replacement else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try probe.requireLocked(record.predecessorGuards,
+                ownersDescriptor: ownersDescriptor)
+            return replacement
+        }
+    }
+
+    /// Reconstruct only the physical guard ownership named by an already
+    /// durable schema-4 record. An absent or changed guard never becomes a
+    /// new owner merely because its UUID appears in the preparation.
+    @MainActor
+    func openEraseC05ColdPredecessorProbe(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        journal: EraseC05ColdPreparationJournalReaderV1
+    ) throws -> EraseC05ColdPredecessorProbeV1 {
+        try operation.requireC05ColdJournalReader(journal)
+        return try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try requireNoEraseC05ColdMigrationReservationLocked()
+            let preparation = try journal.currentPredecessorPreparation(
+                operation: operation)
+            guard let record = preparation.coldPredecessorReclaim,
+                  record.phase == .pending
+                    || record.phase == .registryPublished else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireBoundEraseC05ColdPredecessorRecordLocked(record,
+                preparation: preparation)
+            let observed = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            switch record.phase {
+            case .pending:
+                guard observed.registryBytes == record.oldRegistryBytes
+                    || observed.registryBytes == record.replacementRegistryBytes else {
+                    throw GenerationLeaseRegistryFailureV1.corruptRegistry
+                }
+            case .registryPublished:
+                guard observed.registryBytes
+                    == record.replacementRegistryBytes else {
+                    throw GenerationLeaseRegistryFailureV1.corruptRegistry
+                }
+            case .guardsRemoved:
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let probe = EraseC05ColdPredecessorProbeV1()
+            try operation.retainC05ColdPredecessorProbe(probe, registry: self)
+            for expected in record.predecessorGuards {
+                let name = Self.ownerLockName(expected.ownerID)
+                let descriptor = Darwin.openat(ownersDescriptor, name,
+                    O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                guard descriptor >= 0 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                probe.retain(descriptor, ownerID: expected.ownerID)
+                var named = stat()
+                guard Darwin.fstatat(ownersDescriptor, name,
+                        &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      named.st_mode & S_IFMT == S_IFREG,
+                      named.st_nlink == 1,
+                      UInt64(named.st_dev) == expected.device,
+                      UInt64(named.st_ino) == expected.inode,
+                      UInt32(named.st_mode) == expected.mode else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                    .generationLeaseOwnerLock,
+                    at: ownersURL.appendingPathComponent(name))
+                guard policy.state == .strictComplete,
+                      policy.device == expected.device,
+                      policy.inode == expected.inode,
+                      try probe.proveAndLockLast(
+                        ownerID: expected.ownerID, named: named)
+                        == expected else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            try probe.requireLocked(record.predecessorGuards,
+                ownersDescriptor: ownersDescriptor)
+            let reread = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            guard reread.registryBytes == observed.registryBytes,
+                  try journal.currentPredecessorPreparation(
+                    operation: operation) == preparation else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return probe
+        }
+    }
+
+    /// Consume only the registry transition bound by a durable schema-4
+    /// marker. A complete named temp may be adopted only when that marker
+    /// already binds its exact canonical replacement bytes. A partial temp,
+    /// altered source, or failed checked close remains with this operation.
+    @MainActor
+    func publishEraseC05ColdPredecessorRegistry(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        journal: EraseC05ColdPreparationJournalReaderV1,
+        probe: EraseC05ColdPredecessorProbeV1
+    ) throws -> ErasePreparationV2 {
+        try operation.requireC05ColdJournalReader(journal)
+        try operation.requireC05ColdPredecessorProbe(probe, registry: self)
+        return try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try requireNoEraseC05ColdMigrationReservationLocked()
+            let preparation = try journal.currentPredecessorPreparation(
+                operation: operation)
+            guard let record = preparation.coldPredecessorReclaim,
+                  record.phase == .pending,
+                  record.temporaryName == Self.registryTemporaryName else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireBoundEraseC05ColdPredecessorRecordLocked(record,
+                preparation: preparation)
+            try probe.requireLocked(record.predecessorGuards,
+                ownersDescriptor: ownersDescriptor)
+            let attempt = EraseC05ColdPredecessorReplacementV1()
+            try operation.retainC05ColdPredecessorReplacement(
+                attempt, registry: self)
+            let observed = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            guard observed.registryBytes == record.oldRegistryBytes
+                    || observed.registryBytes == record.replacementRegistryBytes else {
+                throw GenerationLeaseRegistryFailureV1.corruptRegistry
+            }
+            var temporary = stat()
+            if observed.registryBytes == record.oldRegistryBytes {
+                let old = Darwin.openat(leaseDescriptor, Self.registryName,
+                    O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                guard old >= 0 else { throw Self.mappedFailure() }
+                attempt.retainOld(old)
+                let oldSnapshot = try Self.regularFileSnapshot(old)
+                var oldPhysical = stat()
+                guard Darwin.fstat(old, &oldPhysical) == 0 else {
+                    throw Self.identityFailure()
+                }
+                attempt.oldDevice = oldPhysical.st_dev
+                attempt.oldInode = oldPhysical.st_ino
+                try requireNamedIdentity(parent: leaseDescriptor,
+                    name: Self.registryName, expected: oldSnapshot.identity)
+                guard try Self.readAll(from: old) == record.oldRegistryBytes,
+                      try Self.regularFileSnapshot(old) == oldSnapshot else {
+                    throw Self.identityFailure()
+                }
+                let temp = Darwin.openat(leaseDescriptor,
+                    Self.registryTemporaryName,
+                    O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                if temp >= 0 {
+                    attempt.retainReplacement(temp)
+                    let snapshot = try Self.regularFileSnapshot(temp)
+                    try requireNamedIdentity(parent: leaseDescriptor,
+                        name: Self.registryTemporaryName,
+                        expected: snapshot.identity)
+                    let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                        .generationLeaseControlTemporary,
+                        at: leaseURL.appendingPathComponent(
+                            Self.registryTemporaryName))
+                    guard policy.state == .strictComplete,
+                          policy.device == UInt64(snapshot.identity.device),
+                          policy.inode == UInt64(snapshot.identity.inode),
+                          try Self.readAll(from: temp)
+                            == record.replacementRegistryBytes,
+                          try Self.regularFileSnapshot(temp) == snapshot else {
+                        throw Self.identityFailure()
+                    }
+                } else {
+                    guard errno == ENOENT else { throw Self.mappedFailure() }
+                    let created = Darwin.openat(leaseDescriptor,
+                        Self.registryTemporaryName,
+                        O_RDWR | O_CREAT | O_EXCL | O_NONBLOCK
+                            | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
+                    guard created >= 0 else { throw Self.mappedFailure() }
+                    attempt.retainReplacement(created)
+                    let identity = try Self.regularFileIdentity(created)
+                    try requireNamedIdentity(parent: leaseDescriptor,
+                        name: Self.registryTemporaryName,
+                        expected: identity)
+                    try protectFile(.generationLeaseControlTemporary,
+                        parent: leaseDescriptor, directoryURL: leaseURL,
+                        name: Self.registryTemporaryName, expected: identity)
+                    try Self.writeAll(record.replacementRegistryBytes,
+                        to: created)
+                    guard Darwin.fsync(created) == 0,
+                          try Self.readAll(from: created)
+                            == record.replacementRegistryBytes else {
+                        throw Self.mappedFailure()
+                    }
+                }
+                guard let replacementFD = attempt.replacementFD else {
+                    throw Self.identityFailure()
+                }
+                let replacementSnapshot = try Self.regularFileSnapshot(
+                    replacementFD)
+                try requireNamedIdentity(parent: leaseDescriptor,
+                    name: Self.registryTemporaryName,
+                    expected: replacementSnapshot.identity)
+                try requireNamedIdentity(parent: leaseDescriptor,
+                    name: Self.registryName, expected: oldSnapshot.identity)
+                try probe.requireLocked(record.predecessorGuards,
+                    ownersDescriptor: ownersDescriptor)
+                guard try Self.readAll(from: old) == record.oldRegistryBytes,
+                      try Self.readAll(from: replacementFD)
+                        == record.replacementRegistryBytes,
+                      try journal.currentPredecessorPreparation(
+                        operation: operation) == preparation,
+                      Darwin.renameat(leaseDescriptor,
+                        Self.registryTemporaryName,
+                        leaseDescriptor, Self.registryName) == 0 else {
+                    throw Self.identityFailure()
+                }
+                attempt.renamed = true
+            } else {
+                guard Darwin.fstatat(leaseDescriptor,
+                    Self.registryTemporaryName, &temporary,
+                    AT_SYMLINK_NOFOLLOW) != 0,
+                      errno == ENOENT else {
+                    throw Self.identityFailure()
+                }
+            }
+            guard Darwin.fsync(leaseDescriptor) == 0 else {
+                throw Self.mappedFailure()
+            }
+            if attempt.renamed {
+                guard let replacementFD = attempt.replacementFD,
+                      let oldFD = attempt.oldFD else {
+                    throw Self.identityFailure()
+                }
+                let heldReplacement = try Self.regularFileSnapshot(
+                    replacementFD)
+                try requireNamedIdentity(parent: leaseDescriptor,
+                    name: Self.registryName,
+                    expected: heldReplacement.identity)
+                var heldOld = stat()
+                guard Darwin.fstat(oldFD, &heldOld) == 0,
+                      heldOld.st_mode & S_IFMT == S_IFREG,
+                      heldOld.st_nlink == 0,
+                      heldOld.st_dev == attempt.oldDevice,
+                      heldOld.st_ino == attempt.oldInode,
+                      try Self.readAll(from: replacementFD)
+                        == record.replacementRegistryBytes,
+                      try Self.readAll(from: oldFD)
+                        == record.oldRegistryBytes else {
+                    throw Self.identityFailure()
+                }
+            }
+            let published = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            guard published.registryBytes == record.replacementRegistryBytes,
+                  published.leases.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.corruptRegistry
+            }
+            try probe.requireLocked(record.predecessorGuards,
+                ownersDescriptor: ownersDescriptor)
+            let next = try preparation.advancingColdPredecessorReclaim(
+                to: .registryPublished)
+            try journal.replacePredecessorPreparation(
+                expected: preparation, with: next,
+                operation: operation)
+            guard try journal.currentPredecessorPreparation(
+                    operation: operation) == next else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try attempt.closeChecked()
+            return next
+        }
+    }
+
+    /// The registry is already the exact marker-bound empty replacement.
+    /// Unlinking predecessor controls is the final physical predecessor
+    /// effect; its durable phase is published only after fsync and held-FD
+    /// proof. Partial unlink after process death remains a visible refusal.
+    @MainActor
+    func publishEraseC05ColdPredecessorGuardRemoval(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        journal: EraseC05ColdPreparationJournalReaderV1,
+        probe: EraseC05ColdPredecessorProbeV1
+    ) throws -> ErasePreparationV2 {
+        try operation.requireC05ColdJournalReader(journal)
+        try operation.requireC05ColdPredecessorProbe(probe, registry: self)
+        let completed = try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try requireNoEraseC05ColdMigrationReservationLocked()
+            let preparation = try journal.currentPredecessorPreparation(
+                operation: operation)
+            guard let record = preparation.coldPredecessorReclaim,
+                  record.phase == .registryPublished else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireBoundEraseC05ColdPredecessorRecordLocked(record,
+                preparation: preparation)
+            let observed = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            guard observed.registryBytes == record.replacementRegistryBytes,
+                  observed.leases.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.corruptRegistry
+            }
+            try probe.removeExactLockedGuards(record.predecessorGuards,
+                ownersDescriptor: ownersDescriptor)
+            let reread = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            guard reread.registryBytes == record.replacementRegistryBytes,
+                  reread.leases.isEmpty,
+                  try journal.currentPredecessorPreparation(
+                    operation: operation) == preparation else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try probe.requireAllRemoved(record.predecessorGuards,
+                ownersDescriptor: ownersDescriptor)
+            let next = try preparation.advancingColdPredecessorReclaim(
+                to: .guardsRemoved)
+            try journal.replacePredecessorPreparation(
+                expected: preparation, with: next,
+                operation: operation)
+            guard try journal.currentPredecessorPreparation(
+                    operation: operation) == next else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try probe.requireAllRemoved(record.predecessorGuards,
+                ownersDescriptor: ownersDescriptor)
+            try probe.closeChecked()
+            return next
+        }
+        // The G wrapper's postcondition and checked unlock must succeed
+        // before the operation may admit a fresh reader or writer.
+        try operation.recordC05ColdPredecessorCheckedCompletion(
+            journal: journal, probe: probe, registry: self)
+        return completed
+    }
+
+    /// A fresh process may have inherited an already durable terminal
+    /// predecessor record. It proves physical empty Registry and exact named
+    /// old-control absence under its own retained SH→G before admission.
+    @MainActor
+    func restoreEraseC05ColdPredecessorTerminal(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        journal: EraseC05ColdPreparationJournalReaderV1
+    ) throws {
+        try operation.requireC05ColdJournalReader(journal)
+        try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try requireNoEraseC05ColdMigrationReservationLocked()
+            let preparation = try journal.currentPredecessorPreparation(
+                operation: operation)
+            guard let record = preparation.coldPredecessorReclaim,
+                  record.phase == .guardsRemoved,
+                  try !itemExistsLocked(Self.registryTemporaryName) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireBoundEraseC05ColdPredecessorRecordLocked(record,
+                preparation: preparation)
+            let observed = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            guard observed.registryBytes == record.replacementRegistryBytes,
+                  observed.leases.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.corruptRegistry
+            }
+            for predecessor in record.predecessorGuards {
+                var named = stat()
+                guard Darwin.fstatat(ownersDescriptor,
+                        Self.ownerLockName(predecessor.ownerID),
+                        &named, AT_SYMLINK_NOFOLLOW) != 0,
+                      errno == ENOENT else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            guard try journal.currentPredecessorPreparation(
+                    operation: operation) == preparation else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+        // Set only after the G wrapper has completed its postcondition and
+        // checked unlock; subsequent lease admission reobserves G again.
+        try operation.recordC05ColdPredecessorRestoredTerminal(
+            journal: journal, registry: self)
+    }
+
+    @MainActor
+    fileprivate func publishEraseC05ColdWriter(
+        _ allocation: EraseC05ColdWriterAllocationV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> GenerationLeaseHandleV1 {
+        guard allocation.registry === self, allocation.acquiring,
+              !allocation.sealed else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireEraseC05ColdWriterAllocation(allocation, registry: self)
+        let handle = try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try operation.requireC05ColdPredecessorCheckedCompletion(
+                registry: self)
+            try requireNoEraseC05ColdMigrationReservationLocked()
+            let observed = try observeEraseC05ColdRegistryLocked(operation: operation)
+            // The separate predecessor-reclaim phase must first prove and
+            // remove crashed owners. A live/uncertain foreign token refuses.
+            try operation.requireEraseC05ColdWriterCensus(observed.leases,
+                writer: nil, registry: self)
+            guard observed.leases.count < Self.maximumActiveLeaseCount else {
+                throw GenerationLeaseRegistryFailureV1.registryLimitExceeded
+            }
+            try requireBoundLocalJobEpochLocked(allocation.epoch)
+            let token = try GenerationLeaseTokenV1(leaseID: makeLeaseID(),
+                ownerID: ownerID, epoch: allocation.epoch,
+                role: .writer, acquiredAt: now())
+            guard !observed.leases.contains(where: { $0.leaseID == token.leaseID }),
+                  allocation.token == nil else {
+                throw GenerationLeaseRegistryFailureV1.duplicateLease
+            }
+            allocation.token = token // before the first replacement effect
+            eraseC05ColdOwnedTokens.insert(token.leaseID)
+            let record = FreshAdoptionReplacement(token: token)
+            let id = ObjectIdentifier(allocation)
+            guard eraseC05ColdWriterPublications[id] == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            eraseC05ColdWriterPublications[id] = record
+            try captureFreshAdoptionReplacementLocked(record, observed: observed,
+                replacement: RegistryStateV1(leases: observed.leases + [token]))
+            guard let attempt = record.replacement else { throw Self.identityFailure() }
+            try finishTemporalReplacementLocked(attempt,
+                observeAfterRename: {
+                    try observeEraseC05ColdRegistryLocked(operation: operation)
+                })
+            let current = try observeEraseC05ColdRegistryLocked(operation: operation)
+            try operation.requireEraseC05ColdWriterCensus(current.leases,
+                writer: token, registry: self)
+            let handle = try GenerationLeaseHandleV1(
+                registry: self, publishedWriterToken: token)
+            allocation.handle = handle // before G exit or postpublication reproof
+            return handle
+        }
+        try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            guard let record = eraseC05ColdWriterPublications[
+                ObjectIdentifier(allocation)] else {
+                throw Self.identityFailure()
+            }
+            let observed = try observeEraseC05ColdRegistryLocked(operation: operation)
+            try operation.requireEraseC05ColdWriterCensus(observed.leases,
+                writer: handle.token, registry: self)
+            try record.closeOwnedDescriptorsChecked()
+            eraseC05ColdWriterPublications.removeValue(
+                forKey: ObjectIdentifier(allocation))
+        }
+        return handle
+    }
+
+    @MainActor
+    fileprivate func withEraseC05ColdWriterMutationLock<Value>(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        finalGuardRemoval: Bool = false,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        guard eraseC05AdmissionProbeUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireServiceAccess()
+        try operation.requireConstructedC05ColdRegistry(self)
+        try activity.validate(for: self, exclusive: false)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard !eraseC05ColdMutationUncertain,
+              generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX | LOCK_NB) == 0 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        let outcome: Result<Value, Error>
+        do {
+            try verify()
+            try operation.requireConstructedC05ColdRegistry(self)
+            try activity.validate(for: self, exclusive: false)
+            let result = try body()
+            if finalGuardRemoval {
+                try requireEraseC05PostGuardIdentity(
+                    activityDescriptor: activity.c05HeldDescriptorForGuardRemoval(
+                        registry: self))
+            } else {
+                try activity.validate(for: self, exclusive: false)
+                try verify()
+            }
+            outcome = .success(result)
+        } catch {
+            outcome = .failure(error)
+        }
+        // A failed unlock is terminal. The exact descriptor remains retained,
+        // and the operation cannot retry on an unknown lock state.
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            eraseC05ColdMutationUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        return try outcome.get()
+    }
+
+    /// After checked removal of this cold operation's own guard, ordinary
+    /// verify() must refuse. The later journal CAS still needs its retained
+    /// SH and a short G interval, so validate only the exact held directory
+    /// graph, absent named guard and already closed guard descriptor.
+    fileprivate func requireEraseC05PostGuardIdentity(
+        activityDescriptor: Int32
+    ) throws {
+        guard isEraseC05ColdOwner, eraseC05ColdGuardRemoved,
+              eraseC05ColdGuardClosed,
+              !eraseC05ColdGuardCloseUncertain,
+              !eraseC05ColdMutationUncertain,
+              eraseC05AdmissionProbeUncertainDescriptors.isEmpty,
+              eraseC05ColdOwnedTokens.isEmpty,
+              try Self.directoryIdentity(rootDescriptor) == rootIdentity,
+              try Self.directoryIdentity(operationsDescriptor) == operationsIdentity,
+              try Self.directoryIdentity(leaseDescriptor) == leaseIdentity,
+              try Self.directoryIdentity(ownersDescriptor) == ownersIdentity,
+              try Self.directoryIdentity(activityDescriptor) == leaseIdentity,
+              try Self.regularFileIdentity(mutationLockDescriptor)
+                == mutationLockIdentity else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        var namedRoot = stat(), namedGuard = stat()
+        guard Darwin.lstat(applicationSupportURL.path, &namedRoot) == 0,
+              Identity(namedRoot) == rootIdentity,
+              Darwin.fstatat(ownersDescriptor,
+                Self.ownerLockName(ownerID), &namedGuard,
+                AT_SYMLINK_NOFOLLOW) != 0,
+              errno == ENOENT,
+              try !itemExistsLocked(Self.registryTemporaryName) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireNamedDirectoryIdentity(parent: rootDescriptor,
+            name: Self.operationsName, expected: operationsIdentity)
+        try requireNamedDirectoryIdentity(parent: operationsDescriptor,
+            name: Self.leaseDirectoryName, expected: leaseIdentity)
+        try requireNamedDirectoryIdentity(parent: leaseDescriptor,
+            name: Self.ownerDirectoryName, expected: ownersIdentity)
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: Self.mutationLockName, expected: mutationLockIdentity)
+        let registryFD = Darwin.openat(leaseDescriptor,
+            Self.registryName, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard registryFD >= 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let registryBytes = try withCheckedC05AdmissionProbe(
+            registryFD) { held in
+            let before = try Self.regularFileSnapshot(held)
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: before.identity)
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(
+                .generationLeaseControl,
+                at: leaseURL.appendingPathComponent(Self.registryName))
+            guard policy.state == .strictComplete,
+                  policy.device == UInt64(before.identity.device),
+                  policy.inode == UInt64(before.identity.inode) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let bytes = try Self.readAll(from: held)
+            guard try Self.regularFileSnapshot(held) == before,
+                  bytes.count == Int(before.byteCount) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: before.identity)
+            return bytes
+        }
+        guard try RegistryStateV1.decodeCanonical(
+                from: registryBytes).leases.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    @MainActor
+    private func withEraseC05PostGuardMutationLock<Value>(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        guard eraseC05AdmissionProbeUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireServiceAccess()
+        try operation.requireConstructedC05ColdRegistry(self)
+        try activity.validateAfterEraseC05GuardRemoval(registry: self)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX | LOCK_NB) == 0 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        let outcome: Result<Value, Error>
+        do {
+            try activity.validateAfterEraseC05GuardRemoval(registry: self)
+            let result = try body()
+            try activity.validateAfterEraseC05GuardRemoval(registry: self)
+            outcome = .success(result)
+        } catch {
+            outcome = .failure(error)
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            eraseC05ColdMutationUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        return try outcome.get()
+    }
+
+    /// The preparation CAS stays inside the retained SH→G interval. The
+    /// journal itself owns its old/new FDs and checks displaced-FD closure
+    /// before this wrapper may report success.
+    @MainActor
+    func publishEraseC05ColdDrainedPreparation(
+        expected: ErasePreparationV2,
+        emptySnapshot: LocalJobStoreV1.OriginalEraseNoRepairSnapshotV1,
+        absentTransientSHA256: String,
+        journal: EraseC05ColdPreparationJournalReaderV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> ErasePreparationV2 {
+        try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try operation.requireC05ColdPredecessorCheckedCompletion(
+                registry: self)
+            _ = try operation.requireC05ColdPhase(expected,
+                phase: .pending)
+            let replacement = try journal.replaceC05PendingWithDrained(
+                expected: expected, emptySnapshot: emptySnapshot,
+                absentTransientSHA256: absentTransientSHA256,
+                operation: operation)
+            _ = try operation.requireC05ColdPhase(replacement,
+                phase: .drained)
+            return replacement
+        }
+    }
+
+    @MainActor
+    func publishEraseC05ColdRootRemovedPreparation(
+        expected: ErasePreparationV2,
+        journal: EraseC05ColdPreparationJournalReaderV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> ErasePreparationV2 {
+        try withEraseC05PostGuardMutationLock(
+            operation: operation, activity: activity) {
+            try operation.requireC05ColdPredecessorCheckedCompletion(
+                registry: self)
+            _ = try operation.requireC05ColdPhase(expected,
+                phase: .drained)
+            let replacement = try journal.replaceC05DrainedWithRootRemoved(
+                expected: expected, operation: operation)
+            _ = try operation.requireC05ColdPhase(replacement,
+                phase: .rootRemoved)
+            return replacement
+        }
+    }
+
+    /// This is the source-owner token exit after a durable DRAINED record.
+    /// Unlike ordinary fresh-adoption release, every observation stays under
+    /// the exact cold operation's retained SH→G and never opens the ordinary
+    /// repair-capable registry path. An uncertain replacement/close remains
+    /// in freshAdoptionReleases and eraseC05ColdOwnedTokens.
+    @MainActor
+    private func releaseEraseC05ColdTokenLocked(
+        _ token: GenerationLeaseTokenV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        try token.validate()
+        guard token.ownerID == ownerID,
+              eraseC05ColdOwnedTokens.contains(token.leaseID) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let record: FreshAdoptionReplacement
+        if let retained = freshAdoptionReleases[token.leaseID] {
+            guard retained.token == token, !retained.closeUncertain else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            record = retained
+        } else {
+            let observed = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            guard observed.leases.filter({ $0.leaseID == token.leaseID })
+                    == [token] else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            record = FreshAdoptionReplacement(token: token)
+            freshAdoptionReleases[token.leaseID] = record
+            try captureFreshAdoptionReplacementLocked(record,
+                observed: observed,
+                replacement: RegistryStateV1(leases:
+                    observed.leases.filter { $0.leaseID != token.leaseID }))
+        }
+        guard let attempt = record.replacement else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try finishTemporalReplacementLocked(attempt,
+            observeAfterRename: {
+                try observeEraseC05ColdRegistryLocked(operation: operation)
+            })
+        let after = try observeEraseC05ColdRegistryLocked(operation: operation)
+        guard !after.leases.contains(where: { $0.leaseID == token.leaseID }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        record.completed = true
+        try record.closeOwnedDescriptorsChecked()
+        freshAdoptionReleases.removeValue(forKey: token.leaseID)
+        eraseC05ColdOwnedTokens.remove(token.leaseID)
+    }
+
+    @MainActor
+    fileprivate func closeFrozenC05ColdSourceReader(
+        _ allocation: GenerationLeaseAllocationAttemptV1,
+        expected: ErasePreparationV2,
+        witness: EraseC05ColdSourceDrainWitnessV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        guard allocation.registry === self,
+              allocation.sealedForRetirement else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try witness.requireDrained(registry: self)
+        try allocation.requireColdPreparationDisposalEligibility()
+        try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            let before = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            try operation.requireC05ColdDrainedLeaseCensus(before.leases,
+                expected: expected, witness: witness, registry: self)
+            if allocation.closed {
+                guard let completion = allocation.freshDisposalCompletion,
+                      completion.token == allocation.token,
+                      let token = allocation.token,
+                      !before.leases.contains(where: {
+                          $0.leaseID == token.leaseID }),
+                      !eraseC05ColdOwnedTokens.contains(token.leaseID) else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try allocation.handle?.requireRecordedFreshAdoptionRelease(
+                    registry: self)
+                return
+            }
+            guard coldPreparationReaderPublications[
+                    ObjectIdentifier(allocation)] == nil,
+                  let token = allocation.token,
+                  let handle = allocation.handle,
+                  handle.token == token,
+                  token.role == .reader else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try releaseEraseC05ColdTokenLocked(token, operation: operation)
+            try handle.recordFreshAdoptionRelease(registry: self)
+            allocation.freshDisposalCompletion = .init(token: token)
+            allocation.closed = true
+            let after = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            try operation.requireC05ColdDrainedLeaseCensus(after.leases,
+                expected: expected, witness: witness, registry: self)
+        }
+    }
+
+    @MainActor
+    func closeEraseC05ColdSourceWriter(
+        _ allocation: EraseC05ColdWriterAllocationV1,
+        expected: ErasePreparationV2,
+        witness: EraseC05ColdSourceDrainWitnessV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        try operation.requireEraseC05ColdWriterAllocation(
+            allocation, registry: self)
+        try witness.requireDrained(registry: self)
+        try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            let before = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            try operation.requireC05ColdDrainedLeaseCensus(before.leases,
+                expected: expected, witness: witness, registry: self)
+            if allocation.closed {
+                guard let token = allocation.token,
+                      !before.leases.contains(where: {
+                          $0.leaseID == token.leaseID }),
+                      !eraseC05ColdOwnedTokens.contains(token.leaseID) else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try allocation.handle?.requireRecordedFreshAdoptionRelease(
+                    registry: self)
+                return
+            }
+            guard allocation.acquiring, !allocation.sealed,
+                  eraseC05ColdWriterPublications[
+                    ObjectIdentifier(allocation)] == nil,
+                  let token = allocation.token,
+                  let handle = allocation.handle,
+                  handle.token == token,
+                  token.role == .writer else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try releaseEraseC05ColdTokenLocked(token, operation: operation)
+            try handle.recordFreshAdoptionRelease(registry: self)
+            allocation.closed = true
+            let after = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            try operation.requireC05ColdDrainedLeaseCensus(after.leases,
+                expected: expected, witness: witness, registry: self)
+        }
+    }
+
+    /// Terminal exit for this exact cold Registry owner. The descriptor is
+    /// never retried after an ambiguous close. The later ROOT_REMOVED CAS uses
+    /// only the held post-guard SH/G validator above.
+    @MainActor
+    func closeEraseC05ColdOwnerGuard(
+        expected: ErasePreparationV2,
+        witness: EraseC05ColdSourceDrainWitnessV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        guard !eraseC05ColdGuardRemoved,
+              !eraseC05ColdGuardClosed,
+              !eraseC05ColdGuardCloseUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try witness.requireDrained(registry: self)
+        try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity,
+            finalGuardRemoval: true) {
+            let observed = try observeEraseC05ColdRegistryLocked(
+                operation: operation)
+            try operation.requireC05ColdDrainedLeaseCensus(
+                observed.leases, expected: expected,
+                witness: witness, registry: self)
+            guard observed.leases.isEmpty,
+                  eraseC05ColdOwnedTokens.isEmpty,
+                  freshAdoptionReleases.isEmpty,
+                  coldPreparationReaderPublications.isEmpty,
+                  eraseC05ColdWriterPublications.isEmpty,
+                  try !itemExistsLocked(Self.registryTemporaryName),
+                  try migrationReservationLocked() == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireNamedIdentity(parent: ownersDescriptor,
+                name: Self.ownerLockName(ownerID),
+                expected: ownerLockIdentity)
+            var held = stat()
+            guard Darwin.fstat(ownerLockDescriptor, &held) == 0,
+                  Identity(held) == ownerLockIdentity,
+                  Darwin.unlinkat(ownersDescriptor,
+                    Self.ownerLockName(ownerID), 0) == 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            // Past unlink the owner is terminal even if the durability or
+            // descriptor close outcome becomes uncertain.
+            eraseC05ColdGuardCloseUncertain = true
+            guard Darwin.fsync(ownersDescriptor) == 0,
+                  flock(ownerLockDescriptor, LOCK_UN) == 0,
+                  Darwin.close(ownerLockDescriptor) == 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            eraseC05ColdGuardRemoved = true
+            eraseC05ColdGuardClosed = true
+            eraseC05ColdGuardCloseUncertain = false
+        }
+    }
+
     @MainActor
     func makeColdRetirementActivityAcquisition() -> GenerationTemporalColdActivityAcquisitionV1 {
         GenerationTemporalColdActivityAcquisitionV1(registry: self)
@@ -8020,11 +22452,403 @@ extension GenerationLeaseRegistryV1 {
     }
 }
 
+/// An original-ticket activity acquisition retained before opening its first
+/// FD. It never calls ordinary Registry verify/activity validation. An error
+/// after open leaves the exact descriptor or resulting handle on this owner.
+@MainActor
+final class GenerationOriginalEraseRecoveryActivityAcquisitionV1 {
+    private let registry: GenerationLeaseRegistryV1
+    private let writer: GenerationLeaseTokenV1
+    private var descriptor: Int32 = -1
+    private var locked = false
+    private var result: GenerationTemporalActivityHandleV1?
+    fileprivate init(registry: GenerationLeaseRegistryV1,
+                     writer: GenerationLeaseTokenV1) {
+        self.registry = registry
+        self.writer = writer
+    }
+
+    func acquire() throws -> GenerationTemporalActivityHandleV1 {
+        guard result == nil, descriptor < 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        descriptor = try registry.openOriginalEraseRecoveryActivityDescriptor()
+        try registry.requireOriginalEraseRecoveryActivityDescriptor(descriptor)
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        locked = true
+        try registry.requireOriginalEraseRecoveryActivityDescriptor(descriptor)
+        let handle = GenerationTemporalActivityHandleV1(
+            registry: registry, descriptor: descriptor, exclusive: true)
+        result = handle
+        descriptor = -1
+        locked = false
+        _ = try registry.observeOriginalEraseRecoveryRegistry(
+            activity: handle, retainedWriter: writer)
+        return handle
+    }
+}
+
+extension GenerationLeaseRegistryV1 {
+    @MainActor
+    func makeOriginalEraseRecoveryCheckedAcquisition(
+        retainedWriter: GenerationLeaseTokenV1
+    ) throws -> GenerationOriginalEraseRecoveryActivityAcquisitionV1 {
+        try retainedWriter.validate()
+        guard retainedWriter.role == .writer,
+              retainedWriter.ownerID == ownerID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return GenerationOriginalEraseRecoveryActivityAcquisitionV1(
+            registry: self, writer: retainedWriter)
+    }
+
+    fileprivate func markOriginalEraseRecoveryUncertain() {
+        restoreSourceCloseLock.withLock { restoreSourceTerminal = true }
+    }
+
+    fileprivate func openOriginalEraseRecoveryActivityDescriptor() throws -> Int32 {
+        guard !restoreSourceCloseLock.withLock({ restoreSourceTerminal }) else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let fd = Darwin.openat(leaseDescriptor, ".",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { throw Self.mappedFailure() }
+        return fd
+    }
+
+    fileprivate func requireOriginalEraseRecoveryActivityDescriptor(
+        _ fd: Int32
+    ) throws {
+        try verifyRestoreExitLocked()
+        guard try Self.directoryIdentity(fd) == leaseIdentity else {
+            throw Self.identityFailure()
+        }
+    }
+
+    /// The same retained Registry G serializes this read with genuine lease
+    /// publication. All opened control/policy FDs use the checked Restore-exit
+    /// reader and stay quarantined on an ambiguous close. No mutation occurs.
+    @MainActor
+    func observeOriginalEraseRecoveryRegistry(
+        activity: GenerationTemporalActivityHandleV1,
+        retainedWriter: GenerationLeaseTokenV1
+    ) throws -> TemporalGenerationRegistryObservationV1 {
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            markOriginalEraseRecoveryUncertain()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var value: TemporalGenerationRegistryObservationV1?
+        var failure: (any Error)?
+        do {
+            try activity.requireOriginalEraseRecoveryCheckedRegistry(self)
+            try requireNoRestoreExitMigrationReservationLocked()
+            let observed = try observeRestoreExitRegistryLocked()
+            guard observed.leases.filter({ $0.role == .writer }) == [retainedWriter],
+                  try readRestoreExitControl(parent: leaseDescriptor,
+                      name: Self.registryTemporaryName) == nil,
+                  temporalReleaseAttempts.isEmpty,
+                  temporalReaderAllocations.isEmpty,
+                  freshAdoptionReleases.isEmpty,
+                  freshWriterPublications.isEmpty,
+                  freshReaderPublications.isEmpty,
+                  coldPreparationReaderPublications.isEmpty,
+                  preparationReaderPublications.isEmpty,
+                  preparationWriterPublications.isEmpty else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try activity.requireOriginalEraseRecoveryCheckedRegistry(self)
+            value = observed
+        } catch {
+            failure = error
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            markOriginalEraseRecoveryUncertain()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        if let failure { throw failure }
+        guard let value else { throw Self.uncertainOwnerFailure() }
+        return value
+    }
+
+    /// The original recovery owner is already retaining Registry EX and
+    /// Support EX. Hold this Registry's G for the entire synchronous private
+    /// copy, not merely for a census on either side of it. The permit cannot
+    /// escape this lexical scope. A canonical effect additionally requires
+    /// the distinct typed first-effect permit and the Store's exact phase CAS.
+    @MainActor
+    func withOriginalEraseRecoveryExclusiveScratchPermit<Value>(
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retainedWriter: GenerationLeaseTokenV1,
+        _ body: (OriginalEraseExclusiveScratchPermitV1) throws -> Value
+    ) throws -> Value {
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            markOriginalEraseRecoveryUncertain()
+            owner.poisonOnUncertainScratch()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var result: Result<Value, any Error>?
+        var scopeActive = true
+        do {
+            try activity.requireOriginalEraseRecoveryCheckedRegistry(self)
+            try owner.requireHeldInsideOriginalRecoveryG()
+            try requireNoRestoreExitMigrationReservationLocked()
+            let before = try observeRestoreExitRegistryLocked()
+            guard before.leases.filter({ $0.role == .writer }) == [retainedWriter],
+                  try readRestoreExitControl(parent: leaseDescriptor,
+                      name: Self.registryTemporaryName) == nil,
+                  temporalReleaseAttempts.isEmpty,
+                  temporalReaderAllocations.isEmpty,
+                  freshAdoptionReleases.isEmpty,
+                  freshWriterPublications.isEmpty,
+                  freshReaderPublications.isEmpty,
+                  coldPreparationReaderPublications.isEmpty,
+                  preparationReaderPublications.isEmpty,
+                  preparationWriterPublications.isEmpty else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let permit = OriginalEraseExclusiveScratchPermitV1(check: {
+                guard scopeActive,
+                      self.generationMutationLockDepth == 1 else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                try activity.requireOriginalEraseRecoveryCheckedRegistry(self)
+                try owner.requireHeldInsideOriginalRecoveryG()
+            }, poison: {
+                owner.poisonOnUncertainScratch()
+            })
+            result = Result { try body(permit) }
+            permit.revoke()
+            scopeActive = false
+            let after = try observeRestoreExitRegistryLocked()
+            guard after.leases == before.leases,
+                  after.registryBytes == before.registryBytes,
+                  after.registryPolicy == before.registryPolicy,
+                  after.directoryPolicy == before.directoryPolicy else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try activity.requireOriginalEraseRecoveryCheckedRegistry(self)
+            try owner.requireHeldInsideOriginalRecoveryG()
+        } catch {
+            scopeActive = false
+            result = .failure(error)
+            owner.poisonOnUncertainScratch()
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            markOriginalEraseRecoveryUncertain()
+            owner.poisonOnUncertainScratch()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        guard let result else { throw Self.uncertainOwnerFailure() }
+        return try result.get()
+    }
+
+    @MainActor
+    func withOriginalEraseRecoveryFirstEffectPermit<Value>(
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retainedWriter: GenerationLeaseTokenV1,
+        _ body: (OriginalEraseRecoveryFirstEffectPermitV1) throws -> Value
+    ) throws -> Value {
+        try withOriginalEraseRecoveryExclusiveScratchPermit(
+            owner: owner, activity: activity,
+            retainedWriter: retainedWriter) { scope in
+            try body(OriginalEraseRecoveryFirstEffectPermitV1(scope: scope))
+        }
+    }
+
+    @MainActor
+    func withOriginalEraseRecoveryRetiredCommitmentPermit<Value>(
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retainedWriter: GenerationLeaseTokenV1,
+        _ body: (OriginalEraseRecoveryRetiredCommitmentPermitV1) throws -> Value
+    ) throws -> Value {
+        try withOriginalEraseRecoveryExclusiveScratchPermit(
+            owner: owner, activity: activity,
+            retainedWriter: retainedWriter) { scope in
+            try body(OriginalEraseRecoveryRetiredCommitmentPermitV1(scope: scope))
+        }
+    }
+
+    @MainActor
+    func withOriginalEraseRecoveryRetiredStagePermit<Value>(
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retainedWriter: GenerationLeaseTokenV1,
+        _ body: (OriginalEraseRecoveryRetiredStagePermitV1) throws -> Value
+    ) throws -> Value {
+        try withOriginalEraseRecoveryExclusiveScratchPermit(
+            owner: owner, activity: activity,
+            retainedWriter: retainedWriter) { scope in
+            try body(OriginalEraseRecoveryRetiredStagePermitV1(scope: scope))
+        }
+    }
+
+    @MainActor
+    func requireOriginalEraseRetiredStageFirstCensusInsideRecoveryG(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        expected: EraseIntentV1,
+        frozen: [GenerationLeaseTokenV1],
+        permit: OriginalEraseRecoveryRetiredStagePermitV1
+    ) throws {
+        guard generationMutationLockDepth == 1,
+              expected.schemaVersion == 2,
+              expected.phase == .emptyGenerationPrepared else {
+            throw Self.uncertainOwnerFailure()
+        }
+        try permit.requireHeld()
+        try activity.requireOriginalEraseRecoveryCheckedRegistry(self)
+        let admitted = try operation.requireOriginalEraseRetiredStageUnderHeldG(
+            registry: self, activity: activity,
+            store: store, expected: expected)
+        let observed = try observeRestoreExitRegistryLocked()
+        guard admitted == frozen, observed.leases == frozen,
+              try readRestoreExitControl(parent: leaseDescriptor,
+                  name: Self.registryTemporaryName) == nil else {
+            throw Self.uncertainOwnerFailure()
+        }
+    }
+
+    /// The original P roster's complete first lease cohort is checked inside
+    /// the recovery owner's existing G. A second flock would deadlock; this
+    /// uses the same checked Registry reader as the enclosing permit and
+    /// compares all tokens, not merely the old writer.
+    @MainActor
+    func requireOriginalEraseAuxiliaryFirstCensusInsideRecoveryG(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        expected: EraseIntentV1,
+        replacement: EraseIntentV1,
+        frozen: [GenerationLeaseTokenV1],
+        permit: OriginalEraseRecoveryFirstEffectPermitV1
+    ) throws {
+        guard generationMutationLockDepth == 1 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        try permit.requireHeld()
+        try activity.requireOriginalEraseRecoveryCheckedRegistry(self)
+        let admitted = try operation.requireOriginalEraseAuxiliaryPhaseUnderHeldG(
+            registry: self, activity: activity, store: store,
+            expected: expected, replacement: replacement)
+        let observed = try observeRestoreExitRegistryLocked()
+        guard admitted == frozen, observed.leases == frozen,
+              try readRestoreExitControl(parent: leaseDescriptor,
+                  name: Self.registryTemporaryName) == nil else {
+            throw Self.uncertainOwnerFailure()
+        }
+    }
+
+    @MainActor
+    func requireOriginalEraseRetiredCommitmentFirstCensusInsideRecoveryG(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        expected: EraseIntentV1,
+        frozen: [GenerationLeaseTokenV1],
+        permit: OriginalEraseRecoveryRetiredCommitmentPermitV1
+    ) throws {
+        guard generationMutationLockDepth == 1,
+              expected.schemaVersion == 2,
+              expected.phase == .emptyGenerationPrepared else {
+            throw Self.uncertainOwnerFailure()
+        }
+        try permit.requireHeld()
+        try activity.requireOriginalEraseRecoveryCheckedRegistry(self)
+        let admitted = try operation.requireOriginalEraseRetiredCommitmentUnderHeldG(
+            registry: self, activity: activity,
+            store: store, expected: expected)
+        let observed = try observeRestoreExitRegistryLocked()
+        guard admitted == frozen, observed.leases == frozen,
+              try readRestoreExitControl(parent: leaseDescriptor,
+                  name: Self.registryTemporaryName) == nil else {
+            throw Self.uncertainOwnerFailure()
+        }
+    }
+}
+
 // Concrete Store-owned type; its constructor is not available to consumers.
 typealias EraseManifestRetirementAttemptV1 = StoreMigrationJournalStoreV1.EraseManifestRetirementAttemptV1
 
 /// Writer allocation retained before publication by its genuine, distinct
 /// fresh-adoption or original preparation owner. Never retired-writer authority.
+/// The exact old-generation C05 writer token belongs to the retained cold
+/// Erase operation before any registry replacement may publish it.
+@MainActor
+final class EraseC05ColdWriterAllocationV1 {
+    fileprivate let registry: GenerationLeaseRegistryV1
+    let epoch: GenerationEpochV1
+    fileprivate var token: GenerationLeaseTokenV1?
+    fileprivate var handle: GenerationLeaseHandleV1?
+    fileprivate var acquiring = false
+    fileprivate var sealed = false
+    fileprivate var closed = false
+    var coldPublishedToken: GenerationLeaseTokenV1? {
+        closed ? nil : handle?.token
+    }
+    fileprivate init(registry: GenerationLeaseRegistryV1, epoch: GenerationEpochV1) {
+        self.registry = registry
+        self.epoch = epoch
+    }
+
+    func acquire(operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1) throws -> GenerationLeaseHandleV1 {
+        guard !acquiring, !sealed, token == nil, handle == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireEraseC05ColdWriterAllocation(self, registry: registry)
+        acquiring = true
+        do {
+            return try registry.publishEraseC05ColdWriter(self,
+                operation: operation, activity: activity)
+        } catch {
+            sealed = true
+            throw error
+        }
+    }
+
+    func closeAfterFrozenC05Drain(
+        expected: ErasePreparationV2,
+        witness: EraseC05ColdSourceDrainWitnessV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        try registry.closeEraseC05ColdSourceWriter(self, expected: expected,
+            witness: witness, operation: operation, activity: activity)
+    }
+}
+
+
+extension GenerationLeaseRegistryV1 {
+    @MainActor
+    func requireEraseSchema2ColdExcluded(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        try operation.requireConstructedSchema2ColdRegistry(self)
+        guard isEraseSchema2ColdOwner,
+              eraseSchema2ColdPolicyUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try activity.validate(for: self, exclusive: true)
+    }
+}
+
 @MainActor
 final class GenerationWriterAllocationAttemptV1 {
     fileprivate let registry: GenerationLeaseRegistryV1
@@ -8039,11 +22863,39 @@ final class GenerationWriterAllocationAttemptV1 {
     private weak var adoption: EraseFreshAdoptionOwnerV1?
     private var restoreAcquisitionStarted = false
     private weak var restoreOwner: RestoreWriterTransitionOwnerV1?
+    fileprivate var originalEraseWriterTreeIO:
+        EraseAbortCheckedSnapshotIOV1?
+    fileprivate var originalEraseOldWriterTreeIO:
+        EraseAbortCheckedSnapshotIOV1?
+    fileprivate var originalEraseWriterPublicationProjection:
+        OriginalEraseRetainedWriterPublicationProjectionV1?
+    fileprivate var originalEraseOldWriterReleaseProjection:
+        OriginalEraseRetainedOldWriterReleaseProjectionV1?
+    fileprivate var originalEraseWriterProjectionUncertain = false
+    fileprivate var originalEraseWriterEnumerationUncertain = false
+    fileprivate var originalEraseOldWriterRetainedAttemptIdentity:
+        ObjectIdentifier?
+    fileprivate var originalEraseOldWriterRetryPending = false
+    fileprivate var originalEraseOldWriterOpeningDescriptor: Int32 = -1
     private(set) var sealedForRetirement = false
     fileprivate init(registry: GenerationLeaseRegistryV1, epoch: GenerationEpochV1) {
         self.registry = registry; generationEpoch = epoch
     }
     var allocatedHandle: GenerationLeaseHandleV1? { handle }
+    var originalEraseRetainedWriterPublicationProjection:
+        OriginalEraseRetainedWriterPublicationProjectionV1? {
+        guard !originalEraseWriterProjectionUncertain,
+              !sealedForRetirement, !closed,
+              handle != nil else { return nil }
+        return originalEraseWriterPublicationProjection
+    }
+    var originalEraseRetainedOldWriterReleaseProjection:
+        OriginalEraseRetainedOldWriterReleaseProjectionV1? {
+        guard !originalEraseWriterProjectionUncertain,
+              !sealedForRetirement, !closed,
+              handle != nil else { return nil }
+        return originalEraseOldWriterReleaseProjection
+    }
     func matches(registry expected: GenerationLeaseRegistryV1) -> Bool { registry === expected }
     func sealForRetirement() { sealedForRetirement = true }
     func acquireWriter(adoption expected: EraseFreshAdoptionOwnerV1) throws -> GenerationLeaseHandleV1 {
@@ -8072,6 +22924,36 @@ final class GenerationWriterAllocationAttemptV1 {
         preparationAcquisitionStarted = true; preparationOperation = expected
         do { return try registry.publishPreparationWriter(self, operation: expected) }
         catch { sealedForRetirement = true; throw error }
+    }
+
+    /// Original Erase has already retained its one EX/G owner and complete
+    /// auxiliary pre-effect roster. This route cannot fall back to the
+    /// ordinary writer-registration activity or a second Registry owner.
+    func acquireWriterForOriginalEraseUnderRetainedExclusion(
+        operation expected: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        oldWriter: GenerationLeaseHandleV1
+    ) throws -> GenerationLeaseHandleV1 {
+        guard !preparationAcquisitionStarted, !acquisitionStarted,
+              !restoreAcquisitionStarted, !closed, !sealedForRetirement,
+              token == nil, handle == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try expected.requirePreparationWriterAllocation(self,
+            registry: registry)
+        preparationAcquisitionStarted = true
+        preparationOperation = expected
+        do {
+            return try registry
+                .publishOriginalErasePreparationWriterUnderRetainedExclusion(
+                    self, operation: expected, activity: activity,
+                    oldWriter: oldWriter)
+        } catch {
+            // Every physical attempt remains on this exact retained wrapper.
+            // A thrown publication never falls back to ordinary activation.
+            sealedForRetirement = true
+            throw error
+        }
     }
     fileprivate func requirePreparationAcquiring(_ expected: EraseRouterOperationV1) throws {
         guard preparationAcquisitionStarted, !acquisitionStarted, preparationOperation === expected,
@@ -8161,6 +23043,175 @@ final class GenerationWriterAllocationAttemptV1 {
 }
 
 extension GenerationLeaseRegistryV1 {
+    @MainActor
+    fileprivate func requireOriginalEraseWriterProjectionSettled(
+        allocation: GenerationWriterAllocationAttemptV1
+    ) throws {
+        guard allocation.registry === self,
+              !allocation.originalEraseWriterProjectionUncertain,
+              !originalEraseWriterProjectionUncertain,
+              !originalEraseRetainedReaderEffectUncertain else {
+            throw Self.uncertainOwnerFailure()
+        }
+    }
+
+    /// A checked, nonrecursive G completion for the two original writer
+    /// Registry effects. The private receipt is constructed only after this
+    /// scope reports a checked unlock; an ambiguous effect stays poisoned.
+    @MainActor
+    private func withOriginalEraseWriterProjectionG<Value>(
+        allocation: GenerationWriterAllocationAttemptV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retainedRetryProof: (() throws -> Bool)? = nil,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        try activity.validateSharedNormalizationRegistry(self)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard !originalEraseWriterProjectionUncertain,
+              !allocation.originalEraseWriterProjectionUncertain,
+              generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            originalEraseWriterProjectionUncertain = true
+            allocation.originalEraseWriterProjectionUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var result: Result<Value, any Error>?
+        var retryAllowed = false
+        do {
+            try activity.validateSharedNormalizationRegistry(self)
+            try verify()
+            result = Result { try body() }
+            try verify()
+            try activity.validateSharedNormalizationRegistry(self)
+        } catch {
+            result = .failure(error)
+        }
+        if case .failure = result,
+           let retainedRetryProof {
+            retryAllowed = (try? retainedRetryProof()) == true
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            originalEraseWriterProjectionUncertain = true
+            allocation.originalEraseWriterProjectionUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        guard let result else { throw Self.uncertainOwnerFailure() }
+        do { return try result.get() }
+        catch {
+            if !retryAllowed {
+                originalEraseWriterProjectionUncertain = true
+                allocation.originalEraseWriterProjectionUncertain = true
+            } else {
+                allocation.originalEraseOldWriterRetryPending = true
+            }
+            throw error
+        }
+    }
+
+    @MainActor
+    private func originalEraseWriterLeaseNames(
+        allocation: GenerationWriterAllocationAttemptV1,
+        allowOwnedTemporary: Bool = false
+    ) throws -> [String] {
+        guard !allocation.originalEraseWriterEnumerationUncertain else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let descriptor = Darwin.openat(leaseDescriptor, ".",
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw Self.mappedFailure() }
+        guard let stream = Darwin.fdopendir(descriptor) else {
+            guard Darwin.close(descriptor) == 0 else {
+                allocation.originalEraseWriterEnumerationUncertain = true
+                throw Self.uncertainOwnerFailure()
+            }
+            throw Self.mappedFailure()
+        }
+        var names: [String] = []
+        var readFailure = false
+        errno = 0
+        while let entry = Darwin.readdir(stream) {
+            guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                readFailure = true
+                break
+            }
+            if name != "." && name != ".." { names.append(name) }
+            errno = 0
+        }
+        if errno != 0 { readFailure = true }
+        guard Darwin.closedir(stream) == 0 else {
+            allocation.originalEraseWriterEnumerationUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        guard !readFailure, names.count == Set(names).count,
+              (allowOwnedTemporary ||
+                !names.contains(Self.registryTemporaryName)) else {
+            throw Self.uncertainOwnerFailure()
+        }
+        return names.sorted()
+    }
+
+    /// Only registry.json and its owned temporary may change in either
+    /// writer transition. Owners, lock, reader record and prune controls are
+    /// checked independently as complete siblings, not inferred from names.
+    @MainActor
+    private func originalEraseWriterUnchangedSiblings(
+        names: [String], io: EraseAbortCheckedSnapshotIOV1
+    ) throws -> [OriginalEraseRetainedLeaseSiblingV1] {
+        var values: [OriginalEraseRetainedLeaseSiblingV1] = []
+        for name in names where name != Self.registryName
+            && name != Self.registryTemporaryName {
+            var before = stat(), after = stat()
+            guard Darwin.fstatat(leaseDescriptor, name, &before,
+                    AT_SYMLINK_NOFOLLOW) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let kind: String
+            let digest: String
+            switch before.st_mode & S_IFMT {
+            case S_IFDIR:
+                kind = "directory"
+                digest = try io.postRetiredTree(
+                    parent: leaseDescriptor, name: name)
+            case S_IFREG:
+                kind = "regular"
+                guard before.st_nlink == 1 else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                digest = try io.withOpen(parent: leaseDescriptor,
+                    name: name, flags: O_RDONLY | O_NONBLOCK) { fd in
+                    var held = stat(), heldAfter = stat()
+                    guard Darwin.fstat(fd, &held) == 0,
+                          Self.originalEraseRetainedFullFact(held)
+                            == Self.originalEraseRetainedFullFact(before)
+                    else { throw Self.uncertainOwnerFailure() }
+                    let bytes = try Self.readAll(from: fd)
+                    guard Darwin.fstat(fd, &heldAfter) == 0,
+                          Self.originalEraseRetainedFullFact(heldAfter)
+                            == Self.originalEraseRetainedFullFact(held)
+                    else { throw Self.uncertainOwnerFailure() }
+                    return StoreMigrationCanonicalJSONV1.sha256(bytes)
+                }
+            default:
+                throw Self.uncertainOwnerFailure()
+            }
+            guard Darwin.fstatat(leaseDescriptor, name, &after,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  Self.originalEraseRetainedFullFact(before)
+                    == Self.originalEraseRetainedFullFact(after) else {
+                throw Self.uncertainOwnerFailure()
+            }
+            values.append(OriginalEraseRetainedLeaseSiblingV1(
+                name: name, kind: kind,
+                fullFact: Self.originalEraseRetainedFullFact(before),
+                digest: digest))
+        }
+        try io.requireSettled()
+        return values
+    }
+
     @MainActor
     func makeWriterAllocationAttempt(epoch: GenerationEpochV1) throws -> GenerationWriterAllocationAttemptV1 {
         try epoch.validate()
@@ -8732,6 +23783,724 @@ extension GenerationLeaseRegistryV1 {
         return handle
     }
 
+    /// The original Erase operation has already retained the exact EX/G
+    /// activity and a complete pre-effect Registry cohort. Only this typed
+    /// transition may temporarily publish the second writer. Ordinary
+    /// normalization and preparation writer admission remain unchanged.
+    @MainActor
+    fileprivate func publishOriginalErasePreparationWriterUnderRetainedExclusion(
+        _ allocation: GenerationWriterAllocationAttemptV1,
+        operation: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        oldWriter: GenerationLeaseHandleV1
+    ) throws -> GenerationLeaseHandleV1 {
+        guard allocation.registry === self,
+              oldWriter.token.role == .writer,
+              oldWriter.token.ownerID == ownerID,
+              allocation.handle == nil,
+              allocation.token == nil,
+              preparationWriterPublications[ObjectIdentifier(allocation)] == nil
+        else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try oldWriter.requireExactRegistry(self)
+        try allocation.requirePreparationAcquiring(operation)
+        try requireOriginalEraseWriterProjectionSettled(
+            allocation: allocation)
+        guard allocation.originalEraseWriterPublicationProjection == nil,
+              allocation.originalEraseOldWriterReleaseProjection == nil,
+              allocation.originalEraseWriterTreeIO == nil else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let treeIO = EraseAbortCheckedSnapshotIOV1()
+        allocation.originalEraseWriterTreeIO = treeIO
+        let completed = try withOriginalEraseWriterProjectionG(
+            allocation: allocation, activity: activity) {
+            let prior = try operation
+                .requireOriginalEraseWriterTransitionUnderHeldG(
+                    registry: self, activity: activity,
+                    oldWriter: oldWriter,
+                    targetAllocation: allocation, stage: .beforeTarget)
+            let observed = try observeOriginalEraseAuxiliaryRegistryLocked(
+                operation: operation)
+            guard observed.leases == prior,
+                  prior.filter({ $0.role == .writer })
+                    == [oldWriter.token],
+                  prior.count < Self.maximumActiveLeaseCount,
+                  Set(prior.map(\.leaseID)).count == prior.count,
+                  oldWriter.token.epoch != allocation.generationEpoch else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let firstNames = try originalEraseWriterLeaseNames(
+                allocation: allocation)
+            let firstTree = try observeOriginalEraseRetainedLeaseTree(
+                io: treeIO)
+            guard try observeOriginalEraseRetainedLeaseTree(io: treeIO)
+                    == firstTree else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let firstSiblings = try originalEraseWriterUnchangedSiblings(
+                names: firstNames, io: treeIO)
+            guard try observeOriginalEraseRetainedLeaseTree(io: treeIO)
+                    == firstTree else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try operation.requireOriginalEraseWriterFirstOperationsUnderHeldG(
+                registry: self, activity: activity,
+                operationsFact: firstTree.operationsFact,
+                operationsDigest: firstTree.operationsDigest,
+                leaseRootFact: firstTree.leaseFact,
+                leaseDigest: firstTree.leaseDigest)
+            let owners = Set(prior.map(\.ownerID))
+            guard owners.contains(ownerID)
+                    || owners.count < Self.maximumOwnerCount else {
+                throw GenerationLeaseRegistryFailureV1.registryLimitExceeded
+            }
+            let token = try GenerationLeaseTokenV1(
+                leaseID: makeLeaseID(), ownerID: ownerID,
+                epoch: allocation.generationEpoch,
+                role: .writer, acquiredAt: now())
+            guard !prior.contains(where: {
+                $0.leaseID == token.leaseID
+            }) else {
+                throw GenerationLeaseRegistryFailureV1.duplicateLease
+            }
+            allocation.token = token
+            let record = FreshAdoptionReplacement(token: token)
+            preparationWriterPublications[ObjectIdentifier(allocation)]
+                = record
+            try captureFreshAdoptionReplacementLocked(record,
+                observed: observed,
+                replacement: RegistryStateV1(
+                    leases: prior + [token]))
+            guard let attempt = record.replacement else {
+                throw Self.identityFailure()
+            }
+            var firstRegistryStat = stat()
+            guard Darwin.fstat(attempt.original,
+                    &firstRegistryStat) == 0,
+                  FileSnapshot(firstRegistryStat)
+                    == attempt.originalSnapshot else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let firstRegistryFact =
+                Self.originalEraseRetainedFullFact(firstRegistryStat)
+            guard try observeOriginalEraseRetainedLeaseTree(io: treeIO)
+                    == firstTree,
+                  try originalEraseWriterUnchangedSiblings(
+                    names: originalEraseWriterLeaseNames(
+                        allocation: allocation), io: treeIO)
+                    == firstSiblings else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try finishTemporalReplacementLocked(attempt,
+                capturePreRenameFullFact: true,
+                observeAfterRename: {
+                    try observeOriginalEraseAuxiliaryRegistryLocked(
+                        operation: operation)
+                })
+            let dual = try RegistryStateV1(
+                leases: prior + [token]).leases
+            guard try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == dual else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let handle = try GenerationLeaseHandleV1(registry: self,
+                publishedWriterToken: token)
+            allocation.handle = handle
+            _ = try operation.requireOriginalEraseWriterTransitionUnderHeldG(
+                registry: self, activity: activity,
+                oldWriter: oldWriter,
+                targetAllocation: allocation, stage: .oldAndTarget)
+            guard let preparedFact = attempt.preRenameFullFact,
+                  let createdFact =
+                    attempt.originalWriterCreatedTemporaryFact,
+                  attempt.temporary >= 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            var afterRegistryStat = stat()
+            guard Darwin.fstat(attempt.temporary,
+                    &afterRegistryStat) == 0 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let afterNames = try originalEraseWriterLeaseNames(
+                allocation: allocation)
+            let afterTree = try observeOriginalEraseRetainedLeaseTree(
+                io: treeIO)
+            let afterSiblings = try originalEraseWriterUnchangedSiblings(
+                names: afterNames, io: treeIO)
+            guard afterNames == firstNames,
+                  afterSiblings == firstSiblings,
+                  try observeOriginalEraseRetainedLeaseTree(io: treeIO)
+                    == afterTree,
+                  afterTree.operationsFact == firstTree.operationsFact,
+                  try Self.originalEraseRetainedStableFact(
+                    firstTree.leaseFact, through: 6)
+                    == Self.originalEraseRetainedStableFact(
+                        afterTree.leaseFact, through: 6),
+                  try Self.originalEraseRetainedStableFact(
+                    preparedFact, through: 9)
+                    == Self.originalEraseRetainedStableFact(
+                        Self.originalEraseRetainedFullFact(
+                            afterRegistryStat), through: 9),
+                  try Self.originalEraseRetainedStableFact(
+                    createdFact, through: 6)
+                    == Self.originalEraseRetainedStableFact(
+                        Self.originalEraseRetainedFullFact(
+                            afterRegistryStat), through: 6) else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let facts = OriginalEraseRetainedWriterProjectionFactsV1(
+                operationsFact: firstTree.operationsFact,
+                firstOperationsDigest: firstTree.operationsDigest,
+                afterOperationsDigest: afterTree.operationsDigest,
+                firstLeaseRootFact: firstTree.leaseFact,
+                firstLeaseDigest: firstTree.leaseDigest,
+                afterLeaseRootFact: afterTree.leaseFact,
+                afterLeaseDigest: afterTree.leaseDigest,
+                firstLeaseNames: firstNames,
+                afterLeaseNames: afterNames,
+                firstRegistryFact: firstRegistryFact,
+                preparedTemporaryFact: preparedFact,
+                afterRegistryFact:
+                    Self.originalEraseRetainedFullFact(
+                        afterRegistryStat),
+                firstRegistryBytes: attempt.originalBytes,
+                afterRegistryBytes: attempt.replacementBytes,
+                priorTokens: prior, afterTokens: dual)
+            try record.closeOwnedDescriptorsChecked()
+            preparationWriterPublications.removeValue(
+                forKey: ObjectIdentifier(allocation))
+            return (handle, facts)
+        }
+        let receipt = OriginalEraseRetainedWriterPublicationProjectionV1(
+            registry: self, operation: operation,
+            oldWriter: oldWriter, targetAllocation: allocation,
+            targetHandle: completed.0, facts: completed.1)
+        allocation.originalEraseWriterPublicationProjection = receipt
+        return completed.0
+    }
+
+    /// Called only after Router has latched old-close intent. The handle's
+    /// own lock spans the single actual G interval and is marked closed only
+    /// after exact target-only postcensus succeeds. A failed replacement
+    /// remains operation-retained and never turns into an ordinary close.
+    @MainActor
+    func closeOriginalEraseSourceWriterAfterTargetPublication(
+        _ oldWriter: GenerationLeaseHandleV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        operation: EraseRouterOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        guard targetAllocation.registry === self,
+              let target = targetAllocation.handle,
+              target.token == targetAllocation.token,
+              target.token.role == .writer,
+              target.token.ownerID == ownerID,
+              preparationWriterPublications[
+                ObjectIdentifier(targetAllocation)] == nil,
+              targetAllocation.originalEraseOldWriterReleaseProjection == nil,
+              let publication = targetAllocation
+                .originalEraseWriterPublicationProjection else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try target.requireExactRegistry(self)
+        try publication.requireBound(registry: self,
+            operation: operation, oldWriter: oldWriter,
+            targetAllocation: targetAllocation,
+            targetHandle: target)
+        let treeIO: EraseAbortCheckedSnapshotIOV1
+        if let retained = targetAllocation.originalEraseOldWriterTreeIO {
+            treeIO = retained
+        } else {
+            treeIO = EraseAbortCheckedSnapshotIOV1()
+            targetAllocation.originalEraseOldWriterTreeIO = treeIO
+        }
+        var completedFacts: OriginalEraseRetainedWriterProjectionFactsV1?
+        try oldWriter.closeForOriginalEraseWriterTransition(
+            registry: self) {
+            completedFacts = try withOriginalEraseWriterProjectionG(
+                allocation: targetAllocation, activity: activity,
+                retainedRetryProof: {
+                    try self.requireOriginalEraseOldWriterRetainedRetryLocked(
+                        oldWriter: oldWriter,
+                        targetAllocation: targetAllocation,
+                        target: target, publication: publication,
+                        operation: operation, treeIO: treeIO)
+                }) {
+                let prior = try operation
+                    .requireOriginalEraseWriterTransitionUnderHeldG(
+                        registry: self, activity: activity,
+                        oldWriter: oldWriter,
+                        targetAllocation: targetAllocation,
+                        stage: .afterOld)
+                let dual = try RegistryStateV1(
+                    leases: prior + [target.token]).leases
+                let targetOnly = try RegistryStateV1(
+                    leases: prior.filter {
+                        $0.leaseID != oldWriter.token.leaseID
+                    } + [target.token]).leases
+                guard prior.filter({ $0.role == .writer })
+                        == [oldWriter.token],
+                      oldWriter.token.ownerID == ownerID,
+                      oldWriter.token.leaseID != target.token.leaseID
+                else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                let observed = try observeOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation)
+                let attempt: TemporalReleaseAttempt
+                let firstImage: OriginalEraseRetainedLeaseTreeImageV1
+                if let retained = temporalReleaseAttempts[
+                    oldWriter.token.leaseID] {
+                    guard targetAllocation
+                            .originalEraseOldWriterRetainedAttemptIdentity
+                            == ObjectIdentifier(retained),
+                          retained.originalWriterAllocationIdentity
+                            == ObjectIdentifier(targetAllocation),
+                          let saved = retained.originalWriterFirstImage,
+                          retained.token == oldWriter.token,
+                          retained.originalWriterFirstRegistryFact
+                            == publication.facts.afterRegistryFact,
+                          retained.originalBytes
+                            == publication.facts.afterRegistryBytes,
+                          retained.replacementBytes
+                            == (try RegistryStateV1(
+                                leases: targetOnly).canonicalData()),
+                          observed.leases == (retained.renamed
+                            ? targetOnly : dual),
+                          observed.registryBytes == (retained.renamed
+                            ? retained.replacementBytes
+                            : retained.originalBytes) else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                    attempt = retained
+                    firstImage = saved
+                    guard try requireOriginalEraseOldWriterRetainedRetryLocked(
+                        oldWriter: oldWriter,
+                        targetAllocation: targetAllocation,
+                        target: target, publication: publication,
+                        operation: operation, treeIO: treeIO) else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                } else {
+                    guard observed.leases == dual,
+                          observed.registryBytes
+                            == publication.facts.afterRegistryBytes,
+                          targetAllocation
+                            .originalEraseOldWriterRetainedAttemptIdentity
+                            == nil,
+                          !targetAllocation.originalEraseOldWriterRetryPending
+                    else { throw Self.uncertainOwnerFailure() }
+                    let firstNames = try originalEraseWriterLeaseNames(
+                        allocation: targetAllocation)
+                    let firstTree = try observeOriginalEraseRetainedLeaseTree(
+                        io: treeIO)
+                    guard try observeOriginalEraseRetainedLeaseTree(
+                            io: treeIO) == firstTree else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                    let siblings = try originalEraseWriterUnchangedSiblings(
+                        names: firstNames, io: treeIO)
+                    guard try observeOriginalEraseRetainedLeaseTree(
+                            io: treeIO) == firstTree else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                    try operation
+                        .requireOriginalEraseOldWriterCloseFirstOperationsUnderHeldG(
+                            registry: self, activity: activity,
+                            operationsFact: firstTree.operationsFact,
+                            operationsDigest: firstTree.operationsDigest,
+                            leaseRootFact: firstTree.leaseFact,
+                            leaseDigest: firstTree.leaseDigest)
+                    firstImage = OriginalEraseRetainedLeaseTreeImageV1(
+                        operationsFact: firstTree.operationsFact,
+                        operationsDigest: firstTree.operationsDigest,
+                        leaseFact: firstTree.leaseFact,
+                        leaseDigest: firstTree.leaseDigest,
+                        names: firstNames, siblings: siblings)
+                    attempt = try captureOriginalEraseOldWriterAttemptLocked(
+                        oldWriter.token, observed: observed,
+                        targetOnly: targetOnly,
+                        firstImage: firstImage,
+                        allocation: targetAllocation,
+                        expectedRegistryFact:
+                            publication.facts.afterRegistryFact)
+                }
+                if !attempt.renamed && attempt.temporary < 0 {
+                    guard try observeOriginalEraseRetainedLeaseTree(
+                            io: treeIO).operationsDigest
+                            == firstImage.operationsDigest,
+                          try originalEraseWriterUnchangedSiblings(
+                            names: originalEraseWriterLeaseNames(
+                                allocation: targetAllocation),
+                            io: treeIO) == firstImage.siblings else {
+                        throw Self.uncertainOwnerFailure()
+                    }
+                }
+                try finishTemporalReplacementLocked(attempt,
+                    capturePreRenameFullFact: true,
+                    observeAfterRename: {
+                        try observeOriginalEraseAuxiliaryRegistryLocked(
+                            operation: operation)
+                    })
+                let after = try observeOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation)
+                guard after.leases == targetOnly,
+                      after.registryBytes == attempt.replacementBytes,
+                      targetOnly.filter({ $0.role == .writer })
+                        == [target.token] else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                _ = try operation
+                    .requireOriginalEraseWriterTransitionUnderHeldG(
+                        registry: self, activity: activity,
+                        oldWriter: oldWriter,
+                        targetAllocation: targetAllocation,
+                        stage: .afterOld)
+                guard let releaseAttempt = temporalReleaseAttempts[
+                        oldWriter.token.leaseID],
+                      releaseAttempt === attempt,
+                      releaseAttempt.renamed,
+                      let preparedFact = attempt.preRenameFullFact,
+                      let createdFact =
+                        attempt.originalWriterCreatedTemporaryFact,
+                      let firstRegistryFact =
+                        attempt.originalWriterFirstRegistryFact,
+                      attempt.temporary >= 0 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                var afterRegistryStat = stat()
+                guard Darwin.fstat(attempt.temporary,
+                        &afterRegistryStat) == 0 else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                let afterNames = try originalEraseWriterLeaseNames(
+                    allocation: targetAllocation)
+                let afterTree = try observeOriginalEraseRetainedLeaseTree(
+                    io: treeIO)
+                let afterSiblings = try originalEraseWriterUnchangedSiblings(
+                    names: afterNames, io: treeIO)
+                guard firstImage.names == afterNames,
+                      firstImage.siblings == afterSiblings,
+                      firstImage.operationsFact
+                        == afterTree.operationsFact,
+                      try Self.originalEraseRetainedStableFact(
+                        firstImage.leaseFact, through: 6)
+                        == Self.originalEraseRetainedStableFact(
+                            afterTree.leaseFact, through: 6),
+                      try Self.originalEraseRetainedStableFact(
+                        preparedFact, through: 9)
+                        == Self.originalEraseRetainedStableFact(
+                            Self.originalEraseRetainedFullFact(
+                                afterRegistryStat), through: 9),
+                      try Self.originalEraseRetainedStableFact(
+                        createdFact, through: 6)
+                        == Self.originalEraseRetainedStableFact(
+                            Self.originalEraseRetainedFullFact(
+                                afterRegistryStat), through: 6),
+                      try observeOriginalEraseRetainedLeaseTree(
+                        io: treeIO) == afterTree else {
+                    throw Self.uncertainOwnerFailure()
+                }
+                let facts = OriginalEraseRetainedWriterProjectionFactsV1(
+                    operationsFact: firstImage.operationsFact,
+                    firstOperationsDigest: firstImage.operationsDigest,
+                    afterOperationsDigest: afterTree.operationsDigest,
+                    firstLeaseRootFact: firstImage.leaseFact,
+                    firstLeaseDigest: firstImage.leaseDigest,
+                    afterLeaseRootFact: afterTree.leaseFact,
+                    afterLeaseDigest: afterTree.leaseDigest,
+                    firstLeaseNames: firstImage.names,
+                    afterLeaseNames: afterNames,
+                    firstRegistryFact: firstRegistryFact,
+                    preparedTemporaryFact: preparedFact,
+                    afterRegistryFact:
+                        Self.originalEraseRetainedFullFact(
+                            afterRegistryStat),
+                    firstRegistryBytes: attempt.originalBytes,
+                    afterRegistryBytes: attempt.replacementBytes,
+                    priorTokens: dual, afterTokens: targetOnly)
+                // The durable target-only census does not settle the exact
+                // retained replacement's descriptors. Keep the attempt and
+                // old handle live on any checked-close uncertainty.
+                try releaseAttempt.closeOwnedDescriptorsChecked()
+                return facts
+            }
+        }
+        guard let facts = completedFacts,
+              let retained = temporalReleaseAttempts[
+                oldWriter.token.leaseID],
+              targetAllocation.originalEraseOldWriterRetainedAttemptIdentity
+                == ObjectIdentifier(retained) else {
+            targetAllocation.originalEraseWriterProjectionUncertain = true
+            originalEraseWriterProjectionUncertain = true
+            throw Self.uncertainOwnerFailure()
+        }
+        let receipt = OriginalEraseRetainedOldWriterReleaseProjectionV1(
+            registry: self, operation: operation,
+            oldWriter: oldWriter, targetAllocation: targetAllocation,
+            targetHandle: target, publication: publication,
+            facts: facts)
+        targetAllocation.originalEraseOldWriterReleaseProjection = receipt
+        targetAllocation.originalEraseOldWriterRetryPending = false
+        targetAllocation.originalEraseOldWriterRetainedAttemptIdentity = nil
+        temporalReleaseAttempts.removeValue(forKey: oldWriter.token.leaseID)
+    }
+
+    /// The first dual-writer cut is retained before any Registry temporary
+    /// effect. A failed capture leaves its actual opened FD on the allocation
+    /// and poisons the checked G scope; it cannot be inferred on a retry.
+    @MainActor
+    private func captureOriginalEraseOldWriterAttemptLocked(
+        _ token: GenerationLeaseTokenV1,
+        observed: TemporalGenerationRegistryObservationV1,
+        targetOnly: [GenerationLeaseTokenV1],
+        firstImage: OriginalEraseRetainedLeaseTreeImageV1,
+        allocation: GenerationWriterAllocationAttemptV1,
+        expectedRegistryFact: String
+    ) throws -> TemporalReleaseAttempt {
+        try token.validate()
+        guard token.ownerID == ownerID,
+              token.role == .writer,
+              temporalReleaseAttempts[token.leaseID] == nil,
+              allocation.originalEraseOldWriterOpeningDescriptor < 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        guard observed.leases.filter({ $0.leaseID == token.leaseID })
+                == [token] else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let original = Darwin.openat(leaseDescriptor,
+            Self.registryName,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard original >= 0 else { throw Self.mappedFailure() }
+        allocation.originalEraseOldWriterOpeningDescriptor = original
+        let snapshot = try Self.regularFileSnapshot(original)
+        try requireNamedIdentity(parent: leaseDescriptor,
+            name: Self.registryName,
+            expected: snapshot.identity)
+        var originalStat = stat()
+        guard Darwin.fstat(original, &originalStat) == 0,
+              Self.originalEraseRetainedFullFact(originalStat)
+                == expectedRegistryFact else {
+            throw Self.uncertainOwnerFailure()
+        }
+        let bytes = try Self.readAll(from: original)
+        guard bytes == observed.registryBytes,
+              try Self.regularFileSnapshot(original) == snapshot else {
+            throw Self.identityFailure()
+        }
+        let replacement = try RegistryStateV1(
+            leases: targetOnly).canonicalData()
+        let attempt = TemporalReleaseAttempt(token: token,
+            original: original, snapshot: snapshot,
+            originalBytes: bytes, replacementBytes: replacement)
+        attempt.originalWriterFirstImage = firstImage
+        attempt.originalWriterFirstRegistryFact = expectedRegistryFact
+        attempt.originalWriterAllocationIdentity =
+            ObjectIdentifier(allocation)
+        temporalReleaseAttempts[token.leaseID] = attempt
+        allocation.originalEraseOldWriterRetainedAttemptIdentity =
+            ObjectIdentifier(attempt)
+        allocation.originalEraseOldWriterOpeningDescriptor = -1
+        return attempt
+    }
+
+    /// This proof runs under the same retained G after an interrupted own
+    /// effect. It never adopts target-only Registry bytes or a matching temp
+    /// without the original exact attempt, inode, first tree and FD chain.
+    @MainActor
+    private func requireOriginalEraseOldWriterRetainedRetryLocked(
+        oldWriter: GenerationLeaseHandleV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        target: GenerationLeaseHandleV1,
+        publication: OriginalEraseRetainedWriterPublicationProjectionV1,
+        operation: EraseRouterOperationV1,
+        treeIO: EraseAbortCheckedSnapshotIOV1
+    ) throws -> Bool {
+        guard targetAllocation.originalEraseOldWriterOpeningDescriptor < 0,
+              let attempt = temporalReleaseAttempts[
+                oldWriter.token.leaseID],
+              targetAllocation.originalEraseOldWriterRetainedAttemptIdentity
+                == ObjectIdentifier(attempt),
+              attempt.originalWriterAllocationIdentity
+                == ObjectIdentifier(targetAllocation),
+              attempt.token == oldWriter.token,
+              attempt.originalWriterFirstRegistryFact
+                == publication.facts.afterRegistryFact,
+              attempt.originalBytes
+                == publication.facts.afterRegistryBytes,
+              let first = attempt.originalWriterFirstImage,
+              first.operationsFact == publication.operationsFact,
+              first.operationsDigest
+                == publication.afterOperationsDigest,
+              first.leaseFact == publication.afterLeaseRootFact,
+              first.leaseDigest == publication.afterLeaseDigest,
+              first.names == publication.afterLeaseNames,
+              targetAllocation.handle === target else {
+            return false
+        }
+        try publication.requireBound(registry: self,
+            operation: operation, oldWriter: oldWriter,
+            targetAllocation: targetAllocation,
+            targetHandle: target)
+        try attempt.requireCertainDescriptors()
+        guard try Self.regularFileSnapshot(attempt.original)
+                == attempt.originalSnapshot,
+              try Self.readAll(from: attempt.original)
+                == attempt.originalBytes,
+              try Self.regularFileSnapshot(attempt.original)
+                == attempt.originalSnapshot else { return false }
+        let currentTree = try observeOriginalEraseRetainedLeaseTree(
+            io: treeIO)
+        guard currentTree.operationsFact == first.operationsFact,
+              try Self.originalEraseRetainedStableFact(
+                currentTree.leaseFact, through: 5)
+                == Self.originalEraseRetainedStableFact(
+                    first.leaseFact, through: 5),
+              try Self.originalEraseRetainedLinks(
+                currentTree.leaseFact)
+                == Self.originalEraseExpectedRetryLeaseLinks(
+                    first: first,
+                    namedTemporary: !attempt.renamed
+                        && attempt.temporary >= 0) else {
+            return false
+        }
+        let names = try originalEraseWriterLeaseNames(
+            allocation: targetAllocation,
+            allowOwnedTemporary: true)
+        guard names.filter({ $0 != Self.registryTemporaryName })
+                == first.names,
+              try originalEraseWriterUnchangedSiblings(
+                names: names, io: treeIO) == first.siblings else {
+            return false
+        }
+        let observed = try observeOriginalEraseAuxiliaryRegistryLocked(
+            operation: operation)
+        if attempt.renamed {
+            guard let temporaryIdentity = attempt.temporaryIdentity,
+                  attempt.temporary >= 0,
+                  let preparedFact = attempt.preRenameFullFact,
+                  let createdFact =
+                    attempt.originalWriterCreatedTemporaryFact,
+                  !names.contains(Self.registryTemporaryName),
+                  observed.registryBytes == attempt.replacementBytes,
+                  try Self.regularFileIdentity(attempt.temporary)
+                    == temporaryIdentity else { return false }
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName,
+                expected: temporaryIdentity)
+            let currentRegistryFact = try
+                originalEraseWriterHeldNamedRegularFact(
+                    descriptor: attempt.temporary,
+                    name: Self.registryName)
+            guard try Self.originalEraseRetainedStableFact(
+                    currentRegistryFact, through: 9)
+                    == Self.originalEraseRetainedStableFact(
+                        preparedFact, through: 9),
+                  try Self.originalEraseRetainedStableFact(
+                    currentRegistryFact, through: 6)
+                    == Self.originalEraseRetainedStableFact(
+                        createdFact, through: 6),
+                  try Self.readAll(from: attempt.temporary)
+                    == attempt.replacementBytes else { return false }
+        } else {
+            guard observed.registryBytes == attempt.originalBytes,
+                  try Self.regularFileSnapshot(attempt.original)
+                    == attempt.originalSnapshot else { return false }
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName,
+                expected: attempt.originalSnapshot.identity)
+            guard try originalEraseWriterHeldNamedRegularFact(
+                    descriptor: attempt.original,
+                    name: Self.registryName)
+                    == attempt.originalWriterFirstRegistryFact else {
+                return false
+            }
+            if attempt.temporary >= 0 {
+                guard let temporaryIdentity = attempt.temporaryIdentity,
+                      let createdFact =
+                        attempt.originalWriterCreatedTemporaryFact,
+                      names.contains(Self.registryTemporaryName),
+                      try Self.regularFileIdentity(attempt.temporary)
+                        == temporaryIdentity else { return false }
+                try requireNamedIdentity(parent: leaseDescriptor,
+                    name: Self.registryTemporaryName,
+                    expected: temporaryIdentity)
+                let tempFact = try
+                    originalEraseWriterHeldNamedRegularFact(
+                        descriptor: attempt.temporary,
+                        name: Self.registryTemporaryName)
+                guard try Self.originalEraseRetainedStableFact(
+                        tempFact, through: 6)
+                        == Self.originalEraseRetainedStableFact(
+                            createdFact, through: 6) else {
+                    return false
+                }
+                var tempStat = stat()
+                guard Darwin.fstat(attempt.temporary,
+                        &tempStat) == 0,
+                      tempStat.st_mode & 0o7777 == 0o600,
+                      tempStat.st_size >= 0,
+                      tempStat.st_size
+                        <= Int64(attempt.replacementBytes.count) else {
+                    return false
+                }
+                let tempSnapshot = try Self.regularFileSnapshot(
+                    attempt.temporary)
+                let tempBytes = try Self.readAll(
+                    from: attempt.temporary)
+                guard attempt.replacementBytes.starts(
+                        with: tempBytes),
+                      try Self.regularFileSnapshot(
+                        attempt.temporary) == tempSnapshot,
+                      try originalEraseWriterHeldNamedRegularFact(
+                        descriptor: attempt.temporary,
+                        name: Self.registryTemporaryName) == tempFact else {
+                    return false
+                }
+                if let prepared = attempt.preparedSnapshot {
+                    guard tempSnapshot == prepared,
+                          tempBytes == attempt.replacementBytes
+                    else { return false }
+                    let policy = try ProtectedFilePolicyV1
+                        .observeTemporalPolicyWithCheckedClose(
+                            .generationLeaseControlTemporary,
+                            at: leaseURL.appendingPathComponent(
+                                Self.registryTemporaryName),
+                            retainUncertainDescriptor: { value in
+                                self.originalEraseAuxiliaryPolicyUncertainDescriptors
+                                    .append(value)
+                            })
+                    guard policy.state == .strictComplete,
+                          policy.device == UInt64(temporaryIdentity.device),
+                          policy.inode == UInt64(temporaryIdentity.inode),
+                          originalEraseAuxiliaryPolicyUncertainDescriptors
+                            .isEmpty else { return false }
+                }
+                if let preparedFact = attempt.preRenameFullFact {
+                    guard tempFact == preparedFact else { return false }
+                }
+            } else {
+                guard !names.contains(Self.registryTemporaryName)
+                else { return false }
+            }
+        }
+        guard try observeOriginalEraseRetainedLeaseTree(
+                io: treeIO) == currentTree else { return false }
+        if attempt.temporary < 0 && !attempt.renamed {
+            guard currentTree.operationsDigest
+                    == first.operationsDigest,
+                  currentTree.leaseDigest == first.leaseDigest,
+                  currentTree.leaseFact == first.leaseFact else {
+                return false
+            }
+        }
+        try treeIO.requireSettled()
+        return true
+    }
+
     @MainActor
     fileprivate func closePreparationReader(_ allocation: GenerationLeaseAllocationAttemptV1,
         proof: ErasePreparationFailureDrainWitnessV1) throws {
@@ -8963,6 +24732,75 @@ extension GenerationLeaseRegistryV1 {
     }
 
     @MainActor
+    fileprivate func publishFrozenC05ColdPreparationReader(_ allocation: GenerationLeaseAllocationAttemptV1,
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1) throws -> GenerationLeaseHandleV1 {
+        guard allocation.registry === self else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try allocation.requireColdPreparationAcquiring(operation)
+        let handle = try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try operation.requireC05ColdPredecessorCheckedCompletion(
+                registry: self)
+            try allocation.requireColdPreparationAcquiring(operation)
+            try requireNoEraseC05ColdMigrationReservationLocked()
+            let observed = try observeEraseC05ColdRegistryLocked(operation: operation)
+            guard observed.leases.allSatisfy({ $0.role == .reader }) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try operation.requireColdPreparationLeaseCensus(observed.leases, registry: self)
+            guard observed.leases.count < Self.maximumActiveLeaseCount else {
+                throw GenerationLeaseRegistryFailureV1.registryLimitExceeded
+            }
+            let owners = Set(observed.leases.map(\.ownerID))
+            guard owners.contains(ownerID) || owners.count < Self.maximumOwnerCount else {
+                throw GenerationLeaseRegistryFailureV1.registryLimitExceeded
+            }
+            let token = try GenerationLeaseTokenV1(leaseID: makeLeaseID(), ownerID: ownerID,
+                epoch: allocation.epoch, role: .reader, acquiredAt: now())
+            guard !observed.leases.contains(where: { $0.leaseID == token.leaseID }), allocation.token == nil else {
+                throw GenerationLeaseRegistryFailureV1.duplicateLease
+            }
+            allocation.token = token
+            eraseC05ColdOwnedTokens.insert(token.leaseID)
+            let record = FreshAdoptionReplacement(token: token)
+            let id = ObjectIdentifier(allocation)
+            guard coldPreparationReaderPublications[id] == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            coldPreparationReaderPublications[id] = record
+            try captureFreshAdoptionReplacementLocked(record, observed: observed,
+                replacement: RegistryStateV1(leases: observed.leases + [token]))
+            guard let attempt = record.replacement else { throw Self.identityFailure() }
+            try finishTemporalReplacementLocked(attempt,
+                observeAfterRename: {
+                    try observeEraseC05ColdRegistryLocked(operation: operation)
+                })
+            let current = try observeEraseC05ColdRegistryLocked(operation: operation)
+            guard current.leases.allSatisfy({ $0.role == .reader }) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try operation.requireColdPreparationLeaseCensus(current.leases, registry: self)
+            guard current.leases.filter({ $0.leaseID == token.leaseID }) == [token] else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let handle = try GenerationLeaseHandleV1(registry: self, publishedReaderToken: token)
+            allocation.handle = handle // before outer G/post-admission can throw
+            try allocation.requireColdPreparationAcquiring(operation)
+            return handle
+        }
+        try allocation.requireColdPreparationAcquiring(operation)
+        try withEraseC05ColdWriterMutationLock(
+            operation: operation, activity: activity) {
+            try allocation.requireColdPreparationAcquiring(operation)
+            guard let record = coldPreparationReaderPublications[ObjectIdentifier(allocation)] else { throw Self.identityFailure() }
+            let observed = try observeEraseC05ColdRegistryLocked(operation: operation)
+            guard observed.leases.allSatisfy({ $0.role == .reader }) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            try operation.requireColdPreparationLeaseCensus(observed.leases, registry: self)
+            guard observed.leases.filter({ $0.leaseID == handle.token.leaseID }) == [handle.token] else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try record.closeOwnedDescriptorsChecked()
+            coldPreparationReaderPublications.removeValue(forKey: ObjectIdentifier(allocation))
+        }
+        try allocation.requireColdPreparationAcquiring(operation)
+        return handle
+    }
+
+    @MainActor
     fileprivate func closeColdPreparationReader(_ allocation: GenerationLeaseAllocationAttemptV1,
         proof: EraseColdPreparationFailureDrainWitnessV1) throws {
         guard allocation.registry === self, allocation.sealedForRetirement else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
@@ -9019,5 +24857,642 @@ extension GenerationLeaseRegistryV1 {
         if let handle = reader.handle { return handle.token }
         guard coldPreparationReaderPublications[ObjectIdentifier(reader)]?.replacement?.renamed == true else { return nil }
         return reader.token
+    }
+}
+
+/// A single named registry leaf observation. The Router retains this before
+/// its FD opens; failed close is terminal and is never retried by integer.
+@MainActor
+final class EraseSchema2ColdRegistryObservationAttemptV1 {
+    private var descriptor: Int32 = -1
+    private var closeAttempted = false
+    private var uncertain = false
+    var isCheckedClosed: Bool {
+        closeAttempted && !uncertain && descriptor < 0
+    }
+    fileprivate func retain(_ value: Int32) throws {
+        guard descriptor < 0, !closeAttempted, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        descriptor = value
+    }
+    fileprivate func closeChecked() throws {
+        guard !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if closeAttempted { return }
+        closeAttempted = true
+        guard descriptor >= 0 else { return }
+        let owned = descriptor
+        descriptor = -1
+        guard Darwin.close(owned) == 0 else {
+            uncertain = true
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+
+extension GenerationLeaseRegistryV1 {
+    /// A checked G interval under the exact cold EX. No ordinary mutation
+    /// wrapper can silently unlock and report a successful schema-2 proof.
+    @MainActor
+    private func withEraseSchema2ColdMutationLock<Value>(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        _ body: () throws -> Value
+    ) throws -> Value {
+        try requireEraseSchema2ColdExcluded(operation: operation,
+            activity: activity)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard generationMutationLockDepth == 0,
+              !eraseSchema2ColdMutationUncertain,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        generationMutationLockDepth = 1
+        let outcome = Result<Value, Error> {
+            try verify()
+            let result = try body()
+            try verify()
+            return result
+        }
+        eraseSchema2ColdMutationUncertain = true
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        generationMutationLockDepth = 0
+        eraseSchema2ColdMutationUncertain = false
+        return try outcome.get()
+    }
+
+    /// Reads canonical old tokens without reconciling or treating an
+    /// unlocked owner guard as completion. That classification follows under
+    /// the same EX and a fresh checked G reproof before any token effect.
+    @MainActor
+    func observeEraseSchema2ColdRegistry(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws -> [GenerationLeaseTokenV1] {
+        try withEraseSchema2ColdMutationLock(operation: operation,
+            activity: activity) {
+            try readEraseSchema2ColdRegistryLocked(operation: operation)
+        }
+    }
+
+    @MainActor
+    private func readEraseSchema2ColdRegistryLocked(
+        operation: EraseColdPreparationOperationV1
+    ) throws -> [GenerationLeaseTokenV1] {
+            let attempt = EraseSchema2ColdRegistryObservationAttemptV1()
+            try operation.retainSchema2ColdRegistryObservation(attempt,
+                registry: self)
+            let descriptor = Darwin.openat(leaseDescriptor,
+                Self.registryName,
+                O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            guard descriptor >= 0 else { throw Self.mappedFailure() }
+            try attempt.retain(descriptor)
+            let tokens: [GenerationLeaseTokenV1]
+            do {
+                let before = try Self.regularFileSnapshot(descriptor)
+                try requireNamedIdentity(parent: leaseDescriptor,
+                    name: Self.registryName, expected: before.identity)
+                let registryPolicy = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(
+                        try Self.controlKind(for: Self.registryName),
+                        at: leaseURL.appendingPathComponent(Self.registryName),
+                        retainUncertainDescriptor: { value in
+                            self.eraseSchema2ColdPolicyUncertainDescriptors.append(value)
+                        })
+                guard registryPolicy.state == .strictComplete,
+                      eraseSchema2ColdPolicyUncertainDescriptors.isEmpty else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                let bytes = try Self.readAll(from: descriptor)
+                guard try Self.regularFileSnapshot(descriptor) == before,
+                      bytes.count == Int(before.byteCount) else {
+                    throw Self.identityFailure()
+                }
+                try requireNamedIdentity(parent: leaseDescriptor,
+                    name: Self.registryName, expected: before.identity)
+                let state = try RegistryStateV1.decodeCanonical(from: bytes)
+                tokens = state.leases
+            } catch {
+                try attempt.closeChecked()
+                throw error
+            }
+            try attempt.closeChecked()
+            return tokens
+    }
+
+    /// One original-operation-owned registry census under its existing G.
+    /// The operation retains this checked attempt before opening the leaf;
+    /// ambiguous close or policy observation remains on the same owners.
+    @MainActor
+    private func readOriginalEraseAuxiliaryRegistryLocked(
+        operation: EraseRouterOperationV1
+    ) throws -> [GenerationLeaseTokenV1] {
+        try observeOriginalEraseAuxiliaryRegistryLocked(
+            operation: operation).leases
+    }
+
+    @MainActor
+    private func observeOriginalEraseAuxiliaryRegistryLocked(
+        operation: EraseRouterOperationV1
+    ) throws -> TemporalGenerationRegistryObservationV1 {
+        guard originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let attempt = EraseSchema2ColdRegistryObservationAttemptV1()
+        try operation.retainOriginalEraseAuxiliaryRegistryObservation(
+            attempt: attempt, registry: self)
+        let descriptor = Darwin.openat(leaseDescriptor,
+            Self.registryName,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            try attempt.closeChecked()
+            throw Self.mappedFailure()
+        }
+        try attempt.retain(descriptor)
+        let observed: TemporalGenerationRegistryObservationV1
+        do {
+            try verify()
+            let directoryPolicy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: leaseURL,
+                    retainUncertainDescriptor: { value in
+                        self.originalEraseAuxiliaryPolicyUncertainDescriptors
+                            .append(value)
+                    })
+            let before = try Self.regularFileSnapshot(descriptor)
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: before.identity)
+            let policy = try ProtectedFilePolicyV1
+                .observeTemporalPolicyWithCheckedClose(
+                    try Self.controlKind(for: Self.registryName),
+                    at: leaseURL.appendingPathComponent(Self.registryName),
+                    retainUncertainDescriptor: { value in
+                        self.originalEraseAuxiliaryPolicyUncertainDescriptors
+                            .append(value)
+                    })
+            guard policy.state == .strictComplete,
+                  originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let bytes = try Self.readAll(from: descriptor)
+            guard try Self.regularFileSnapshot(descriptor) == before,
+                  bytes.count == Int(before.byteCount) else {
+                throw Self.identityFailure()
+            }
+            try requireNamedIdentity(parent: leaseDescriptor,
+                name: Self.registryName, expected: before.identity)
+            let tokens = try RegistryStateV1.decodeCanonical(
+                from: bytes).leases
+            observed = TemporalGenerationRegistryObservationV1(
+                leases: tokens, registryBytes: bytes,
+                registryPolicy: policy,
+                directoryPolicy: directoryPolicy)
+            try verify()
+        } catch {
+            try attempt.closeChecked()
+            throw error
+        }
+        try attempt.closeChecked()
+        return observed
+    }
+
+    /// Capture the first complete original-Erase token cohort through the
+    /// same checked, operation-retained reader used at each later phase CAS.
+    /// The retained normalization activity supplies the existing G; a failed
+    /// descriptor close cannot become a first-cohort authorization.
+    @MainActor
+    func observeOriginalEraseAuxiliaryRegistryChecked(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1
+    ) throws -> [GenerationLeaseTokenV1] {
+        try withTemporalNormalizationMutationLock(activity: activity) {
+            try requireNoMigrationReservationLocked()
+            let tokens = try readOriginalEraseAuxiliaryRegistryLocked(
+                operation: operation)
+            try requireNoMigrationReservationLocked()
+            return tokens
+        }
+    }
+
+    /// Bracket exactly one original Erase phase CAS by the already retained
+    /// normalization activity and this Registry's actual G. The pre-effect
+    /// roster receipt and complete writer/reader cohort are operation-owned;
+    /// this wrapper cannot acquire a second Registry or accept a fresh
+    /// survivor inventory after an effect. The Store owns the one-way intent
+    /// and Erase-root projection if its synchronous writer fails partway.
+    @MainActor
+    func withOriginalEraseAuxiliaryIntentCASUnderRetainedExclusion(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        expectedIntent: EraseIntentV1,
+        replacement: EraseIntentV1,
+        _ body: () throws -> Void
+    ) throws {
+        guard expectedIntent.schemaVersion == 2,
+              replacement == expectedIntent.advancing(to:
+                  expectedIntent.phase == .emptyGenerationPrepared
+                    ? .pointerSwitched : .sessionActivated),
+              expectedIntent.phase == .emptyGenerationPrepared
+                || expectedIntent.phase == .pointerSwitched else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try withTemporalNormalizationMutationLock(activity: activity) {
+            let expectedTokens = try operation
+                .requireOriginalEraseAuxiliaryPhaseUnderHeldG(
+                    registry: self, activity: activity, store: store,
+                    expected: expectedIntent, replacement: replacement)
+            try requireNoMigrationReservationLocked()
+            guard try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == expectedTokens,
+                  try store.load() == expectedIntent,
+                  let preparation = try store.loadPreparation(),
+                  preparation.matches(expectedIntent) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try body()
+            guard try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == expectedTokens,
+                  try store.load() == replacement,
+                  try store.loadPreparation() == preparation,
+                  preparation.matches(replacement) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireNoMigrationReservationLocked()
+        }
+    }
+
+    /// A distinct checked G scope for one already-latched original P pointer
+    /// effect. The Router supplies the retained EX, exact stage and first
+    /// cohort. This Registry never derives authority from current/retired
+    /// survivor bytes and cannot enter a second pointer effect after failure.
+    @MainActor
+    func withOriginalEraseRetainedPointerEffect(
+        stage: OriginalEraseRetainedPointerStageV1,
+        intent: EraseIntentV1,
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        _ body: () throws -> Void
+    ) throws {
+        guard intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared else {
+            operation.failOriginalEraseRetainedPointerEffect()
+            throw Self.uncertainOwnerFailure()
+        }
+        try activity.validateSharedNormalizationRegistry(self)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard !originalErasePointerEffectUncertain,
+              generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            originalErasePointerEffectUncertain = true
+            operation.failOriginalEraseRetainedPointerEffect()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var outcome: Result<Void, any Error> = .success(())
+        do {
+            try activity.validateSharedNormalizationRegistry(self)
+            try verify()
+            let expectedTokens = try operation
+                .requireOriginalEraseRetainedPointerUnderHeldG(
+                    stage: stage, intent: intent, store: store,
+                    registry: self, activity: activity)
+            try requireNoMigrationReservationLocked()
+            guard try store.load() == intent,
+                  let preparation = try store.loadPreparation(),
+                  preparation.matches(intent),
+                  try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == expectedTokens else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try body()
+            guard try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == expectedTokens,
+                  try store.load() == intent,
+                  try store.loadPreparation() == preparation,
+                  preparation.matches(intent) else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try requireNoMigrationReservationLocked()
+            try verify()
+            try activity.validateSharedNormalizationRegistry(self)
+        } catch {
+            outcome = .failure(error)
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            originalErasePointerEffectUncertain = true
+            operation.failOriginalEraseRetainedPointerEffect()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        do { try outcome.get() }
+        catch {
+            originalErasePointerEffectUncertain = true
+            operation.failOriginalEraseRetainedPointerEffect()
+            throw error
+        }
+    }
+
+    /// The original Erase already holds this Registry's EX. Recovering the
+    /// newly published target journal cannot acquire a second SH activity.
+    /// Keep the exact dual-writer census, pointer epoch and journal body in
+    /// one checked G interval; a failed unlock or body poisons this owner.
+    @MainActor
+    func withOriginalEraseRetainedWriterRecovery(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        targetHandle: GenerationLeaseHandleV1,
+        expectedEpoch: GenerationEpochV1,
+        currentEpoch: () throws -> GenerationEpochV1,
+        _ body: () throws -> Void
+    ) throws -> OriginalEraseRetainedWriterRecoveryReceiptV1 {
+        try activity.validateSharedNormalizationRegistry(self)
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard !originalEraseWriterRecoveryUncertain,
+              generationMutationLockDepth == 0,
+              flock(mutationLockDescriptor, LOCK_EX) == 0 else {
+            originalEraseWriterRecoveryUncertain = true
+            operation.failOriginalEraseWriterRecovery()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 1
+        var outcome: Result<Void, any Error>
+        do {
+            try activity.validateSharedNormalizationRegistry(self)
+            try verify()
+            let prior = try operation.requireOriginalEraseWriterRecoveryUnderHeldG(
+                registry: self, activity: activity,
+                targetAllocation: targetAllocation, targetHandle: targetHandle)
+            let exact = try RegistryStateV1(
+                leases: prior + [targetHandle.token]).leases
+            try requireNoMigrationReservationLocked()
+            guard targetHandle.token.role == .writer,
+                  targetHandle.token.epoch == expectedEpoch,
+                  try currentEpoch() == expectedEpoch,
+                  try readOriginalEraseAuxiliaryRegistryLocked(operation: operation)
+                    == exact else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try body()
+            guard try currentEpoch() == expectedEpoch,
+                  try readOriginalEraseAuxiliaryRegistryLocked(operation: operation)
+                    == exact else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try requireNoMigrationReservationLocked()
+            try verify()
+            try activity.validateSharedNormalizationRegistry(self)
+            outcome = .success(())
+        } catch {
+            outcome = .failure(error)
+        }
+        guard flock(mutationLockDescriptor, LOCK_UN) == 0 else {
+            originalEraseWriterRecoveryUncertain = true
+            operation.failOriginalEraseWriterRecovery()
+            throw Self.uncertainOwnerFailure()
+        }
+        generationMutationLockDepth = 0
+        do { try outcome.get() }
+        catch {
+            originalEraseWriterRecoveryUncertain = true
+            operation.failOriginalEraseWriterRecovery()
+            throw error
+        }
+        return OriginalEraseRetainedWriterRecoveryReceiptV1(
+            registry: self, operation: operation, activity: activity,
+            targetAllocation: targetAllocation, targetHandle: targetHandle)
+    }
+
+    /// One original-owner Search publication under the same retained EX and
+    /// actual G. The Router supplies a typed exact roster/session admission;
+    /// this Registry proves its entire writer/reader cohort unchanged around
+    /// the synchronous checked Search effect. No phase or Store control may
+    /// change inside this interval, and no new Registry is constructed.
+    @MainActor
+    func withOriginalEraseAuxiliarySearchPublicationUnderRetainedExclusion(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        store: EraseIntentStore,
+        _ body: () throws -> Void
+    ) throws {
+        try withTemporalNormalizationMutationLock(activity: activity) {
+            let expectedTokens = try operation
+                .requireOriginalEraseAuxiliarySearchPublicationUnderHeldG(
+                    registry: self, activity: activity, store: store)
+            try requireNoMigrationReservationLocked()
+            guard let intent = try store.load(),
+                  let preparation = try store.loadPreparation(),
+                  preparation.matches(intent),
+                  try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == expectedTokens else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try body()
+            guard try readOriginalEraseAuxiliaryRegistryLocked(
+                    operation: operation) == expectedTokens,
+                  try store.load() == intent,
+                  try store.loadPreparation() == preparation,
+                  preparation.matches(intent) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireNoMigrationReservationLocked()
+        }
+    }
+
+    /// A borrowed Erase intent CAS changes no Registry token. The original
+    /// cold owner supplies the exact EX and actual G, and the two checked
+    /// reads surround the synchronous canonical Store writer. This wrapper
+    /// does not construct a Registry or authorize an arbitrary replacement.
+    @MainActor
+    func withEraseSchema2ColdUnchangedTokens(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        expectedTokens: [GenerationLeaseTokenV1],
+        _ body: () throws -> Void
+    ) throws {
+        try withEraseSchema2ColdMutationLock(
+            operation: operation, activity: activity) {
+            guard try readEraseSchema2ColdRegistryLocked(
+                    operation: operation) == expectedTokens else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try body()
+            guard try readEraseSchema2ColdRegistryLocked(
+                    operation: operation) == expectedTokens else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+}
+
+/// A predecessor guard is probed only while the exact cold Registry holds G
+/// and the operation holds its pre-existing lease EX. The opened descriptor is
+/// retained by the operation before any stat, policy observation, or flock.
+/// An unlocked guard is evidence about this one owner, not permission to
+/// reconcile tokens or delete an Operations subtree.
+@MainActor
+final class EraseSchema2ColdGuardProbeV1 {
+    private struct GuardFact: Equatable {
+        let device: dev_t, inode: ino_t, mode: mode_t
+        let links: nlink_t, size: off_t
+        let modifiedSeconds: Int64, modifiedNanoseconds: Int64
+        let changedSeconds: Int64, changedNanoseconds: Int64
+        init(_ value: stat) {
+            device = value.st_dev; inode = value.st_ino
+            mode = value.st_mode; links = value.st_nlink
+            size = value.st_size
+            modifiedSeconds = Int64(value.st_mtimespec.tv_sec)
+            modifiedNanoseconds = Int64(value.st_mtimespec.tv_nsec)
+            changedSeconds = Int64(value.st_ctimespec.tv_sec)
+            changedNanoseconds = Int64(value.st_ctimespec.tv_nsec)
+        }
+    }
+    let predecessor: UUID
+    var heldDevice: dev_t { device }
+    var heldInode: ino_t { inode }
+    private(set) var descriptor: Int32 = -1
+    private var parent: Int32 = -1
+    private var name = ""
+    private var device: dev_t = 0
+    private var inode: ino_t = 0
+    private var original: GuardFact?
+    private var locked = false
+    private var closeAttempted = false
+    private var uncertain = false
+    var isCheckedClosed: Bool { closeAttempted && !uncertain && descriptor < 0 }
+
+    init(predecessor: UUID) { self.predecessor = predecessor }
+
+    fileprivate func retain(_ value: Int32, parent: Int32, name: String) throws {
+        guard descriptor < 0, !closeAttempted, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        descriptor = value
+        self.parent = parent
+        self.name = name
+    }
+
+    fileprivate func bindAndLock() throws {
+        guard descriptor >= 0, !locked, !closeAttempted, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        var held = stat(), named = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              held.st_mode & S_IFMT == S_IFREG, held.st_nlink == 1,
+              held.st_size == 0,
+              named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1,
+              GuardFact(held) == GuardFact(named),
+              flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // The lock remains held across later effect reproof; do not accept
+        // an inode/name swap immediately after acquiring it.
+        locked = true
+        device = held.st_dev
+        inode = held.st_ino
+        original = GuardFact(held)
+        try requireHeldNamed()
+    }
+
+    func requireHeldNamed() throws {
+        guard descriptor >= 0, locked, !closeAttempted, !uncertain,
+              let original else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        var held = stat(), named = stat()
+        guard Darwin.fstat(descriptor, &held) == 0,
+              Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              GuardFact(held) == original,
+              GuardFact(named) == original else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func closeAfterFailureChecked() throws {
+        guard !closeAttempted, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if descriptor < 0 {
+            closeAttempted = true
+            return
+        }
+        closeAttempted = true
+        uncertain = true
+        if locked {
+            guard flock(descriptor, LOCK_UN) == 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            locked = false
+        }
+        let owned = descriptor
+        descriptor = -1
+        guard Darwin.close(owned) == 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        uncertain = false
+    }
+}
+
+extension GenerationLeaseRegistryV1 {
+    /// Observes only predecessor guards named by the canonical Registry.
+    /// Extra orphan guards and partial namespace subsets require the separate
+    /// six-owner classifier; this method never removes them or a lease token.
+    @MainActor
+    func probeEraseSchema2ColdPredecessors(
+        operation: EraseColdPreparationOperationV1,
+        activity: GenerationTemporalActivityHandleV1,
+        expectedTokens: [GenerationLeaseTokenV1]
+    ) throws -> [EraseSchema2ColdGuardProbeV1] {
+        try withEraseSchema2ColdMutationLock(operation: operation,
+            activity: activity) {
+            let tokens = try readEraseSchema2ColdRegistryLocked(
+                operation: operation)
+            guard tokens == expectedTokens else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let predecessors = Set(tokens.map(\.ownerID))
+                .subtracting([ownerID])
+            var probes: [EraseSchema2ColdGuardProbeV1] = []
+            for previous in predecessors.sorted(by: Self.idOrder) {
+                let probe = EraseSchema2ColdGuardProbeV1(
+                    predecessor: previous)
+                try operation.retainSchema2ColdGuardProbe(probe,
+                    registry: self)
+                let name = Self.ownerLockName(previous)
+                let descriptor = Darwin.openat(ownersDescriptor, name,
+                    O_RDWR | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+                guard descriptor >= 0 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try probe.retain(descriptor, parent: ownersDescriptor,
+                    name: name)
+                try probe.bindAndLock()
+                let guardPolicy = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(
+                        .generationLeaseOwnerLock,
+                        at: ownersURL.appendingPathComponent(name),
+                        retainUncertainDescriptor: { value in
+                            self.eraseSchema2ColdPolicyUncertainDescriptors
+                                .append(value)
+                        })
+                guard guardPolicy.state == .strictComplete,
+                      eraseSchema2ColdPolicyUncertainDescriptors.isEmpty else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try probe.requireHeldNamed()
+                probes.append(probe)
+            }
+            return probes
+        }
     }
 }

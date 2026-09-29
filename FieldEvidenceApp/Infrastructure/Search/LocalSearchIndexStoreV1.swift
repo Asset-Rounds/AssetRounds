@@ -993,6 +993,27 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
         try dropProjection(workspaceID: workspaceID)
     }
 
+    /// The checked original-Erase owner may publish the same canonical empty
+    /// envelope synchronously under retained EX/G and the publication fence.
+    /// Forget the actor's old projection after that owner's readback; all
+    /// subsequent public search operations already reload canonical bytes.
+    func discardCacheAfterOriginalEraseCheckedPublication() {
+        envelope = nil
+    }
+
+    /// Data-only binding for the original owner's retained Support root.
+    /// The synchronous fence effect must target this actor's exact file.
+    func originalEraseCanonicalFileURL() -> URL {
+        fileURL.standardizedFileURL
+    }
+
+    func originalEraseCachedWorkspaceAllowsPurge(_ workspaceID: UUID)
+        -> Bool {
+        if let cached = envelope?.projection,
+           cached.source.workspaceID != workspaceID { return false }
+        return true
+    }
+
 #if DEBUG
     /// The original Erase caller supplies its held-root preimage check at the
     /// last synchronous boundary before this actor replaces a derived file.
@@ -1029,6 +1050,31 @@ actor LocalSearchIndexStoreV1: SearchIndexSnapshotProvidingV1, SearchIndexLifecy
 }
 
 extension LocalSearchIndexStoreV1 {
+    /// The original Erase owner supplies the checked descriptor-bound effect.
+    /// The existing search publication fence serializes this synchronous
+    /// operation with rebuilds and advances its invalidation generation before
+    /// any filesystem effect. The callback may not suspend or consult an actor.
+    nonisolated static func withOriginalEraseRosteredInvalidation<T>(
+        applicationSupportURL: URL,
+        _ effect: () throws -> T
+    ) throws -> T {
+        guard applicationSupportURL.isFileURL else {
+            throw LocalSearchIndexStoreFailureV1.invalidRoot
+        }
+        let file = applicationSupportURL.standardizedFileURL
+            .appendingPathComponent(directoryName, isDirectory: true)
+            .appendingPathComponent(fileName, isDirectory: false)
+        return try SearchIndexPublicationFenceV1.shared.withInvalidation(
+            for: file, effect)
+    }
+
+    /// Construct the same canonical empty envelope used by ordinary Erase.
+    /// This is data only; the original operation's checked writer must publish
+    /// and reobserve these exact bytes before Router projects the Search tree.
+    nonisolated static func originalEraseCanonicalEmptyBytes() throws -> Data {
+        try encoder().encode(Envelope())
+    }
+
     /// Validates the disposable C18 package row at the local-index boundary.
     /// This is intentionally separate from SearchIndexProjectionRecordV1 so a
     /// package receipt can never be mistaken for a canonical search source.

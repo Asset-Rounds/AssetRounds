@@ -610,6 +610,48 @@ private final class EvidenceBundleStoreAssetLabelPublicationV1: @unchecked Senda
         return try readbackLocked(jobID: jobID)
     }
 
+    /// Readback for an already authenticated Erase source tree. The supplied
+    /// visitor is the original-operation checked descriptor owner; no URL
+    /// lookup or ordinary readFile participates in this branch.
+    func readbackChecked(
+        jobID: LocalJobIDV1, files: Set<String>,
+        read: (String, Int64) throws -> Data
+    ) throws -> AssetLabelPublishedContentReadbackV1? {
+        let suffix = "/.asset-label-publications/\(jobID.rawValue.uuidString.lowercased())/publication.json"
+        let matches = files.filter { $0.hasPrefix("content/") && $0.hasSuffix(suffix) }
+        guard matches.count <= 1 else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+        guard let markerPath = matches.first else { return nil }
+        let markerBytes = try read(markerPath,
+            Int64(AssetLabelCanonicalCodecV1.maximumCanonicalByteCount))
+        let marker = try AssetLabelCanonicalCodecV1.decode(
+            AssetLabelContentPublicationMarkerV1.self, from: markerBytes)
+        try marker.validate()
+        let expectedPath = "content/\(marker.plan.workspaceID.rawValue.uuidString.lowercased())/.asset-label-publications/\(jobID.rawValue.uuidString.lowercased())/publication.json"
+        guard markerPath == expectedPath, marker.jobID == jobID else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        let artifacts = try zip(marker.publishedArtifacts, marker.manifest.entries)
+            .map { published, entry in
+                let path = "content/\(published.reference.workspaceID)/\(published.reference.contentID)/original.bin"
+                guard files.contains(path) else {
+                    throw EvidenceBundleStoreError.bundleMissing
+                }
+                let bytes = try read(path, published.reference.byteLength)
+                return try LabelProjectedArtifactV1(kind: entry.kind,
+                    safeFilename: entry.safeFilename, mediaType: entry.mediaType,
+                    bytes: bytes, itemCount: entry.itemCount)
+            }
+        let projection = try LabelProjectionResultV1(plan: marker.plan,
+            artifacts: artifacts,
+            nativeTextEnvironment: marker.nativeTextEnvironment)
+        guard projection.manifest == marker.manifest else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        return AssetLabelPublishedContentReadbackV1(plan: marker.plan,
+            projection: projection,
+            publishedArtifacts: marker.publishedArtifacts)
+    }
+
     func remove(binding: AssetLabelRenderPublicationBindingV1) throws {
         lock.lock(); defer { lock.unlock() }
         try binding.validate()
@@ -1136,6 +1178,14 @@ actor EvidenceBundleStore: DraftImmutableContentWriterV1 {
 
     nonisolated func readAssetLabelArtifacts(jobID: LocalJobIDV1) throws -> AssetLabelPublishedContentReadbackV1? {
         try assetLabelPublications.readback(jobID: jobID)
+    }
+
+    nonisolated func readAssetLabelArtifactsChecked(
+        jobID: LocalJobIDV1, files: Set<String>,
+        read: (String, Int64) throws -> Data
+    ) throws -> AssetLabelPublishedContentReadbackV1? {
+        try assetLabelPublications.readbackChecked(jobID: jobID,
+            files: files, read: read)
     }
 
     nonisolated func removeAssetLabelPublishedOutput(_ binding: AssetLabelRenderPublicationBindingV1) throws {
@@ -5430,4 +5480,288 @@ enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Media_EvidenceBun
         ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
     static let unverifiedAssertionsAreVerified: Bool = false
     static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}
+
+/// Cold Erase readback of the two content predicates used by the complete
+/// frozen-generation validator. All descriptors belong to the operation's
+/// private-source attempt; no EvidenceBundleStore or live producer is opened.
+@MainActor
+final class EraseSchema2ColdContentReadbackV1 {
+    private let rootURL: URL
+    private let io: EraseAbortCheckedSnapshotIOV1
+    private let retainUncertainDescriptor: (Int32) -> Void
+
+    init(rootURL: URL, io: EraseAbortCheckedSnapshotIOV1,
+         retainUncertainDescriptor: @escaping (Int32) -> Void) {
+        self.rootURL = rootURL
+        self.io = io
+        self.retainUncertainDescriptor = retainUncertainDescriptor
+    }
+
+    private func valid(_ component: String) -> Bool {
+        !component.isEmpty && component != "." && component != ".."
+            && !component.contains("/") && !component.contains("\\")
+    }
+
+    private func same(_ a: stat, _ b: stat) -> Bool {
+        a.st_dev == b.st_dev && a.st_ino == b.st_ino
+            && a.st_mode == b.st_mode && a.st_nlink == b.st_nlink
+            && a.st_size == b.st_size
+            && a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec
+            && a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec
+            && a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec
+            && a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec
+    }
+
+    private func withDirectory<T>(parent: Int32, component: String,
+                                  _ body: (Int32) throws -> T) throws -> T {
+        guard valid(component) else { throw EvidenceBundleStoreError.unsafePath }
+        var parentBefore = stat(), parentAfter = stat()
+        guard Darwin.fstat(parent, &parentBefore) == 0,
+              parentBefore.st_mode & S_IFMT == S_IFDIR else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        return try io.withOpen(parent: parent, name: component,
+                               flags: O_RDONLY | O_DIRECTORY) { child in
+            var before = stat(), after = stat(), named = stat()
+            guard Darwin.fstat(child, &before) == 0,
+                  before.st_mode & S_IFMT == S_IFDIR, before.st_nlink > 0,
+                  Darwin.fstatat(parent, component, &named,
+                      AT_SYMLINK_NOFOLLOW) == 0,
+                  same(before, named) else {
+                throw EvidenceBundleStoreError.unsafePath
+            }
+            let result = try body(child)
+            guard Darwin.fstat(child, &after) == 0,
+                  Darwin.fstatat(parent, component, &named,
+                      AT_SYMLINK_NOFOLLOW) == 0,
+                  Darwin.fstat(parent, &parentAfter) == 0,
+                  same(before, after), same(before, named),
+                  same(parentBefore, parentAfter) else {
+                throw EvidenceBundleStoreError.bundleFactsMismatch
+            }
+            return result
+        }
+    }
+
+    private func withParent<T>(root: Int32, components: ArraySlice<String>,
+                               _ body: (Int32) throws -> T) throws -> T {
+        guard let first = components.first else { return try body(root) }
+        return try withDirectory(parent: root, component: first) { child in
+            try withParent(root: child, components: components.dropFirst(), body)
+        }
+    }
+
+    /// Optional artifacts may have no parent directory at all. Prove that
+    /// absence under a stable held parent instead of accepting an open error.
+    private func withOptionalParent<T>(root: Int32,
+        components: ArraySlice<String>, _ body: (Int32) throws -> T?) throws -> T? {
+        guard let first = components.first else { return try body(root) }
+        guard valid(first) else { throw EvidenceBundleStoreError.unsafePath }
+        var before = stat(), after = stat(), child = stat()
+        guard Darwin.fstat(root, &before) == 0,
+              before.st_mode & S_IFMT == S_IFDIR else {
+            throw EvidenceBundleStoreError.generationRootInvalid
+        }
+        if Darwin.fstatat(root, first, &child, AT_SYMLINK_NOFOLLOW) != 0 {
+            guard errno == ENOENT, Darwin.fstat(root, &after) == 0,
+                  same(before, after) else {
+                throw EvidenceBundleStoreError.unsafePath
+            }
+            return nil
+        }
+        return try withDirectory(parent: root, component: first) { opened in
+            try withOptionalParent(root: opened,
+                components: components.dropFirst(), body)
+        }
+    }
+
+    private struct Readback {
+        let digest: String
+        let bytes: Data?
+        let byteCount: Int64
+    }
+
+    private func read(root: Int32, components: [String], kind: OwnedFileKindV1,
+                      maximumBytes: Int64, collect: Bool) throws -> Readback? {
+        guard let name = components.last, components.allSatisfy(valid),
+              maximumBytes >= 0, maximumBytes <= Int64(Int.max) else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        let url = components.reduce(rootURL) { $0.appendingPathComponent($1) }
+        return try withOptionalParent(root: root,
+            components: components.dropLast()[...]) { parent in
+            var named = stat()
+            if Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0 {
+                if errno == ENOENT { return nil }
+                throw EvidenceBundleStoreError.unsafePath
+            }
+            return try io.withOpen(parent: parent, name: name,
+                                   flags: O_RDONLY | O_NONBLOCK) { file in
+                var before = stat(), after = stat(), finalNamed = stat()
+                guard Darwin.fstat(file, &before) == 0,
+                      before.st_mode & S_IFMT == S_IFREG,
+                      before.st_nlink == 1, before.st_size >= 0,
+                      before.st_size <= maximumBytes, same(before, named) else {
+                    throw EvidenceBundleStoreError.fileTypeInvalid
+                }
+                let policy = try ProtectedFilePolicyV1
+                    .observeTemporalPolicyWithCheckedClose(kind, at: url,
+                        retainUncertainDescriptor: retainUncertainDescriptor)
+                guard policy.state == .strictComplete,
+                      policy.device == UInt64(before.st_dev),
+                      policy.inode == UInt64(before.st_ino),
+                      policy.linkCount == UInt64(before.st_nlink) else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                var hash = SHA256()
+                var bytes = collect ? Data() : nil
+                if collect { bytes?.reserveCapacity(Int(before.st_size)) }
+                var total: Int64 = 0
+                var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
+                while total < before.st_size {
+                    let wanted = Int(min(Int64(buffer.count), before.st_size - total))
+                    let count = buffer.withUnsafeMutableBytes {
+                        Darwin.read(file, $0.baseAddress, wanted)
+                    }
+                    if count > 0 {
+                        total += Int64(count)
+                        buffer.withUnsafeBytes { raw in
+                            hash.update(bufferPointer: UnsafeRawBufferPointer(
+                                start: raw.baseAddress, count: count))
+                        }
+                        if collect { bytes?.append(contentsOf: buffer.prefix(count)) }
+                    } else if count == 0 {
+                        throw EvidenceBundleStoreError.bundleFactsMismatch
+                    } else if errno != EINTR {
+                        throw EvidenceBundleStoreError.fileOperationFailed
+                    }
+                }
+                var trailing: UInt8 = 0
+                guard Darwin.read(file, &trailing, 1) == 0,
+                      Darwin.fstat(file, &after) == 0,
+                      Darwin.fstatat(parent, name, &finalNamed,
+                          AT_SYMLINK_NOFOLLOW) == 0,
+                      same(before, after), same(before, finalNamed),
+                      total == before.st_size else {
+                    throw EvidenceBundleStoreError.bundleFactsMismatch
+                }
+                return Readback(digest: hash.finalize().map {
+                    String(format: "%02x", $0)
+                }.joined(), bytes: bytes, byteCount: total)
+            }
+        }
+    }
+
+    func readRegular(root: Int32, relativePath: String,
+                     kind: OwnedFileKindV1, maximumBytes: Int64)
+        throws -> Data? {
+        let components = relativePath.split(separator: "/",
+            omittingEmptySubsequences: false).map(String.init)
+        let value = try read(root: root, components: components,
+            kind: kind, maximumBytes: maximumBytes, collect: true)
+        try io.requireSettled()
+        return value?.bytes
+    }
+
+    func leafIsAbsent(root: Int32, relativePath: String) throws -> Bool {
+        let components = relativePath.split(separator: "/",
+            omittingEmptySubsequences: false).map(String.init)
+        guard let name = components.last, components.allSatisfy(valid) else {
+            throw EvidenceBundleStoreError.unsafePath
+        }
+        let absent = try withOptionalParent(root: root,
+            components: components.dropLast()[...]) { parent in
+            var named = stat()
+            if Darwin.fstatat(parent, name, &named,
+                    AT_SYMLINK_NOFOLLOW) != 0 {
+                guard errno == ENOENT else {
+                    throw EvidenceBundleStoreError.unsafePath
+                }
+                return true
+            }
+            return false
+        } ?? true
+        try io.requireSettled()
+        return absent
+    }
+
+    func resolveContentReference(_ reference: ContentReferenceV1,
+                                 root: Int32) throws -> ContentReferenceV1? {
+        guard reference.byteLength >= 0,
+              reference.byteLength <= EvidenceCurationLimitsV1.maximumSourceBytes,
+              let expected = reference.digests.digest(for: .sha256) else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        let observed = try read(root: root,
+            components: ["content", reference.workspaceID,
+                reference.contentID, "original.bin"],
+            kind: .mediaOriginal, maximumBytes: reference.byteLength,
+            collect: false)
+        guard let observed else { return nil }
+        guard observed.byteCount == reference.byteLength,
+              observed.digest == expected.hexadecimalValue else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        try io.requireSettled()
+        return reference
+    }
+
+    func readAssetLabelArtifacts(jobID: LocalJobIDV1, root: Int32,
+                                 treePaths: [String]) throws
+        -> AssetLabelPublishedContentReadbackV1? {
+        let suffix = "/.asset-label-publications/\(jobID.rawValue.uuidString.lowercased())/publication.json"
+        let markers = treePaths.filter {
+            $0.hasPrefix("content/") && $0.hasSuffix(suffix)
+        }
+        guard markers.count <= 1 else { throw EvidenceBundleStoreError.bundleShapeInvalid }
+        guard let markerPath = markers.first else { return nil }
+        let parts = markerPath.split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        guard parts.count == 5, parts[0] == "content",
+              parts[2] == ".asset-label-publications",
+              parts[3] == jobID.rawValue.uuidString.lowercased(),
+              parts[4] == "publication.json",
+              let workspaceRaw = UUID(uuidString: parts[1]),
+              workspaceRaw.uuidString.lowercased() == parts[1],
+              let markerRead = try read(root: root, components: parts,
+                  kind: .reportSnapshot,
+                  maximumBytes: Int64(AssetLabelCanonicalCodecV1.maximumCanonicalByteCount),
+                  collect: true), let markerBytes = markerRead.bytes else {
+            throw EvidenceBundleStoreError.bundleShapeInvalid
+        }
+        let marker = try AssetLabelCanonicalCodecV1.decode(
+            AssetLabelContentPublicationMarkerV1.self, from: markerBytes)
+        try marker.validate()
+        guard marker.jobID == jobID,
+              marker.plan.workspaceID.rawValue == workspaceRaw else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        let artifacts = try zip(marker.publishedArtifacts,
+            marker.manifest.entries).map { published, entry in
+            guard let readback = try read(root: root,
+                components: ["content", published.reference.workspaceID,
+                    published.reference.contentID, "original.bin"],
+                kind: .mediaOriginal,
+                maximumBytes: published.reference.byteLength,
+                collect: true),
+                  readback.byteCount == published.reference.byteLength,
+                  let bytes = readback.bytes else {
+                throw EvidenceBundleStoreError.bundleMissing
+            }
+            return try LabelProjectedArtifactV1(kind: entry.kind,
+                safeFilename: entry.safeFilename, mediaType: entry.mediaType,
+                bytes: bytes, itemCount: entry.itemCount)
+        }
+        let projection = try LabelProjectionResultV1(plan: marker.plan,
+            artifacts: artifacts,
+            nativeTextEnvironment: marker.nativeTextEnvironment)
+        guard projection.manifest == marker.manifest else {
+            throw EvidenceBundleStoreError.bundleFactsMismatch
+        }
+        try io.requireSettled()
+        return AssetLabelPublishedContentReadbackV1(plan: marker.plan,
+            projection: projection,
+            publishedArtifacts: marker.publishedArtifacts)
+    }
 }

@@ -215,6 +215,123 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     }
 }
 
+/// Durable predecessor ownership, published before the revocation marker.
+/// It does not assert an OS drain. Its exact mapping/control digests prevent
+/// a marker-only restart from inventing an empty owned set.
+struct NotificationEraseOwnedLeafFactV1: Codable, Equatable, Sendable {
+    let device: UInt64
+    let inode: UInt64
+    let mode: UInt32
+    let links: UInt64
+    let size: Int64
+    let modifiedSeconds: Int64
+    let modifiedNanoseconds: Int64
+    let changedSeconds: Int64
+    let changedNanoseconds: Int64
+
+    init(_ fact: EraseColdControlLeafFactV1) {
+        device = UInt64(fact.device)
+        inode = UInt64(fact.inode)
+        mode = UInt32(fact.mode)
+        links = UInt64(fact.links)
+        size = Int64(fact.size)
+        modifiedSeconds = fact.modifiedSeconds
+        modifiedNanoseconds = fact.modifiedNanoseconds
+        changedSeconds = fact.changedSeconds
+        changedNanoseconds = fact.changedNanoseconds
+    }
+}
+
+struct NotificationEraseOwnedIDsProvenanceV1:
+    Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let operationID: UUID
+    let rootIdentity: String
+    let mappingSHA256: String?
+    let controlSHA256: String?
+    let mappingFact: NotificationEraseOwnedLeafFactV1?
+    let controlFact: NotificationEraseOwnedLeafFactV1?
+    let ownedRequestIDs: [String]
+
+    init(operationID: UUID, rootIdentity: String,
+        mappingBytes: Data?, mappingFact: EraseColdControlLeafFactV1?,
+        controlBytes: Data?, controlFact: EraseColdControlLeafFactV1?,
+        ownedRequestIDs: Set<String>) throws {
+        schemaVersion = 1
+        self.operationID = operationID
+        self.rootIdentity = rootIdentity
+        mappingSHA256 = try mappingBytes.map {
+            try CompatibilityCanonicalV1.sha256($0)
+        }
+        controlSHA256 = try controlBytes.map {
+            try CompatibilityCanonicalV1.sha256($0)
+        }
+        self.mappingFact = mappingFact.map(NotificationEraseOwnedLeafFactV1.init)
+        self.controlFact = controlFact.map(NotificationEraseOwnedLeafFactV1.init)
+        self.ownedRequestIDs = ownedRequestIDs.sorted()
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == 1,
+              operationID != SettingsValidationV1.zeroUUID,
+              !rootIdentity.isEmpty,
+              ownedRequestIDs == ownedRequestIDs.sorted(),
+              Set(ownedRequestIDs).count == ownedRequestIDs.count,
+              ownedRequestIDs.allSatisfy({ !$0.isEmpty }),
+              mappingSHA256.map(CompatibilityCanonicalV1.validSHA256)
+                ?? true,
+              controlSHA256.map(CompatibilityCanonicalV1.validSHA256)
+                ?? true,
+              (mappingSHA256 != nil) == (mappingFact != nil),
+              (controlSHA256 != nil) == (controlFact != nil),
+              mappingFact.map({ $0.links == 1 && $0.size > 0 }) ?? true,
+              controlFact.map({ $0.links == 1 && $0.size > 0 }) ?? true else {
+            throw AppAccessContractFailureV1
+                .notificationReconciliationRequired
+        }
+    }
+}
+
+/// Prospective cold-Erase replay data. Publication follows an actual OS
+/// absence readback; a new process must remove and observe these exact IDs
+/// again before it may unlink the notification mapping or a generation.
+struct NotificationEraseDrainRecordV1: Codable, Equatable, Sendable {
+    let schemaVersion: Int
+    let operationID: UUID
+    let rootIdentity: String
+    let revocationSHA256: String
+    let ownedRequestIDs: [String]
+
+    /// Canonical expected bytes may be derived before OS removal solely to
+    /// classify a reserved interrupted temp prefix. Construction is not an
+    /// OS-absence receipt; publication still requires the checked readback.
+    init(revocation: NotificationEraseRevocationV1,
+         ownedRequestIDs: Set<String>) throws {
+        try revocation.validate()
+        schemaVersion = 1
+        operationID = revocation.operationID
+        rootIdentity = revocation.rootIdentity
+        revocationSHA256 = try CompatibilityCanonicalV1.sha256(
+            CompatibilityCanonicalV1.encode(revocation))
+        self.ownedRequestIDs = ownedRequestIDs.sorted()
+        try validate(revocation: revocation)
+    }
+
+    func validate(revocation: NotificationEraseRevocationV1) throws {
+        guard schemaVersion == 1,
+              operationID == revocation.operationID,
+              rootIdentity == revocation.rootIdentity,
+              revocationSHA256 == (try CompatibilityCanonicalV1.sha256(
+                CompatibilityCanonicalV1.encode(revocation))),
+              ownedRequestIDs == ownedRequestIDs.sorted(),
+              Set(ownedRequestIDs).count == ownedRequestIDs.count,
+              ownedRequestIDs.allSatisfy({ !$0.isEmpty }) else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+    }
+}
+
 @MainActor protocol NotificationSystemPortV1: AnyObject {
     func authorization() async throws -> LocalReminderAuthorizationV1
     func observations() async throws -> [NotificationSystemObservationV1]
@@ -353,6 +470,128 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     static func wait(root: String) async {
         guard isActive(root: root) else { return }
         await withCheckedContinuation { waiters[root, default: []].append($0) }
+    }
+}
+
+/// The Erase OS sequence needs only this retained control owner. Ordinary
+/// notification publication continues to use its existing concrete store;
+/// schema-2 cold recovery supplies a separate checked, operation-held owner.
+@MainActor protocol NotificationEraseControlOwnerV1: AnyObject {
+    var notificationRootIdentity: String { get }
+    func beginNotificationErase(operationID: UUID) throws -> NotificationEraseRevocationV1
+    func verifyNotificationStorage() throws
+    func loadPrivateNotificationMapping() throws -> NotificationPrivateMappingV1?
+    func loadControl() throws -> AppLockNotificationControlV1?
+    func removeNotificationRecordsAfterErase(_ revocation: NotificationEraseRevocationV1) throws
+    func requireNotificationEraseRevocation(_ revocation: NotificationEraseRevocationV1) throws
+}
+
+@MainActor protocol Schema2ColdNotificationEraseControlV1:
+    NotificationEraseControlOwnerV1 {
+    func reserveSchema2ColdOwnedIDs(
+        operationID: UUID
+    ) throws -> NotificationEraseOwnedIDsProvenanceV1
+    func requireSchema2ColdOwnedIDs(
+        _ provenance: NotificationEraseOwnedIDsProvenanceV1
+    ) throws
+    /// Marker readback permits predecessor mapping/control until the owned
+    /// OS absence receipt authorizes their checked removal.
+    func requireSchema2ColdRevocation(
+        _ revocation: NotificationEraseRevocationV1
+    ) throws
+    func retainSchema2ColdOSAbsence(
+        _ receipt: EraseSchema2ColdNotificationOSAbsenceReceiptV1
+    ) throws
+    func requireSchema2ColdOSAbsence(
+        stage: EraseSchema2ColdNotificationMutationStageV1
+    ) throws
+    func loadSchema2ColdDrainRecord(
+        revocation: NotificationEraseRevocationV1
+    ) throws -> NotificationEraseDrainRecordV1?
+    func publishSchema2ColdDrainRecord(
+        _ record: NotificationEraseDrainRecordV1,
+        revocation: NotificationEraseRevocationV1
+    ) throws
+    func requireSchema2ColdDrainRecord(
+        _ record: NotificationEraseDrainRecordV1,
+        revocation: NotificationEraseRevocationV1
+    ) throws
+}
+
+/// Constructed at the actual OS readback boundary, after the mapping and
+/// journal have been re-read unchanged. The private initializer prevents a
+/// file-only record from impersonating a completed OS drain.
+@MainActor final class EraseSchema2ColdNotificationOSAbsenceReceiptV1 {
+    private let control: any Schema2ColdNotificationEraseControlV1
+    let revocation: NotificationEraseRevocationV1
+    let drainRecord: NotificationEraseDrainRecordV1
+
+    fileprivate init(control: any Schema2ColdNotificationEraseControlV1,
+                     revocation: NotificationEraseRevocationV1,
+                     drainRecord: NotificationEraseDrainRecordV1) {
+        self.control = control
+        self.revocation = revocation
+        self.drainRecord = drainRecord
+    }
+
+    func requireBound(to candidate: any Schema2ColdNotificationEraseControlV1,
+                      operationID: UUID,
+                      drainPublished: Bool) throws {
+        try requireRetained(to: candidate, operationID: operationID)
+        try candidate.requireSchema2ColdRevocation(revocation)
+        if drainPublished {
+            try candidate.requireSchema2ColdDrainRecord(
+                drainRecord, revocation: revocation)
+        }
+    }
+
+    /// Used only inside a Manifest mutation scope. The Manifest and concrete
+    /// Storage effect recheck physical leaves there; re-entering the generic
+    /// source reader would recursively demand stale in-flight root metadata.
+    func requireRetained(
+        to candidate: any Schema2ColdNotificationEraseControlV1,
+        operationID: UUID
+    ) throws {
+        guard control === candidate,
+              revocation.operationID == operationID,
+              revocation.rootIdentity == candidate.notificationRootIdentity,
+              !NotificationAddDrainV1.isActive(
+                root: candidate.notificationRootIdentity) else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+    }
+}
+
+extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
+
+/// Created only after the concrete OS owner has observed absence of every
+/// owned pending and delivered request and the control owner has retained the
+/// revocation marker while removing mapping and journal records.
+@MainActor final class EraseSchema2ColdNotificationDrainReceiptV1 {
+    private let control: any Schema2ColdNotificationEraseControlV1
+    private let revocation: NotificationEraseRevocationV1
+    private let drainRecord: NotificationEraseDrainRecordV1
+
+    fileprivate init(control: any Schema2ColdNotificationEraseControlV1,
+                     revocation: NotificationEraseRevocationV1,
+                     drainRecord: NotificationEraseDrainRecordV1) {
+        self.control = control
+        self.revocation = revocation
+        self.drainRecord = drainRecord
+    }
+
+    func requireBound(to candidate: any Schema2ColdNotificationEraseControlV1,
+                      operationID: UUID) throws {
+        guard control === candidate,
+              revocation.operationID == operationID,
+              revocation.rootIdentity == candidate.notificationRootIdentity,
+              !NotificationAddDrainV1.isActive(
+                root: candidate.notificationRootIdentity) else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        try candidate.requireNotificationEraseRevocation(revocation)
+        try candidate.requireSchema2ColdDrainRecord(
+            drainRecord, revocation: revocation)
     }
 }
 
@@ -868,12 +1107,32 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     }
 
     /// The same source-free implementation serves actual EraseAll recovery.
-    static func erase(control: AppLockNotificationControlStoreV1, system: any NotificationSystemPortV1,
+    static func erase(control: any NotificationEraseControlOwnerV1, system: any NotificationSystemPortV1,
                       operationID: UUID) async throws {
-        try await eraseOriginalOwner(
+        _ = try await eraseOriginalOwner(
             control: control, system: system, operationID: operationID,
             beforeBegin: nil, afterBegin: nil,
             observedOwnedRefusal: nil, afterSuccess: nil)
+    }
+
+    static func eraseSchema2Cold(
+        control: any Schema2ColdNotificationEraseControlV1,
+        system: any NotificationSystemPortV1,
+        operationID: UUID
+    ) async throws -> EraseSchema2ColdNotificationDrainReceiptV1 {
+        let revocation = try await eraseOriginalOwner(
+            control: control, system: system, operationID: operationID,
+            beforeBegin: nil, afterBegin: nil,
+            observedOwnedRefusal: nil, afterSuccess: nil,
+            coldControl: control)
+        try control.requireNotificationEraseRevocation(revocation)
+        guard let record = try control.loadSchema2ColdDrainRecord(
+                revocation: revocation) else {
+            throw AppAccessContractFailureV1.notificationReconciliationRequired
+        }
+        return EraseSchema2ColdNotificationDrainReceiptV1(
+            control: control, revocation: revocation,
+            drainRecord: record)
     }
 
 #if DEBUG
@@ -881,7 +1140,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
     /// control/mapping/journal checks used for success. A caller cannot infer
     /// this fact from the error type or a later OS observation.
     static func eraseForOriginalColdExitForTesting(
-        control: AppLockNotificationControlStoreV1,
+        control: any NotificationEraseControlOwnerV1,
         system: any NotificationSystemPortV1,
         operationID: UUID,
         beforeBegin: @escaping @MainActor () throws -> Void,
@@ -891,7 +1150,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         ) throws -> Void,
         afterSuccess: @escaping @MainActor (NotificationEraseRevocationV1) throws -> Void
     ) async throws {
-        try await eraseOriginalOwner(
+        _ = try await eraseOriginalOwner(
             control: control, system: system, operationID: operationID,
             beforeBegin: beforeBegin, afterBegin: afterBegin,
             observedOwnedRefusal: observedOwnedRefusal,
@@ -900,7 +1159,7 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
 #endif
 
     private static func eraseOriginalOwner(
-        control: AppLockNotificationControlStoreV1,
+        control: any NotificationEraseControlOwnerV1,
         system: any NotificationSystemPortV1,
         operationID: UUID,
         beforeBegin: (@MainActor () throws -> Void)?,
@@ -908,11 +1167,36 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
         observedOwnedRefusal: (@MainActor (
             NotificationEraseRevocationV1, Set<String>, Set<String>
         ) throws -> Void)?,
-        afterSuccess: (@MainActor (NotificationEraseRevocationV1) throws -> Void)?
-    ) async throws {
+        afterSuccess: (@MainActor (NotificationEraseRevocationV1) throws -> Void)?,
+        coldControl: (any Schema2ColdNotificationEraseControlV1)? = nil
+    ) async throws -> NotificationEraseRevocationV1 {
         try beforeBegin?()
-        let revocation = try control.beginNotificationErase(operationID: operationID)
+        let firstCut: (
+            NotificationEraseOwnedIDsProvenanceV1?,
+            NotificationEraseRevocationV1)
+        if let coldControl {
+            // Both synchronous effects use the existing process-local
+            // notification transaction fence. An in-process add cannot
+            // publish between the owned-ID predecessor check and marker.
+            firstCut = try
+                AppLockNotificationTransactionFenceV1.perform {
+                    let value = try coldControl.reserveSchema2ColdOwnedIDs(
+                        operationID: operationID)
+                    let marker = try control.beginNotificationErase(
+                        operationID: operationID)
+                    return (value, marker)
+                }
+        } else {
+            firstCut = (nil, try control.beginNotificationErase(
+                operationID: operationID))
+        }
+        let (provenance, revocation) = firstCut
         try afterBegin?(revocation)
+        if let provenance {
+            try coldControl?.requireSchema2ColdOwnedIDs(provenance)
+        }
+        let priorDrain = try coldControl?.loadSchema2ColdDrainRecord(
+            revocation: revocation)
         await NotificationAddDrainV1.wait(root: control.notificationRootIdentity)
         try control.verifyNotificationStorage()
         let mapping = try control.loadPrivateNotificationMapping()
@@ -922,7 +1206,28 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
         let journal = try control.loadControl()?.journal
-        let owned = Set((mapping?.ownedRequestIDs ?? []) + (journal?.projections.map(\.requestID) ?? []))
+        let predecessorOwned = Set((mapping?.ownedRequestIDs ?? []) +
+            (journal?.projections.map(\.requestID) ?? []))
+        if let provenance {
+            guard predecessorOwned.isSubset(of:
+                    Set(provenance.ownedRequestIDs)) else {
+                throw AppAccessContractFailureV1
+                    .notificationReconciliationRequired
+            }
+            try coldControl?.requireSchema2ColdOwnedIDs(provenance)
+        }
+        if let priorDrain {
+            try priorDrain.validate(revocation: revocation)
+            guard predecessorOwned.isSubset(of:
+                    Set(priorDrain.ownedRequestIDs)),
+                  provenance.map({ $0.ownedRequestIDs
+                    == priorDrain.ownedRequestIDs }) ?? true else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
+        let owned = priorDrain.map { Set($0.ownedRequestIDs) }
+            ?? provenance.map { Set($0.ownedRequestIDs) }
+            ?? predecessorOwned
         try await system.remove(owned.sorted())
         try control.verifyNotificationStorage()
         let observed = try await system.observations()
@@ -937,8 +1242,24 @@ struct NotificationEraseRevocationV1: Codable, Equatable, Sendable {
             try observedOwnedRefusal?(revocation, owned, observedOwned)
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
+        if let coldControl {
+            let record = try NotificationEraseDrainRecordV1(
+                revocation: revocation, ownedRequestIDs: owned)
+            if let priorDrain, priorDrain != record {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+            try coldControl.retainSchema2ColdOSAbsence(
+                EraseSchema2ColdNotificationOSAbsenceReceiptV1(
+                    control: coldControl, revocation: revocation,
+                    drainRecord: record))
+            try coldControl.publishSchema2ColdDrainRecord(
+                record, revocation: revocation)
+            try coldControl.requireSchema2ColdDrainRecord(
+                record, revocation: revocation)
+        }
         try control.removeNotificationRecordsAfterErase(revocation)
         try afterSuccess?(revocation)
+        return revocation
     }
 
     private func validate(_ authorization: NotificationOperationAuthorizationV1, target: Bool? = nil) async throws {

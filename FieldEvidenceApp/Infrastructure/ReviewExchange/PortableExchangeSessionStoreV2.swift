@@ -1244,6 +1244,209 @@ actor PortableExchangeSessionStoreV2: PortableExchangeSessionStorePortV2,
         )
     }
 
+    /// Cold-only physical reader. Decode, ordering and digest checks mirror
+    /// the ordinary backup snapshot; the caller owns checked descriptors.
+    @MainActor static func snapshotForBackupCold(
+        applicationSupportURL: URL,
+        validation: EraseRetainedSourceValidationV1
+    ) throws -> PortableExchangeBackupSnapshotV2 {
+        guard validation.isColdPrivateSource else {
+            throw PortableExchangePersistenceFailureV2.invalidRoot
+        }
+        try validation.revalidateControls()
+        func readChecked(_ url: URL, _ kind: OwnedFileKindV1,
+            _ maximum: Int64) throws -> Data? {
+            try validation.readColdApplicationSupport(
+                url, kind: kind, maximumBytes: maximum)
+        }
+        guard applicationSupportURL.isFileURL else {
+            throw PortableExchangePersistenceFailureV2.invalidRoot
+        }
+        let rootURL = applicationSupportURL.standardizedFileURL.appendingPathComponent(
+            PortableExchangeSessionStoreLayoutV2.directoryName,
+            isDirectory: true
+        )
+        let envelopeURL = rootURL.appendingPathComponent(
+            PortableExchangeSessionStoreLayoutV2.envelopeFileName,
+            isDirectory: false
+        )
+        guard let data = try readChecked(envelopeURL, .portableExchangeSessionFile,
+            Int64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)) else {
+            return try PortableExchangeBackupSnapshotV2(
+                createdAt: Date(),
+                sessions: [],
+                immutablePayloads: [],
+                protectedCapabilityArtifacts: []
+            )
+        }
+        let version = try staticStoreVersion(in: data)
+        let current: PortableExchangeSessionEnvelopeV2
+        switch version {
+        case 1:
+            let old = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV1.self,
+                from: data
+            )
+            current = try PortableExchangeSessionEnvelopeV2(
+                generationID: old.generationID,
+                updatedAt: old.updatedAt,
+                sessions: old.sessions,
+                quarantine: old.quarantine
+            ).canonicalSorted()
+        case 2:
+            current = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self,
+                from: data
+            ).canonicalSorted()
+        default:
+            throw PortableExchangePersistenceFailureV2.unsupportedSchemaVersion
+        }
+        var payloads: [PortableExchangeImmutablePayloadV2] = []
+        var seenPayloads = Set<String>()
+        var capabilities: [PortableExchangeProtectedCapabilityBackupV2] = []
+        let eligibleSessions = current.sessions.filter {
+            $0.state != .quarantined && $0.state != .erased
+        }
+        for session in eligibleSessions {
+            for reference in session.immutableBytes {
+                guard let bytes = try readChecked(
+                    try staticSafeURL(reference.relativePath, rootURL: rootURL),
+                    .portableExchangeSessionFile,
+                    Int64(C48PortableReviewPersistenceLimitsV1.maximumImmutableBytes)
+                ) else { throw PortableExchangePersistenceFailureV2.corruptStore }
+                guard UInt64(bytes.count) == reference.byteCount,
+                      StoreMigrationCanonicalJSONV1.sha256(bytes) == reference.sha256 else {
+                    throw PortableExchangePersistenceFailureV2.corruptStore
+                }
+                let key = "\(reference.role.rawValue):\(reference.sha256)"
+                if seenPayloads.insert(key).inserted {
+                    payloads.append(try PortableExchangeImmutablePayloadV2(
+                        role: reference.role,
+                        bytes: bytes
+                    ))
+                }
+            }
+            if let artifact = session.protectedCapability {
+                guard let bytes = try readChecked(
+                    try staticSafeURL(artifact.relativePath, rootURL: rootURL),
+                    .portableExchangeSessionFile,
+                    Int64(PortableReviewLimitsV1.capabilityByteCount)
+                ) else { throw PortableExchangePersistenceFailureV2.invalidCapabilityArtifact }
+                guard bytes.count == PortableReviewLimitsV1.capabilityByteCount,
+                      StoreMigrationCanonicalJSONV1.sha256(bytes) == artifact.sha256 else {
+                    throw PortableExchangePersistenceFailureV2.invalidCapabilityArtifact
+                }
+                capabilities.append(try PortableExchangeProtectedCapabilityBackupV2(
+                    sessionID: session.sessionID,
+                    bytes: bytes,
+                    state: session.capabilityState
+                ))
+            } else if session.capabilityState == .exportedAccepting ||
+                      session.capabilityState == .responsePendingDecision {
+                throw PortableExchangePersistenceFailureV2.invalidCapabilityArtifact
+            }
+        }
+        return try PortableExchangeBackupSnapshotV2(
+            createdAt: Date(),
+            sessions: eligibleSessions,
+            immutablePayloads: payloads,
+            protectedCapabilityArtifacts: capabilities
+        )
+    }
+
+    /// The original Erase recovery owner supplies an exact checked, no-create
+    /// read for each source leaf. The canonical parser and all session,
+    /// payload and capability predicates match the ordinary snapshot above;
+    /// this entry point does not construct this actor or verify by URL.
+    @MainActor static func snapshotForOriginalEraseRecovery(
+        applicationSupportURL: URL,
+        checkedRead: (String, UInt64) throws -> Data?
+    ) throws -> PortableExchangeBackupSnapshotV2 {
+        guard applicationSupportURL.isFileURL else {
+            throw PortableExchangePersistenceFailureV2.invalidRoot
+        }
+        let rootURL = applicationSupportURL.standardizedFileURL
+            .appendingPathComponent(
+                PortableExchangeSessionStoreLayoutV2.directoryName,
+                isDirectory: true)
+        let envelopePath = PortableExchangeSessionStoreLayoutV2.envelopeFileName
+        _ = try staticSafeURL(envelopePath, rootURL: rootURL)
+        guard let data = try checkedRead(envelopePath,
+            UInt64(C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes)) else {
+            return try PortableExchangeBackupSnapshotV2(
+                createdAt: Date(), sessions: [], immutablePayloads: [],
+                protectedCapabilityArtifacts: [])
+        }
+        guard data.count <= C48PortableReviewPersistenceLimitsV1.maximumEnvelopeBytes else {
+            throw PortableExchangePersistenceFailureV2.quotaExceeded
+        }
+        let version = try staticStoreVersion(in: data)
+        let current: PortableExchangeSessionEnvelopeV2
+        switch version {
+        case 1:
+            let old = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV1.self, from: data)
+            current = try PortableExchangeSessionEnvelopeV2(
+                generationID: old.generationID,
+                updatedAt: old.updatedAt,
+                sessions: old.sessions,
+                quarantine: old.quarantine
+            ).canonicalSorted()
+        case 2:
+            current = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                PortableExchangeSessionEnvelopeV2.self, from: data)
+                .canonicalSorted()
+        default:
+            throw PortableExchangePersistenceFailureV2.unsupportedSchemaVersion
+        }
+        var payloads: [PortableExchangeImmutablePayloadV2] = []
+        var seenPayloads = Set<String>()
+        var capabilities: [PortableExchangeProtectedCapabilityBackupV2] = []
+        let eligibleSessions = current.sessions.filter {
+            $0.state != .quarantined && $0.state != .erased
+        }
+        for session in eligibleSessions {
+            for reference in session.immutableBytes {
+                _ = try staticSafeURL(reference.relativePath, rootURL: rootURL)
+                guard let bytes = try checkedRead(reference.relativePath,
+                    C48PortableReviewPersistenceLimitsV1.maximumImmutableBytes) else {
+                    throw PortableExchangePersistenceFailureV2.corruptStore
+                }
+                guard UInt64(bytes.count) <= C48PortableReviewPersistenceLimitsV1.maximumImmutableBytes,
+                      UInt64(bytes.count) == reference.byteCount,
+                      StoreMigrationCanonicalJSONV1.sha256(bytes) == reference.sha256 else {
+                    throw PortableExchangePersistenceFailureV2.corruptStore
+                }
+                let key = "\(reference.role.rawValue):\(reference.sha256)"
+                if seenPayloads.insert(key).inserted {
+                    payloads.append(try PortableExchangeImmutablePayloadV2(
+                        role: reference.role, bytes: bytes))
+                }
+            }
+            if let artifact = session.protectedCapability {
+                _ = try staticSafeURL(artifact.relativePath, rootURL: rootURL)
+                guard let bytes = try checkedRead(artifact.relativePath,
+                    UInt64(PortableReviewLimitsV1.capabilityByteCount)) else {
+                    throw PortableExchangePersistenceFailureV2.invalidCapabilityArtifact
+                }
+                guard bytes.count == PortableReviewLimitsV1.capabilityByteCount,
+                      StoreMigrationCanonicalJSONV1.sha256(bytes) == artifact.sha256 else {
+                    throw PortableExchangePersistenceFailureV2.invalidCapabilityArtifact
+                }
+                capabilities.append(try PortableExchangeProtectedCapabilityBackupV2(
+                    sessionID: session.sessionID, bytes: bytes,
+                    state: session.capabilityState))
+            } else if session.capabilityState == .exportedAccepting ||
+                      session.capabilityState == .responsePendingDecision {
+                throw PortableExchangePersistenceFailureV2.invalidCapabilityArtifact
+            }
+        }
+        return try PortableExchangeBackupSnapshotV2(
+            createdAt: Date(), sessions: eligibleSessions,
+            immutablePayloads: payloads,
+            protectedCapabilityArtifacts: capabilities)
+    }
+
     /// Returns the digest of the exact current envelope bytes used as the
     /// replace/restore preimage. An absent envelope is represented by the
     /// digest of empty data, matching the journal's empty-store convention.

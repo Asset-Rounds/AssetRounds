@@ -87,13 +87,23 @@ enum ReportDeliveryCoordinatorError: Error, Equatable {
 
 @MainActor
 final class ReportDeliveryCoordinator {
+    /// A validation-only source reader held by the original Erase recovery
+    /// operation. It never creates a renderer or grants a report writer.
+    struct CheckedRecoveryAccess {
+        let rootIdentity: ReportPDFAnchoredFile.RootIdentity
+        let read: (String) throws -> Data
+        let isAbsent: (String) throws -> Bool
+        let reproveRoot: () throws -> ReportPDFAnchoredFile.RootIdentity
+    }
     private let modelContext: ModelContext
     private let generationRootURL: URL
     private let diagnosticsStore: DiagnosticsStore?
     private let signPack: SignPack
     private let lifecycleProfile: WorkspacePackageLifecycleProfileV1
     private let lifecycleRoute: ReportingPackageLifecycleRouteV1
-    private let renderService: ReportRenderService
+    private let renderService: ReportRenderService?
+    private let coldSourceAttempt: EraseSchema2ColdPrivateSourceAttemptV1?
+    private let checkedRecoveryAccess: CheckedRecoveryAccess?
     private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
     private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
     private let finalizationServiceOperationBarrier: FinalizationServiceOperationBarrier?
@@ -132,6 +142,28 @@ final class ReportDeliveryCoordinator {
 
     convenience init(
         modelContext: ModelContext,
+        generationRootURL: URL,
+        signPack: SignPack,
+        checkedOriginalEraseRecovery: CheckedRecoveryAccess
+    ) throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: signPack)
+        try self.init(modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            diagnosticsStore: nil,
+            lifecycleRoute: .expiringCompatibility(
+                profile: profile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration),
+            renderFailureInjection: nil,
+            finalizationStoreFailureInjection: nil,
+            finalizationServiceFailureInjection: nil,
+            finalizationServiceOperationBarrier: nil,
+            expectedRootIdentity: checkedOriginalEraseRecovery.rootIdentity,
+            checkedRecoveryAccess: checkedOriginalEraseRecovery)
+    }
+
+    convenience init(
+        modelContext: ModelContext,
         lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
         lifecycleProfile: WorkspacePackageLifecycleProfileV1,
         diagnosticsStore: DiagnosticsStore? = nil,
@@ -157,6 +189,30 @@ final class ReportDeliveryCoordinator {
         )
     }
 
+    /// Cold readback keeps the original generation unopened by the ordinary
+    /// report renderer. The operation-owned attempt supplies every file read.
+    convenience init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        signPack: SignPack,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        coldSourceAttempt: EraseSchema2ColdPrivateSourceAttemptV1
+    ) throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: signPack)
+        try self.init(modelContext: modelContext,
+            generationRootURL: generationRootURL, diagnosticsStore: nil,
+            lifecycleRoute: .expiringCompatibility(
+                profile: profile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration),
+            renderFailureInjection: nil,
+            finalizationStoreFailureInjection: nil,
+            finalizationServiceFailureInjection: nil,
+            finalizationServiceOperationBarrier: nil,
+            expectedRootIdentity: expectedRootIdentity,
+            coldSourceAttempt: coldSourceAttempt)
+    }
+
     private init(
         modelContext: ModelContext,
         generationRootURL: URL,
@@ -166,7 +222,9 @@ final class ReportDeliveryCoordinator {
         finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?,
         finalizationServiceFailureInjection: FinalizationServiceFailureInjection?,
         finalizationServiceOperationBarrier: FinalizationServiceOperationBarrier?,
-        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity?
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity?,
+        coldSourceAttempt: EraseSchema2ColdPrivateSourceAttemptV1? = nil,
+        checkedRecoveryAccess: CheckedRecoveryAccess? = nil
     ) throws {
         let root = generationRootURL.standardizedFileURL
         try lifecycleRoute.validate(generationRootURL: root)
@@ -179,37 +237,56 @@ final class ReportDeliveryCoordinator {
               generationID.uuidString.lowercased() == root.lastPathComponent else {
             throw ReportDeliveryCoordinatorError.invalidGeneration
         }
-        do {
-            let observedRootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        guard coldSourceAttempt == nil || checkedRecoveryAccess == nil else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        self.coldSourceAttempt = coldSourceAttempt
+        if let coldSourceAttempt {
+            let observed = try coldSourceAttempt.checkedOriginalRootIdentity()
+            guard expectedRootIdentity == observed else {
+                throw ReportDeliveryCoordinatorError.invalidGeneration
+            }
+            self.rootIdentity = observed
+            self.renderService = nil
+        } else { do {
+            let observedRootIdentity = try checkedRecoveryAccess?.reproveRoot()
+                ?? ReportPDFAnchoredFile.rootIdentity(at: root)
             guard expectedRootIdentity.map({ $0 == observedRootIdentity }) ?? true else {
                 throw ReportDeliveryCoordinatorError.invalidGeneration
             }
             let capturedRootIdentity = expectedRootIdentity ?? observedRootIdentity
             self.rootIdentity = capturedRootIdentity
-            switch lifecycleRoute {
-            case .live(let lifecycleDependencies, _):
-                self.renderService = try ReportRenderService(
-                    modelContext: modelContext,
-                    lifecycleDependencies: lifecycleDependencies,
-                    lifecycleProfile: lifecycleProfile,
-                    failureInjection: renderFailureInjection
-                )
-            case .expiringCompatibility:
-                self.renderService = try ReportRenderService(
-                    modelContext: modelContext,
-                    generationRootURL: root,
-                    signPack: lifecycleProfile.package,
-                    failureInjection: renderFailureInjection
-                )
+            if checkedRecoveryAccess != nil {
+                self.renderService = nil
+            } else {
+                switch lifecycleRoute {
+                case .live(let lifecycleDependencies, _):
+                    self.renderService = try ReportRenderService(
+                        modelContext: modelContext,
+                        lifecycleDependencies: lifecycleDependencies,
+                        lifecycleProfile: lifecycleProfile,
+                        failureInjection: renderFailureInjection
+                    )
+                case .expiringCompatibility:
+                    self.renderService = try ReportRenderService(
+                        modelContext: modelContext,
+                        generationRootURL: root,
+                        signPack: lifecycleProfile.package,
+                        failureInjection: renderFailureInjection
+                    )
+                }
             }
-            guard try ReportPDFAnchoredFile.rootIdentity(at: root)
+            let recheckedRootIdentity = try checkedRecoveryAccess?.reproveRoot()
+                ?? ReportPDFAnchoredFile.rootIdentity(at: root)
+            guard recheckedRootIdentity
                     == capturedRootIdentity else {
                 throw ReportDeliveryCoordinatorError.invalidGeneration
             }
         } catch {
             throw ReportDeliveryCoordinatorError.invalidGeneration
-        }
+        } }
         self.modelContext = modelContext
+        self.checkedRecoveryAccess = checkedRecoveryAccess
         self.generationRootURL = root
         self.diagnosticsStore = diagnosticsStore
         self.signPack = lifecycleProfile.package
@@ -257,6 +334,9 @@ final class ReportDeliveryCoordinator {
         }
 
         receiptAttempts.insert(reportID)
+        guard let renderService else {
+            throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
         switch try renderService.attemptPendingReport(id: reportID) {
         case .ready:
             return .ready(try loadReadyReport(id: reportID))
@@ -1108,6 +1188,37 @@ final class ReportDeliveryCoordinator {
         guard Self.isCanonicalRelativePath(relativePath) else {
             throw ReportDeliveryCoordinatorError.invalidAuthority
         }
+        if let coldSourceAttempt {
+            let kind: OwnedFileKindV1
+            if relativePath.hasPrefix("pdfs/") {
+                kind = .reportPDF
+            } else if relativePath.hasPrefix("snapshots/") {
+                kind = .reportSnapshot
+            } else if relativePath.hasPrefix("evidence/")
+                        && relativePath.hasSuffix("/original.jpg") {
+                kind = .mediaOriginal
+            } else if relativePath.hasPrefix("evidence/")
+                        && relativePath.hasSuffix("/thumbnail.jpg") {
+                kind = .mediaThumbnail
+            } else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            return try coldSourceAttempt.readOriginalRegular(
+                relativePath, kind: kind,
+                maximumBytes: StreamingArchiveLimitsV1.card17.maximumUncompressedEntryByteCount)
+        }
+        if let checkedRecoveryAccess {
+            guard try checkedRecoveryAccess.reproveRoot()
+                    == checkedRecoveryAccess.rootIdentity else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            let data = try checkedRecoveryAccess.read(relativePath)
+            guard try checkedRecoveryAccess.reproveRoot()
+                    == checkedRecoveryAccess.rootIdentity else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            return data
+        }
         do {
             return try ReportPDFAnchoredFile.readRegularFile(
                 at: generationRootURL.appendingPathComponent(relativePath),
@@ -1122,6 +1233,21 @@ final class ReportDeliveryCoordinator {
     private func anchoredLeafIsAbsent(relativePath: String) throws -> Bool {
         guard Self.isCanonicalRelativePath(relativePath) else {
             throw ReportDeliveryCoordinatorError.invalidAuthority
+        }
+        if let coldSourceAttempt {
+            return try coldSourceAttempt.originalLeafIsAbsent(relativePath)
+        }
+        if let checkedRecoveryAccess {
+            guard try checkedRecoveryAccess.reproveRoot()
+                    == checkedRecoveryAccess.rootIdentity else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            let absent = try checkedRecoveryAccess.isAbsent(relativePath)
+            guard try checkedRecoveryAccess.reproveRoot()
+                    == checkedRecoveryAccess.rootIdentity else {
+                throw ReportDeliveryCoordinatorError.invalidAuthority
+            }
+            return absent
         }
         let components = relativePath.split(separator: "/").map(String.init)
         var descriptor = Darwin.open(

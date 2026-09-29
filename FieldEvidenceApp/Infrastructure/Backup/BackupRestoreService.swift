@@ -1808,7 +1808,7 @@ final class BackupRestoreService {
 
     static func retainedEraseSummary(
         modelContext: ModelContext,
-        validation: EraseRetainedSourceValidationV1
+        validation: any EraseRetainedSourceValidationAuthorityV1
     ) throws -> BackupRestoreCurrentSummaryV1 {
         guard !modelContext.hasChanges else {
             throw BackupRestoreServiceError.contextHasChanges

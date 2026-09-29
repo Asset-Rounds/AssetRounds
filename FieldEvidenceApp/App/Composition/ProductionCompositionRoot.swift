@@ -24,6 +24,62 @@ struct ProductionAssetLabelWorkflow {
     let generationEpoch: GenerationEpochV1
 }
 
+/// Shared by every Shell composition using one original store coordinator.
+/// Installs the slot before the first fallible C05 allocation and retains each
+/// concrete partial owner; a failed construction is never silently retried.
+@MainActor
+final class ProductionC05JobOwnerSlotV1 {
+    let generationEpoch: GenerationEpochV1
+    private(set) var store: LocalJobStoreV1?
+    private(set) var runner: ResumableLocalJobRunnerV1?
+    private(set) var contentStore: EvidenceBundleStore?
+    private(set) var artifacts: AssetLabelArtifactOperationsV1?
+    private(set) var labelLifecycle: AssetLabelLifecycleAdapterV1?
+    private(set) var workflow: ProductionAssetLabelWorkflow?
+    private var construction: Task<ProductionAssetLabelWorkflow, Error>?
+    private var constructionFailure: (any Error)?
+    var isConstructing: Bool { construction != nil }
+
+    init(generationEpoch: GenerationEpochV1) {
+        self.generationEpoch = generationEpoch
+    }
+
+    func retain(_ store: LocalJobStoreV1) { self.store = store }
+    func retain(_ runner: ResumableLocalJobRunnerV1) { self.runner = runner }
+    func retain(_ contentStore: EvidenceBundleStore) {
+        self.contentStore = contentStore
+    }
+    func retain(_ artifacts: AssetLabelArtifactOperationsV1) {
+        self.artifacts = artifacts
+    }
+    func retain(_ lifecycle: AssetLabelLifecycleAdapterV1) {
+        labelLifecycle = lifecycle
+    }
+
+    func workflowOrBuild(
+        _ build: @escaping @MainActor () async throws -> ProductionAssetLabelWorkflow
+    ) async throws -> ProductionAssetLabelWorkflow {
+        if let workflow { return workflow }
+        if let constructionFailure { throw constructionFailure }
+        if construction == nil {
+            construction = Task { @MainActor in try await build() }
+        }
+        guard let construction else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        do {
+            let completed = try await construction.value
+            workflow = completed
+            self.construction = nil
+            return completed
+        } catch {
+            constructionFailure = error
+            self.construction = nil
+            throw error
+        }
+    }
+}
+
 /// The complete pre-authentication access composition. This value deliberately
 /// exposes only the lifecycle's exact gate and its device-local collaborators;
 /// it neither opens a workspace nor starts startup recovery.
@@ -244,7 +300,6 @@ final class ProductionCompositionRoot {
     private let diagnosticsStore: DiagnosticsStore
     private let lifecycle: WorkspacePackageLifecycleDependenciesV1
     private let requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1?
-    private var assetLabelWorkflow: ProductionAssetLabelWorkflow?
 
     init(
         storeSession: StoreSessionCoordinator,
@@ -287,12 +342,10 @@ final class ProductionCompositionRoot {
             .makeOriginalC05JobBinding(
                 expectedWriter: storeSession.workspaceWriter,
                 expectedEpoch: generationEpoch)
-        if let existing = assetLabelWorkflow {
-            guard existing.generationEpoch == generationEpoch else {
-                throw GenerationLocalJobPublicationFailureV1.staleGeneration
-            }
-            return existing
-        }
+        let ownerSlot = try storeSession.originalC05JobOwnerSlot(
+            expectedWriter: storeSession.workspaceWriter,
+            expectedEpoch: generationEpoch)
+        return try await ownerSlot.workflowOrBuild { [self] in
 
         let generationRootURL = lifecycle.generationRootURL
         let applicationSupportURL = generationRootURL
@@ -308,6 +361,7 @@ final class ProductionCompositionRoot {
             clock: lifecycle.clock,
             idSource: lifecycle.idSource
         )
+        ownerSlot.retain(store)
         let runner = try ResumableLocalJobRunnerV1(
             store: store,
             stagingRootURL: stagingRootURL,
@@ -315,11 +369,14 @@ final class ProductionCompositionRoot {
             generationPublicationAdapter: jobBinding.publication,
             maximumConcurrency: 1
         )
+        ownerSlot.retain(runner)
         let contentStore = EvidenceBundleStore(generationRootURL: generationRootURL)
+        ownerSlot.retain(contentStore)
         let artifacts = try AssetLabelArtifactOperationsV1.production(
             jobStagingRootURL: stagingRootURL,
             contentStore: contentStore
         )
+        ownerSlot.retain(artifacts)
         let context = modelContext
         let workspaceID = lifecycle.workspaceID
         let authority = AssetLabelAuthoritativePlanAdapterV1 { plan in
@@ -336,12 +393,13 @@ final class ProductionCompositionRoot {
             jobs: runner,
             artifacts: artifacts
         )
+        ownerSlot.retain(labelLifecycle)
         let workflow = ProductionAssetLabelWorkflow(
             lifecycle: labelLifecycle,
             generationEpoch: generationEpoch
         )
-        assetLabelWorkflow = workflow
         return workflow
+        }
     }
 
     func makeSignWorkflow(

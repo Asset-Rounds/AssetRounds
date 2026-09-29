@@ -334,6 +334,10 @@ final class MutationJournalStoreV1 {
     /// Set when a fence failure is observed inside a proven scope: every later
     /// read in that scope re-proves (and so fails) instead of reusing the proof.
     private var provenWriterLeaseInvalidated = false
+    /// Nonzero only inside one synchronous original-Erase EX/G recovery.
+    /// Nested journal reads and a legacy-checkpoint save reuse that exact
+    /// checked interval; ordinary callers still reacquire their own fence.
+    private var originalEraseRecoveryDepth = 0
     /// The checkpoint version proved by the latest validateAll in this session.
     private var lastValidatedCheckpointVersion: Int?
 
@@ -6932,6 +6936,26 @@ final class MutationJournalStoreV1 {
         return try withStaleWriterFence(operation)
     }
 
+    func withAuthorizedOriginalEraseWriterRecovery(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        targetAllocation: GenerationWriterAllocationAttemptV1,
+        targetHandle: GenerationLeaseHandleV1,
+        _ body: () throws -> Void
+    ) throws -> OriginalEraseRetainedWriterRecoveryReceiptV1 {
+        guard originalEraseRecoveryDepth == 0,
+              case let .canonicalWriter(fence) = accessMode else {
+            throw WorkspaceMutationFailureV1.persistenceFailed
+        }
+        return try fence.withAuthorizedOriginalEraseWriterRecovery(
+            activity: activity, operation: operation,
+            targetAllocation: targetAllocation, targetHandle: targetHandle) {
+            originalEraseRecoveryDepth = 1
+            defer { originalEraseRecoveryDepth = 0 }
+            return try body()
+        }
+    }
+
     private func saveWithStaleWriterFence() throws {
         try withStaleWriterFence {
             try modelContext.save()
@@ -6970,6 +6994,7 @@ final class MutationJournalStoreV1 {
     }
 
     private func validateCurrentWriterLease() throws {
+        if originalEraseRecoveryDepth != 0 { return }
         switch accessMode {
         case let .restoreReview(authority):
             try authority.validate(context: modelContext, identity: identity,
@@ -6999,6 +7024,7 @@ final class MutationJournalStoreV1 {
     private func withStaleWriterFence<Value>(
         _ operation: () throws -> Value
     ) throws -> Value {
+        if originalEraseRecoveryDepth != 0 { return try operation() }
         switch accessMode {
         case let .restoreReview(authority):
             try authority.validate(context: modelContext, identity: identity,
