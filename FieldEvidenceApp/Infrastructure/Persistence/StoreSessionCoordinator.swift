@@ -5343,6 +5343,59 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
         }
     }
 
+    /// Normal original Erase has no recovery Scratch projection. Its reader
+    /// starts from the genuine unchanged P image, rewalked twice through the
+    /// same held parents under EX and the Registry's actual G.
+    func requireOriginalReaderStartingUnchanged(
+        originalP: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1
+    ) throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+        guard firstSnapshot == originalP,
+              readerStartingSnapshot == nil,
+              !readerStartingProjectionFailed,
+              !readerProjectionAttempted,
+              !readerProjectionInFlight,
+              !readerProjectionFailed,
+              rosterCaptureAttempted, !rosterCaptureInFlight,
+              !rosterReproofInFlight, !rosterReproofFailed,
+              firstRoster != nil,
+              let caches, let temporary else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        do {
+            try operation.requireOriginalEraseTargetReaderNormalStartingOwner(
+                originalP: originalP, allocation: allocation,
+                owner: self, observer: observer, coordinator: coordinator,
+                exclusion: exclusion, registry: registry, activity: activity)
+            guard try requireFirst() == originalP else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let supportURL = coordinator.originalEraseAuxiliarySupportURL
+            try exclusion.physicalRoot.withHeldOriginalEraseAuxiliarySupport(
+                at: supportURL) { support in
+                try observer.requireUnchanged(support: support,
+                    caches: caches.descriptor, temporary: temporary.descriptor)
+            }
+            try operation.requireOriginalEraseTargetReaderNormalStartingOwner(
+                originalP: originalP, allocation: allocation,
+                owner: self, observer: observer, coordinator: coordinator,
+                exclusion: exclusion, registry: registry, activity: activity)
+            guard try requireFirst() == originalP else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            readerStartingSnapshot = originalP
+            return originalP
+        } catch {
+            readerStartingProjectionFailed = true
+            throw error
+        }
+    }
+
     /// Before any reader-record O_EXCL, rewalk the sealed Scratch-projected
     /// Operations image under the retained EX and the Registry's actual G.
     /// The first P image remains immutable; no survivor is adopted.

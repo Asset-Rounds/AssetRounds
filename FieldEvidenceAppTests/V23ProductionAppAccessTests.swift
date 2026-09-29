@@ -1551,8 +1551,8 @@ final class V23ProductionAppAccessTests: XCTestCase {
         XCTAssertEqual(reservations.count, 2, "One original admission and one checked recovery admission")
         XCTAssertTrue(reservations.allSatisfy { $0 == originalReservation })
 #if DEBUG
-        XCTAssertEqual(transferredSourceChecks, priorIDs.count + 1,
-            "The same retained retry must reach transferred-source proof for old plus both prior sources")
+        XCTAssertEqual(transferredSourceChecks, 2 * (priorIDs.count + 1),
+            "The retained retry must reach both presence-validation passes for old plus both prior sources")
 #endif
         XCTAssertEqual(completions.count, 1)
         XCTAssertEqual(completions.first?.subject, originalReservation.subject)

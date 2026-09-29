@@ -3259,56 +3259,10 @@ final class EraseAllService {
             )
             traceErasePhase("projection.local-purge.begin")
             if intent.schemaVersion == 2 {
-                let expectedSearchFile = coordinator
-                    .originalEraseAuxiliarySearchSupportURL
-                    .appendingPathComponent(
-                        LocalSearchIndexStoreV1.directoryName,
-                        isDirectory: true)
-                    .appendingPathComponent(LocalSearchIndexStoreV1.fileName)
-                    .standardizedFileURL
-                guard await coordinator.searchIndexStore
-                    .originalEraseCanonicalFileURL() == expectedSearchFile else {
-                    throw EraseAllServiceError.invalidAuthority
-                }
-                guard await coordinator.searchIndexStore
-                    .originalEraseCachedWorkspaceAllowsPurge(
-                        oldPointer.workspaceID) else {
-                    throw EraseAllServiceError.invalidAuthority
-                }
-                let searchWriter = try operation
-                    .makeOriginalEraseAuxiliarySearchWriter(
-                        store: intentStore, coordinator: coordinator)
-#if DEBUG
-                if let originalColdExitFrame {
-                    let expected = try operation
-                        .publishOriginalEraseAuxiliaryEmptySearch(
-                            writer: searchWriter,
-                            store: intentStore,
-                            coordinator: coordinator,
-                            beforeCheckedEffect: {
-                                try originalColdExitFrame
-                                    .beforeSearchReplacement()
-                            }, afterCheckedEffect: { bytes in
-                                try originalColdExitFrame
-                                    .afterSearchReplacement(
-                                        expectedBytes: bytes)
-                            })
-                    guard !expected.isEmpty else {
-                        throw EraseAllServiceError.invalidAuthority
-                    }
-                    try originalColdExitFrame.requireSearchPublished()
-                } else {
-                    _ = try operation.publishOriginalEraseAuxiliaryEmptySearch(
-                        writer: searchWriter, store: intentStore,
-                        coordinator: coordinator)
-                }
-#else
-                _ = try operation.publishOriginalEraseAuxiliaryEmptySearch(
-                    writer: searchWriter, store: intentStore,
+                try await prepareOriginalEraseCheckedSearch(
+                    intent.advancing(to: .sessionActivated),
+                    operation: operation, intentStore: intentStore,
                     coordinator: coordinator)
-#endif
-                await coordinator.searchIndexStore
-                    .discardCacheAfterOriginalEraseCheckedPublication()
             } else {
 #if DEBUG
             if let originalColdExitFrame {
@@ -3913,6 +3867,11 @@ final class EraseAllService {
         let activated = intent.phase == .cleanupComplete
             ? intent
             : intent.advancing(to: .sessionActivated)
+        if retainedOriginalForward {
+            try await prepareOriginalEraseCheckedSearch(activated,
+                operation: operation, intentStore: intentStore,
+                coordinator: coordinator)
+        }
         if let privateSystemDiscoveryIndex {
             try await privateSystemDiscoveryIndex.eraseAll(
                 operationID: try privateSystemDiscoveryOperationID(intent),
@@ -12715,6 +12674,84 @@ final class EraseCleanupAfterRetirementV1 {
 }
 
 private extension EraseAllService {
+    /// Initial and retained live forward preparation share the same checked
+    /// Search writer/publication before notification. Cached actor state is
+    /// discarded only after an actual publication or its checked reproof.
+    func prepareOriginalEraseCheckedSearch(
+        _ activated: EraseIntentV1,
+        operation: EraseRouterOperationV1,
+        intentStore: EraseIntentStore,
+        coordinator: StoreSessionCoordinator
+    ) async throws {
+        guard activated.schemaVersion == 2,
+              activated.phase == .sessionActivated,
+              let oldPointer = activated.oldPointer else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+#if DEBUG
+        traceErasePhase("original.search.canonical-binding.enter")
+#endif
+        let expectedSearchFile = coordinator
+            .originalEraseAuxiliarySearchSupportURL
+            .appendingPathComponent(LocalSearchIndexStoreV1.directoryName,
+                isDirectory: true)
+            .appendingPathComponent(LocalSearchIndexStoreV1.fileName)
+            .standardizedFileURL
+        guard await coordinator.searchIndexStore.originalEraseCanonicalFileURL()
+                == expectedSearchFile,
+              await coordinator.searchIndexStore
+                .originalEraseCachedWorkspaceAllowsPurge(oldPointer.workspaceID)
+        else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let continuation = try operation
+            .prepareOriginalEraseAuxiliarySearchContinuation(
+                expected: activated, store: intentStore,
+                coordinator: coordinator)
+        switch continuation {
+        case .retained(let searchWriter):
+#if DEBUG
+            traceErasePhase("original.search.checked-publication.enter")
+            if let originalColdExitFrame {
+                let expected = try operation
+                    .publishOriginalEraseAuxiliaryEmptySearch(
+                        writer: searchWriter, store: intentStore,
+                        coordinator: coordinator,
+                        beforeCheckedEffect: {
+                            try originalColdExitFrame.beforeSearchReplacement()
+                        }, afterCheckedEffect: { bytes in
+                            try originalColdExitFrame.afterSearchReplacement(
+                                expectedBytes: bytes)
+                        })
+                guard !expected.isEmpty else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try originalColdExitFrame.requireSearchPublished()
+            } else {
+                _ = try operation.publishOriginalEraseAuxiliaryEmptySearch(
+                    writer: searchWriter, store: intentStore,
+                    coordinator: coordinator)
+            }
+#else
+            _ = try operation.publishOriginalEraseAuxiliaryEmptySearch(
+                writer: searchWriter, store: intentStore,
+                coordinator: coordinator)
+#endif
+        case .published:
+            try operation.requireOriginalEraseAuxiliarySearchPublished(
+                store: intentStore, coordinator: coordinator)
+#if DEBUG
+            try originalColdExitFrame?.requireSearchPublished()
+            traceErasePhase("original.search.checked-publication.reproved")
+#endif
+        }
+        await coordinator.searchIndexStore
+            .discardCacheAfterOriginalEraseCheckedPublication()
+#if DEBUG
+        traceErasePhase("original.search.checked-publication.complete")
+#endif
+    }
+
     /// Complete callback-bearing cleanup work before the Router transfers EX
     /// and returns from every original service/lifecycle frame.
     func prepareCleanupForRetirement(_ value: EraseIntentV1, session: StoreGenerationSession,
@@ -12744,23 +12781,32 @@ private extension EraseAllService {
         traceErasePhase("cleanup.notification.enter")
 #endif
         let preferences = PreferencesAdapterV1(defaults: userDefaults)
+#if DEBUG
+        traceErasePhase("cleanup.notification.constructor.enter")
+#endif
         let notifications = try AppLockNotificationControlStoreV1(
             applicationSupportURL: applicationSupportURL,
             preferences: preferences,
             mustExistForOriginalErase: originalAuxiliaryOperation != nil)
 #if DEBUG
+        traceErasePhase("cleanup.notification.constructor.complete")
         var originalNotificationAfterOSReadback: ErasePostRetiredNotificationSnapshotV1?
 #endif
         if let originalAuxiliaryOperation {
             do {
+#if DEBUG
+                traceErasePhase("cleanup.notification.root-policy.enter")
+#endif
                 _ = try originalAuxiliaryOperation
                     .settleOriginalEraseNotificationRootPolicy(
                         store: intentStore, coordinator: coordinator)
 #if DEBUG
+                traceErasePhase("cleanup.notification.root-policy.complete")
                 if let originalColdExitFrame {
                     try originalColdExitFrame.retainOriginalNotificationControl(
                         notifications)
                 }
+                traceErasePhase("cleanup.notification.publisher.enter")
 #endif
                 let receipt = try await DeviceLocalNotificationOwnerV1
                     .eraseForOriginalRetainedOwner(
@@ -12816,6 +12862,9 @@ private extension EraseAllService {
                                 .postRetiredSnapshot(subject: binding.subject)
 #endif
                         })
+#if DEBUG
+                traceErasePhase("cleanup.notification.publisher.complete")
+#endif
                 try originalAuxiliaryOperation
                     .finishOriginalEraseAuxiliaryNotification(
                         receipt, control: notifications,

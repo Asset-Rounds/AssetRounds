@@ -5952,6 +5952,13 @@ final class EraseRouterOperationV1 {
         StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1?
     private var originalAuxiliaryFirstSnapshot:
         EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+    private enum OriginalTargetReaderStartingImage {
+        case originalP(EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot)
+        case retainedRecovery(OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+            StoreOriginalEraseRecoveryPreOpenOwnerV1)
+    }
+    private var originalTargetReaderStartingImage:
+        OriginalTargetReaderStartingImage?
     private var originalAuxiliaryFirstIntent: EraseIntentV1?
     private var originalAuxiliaryFirstPreparation: ErasePreparationV2?
     private var originalAuxiliaryStore: EraseIntentStore?
@@ -6771,6 +6778,7 @@ final class EraseRouterOperationV1 {
             exclusion: exclusion, intent: intent,
             preparation: preparation, store: store)
         originalAuxiliaryFirstSnapshot = snapshot
+        originalTargetReaderStartingImage = .originalP(snapshot)
 #if DEBUG
         traceOriginalAuxiliaryFixedStageForTesting(
             "original.aux.snapshot-captured")
@@ -7482,6 +7490,9 @@ final class EraseRouterOperationV1 {
               originalTargetReaderAllocation === allocation,
               originalTargetReaderHandle == nil,
               originalTargetReaderProjection == nil,
+              let startingImage = originalTargetReaderStartingImage,
+              case .retainedRecovery(let issued, let issuedOwner) = startingImage,
+              issued === sealed, issuedOwner === recoveryOwner,
               originalRecoveryAuxiliaryFirstMatchesOriginalP,
               originalRecoveryPostPointerAuxiliaryProjection === sealed,
               originalRecoveryPostPointerOwner === recoveryOwner,
@@ -7504,10 +7515,74 @@ final class EraseRouterOperationV1 {
         try router.requireEraseRetirementOperation(self)
     }
 
+    /// This normal issuer is the same original P capture owner, not a
+    /// recovery owner. Reprove its original Store/roster and actual pointer
+    /// publication under the Registry's held G on both sides of the scan.
+    func requireOriginalEraseTargetReaderNormalStartingOwner(
+        originalP: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        allocation: GenerationLeaseAllocationAttemptV1,
+        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1
+    ) throws {
+        guard let startingImage = originalTargetReaderStartingImage,
+              case .originalP(let issued) = startingImage,
+              issued == originalP,
+              originalAuxiliaryFirstSnapshot == originalP,
+              originalAuxiliaryFirstCaptureAttempted,
+              originalAuxiliaryFirstCaptureOwner === owner,
+              originalAuxiliaryFirstObserver === observer,
+              let firstIntent = originalAuxiliaryFirstIntent,
+              firstIntent.schemaVersion == 2,
+              firstIntent.phase == .emptyGenerationPrepared,
+              let preparation = originalAuxiliaryFirstPreparation,
+              preparation.matches(firstIntent),
+              let intent = originalAuxiliaryProjectedIntent,
+              intent == firstIntent.advancing(to: .pointerSwitched),
+              let store = originalAuxiliaryStore,
+              let admission = originalAuxiliaryRosterAdmission,
+              admission.seal === originalAuxiliaryRosterSeal,
+              originalAuxiliaryFirstPhysicalRoster != nil,
+              preparationCoordinator === coordinator,
+              preparationServiceFrame,
+              preparationFailureWitness == nil,
+              originalExclusion === exclusion,
+              transferredExclusion == nil,
+              originalRecoveryObservation == nil,
+              originalRecoveryPreOpenOwner == nil,
+              originalRecoveryAuxiliaryContinuity == nil,
+              !originalRecoveryAuxiliaryFirstMatchesOriginalP,
+              originalRecoveryPostPointerAuxiliaryProjection == nil,
+              originalRecoveryPostPointerOwner == nil,
+              originalTargetReaderHandle == nil,
+              originalTargetReaderProjection == nil,
+              !originalAuxiliaryPhaseCASInFlight,
+              !originalAuxiliaryPhaseCASUncertain,
+              let pointerData = originalTargetReaderExpectedPointerData else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let checked = try requireOriginalEraseTargetReaderAdmissionUnderHeldG(
+            allocation: allocation, registry: registry, activity: activity,
+            expectedPointerData: pointerData)
+        guard checked.intent == intent else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try admission.receipt.requireBound(store: store,
+            operation: self, seal: admission.seal)
+        try store.requireOriginalEraseAuxiliaryPublishedRoster(admission.receipt)
+        guard try store.load() == intent,
+              try store.loadPreparation() == preparation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
     /// The Registry has twice observed the physical tree while holding its
-    /// actual G and before the first reader-record O_EXCL. Bind that first
-    /// tree to the checked P-to-Scratch projection; a fresh Q survivor cannot
-    /// become the reader publication's starting authority.
+    /// actual G and before the first reader-record O_EXCL. Normal original P
+    /// uses its immutable unchanged image; retained recovery uses its checked
+    /// P-to-Scratch projection. Neither can adopt a current Q survivor.
     func requireOriginalEraseTargetReaderFirstOperationsUnderHeldG(
         registry: GenerationLeaseRegistryV1,
         activity: GenerationTemporalActivityHandleV1,
@@ -7519,14 +7594,11 @@ final class EraseRouterOperationV1 {
         guard let router, !detached, !detaching,
               originalTargetReaderInFlight,
               !originalTargetReaderUncertain,
-              originalTargetReaderAllocation != nil,
               originalTargetReaderHandle == nil,
               originalTargetReaderProjection == nil,
               originalAuxiliaryRosterAdmission != nil,
-              originalRecoveryAuxiliaryFirstMatchesOriginalP,
               let snapshot = originalAuxiliaryFirstSnapshot,
-              let sealed = originalRecoveryPostPointerAuxiliaryProjection,
-              let recoveryOwner = originalRecoveryPostPointerOwner,
+              let startingImage = originalTargetReaderStartingImage,
               let owner = originalAuxiliaryFirstCaptureOwner,
               let allocation = originalTargetReaderAllocation,
               let coordinator = preparationCoordinator,
@@ -7544,11 +7616,29 @@ final class EraseRouterOperationV1 {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try router.requireEraseRetirementOperation(self)
-        let starting = try owner.requireOriginalReaderStartingProjected(
-            sealed, recoveryOwner: recoveryOwner, originalP: snapshot,
-            allocation: allocation, registry: registry, activity: activity,
-            operation: self, coordinator: coordinator,
-            exclusion: exclusion)
+        let starting: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
+        switch startingImage {
+        case .originalP(let issued):
+            guard issued == snapshot else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            starting = try owner.requireOriginalReaderStartingUnchanged(
+                originalP: issued, allocation: allocation,
+                registry: registry, activity: activity,
+                operation: self, coordinator: coordinator,
+                exclusion: exclusion)
+        case .retainedRecovery(let sealed, let recoveryOwner):
+            guard originalRecoveryAuxiliaryFirstMatchesOriginalP,
+                  originalRecoveryPostPointerAuxiliaryProjection === sealed,
+                  originalRecoveryPostPointerOwner === recoveryOwner else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            starting = try owner.requireOriginalReaderStartingProjected(
+                sealed, recoveryOwner: recoveryOwner, originalP: snapshot,
+                allocation: allocation, registry: registry, activity: activity,
+                operation: self, coordinator: coordinator,
+                exclusion: exclusion)
+        }
         guard starting.operations == .present(
                 rootFact: operationsFact, digest: operationsDigest),
               starting.operationsChildren["generation-leases"]
@@ -8052,6 +8142,67 @@ final class EraseRouterOperationV1 {
         try retainOriginalEraseAuxiliarySearchWriter(writer,
             store: store, coordinator: coordinator)
         return writer
+    }
+
+    enum OriginalAuxiliarySearchContinuation {
+        case retained(OriginalEraseAuxiliarySearchWriterV1)
+        case published(Data)
+    }
+
+    /// Retained live retry may continue only this original writer or its
+    /// checked publication. Revalidate current Store/roster/session bindings
+    /// each time; no failed or uncertain attempt may create a fresh writer.
+    func prepareOriginalEraseAuxiliarySearchContinuation(
+        expected: EraseIntentV1,
+        store: EraseIntentStore,
+        coordinator: StoreSessionCoordinator
+    ) throws -> OriginalAuxiliarySearchContinuation {
+        guard let router, !detached, !detaching,
+              !originalAuxiliarySearchInFlight,
+              !originalAuxiliarySearchUncertain,
+              expected.schemaVersion == 2,
+              expected.phase == .sessionActivated,
+              originalAuxiliaryProjectedIntent == expected,
+              originalAuxiliaryStore === store,
+              let first = originalAuxiliaryFirstPhysicalRoster,
+              let admission = originalAuxiliaryRosterAdmission,
+              admission.seal === originalAuxiliaryRosterSeal,
+              preparationCoordinator === coordinator,
+              preparationWriterPhase == .installed,
+              let session = preparationTargetSession,
+              let targetWriter = preparationTargetWriter,
+              coordinator.workspaceWriter === targetWriter,
+              coordinator.modelContext === session.modelContext,
+              coordinator.generationID == session.generationID,
+              originalWriterTransition?.projected == true,
+              originalExclusion != nil,
+              transferredExclusion == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        try admission.receipt.requireBound(store: store,
+            operation: self, seal: admission.seal)
+        try store.requireOriginalEraseAuxiliaryPublishedRoster(admission.receipt)
+        guard try store.load() == expected else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if originalAuxiliarySearchPublished {
+            try requireOriginalEraseAuxiliarySearchPublished(
+                store: store, coordinator: coordinator)
+            guard let bytes = originalAuxiliarySearchWriter?.publishedBytes,
+                  bytes == (try LocalSearchIndexStoreV1.originalEraseCanonicalEmptyBytes())
+            else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return .published(bytes)
+        }
+        if let writer = originalAuxiliarySearchWriter {
+            try writer.requireRetained(firstRoster: first,
+                supportURL: coordinator.originalEraseAuxiliarySearchSupportURL)
+            return .retained(writer)
+        }
+        return .retained(try makeOriginalEraseAuxiliarySearchWriter(
+            store: store, coordinator: coordinator))
     }
 
     /// The checked writer runs synchronously inside the same Search fence and
@@ -10807,6 +10958,7 @@ final class EraseRouterOperationV1 {
             owner: owner)
         originalRecoveryPostPointerAuxiliaryProjection = projection
         originalRecoveryPostPointerOwner = owner
+        originalTargetReaderStartingImage = .retainedRecovery(projection, owner)
     }
 
     func releaseOriginalRecoveryAuxiliaryContinuity(
