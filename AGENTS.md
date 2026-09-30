@@ -74,7 +74,7 @@ Owner decision 24 (2026-09-26) prospectively permits the pinned DEBUG Simulator 
 ## How we work
 
 - **Root session.** It diagnoses, implements understood fixes, integrates, and alone commits, pushes and dispatches.
-- **Helpers.** Use as many as speed delivery. Each gets one bounded question and disjoint files, or read-only scope. Implementation helpers work in worktrees created by root at the exact head. Watch usage limits: typically 2–4 helpers at a time.
+- **Helpers.** Use as many as speed delivery, up to the owner-approved ceiling and actual tool capacity. Each gets one bounded question and disjoint files, or read-only scope. Implementation helpers work in worktrees created by root at the exact head. Fill useful independent lanes from the blocker queue, reuse relevant helpers, and reduce concurrency when usage limits or measured machine contention require it. Follow [PERFORMANCE_WORKFLOW.md](docs/design/v23/integration/PERFORMANCE_WORKFLOW.md) for assignments, cross-chat coordination and execution scheduling.
 - **Risk-based independent review (owner-approved 2026-09-26).** Data safety, security, persistence, backup, restore, migration, CI evidence logic and merge candidates require an independent GPT-6.1 Sol reviewer at extra-high (`xhigh`) reasoning (owner updated 2026-09-29). Routine fixture and cosmetic changes may share a milestone review instead of a review for every intermediate batch. Legitimate test-expectation changes still require a recorded reason and independent review; no test, predicate, coverage or watchdog may be weakened. The reviewer is read-only and never the author. Corrections go back to the same reviewer, and verdicts are recorded in CURRENT_INTEGRATION along with the reviewer model. Reviewers always assess compile risk. Automated checks are never labelled as independent review.
 - **Standing implementation authority (owner-approved 2026-09-26).** Root decides reversible implementation and internal tooling choices within the existing scope and hard boundaries, without repeated owner confirmation. Frozen design remains product authority; unresolved or contradictory product decisions, genuine human visual acceptance, privacy sign-off and release decisions remain owner-reserved. This authority does not change gate requirements or authorize account/settings/secrets, paid capacity, signing or release operations.
 - **Compile first.** Compile new Swift on the Mac, or with one development batch, before fanning out native runs.
@@ -102,6 +102,7 @@ Owner decision 24 (2026-09-26) prospectively permits the pinned DEBUG Simulator 
 - `MERGE_READINESS.md`: phases and the ledger.
 - `VERIFICATION_DUE.md`: open obligations.
 - `REVIEW_EFFICIENCY.md`: optional notes.
+- `PERFORMANCE_WORKFLOW.md`: execution lanes, assignment contract and resource scheduling; AGENTS.md remains binding.
 - Fold record updates into the next real commit.
 
 ## Model and effort
@@ -166,6 +167,8 @@ Owner decisions, 2026-09-26 (Codex workflow update):
 28. Latest owner routing and delivery priority (2026-09-29): use only GPT-6.1 Sol extra-high (`xhigh`) for every future helper assignment. Supersedes decision 27's medium/high routing and all earlier helper routing; preserve historical attribution and handoffs. Finish the verified merge as quickly as possible through focused blocker work, useful parallelism, context reuse and proportionate development checks. Full scope, quality, safety, independent review and all gates remain unchanged.
 
 29. Latest owner helper budget (2026-09-29): up to 10 concurrent active helpers plus root, limited by actual tool capacity and useful independent work. The owner updated config.toml. Model/effort decision 28 and every safety, review, evidence and gate requirement remain in force.
+
+30. Owner-approved execution workflow (2026-09-30): use the linked performance workflow to advance independent merge blockers alongside local verification, coordinate the assisting chat with explicit ownership, and reuse completed helper contexts. Root remains the sole integrator and operator of Git, native execution and evidence effects. No model, gate, scope, quality, safety or owner-reserved decision changes are authorized by this workflow.
 
 ## History
 

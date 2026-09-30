@@ -2954,6 +2954,13 @@ class Phase1CollectionCallerTests(unittest.TestCase):
             archive.writestr("phase1-original-event.json", json.dumps({"repository": {"full_name": REPO},
                 "ref": plan["ref"], "inputs": gate.dispatch_inputs(plan)}))
         zipped = buffer.getvalue()
+        # The prospective collector retains this raw outer ZIP without opening
+        # its inner payload. Its SHA must never be replaced by the inner SHA.
+        self.stage1_inner_tar = b"synthetic inner TAR bytes; not native DATA"
+        self.stage1_payload_zip = zip_bytes({
+            "shared-payload.tar": self.stage1_inner_tar,
+            "transport-only.txt": b"synthetic Stage1 raw original",
+        })
         if shared:
             names = NEW.shared_artifact_names(RUN, HEAD, ["S01"])
             artifact_names = [names["producer"], names["consumers"]["S01"], names["payload"]]
@@ -2963,6 +2970,11 @@ class Phase1CollectionCallerTests(unittest.TestCase):
             "size_in_bytes": len(zipped), "workflow_run": {"id": RUN, "head_sha": HEAD, "head_branch": NEW.BRANCH,
                                                            "repository_id": 77, "head_repository_id": 77}}
             for index, name in enumerate(artifact_names)]
+        payload_identifier = artifacts[-1]["id"] if shared else None
+        if shared:
+            artifacts[-1].update(digest="sha256:" + sha(self.stage1_payload_zip).lower(),
+                # API declaration and actual outer-ZIP byte count are separate.
+                size_in_bytes=len(self.stage1_payload_zip) + 17)
         source = io.BytesIO()
         with tarfile.open(fileobj=source, mode="w") as archive:
             for p in gate.SOURCES:
@@ -2989,11 +3001,27 @@ class Phase1CollectionCallerTests(unittest.TestCase):
                 page = int(endpoint.removeprefix(prefix))
                 return {"total_count": len(artifacts), "artifacts": copy.deepcopy(
                     artifacts[(page - 1) * NEW.PAGE_SIZE:page * NEW.PAGE_SIZE])}
-            self.assertIn(endpoint, (f"repos/{REPO}/actions/runs/{RUN}", f"repos/{REPO}/actions/runs/{RUN}/attempts/1"))
+            # Discovery reads the exact direct run ID named by this synthetic
+            # census. Return it so the real original/attempt guard can refuse
+            # a foreign ID; keep every API route limited to this repository.
+            direct = f"repos/{REPO}/actions/runs/{observed['id']}"
+            self.assertIn(endpoint, (f"repos/{REPO}/actions/runs/{RUN}",
+                f"repos/{REPO}/actions/runs/{RUN}/attempts/1", direct))
             return copy.deepcopy(observed)
         def download(endpoint):
             downloads.append(endpoint)
+            if shared:
+                self.assertNotEqual(endpoint,
+                    f"repos/{REPO}/actions/artifacts/{payload_identifier}/zip",
+                    "prospective payload transport must use the bounded stream")
             return zipped
+        def payload_chunks(identifier):
+            self.assertIs(type(identifier), int)
+            self.assertEqual(identifier, payload_identifier)
+            downloads.append(f"repos/{REPO}/actions/artifacts/{identifier}/zip")
+            width = min(31, NEW.PHASE1_PAYLOAD_CHUNK_BYTES)
+            for offset in range(0, len(self.stage1_payload_zip), width):
+                yield self.stage1_payload_zip[offset:offset + width]
         def git_bytes(*args):
             if args[0] == "show":
                 self.assertTrue(args[1].startswith(HEAD + ":"))
@@ -3010,6 +3038,7 @@ class Phase1CollectionCallerTests(unittest.TestCase):
         stack = contextlib.ExitStack()
         for name, replacement in (("EVIDENCE", base), ("ATTEMPTS", attempts), ("LEDGER", base / "v23-original-ledger.jsonl"),
             ("api", api), ("api_bytes", download),
+            ("phase1_payload_chunks", payload_chunks),
             ("git_bytes", git_bytes), ("run", lambda *args: "9" * 40 + "\n"),
             ("resolve_selection", lambda *args: (selected, plan["selectionSHA256"])),
             ("shared_partitions", lambda *args: partitions)):
@@ -3019,7 +3048,7 @@ class Phase1CollectionCallerTests(unittest.TestCase):
         self.addCleanup(stack.close)
         return gate, directory, attempt_path, observed, artifacts, calls, downloads, commands
 
-    def test_real_collection_caller_requires_origin_and_never_downloads_payload_or_completes_transport_only(self):
+    def test_real_collection_caller_requires_origin_retains_payload_and_never_completes_transport_only(self):
         for shared in (False, True):
             with self.subTest(shared=shared), tempfile.TemporaryDirectory() as temporary:
                 gate, directory, _, _, artifacts, calls, downloads, commands = self.fixture(Path(temporary).resolve(), shared)
@@ -3037,10 +3066,498 @@ class Phase1CollectionCallerTests(unittest.TestCase):
                 self.assertIn("phase1-chain-check.log", manifest["files"])
                 self.assertFalse((directory / "phase1-collector-active").exists())
                 if shared:
-                    self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[-1]['id']}/zip", downloads)
-                    self.assertFalse(proof["artifacts"]["payload"]["downloaded"])
+                    self.assertIn(f"repos/{REPO}/actions/artifacts/{artifacts[-1]['id']}/zip", downloads)
+                    self.assertTrue(proof["artifacts"]["payload"]["downloaded"])
+                    self.assert_payload_transport(directory, proof,
+                        self.stage1_payload_zip, "COMPLETE")
                 with self.assertRaisesRegex(ValueError, "immutable"):
                     NEW.collect(RUN, True)
+
+
+    def payload_attempts(self, directory, identifier):
+        root = directory / "phase1-payload-transports" / str(identifier)
+        if not root.exists():
+            return []
+        attempts = sorted(root.iterdir())
+        self.assertEqual([p.name for p in attempts],
+                         ["%06d" % i for i in range(len(attempts))])
+        return attempts
+
+    def collection_state(self, directory):
+        final = directory / "phase1-raw-proof.json"
+        if final.is_file():
+            return json.loads(final.read_bytes())
+        partials = sorted((directory / "phase1-collection-partials").glob("*.json"))
+        self.assertTrue(partials, "an unresolved transport must retain a partial")
+        return json.loads(partials[-1].read_bytes())
+
+    def assert_stage1_pending(self, gate, directory, state):
+        self.assertEqual(state["status"], "INCOMPLETE")
+        self.assertEqual(state["functionalQualification"], gate.PENDING)
+        self.assertFalse(state["acceptance"])
+        self.assertFalse(state["releaseReady"])
+        if "providerQualification" in state:
+            self.assertFalse(state["providerQualification"])
+        self.assertFalse((directory / "artifacts/payload").exists())
+        self.assertEqual(list(directory.rglob("FACTS.json")), [])
+        self.assertEqual(list(directory.rglob("shared-payload.tar")), [])
+
+    def assert_payload_transport(self, directory, state, raw, status):
+        payload = state["artifacts"]["payload"]
+        self.assertEqual(payload["transportStatus"], status)
+        self.assertEqual(payload["downloaded"], status == "COMPLETE")
+        raw_path = directory / payload["rawZIP"]["path"]
+        self.assertEqual(raw_path.name, "raw.zip")
+        self.assertEqual(raw_path.read_bytes(), raw)
+        self.assertEqual(payload["rawZIP"]["bytes"], len(raw))
+        self.assertEqual(payload["rawZIP"]["SHA256"].upper(), sha(raw))
+        receipt_path = directory / payload["transportReceipt"]["path"]
+        receipt_raw = receipt_path.read_bytes()
+        self.assertEqual(receipt_path, raw_path.parent / "receipt.json")
+        self.assertEqual(payload["transportReceipt"]["SHA256"].upper(), sha(receipt_raw))
+        receipt = json.loads(receipt_raw)
+        request = json.loads((raw_path.parent / "request.json").read_bytes())
+        self.assertEqual(receipt["schema"], "v23-phase1-payload-transport.v1")
+        self.assertEqual(request["schema"], "v23-phase1-payload-transport-request.v1")
+        claim = (directory / "collector.claim.json").read_bytes()
+        listing = json.loads((directory / "artifacts.json").read_bytes())
+        artifact = next(a for a in listing["artifacts"] if type(a) is dict and type(a.get("id")) is int and a["id"] == payload["id"])
+        self.assertEqual(request["claimSHA256"], sha(claim))
+        self.assertEqual(request["apiArtifactSHA256"], sha(NEW.phase1_gates().canonical(artifact)))
+        self.assertEqual(request["artifactID"], payload["id"])
+        self.assertEqual(request["apiDigest"], payload["digest"])
+        self.assertEqual(request["declaredAPISizeBytes"], artifact["size_in_bytes"])
+        self.assertEqual(request["runID"], RUN)
+        self.assertEqual(request["runAttempt"], 1)
+        self.assertEqual(raw_path, directory / "phase1-payload-transports" / str(payload["id"]) /
+                         ("%06d" % request["index"]) / "raw.zip")
+        self.assertEqual({k: receipt[k] for k in request if k not in ("schema", "atUTC")},
+                         {k: request[k] for k in request if k not in ("schema", "atUTC")})
+        self.assertEqual(receipt["status"], status)
+        self.assertEqual(receipt["actualZIPBytes"], len(raw))
+        self.assertEqual(receipt["actualZIPSHA256"], sha(raw))
+        self.assertEqual(receipt["responseComplete"], status in ("COMPLETE", "DIGEST_MISMATCH", "DURABILITY_FAILURE"))
+        self.assertEqual(receipt["durableRaw"], status != "DURABILITY_FAILURE")
+        self.assertEqual(receipt["digestVerified"], status in ("COMPLETE", "DURABILITY_FAILURE"))
+        self.assertEqual(receipt["rawIdentity"], NEW.phase1_payload_identity(raw_path.lstat()))
+        return payload, raw_path.parent
+
+    def test_phase1_payload_retains_outer_bytes_once_with_independent_declared_size(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, downloads, commands = self.fixture(Path(temporary).resolve(), shared=True)
+            identifier, declared = artifacts[-1]["id"], artifacts[-1]["size_in_bytes"]
+            stream = NEW.phase1_payload_chunks
+            request_before_get = []
+            def witnessed(identifier):
+                attempts = self.payload_attempts(directory, identifier)
+                self.assertEqual(len(attempts), 1)
+                request = attempts[0] / "request.json"
+                request_before_get.append(request.read_bytes())
+                self.assertEqual(json.loads(request_before_get[-1])["schema"],
+                                 "v23-phase1-payload-transport-request.v1")
+                yield from stream(identifier)
+            with mock.patch.object(NEW, "phase1_payload_chunks", witnessed), self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect_phase1(RUN, False)
+            state = self.collection_state(directory)
+            self.assert_stage1_pending(gate, directory, state)
+            payload, attempt_dir = self.assert_payload_transport(directory, state,
+                self.stage1_payload_zip, "COMPLETE")
+            self.assertNotEqual(declared, payload["rawZIP"]["bytes"])
+            listing = json.loads((directory / "artifacts.json").read_bytes())
+            self.assertEqual(listing["artifacts"][-1]["size_in_bytes"], declared)
+            self.assertEqual(len(request_before_get), 1)
+            self.assertEqual((attempt_dir / "request.json").read_bytes(), request_before_get[0])
+            self.assertEqual(len(commands), 1)
+            endpoint = f"repos/{REPO}/actions/artifacts/{identifier}/zip"
+            self.assertEqual(downloads.count(endpoint), 1)
+            before = tree_bytes(attempt_dir)
+            with self.assertRaisesRegex(ValueError, "immutable"):
+                NEW.collect_phase1(RUN, True)
+            self.assertEqual(tree_bytes(attempt_dir), before)
+            self.assertEqual(downloads.count(endpoint), 1)
+
+    def test_phase1_payload_origin_and_ambiguous_metadata_refuse_before_stream(self):
+        original_cases = ({"run_attempt": 2}, {"run_attempt": True}, {"id": RUN + 1},
+            {"head_sha": "a" * 40}, {"head_branch": "main"},
+            {"repository": {"full_name": "foreign/repository", "id": 77}},
+            {"head_repository": {"full_name": REPO, "id": 999}})
+        for changes in original_cases:
+            with self.subTest(original=changes), tempfile.TemporaryDirectory() as temporary:
+                _, directory, _, observed, artifacts, _, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
+                identifier = artifacts[-1]["id"]
+                observed.update(changes)
+                with mock.patch.object(NEW, "phase1_payload_chunks", side_effect=AssertionError("unauthenticated payload GET")), self.assertRaises(ValueError):
+                    NEW.collect_phase1(RUN, False)
+                self.assertNotIn(f"repos/{REPO}/actions/artifacts/{identifier}/zip", downloads)
+                self.assertEqual(self.payload_attempts(directory, identifier), [])
+                self.assertFalse((directory / "manifest.json").exists())
+        metadata_cases = ("missing", "duplicate-name", "duplicate-id", "expired", "bool-id",
+            "bool-run", "foreign-run", "foreign-head", "foreign-ref", "foreign-repository",
+            "foreign-head-repository", "missing-digest", "upper-digest", "bool-size")
+        for case in metadata_cases:
+            with self.subTest(payload=case), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
+                payload = artifacts[-1]
+                identifier = payload["id"]
+                if case == "missing": artifacts.pop()
+                elif case == "duplicate-name": artifacts.append(dict(payload, id=999))
+                elif case == "duplicate-id": artifacts.append(dict(payload, name="foreign-artifact"))
+                elif case == "expired": payload["expired"] = True
+                elif case == "bool-id": payload["id"] = True
+                elif case == "missing-digest": payload.pop("digest")
+                elif case == "upper-digest": payload["digest"] = "sha256:" + "A" * 64
+                elif case == "bool-size": payload["size_in_bytes"] = True
+                else:
+                    key, value = {"bool-run": ("id", True), "foreign-run": ("id", RUN + 1),
+                        "foreign-head": ("head_sha", "a" * 40), "foreign-ref": ("head_branch", "main"),
+                        "foreign-repository": ("repository_id", 999),
+                        "foreign-head-repository": ("head_repository_id", 999)}[case]
+                    payload["workflow_run"][key] = value
+                with mock.patch.object(NEW, "phase1_payload_chunks", side_effect=AssertionError("refused payload GET")), self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                    NEW.collect_phase1(RUN, False)
+                state = self.collection_state(directory)
+                self.assert_stage1_pending(gate, directory, state)
+                self.assertFalse(state["artifacts"].get("payload", {}).get("downloaded", False))
+                self.assertEqual(self.payload_attempts(directory, identifier), [])
+                self.assertNotIn(f"repos/{REPO}/actions/artifacts/{identifier}/zip", downloads)
+                self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+
+    def test_phase1_wrong_outer_digest_retains_failed_raw_and_later_safe_originals(self):
+        for expected_digest in ("f" * 64, sha(b"synthetic inner TAR bytes; not native DATA").lower()):
+            with self.subTest(digest=expected_digest), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
+                payload = artifacts.pop()
+                payload["digest"] = "sha256:" + expected_digest
+                artifacts.insert(0, payload)
+                with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                    NEW.collect_phase1(RUN, False)
+                state = self.collection_state(directory)
+                self.assert_stage1_pending(gate, directory, state)
+                _, attempt_dir = self.assert_payload_transport(directory, state,
+                    self.stage1_payload_zip, "DIGEST_MISMATCH")
+                self.assertNotEqual(expected_digest, sha(self.stage1_payload_zip).lower())
+                self.assertTrue((directory / "artifacts/producer/synthetic-only.txt").is_file())
+                self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+                original = tree_bytes(attempt_dir)
+                claim = (directory / "collector.claim.json").read_bytes()
+                with self.assertRaises((ValueError, FileExistsError)):
+                    NEW.collect_phase1(RUN, False)
+                self.assertEqual(tree_bytes(attempt_dir), original)
+                self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+                self.assertEqual(downloads.count(f"repos/{REPO}/actions/artifacts/{payload['id']}/zip"), 1)
+
+    def test_phase1_interrupted_payload_resume_keeps_prefix_history_and_same_claim(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            gate, directory, _, _, artifacts, _, _, commands = self.fixture(base, shared=True)
+            identifier = artifacts[-1]["id"]
+            prefix = self.stage1_payload_zip[:19]
+            def interrupted(identifier):
+                yield prefix
+                raise OSError("synthetic interrupted payload transport")
+            with mock.patch.object(NEW, "phase1_payload_chunks", interrupted), self.assertRaisesRegex(SystemExit, "resume the same"):
+                NEW.collect_phase1(RUN, False)
+            state = self.collection_state(directory)
+            self.assert_stage1_pending(gate, directory, state)
+            _, first = self.assert_payload_transport(directory, state, prefix, "PARTIAL")
+            first_bytes = tree_bytes(first)
+            partial = directory / "phase1-collection-partials/000000.json"
+            partial_bytes = partial.read_bytes()
+            claim = (directory / "collector.claim.json").read_bytes()
+            unrelated = base / "independent-original.txt"
+            unrelated.write_bytes(b"independent retained evidence")
+            self.assertFalse((directory / "manifest.json").exists())
+            self.assertEqual(commands, [])
+            self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+            with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect_phase1(RUN, True)
+            resumed = self.collection_state(directory)
+            self.assert_stage1_pending(gate, directory, resumed)
+            _, second = self.assert_payload_transport(directory, resumed,
+                self.stage1_payload_zip, "COMPLETE")
+            self.assertEqual(second.name, "000001")
+            self.assertEqual(self.payload_attempts(directory, identifier), [first, second])
+            self.assertEqual(tree_bytes(first), first_bytes)
+            self.assertEqual(partial.read_bytes(), partial_bytes)
+            self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+            self.assertEqual(unrelated.read_bytes(), b"independent retained evidence")
+
+    def test_phase1_completed_payload_is_reused_when_only_worker_transport_resumes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, downloads, commands = self.fixture(Path(temporary).resolve(), shared=True)
+            producer, identifier = artifacts[0]["id"], artifacts[-1]["id"]
+            download = NEW.api_bytes
+            def interrupted(endpoint):
+                if endpoint == f"repos/{REPO}/actions/artifacts/{producer}/zip":
+                    raise OSError("synthetic worker interruption")
+                return download(endpoint)
+            with mock.patch.object(NEW, "api_bytes", interrupted), self.assertRaisesRegex(SystemExit, "resume the same"):
+                NEW.collect_phase1(RUN, False)
+            state = self.collection_state(directory)
+            payload, retained = self.assert_payload_transport(directory, state,
+                self.stage1_payload_zip, "COMPLETE")
+            retained_bytes = tree_bytes(retained)
+            claim = (directory / "collector.claim.json").read_bytes()
+            partial = (directory / "phase1-collection-partials/000000.json").read_bytes()
+            self.assertEqual(commands, [])
+            with mock.patch.object(NEW, "phase1_payload_chunks", side_effect=AssertionError("completed raw downloaded again")), self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect_phase1(RUN, True)
+            resumed = self.collection_state(directory)
+            self.assert_stage1_pending(gate, directory, resumed)
+            self.assertEqual(resumed["artifacts"]["payload"], payload)
+            self.assertEqual(tree_bytes(retained), retained_bytes)
+            self.assertEqual(len(self.payload_attempts(directory, identifier)), 1)
+            self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+            self.assertEqual((directory / "phase1-collection-partials/000000.json").read_bytes(), partial)
+            self.assertTrue((directory / "artifacts/producer/synthetic-only.txt").is_file())
+            self.assertEqual(downloads.count(f"repos/{REPO}/actions/artifacts/{identifier}/zip"), 1)
+
+    def test_phase1_resume_refuses_changed_prefix_or_ancestor_without_new_get(self):
+        for hostile in ("raw-bytes", "ancestor", "request-control", "receipt-control",
+                        "partial-control", "claim-control"):
+            with self.subTest(hostile=hostile), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, _, _ = self.fixture(Path(temporary).resolve(), shared=True)
+                identifier = artifacts[-1]["id"]
+                prefix = self.stage1_payload_zip[:19]
+                def interrupted(identifier):
+                    yield prefix
+                    raise OSError("synthetic first interruption")
+                with mock.patch.object(NEW, "phase1_payload_chunks", interrupted), self.assertRaisesRegex(SystemExit, "resume the same"):
+                    NEW.collect_phase1(RUN, False)
+                attempt_dir = self.payload_attempts(directory, identifier)[0]
+                raw_path = attempt_dir / "raw.zip"
+                partial_path = directory / "phase1-collection-partials/000000.json"
+                if hostile == "raw-bytes": raw_path.write_bytes(b"X" + prefix[1:])
+                elif hostile == "ancestor":
+                    group = attempt_dir.parent
+                    saved = directory / "independent-saved-payload-ancestor"
+                    group.rename(saved)
+                    shutil.copytree(saved, group)
+                elif hostile == "partial-control":
+                    partial = json.loads(partial_path.read_bytes())
+                    partial["retainedFiles"][raw_path.relative_to(directory).as_posix()] = "0" * 64
+                    partial_path.write_bytes(gate.canonical(partial))
+                elif hostile == "claim-control":
+                    claim_value = json.loads((directory / "collector.claim.json").read_bytes())
+                    claim_value["collectorID"] = "b" * 32
+                    (directory / "collector.claim.json").write_bytes(gate.canonical(claim_value))
+                else:
+                    (attempt_dir / ("request.json" if hostile == "request-control" else "receipt.json")).write_bytes(b"{}\n")
+                original = tree_bytes(attempt_dir)
+                partial_original = partial_path.read_bytes()
+                claim = (directory / "collector.claim.json").read_bytes()
+                with mock.patch.object(NEW, "phase1_payload_chunks", side_effect=AssertionError("unsafe resume GET")), self.assertRaises((ValueError, SystemExit)):
+                    NEW.collect_phase1(RUN, True)
+                self.assertEqual(tree_bytes(attempt_dir), original,
+                                 "inspection refusal must not repair or replace the hostile retained input")
+                self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+                self.assertEqual(partial_path.read_bytes(), partial_original)
+                self.assertEqual(len(self.payload_attempts(directory, identifier)), 1)
+                self.assertFalse((directory / "manifest.json").exists())
+
+    def test_phase1_payload_first_excess_byte_is_not_retained_as_complete(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, _, commands = self.fixture(Path(temporary).resolve(), shared=True)
+            artifacts[-1]["size_in_bytes"] = 8
+            prefix = self.stage1_payload_zip[:9]
+            def excess(identifier):
+                yield prefix[:4]
+                yield prefix[4:8]
+                yield prefix[8:]
+            with mock.patch.object(NEW, "PHASE1_PAYLOAD_MAX_ZIP_BYTES", 8), \
+                    mock.patch.object(NEW, "PHASE1_PAYLOAD_CHUNK_BYTES", 4), \
+                    mock.patch.object(NEW, "phase1_payload_chunks", excess), \
+                    self.assertRaisesRegex(SystemExit, "resume the same"):
+                NEW.collect_phase1(RUN, False)
+            state = self.collection_state(directory)
+            self.assert_stage1_pending(gate, directory, state)
+            self.assert_payload_transport(directory, state, prefix, "BOUND_EXCEEDED")
+            self.assertFalse((directory / "manifest.json").exists())
+            self.assertEqual(commands, [])
+            self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+
+    def test_phase1_payload_durable_failures_report_actual_owned_prefix(self):
+        for cut in ("write-prefix", "raw-fsync"):
+            with self.subTest(cut=cut), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, _, _, _, commands = self.fixture(Path(temporary).resolve(), shared=True)
+                write = NEW.phase1_payload_write
+                def failed_write(stream, block):
+                    write(stream, block[:7])
+                    raise OSError("synthetic raw write failure after actual prefix")
+                def failed_fsync(stream):
+                    raise OSError("synthetic raw fsync failure after actual full write")
+                hook, replacement = ("phase1_payload_write", failed_write) if cut == "write-prefix" else ("phase1_payload_fsync", failed_fsync)
+                with mock.patch.object(NEW, hook, replacement), self.assertRaisesRegex(SystemExit, "resume the same"):
+                    NEW.collect_phase1(RUN, False)
+                state = self.collection_state(directory)
+                self.assert_stage1_pending(gate, directory, state)
+                actual = self.stage1_payload_zip[:7] if cut == "write-prefix" else self.stage1_payload_zip
+                self.assert_payload_transport(directory, state, actual,
+                    "PARTIAL" if cut == "write-prefix" else "DURABILITY_FAILURE")
+                self.assertFalse((directory / "manifest.json").exists())
+                self.assertEqual(commands, [])
+                self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+
+    def test_phase1_late_payload_census_change_cannot_promote_retained_raw(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, _, _ = self.fixture(Path(temporary).resolve(), shared=True)
+            stream = NEW.phase1_payload_chunks
+            original_digest = artifacts[-1]["digest"]
+            def late(identifier):
+                yield from stream(identifier)
+                artifacts[-1]["digest"] = "sha256:" + "b" * 64
+            with mock.patch.object(NEW, "phase1_payload_chunks", late), self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                NEW.collect_phase1(RUN, False)
+            state = self.collection_state(directory)
+            self.assert_stage1_pending(gate, directory, state)
+            payload, _ = self.assert_payload_transport(directory, state,
+                self.stage1_payload_zip, "COMPLETE")
+            self.assertEqual(payload["digest"], original_digest)
+            self.assertTrue(any("census changed" in p for p in state["problems"]))
+            self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+
+
+    def test_phase1_payload_attempt_directory_is_durable_before_effects_and_failure_stays_unresolved(self):
+        for fail_sync in (False, True):
+            with self.subTest(fail_sync=fail_sync), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, downloads, commands = self.fixture(Path(temporary).resolve(), shared=True)
+                identifier = artifacts[-1]["id"]
+                history = directory / "phase1-payload-transports" / str(identifier)
+                target = history / "000000"
+                endpoint = f"repos/{REPO}/actions/artifacts/{identifier}/zip"
+                events = []
+                syncs = []
+                fsync, durable, write, chunks = gate.os.fsync, gate.durable_directory, gate.write_immutable, NEW.phase1_payload_chunks
+                def directory_durable(path):
+                    if path == target:
+                        self.assertTrue(target.is_dir())
+                        if os.name != "nt":
+                            self.assertEqual(target.stat().st_mode & 0o777, 0o700)
+                        self.assertEqual(list(target.iterdir()), [])
+                        events.append("directory-durability-begin")
+                        if os.name == "nt" and fail_sync:
+                            # The existing Windows routine has no directory
+                            # fsync. Inject its operation failure at the same
+                            # target boundary rather than adding a platform skip.
+                            raise OSError("synthetic attempt-entry durability failure")
+                        result = durable(path)
+                        events.append("directory-durability-complete")
+                        return result
+                    return durable(path)
+                def directory_sync(descriptor):
+                    actual = os.fstat(descriptor)
+                    parent = history.lstat() if history.exists() else None
+                    if parent and (actual.st_dev, actual.st_ino) == (parent.st_dev, parent.st_ino):
+                        # This is the actual parent-directory fsync in the
+                        # existing platform-aware durable_directory routine.
+                        self.assertTrue(target.is_dir())
+                        self.assertEqual(target.stat().st_mode & 0o777, 0o700)
+                        self.assertEqual(list(target.iterdir()), [])
+                        self.assertEqual(events, ["directory-durability-begin"])
+                        syncs.append((actual.st_dev, actual.st_ino))
+                        if fail_sync:
+                            raise OSError("synthetic attempt-entry directory fsync failure")
+                        return fsync(descriptor)
+                    return fsync(descriptor)
+                def request_write(path, raw):
+                    if path == target / "request.json":
+                        self.assertEqual(events, ["directory-durability-begin", "directory-durability-complete"])
+                        self.assertTrue((target / "raw.zip").is_file())
+                        events.append("request-write")
+                    return write(path, raw)
+                def transport(identifier):
+                    self.assertEqual(events, ["directory-durability-begin", "directory-durability-complete", "request-write"])
+                    self.assertTrue((target / "request.json").is_file())
+                    events.append("payload-get")
+                    yield from chunks(identifier)
+                with mock.patch.object(NEW, "phase1_gates", return_value=gate), \
+                        mock.patch.object(gate.os, "fsync", directory_sync), \
+                        mock.patch.object(gate, "durable_directory", directory_durable), \
+                        mock.patch.object(gate, "write_immutable", request_write), \
+                        mock.patch.object(NEW, "phase1_payload_chunks", transport), \
+                        self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+                    NEW.collect_phase1(RUN, False)
+                state = self.collection_state(directory)
+                self.assert_stage1_pending(gate, directory, state)
+                self.assertTrue((directory / "artifacts/producer/synthetic-only.txt").is_file())
+                self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
+                self.assertEqual(len(syncs), 0 if os.name == "nt" else 1)
+                if not fail_sync:
+                    self.assertEqual(events, ["directory-durability-begin", "directory-durability-complete", "request-write", "payload-get"])
+                    self.assert_payload_transport(directory, state, self.stage1_payload_zip, "COMPLETE")
+                    self.assertEqual(downloads.count(endpoint), 1)
+                else:
+                    self.assertEqual(events, ["directory-durability-begin"])
+                    self.assertNotIn("payload", state["artifacts"])
+                    self.assertEqual(list(target.iterdir()), [])
+                    self.assertNotIn(endpoint, downloads)
+                    self.assertEqual(commands, [])
+                    self.assertFalse((directory / "manifest.json").exists())
+                    claim = (directory / "collector.claim.json").read_bytes()
+                    partial = (directory / "phase1-collection-partials/000000.json").read_bytes()
+                    with mock.patch.object(NEW, "phase1_payload_chunks", side_effect=AssertionError("unresolved directory retried")), \
+                            self.assertRaisesRegex(SystemExit, "resume the same"):
+                        NEW.collect_phase1(RUN, True)
+                    resumed = self.collection_state(directory)
+                    self.assert_stage1_pending(gate, directory, resumed)
+                    self.assertNotIn("payload", resumed["artifacts"])
+                    self.assertEqual(list(target.iterdir()), [])
+                    self.assertEqual(self.payload_attempts(directory, identifier), [target])
+                    self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+                    self.assertEqual((directory / "phase1-collection-partials/000000.json").read_bytes(), partial)
+                    self.assertFalse((directory / "manifest.json").exists())
+
+    def test_phase1_complete_resume_refuses_whitespace_controls_without_partial_hash_anchor(self):
+        for control in ("request.json", "receipt.json"):
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
+                producer, identifier = artifacts[0]["id"], artifacts[-1]["id"]
+                download = NEW.api_bytes
+                def interrupted(endpoint):
+                    if endpoint == f"repos/{REPO}/actions/artifacts/{producer}/zip":
+                        raise OSError("synthetic worker interruption")
+                    return download(endpoint)
+                with mock.patch.object(NEW, "api_bytes", interrupted), self.assertRaisesRegex(SystemExit, "resume the same"):
+                    NEW.collect_phase1(RUN, False)
+                state = self.collection_state(directory)
+                _, target = self.assert_payload_transport(directory, state, self.stage1_payload_zip, "COMPLETE")
+                # This hostile synthetic fixture removes the secondary hash
+                # anchor to isolate canonical control-byte validation. No real
+                # evidence tree or retained v1 artifact is touched.
+                shutil.rmtree(directory / "phase1-collection-partials")
+                path = target / control
+                canonical = path.read_bytes()
+                altered = canonical + b"\n"
+                self.assertEqual(json.loads(altered), json.loads(canonical))
+                self.assertNotEqual(sha(altered), sha(canonical))
+                path.write_bytes(altered)
+                retained = tree_bytes(target)
+                claim = (directory / "collector.claim.json").read_bytes()
+                decode, refusals = gate.decode, []
+                def observed_decode(raw, *args, **kwargs):
+                    try:
+                        return decode(raw, *args, **kwargs)
+                    except gate.Refused as error:
+                        if raw == altered:
+                            self.assertIn("noncanonical plan bytes", str(error))
+                            refusals.append(str(error))
+                        raise
+                with mock.patch.object(NEW, "phase1_gates", return_value=gate), \
+                        mock.patch.object(gate, "decode", observed_decode), \
+                        mock.patch.object(NEW, "phase1_payload_chunks", side_effect=AssertionError("noncanonical complete transport re-GET")), \
+                        self.assertRaisesRegex(SystemExit, "resume the same"):
+                    NEW.collect_phase1(RUN, True)
+                resumed = self.collection_state(directory)
+                self.assert_stage1_pending(gate, directory, resumed)
+                self.assertNotIn("payload", resumed["artifacts"])
+                self.assertEqual(len(refusals), 1)
+                self.assertTrue(any("retained transport unresolved" in problem for problem in resumed["problems"]))
+                self.assertEqual(tree_bytes(target), retained)
+                self.assertEqual(path.read_bytes(), altered)
+                self.assertEqual(self.payload_attempts(directory, identifier), [target])
+                self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+                self.assertEqual(downloads.count(f"repos/{REPO}/actions/artifacts/{identifier}/zip"), 1)
+                self.assertFalse((directory / "manifest.json").exists())
 
     def test_collector_joins_actual_authenticated_event_inputs_to_consumed_attempt(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -3100,7 +3617,7 @@ class Phase1CollectionCallerTests(unittest.TestCase):
                 self.assertFalse((directory / "artifacts/rui1").exists())
                 self.assertTrue((directory / "manifest.json").is_file())
 
-    def test_bad_first_artifact_cannot_hide_later_safe_originals_or_download_payload(self):
+    def test_bad_first_artifact_cannot_hide_later_safe_originals_or_raw_payload(self):
         with tempfile.TemporaryDirectory() as temporary:
             _, directory, _, _, artifacts, _, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
             artifacts[0]["digest"] = None
@@ -3108,12 +3625,14 @@ class Phase1CollectionCallerTests(unittest.TestCase):
                 NEW.collect(RUN, False)
             proof = json.loads((directory / "phase1-raw-proof.json").read_bytes())
             self.assertEqual(set(proof["artifacts"]), {"S01", "payload"})
-            self.assertFalse(proof["artifacts"]["payload"]["downloaded"])
+            self.assertTrue(proof["artifacts"]["payload"]["downloaded"])
+            self.assert_payload_transport(directory, proof,
+                self.stage1_payload_zip, "COMPLETE")
             self.assertFalse((directory / "artifacts/producer").exists())
             self.assertEqual((directory / "artifacts/S01/synthetic-only.txt").read_text(), "not native evidence")
             self.assertIn(f"repos/{REPO}/actions/jobs/1/logs", downloads)
             self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[0]['id']}/zip", downloads)
-            self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[2]['id']}/zip", downloads)
+            self.assertIn(f"repos/{REPO}/actions/artifacts/{artifacts[2]['id']}/zip", downloads)
             self.assertTrue((directory / "phase1-job-logs/1.log").is_file())
 
     def test_duplicate_artifact_ids_or_names_refuse_ambiguous_members_but_keep_other_originals(self):
@@ -3129,7 +3648,7 @@ class Phase1CollectionCallerTests(unittest.TestCase):
 
     def test_actual_artifact_pagination_retains_safe_original_after_cross_page_duplicate_and_malformed_members(self):
         with mock.patch.object(NEW, "PAGE_SIZE", 2), tempfile.TemporaryDirectory() as temporary:
-            _, directory, _, _, artifacts, calls, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
+            gate, directory, _, _, artifacts, calls, downloads, _ = self.fixture(Path(temporary).resolve(), shared=True)
             duplicate = dict(artifacts[0], name="synthetic-foreign-duplicate")
             # Duplicate producer spans pages; malformed originals remain visible.
             artifacts.insert(1, ["synthetic malformed member"])
@@ -3143,7 +3662,9 @@ class Phase1CollectionCallerTests(unittest.TestCase):
             self.assertFalse((directory / "artifacts/producer").exists())
             self.assertTrue((directory / "artifacts/S01/synthetic-only.txt").is_file())
             self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[0]['id']}/zip", downloads)
-            self.assertNotIn(f"repos/{REPO}/actions/artifacts/{artifacts[3]['id']}/zip", downloads)
+            self.assertIn(f"repos/{REPO}/actions/artifacts/{artifacts[3]['id']}/zip", downloads)
+            self.assert_payload_transport(directory, proof, self.stage1_payload_zip, "COMPLETE")
+            self.assert_stage1_pending(gate, directory, proof)
             prefix = f"repos/{REPO}/actions/runs/{RUN}/artifacts?per_page=2&page="
             self.assertEqual([c for c in calls if c.startswith(prefix)],
                              [prefix + str(p) for p in (1, 2, 3, 4, 1, 2, 3, 4)])

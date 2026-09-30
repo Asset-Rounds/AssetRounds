@@ -1583,6 +1583,235 @@ def phase1_artifact_census(gate, path):
     raise gate.Refused("artifact census exceeds bounded page count")
 
 
+PHASE1_PAYLOAD_MAX_ZIP_BYTES = 4 * 1024 ** 3
+PHASE1_PAYLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+def phase1_payload_chunks(identifier):
+    """One fixed authenticated artifact endpoint; no retry, URL, or extraction."""
+    endpoint = f"repos/{REPO}/actions/artifacts/{identifier}/zip"
+    process = subprocess.Popen(["gh", "api", endpoint], cwd=ROOT, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        while block := process.stdout.read(PHASE1_PAYLOAD_CHUNK_BYTES):
+            yield block
+        result = process.wait()
+        if result:
+            raise subprocess.CalledProcessError(result, process.args)
+    finally:
+        process.stdout.close()
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
+def phase1_payload_write(stream, block):
+    """Write all of one bounded block; failed/short writes keep their raw prefix."""
+    offset = 0
+    while offset < len(block):
+        written = stream.write(memoryview(block)[offset:])
+        if type(written) is not int or not 0 < written <= len(block) - offset:
+            raise OSError("payload raw write made no progress")
+        offset += written
+
+
+def phase1_payload_fsync(stream):
+    stream.flush()
+    os.fsync(stream.fileno())
+
+
+def phase1_payload_identity(info):
+    return {key: getattr(info, "st_" + key, 0) for key in
+            ("dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtime_ns", "ctime_ns", "flags")}
+
+
+def phase1_payload_ancestors(gate, path):
+    value = {}
+    for parent in (path, *path.parents):
+        info = parent.lstat()
+        gate.require(stat.S_ISDIR(info.st_mode), "payload regular ancestor")
+        value[str(parent)] = {key: getattr(info, "st_" + key) for key in ("dev", "ino", "mode", "uid", "gid")}
+    return value
+
+
+def phase1_payload_snapshot(gate, path):
+    """Bounded actual disk bytes, not declared API size or an inner TAR digest."""
+    before = path.lstat()
+    gate.require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and
+                 0 <= before.st_size <= PHASE1_PAYLOAD_MAX_ZIP_BYTES + 1, "payload raw inode/bound")
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    digest = hashlib.sha256()
+    count = 0
+    with os.fdopen(descriptor, "rb") as stream:
+        gate.exact(phase1_payload_identity(os.fstat(stream.fileno())), phase1_payload_identity(before),
+                   "payload raw changed before read")
+        while block := stream.read(min(PHASE1_PAYLOAD_CHUNK_BYTES, PHASE1_PAYLOAD_MAX_ZIP_BYTES + 2 - count)):
+            count += len(block)
+            gate.require(count <= PHASE1_PAYLOAD_MAX_ZIP_BYTES + 1, "payload raw read bound")
+            digest.update(block)
+        gate.exact(phase1_payload_identity(os.fstat(stream.fileno())), phase1_payload_identity(before),
+                   "payload raw changed during read")
+    gate.exact(phase1_payload_identity(path.lstat()), phase1_payload_identity(before), "payload raw path changed")
+    gate.require(count == before.st_size, "payload raw complete read")
+    return {"identity": phase1_payload_identity(before), "bytes": count, "SHA256": digest.hexdigest().upper()}
+
+
+def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
+    """Caller admits API/original/attempt/claim first; receipts grant no DATA or qualification.
+
+    Each transport owns a new raw inode. Prefixes and immutable controls are never
+    replaced. Resume rechecks every earlier receipt/raw/ancestor under the same
+    sole claim; unresolved immutable controls require root inspection, not repair.
+    """
+    identifier = artifact["id"]
+    gate.require(type(identifier) is int and identifier > 0, "payload authenticated artifact ID")
+    directory_ancestors = phase1_payload_ancestors(gate, directory)
+    root = directory / "phase1-payload-transports"
+    gate.durable_directory(root)
+    history = root / str(identifier)
+    gate.durable_directory(history)
+    gate.exact(phase1_payload_ancestors(gate, directory), directory_ancestors, "payload original ancestor changed")
+    ancestors = phase1_payload_ancestors(gate, history)
+    entries = sorted(history.iterdir())
+    gate.require(len(entries) < 1000 and [p.name for p in entries] == ["%06d" % i for i in range(len(entries))]
+                 and (resume or not entries), "payload same-claim bounded transport history")
+    common = {"runID": claim_value["runID"], "runAttempt": 1,
+              "claimSHA256": gate.sha(gate.canonical(claim_value)), "artifactID": identifier,
+              "apiArtifactSHA256": gate.sha(gate.canonical(artifact)), "apiDigest": artifact["digest"],
+              "declaredAPISizeBytes": artifact["size_in_bytes"], "streamLimitBytes": PHASE1_PAYLOAD_MAX_ZIP_BYTES}
+    stable = ("dev", "ino", "mode", "uid", "gid", "nlink", "flags")
+    retained_hashes = {}
+    terminal = None
+    def summary(receipt, receipt_path):
+        return {"id": identifier, "digest": artifact["digest"], "downloaded": receipt["status"] == "COMPLETE",
+                "transportStatus": receipt["status"],
+                "rawZIP": {"path": receipt["rawPath"], "bytes": receipt["actualZIPBytes"],
+                           "SHA256": receipt["actualZIPSHA256"]},
+                "transportReceipt": {"path": receipt_path.relative_to(directory).as_posix(),
+                                     "SHA256": gate.sha(gate.canonical(receipt))}}
+    for index, previous in enumerate(entries):
+        gate.require(stat.S_ISDIR(previous.lstat().st_mode), "payload regular history directory")
+        gate.require(sorted(p.name for p in previous.iterdir()) == ["raw.zip", "receipt.json", "request.json"],
+                     "payload unresolved immutable transport; inspect before resume")
+        request_raw = gate.regular_bytes(previous / "request.json")
+        request = gate.decode(request_raw)
+        raw_path = (previous / "raw.zip").relative_to(directory).as_posix()
+        core = {**common, "index": index, "rawPath": raw_path}
+        gate.require(type(request) is dict and
+                     set(request) == set(core) | {"schema", "atUTC", "ancestors", "initialRawIdentity"},
+                     "closed payload transport request")
+        gate.exact({key: request.get(key) for key in core}, core, "payload same original/claim/API on resume")
+        gate.require(request["schema"] == "v23-phase1-payload-transport-request.v1", "payload request schema")
+        gate.require(type(request["initialRawIdentity"]) is dict and
+                     set(request["initialRawIdentity"]) == set(phase1_payload_identity(previous.lstat())) and
+                     all(type(value) is int for value in request["initialRawIdentity"].values()), "payload initial inode shape")
+        gate.exact(request["ancestors"], phase1_payload_ancestors(gate, previous), "payload ancestor changed")
+        snapshot = phase1_payload_snapshot(gate, previous / "raw.zip")
+        gate.exact({key: snapshot["identity"][key] for key in stable},
+                   {key: request["initialRawIdentity"].get(key) for key in stable}, "payload owned inode substituted")
+        receipt_raw = gate.regular_bytes(previous / "receipt.json")
+        receipt = gate.decode(receipt_raw)
+        receipt_keys = set(request) | {"status", "actualZIPBytes", "actualZIPSHA256", "rawIdentity",
+                                       "responseComplete", "durableRaw", "digestVerified", "failureCategory"}
+        gate.require(type(receipt) is dict and set(receipt) == receipt_keys and
+                     receipt["schema"] == "v23-phase1-payload-transport.v1",
+                     "closed payload transport receipt")
+        gate.exact({key: receipt.get(key) for key in request if key not in ("schema", "atUTC")},
+                   {key: request[key] for key in request if key not in ("schema", "atUTC")}, "payload receipt request binding")
+        gate.exact({"identity": receipt["rawIdentity"], "bytes": receipt["actualZIPBytes"], "SHA256": receipt["actualZIPSHA256"]},
+                   snapshot, "payload retained raw changed")
+        gate.require(receipt["status"] in ("COMPLETE", "DIGEST_MISMATCH", "PARTIAL", "BOUND_EXCEEDED", "DURABILITY_FAILURE")
+                     and all(type(receipt[key]) is bool for key in ("responseComplete", "durableRaw", "digestVerified")),
+                     "payload closed transport status")
+        matched = (receipt["responseComplete"] and 0 < snapshot["bytes"] <= PHASE1_PAYLOAD_MAX_ZIP_BYTES and
+                   "sha256:" + snapshot["SHA256"].lower() == artifact["digest"])
+        gate.require(receipt["digestVerified"] == matched and
+                     (receipt["status"] != "COMPLETE" or (matched and receipt["durableRaw"])) and
+                     (receipt["status"] != "DIGEST_MISMATCH" or (receipt["responseComplete"] and not matched)) and not terminal,
+                     "payload terminal transport consistency")
+        for name, raw in (("request.json", request_raw), ("receipt.json", receipt_raw)):
+            retained_hashes[(previous / name).relative_to(directory).as_posix()] = gate.sha(raw)
+        retained_hashes[raw_path] = snapshot["SHA256"]
+        if receipt["status"] in ("COMPLETE", "DIGEST_MISMATCH"):
+            terminal = summary(receipt, previous / "receipt.json")
+    # The existing collection partial binds these exact retained bytes, including
+    # transport controls. No partial/raw history is rewritten by a fresh attempt.
+    partials = directory / "phase1-collection-partials"
+    if entries and partials.exists():
+        gate.require(partials.is_dir() and not partials.is_symlink(), "payload regular partial history")
+        partial_files = sorted(partials.iterdir())
+        gate.require(len(partial_files) <= 1000 and [p.name for p in partial_files] ==
+                     ["%06d.json" % i for i in range(len(partial_files))], "payload closed collection history")
+        for path in partial_files:
+            value = gate.decode(gate.regular_bytes(path, limit=32 * 1024 * 1024), limit=32 * 1024 * 1024)
+            gate.require(type(value) is dict and value.get("schema") == "v23-phase1-collection-partial.v1" and
+                         type(value.get("retainedFiles")) is dict, "payload collection partial shape")
+            gate.exact({key: value.get(key) for key in ("runID", "runAttempt", "planSHA256")},
+                       {"runID": claim_value["runID"], "runAttempt": 1, "planSHA256": claim_value["planSHA256"]},
+                       "payload same original collection partial")
+            for name, digest in value["retainedFiles"].items():
+                gate.require(type(name) is str and gate.digest(digest), "payload partial manifest entry")
+                if name.startswith(history.relative_to(directory).as_posix() + "/"):
+                    gate.require(retained_hashes.get(name) == digest, "payload retained partial history changed")
+    gate.exact(phase1_payload_ancestors(gate, history), ancestors, "payload ancestor changed during resume")
+    if terminal:
+        return terminal
+    target = history / ("%06d" % len(entries))
+    target.mkdir(mode=0o700)
+    gate.durable_directory(target)
+    raw_path = target / "raw.zip"
+    with raw_path.open("xb", buffering=0) as stream:
+        initial = phase1_payload_identity(os.fstat(stream.fileno()))
+        gate.require(stat.S_ISREG(initial["mode"]) and initial["nlink"] == 1, "payload exclusive raw inode")
+        request = {"schema": "v23-phase1-payload-transport-request.v1", "atUTC": now(), **common,
+                   "index": len(entries), "rawPath": raw_path.relative_to(directory).as_posix(),
+                   "ancestors": phase1_payload_ancestors(gate, target), "initialRawIdentity": initial}
+        gate.write_immutable(target / "request.json", gate.canonical(request))
+        status, failure, complete, durable, interruption = "PARTIAL", None, False, False, None
+        received = 0
+        chunks = phase1_payload_chunks(identifier)
+        try:
+            for block in chunks:
+                gate.require(type(block) is bytes and 0 < len(block) <= PHASE1_PAYLOAD_CHUNK_BYTES, "payload bounded byte chunk")
+                available = PHASE1_PAYLOAD_MAX_ZIP_BYTES + 1 - received
+                block = block[:available]
+                phase1_payload_write(stream, block)
+                received += len(block)
+                if received > PHASE1_PAYLOAD_MAX_ZIP_BYTES:
+                    status = "BOUND_EXCEEDED"
+                    break
+            else:
+                complete = True
+        except (ValueError, OSError, subprocess.CalledProcessError, KeyboardInterrupt) as error:
+            failure = type(error).__name__
+            if isinstance(error, KeyboardInterrupt): interruption = error
+        finally:
+            try:
+                if hasattr(chunks, "close"): chunks.close()
+                phase1_payload_fsync(stream)
+                durable = True
+            except (OSError, subprocess.CalledProcessError) as error:
+                status, failure = "DURABILITY_FAILURE", type(error).__name__
+    snapshot = phase1_payload_snapshot(gate, raw_path)
+    gate.exact({key: snapshot["identity"][key] for key in stable}, {key: initial[key] for key in stable},
+               "payload raw inode changed while writing")
+    gate.exact(phase1_payload_ancestors(gate, target), request["ancestors"], "payload ancestor changed while writing")
+    verified = (complete and 0 < snapshot["bytes"] <= PHASE1_PAYLOAD_MAX_ZIP_BYTES and
+                "sha256:" + snapshot["SHA256"].lower() == artifact["digest"])
+    if complete and durable:
+        status = "COMPLETE" if verified else "DIGEST_MISMATCH"
+    receipt = {**request, "schema": "v23-phase1-payload-transport.v1", "atUTC": now(), "status": status,
+               "actualZIPBytes": snapshot["bytes"], "actualZIPSHA256": snapshot["SHA256"], "rawIdentity": snapshot["identity"],
+               "responseComplete": complete, "durableRaw": durable, "digestVerified": verified, "failureCategory": failure}
+    gate.write_immutable(target / "receipt.json", gate.canonical(receipt))
+    if interruption: raise interruption
+    return summary(receipt, target / "receipt.json")
+
+
 def collect_phase1(run_id, resume):
     """Actual API/retention caller; complete functional proof remains INCOMPLETE.
 
@@ -1745,7 +1974,17 @@ def collect_phase1(run_id, resume):
                     notes.append("expired artifact " + name)
                     continue
                 if name == payload_name:
-                    proof_artifacts["payload"] = {"id": identifier, "digest": digest, "downloaded": False}
+                    try:
+                        retained_payload = phase1_retain_payload(gate, directory, artifact, claim_value, resume)
+                    except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+                        transport_problems.append("payload %d retained transport unresolved: %s" %
+                                                  (identifier, type(error).__name__))
+                        continue
+                    proof_artifacts["payload"] = retained_payload
+                    if retained_payload["transportStatus"] == "DIGEST_MISMATCH":
+                        notes.append("artifact[%d] refused: authenticated payload outer ZIP digest mismatch" % artifact_index)
+                    elif retained_payload["transportStatus"] != "COMPLETE":
+                        transport_problems.append("payload %d transport %s" % (identifier, retained_payload["transportStatus"]))
                     continue
                 if name not in expected:
                     continue
