@@ -5638,6 +5638,7 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
             OriginalEraseNotificationMarkerPermitV1? = nil,
         notificationRemovalPermit:
             OriginalEraseNotificationRemovalPermitV1? = nil,
+        scratchCleanupScope: OriginalEraseScratchCleanupHeldGScopeV1? = nil,
         _ body: @MainActor (Int32, Int32, Int32) throws -> T
     ) throws -> T {
         try operation.requireOriginalErasePostwriterAuxiliaryParentOwner(
@@ -5645,7 +5646,8 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
             policyPermit: policyPermit,
             notificationPolicyPermit: notificationPolicyPermit,
             notificationMarkerPermit: notificationMarkerPermit,
-            notificationRemovalPermit: notificationRemovalPermit)
+            notificationRemovalPermit: notificationRemovalPermit,
+            scratchCleanupScope: scratchCleanupScope)
         guard oldCloseProjectedSnapshot != nil,
               !oldCloseProjectionInFlight, !oldCloseProjectionFailed,
               !postwriterBorrowInFlight, !postwriterBorrowFailed,
@@ -5667,7 +5669,8 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
             policyPermit: policyPermit,
             notificationPolicyPermit: notificationPolicyPermit,
             notificationMarkerPermit: notificationMarkerPermit,
-            notificationRemovalPermit: notificationRemovalPermit)
+            notificationRemovalPermit: notificationRemovalPermit,
+            scratchCleanupScope: scratchCleanupScope)
             try requireParent(caches)
             try requireParent(temporary)
             postwriterBorrowInFlight = false

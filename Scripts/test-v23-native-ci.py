@@ -3360,7 +3360,8 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
                           '4B102F6297E2AF1D02B926E79FEBDDB0362154EBD594FBD56BD929408B135D71',
                           'AF9304FDB44AA61638253EF1EFC8AAE4617F2439ECE6C959D2DEE6C06AB7F1A0',
                           '755870276940DA63430F323ADE00D7CD6820BB3FC4DC84BDBBA076350D48AB31',
-                      'EE62E3C5A306D9C60D3210143894EAB94D1CBC19AB82BEE7933AD781E1051DED'))
+                      'EE62E3C5A306D9C60D3210143894EAB94D1CBC19AB82BEE7933AD781E1051DED',
+                  '20ABE423C0B06B4084B6B5B8EDF6F89EECCA625F97407F1A3637F6A1FB966B41'))
         self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
         self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
                          sorted(CI.D50_SELECTION_IDS))
@@ -5312,7 +5313,8 @@ class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
     def test_collector_binds_fresh_simulator_and_retains_available_zero_interrupted_and_unsafe(self):
         def fixture(directory, app_entries=(), interrupted=False, returncode=0,
                     monotonic=time.monotonic, read_chunk=None, lookup_seconds=0):
-            root = Path(directory)
+            # Fake simctl returns a physical container, including on macOS /var temp aliases.
+            root = Path(directory).resolve(strict=True)
             artifact = root / "artifact"
             container = root / "container"
             artifact.mkdir()

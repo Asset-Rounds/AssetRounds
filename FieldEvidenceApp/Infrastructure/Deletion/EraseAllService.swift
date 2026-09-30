@@ -1320,6 +1320,8 @@ final class EraseAllService {
         "original.search.checked-publication.reproved",
         "original.search.checked-publication.complete",
         "cleanup.scratch-construction.enter",
+        "cleanup.original-scratch-loan.enter",
+        "cleanup.original-scratch-loan.complete",
         "cleanup.scratch-erase.enter",
         "cleanup.presence",
         "cleanup.session-and-content",
@@ -2498,6 +2500,158 @@ final class EraseAllService {
         return nil
 #endif
     }
+
+#if DEBUG
+    private enum OriginalScratchLoanDiagnosticBoundary: String {
+        case routerCall = "router-call"
+        case receiptSettlement = "receipt-settlement"
+        case debugAfterScratchFrame = "debug-after-scratch-frame"
+    }
+
+    /// Diagnostic-only classification; never formats an error value or payload.
+    private func originalScratchLoanDiagnosticError(
+        _ error: Error
+    ) -> (type: String, category: String) {
+        if let failure = error as? GenerationLeaseRegistryFailureV1 {
+            let category: String
+            switch failure {
+            case .invalidContract: category = "invalid-contract"
+            case .invalidPath: category = "invalid-path"
+            case .invalidIdentity: category = "invalid-identity"
+            case .corruptRegistry: category = "corrupt-registry"
+            case .registryLimitExceeded: category = "registry-limit-exceeded"
+            case .duplicateLease: category = "duplicate-lease"
+            case .leaseNotActive: category = "lease-not-active"
+            case .wrongLeaseRole: category = "wrong-lease-role"
+            case .staleGeneration: category = "stale-generation"
+            case .uncertainOwner: category = "uncertain-owner"
+            case .protectedDataUnavailable: category = "protected-data-unavailable"
+            }
+            return ("GenerationLeaseRegistryFailureV1", category)
+        }
+        if let failure = error as? EraseIntentStoreError {
+            let category: String
+            switch failure {
+            case .retirementPolicyEffectUnavailable: category = "retirement-policy-effect-unavailable"
+            case .invalidAuthority: category = "invalid-authority"
+            case .invalidIntent: category = "invalid-intent"
+            case .invalidPreparation: category = "invalid-preparation"
+            case .intentAlreadyExists: category = "intent-already-exists"
+            case .intentMissing: category = "intent-missing"
+            case .intentMismatch: category = "intent-mismatch"
+            case .preparationAlreadyExists: category = "preparation-already-exists"
+            case .preparationMissing: category = "preparation-missing"
+            case .preparationMismatch: category = "preparation-mismatch"
+            case .writeFailed: category = "write-failed"
+            case .cleanupFailed: category = "cleanup-failed"
+            }
+            return ("EraseIntentStoreError", category)
+        }
+        if let failure = error as? ScratchDataLeaseStoreFailureV1 {
+            let category: String
+            switch failure {
+            case .invalidRoot: category = "invalid-root"
+            case .invalidLease: category = "invalid-lease"
+            case .leaseCollision: category = "lease-collision"
+            case .leaseExpired: category = "lease-expired"
+            case .sizeLimitExceeded: category = "size-limit-exceeded"
+            case .protectedDataUnavailable: category = "protected-data-unavailable"
+            case .insufficientCapacity: category = "insufficient-capacity"
+            }
+            return ("ScratchDataLeaseStoreFailureV1", category)
+        }
+        if let failure = error as? AppAccessContractFailureV1 {
+            let category: String
+            switch failure {
+            case .invalidValue: category = "invalid-value"
+            case .invalidTransition: category = "invalid-transition"
+            case .staleAttempt: category = "stale-attempt"
+            case .accessDenied: category = "access-denied"
+            case .configurationUnknown: category = "configuration-unknown"
+            case .ingressLimitExceeded: category = "ingress-limit-exceeded"
+            case .ingressNotFound: category = "ingress-not-found"
+            case .ingressAlreadyTerminal: category = "ingress-already-terminal"
+            case .notificationReconciliationRequired: category = "notification-reconciliation-required"
+            case .effectMismatch: category = "effect-mismatch"
+            }
+            return ("AppAccessContractFailureV1", category)
+        }
+        if let failure = error as? EraseAllServiceError {
+            let category: String
+            switch failure {
+            case .contextHasChanges: category = "context-has-changes"
+            case .invalidAuthority: category = "invalid-authority"
+            case .invalidConfirmation: category = "invalid-confirmation"
+            case .recoveryRequired: category = "recovery-required"
+            case .injectedFailure: category = "injected-failure"
+            }
+            return ("EraseAllServiceError", category)
+        }
+        if let failure = error as? ProtectedFilePolicyError {
+            let category: String
+            switch failure {
+            case .invalidURL: category = "invalid-url"
+            case .invalidRelativePath: category = "invalid-relative-path"
+            case .missing: category = "missing"
+            case .symbolicLink: category = "symbolic-link"
+            case .invalidType: category = "invalid-type"
+            case .hardLink: category = "hard-link"
+            case .identityChanged: category = "identity-changed"
+            case .attributeWriteFailed: category = "attribute-write-failed"
+            case .resourceValueMismatch: category = "resource-value-mismatch"
+            case .protectedDataUnavailable: category = "protected-data-unavailable"
+            }
+            return ("ProtectedFilePolicyError", category)
+        }
+        if let failure = error as? StoreGenerationFailure {
+            let category: String
+            switch failure {
+            case .dataPointerInvalid: category = "data-pointer-invalid"
+            case .dataGenerationMissing: category = "data-generation-missing"
+            }
+            return ("StoreGenerationFailure", category)
+        }
+        if let failure = error as? StoreMigrationFailure {
+            let category: String
+            switch failure {
+            case .invalidContract: category = "invalid-contract"
+            case .invalidPhaseTransition: category = "invalid-phase-transition"
+            case .invalidDigest: category = "invalid-digest"
+            case .invalidIdentity: category = "invalid-identity"
+            case .invalidPath: category = "invalid-path"
+            case .canonicalEncodingFailed: category = "canonical-encoding-failed"
+            case .canonicalDecodingFailed: category = "canonical-decoding-failed"
+            case .digestMismatch: category = "digest-mismatch"
+            case .injectedFault(_): category = "injected-fault"
+            case .maintenanceRequired(_): category = "maintenance-required"
+            }
+            return ("StoreMigrationFailure", category)
+        }
+        let runtimeType = String(reflecting: type(of: error))
+        let prefix = runtimeType.utf8.prefix(97)
+        let safeType: String
+        if !prefix.isEmpty, prefix.count <= 96, prefix.allSatisfy({ byte in
+            (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 90)
+                || (byte >= 97 && byte <= 122) || byte == 46 || byte == 95
+        }) {
+            safeType = runtimeType
+        } else {
+            safeType = "unclassified"
+        }
+        return (safeType, "other")
+    }
+
+    private func reportOriginalScratchLoanFailure(
+        _ error: Error,
+        boundary: OriginalScratchLoanDiagnosticBoundary,
+        operation: EraseRouterOperationV1
+    ) {
+        let diagnostic = originalScratchLoanDiagnosticError(error)
+        let savedStep = operation.originalScratchLoanDiagnosticSavedFailureStep?.rawValue
+            ?? "none"
+        print("V23_ORIGINAL_SCRATCH_LOAN_DIAG_V1 boundary=\(boundary.rawValue) step=\(operation.originalScratchLoanDiagnosticStep.rawValue) saved-step=\(savedStep) type=\(diagnostic.type) category=\(diagnostic.category)")
+    }
+#endif
 
     private func traceEraseOriginalFailure(_ error: Error) {
 #if DEBUG
@@ -8979,6 +9133,7 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
     private var searchExpectedBytes: Data?
     private var constructedScratch: EraseOriginalScratchPhysicalStateV1?
     private var scratchOwner: ScratchDataLeaseStoreV1?
+    private var originalScratchCleanupReceipt: OriginalEraseScratchCleanupReceiptV1?
     private var notificationControl: AppLockNotificationControlStoreV1?
     private var notificationBeforeEffect:
         EraseOriginalNotificationPhysicalSnapshotV1?
@@ -9053,7 +9208,7 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
               searchExpectedBytes == nil,
               discoveryAfter == nil,
               notificationAfterSuccess == nil,
-              scratchOwner == nil,
+              scratchOwner == nil, originalScratchCleanupReceipt == nil,
               exchangeOwner == nil else {
             throw EraseAllServiceError.invalidAuthority
         }
@@ -10177,6 +10332,48 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         }
     }
 
+    /// The same original diagnostics consume the actual private effect
+    /// receipt instead of requiring a new ordinary Scratch descriptor owner.
+    /// Source/Search/unrelated-tree and final named-absence checks are retained.
+    @MainActor
+    func afterOriginalScratchCleanup(
+        _ receipt: OriginalEraseScratchCleanupReceiptV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        try lock.withLock {
+            guard stage == .searchPublished, self.operation === operation,
+                  scratchOwner == nil, originalScratchCleanupReceipt == nil,
+                  receipt.operationID == operation.operationID else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            // Retain concrete actual settlement before later proof can fail.
+            originalScratchCleanupReceipt = receipt
+            do {
+                try receipt.requireCheckedSettlement()
+                guard receipt.finalImage.scratch == nil,
+                      receipt.finalImage.ingress == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try requireSearchPublished()
+                try requireSourceUnchanged()
+                try requireUnrelatedOperationsUnchanged()
+                try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
+                    auxiliaryOrigin,
+                    allowing: [LocalSearchIndexStoreV1.directoryName])
+                let now = try auxiliary.originalEraseEmptyScratchStateForTesting()
+                guard now.operationsDevice == scratchOrigin.operationsDevice,
+                      now.operationsInode == scratchOrigin.operationsInode,
+                      now.scratchDevice == nil, now.scratchInode == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                stage = .scratchErased
+            } catch {
+                stage = .uncertain
+                throw error
+            }
+        }
+    }
+
     func retainAndCheckExchangeBeforeLoad(
         _ owner: PortableExchangeSessionStoreV2
     ) throws {
@@ -10271,17 +10468,24 @@ private final class EraseOriginalColdExitFrameV1: @unchecked Sendable {
         }
     }
 
+    @MainActor
     func requirePreparedTransition() throws {
         try lock.withLock {
             guard stage == .exchangePublished,
                   exchangeOwner != nil,
-                  scratchOwner != nil,
+                  scratchOwner != nil || originalScratchCleanupReceipt != nil,
                   exchangeExpectedBytes != nil,
                   notificationAfterSuccess != nil,
                   oldPointer != nil, sourceLedger != nil,
                   sourceManifest != nil, controlsPublished != nil,
                   targetGenerationID != nil else {
                 throw EraseAllServiceError.invalidAuthority
+            }
+            if let originalScratchCleanupReceipt {
+                guard originalScratchCleanupReceipt.operationID == operation.operationID else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try originalScratchCleanupReceipt.requireCheckedSettlement()
             }
             try requireSourceUnchanged()
             try requireUnrelatedOperationsUnchanged()
@@ -13087,32 +13291,55 @@ private extension EraseAllService {
             system: notificationSystem, operationID: value.eraseID)
 #endif
         }
-        if let originalAuxiliaryOperation {
-            _ = try originalAuxiliaryOperation
-                .settleOriginalEraseAuxiliaryScratchControlPolicy(
-                    store: intentStore, coordinator: coordinator)
-        }
 #if DEBUG
         traceErasePhase("cleanup.notification.complete")
-#endif
-        #if DEBUG
         try originalColdExitFrame?.beforeScratchConstruction()
-        #endif
-#if DEBUG
         traceErasePhase("cleanup.scratch-construction.enter")
 #endif
-        let scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: applicationSupportURL,
-            fileManager: fileManager, clock: Date.init)
-        #if DEBUG
-        try originalColdExitFrame?.afterScratchConstruction(scratch)
-        #endif
+        if let originalAuxiliaryOperation {
 #if DEBUG
-        traceErasePhase("cleanup.scratch-erase.enter")
+            var originalScratchLoanBoundary: OriginalScratchLoanDiagnosticBoundary = .routerCall
 #endif
-        try await scratch.eraseScratchData()
-        #if DEBUG
-        try originalColdExitFrame?.afterScratchErase(scratch)
-        #endif
+            do {
+#if DEBUG
+                traceErasePhase("cleanup.original-scratch-loan.enter")
+#endif
+                let scratchReceipt = try originalAuxiliaryOperation
+                    .eraseOriginalScratchForRetainedOwner(
+                        store: intentStore, coordinator: coordinator)
+#if DEBUG
+                originalScratchLoanBoundary = .receiptSettlement
+#endif
+                try scratchReceipt.requireCheckedSettlement()
+#if DEBUG
+                originalScratchLoanBoundary = .debugAfterScratchFrame
+                try originalColdExitFrame?.afterOriginalScratchCleanup(
+                    scratchReceipt, operation: originalAuxiliaryOperation)
+                traceErasePhase("cleanup.original-scratch-loan.complete")
+#endif
+            } catch {
+#if DEBUG
+                reportOriginalScratchLoanFailure(error,
+                    boundary: originalScratchLoanBoundary,
+                    operation: originalAuxiliaryOperation)
+#endif
+                originalAuxiliaryOperation.failOriginalEraseScratchCleanupEffect()
+                traceEraseOriginalFailure(error)
+                throw error
+            }
+        } else {
+            let scratch = try ScratchDataLeaseStoreV1(
+                applicationSupportURL: applicationSupportURL,
+                fileManager: fileManager, clock: Date.init)
+#if DEBUG
+            try originalColdExitFrame?.afterScratchConstruction(scratch)
+            traceErasePhase("cleanup.scratch-erase.enter")
+#endif
+            try await scratch.eraseScratchData()
+#if DEBUG
+            try originalColdExitFrame?.afterScratchErase(scratch)
+#endif
+        }
         try sceneNavigationStatePort?.eraseSceneNavigationData()
         try PortableExchangeProtectedFilePolicyV2.validate()
         let exchange = try PortableExchangeSessionStoreV2(applicationSupportURL: applicationSupportURL,

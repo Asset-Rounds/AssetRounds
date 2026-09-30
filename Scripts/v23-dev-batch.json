@@ -22,6 +22,8 @@
     "FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderPublisherPositiveAdmissionPrefixRetainsOwnedRecovery",
     "FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderPublisherCommittedPresentRenameRecoversExactAbsent",
     "FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderPublisherBeforeInitialPolicyHasZeroPayload",
-    "FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderPublisherVerifiedInitialPolicyPrecedesPayload"
+    "FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderPublisherVerifiedInitialPolicyPrecedesPayload",
+    "FieldEvidenceAppTests/V9_02FileAuthorityTests/testCheckedErasePolicyPreservesRealJournalAndDirectoryReadbacks",
+    "FieldEvidenceAppTests/V9_02FileAuthorityTests/testCheckedErasePolicyRejectsHardLinksBeforeRequests"
   ]
 }

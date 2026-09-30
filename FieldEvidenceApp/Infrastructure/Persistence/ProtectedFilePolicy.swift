@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import CryptoKit
 
 #if DEBUG
 /// Serializes policy prose within this process. XCTest owns other console
@@ -1238,6 +1239,90 @@ enum ProtectedFilePolicyV1 {
         return .simulatorFileProtectionUnsupported
     }
 
+    /// The existing checked-close verifier must not re-enter ordinary `pin`
+    /// on its DEBUG Simulator strict/fallback path. Every identity comparison
+    /// here preserves that verifier's predicates and uses a checked-close pin.
+    private static func verifySimulatorResourceValuesWithCheckedClose(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        disposition: OwnedFileProtectionDispositionV1,
+        identity: LeafIdentity,
+        successfulRequestReadback: DirectoryProtectionReadback?,
+        retainUncertainDescriptor: (Int32) -> Void,
+        beforeCompleteProtectionRequest: () throws -> Void
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        let start = DispatchTime.now().uptimeNanoseconds
+        defer { simulatorTiming.recordFallback(at: url, startedAt: start) }
+        return try verifySimulatorResourceValuesUntimedWithCheckedClose(kind, at: url, disposition: disposition,
+            identity: identity, successfulRequestReadback: successfulRequestReadback,
+            retainUncertainDescriptor: retainUncertainDescriptor,
+            beforeCompleteProtectionRequest: beforeCompleteProtectionRequest)
+    }
+
+    /// A per-call diagnostic proof. No remembered path or inode can authorize a later call.
+    private static func verifySimulatorResourceValuesUntimedWithCheckedClose(
+        _ kind: OwnedFileKindV1,
+        at url: URL,
+        disposition: OwnedFileProtectionDispositionV1,
+        identity: LeafIdentity,
+        successfulRequestReadback: DirectoryProtectionReadback?,
+        retainUncertainDescriptor: (Int32) -> Void,
+        beforeCompleteProtectionRequest: () throws -> Void
+    ) throws -> ProtectedFileVerificationDispositionV1 {
+        // The strict readback is checked without throwing: on the Simulator a mismatch is the
+        // expected shape, and a thrown-and-caught error on every protected-file call made
+        // XCTest misattribute unrelated test failures to it. Only this exact mismatch can
+        // enter the separate diagnostic predicate; read failures still throw unchanged.
+        if try simulatorStrictResourceValuesMatch(at: url, disposition: disposition) {
+            guard try pinForRestoreExit(kind, at: url, disposition: disposition,
+                retainUncertainDescriptor: retainUncertainDescriptor) == identity else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            return .verifiedComplete
+        }
+
+        let before: DirectoryProtectionReadback
+        if let successfulRequestReadback {
+            // The apply operation already made its one complete request and repaired backup policy.
+            before = successfulRequestReadback
+        } else {
+            before = independentProtectionReadback(at: url)
+            guard simulatorReadbackIsExactFallback(before, disposition: disposition) else {
+                emitDirectoryProtectionReadback(kind: kind, at: url,
+                    phase: "verifyInitialMismatch", readback: before)
+                emitResourceValueMismatchSource("initial-fallback-shape")
+                throw ProtectedFilePolicyError.resourceValueMismatch
+            }
+            guard try pinForRestoreExit(kind, at: url, disposition: disposition,
+                retainUncertainDescriptor: retainUncertainDescriptor) == identity else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            try beforeCompleteProtectionRequest()
+            do {
+                try (url as NSURL).setResourceValue(URLFileProtection.complete, forKey: .fileProtectionKey)
+            } catch {
+                throw mapWriteError(error)
+            }
+        }
+        let after = independentProtectionReadback(at: url)
+        let identityUnchanged = try pinForRestoreExit(kind, at: url, disposition: disposition,
+                retainUncertainDescriptor: retainUncertainDescriptor) == identity
+        guard identityUnchanged else { throw ProtectedFilePolicyError.identityChanged }
+        guard simulatorDiagnosticAllows(
+            capabilityBefore: before.volumeSupportsProtection,
+            after: after, disposition: disposition,
+            successfulCompleteRequest: true, identityUnchanged: identityUnchanged
+        ) else {
+            emitDirectoryProtectionReadback(kind: kind, at: url,
+                phase: "allowanceBeforeMismatch", readback: before)
+            emitDirectoryProtectionReadback(kind: kind, at: url,
+                phase: "allowanceAfterMismatch", readback: after)
+            emitResourceValueMismatchSource("final-fallback-predicate")
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+        return .simulatorFileProtectionUnsupported
+    }
+
     static func simulatorDiagnosticAllows(
         capabilityBefore: Bool?,
         after: DirectoryProtectionReadback,
@@ -1467,6 +1552,887 @@ struct TemporalPolicyObservationV1: Equatable, Sendable {
     let volumeSupportsProtection: Bool?
 }
 
+/// LIVE observation-only descriptor owner. No external lease or effect is
+/// owned. Usable numeric slots are fenced before their one checked close;
+/// uncertain slots remain evidence forever. There is no deinit close.
+@MainActor
+final class OriginalEraseScratchTemporalPolicyAttemptV1 {
+    private enum State { case observing, terminal, uncertain }
+    private var state: State = .observing
+    private var openDescriptors: [Int32] = []
+    private var uncertainDescriptors: [Int32] = []
+    private var unreportedUncertainty: [Int32] = []
+    private var selection: OriginalEraseScratchTemporalPolicyReadContextV1.Selection?
+    private var scopeIdentity: ObjectIdentifier?
+    private var operationID: UUID?
+    private var observationID: UUID?
+    private var uncertainOwner: OriginalEraseScratchTemporalObservationScopeV1?
+    private struct CompletedObservation {
+        let scopeIdentity: ObjectIdentifier
+        let operationID: UUID
+        let observationID: UUID
+        let values: [TemporalPolicyObservationV1]
+    }
+    private var completed: CompletedObservation?
+    fileprivate var needsFinish: Bool { state == .observing || !openDescriptors.isEmpty || !unreportedUncertainty.isEmpty }
+    /// Resource sets only: refusal cleanup or last-pop-before-close may pass.
+    /// Completed calls, positive receipts and nonpoisoned owner are separate.
+    func requireCheckedObservationTerminal() throws {
+        guard state == .terminal, openDescriptors.isEmpty, uncertainDescriptors.isEmpty else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+    }
+    /// Positive memory settlement of THIS actual checked observation call.
+    /// It grants no next-effect authority and does not replace fresh source/G.
+    func requireCheckedSettlement() throws {
+        try requireCheckedObservationTerminal()
+        guard let completed, let scopeIdentity,
+              completed.scopeIdentity == scopeIdentity,
+              completed.operationID == operationID, completed.observationID == observationID,
+              !completed.values.isEmpty else { throw ProtectedFilePolicyError.identityChanged }
+    }
+    fileprivate func bind(_ selection: OriginalEraseScratchTemporalPolicyReadContextV1.Selection,
+        scope: OriginalEraseScratchTemporalObservationScopeV1) throws {
+        try requireObserving()
+        guard self.selection == nil, openDescriptors.isEmpty else { throw ProtectedFilePolicyError.identityChanged }
+        self.selection = selection; scopeIdentity = ObjectIdentifier(scope)
+        operationID = scope.operationID; observationID = scope.observationID
+    }
+    private func freshBinding(_ scope: OriginalEraseScratchTemporalObservationScopeV1) throws {
+        try scope.requireCurrentBinding()
+        if let selection {
+            guard scopeIdentity == ObjectIdentifier(scope), operationID == scope.operationID,
+                  observationID == scope.observationID else { throw ProtectedFilePolicyError.identityChanged }
+            switch selection {
+            case .node(let node):
+                guard OriginalEraseScratchTemporalPolicyReadContextV1.sameNode(
+                    try scope.requirePolicyNode(node.kind, at: node.url, fullFact: node.fullFact), node) else {
+                    throw ProtectedFilePolicyError.identityChanged
+                }
+            case .pair(let pair, let urls):
+                guard OriginalEraseScratchTemporalPolicyReadContextV1.samePair(
+                    try scope.requirePair(aliasURLs: urls), pair) else { throw ProtectedFilePolicyError.identityChanged }
+            }
+        } else {
+            // Before any selection/acquisition, refusal cleanup owns no FDs.
+            guard openDescriptors.isEmpty else { throw ProtectedFilePolicyError.identityChanged }
+        }
+        try scope.requireCurrentBinding()
+    }
+    fileprivate func acceptCompleted(scope: OriginalEraseScratchTemporalObservationScopeV1,
+        values: [TemporalPolicyObservationV1]) throws {
+        try requireCheckedObservationTerminal(); try freshBinding(scope)
+        guard let selection, completed == nil else { throw ProtectedFilePolicyError.identityChanged }
+        switch selection {
+        case .node: guard values.count == 1 else { throw ProtectedFilePolicyError.identityChanged }
+        case .pair: guard values.count == 2, values[0] == values[1] else { throw ProtectedFilePolicyError.identityChanged }
+        }
+        // Called only after private real policy/SHA checks, finish RETURNED
+        // and final fresh binding. Neither refusal nor in-flight close calls it.
+        completed = CompletedObservation(scopeIdentity: ObjectIdentifier(scope),
+            operationID: scope.operationID, observationID: scope.observationID, values: values)
+    }
+    fileprivate func poison(scope: OriginalEraseScratchTemporalObservationScopeV1) {
+        uncertainOwner = scope // Retain actual owner before poison/callback; no success cycle.
+        scope.poisonOnUncertainObservation()
+    }
+    fileprivate func requireObserving() throws {
+        guard state == .observing, uncertainDescriptors.isEmpty else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+    }
+    fileprivate func remember(_ fd: Int32, scope: OriginalEraseScratchTemporalObservationScopeV1,
+        retain: (Int32) -> Void) throws {
+        try requireObserving()
+        guard fd >= 0 else { throw ProtectedFilePolicyError.invalidURL }
+        guard selection != nil, scopeIdentity == ObjectIdentifier(scope) else {
+            state = .uncertain; uncertainDescriptors.append(fd)
+            poison(scope: scope); retain(fd)
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        guard !openDescriptors.contains(fd) else {
+            openDescriptors.removeAll { $0 == fd }
+            state = .uncertain; uncertainDescriptors.append(fd)
+            poison(scope: scope); retain(fd)
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        openDescriptors.append(fd)
+    }
+    fileprivate func abandonHeldDescriptor(_ fd: Int32, scope: OriginalEraseScratchTemporalObservationScopeV1) {
+        // Identity/fstat ambiguity is not a definitely-owned numeric close slot.
+        openDescriptors.removeAll { $0 == fd }
+        if !uncertainDescriptors.contains(fd) {
+            uncertainDescriptors.append(fd); unreportedUncertainty.append(fd)
+        }
+        state = .uncertain; poison(scope: scope)
+    }
+    fileprivate func finish(scope: OriginalEraseScratchTemporalObservationScopeV1,
+        retain: (Int32) -> Void) throws {
+        guard needsFinish else { throw ProtectedFilePolicyError.identityChanged }
+        if state == .observing { state = .terminal }
+        while !unreportedUncertainty.isEmpty {
+            let fd = unreportedUncertainty.removeFirst()
+            poison(scope: scope); retain(fd) // Already permanently fenced before callback.
+        }
+        var first: Error?
+        while let fd = openDescriptors.popLast() {
+            do { try freshBinding(scope) }
+            catch { if first == nil { first = error }; poison(scope: scope) }
+            let result = Darwin.close(fd)
+            if result != 0 {
+                state = .uncertain; uncertainDescriptors.append(fd)
+                poison(scope: scope); retain(fd)
+                if first == nil { first = ProtectedFilePolicyError.identityChanged }
+            }
+            do { try freshBinding(scope) }
+            catch { if first == nil { first = error }; poison(scope: scope) }
+        }
+        if let first { throw first }
+    }
+}
+
+/// PFP-private actor boundary, populated only by a genuine LIVE scope getter.
+/// No caller closure, link-count exemption or setter reaches this context.
+@MainActor
+fileprivate final class OriginalEraseScratchTemporalPolicyReadContextV1 {
+    enum Selection {
+        case node(OriginalEraseScratchTemporalPolicyNodeV1)
+        case pair(OriginalEraseScratchTemporalPairV1, [URL])
+    }
+    struct Leaf { let url: URL; let fullFact: String }
+    let scope: OriginalEraseScratchTemporalObservationScopeV1
+    let attempt: OriginalEraseScratchTemporalPolicyAttemptV1
+    let selection: Selection
+    let kind: OwnedFileKindV1
+    let ancestors: [OriginalEraseScratchTemporalPolicyNodeV1.Ancestor]
+    let leaves: [Leaf]
+    private let operationID: UUID
+    private let observationID: UUID
+    private let expectedBytes: UInt64
+    private let expectedCalls: UInt64
+    private var ancestorFDs: [Int32] = []
+    private var leafFDs: [Int32] = []
+    private var readBytes: UInt64 = 0
+    private var readCalls: UInt64 = 0
+    init(scope: OriginalEraseScratchTemporalObservationScopeV1,
+        attempt: OriginalEraseScratchTemporalPolicyAttemptV1, selection: Selection) throws {
+        self.scope = scope; self.attempt = attempt; self.selection = selection
+        operationID = scope.operationID; observationID = scope.observationID
+        switch selection {
+        case .node(let n):
+            kind = n.kind; ancestors = n.ancestors; leaves = [Leaf(url: n.url, fullFact: n.fullFact)]
+            expectedBytes = 0; expectedCalls = 0
+        case .pair(let p, _):
+            kind = p.kind; ancestors = p.ancestors
+            leaves = p.members.map { Leaf(url: $0.url, fullFact: $0.fullFact) }
+            guard p.byteCount >= 0, let b = UInt64(exactly: p.byteCount) else {
+                throw ProtectedFilePolicyError.invalidURL
+            }
+            let bytes = b.multipliedReportingOverflow(by: 4)
+            let round = b.addingReportingOverflow(65_535)
+            guard !bytes.overflow, !round.overflow else { throw ProtectedFilePolicyError.invalidURL }
+            let calls = (round.partialValue / 65_536).multipliedReportingOverflow(by: 4)
+            guard !calls.overflow else { throw ProtectedFilePolicyError.invalidURL }
+            expectedBytes = bytes.partialValue; expectedCalls = calls.partialValue
+        }
+        try validateData()
+        try attempt.bind(selection, scope: scope)
+    }
+    private static func fact(_ f: stat) -> String {
+        "\(f.st_dev)|\(f.st_ino)|\(f.st_mode)|\(f.st_uid)|\(f.st_gid)|\(f.st_nlink)|\(f.st_size)|\(f.st_mtimespec.tv_sec)|\(f.st_mtimespec.tv_nsec)|\(f.st_ctimespec.tv_sec)|\(f.st_ctimespec.tv_nsec)"
+    }
+    private static func originalFact(_ full: String) -> String {
+        let f = full.split(separator: "|", omittingEmptySubsequences: false)
+        guard f.count == 11 else { return "" }
+        return [f[0], f[1], f[2], f[5], f[6], f[7], f[8], f[9], f[10]].joined(separator: "|")
+    }
+    private static func validPath(_ path: String) -> Bool {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        return !parts.isEmpty && parts.allSatisfy { OperationalDiagnosticsBoundsV1.validRelativeName(String($0)) }
+    }
+    private static func sameAncestors(_ a: [OriginalEraseScratchTemporalPolicyNodeV1.Ancestor],
+        _ b: [OriginalEraseScratchTemporalPolicyNodeV1.Ancestor]) -> Bool {
+        a.count == b.count && zip(a, b).allSatisfy { p in p.0.url == p.1.url && p.0.fullFact == p.1.fullFact && p.0.directoryRole == p.1.directoryRole }
+    }
+    fileprivate static func sameNode(_ a: OriginalEraseScratchTemporalPolicyNodeV1,
+        _ b: OriginalEraseScratchTemporalPolicyNodeV1) -> Bool {
+        a.kind == b.kind && a.url == b.url && a.fullFact == b.fullFact &&
+        a.parentURL == b.parentURL && a.parentFullFact == b.parentFullFact &&
+        a.directoryRole == b.directoryRole && sameAncestors(a.ancestors, b.ancestors)
+    }
+    fileprivate static func samePair(_ a: OriginalEraseScratchTemporalPairV1,
+        _ b: OriginalEraseScratchTemporalPairV1) -> Bool {
+        guard a.members.count == b.members.count,
+              zip(a.members, b.members).allSatisfy({ p in p.0.relativePath == p.1.relativePath &&
+                p.0.url == p.1.url && p.0.fullFact == p.1.fullFact }),
+              a.kind == b.kind, a.sha256 == b.sha256, a.byteCount == b.byteCount,
+              a.device == b.device, a.inode == b.inode, a.user == b.user, a.group == b.group,
+              a.parentURL == b.parentURL, a.parentFullFact == b.parentFullFact,
+              sameAncestors(a.ancestors, b.ancestors) else { return false }
+        switch (a.role, b.role) {
+        case let (.declaredLinkPublication(ac, al, at, af), .declaredLinkPublication(bc, bl, bt, bf)):
+            return ac == bc && al == bl && at == bt && af == bf
+        case let (.admittedOriginalOwnedGenericAliases(ai, ap, af, ah, am),
+                  .admittedOriginalOwnedGenericAliases(bi, bp, bf, bh, bm)):
+            return ai == bi && ap == bp && af == bf && ah == bh && am == bm
+        default: return false
+        }
+    }
+    private func validateData() throws {
+        guard !ancestors.isEmpty, ancestors[0].url.lastPathComponent == OwnedStorageRootKindV1.operations.rawValue, !leaves.isEmpty,
+              kind == .stagingDirectory || kind == .temporaryFile else { throw ProtectedFilePolicyError.invalidURL }
+        let nodes = ancestors.map { Leaf(url: $0.url, fullFact: $0.fullFact) } + leaves
+        guard nodes.allSatisfy({ $0.url.isFileURL && $0.url.standardizedFileURL == $0.url &&
+            $0.fullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11 }) else {
+            throw ProtectedFilePolicyError.invalidURL
+        }
+        for i in ancestors.indices where i > 0 {
+            guard ancestors[i].url.deletingLastPathComponent() == ancestors[i - 1].url,
+                  OperationalDiagnosticsBoundsV1.validRelativeName(ancestors[i].url.lastPathComponent) else {
+                throw ProtectedFilePolicyError.invalidURL
+            }
+        }
+        let parent = ancestors[ancestors.count - 1]
+        guard leaves.allSatisfy({ $0.url.deletingLastPathComponent() == parent.url &&
+            OperationalDiagnosticsBoundsV1.validRelativeName($0.url.lastPathComponent) }) else {
+            throw ProtectedFilePolicyError.invalidURL
+        }
+        switch selection {
+        case .node(let n):
+            guard n.parentURL == parent.url, n.parentFullFact == parent.fullFact,
+                  (n.directoryRole != nil) == (kind == .stagingDirectory) else {
+                throw ProtectedFilePolicyError.invalidURL
+            }
+        case .pair(let p, let urls):
+            guard kind == .temporaryFile, p.members.count == 2, urls == p.members.map(\.url),
+                  urls[0] != urls[1], p.members[0].fullFact == p.members[1].fullFact,
+                  p.parentURL == parent.url, p.parentFullFact == parent.fullFact,
+                  OperationalDiagnosticsBoundsV1.isLowercaseSHA256(p.sha256),
+                  p.members[0].relativePath.utf8.lexicographicallyPrecedes(p.members[1].relativePath.utf8),
+                  p.members.allSatisfy({ Self.validPath($0.relativePath) &&
+                    ancestors[0].url.appendingPathComponent($0.relativePath) == $0.url }) else {
+                throw ProtectedFilePolicyError.invalidURL
+            }
+            switch p.role {
+            case .declaredLinkPublication(_, _, let temporary, let final):
+                guard Self.validPath(temporary), Self.validPath(final), temporary != final,
+                      Set(p.members.map(\.relativePath)) == Set([temporary, final]) else {
+                    throw ProtectedFilePolicyError.invalidURL
+                }
+            case .admittedOriginalOwnedGenericAliases(let index, let paths, let facts, let hash, let metadata):
+                guard index >= 0, paths.count == 2, facts.count == 2,
+                      paths[0].utf8.lexicographicallyPrecedes(paths[1].utf8), paths.allSatisfy(Self.validPath),
+                      hash == p.sha256, facts[0] == facts[1],
+                      facts.allSatisfy({ $0 == Self.originalFact(p.members[0].fullFact) }),
+                      paths.allSatisfy({ $0.hasPrefix("ScratchDataV1/") && ($0 as NSString).lastPathComponent != "lease.json" }),
+                      p.members.allSatisfy({ $0.relativePath.hasPrefix("ScratchDataV1/") && $0.url.lastPathComponent != "lease.json" }) else {
+                    throw ProtectedFilePolicyError.invalidURL
+                }
+                let originalParent = (paths[0] as NSString).deletingLastPathComponent
+                guard originalParent == (paths[1] as NSString).deletingLastPathComponent else {
+                    throw ProtectedFilePolicyError.invalidURL
+                }
+                for (path, member) in zip(paths, p.members) {
+                    guard (path as NSString).lastPathComponent == member.url.lastPathComponent else {
+                        throw ProtectedFilePolicyError.invalidURL
+                    }
+                }
+                switch metadata {
+                case .validatedLease(let directory, let bytes, let sha):
+                    guard directory == originalParent, bytes.count <= 65_536,
+                          OperationalDiagnosticsBoundsV1.isLowercaseSHA256(sha),
+                          SHA256.hash(data: bytes).map({ String(format: "%02x", $0) }).joined() == sha else {
+                        throw ProtectedFilePolicyError.invalidURL
+                    }
+                case .ownedOrphan(let directory):
+                    guard directory == originalParent else { throw ProtectedFilePolicyError.invalidURL }
+                }
+                // Original metadata never becomes an orphan after consumption.
+                // The scope proves actual current mapping/relations afresh.
+            }
+        }
+    }
+    private func boundary() throws {
+        try scope.requireCurrentBinding(); try attempt.requireObserving()
+        guard scope.operationID == operationID, scope.observationID == observationID else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        switch selection {
+        case .node(let n):
+            guard Self.sameNode(try scope.requirePolicyNode(n.kind, at: n.url, fullFact: n.fullFact), n) else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        case .pair(let p, let urls):
+            guard Self.samePair(try scope.requirePair(aliasURLs: urls), p) else { throw ProtectedFilePolicyError.identityChanged }
+        }
+        try scope.requireCurrentBinding(); try attempt.requireObserving()
+    }
+    private func io<Value>(_ body: @MainActor () throws -> Value) throws -> Value {
+        try boundary()
+        let result: Result<Value, Error>
+        do { result = .success(try body()) } catch { result = .failure(error) }
+        try boundary(); return try result.get()
+    }
+    private func open(_ body: @MainActor () -> Int32, retain: (Int32) -> Void) throws -> Int32 {
+        try boundary(); let fd = body()
+        let remembered: Result<Void, Error>
+        if fd >= 0 {
+            do { try attempt.remember(fd, scope: scope, retain: retain); remembered = .success(()) }
+            catch { remembered = .failure(error) }
+        } else { remembered = .failure(ProtectedFilePolicyError.invalidURL) }
+        try boundary(); try remembered.get(); return fd
+    }
+    func openAll(retain: (Int32) -> Void) throws {
+        let directoryFlags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+        for i in ancestors.indices {
+            let fd = try open({ i == 0 ? Darwin.open(ancestors[i].url.path, directoryFlags) :
+                Darwin.openat(ancestorFDs[i - 1], ancestors[i].url.lastPathComponent, directoryFlags) }, retain: retain)
+            ancestorFDs.append(fd); _ = try inspectAncestor(i)
+        }
+        for leaf in leaves {
+            let flags = O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC | (kind == .stagingDirectory ? O_DIRECTORY : 0)
+            let fd = try open({ Darwin.openat(ancestorFDs[ancestors.count - 1], leaf.url.lastPathComponent, flags) }, retain: retain)
+            leafFDs.append(fd); _ = try inspectLeaf(leafFDs.count - 1)
+        }
+    }
+    private func inspectAncestor(_ i: Int) throws -> stat {
+        var held = stat(), named = stat()
+        try io {
+            guard Darwin.fstat(ancestorFDs[i], &held) == 0, Self.fact(held) == ancestors[i].fullFact else {
+                attempt.abandonHeldDescriptor(ancestorFDs[i], scope: scope)
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        }
+        try io {
+            let result = i == 0 ? Darwin.lstat(ancestors[i].url.path, &named) :
+                Darwin.fstatat(ancestorFDs[i - 1], ancestors[i].url.lastPathComponent, &named, AT_SYMLINK_NOFOLLOW)
+            guard result == 0 else { throw ProtectedFilePolicyError.identityChanged }
+        }
+        try requireOwned(held, named: named, fullFact: ancestors[i].fullFact, directory: true,
+            parentFact: i == 0 ? nil : ancestors[i - 1].fullFact, directoryRole: ancestors[i].directoryRole)
+        return held
+    }
+    private func requireOwned(_ held: stat, named: stat, fullFact: String, directory: Bool,
+        parentFact: String?, directoryRole: OriginalEraseScratchPrivateDirectoryRoleV1?) throws {
+        let root = ancestors[0].fullFact.split(separator: "|", omittingEmptySubsequences: false)
+        guard Self.fact(held) == fullFact, Self.fact(named) == fullFact,
+              held.st_mode & S_IFMT == (directory ? S_IFDIR : S_IFREG),
+              (directory ? (held.st_mode & 0o7777 == 0o700 || held.st_mode & 0o7777 == 0o2700)
+                         : held.st_mode & 0o7777 == 0o600), held.st_uid == Darwin.geteuid(),
+              held.st_dev >= 0, String(held.st_dev) == root[0],
+              String(held.st_uid) == root[3] else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        if directory {
+            guard let directoryRole, directoryRole.admits(fullMode: UInt32(held.st_mode)),
+                  directoryRole.recordedFullMode == UInt32(held.st_mode) else { throw ProtectedFilePolicyError.identityChanged }
+        } else { guard directoryRole == nil else { throw ProtectedFilePolicyError.identityChanged } }
+        if let parentFact {
+            let parent = parentFact.split(separator: "|", omittingEmptySubsequences: false)
+            guard parent.count == 11, let mode = UInt16(parent[2]), let group = UInt32(parent[4]),
+                  held.st_gid == (mode & UInt16(S_ISGID) != 0 ? group : Darwin.getegid()) else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        }
+    }
+    private func inspectLeaf(_ i: Int) throws -> stat {
+        var held = stat(), named = stat()
+        try io {
+            guard Darwin.fstat(leafFDs[i], &held) == 0, Self.fact(held) == leaves[i].fullFact else {
+                attempt.abandonHeldDescriptor(leafFDs[i], scope: scope)
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        }
+        try io { guard Darwin.fstatat(ancestorFDs[ancestors.count - 1], leaves[i].url.lastPathComponent,
+            &named, AT_SYMLINK_NOFOLLOW) == 0 else { throw ProtectedFilePolicyError.identityChanged } }
+        let directory = kind == .stagingDirectory
+        try requireOwned(held, named: named, fullFact: leaves[i].fullFact, directory: directory,
+            parentFact: ancestors[ancestors.count - 1].fullFact, directoryRole: {
+                if case .node(let n) = selection { return n.directoryRole }
+                return nil
+            }())
+        switch selection {
+        case .node:
+            guard directory || held.st_nlink == 1 else { throw ProtectedFilePolicyError.hardLink }
+        case .pair(let p, _):
+            guard !directory, held.st_nlink == 2, held.st_size == p.byteCount,
+                  UInt64(held.st_dev) == p.device, UInt64(held.st_ino) == p.inode,
+                  held.st_uid == p.user, held.st_gid == p.group else { throw ProtectedFilePolicyError.identityChanged }
+        }
+        return held
+    }
+    func requirePolicyBoundary() throws -> stat {
+        try boundary()
+        guard ancestorFDs.count == ancestors.count, leafFDs.count == leaves.count else { throw ProtectedFilePolicyError.identityChanged }
+        for i in ancestors.indices { _ = try inspectAncestor(i) }
+        var first = stat()
+        for i in leaves.indices {
+            let actual = try inspectLeaf(i)
+            if i == 0 { first = actual }
+            else if case .pair = selection {
+                guard actual.st_dev == first.st_dev, actual.st_ino == first.st_ino else { throw ProtectedFilePolicyError.hardLink }
+            }
+        }
+        try boundary(); return first
+    }
+    private func stream(_ p: OriginalEraseScratchTemporalPairV1) throws {
+        var digest = SHA256(), offset: Int64 = 0
+        var buffer = [UInt8](repeating: 0, count: 65_536)
+        while offset < p.byteCount {
+            _ = try requirePolicyBoundary()
+            let wanted = Int(min(Int64(buffer.count), p.byteCount - offset))
+            let calls = readCalls.addingReportingOverflow(1)
+            guard !calls.overflow, calls.partialValue <= expectedCalls else { throw ProtectedFilePolicyError.identityChanged }
+            readCalls = calls.partialValue
+            let got = try io { buffer.withUnsafeMutableBytes { Darwin.pread(leafFDs[0], $0.baseAddress!, wanted, off_t(offset)) } }
+            guard got == wanted else { throw ProtectedFilePolicyError.identityChanged }
+            let bytes = readBytes.addingReportingOverflow(UInt64(got))
+            guard !bytes.overflow, bytes.partialValue <= expectedBytes else { throw ProtectedFilePolicyError.identityChanged }
+            readBytes = bytes.partialValue
+            buffer.withUnsafeBytes { digest.update(bufferPointer: UnsafeRawBufferPointer(start: $0.baseAddress, count: wanted)) }
+            offset += Int64(wanted); _ = try requirePolicyBoundary()
+        }
+        guard offset == p.byteCount, digest.finalize().map({ String(format: "%02x", $0) }).joined() == p.sha256 else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+    }
+    func requireUnchangedPolicyInput() throws -> stat {
+        let first = try requirePolicyBoundary()
+        if case .pair(let p, _) = selection { try stream(p); _ = try requirePolicyBoundary() }
+        return first
+    }
+    func requireCompletedPayloadWork() throws {
+        guard readBytes == expectedBytes, readCalls == expectedCalls else { throw ProtectedFilePolicyError.identityChanged }
+        try boundary()
+    }
+}
+
+/// The two actual publication-policy calls, in their fixed order.
+enum OriginalEraseScratchPublicationPolicyStepV1: Equatable {
+    case completeProtection, backupExclusion
+}
+
+/// A saved real Foundation call event. Only the PFP setter constructs it,
+/// immediately after the call returns or throws and before invoking a scope.
+@MainActor
+fileprivate final class OriginalEraseScratchPublicationPolicyEventV1 {
+    let step: OriginalEraseScratchPublicationPolicyStepV1
+    let result: Result<Void, Error>
+    init(step: OriginalEraseScratchPublicationPolicyStepV1, result: Result<Void, Error>) {
+        self.step = step; self.result = result
+    }
+}
+
+/// An intermediate actual event plus its independently held/named postfact.
+/// It neither claims final policy qualification nor grants another effect.
+@MainActor
+final class OriginalEraseScratchPublicationPolicyOutcomeV1 {
+    let step: OriginalEraseScratchPublicationPolicyStepV1
+    fileprivate let event: OriginalEraseScratchPublicationPolicyEventV1
+    fileprivate let fullFact: String
+    private weak var attempt: OriginalEraseScratchPublicationPolicyAttemptV1?
+    fileprivate init(attempt: OriginalEraseScratchPublicationPolicyAttemptV1,
+        event: OriginalEraseScratchPublicationPolicyEventV1, fullFact: String) {
+        self.attempt = attempt; self.event = event; self.fullFact = fullFact; step = event.step
+    }
+    func requireBound(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        kind: OwnedFileKindV1, at url: URL, fullFact: String) throws {
+        guard let attempt else { throw ProtectedFilePolicyError.identityChanged }
+        try attempt.requireOutcome(self, scope: scope, kind: kind, at: url, fullFact: fullFact)
+    }
+}
+
+/// One real LIVE publication-policy subattempt. Scope retains it before the
+/// first getter/open. Terminal slots are fenced before their sole close;
+/// uncertainty retains the actual owner before poison and never retries an FD.
+@MainActor
+final class OriginalEraseScratchPublicationPolicyAttemptV1 {
+    private enum State { case applying, terminal, uncertain }
+    private var state: State = .applying
+    private var openDescriptors: [Int32] = []
+    private var uncertainDescriptors: [Int32] = []
+    private var unreportedUncertainty: [Int32] = []
+    private var closedDescriptors: [Int32] = []
+    private var scopeIdentity: ObjectIdentifier?
+    private var operationID: UUID?
+    private var requestID: UUID?
+    private var target: OriginalEraseScratchTemporalPolicyNodeV1?
+    private var sourceSHA256: String?
+    private var byteCount: Int64?
+    private var uncertainOwner: OriginalEraseScratchCleanupPolicyEffectScopeV1?
+    private var events: [OriginalEraseScratchPublicationPolicyEventV1] = []
+    private var outcomes: [OriginalEraseScratchPublicationPolicyOutcomeV1] = []
+    private var acceptedOutcomes: [OriginalEraseScratchPublicationPolicyOutcomeV1] = []
+    private struct CompletedPolicy {
+        let scopeIdentity: ObjectIdentifier
+        let operationID: UUID
+        let requestID: UUID
+        let kind: OwnedFileKindV1
+        let url: URL
+        let fullFact: String
+        let value: TemporalPolicyObservationV1
+    }
+    private var completed: CompletedPolicy?
+    fileprivate var needsFinish: Bool { state == .applying || !openDescriptors.isEmpty || !unreportedUncertainty.isEmpty }
+    fileprivate func bind(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        target: OriginalEraseScratchTemporalPolicyNodeV1) throws {
+        try requireApplying()
+        guard self.target == nil, openDescriptors.isEmpty else { throw ProtectedFilePolicyError.identityChanged }
+        self.target = target; scopeIdentity = ObjectIdentifier(scope)
+        operationID = scope.operationID; requestID = scope.requestID
+        sourceSHA256 = scope.sourceSHA256; byteCount = scope.byteCount
+    }
+    fileprivate func requireApplying() throws {
+        guard state == .applying, uncertainDescriptors.isEmpty else { throw ProtectedFilePolicyError.identityChanged }
+    }
+    fileprivate func freshBinding(_ scope: OriginalEraseScratchCleanupPolicyEffectScopeV1) throws {
+        try scope.requireCurrentBinding()
+        if let target {
+            guard scopeIdentity == ObjectIdentifier(scope), operationID == scope.operationID,
+                  requestID == scope.requestID, sourceSHA256 == scope.sourceSHA256, byteCount == scope.byteCount,
+                  OriginalEraseScratchTemporalPolicyReadContextV1.sameNode(
+                    try scope.requireTarget(target.kind, at: target.url, initialFullFact: target.fullFact), target) else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        } else { guard openDescriptors.isEmpty else { throw ProtectedFilePolicyError.identityChanged } }
+        try scope.requireCurrentBinding()
+    }
+    fileprivate func poison(_ scope: OriginalEraseScratchCleanupPolicyEffectScopeV1) {
+        uncertainOwner = scope
+        scope.poisonOnUncertainPolicy()
+    }
+    fileprivate func remember(_ fd: Int32, scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        retain: (Int32) -> Void) throws {
+        try requireApplying()
+        guard fd >= 0 else { throw ProtectedFilePolicyError.invalidURL }
+        guard target != nil, scopeIdentity == ObjectIdentifier(scope),
+              !openDescriptors.contains(fd), !closedDescriptors.contains(fd), !uncertainDescriptors.contains(fd) else {
+            openDescriptors.removeAll { $0 == fd }
+            state = .uncertain; uncertainDescriptors.append(fd)
+            poison(scope); retain(fd)
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        openDescriptors.append(fd)
+    }
+    fileprivate func requireNextStep(_ step: OriginalEraseScratchPublicationPolicyStepV1) throws {
+        try requireApplying()
+        guard events.count == acceptedOutcomes.count,
+              (events.isEmpty && step == .completeProtection) ||
+              (events.count == 1 && step == .backupExclusion) else { throw ProtectedFilePolicyError.identityChanged }
+    }
+    fileprivate func record(_ event: OriginalEraseScratchPublicationPolicyEventV1) throws {
+        try requireNextStep(event.step); events.append(event)
+    }
+    fileprivate func capture(_ event: OriginalEraseScratchPublicationPolicyEventV1,
+        fullFact: String) throws -> OriginalEraseScratchPublicationPolicyOutcomeV1 {
+        try requireApplying()
+        guard events.last === event, outcomes.count == acceptedOutcomes.count else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        try event.result.get()
+        let outcome = OriginalEraseScratchPublicationPolicyOutcomeV1(attempt: self, event: event, fullFact: fullFact)
+        outcomes.append(outcome); return outcome
+    }
+    fileprivate func requireOutcome(_ outcome: OriginalEraseScratchPublicationPolicyOutcomeV1,
+        scope: OriginalEraseScratchCleanupPolicyEffectScopeV1, kind: OwnedFileKindV1,
+        at url: URL, fullFact: String) throws {
+        guard state != .uncertain, uncertainDescriptors.isEmpty, scopeIdentity == ObjectIdentifier(scope),
+              operationID == scope.operationID, requestID == scope.requestID,
+              let target, target.kind == kind, target.url == url,
+              outcomes.contains(where: { $0 === outcome }), events.contains(where: { $0 === outcome.event }),
+              outcome.fullFact == fullFact, outcome.step == outcome.event.step else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        try outcome.event.result.get() // Actual returned event, never caller success DATA.
+    }
+    fileprivate func accept(_ outcome: OriginalEraseScratchPublicationPolicyOutcomeV1,
+        scope: OriginalEraseScratchCleanupPolicyEffectScopeV1) throws {
+        try requireApplying()
+        guard let target, outcomes.last === outcome, acceptedOutcomes.count + 1 == outcomes.count else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        try requireOutcome(outcome, scope: scope, kind: target.kind, at: target.url, fullFact: outcome.fullFact)
+        acceptedOutcomes.append(outcome)
+    }
+    fileprivate func abandonHeldDescriptor(_ fd: Int32, scope: OriginalEraseScratchCleanupPolicyEffectScopeV1) {
+        openDescriptors.removeAll { $0 == fd }
+        if !uncertainDescriptors.contains(fd) {
+            uncertainDescriptors.append(fd); unreportedUncertainty.append(fd)
+        }
+        state = .uncertain; poison(scope)
+    }
+    fileprivate func finish(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        retain: (Int32) -> Void) throws {
+        guard needsFinish else { throw ProtectedFilePolicyError.identityChanged }
+        if state == .applying { state = .terminal }
+        while !unreportedUncertainty.isEmpty {
+            let fd = unreportedUncertainty.removeFirst(); poison(scope); retain(fd)
+        }
+        var first: Error?
+        while let fd = openDescriptors.popLast() {
+            do { try freshBinding(scope) } catch { if first == nil { first = error }; poison(scope) }
+            let result = Darwin.close(fd)
+            if result == 0 { closedDescriptors.append(fd) }
+            else {
+                state = .uncertain; uncertainDescriptors.append(fd); poison(scope); retain(fd)
+                if first == nil { first = ProtectedFilePolicyError.identityChanged }
+            }
+            do { try freshBinding(scope) } catch { if first == nil { first = error }; poison(scope) }
+        }
+        if let first { throw first }
+    }
+    fileprivate func complete(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        value: TemporalPolicyObservationV1, fullFact: String) throws {
+        try freshBinding(scope)
+        guard state == .terminal, openDescriptors.isEmpty, uncertainDescriptors.isEmpty, completed == nil,
+              let target, closedDescriptors.count == target.ancestors.count + 1,
+              events.count == 2, outcomes.count == 2, acceptedOutcomes.count == 2,
+              acceptedOutcomes[0].step == .completeProtection, acceptedOutcomes[1].step == .backupExclusion,
+              acceptedOutcomes[1].fullFact == fullFact else { throw ProtectedFilePolicyError.identityChanged }
+        for outcome in acceptedOutcomes {
+            try requireOutcome(outcome, scope: scope, kind: target.kind, at: target.url, fullFact: outcome.fullFact)
+        }
+        // Only the private setter invokes this after actual source/policy proof,
+        // both genuine Scope step admissions, and finish has RETURNED.
+        completed = CompletedPolicy(scopeIdentity: ObjectIdentifier(scope), operationID: scope.operationID,
+            requestID: scope.requestID, kind: target.kind, url: target.url, fullFact: fullFact, value: value)
+    }
+    /// Positive MEMORY-only settlement; no numeric FD read, lifecycle revival,
+    /// external lease release or next-effect authority. Refusal/last-pop cannot pass.
+    func requireCheckedSettlement(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        kind: OwnedFileKindV1, at url: URL) throws {
+        guard state == .terminal, openDescriptors.isEmpty, uncertainDescriptors.isEmpty,
+              let completed, completed.scopeIdentity == ObjectIdentifier(scope),
+              completed.operationID == scope.operationID, completed.requestID == scope.requestID,
+              completed.kind == kind, completed.url == url,
+              acceptedOutcomes.count == 2, acceptedOutcomes[1].fullFact == completed.fullFact,
+              completed.value.isDirectory == (kind == .stagingDirectory),
+              completed.value.backupExcluded == ProtectedFilePolicyV1.disposition(for: kind).isExcludedFromBackup,
+              kind == .stagingDirectory || completed.value.linkCount == 1 else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        for outcome in acceptedOutcomes {
+            try requireOutcome(outcome, scope: scope, kind: kind, at: url, fullFact: outcome.fullFact)
+        }
+    }
+}
+
+/// Separate actor-aware effect boundary, never a read Scope or cold permit.
+@MainActor
+fileprivate final class OriginalEraseScratchPublicationPolicyContextV1 {
+    let scope: OriginalEraseScratchCleanupPolicyEffectScopeV1
+    let attempt: OriginalEraseScratchPublicationPolicyAttemptV1
+    let target: OriginalEraseScratchTemporalPolicyNodeV1
+    private(set) var currentFullFact: String
+    private var ancestorFDs: [Int32] = []
+    private var descriptor: Int32?
+    private let expectedBytes: UInt64
+    private let expectedCalls: UInt64
+    private var readBytes: UInt64 = 0
+    private var readCalls: UInt64 = 0
+    init(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        attempt: OriginalEraseScratchPublicationPolicyAttemptV1,
+        target: OriginalEraseScratchTemporalPolicyNodeV1) throws {
+        self.scope = scope; self.attempt = attempt; self.target = target; currentFullFact = target.fullFact
+        guard target.kind == .temporaryFile || target.kind == .stagingDirectory,
+              !target.ancestors.isEmpty, target.ancestors[0].url.lastPathComponent == OwnedStorageRootKindV1.operations.rawValue,
+              target.url.isFileURL, target.url.standardizedFileURL == target.url,
+              OperationalDiagnosticsBoundsV1.validRelativeName(target.url.lastPathComponent),
+              target.fullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+              (target.directoryRole != nil) == (target.kind == .stagingDirectory) else {
+            throw ProtectedFilePolicyError.invalidURL
+        }
+        for i in target.ancestors.indices {
+            let a = target.ancestors[i]
+            guard a.url.isFileURL, a.url.standardizedFileURL == a.url,
+                  a.fullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+                  i == 0 || (a.url.deletingLastPathComponent() == target.ancestors[i - 1].url &&
+                    OperationalDiagnosticsBoundsV1.validRelativeName(a.url.lastPathComponent)) else {
+                throw ProtectedFilePolicyError.invalidURL
+            }
+        }
+        let parent = target.ancestors[target.ancestors.count - 1]
+        guard target.parentURL == parent.url, target.parentFullFact == parent.fullFact,
+              target.url.deletingLastPathComponent() == parent.url else { throw ProtectedFilePolicyError.invalidURL }
+        if target.kind == .stagingDirectory {
+            guard scope.byteCount == nil, scope.sourceSHA256 == nil else { throw ProtectedFilePolicyError.invalidURL }
+            expectedBytes = 0; expectedCalls = 0
+        } else {
+            guard let b = scope.byteCount, b >= 0, let bytes = UInt64(exactly: b),
+                  let sha = scope.sourceSHA256, OperationalDiagnosticsBoundsV1.isLowercaseSHA256(sha),
+                  String(b) == target.fullFact.split(separator: "|", omittingEmptySubsequences: false)[6] else {
+                throw ProtectedFilePolicyError.invalidURL
+            }
+            let work = bytes.multipliedReportingOverflow(by: 2), round = bytes.addingReportingOverflow(65_535)
+            guard !work.overflow, !round.overflow else { throw ProtectedFilePolicyError.invalidURL }
+            let calls = (round.partialValue / 65_536).multipliedReportingOverflow(by: 2)
+            guard !calls.overflow else { throw ProtectedFilePolicyError.invalidURL }
+            expectedBytes = work.partialValue; expectedCalls = calls.partialValue
+        }
+        try attempt.bind(scope: scope, target: target)
+    }
+    private static func fact(_ f: stat) -> String {
+        "\(f.st_dev)|\(f.st_ino)|\(f.st_mode)|\(f.st_uid)|\(f.st_gid)|\(f.st_nlink)|\(f.st_size)|\(f.st_mtimespec.tv_sec)|\(f.st_mtimespec.tv_nsec)|\(f.st_ctimespec.tv_sec)|\(f.st_ctimespec.tv_nsec)"
+    }
+    private static func ctimeOnly(_ actual: String, from prior: String) -> Bool {
+        let a = actual.split(separator: "|", omittingEmptySubsequences: false)
+        let b = prior.split(separator: "|", omittingEmptySubsequences: false)
+        return a.count == 11 && b.count == 11 && a.prefix(9).elementsEqual(b.prefix(9))
+    }
+    private func boundary() throws { try attempt.freshBinding(scope); try attempt.requireApplying() }
+    private func io<Value>(_ body: @MainActor () throws -> Value) throws -> Value {
+        try boundary()
+        let result: Result<Value, Error>
+        do { result = .success(try body()) } catch { result = .failure(error) }
+        try boundary(); return try result.get()
+    }
+    private func open(_ body: @MainActor () -> Int32, retain: (Int32) -> Void) throws -> Int32 {
+        try boundary(); let fd = body()
+        let remembered: Result<Void, Error>
+        if fd >= 0 {
+            do { try attempt.remember(fd, scope: scope, retain: retain); remembered = .success(()) }
+            catch { remembered = .failure(error) }
+        } else { remembered = .failure(ProtectedFilePolicyError.invalidURL) }
+        try boundary(); try remembered.get(); return fd
+    }
+    func openAll(retain: (Int32) -> Void) throws {
+        let flags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
+        for i in target.ancestors.indices {
+            let fd = try open({ i == 0 ? Darwin.open(target.ancestors[i].url.path, flags) :
+                Darwin.openat(ancestorFDs[i - 1], target.ancestors[i].url.lastPathComponent, flags) }, retain: retain)
+            ancestorFDs.append(fd); _ = try inspectAncestor(i)
+        }
+        descriptor = try open({ Darwin.openat(ancestorFDs[ancestorFDs.count - 1], target.url.lastPathComponent,
+            O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC | (target.kind == .stagingDirectory ? O_DIRECTORY : 0)) }, retain: retain)
+        _ = try requirePolicyBoundary()
+    }
+    private func requireOwned(_ held: stat, named: stat, fact: String, directory: Bool, parentFact: String?,
+        directoryRole: OriginalEraseScratchPrivateDirectoryRoleV1?) throws {
+        let root = target.ancestors[0].fullFact.split(separator: "|", omittingEmptySubsequences: false)
+        guard Self.fact(held) == fact, Self.fact(named) == fact,
+              held.st_mode & S_IFMT == (directory ? S_IFDIR : S_IFREG),
+              (directory ? (held.st_mode & 0o7777 == 0o700 || held.st_mode & 0o7777 == 0o2700)
+                         : held.st_mode & 0o7777 == 0o600), held.st_uid == Darwin.geteuid(),
+              held.st_dev >= 0, String(held.st_dev) == root[0], String(held.st_uid) == root[3] else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        if directory {
+            guard let directoryRole, directoryRole.admits(fullMode: UInt32(held.st_mode)),
+                  directoryRole.recordedFullMode == UInt32(held.st_mode) else { throw ProtectedFilePolicyError.identityChanged }
+        } else { guard directoryRole == nil else { throw ProtectedFilePolicyError.identityChanged } }
+        if let parentFact {
+            let parent = parentFact.split(separator: "|", omittingEmptySubsequences: false)
+            guard parent.count == 11, let mode = UInt16(parent[2]), let group = UInt32(parent[4]),
+                  held.st_gid == (mode & UInt16(S_ISGID) != 0 ? group : Darwin.getegid()) else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        }
+    }
+    private func inspectAncestor(_ i: Int) throws -> stat {
+        var held = stat(), named = stat()
+        try io {
+            guard Darwin.fstat(ancestorFDs[i], &held) == 0, Self.fact(held) == target.ancestors[i].fullFact else {
+                attempt.abandonHeldDescriptor(ancestorFDs[i], scope: scope)
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        }
+        try io {
+            let result = i == 0 ? Darwin.lstat(target.ancestors[i].url.path, &named) :
+                Darwin.fstatat(ancestorFDs[i - 1], target.ancestors[i].url.lastPathComponent, &named, AT_SYMLINK_NOFOLLOW)
+            guard result == 0 else { throw ProtectedFilePolicyError.identityChanged }
+        }
+        try requireOwned(held, named: named, fact: target.ancestors[i].fullFact, directory: true,
+            parentFact: i == 0 ? nil : target.ancestors[i - 1].fullFact,
+            directoryRole: target.ancestors[i].directoryRole)
+        return held
+    }
+    private func inspectLeaf(allowPolicyCTime: Bool = false) throws -> stat {
+        guard let descriptor else { throw ProtectedFilePolicyError.identityChanged }
+        var held = stat(), named = stat()
+        try io {
+            let result = Darwin.fstat(descriptor, &held)
+            let actual = Self.fact(held)
+            guard result == 0, allowPolicyCTime ? Self.ctimeOnly(actual, from: currentFullFact) : actual == currentFullFact else {
+                attempt.abandonHeldDescriptor(descriptor, scope: scope)
+                throw ProtectedFilePolicyError.identityChanged
+            }
+        }
+        try io { guard Darwin.fstatat(ancestorFDs[ancestorFDs.count - 1], target.url.lastPathComponent,
+            &named, AT_SYMLINK_NOFOLLOW) == 0 else { throw ProtectedFilePolicyError.identityChanged } }
+        let actual = Self.fact(held)
+        guard !allowPolicyCTime || Self.ctimeOnly(actual, from: currentFullFact) else { throw ProtectedFilePolicyError.identityChanged }
+        try requireOwned(held, named: named, fact: allowPolicyCTime ? actual : currentFullFact,
+            directory: target.kind == .stagingDirectory, parentFact: target.parentFullFact, directoryRole: target.directoryRole)
+        guard target.kind == .stagingDirectory || held.st_nlink == 1 else { throw ProtectedFilePolicyError.hardLink }
+        return held
+    }
+    func requirePolicyBoundary() throws -> stat {
+        try boundary()
+        guard ancestorFDs.count == target.ancestors.count, descriptor != nil else { throw ProtectedFilePolicyError.identityChanged }
+        for i in target.ancestors.indices { _ = try inspectAncestor(i) }
+        let held = try inspectLeaf(); try boundary(); return held
+    }
+    func streamSource() throws {
+        _ = try requirePolicyBoundary()
+        guard target.kind == .temporaryFile else { return }
+        guard let descriptor, let count = scope.byteCount, let sha = scope.sourceSHA256 else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        var digest = SHA256(), offset: Int64 = 0
+        var buffer = [UInt8](repeating: 0, count: 65_536)
+        while offset < count {
+            _ = try requirePolicyBoundary()
+            let wanted = Int(min(Int64(buffer.count), count - offset))
+            let calls = readCalls.addingReportingOverflow(1)
+            guard !calls.overflow, calls.partialValue <= expectedCalls else { throw ProtectedFilePolicyError.identityChanged }
+            readCalls = calls.partialValue
+            let got = try io { buffer.withUnsafeMutableBytes { Darwin.pread(descriptor, $0.baseAddress!, wanted, off_t(offset)) } }
+            guard got == wanted else { throw ProtectedFilePolicyError.identityChanged }
+            let bytes = readBytes.addingReportingOverflow(UInt64(got))
+            guard !bytes.overflow, bytes.partialValue <= expectedBytes else { throw ProtectedFilePolicyError.identityChanged }
+            readBytes = bytes.partialValue
+            buffer.withUnsafeBytes { digest.update(bufferPointer: UnsafeRawBufferPointer(start: $0.baseAddress, count: wanted)) }
+            offset += Int64(wanted); _ = try requirePolicyBoundary()
+        }
+        guard offset == count, digest.finalize().map({ String(format: "%02x", $0) }).joined() == sha else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+        _ = try requirePolicyBoundary()
+    }
+    func requireCompletedWork() throws {
+        guard readBytes == expectedBytes, readCalls == expectedCalls else { throw ProtectedFilePolicyError.identityChanged }
+        _ = try requirePolicyBoundary()
+    }
+    func perform(_ step: OriginalEraseScratchPublicationPolicyStepV1) throws -> OriginalEraseScratchPublicationPolicyOutcomeV1 {
+        _ = try requirePolicyBoundary(); try attempt.requireNextStep(step)
+        let result: Result<Void, Error>
+        do {
+            switch step {
+            case .completeProtection:
+                try (target.url as NSURL).setResourceValue(URLFileProtection.complete, forKey: .fileProtectionKey)
+            case .backupExclusion:
+                var values = URLResourceValues()
+                values.isExcludedFromBackup = ProtectedFilePolicyV1.disposition(for: target.kind).isExcludedFromBackup
+                var writable = target.url
+                try writable.setResourceValues(values)
+            }
+            result = .success(())
+        } catch { result = .failure(error) }
+        // Save the real call event BEFORE any issuer callback, including errors.
+        let event = OriginalEraseScratchPublicationPolicyEventV1(step: step, result: result)
+        try attempt.record(event); try boundary()
+        try event.result.get()
+        for i in target.ancestors.indices { _ = try inspectAncestor(i) }
+        let actual = try inspectLeaf(allowPolicyCTime: true)
+        let postFact = Self.fact(actual)
+        let outcome = try attempt.capture(event, fullFact: postFact)
+        try scope.requireOwnedPolicyPostFact(fullFact: postFact, outcome: outcome)
+        try boundary(); try attempt.accept(outcome, scope: scope)
+        currentFullFact = postFact
+        _ = try requirePolicyBoundary(); return outcome
+    }
+}
+
 extension ProtectedFilePolicyV1 {
     /// This path must never call verify/applyAndVerify or emit a success
     /// disposition. It independently reads Foundation metadata between held
@@ -1685,6 +2651,313 @@ extension ProtectedFilePolicyV1 {
         return values
     }
 
+
+    /// Exact LIVE owned single/root policy. The genuine scope refuses an
+    /// unaccepted active temporary until its actual policy request succeeds.
+    @MainActor
+    static func observeOriginalEraseScratchTemporalPolicyWithCheckedClose(
+        _ kind: OwnedFileKindV1, at url: URL, fullFact: String,
+        scope: OriginalEraseScratchTemporalObservationScopeV1,
+        retainUncertainDescriptor: (Int32) -> Void
+    ) throws -> TemporalPolicyObservationV1 {
+        let attempt = OriginalEraseScratchTemporalPolicyAttemptV1()
+        scope.retainObservationAttempt(attempt) // Before any getter/acquisition IO.
+        do {
+            try scope.requireCurrentBinding()
+            let node = try scope.requirePolicyNode(kind, at: url, fullFact: fullFact)
+            guard node.kind == kind, node.url == url, node.fullFact == fullFact else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            let context = try OriginalEraseScratchTemporalPolicyReadContextV1(
+                scope: scope, attempt: attempt, selection: .node(node))
+            let values = try readOriginalEraseScratchPolicies(context, retain: retainUncertainDescriptor)
+            guard values.count == 1 else { throw ProtectedFilePolicyError.identityChanged }
+            try attempt.finish(scope: scope, retain: retainUncertainDescriptor)
+            try scope.requireCurrentBinding(); try attempt.requireCheckedObservationTerminal()
+            try attempt.acceptCompleted(scope: scope, values: values)
+            try attempt.requireCheckedSettlement()
+            return values[0]
+        } catch {
+            try finishOriginalEraseScratchRefusal(attempt, scope: scope, retain: retainUncertainDescriptor)
+            throw error
+        }
+    }
+    /// Exact LIVE two-name publication/original DATA role, not an ordinary
+    /// nlink exception. No historical final, future receipt or cold origin is
+    /// guessed. Returned pending Simulator state is observation only.
+    @MainActor
+    static func observeOriginalEraseScratchTemporalPairWithCheckedClose(
+        aliasURLs: [URL], scope: OriginalEraseScratchTemporalObservationScopeV1,
+        retainUncertainDescriptor: (Int32) -> Void
+    ) throws -> [TemporalPolicyObservationV1] {
+        let attempt = OriginalEraseScratchTemporalPolicyAttemptV1()
+        scope.retainObservationAttempt(attempt) // Before any getter/acquisition IO.
+        do {
+            try scope.requireCurrentBinding()
+            let pair = try scope.requirePair(aliasURLs: aliasURLs)
+            let context = try OriginalEraseScratchTemporalPolicyReadContextV1(
+                scope: scope, attempt: attempt, selection: .pair(pair, aliasURLs))
+            let values = try readOriginalEraseScratchPolicies(context, retain: retainUncertainDescriptor)
+            guard values.count == 2, values[0] == values[1] else { throw ProtectedFilePolicyError.resourceValueMismatch }
+            try attempt.finish(scope: scope, retain: retainUncertainDescriptor)
+            try scope.requireCurrentBinding(); try attempt.requireCheckedObservationTerminal()
+            try attempt.acceptCompleted(scope: scope, values: values)
+            try attempt.requireCheckedSettlement()
+            return values
+        } catch {
+            try finishOriginalEraseScratchRefusal(attempt, scope: scope, retain: retainUncertainDescriptor)
+            throw error
+        }
+    }
+    @MainActor
+    private static func finishOriginalEraseScratchRefusal(_ attempt: OriginalEraseScratchTemporalPolicyAttemptV1,
+        scope: OriginalEraseScratchTemporalObservationScopeV1, retain: (Int32) -> Void) throws {
+        if attempt.needsFinish {
+            do { try attempt.finish(scope: scope, retain: retain) }
+            catch { attempt.poison(scope: scope); throw error }
+        }
+        attempt.poison(scope: scope)
+    }
+    @MainActor
+    private static func readOriginalEraseScratchPolicies(_ context: OriginalEraseScratchTemporalPolicyReadContextV1,
+        retain: (Int32) -> Void) throws -> [TemporalPolicyObservationV1] {
+        try context.openAll(retain: retain)
+        var values: [TemporalPolicyObservationV1] = []
+        for leaf in context.leaves {
+            let before = try context.requireUnchangedPolicyInput()
+            let value = try readOriginalEraseScratchTemporalPolicy(context.kind, at: leaf.url,
+                expectedDevice: UInt64(before.st_dev), expectedInode: UInt64(before.st_ino),
+                expectedLinkCount: UInt64(before.st_nlink), context: context)
+            _ = try context.requireUnchangedPolicyInput()
+            values.append(value)
+        }
+        try context.requireCompletedPayloadWork()
+        return values
+    }
+
+    @MainActor
+    private static func readOriginalEraseScratchTemporalPolicy(_ kind: OwnedFileKindV1, at url: URL,
+        expectedDevice: UInt64, expectedInode: UInt64, expectedLinkCount: UInt64,
+        context: OriginalEraseScratchTemporalPolicyReadContextV1)
+        throws -> TemporalPolicyObservationV1 {
+        let expected = disposition(for: kind)
+        var independent = URL(fileURLWithPath: url.path)
+        independent.removeAllCachedResourceValues()
+        let values: URLResourceValues
+        let attributes: [FileAttributeKey: Any]
+        _ = try context.requirePolicyBoundary()
+        do {
+            values = try independent.resourceValues(forKeys: [.fileProtectionKey,
+                .isExcludedFromBackupKey, .isDirectoryKey, .volumeSupportsFileProtectionKey])
+        } catch { _ = try context.requirePolicyBoundary(); throw mapWriteError(error) }
+        _ = try context.requirePolicyBoundary()
+        do { attributes = try FileManager.default.attributesOfItem(atPath: url.path) }
+        catch { _ = try context.requirePolicyBoundary(); throw mapWriteError(error) }
+        _ = try context.requirePolicyBoundary()
+        func protectionName(_ value: URLFileProtection?) -> String {
+            switch value {
+            case .some(.complete): return "complete"
+            case .some(.completeUnlessOpen): return "completeUnlessOpen"
+            case .some(.completeUntilFirstUserAuthentication): return "completeUntilFirstUserAuthentication"
+            case .some(.none): return "none"
+            case nil: return "unknown"
+            default: return "other"
+            }
+        }
+        let managerProtection: String
+        switch attributes[.protectionKey] as? FileProtectionType {
+        case .some(.complete): managerProtection = "complete"
+        case .some(.completeUnlessOpen): managerProtection = "completeUnlessOpen"
+        case .some(.completeUntilFirstUserAuthentication): managerProtection = "completeUntilFirstUserAuthentication"
+        case .some(.none): managerProtection = "none"
+        case nil: managerProtection = "unknown"
+        default: managerProtection = "other"
+        }
+        var named = stat()
+        _ = try context.requirePolicyBoundary()
+        let namedResult = Darwin.lstat(url.path, &named)
+        _ = try context.requirePolicyBoundary()
+        guard namedResult == 0,
+              UInt64(named.st_dev) == expectedDevice, UInt64(named.st_ino) == expectedInode,
+              UInt64(named.st_nlink) == expectedLinkCount,
+              (named.st_mode & S_IFMT) == (expected.expectsDirectory ? S_IFDIR : S_IFREG),
+              attributes[.type] as? FileAttributeType == (expected.expectsDirectory ? .typeDirectory : .typeRegular),
+              values.isDirectory == expected.expectsDirectory,
+              values.isExcludedFromBackup == expected.isExcludedFromBackup else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+        let capability = values.allValues[.volumeSupportsFileProtectionKey] as? Bool
+        let state: TemporalPolicyObservationV1.State
+        if values.fileProtection == .complete {
+            state = .strictComplete
+        } else {
+#if DEBUG && os(iOS) && targetEnvironment(simulator)
+            let readback = DirectoryProtectionReadback(urlProtection: protectionName(values.fileProtection),
+                fileManagerProtection: managerProtection, backupExcluded: values.isExcludedFromBackup,
+                isDirectory: values.isDirectory, volumeSupportsProtection: capability)
+            guard simulatorReadbackIsExactFallback(readback, disposition: expected) else {
+                throw ProtectedFilePolicyError.resourceValueMismatch
+            }
+            state = .pendingSimulatorRequest
+#else
+            throw ProtectedFilePolicyError.resourceValueMismatch
+#endif
+        }
+        return TemporalPolicyObservationV1(state: state, device: expectedDevice,
+            inode: expectedInode, linkCount: expectedLinkCount, mode: UInt16(named.st_mode),
+            urlProtection: protectionName(values.fileProtection), fileManagerProtection: managerProtection,
+            backupExcluded: values.isExcludedFromBackup, isDirectory: values.isDirectory,
+            volumeSupportsProtection: capability)
+    }
+
+    /// The exact active LIVE policy request, privately issued by the image
+    /// owner. A read-only observation Scope can never call this setter.
+    @MainActor
+    static func applyOriginalEraseScratchPublicationPolicyWithCheckedClose(
+        _ kind: OwnedFileKindV1, at url: URL, initialFullFact: String,
+        scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        retainUncertainDescriptor: (Int32) -> Void
+    ) throws -> TemporalPolicyObservationV1 {
+        let attempt = OriginalEraseScratchPublicationPolicyAttemptV1()
+        scope.retainPolicyAttempt(attempt) // Retain actual owner before first getter/open.
+        do {
+            try scope.requireCurrentBinding()
+            let target = try scope.requireTarget(kind, at: url, initialFullFact: initialFullFact)
+            guard target.kind == kind, target.url == url, target.fullFact == initialFullFact else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            let context = try OriginalEraseScratchPublicationPolicyContextV1(scope: scope, attempt: attempt, target: target)
+            try context.openAll(retain: retainUncertainDescriptor)
+            #if DEBUG && os(iOS) && targetEnvironment(simulator)
+            var independent = URL(fileURLWithPath: url.path)
+            independent.removeAllCachedResourceValues()
+            _ = try context.requirePolicyBoundary()
+            let capabilityBefore: Bool?
+            do {
+                capabilityBefore = try independent.resourceValues(forKeys: [.volumeSupportsFileProtectionKey])
+                    .allValues[.volumeSupportsFileProtectionKey] as? Bool
+            } catch { _ = try context.requirePolicyBoundary(); throw mapWriteError(error) }
+            _ = try context.requirePolicyBoundary()
+            #endif
+            try context.streamSource()
+            let protection = try context.perform(.completeProtection)
+            let backup = try context.perform(.backupExclusion)
+            let held = try context.requirePolicyBoundary()
+            let value = try readOriginalEraseScratchPublicationPolicy(kind, at: url,
+                expectedDevice: UInt64(held.st_dev), expectedInode: UInt64(held.st_ino),
+                expectedLinkCount: UInt64(held.st_nlink), context: context)
+            try context.streamSource(); try context.requireCompletedWork()
+            try protection.requireBound(scope: scope, kind: kind, at: url, fullFact: protection.fullFact)
+            try backup.requireBound(scope: scope, kind: kind, at: url, fullFact: backup.fullFact)
+            #if DEBUG && os(iOS) && targetEnvironment(simulator)
+            if value.state == .pendingSimulatorRequest {
+                let readback = DirectoryProtectionReadback(urlProtection: value.urlProtection,
+                    fileManagerProtection: value.fileManagerProtection, backupExcluded: value.backupExcluded,
+                    isDirectory: value.isDirectory, volumeSupportsProtection: value.volumeSupportsProtection)
+                // Both flags derive this call's real events and full held/named
+                // ctime-only proof, never a caller success Boolean.
+                guard simulatorDiagnosticAllows(capabilityBefore: capabilityBefore, after: readback,
+                    disposition: disposition(for: kind), successfulCompleteRequest: true,
+                    identityUnchanged: true) else { throw ProtectedFilePolicyError.resourceValueMismatch }
+                _ = try context.requirePolicyBoundary()
+                do { try emitVerificationDisposition(.simulatorFileProtectionUnsupported, kind: kind) }
+                catch { _ = try context.requirePolicyBoundary(); throw error }
+                _ = try context.requirePolicyBoundary()
+            }
+            #endif
+            _ = try context.requirePolicyBoundary()
+            let finalFact = context.currentFullFact
+            try attempt.finish(scope: scope, retain: retainUncertainDescriptor)
+            try scope.requireCurrentBinding()
+            try attempt.complete(scope: scope, value: value, fullFact: finalFact)
+            try attempt.requireCheckedSettlement(scope: scope, kind: kind, at: url)
+            return value
+        } catch {
+            if attempt.needsFinish {
+                do { try attempt.finish(scope: scope, retain: retainUncertainDescriptor) }
+                catch { attempt.poison(scope); throw error }
+            }
+            attempt.poison(scope)
+            if let error = error as? ProtectedFilePolicyError { throw error }
+            throw mapWriteError(error)
+        }
+    }
+
+    @MainActor
+    private static func readOriginalEraseScratchPublicationPolicy(_ kind: OwnedFileKindV1, at url: URL,
+        expectedDevice: UInt64, expectedInode: UInt64, expectedLinkCount: UInt64,
+        context: OriginalEraseScratchPublicationPolicyContextV1)
+        throws -> TemporalPolicyObservationV1 {
+        let expected = disposition(for: kind)
+        var independent = URL(fileURLWithPath: url.path)
+        independent.removeAllCachedResourceValues()
+        let values: URLResourceValues
+        let attributes: [FileAttributeKey: Any]
+        _ = try context.requirePolicyBoundary()
+        do {
+            values = try independent.resourceValues(forKeys: [.fileProtectionKey,
+                .isExcludedFromBackupKey, .isDirectoryKey, .volumeSupportsFileProtectionKey])
+        } catch { _ = try context.requirePolicyBoundary(); throw mapWriteError(error) }
+        _ = try context.requirePolicyBoundary()
+        do { attributes = try FileManager.default.attributesOfItem(atPath: url.path) }
+        catch { _ = try context.requirePolicyBoundary(); throw mapWriteError(error) }
+        _ = try context.requirePolicyBoundary()
+        func protectionName(_ value: URLFileProtection?) -> String {
+            switch value {
+            case .some(.complete): return "complete"
+            case .some(.completeUnlessOpen): return "completeUnlessOpen"
+            case .some(.completeUntilFirstUserAuthentication): return "completeUntilFirstUserAuthentication"
+            case .some(.none): return "none"
+            case nil: return "unknown"
+            default: return "other"
+            }
+        }
+        let managerProtection: String
+        switch attributes[.protectionKey] as? FileProtectionType {
+        case .some(.complete): managerProtection = "complete"
+        case .some(.completeUnlessOpen): managerProtection = "completeUnlessOpen"
+        case .some(.completeUntilFirstUserAuthentication): managerProtection = "completeUntilFirstUserAuthentication"
+        case .some(.none): managerProtection = "none"
+        case nil: managerProtection = "unknown"
+        default: managerProtection = "other"
+        }
+        var named = stat()
+        _ = try context.requirePolicyBoundary()
+        let namedResult = Darwin.lstat(url.path, &named)
+        _ = try context.requirePolicyBoundary()
+        guard namedResult == 0,
+              UInt64(named.st_dev) == expectedDevice, UInt64(named.st_ino) == expectedInode,
+              UInt64(named.st_nlink) == expectedLinkCount,
+              (named.st_mode & S_IFMT) == (expected.expectsDirectory ? S_IFDIR : S_IFREG),
+              attributes[.type] as? FileAttributeType == (expected.expectsDirectory ? .typeDirectory : .typeRegular),
+              values.isDirectory == expected.expectsDirectory,
+              values.isExcludedFromBackup == expected.isExcludedFromBackup else {
+            throw ProtectedFilePolicyError.resourceValueMismatch
+        }
+        let capability = values.allValues[.volumeSupportsFileProtectionKey] as? Bool
+        let state: TemporalPolicyObservationV1.State
+        if values.fileProtection == .complete {
+            state = .strictComplete
+        } else {
+#if DEBUG && os(iOS) && targetEnvironment(simulator)
+            let readback = DirectoryProtectionReadback(urlProtection: protectionName(values.fileProtection),
+                fileManagerProtection: managerProtection, backupExcluded: values.isExcludedFromBackup,
+                isDirectory: values.isDirectory, volumeSupportsProtection: capability)
+            guard simulatorReadbackIsExactFallback(readback, disposition: expected) else {
+                throw ProtectedFilePolicyError.resourceValueMismatch
+            }
+            state = .pendingSimulatorRequest
+#else
+            throw ProtectedFilePolicyError.resourceValueMismatch
+#endif
+        }
+        return TemporalPolicyObservationV1(state: state, device: expectedDevice,
+            inode: expectedInode, linkCount: expectedLinkCount, mode: UInt16(named.st_mode),
+            urlProtection: protectionName(values.fileProtection), fileManagerProtection: managerProtection,
+            backupExcluded: values.isExcludedFromBackup, isDirectory: values.isDirectory,
+            volumeSupportsProtection: capability)
+    }
+
     private static func readTemporalPolicy(_ kind: OwnedFileKindV1, at url: URL,
         expectedDevice: UInt64, expectedInode: UInt64, expectedLinkCount: UInt64)
         throws -> TemporalPolicyObservationV1 {
@@ -1760,7 +3033,8 @@ extension ProtectedFilePolicyV1 {
     static func verifyEraseColdPrivateWithCheckedClose(
         _ kind: OwnedFileKindV1,
         at url: URL,
-        retainUncertainDescriptor: (Int32) -> Void
+        retainUncertainDescriptor: (Int32) -> Void,
+        beforeCompleteProtectionRequest: () throws -> Void = {}
     ) throws -> ProtectedFileVerificationDispositionV1 {
         let expected = disposition(for: kind)
         let identity = try pinForRestoreExit(kind, at: url,
@@ -1768,9 +3042,11 @@ extension ProtectedFilePolicyV1 {
             retainUncertainDescriptor: retainUncertainDescriptor)
         let result: ProtectedFileVerificationDispositionV1
         #if DEBUG && os(iOS) && targetEnvironment(simulator)
-        result = try verifySimulatorResourceValues(kind, at: url,
+        result = try verifySimulatorResourceValuesWithCheckedClose(kind, at: url,
             disposition: expected, identity: identity,
-            successfulRequestReadback: nil)
+            successfulRequestReadback: nil,
+            retainUncertainDescriptor: retainUncertainDescriptor,
+            beforeCompleteProtectionRequest: beforeCompleteProtectionRequest)
         #else
         try verifyResourceValues(at: url, disposition: expected)
         result = .verifiedComplete

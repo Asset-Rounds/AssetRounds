@@ -1087,7 +1087,8 @@ class GeneratorTests(unittest.TestCase):
 
     def test_cli_outputs_are_canonical_and_refuse_overwrite(self):
         with tempfile.TemporaryDirectory() as temp:
-            output = Path(temp)
+            # The success fixture supplies a physical output parent, including macOS /var aliases.
+            output = Path(temp).resolve(strict=True)
             command = [sys.executable, str(GENERATOR), "generate", "--manifest", str(MANIFEST),
                        "--checkout-root", str(self.checkout), "--profile", "prospective-v1",
                        "--selection-output", str(output / "ci-selection.json"),

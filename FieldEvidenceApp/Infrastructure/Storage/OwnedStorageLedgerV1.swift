@@ -1114,6 +1114,7 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
     private(set) var rootDescriptor: Int32
     private var rootCloseAttempted = false
     private var operationsCloseAttempted = false
+    private let originalCleanupBorrowCheck: (() throws -> Void)?
     let operationsDevice: UInt64
     let operationsInode: UInt64
     let rootDevice: UInt64
@@ -1123,6 +1124,7 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
         originalEraseNotificationDiagnostic: Bool = false,
         retainedOriginalEraseIO: EraseAbortCheckedSnapshotIOV1? = nil) throws {
         self.operationsURL = operationsURL.standardizedFileURL
+        originalCleanupBorrowCheck = nil
         operationsDescriptor = Darwin.open(
             operationsURL.path,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
@@ -1213,7 +1215,24 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
         rootInode = UInt64(root.st_ino)
     }
 
+    /// These descriptors belong to the retained live cleanup attempt. This
+    /// pin cannot close them, including during initialization failure/deinit.
+    init(originalCleanupOperationsURL: URL, operations: Int32, root: Int32,
+        operationsInformation: stat, rootInformation: stat,
+        requireBorrow: @escaping () throws -> Void) throws {
+        try requireBorrow()
+        operationsURL = originalCleanupOperationsURL.standardizedFileURL
+        operationsDescriptor = operations; rootDescriptor = root
+        operationsDevice = UInt64(operationsInformation.st_dev)
+        operationsInode = UInt64(operationsInformation.st_ino)
+        rootDevice = UInt64(rootInformation.st_dev); rootInode = UInt64(rootInformation.st_ino)
+        originalCleanupBorrowCheck = requireBorrow
+        rootCloseAttempted = true; operationsCloseAttempted = true
+        try requireBorrow()
+    }
+
     deinit {
+        if originalCleanupBorrowCheck != nil { return }
         if rootDescriptor >= 0 && !rootCloseAttempted { _ = Darwin.close(rootDescriptor) }
         if operationsDescriptor >= 0 && !operationsCloseAttempted { _ = Darwin.close(operationsDescriptor) }
     }
@@ -1221,6 +1240,9 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
     func closeCheckedForExclusiveOriginalEraseRead(
         verifyBeforeClose: Bool = true
     ) throws {
+        guard originalCleanupBorrowCheck == nil else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
         if verifyBeforeClose { try verify(rootName: "ScratchDataV1") }
         let root = rootDescriptor
         rootCloseAttempted = true
@@ -1245,26 +1267,35 @@ private final class PinnedScratchRootV1: @unchecked Sendable {
     }
 
     func verify(rootName: String) throws {
+        try originalCleanupBorrowCheck?()
+        func observed(_ body: () -> Int32) throws -> Int32 {
+            guard let check = originalCleanupBorrowCheck else { return body() }
+            let incomingErrno = errno
+            try check(); errno = incomingErrno
+            let result = body(); let actualErrno = errno
+            try check(); errno = actualErrno
+            return result
+        }
         var operations = stat()
         var linkedOperations = stat()
         var root = stat()
         var child = stat()
-        guard Darwin.fstat(operationsDescriptor, &operations) == 0,
+        guard try observed({ Darwin.fstat(operationsDescriptor, &operations) }) == 0,
               UInt64(operations.st_dev) == operationsDevice,
               UInt64(operations.st_ino) == operationsInode,
-              Darwin.lstat(operationsURL.path, &linkedOperations) == 0,
+              try observed({ Darwin.lstat(operationsURL.path, &linkedOperations) }) == 0,
               (linkedOperations.st_mode & S_IFMT) == S_IFDIR,
               UInt64(linkedOperations.st_dev) == operationsDevice,
               UInt64(linkedOperations.st_ino) == operationsInode,
-              Darwin.fstat(rootDescriptor, &root) == 0,
+              try observed({ Darwin.fstat(rootDescriptor, &root) }) == 0,
               UInt64(root.st_dev) == rootDevice,
               UInt64(root.st_ino) == rootInode,
-              Darwin.fstatat(
+              try observed({ Darwin.fstatat(
                 operationsDescriptor,
                 rootName,
                 &child,
                 AT_SYMLINK_NOFOLLOW
-              ) == 0,
+              ) }) == 0,
               UInt64(child.st_dev) == rootDevice,
               UInt64(child.st_ino) == rootInode else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
@@ -4091,6 +4122,687 @@ final class AppLockNotificationControlStoreV1: @unchecked Sendable {
     }
 }
 
+struct OriginalEraseScratchCleanupImageV1: Equatable {
+    struct Node: Equatable {
+        let path: String // Relative to this root; empty only for the root node.
+        let fullFact: String // Actual eleven-field held/named fact.
+        let contentSHA256: String?
+        let policy: TemporalPolicyObservationV1?
+        // nil only for the exact active O_EXCL temporary prior to its actual
+        // checked policy request; never for an existing or unassigned node.
+    }
+    struct Root: Equatable {
+        let fullFact: String
+        let digest: String
+        let nodes: [Node] // Complete canonical path order, including root.
+    }
+    let operationsFullFact: String
+    let operationsNames: [String]
+    let scratch: Root?
+    let ingress: Root?
+}
+
+@MainActor
+final class OriginalEraseScratchCleanupPrimitiveIntentV1 {
+    enum Root: String { case scratch = "ScratchDataV1", ingress = "ProtectedIngressReceiptsV1" }
+    enum Kind {
+        // All paths below are canonical Operations-relative paths. Only the
+        // fixed cleanup engine creates an intent; caller DATA cannot mint it.
+        case createTemporary(path: String, finalPath: String, bytes: Data,
+            sha256: String, mode: mode_t, exclusiveFinalRename: Bool)
+        case writeTemporary(path: String, offset: Int, requestedByteCount: Int)
+        case requestPolicy(path: String, kind: OwnedFileKindV1)
+        case linkPublication(temporaryPath: String, finalPath: String)
+        case renamePublication(sourcePath: String, finalPath: String, exclusive: Bool)
+        case renameLeaseDirectory(originalPath: String, tombstonePath: String)
+        case removeLeaf(path: String)
+        case removeDirectory(path: String)
+        case synchronize(path: String)
+        case lockOwnedDirectory(path: String)
+        case closeOwnedResource(path: String, resourceID: UUID)
+    }
+    let requestID: UUID
+    let attemptID: UUID
+    let operationID: UUID
+    let sequence: UInt64
+    let before: OriginalEraseScratchCleanupImageV1
+    let kind: Kind
+    fileprivate init(attemptID: UUID, operationID: UUID, sequence: UInt64,
+        before: OriginalEraseScratchCleanupImageV1, kind: Kind) {
+        requestID = UUID(); self.attemptID = attemptID
+        self.operationID = operationID; self.sequence = sequence
+        self.before = before; self.kind = kind
+    }
+}
+
+@MainActor
+final class OriginalEraseScratchCleanupPrimitiveOutcomeV1 {
+    let intent: OriginalEraseScratchCleanupPrimitiveIntentV1
+    let result: Int64 // Actual syscall count/result or checked policy success0.
+    let syscallErrno: Int32 // Saved immediately before any callback/close.
+    fileprivate init(intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        result: Int64, syscallErrno: Int32) {
+        self.intent = intent; self.result = result; self.syscallErrno = syscallErrno
+    }
+}
+
+
+struct OriginalEraseScratchCleanupCanonicalSourceV1 {
+    let path: String
+    let bytes: Data
+    let fullFact: String
+    let sha256: String
+}
+
+struct OriginalEraseScratchCleanupDirectorySourceV1 {
+    enum Metadata {
+        case validatedLease(bytes: Data, fullFact: String, sha256: String)
+        case ownedOrphan
+    }
+    let originalPath: String
+    let originalFullFact: String
+    let metadata: Metadata
+}
+
+/// Retained by the actual original operation before any open. Its public
+/// surface exposes DATA and checked settlement only, never a Store or raw FD.
+@MainActor
+final class OriginalEraseScratchCleanupAttemptV1 {
+    enum Lifetime { case active, closing, closed, uncertain }
+    fileprivate enum ResourceState { case open, closeEntered, closed, uncertain }
+    fileprivate enum ResourceRole {
+        case cleanupPin
+        case engineRead
+        case publication(requestID: UUID)
+        case catalog(OriginalEraseScratchCanonicalSourceCatalogSessionV1)
+    }
+    fileprivate final class Resource {
+        let resourceID = UUID()
+        let descriptor: Int32
+        var path: String
+        var state = ResourceState.open
+        let role: ResourceRole
+        var catalogSession: OriginalEraseScratchCanonicalSourceCatalogSessionV1? {
+            if case .catalog(let session) = role { return session }; return nil
+        }
+        var close: () -> Int32
+        init(descriptor: Int32, path: String,
+            role: ResourceRole,
+            close: @escaping () -> Int32) {
+            self.descriptor = descriptor; self.path = path; self.close = close
+            self.role = role
+        }
+    }
+    let attemptID = UUID()
+    let operationID: UUID
+    let initialImage: OriginalEraseScratchCleanupImageV1
+    fileprivate let permit: OriginalEraseScratchCleanupEffectPermitV1
+    fileprivate let retainedIO: EraseAbortCheckedSnapshotIOV1
+    fileprivate private(set) var lifetime = Lifetime.active
+    fileprivate private(set) var image: OriginalEraseScratchCleanupImageV1
+    fileprivate var store: ScratchDataLeaseStoreV1?
+    fileprivate var resources: [Int32: Resource] = [:]
+    fileprivate var borrowedPaths: [Int32: String] = [:]
+    fileprivate var resourceOrder: [Resource] = []
+    fileprivate var sequence: UInt64 = 0
+    fileprivate var sourcesCaptured = false
+    fileprivate var canonicalSources: [String: OriginalEraseScratchCleanupCanonicalSourceV1] = [:]
+    fileprivate var directorySources: [String: OriginalEraseScratchCleanupDirectorySourceV1] = [:]
+    fileprivate var directoryMappings: [String: String] = [:]
+    fileprivate var publications: [String: OriginalEraseScratchCleanupPrimitiveIntentV1] = [:]
+    // Only the active request retains its full before image. A successfully
+    // read-back and checked-closed publisher keeps this private compact DATA
+    // capsule; it cannot issue a new effect or adopt a current survivor.
+    fileprivate struct CompletedPublication {
+        let requestID: UUID
+        let temporaryPath: String
+        let finalPath: String
+        let bytes: Data
+        let sha256: String
+        let finalFullFact: String
+        let exclusiveFinalRename: Bool
+        let closedResourceID: UUID
+        let checkedSequence: UInt64
+    }
+    fileprivate var completedPublications: [String: CompletedPublication] = [:]
+    fileprivate var activeIntent: OriginalEraseScratchCleanupPrimitiveIntentV1?
+    fileprivate var activeOutcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
+    fileprivate var catalogSession: OriginalEraseScratchCanonicalSourceCatalogSessionV1?
+    fileprivate var completedCatalogSessions: [OriginalEraseScratchCanonicalSourceCatalogSessionV1] = []
+    var checkedPrimitiveSequence: UInt64 { sequence } // DATA, never permission.
+
+    #if DEBUG
+    fileprivate enum DiagnosticStage: String {
+        case initialAdmission, sourceCatalog, sourceRead, publisher, controlRead
+        case beforePrimitive, actualPrimitive, readback, checkedClose, terminalSettlement
+    }
+    fileprivate var diagnosticStage = DiagnosticStage.initialAdmission
+    fileprivate func recordFailureDiagnostic() {
+        let kind: String
+        switch activeIntent?.kind {
+        case .some(.createTemporary): kind = "createTemporary"
+        case .some(.writeTemporary): kind = "writeTemporary"
+        case .some(.requestPolicy): kind = "requestPolicy"
+        case .some(.linkPublication): kind = "linkPublication"
+        case .some(.renamePublication): kind = "renamePublication"
+        case .some(.renameLeaseDirectory): kind = "renameLeaseDirectory"
+        case .some(.removeLeaf): kind = "removeLeaf"
+        case .some(.removeDirectory): kind = "removeDirectory"
+        case .some(.synchronize): kind = "synchronize"
+        case .some(.lockOwnedDirectory): kind = "lockOwnedDirectory"
+        case .some(.closeOwnedResource): kind = "closeOwnedResource"
+        case nil: kind = "none"
+        }
+        var line = "V23_ORIGINAL_SCRATCH_CLEANUP_DIAG stage=" + diagnosticStage.rawValue
+            + " kind=" + kind
+        if let outcome = activeOutcome {
+            // This object exists only after the actual primitive returned.
+            // A rejected preproof or thrown policy call has no fabricated OS
+            // result/errno, path, payload or user identifier in diagnostics.
+            line += " result=" + String(outcome.result) + " errno=" + String(outcome.syscallErrno)
+        }
+        FileHandle.standardError.write(Data((line + "\n").utf8))
+    }
+    #endif
+
+    fileprivate init(operationID: UUID, image: OriginalEraseScratchCleanupImageV1,
+        retainedIO: EraseAbortCheckedSnapshotIOV1,
+        permit: OriginalEraseScratchCleanupEffectPermitV1) {
+        self.operationID = operationID; initialImage = image; self.image = image
+        self.retainedIO = retainedIO; self.permit = permit
+    }
+
+    fileprivate func requireActive() throws {
+        guard lifetime == .active else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireHeld()
+        try catalogSession?.requireHeld(attempt: self)
+    }
+
+    func requireCanonicalCatalogFrame(session: OriginalEraseScratchCanonicalSourceCatalogSessionV1) throws {
+        guard lifetime == .active, catalogSession === session, !sourcesCaptured else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        if let intent = activeIntent {
+            guard case .closeOwnedResource = intent.kind else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        }
+        for resource in resourceOrder where resource.state == .open {
+            switch resource.role {
+            case .cleanupPin: break
+            case .catalog(let value): guard value === session else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            case .engineRead, .publication: throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+        }
+        try permit.requireHeld()
+    }
+
+    func requireCatalogResourcesCheckedClosed(session: OriginalEraseScratchCanonicalSourceCatalogSessionV1) throws {
+        // Pure retained settlement data, also callable after lexical G release.
+        // Actual Session finish independently brackets this with its held owner.
+        guard lifetime != .uncertain,
+              catalogSession === session || completedCatalogSessions.contains(where: { $0 === session }),
+              activeIntent == nil, activeOutcome == nil,
+              resourceOrder.filter({ $0.catalogSession === session }).allSatisfy({ $0.state == .closed }) else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try retainedIO.requireSettled()
+    }
+
+    /// Nonrecursive actual EX/G/frame proof. Physical policy readers use only
+    /// this retained active request/outcome, before the complete readback exists.
+    func requireObservationFrame(
+        intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
+    ) throws {
+        guard lifetime == .active || lifetime == .closing,
+              activeIntent === intent, intent.attemptID == attemptID,
+              intent.operationID == operationID,
+              activeOutcome === outcome else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireHeld()
+    }
+
+    func retainedCanonicalSources() throws -> [OriginalEraseScratchCleanupCanonicalSourceV1] {
+        try requireActive()
+        guard sourcesCaptured, catalogSession == nil else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let value = canonicalSources.values.sorted { $0.path < $1.path }
+        try permit.requireHeld()
+        return value
+    }
+
+    func retainedDirectorySources() throws -> [OriginalEraseScratchCleanupDirectorySourceV1] {
+        try requireActive()
+        guard sourcesCaptured, catalogSession == nil else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let value = directorySources.values.sorted { $0.originalPath < $1.originalPath }
+        try permit.requireHeld()
+        return value
+    }
+
+    /// Pure exact owner identity/state, never an inspection of its old FD.
+    func requireOwnedCloseRequest(intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?) throws {
+        try requireObservationFrame(intent: intent, outcome: outcome)
+        guard case .closeOwnedResource(let path, let resourceID) = intent.kind,
+              let resource = resourceOrder.first(where: { $0.resourceID == resourceID }),
+              resource.path == path else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        if let session = catalogSession {
+            guard resource.catalogSession === session else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        }
+        if let outcome {
+            guard outcome.intent === intent,
+                  (outcome.result == 0 ? resource.state == .closed : resource.state == .uncertain) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+        } else {
+            guard resource.state == .open else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        }
+    }
+
+    func retainedPublicationIntent(temporaryPath: String)
+        throws -> OriginalEraseScratchCleanupPrimitiveIntentV1? {
+        guard lifetime == .active || lifetime == .closing else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try permit.requireHeld()
+        let value = publications[temporaryPath]
+        try permit.requireHeld()
+        return value // DATA lookup only; nil grants no absence/effect permission.
+    }
+
+    fileprivate func currentNode(path: String) throws -> OriginalEraseScratchCleanupImageV1.Node? {
+        try requireActive()
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard let first = parts.first, parts.allSatisfy({
+            OperationalDiagnosticsBoundsV1.validRelativeName(String($0))
+        }) else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let root: OriginalEraseScratchCleanupImageV1.Root?
+        switch first {
+        case "ScratchDataV1": root = image.scratch
+        case "ProtectedIngressReceiptsV1": root = image.ingress
+        default: throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let relative = parts.dropFirst().joined(separator: "/")
+        return root?.nodes.first(where: { $0.path == relative })
+    }
+
+    fileprivate func requireRetainedCanonicalPublication(path: String, bytes: Data) throws -> Bool {
+        try requireActive()
+        guard sourcesCaptured, catalogSession == nil else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        guard let node = try currentNode(path: path) else { return false }
+        let sha = try CompatibilityCanonicalV1.sha256(bytes)
+        let fields = node.fullFact.split(separator: "|", omittingEmptySubsequences: false)
+        guard fields.count == 11, fields[5] == "1", node.policy != nil,
+              node.contentSHA256 == sha else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        if let source = canonicalSources[path] {
+            guard source.bytes == bytes, source.sha256 == sha,
+                  source.fullFact == node.fullFact else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        } else if let completed = completedPublications[path] {
+            guard completed.finalPath == path, completed.bytes == bytes,
+                  completed.sha256 == sha, completed.finalFullFact == node.fullFact,
+                  completed.checkedSequence <= sequence,
+                  resourceOrder.contains(where: { $0.resourceID == completed.closedResourceID && $0.state == .closed }) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+        } else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireHeld()
+        return true
+    }
+
+    fileprivate func settlePublication(temporaryPath: String, finalPath: String,
+        resource: Resource) throws {
+        try requireActive()
+        guard sourcesCaptured, catalogSession == nil,
+              let intent = publications[temporaryPath],
+              case .createTemporary(let expectedTemporary, let expectedFinal, let bytes,
+                    let sha, _, let exclusive) = intent.kind,
+              expectedTemporary == temporaryPath, expectedFinal == finalPath,
+              case .publication(let requestID) = resource.role,
+              requestID == intent.requestID, resource.state == .closed,
+              !resourceOrder.contains(where: {
+                  if case .publication(let otherID) = $0.role { return otherID == requestID && $0.state != .closed }
+                  return false
+              }),
+              try currentNode(path: temporaryPath) == nil,
+              let final = try currentNode(path: finalPath), final.contentSHA256 == sha,
+              final.policy != nil,
+              final.fullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+              final.fullFact.split(separator: "|", omittingEmptySubsequences: false)[5] == "1",
+              try CompatibilityCanonicalV1.sha256(bytes) == sha,
+              completedPublications[finalPath] == nil else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        completedPublications[finalPath] = CompletedPublication(requestID: requestID,
+            temporaryPath: temporaryPath, finalPath: finalPath, bytes: bytes,
+            sha256: sha, finalFullFact: final.fullFact, exclusiveFinalRename: exclusive,
+            closedResourceID: resource.resourceID, checkedSequence: sequence)
+        publications.removeValue(forKey: temporaryPath)
+        try permit.requireHeld()
+    }
+
+    /// DATA-only validation for the fixed engine's sole nonexclusive control
+    /// replacement. Actual request/frame, source lineage and canonical H
+    /// semantics all precede the physical owner's independent delta proof.
+    func requireFinalizedIngressReplacement(intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        originalBytes: Data, stagedBytes: Data) throws {
+        try requireObservationFrame(intent: intent, outcome: activeOutcome)
+        guard sourcesCaptured, catalogSession == nil,
+              case .renamePublication(let sourcePath, let finalPath, let exclusive) = intent.kind,
+              !exclusive, sourcePath == finalPath + ".finalizing",
+              originalBytes.count <= 262_144, stagedBytes.count <= 262_144,
+              let original = canonicalSources[finalPath], original.bytes == originalBytes,
+              original.sha256 == (try CompatibilityCanonicalV1.sha256(originalBytes)),
+              let currentOriginal = try currentNode(path: finalPath),
+              original.fullFact == currentOriginal.fullFact,
+              currentOriginal.contentSHA256 == original.sha256 else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let prepare = try JSONDecoder().decode(C16IngressHygienePrepareV1.self, from: originalBytes)
+        try prepare.validate()
+        guard !prepare.finalized,
+              finalPath == "ProtectedIngressReceiptsV1/hygiene-" + prepare.request.operationID.uuidString.lowercased() + ".prepare.json",
+              try CompatibilityCanonicalV1.encode(prepare) == originalBytes,
+              try CompatibilityCanonicalV1.encode(prepare.finalizing()) == stagedBytes,
+              try requireRetainedCanonicalPublication(path: sourcePath, bytes: stagedBytes) else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        if let completed = completedPublications[sourcePath] {
+            guard !completed.exclusiveFinalRename else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        }
+        try requireObservationFrame(intent: intent, outcome: activeOutcome)
+    }
+
+    fileprivate func retainCanonicalSource(path: String, bytes: Data, fullFact: String) throws {
+        try requireActive()
+        guard !sourcesCaptured else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireCanonicalSource(path: path, bytes: bytes, fullFact: fullFact)
+        let sha = try CompatibilityCanonicalV1.sha256(bytes)
+        if let old = canonicalSources[path] {
+            guard old.bytes == bytes, old.fullFact == fullFact, old.sha256 == sha else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+        } else {
+            canonicalSources[path] = .init(path: path, bytes: bytes, fullFact: fullFact, sha256: sha)
+        }
+        try permit.requireHeld()
+    }
+
+    fileprivate func observe<Value>(_ body: () throws -> Value) throws -> Value {
+        let incomingErrno = errno
+        do {
+            try requireActive()
+            errno = incomingErrno
+            let value = Result { try body() }
+            let actualErrno = errno
+            try permit.requireHeld()
+            errno = actualErrno
+            return try value.get()
+        } catch { poison(); throw error }
+    }
+
+    fileprivate func retainDescriptor(_ descriptor: Int32, path: String, role: ResourceRole) throws {
+        guard lifetime == .active, descriptor >= 0, resources[descriptor] == nil else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let resource = Resource(descriptor: descriptor, path: path,
+            role: role,
+            close: { Darwin.close(descriptor) })
+        resources[descriptor] = resource; resourceOrder.append(resource)
+    }
+
+    fileprivate func requireReadableDescriptor(_ descriptor: Int32) throws {
+        try requireActive()
+        // Check the retained memory owner before a numeric FD can be passed to
+        // metadata IO. A retired local resource is never selected by its old
+        // integer, even if the process has reused that descriptor number.
+        guard resources[descriptor]?.state == .open || borrowedPaths[descriptor] != nil else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try permit.requireHeld()
+    }
+
+    fileprivate func path(for descriptor: Int32) throws -> String {
+        try requireActive()
+        if let resource = resources[descriptor], resource.state == .open { return resource.path }
+        guard let path = borrowedPaths[descriptor] else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        return path
+    }
+
+    fileprivate func childPath(parent: Int32, name: String) throws -> String {
+        guard OperationalDiagnosticsBoundsV1.validRelativeName(name) else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let parentPath = try path(for: parent)
+        return parentPath.isEmpty ? name : parentPath + "/" + name
+    }
+
+    fileprivate func open(parent: Int32, name: String, flags: Int32, role: ResourceRole? = nil) throws -> Int32 {
+        let path = try childPath(parent: parent, name: name)
+        // Select the actual private role before the open syscall. A filename or
+        // successful close is never used to retroactively classify ownership.
+        let selectedRole = role ?? catalogSession.map { .catalog($0) } ?? .engineRead
+        let incomingErrno = errno
+        try requireActive()
+        errno = incomingErrno
+        let descriptor = Darwin.openat(parent, name, flags | O_NOFOLLOW | O_CLOEXEC)
+        let actualErrno = errno
+        // Ownership precedes the first callback or validation after open.
+        if descriptor >= 0 { try retainDescriptor(descriptor, path: path, role: selectedRole) }
+        do { try permit.requireHeld() }
+        catch { poison(); errno = actualErrno; throw error }
+        errno = actualErrno
+        return descriptor
+    }
+
+    fileprivate func requireDescriptor(_ descriptor: Int32) throws -> Resource {
+        try requireActive()
+        guard let resource = resources[descriptor], resource.state == .open else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        return resource
+    }
+
+    fileprivate func perform(_ kind: OriginalEraseScratchCleanupPrimitiveIntentV1.Kind,
+        _ syscall: () throws -> Int64) throws -> Int64 {
+        let incomingErrno = errno
+        do {
+            let isClose: Bool
+            if case .closeOwnedResource = kind { isClose = true } else { isClose = false }
+            if isClose, lifetime == .closing { try permit.requireHeld() }
+            else { try requireActive() }
+            guard (sourcesCaptured || isClose), activeIntent == nil, activeOutcome == nil else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            let next = sequence.addingReportingOverflow(1)
+            guard !next.overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            let intent = OriginalEraseScratchCleanupPrimitiveIntentV1(attemptID: attemptID,
+                operationID: operationID, sequence: next.partialValue, before: image, kind: kind)
+            // These exact producer bytes and nonce path precede the first syscall.
+            if case .createTemporary(let path, _, let bytes, let sha, _, _) = kind {
+                guard publications[path] == nil,
+                      try CompatibilityCanonicalV1.sha256(bytes) == sha else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                publications[path] = intent
+            }
+            activeIntent = intent
+            #if DEBUG
+            diagnosticStage = .beforePrimitive
+            #endif
+            try permit.willPerform(intent)
+            errno = incomingErrno
+            #if DEBUG
+            diagnosticStage = .actualPrimitive
+            #endif
+            let actualCall = Result { try syscall() }
+            let actualErrno = errno
+            // A thrown checked policy call has its own retained PFP outcomes;
+            // it has no returned aggregate syscall result for this Ledger to
+            // invent. Keep the request, poison and report the genuine error.
+            let result: Int64
+            switch actualCall {
+            case .success(let returned): result = returned
+            case .failure(let failure): errno = actualErrno; throw failure
+            }
+            let outcome = OriginalEraseScratchCleanupPrimitiveOutcomeV1(intent: intent,
+                result: result, syscallErrno: actualErrno)
+            activeOutcome = outcome
+            #if DEBUG
+            diagnosticStage = .readback
+            #endif
+            let readback = try permit.didPerform(outcome)
+            try readback.requireBound(to: outcome)
+            image = readback.after
+            sequence = next.partialValue
+            activeOutcome = nil; activeIntent = nil
+            try permit.requireHeld()
+            errno = actualErrno
+            return try actualCall.get()
+        } catch { poison(); throw error }
+    }
+
+    fileprivate func closeResource(_ resource: Resource, terminalCleanup: Bool) throws {
+        guard resource.state == .open else { return }
+        #if DEBUG
+        diagnosticStage = .checkedClose
+        #endif
+        func closeOnce() -> Int64 {
+            // Detach before close. A postproof must never inspect this alias.
+            resource.state = .closeEntered
+            resources.removeValue(forKey: resource.descriptor)
+            let result = resource.close()
+            let actualErrno = errno
+            if result == 0 { resource.state = .closed }
+            else {
+                resource.state = .uncertain
+                retainedIO.retainUncertainDescriptor(resource.descriptor)
+            }
+            errno = actualErrno
+            return Int64(result)
+        }
+        if lifetime == .active || lifetime == .closing {
+            do {
+                let result: Int64
+                if let session = catalogSession, resource.catalogSession === session, !sourcesCaptured {
+                    try session.requireHeld(attempt: self)
+                    guard activeIntent == nil, activeOutcome == nil else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                    let next = sequence.addingReportingOverflow(1)
+                    guard !next.overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+                    let intent = OriginalEraseScratchCleanupPrimitiveIntentV1(attemptID: attemptID,
+                        operationID: operationID, sequence: next.partialValue, before: image,
+                        kind: .closeOwnedResource(path: resource.path, resourceID: resource.resourceID))
+                    activeIntent = intent
+                    try session.retainCloseIntent(intent, attempt: self)
+                    result = closeOnce()
+                    let actualErrno = errno
+                    let outcome = OriginalEraseScratchCleanupPrimitiveOutcomeV1(intent: intent,
+                        result: result, syscallErrno: actualErrno)
+                    activeOutcome = outcome
+                    try session.recordCloseOutcome(outcome, attempt: self)
+                    sequence = next.partialValue
+                    activeOutcome = nil; activeIntent = nil
+                    try session.requireHeld(attempt: self)
+                    errno = actualErrno
+                    // No per-close whole image is minted. The catalog finish
+                    // proves the complete unchanged namespace independently.
+                } else {
+                    result = try perform(.closeOwnedResource(path: resource.path,
+                        resourceID: resource.resourceID), closeOnce)
+                }
+                guard result == 0 else { poison(); throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            } catch {
+                let failure = error
+                poison()
+                // A rejected before-proof still leaves this exact retained
+                // owner to settle. An entered close is never retried.
+                if resource.state == .open { _ = closeOnce() }
+                throw failure
+            }
+        } else {
+            // Exact already-retained owners drain once after the memory fence,
+            // even when proof failed. This never permits another filesystem
+            // mutation or a read of an old numeric descriptor.
+            _ = terminalCleanup
+            let result = closeOnce()
+            guard result == 0 else { poison(); throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        }
+    }
+
+    fileprivate func drainOwnedResources() throws {
+        if lifetime == .active { lifetime = .closing }
+        var failure: Error?
+        for resource in resourceOrder.reversed() where resource.state == .open {
+            do { try closeResource(resource, terminalCleanup: true) }
+            catch { if failure == nil { failure = error } }
+        }
+        guard failure == nil, resourceOrder.allSatisfy({ $0.state == .closed }) else {
+            poison(); throw failure ?? ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+    }
+
+    fileprivate func markClosed() throws {
+        guard lifetime == .closing,
+              resources.isEmpty, resourceOrder.allSatisfy({ $0.state == .closed }),
+              activeIntent == nil, activeOutcome == nil,
+              image.scratch == nil, image.ingress == nil else {
+            poison(); throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try retainedIO.requireSettled()
+        lifetime = .closed
+        store = nil
+    }
+
+    func requireCheckedSettlement() throws {
+        guard lifetime == .closed, resources.isEmpty,
+              resourceOrder.allSatisfy({ $0.state == .closed }),
+              activeIntent == nil, activeOutcome == nil,
+              image.scratch == nil, image.ingress == nil else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try retainedIO.requireSettled()
+    }
+
+    fileprivate func poison() {
+        if lifetime != .uncertain {
+            #if DEBUG
+            recordFailureDiagnostic()
+            #endif
+            lifetime = .uncertain
+            store?.fenceOriginalCleanup(uncertain: true)
+            permit.poisonOnUncertainCleanup()
+        }
+    }
+}
+
+@MainActor
+final class OriginalEraseScratchCleanupReceiptV1 {
+    let operationID: UUID
+    let attempt: OriginalEraseScratchCleanupAttemptV1
+    let initialImage: OriginalEraseScratchCleanupImageV1
+    let finalImage: OriginalEraseScratchCleanupImageV1
+    private weak var permit: OriginalEraseScratchCleanupEffectPermitV1?
+    fileprivate init(attempt: OriginalEraseScratchCleanupAttemptV1) throws {
+        try attempt.requireCheckedSettlement()
+        operationID = attempt.operationID; self.attempt = attempt
+        initialImage = attempt.initialImage; finalImage = attempt.image
+        permit = attempt.permit
+    }
+    func requireCheckedSettlement() throws { try attempt.requireCheckedSettlement() }
+    func requireBound(operationID: UUID,
+        attempt: OriginalEraseScratchCleanupAttemptV1,
+        finalImage: OriginalEraseScratchCleanupImageV1) throws {
+        guard self.operationID == operationID, self.attempt === attempt,
+              self.finalImage == finalImage, permit != nil else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try requireCheckedSettlement()
+    }
+    func requireBound(operation: EraseRouterOperationV1, store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1) throws {
+        guard let permit else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireOrigin(operation: operation, store: store,
+            registry: registry, exclusion: exclusion, activity: activity)
+        try requireCheckedSettlement()
+    }
+}
+
 final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable {
     private static let filesystemLock = NSRecursiveLock()
     private var lock: NSRecursiveLock { Self.filesystemLock }
@@ -4117,6 +4829,159 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     #endif
     private var active: [UUID: ScratchDataLeaseV1] = [:]
     private var exclusiveNoRepairRead = false
+    private enum OriginalCleanupLifetime { case ordinary, active, closed, uncertain }
+    private var originalCleanupLifetime = OriginalCleanupLifetime.ordinary
+    private var originalCleanupAttempt: OriginalEraseScratchCleanupAttemptV1?
+
+    fileprivate func fenceOriginalCleanup(uncertain: Bool) {
+        guard originalCleanupLifetime != .ordinary else { return }
+        originalCleanupLifetime = uncertain ? .uncertain : .closed
+    }
+
+    /// Permanent memory fence precedes any old numeric descriptor or actor
+    /// callback. Clearing the borrowed fields cannot restore ordinary access.
+    private func requireOriginalCleanupDescriptorAccess() throws {
+        switch originalCleanupLifetime {
+        case .ordinary: return
+        case .active:
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            try MainActor.assumeIsolated { try attempt.requireActive() }
+        case .closed, .uncertain: throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+    }
+
+    private func requireOrdinaryScratchProducer() throws {
+        try requireOriginalCleanupDescriptorAccess()
+        guard originalCleanupLifetime == .ordinary else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+    }
+
+    private func originalCleanupObserve<Value>(_ body: () throws -> Value) throws -> Value {
+        try requireOriginalCleanupDescriptorAccess()
+        guard originalCleanupLifetime == .active else { return try body() }
+        guard Thread.isMainThread, let attempt = originalCleanupAttempt else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        return try MainActor.assumeIsolated { try attempt.observe(body) }
+    }
+
+    private func originalCleanupFstat(_ fd: Int32, _ value: UnsafeMutablePointer<stat>) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try MainActor.assumeIsolated { try attempt.requireReadableDescriptor(fd) }
+        }
+        return try originalCleanupObserve { Darwin.fstat(fd, value) }
+    }
+    private func originalCleanupFstatat(_ fd: Int32, _ name: String,
+        _ value: UnsafeMutablePointer<stat>, _ flags: Int32) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try MainActor.assumeIsolated { try attempt.requireReadableDescriptor(fd) }
+        }
+        return try originalCleanupObserve { Darwin.fstatat(fd, name, value, flags) }
+    }
+    private func originalCleanupOpenat(_ parent: Int32, _ name: String, _ flags: Int32) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
+        guard originalCleanupLifetime == .active else { return Darwin.openat(parent, name, flags) }
+        guard flags & (O_CREAT | O_TRUNC) == 0, Thread.isMainThread,
+              let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        return try MainActor.assumeIsolated { try attempt.open(parent: parent, name: name, flags: flags) }
+    }
+    private func originalCleanupSync(_ fd: Int32) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
+        guard originalCleanupLifetime == .active else { return Darwin.fsync(fd) }
+        guard Thread.isMainThread, let attempt = originalCleanupAttempt else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        return try MainActor.assumeIsolated {
+            Int32(try attempt.perform(.synchronize(path: attempt.path(for: fd))) { Int64(Darwin.fsync(fd)) })
+        }
+    }
+    private func originalCleanupUnlink(_ parent: Int32, _ name: String, _ flags: Int32) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
+        guard originalCleanupLifetime == .active else { return Darwin.unlinkat(parent, name, flags) }
+        guard flags == 0 || flags == AT_REMOVEDIR, Thread.isMainThread,
+              let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        return try MainActor.assumeIsolated {
+            let path = try attempt.childPath(parent: parent, name: name)
+            let kind: OriginalEraseScratchCleanupPrimitiveIntentV1.Kind = flags == 0
+                ? .removeLeaf(path: path) : .removeDirectory(path: path)
+            return Int32(try attempt.perform(kind) { Int64(Darwin.unlinkat(parent, name, flags)) })
+        }
+    }
+    private func originalCleanupRename(_ source: Int32, _ name: String,
+        _ destination: Int32, _ newName: String) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
+        guard originalCleanupLifetime == .active else { return Darwin.renameat(source, name, destination, newName) }
+        guard Thread.isMainThread, let attempt = originalCleanupAttempt else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        return try MainActor.assumeIsolated {
+            let before = try attempt.childPath(parent: source, name: name)
+            let after = try attempt.childPath(parent: destination, name: newName)
+            let kind: OriginalEraseScratchCleanupPrimitiveIntentV1.Kind
+            if source == authority.rootDescriptor && destination == source,
+               Self.isLeaseDirectoryName(name), newName == Self.deletionTombstoneName(for: name) {
+                kind = .renameLeaseDirectory(originalPath: before, tombstonePath: after)
+            } else { kind = .renamePublication(sourcePath: before, finalPath: after, exclusive: false) }
+            let result = try attempt.perform(kind) { Int64(Darwin.renameat(source, name, destination, newName)) }
+            if result == 0 {
+                if case .renameLeaseDirectory = kind {
+                    attempt.directoryMappings[after] = attempt.directoryMappings[before] ?? before
+                }
+                for resource in attempt.resourceOrder where resource.state == .open {
+                    if resource.path == before { resource.path = after }
+                    else if resource.path.hasPrefix(before + "/") {
+                        resource.path = after + String(resource.path.dropFirst(before.count))
+                    }
+                }
+            }
+            return Int32(result)
+        }
+    }
+    private func originalCleanupLock(_ fd: Int32, _ flags: Int32) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
+        guard originalCleanupLifetime == .active else { return flock(fd, flags) }
+        guard flags == (LOCK_EX | LOCK_NB), Thread.isMainThread,
+              let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        return try MainActor.assumeIsolated {
+            Int32(try attempt.perform(.lockOwnedDirectory(path: attempt.path(for: fd))) { Int64(flock(fd, flags)) })
+        }
+    }
+
+
+
+    private func originalCleanupCloseResult(_ fd: Int32) -> Int32 {
+        if originalCleanupLifetime == .ordinary { return Darwin.close(fd) }
+        guard originalCleanupLifetime == .active, Thread.isMainThread,
+              let attempt = originalCleanupAttempt else { errno = EBADF; return -1 }
+        return MainActor.assumeIsolated {
+            do {
+                let resource = try attempt.requireDescriptor(fd)
+                try attempt.closeResource(resource, terminalCleanup: false)
+                return 0
+            } catch { attempt.poison(); return -1 }
+        }
+    }
+
+    private func originalCleanupDeferredClose(_ fd: Int32) -> () -> Void {
+        if originalCleanupLifetime == .ordinary { return { _ = Darwin.close(fd) } }
+        guard Thread.isMainThread, let attempt = originalCleanupAttempt else { return {} }
+        // Retain this exact owner object now. A later reused integer can never
+        // select another resource in an error/defer path.
+        let resource = MainActor.assumeIsolated { attempt.resources[fd] }
+        return {
+            guard Thread.isMainThread, let resource else { return }
+            MainActor.assumeIsolated {
+                do { try attempt.closeResource(resource, terminalCleanup: attempt.lifetime != .active) }
+                catch { attempt.poison() }
+            }
+        }
+    }
+
     // Retained by the already-owned exclusive Store before the first receipt
     // scan. An ambiguous checked close cannot escape with a local IO value.
     private var originalEraseSourceReceiptIO: EraseAbortCheckedSnapshotIOV1?
@@ -4125,6 +4990,25 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         _ kind: OwnedFileKindV1, at url: URL,
         authorityCheck: () throws -> Void = {}
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try MainActor.assumeIsolated {
+                try authorityCheck()
+                let path = try originalCleanupRelativePath(url)
+                let before = try originalCleanupImageNode(path)
+                _ = try attempt.perform(.requestPolicy(path: path, kind: kind)) {
+                    guard let intent = attempt.activeIntent else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                    let scope = try attempt.permit.requirePolicyEffectScope(intent: intent)
+                    _ = try ProtectedFilePolicyV1.applyOriginalEraseScratchPublicationPolicyWithCheckedClose(
+                        kind, at: url, initialFullFact: before.fullFact, scope: scope,
+                        retainUncertainDescriptor: { attempt.retainedIO.retainUncertainDescriptor($0) })
+                    return 0
+                }
+                try authorityCheck(); try attempt.requireActive()
+            }
+            return
+        }
         if exclusiveNoRepairRead {
             try ProtectedFilePolicyV1.applyAndVerifyEraseColdPrivateWithCheckedClose(
                 kind, at: url,
@@ -4140,6 +5024,30 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func verifySourceReadPolicy(
         _ kind: OwnedFileKindV1, at url: URL
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            try MainActor.assumeIsolated {
+                try attempt.requireActive()
+                let relative = try originalCleanupRelativePath(url)
+                let node = try originalCleanupImageNode(relative)
+                let fields = node.fullFact.split(separator: "|", omittingEmptySubsequences: false)
+                guard fields.count == 11 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                if fields[5] == "2", kind == .temporaryFile {
+                    _ = try originalCleanupPairPolicy(path: relative)
+                    try attempt.requireActive()
+                    return
+                }
+                let scope = try attempt.permit.currentTemporalObservationScope()
+                _ = try ProtectedFilePolicyV1.observeOriginalEraseScratchTemporalPolicyWithCheckedClose(
+                    kind, at: url, fullFact: node.fullFact, scope: scope,
+                    retainUncertainDescriptor: { attempt.retainedIO.retainUncertainDescriptor($0) })
+                try attempt.requireActive()
+            }
+            return
+        }
         if exclusiveNoRepairRead {
             try ProtectedFilePolicyV1.verifyEraseColdPrivateWithCheckedClose(
                 kind, at: url, retainUncertainDescriptor: {
@@ -4147,6 +5055,213 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 })
         } else {
             try ProtectedFilePolicyV1.verify(kind, at: url)
+        }
+    }
+
+    /// Preserve the old direct verify call for all ordinary instances.
+    private func originalCleanupVerifyPolicy(_ kind: OwnedFileKindV1, at url: URL) throws {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active { try verifySourceReadPolicy(kind, at: url) }
+        else { try ProtectedFilePolicyV1.verify(kind, at: url) }
+    }
+
+    private func originalCleanupRelativePath(_ url: URL) throws -> String {
+        let operationsURL = rootURL.deletingLastPathComponent()
+        guard url.standardizedFileURL == url,
+              url.path.hasPrefix(operationsURL.path + "/") else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let path = String(url.path.dropFirst(operationsURL.path.count + 1))
+        guard path.split(separator: "/", omittingEmptySubsequences: false)
+            .allSatisfy({ OperationalDiagnosticsBoundsV1.validRelativeName(String($0)) }) else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        return path
+    }
+
+    @MainActor private func originalCleanupImageNode(_ path: String)
+        throws -> OriginalEraseScratchCleanupImageV1.Node {
+        guard let value = try originalCleanupImageNodeIfPresent(path) else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        return value
+    }
+
+    @MainActor private func originalCleanupImageNodeIfPresent(_ path: String)
+        throws -> OriginalEraseScratchCleanupImageV1.Node? {
+        guard let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try attempt.requireActive()
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard let first = parts.first else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let root: OriginalEraseScratchCleanupImageV1.Root?
+        if first == Self.rootName { root = attempt.image.scratch }
+        else if first == "ProtectedIngressReceiptsV1" { root = attempt.image.ingress }
+        else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let local = parts.dropFirst().joined(separator: "/")
+        return root?.nodes.first(where: { $0.path == local }) // DATA in a complete checked current image.
+    }
+
+    @MainActor private func originalCleanupPairPolicy(path: String)
+        throws -> [TemporalPolicyObservationV1] {
+        guard let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let selected = try originalCleanupImageNode(path)
+        let fields = selected.fullFact.split(separator: "|", omittingEmptySubsequences: false)
+        guard fields.count == 11, fields[5] == "2" else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let roots = [(Self.rootName, attempt.image.scratch), ("ProtectedIngressReceiptsV1", attempt.image.ingress)]
+        var members = [String]()
+        for (rootName, root) in roots {
+            for node in root?.nodes ?? [] where !node.path.isEmpty {
+                let fact = node.fullFact.split(separator: "|", omittingEmptySubsequences: false)
+                if fact.count == 11, fact[0] == fields[0], fact[1] == fields[1], fact[5] == "2" {
+                    members.append(rootName + "/" + node.path)
+                }
+            }
+        }
+        members.sort { $0.utf8.lexicographicallyPrecedes($1.utf8) }
+        guard members.count == 2, members.contains(path) else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let scope = try attempt.permit.currentTemporalObservationScope()
+        let urls = members.map { rootURL.deletingLastPathComponent().appendingPathComponent($0) }
+        // The selected facts only locate the exact candidate aliases. The
+        // private scope supplies positive actual publication/original role;
+        // an inode coincidence alone never authorizes the pair.
+        return try ProtectedFilePolicyV1.observeOriginalEraseScratchTemporalPairWithCheckedClose(
+            aliasURLs: urls, scope: scope,
+            retainUncertainDescriptor: { attempt.retainedIO.retainUncertainDescriptor($0) })
+    }
+
+    private func originalCleanupPermitsRegularLinkCount(_ information: stat,
+        parent: Int32, name: String) throws -> Bool {
+        try requireOriginalCleanupDescriptorAccess()
+        if information.st_nlink == 1 { return true }
+        guard originalCleanupLifetime == .active, information.st_nlink == 2,
+              Thread.isMainThread, let attempt = originalCleanupAttempt else { return false }
+        return try MainActor.assumeIsolated {
+            let path = try attempt.childPath(parent: parent, name: name)
+            guard try originalCleanupImageNode(path).fullFact == Self.originalEraseSourceFullFact(information) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            _ = try originalCleanupPairPolicy(path: path)
+            try attempt.requireActive()
+            return true
+        }
+    }
+
+    private func originalCleanupPermitsDescriptorLinkCount(_ information: stat, descriptor: Int32) throws -> Bool {
+        try requireOriginalCleanupDescriptorAccess()
+        if information.st_nlink == 1 { return true }
+        guard originalCleanupLifetime == .active, information.st_nlink == 2,
+              Thread.isMainThread, let attempt = originalCleanupAttempt else { return false }
+        return try MainActor.assumeIsolated {
+            let path = try attempt.path(for: descriptor)
+            guard try originalCleanupImageNode(path).fullFact == Self.originalEraseSourceFullFact(information) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            _ = try originalCleanupPairPolicy(path: path)
+            try attempt.requireActive(); return true
+        }
+    }
+
+    @MainActor private func originalCleanupDirectoryNames(_ descriptor: Int32) throws -> [String] {
+        guard let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let path = try attempt.path(for: descriptor)
+        let role: OriginalEraseScratchCleanupAttemptV1.ResourceRole = attempt.catalogSession.map { .catalog($0) } ?? .engineRead
+        let incomingErrno = errno
+        try attempt.requireActive()
+        errno = incomingErrno
+        let fd = Darwin.openat(descriptor, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        let actualErrno = errno
+        if fd >= 0 { try attempt.retainDescriptor(fd, path: path, role: role) }
+        try attempt.requireActive(); errno = actualErrno
+        guard fd >= 0, let resource = attempt.resources[fd] else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        do {
+            let directory = try attempt.observe {
+                let directory = Darwin.fdopendir(fd)
+                if let directory { resource.close = { Darwin.closedir(directory) } }
+                return directory
+            }
+            guard let directory else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            var names = [String]()
+            errno = 0
+            while let entry = try attempt.observe({ Darwin.readdir(directory) }) {
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                if name != "." && name != ".." {
+                    guard OperationalDiagnosticsBoundsV1.validRelativeName(name) else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                    }
+                    names.append(name)
+                }
+                errno = 0
+            }
+            guard errno == 0, Set(names).count == names.count else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            // Names are observations of the exact currently checked image;
+            // new survivors can never become a selection/ownership premise.
+            let rootName = path.split(separator: "/").first.map(String.init)
+            let tree: OriginalEraseScratchCleanupImageV1.Root?
+            if rootName == Self.rootName { tree = attempt.image.scratch }
+            else if rootName == "ProtectedIngressReceiptsV1" { tree = attempt.image.ingress }
+            else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            guard let tree else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            let local = path.split(separator: "/").dropFirst().joined(separator: "/")
+            let prefix = local.isEmpty ? "" : local + "/"
+            let expected = tree.nodes.compactMap { node -> String? in
+                guard node.path.hasPrefix(prefix) else { return nil }
+                let suffix = String(node.path.dropFirst(prefix.count))
+                return !suffix.isEmpty && !suffix.contains("/") ? suffix : nil
+            }.sorted()
+            guard names.sorted() == expected else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try attempt.closeResource(resource, terminalCleanup: false)
+            return names.sorted()
+        } catch {
+            let failure = error
+            attempt.poison()
+            try? attempt.closeResource(resource, terminalCleanup: true)
+            throw failure
+        }
+    }
+
+    @MainActor private func originalCleanupReadRegularFile(named name: String,
+        directoryDescriptor: Int32, maximumBytes: Int) throws -> Data {
+        guard let attempt = originalCleanupAttempt, maximumBytes >= 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        #if DEBUG
+        attempt.diagnosticStage = attempt.catalogSession == nil ? .controlRead : .sourceRead
+        #endif
+        let expected = try regularFileInformation(named: name, directoryDescriptor: directoryDescriptor)
+        let path = try attempt.childPath(parent: directoryDescriptor, name: name)
+        let expectedNode = try originalCleanupImageNode(path)
+        guard expectedNode.fullFact == Self.originalEraseSourceFullFact(expected),
+              let expectedSHA = expectedNode.contentSHA256 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        guard expected.st_size <= Int64(maximumBytes) else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+        let descriptor = try attempt.open(parent: directoryDescriptor, name: name, flags: O_RDONLY | O_NONBLOCK)
+        guard descriptor >= 0, let resource = attempt.resources[descriptor] else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        do {
+            var pinned = stat()
+            guard try attempt.observe({ Darwin.fstat(descriptor, &pinned) }) == 0,
+                  Self.originalEraseSourceFullFact(pinned) == Self.originalEraseSourceFullFact(expected) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            var bytes = Data(count: Int(pinned.st_size))
+            var offset = 0
+            while offset < bytes.count {
+                let read = try bytes.withUnsafeMutableBytes { buffer in
+                    try attempt.observe { Darwin.read(descriptor, buffer.baseAddress!.advanced(by: offset), buffer.count - offset) }
+                }
+                guard read > 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                offset += read
+            }
+            var after = stat(), named = stat()
+            guard try attempt.observe({ Darwin.fstat(descriptor, &after) }) == 0,
+                  try attempt.observe({ Darwin.fstatat(directoryDescriptor, name, &named, AT_SYMLINK_NOFOLLOW) }) == 0,
+                  Self.originalEraseSourceFullFact(after) == Self.originalEraseSourceFullFact(pinned),
+                  Self.originalEraseSourceFullFact(named) == Self.originalEraseSourceFullFact(pinned) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            guard try CompatibilityCanonicalV1.sha256(bytes) == expectedSHA else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try attempt.closeResource(resource, terminalCleanup: false)
+            return bytes
+        } catch {
+            let failure = error
+            attempt.poison(); try? attempt.closeResource(resource, terminalCleanup: true)
+            throw failure
         }
     }
     // Populated only by real returned in-process acquisitions, never by cold
@@ -4158,6 +5273,20 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func withProducerFilesystemLock<Value>(_ body: () throws -> Value) throws -> Value {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            return try MainActor.assumeIsolated {
+                try Self.filesystemLock.withLock {
+                    try attempt.requireActive()
+                    let value = Result { try body() }
+                    try attempt.requireActive()
+                    return try value.get()
+                }
+            }
+        }
         let activity = try OwnedStorageProducerActivityV1.acquire(
             applicationSupportURL: producerApplicationSupportURL)
         defer { activity.close() }
@@ -4167,6 +5296,166 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
     }
     private var ingressControlAuthority: PinnedScratchRootV1?
+
+    /// The sole live original cleanup entry. No ordinary producer activity or
+    /// root preparation is entered while the original owner retains its EX.
+    @MainActor static func eraseForOriginalRetainedOwner(
+        applicationSupportURL: URL, operationID: UUID, support: Int32, operations: Int32,
+        initialImage: OriginalEraseScratchCleanupImageV1,
+        retainedIO: EraseAbortCheckedSnapshotIOV1,
+        permit: OriginalEraseScratchCleanupEffectPermitV1
+    ) throws -> OriginalEraseScratchCleanupReceiptV1 {
+        guard operationID == permit.operationID,
+              operationID != SettingsValidationV1.zeroUUID else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        _ = support // Actual parent membership is proven by the private issuer.
+        try retainedIO.requireSettled()
+        try permit.requireInitialImage(initialImage)
+        let attempt = OriginalEraseScratchCleanupAttemptV1(operationID: operationID,
+            image: initialImage, retainedIO: retainedIO, permit: permit)
+        try permit.retainAttempt(attempt)
+        attempt.borrowedPaths[operations] = ""
+        Self.filesystemLock.lock()
+        defer { Self.filesystemLock.unlock() }
+        do {
+            // An absent root is not created solely to erase it. The separate
+            // control-only origin needs a genuine historical Scratch identity.
+            guard let expectedScratch = initialImage.scratch else {
+                guard initialImage.ingress == nil else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                attempt.sourcesCaptured = true
+                try attempt.drainOwnedResources(); try attempt.markClosed()
+                return try OriginalEraseScratchCleanupReceiptV1(attempt: attempt)
+            }
+            var operationsInformation = stat()
+            guard try attempt.observe({ Darwin.fstat(operations, &operationsInformation) }) == 0,
+                  originalEraseSourceFullFact(operationsInformation) == initialImage.operationsFullFact else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            let operationsURL = applicationSupportURL.standardizedFileURL
+                .appendingPathComponent(OwnedStorageRootKindV1.operations.rawValue, isDirectory: true)
+            func openPin(name: String, expected: OriginalEraseScratchCleanupImageV1.Root) throws -> PinnedScratchRootV1 {
+                let fd = try attempt.open(parent: operations, name: name, flags: O_RDONLY | O_DIRECTORY, role: .cleanupPin)
+                guard fd >= 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                var information = stat(), named = stat()
+                guard try attempt.observe({ Darwin.fstat(fd, &information) }) == 0,
+                      try attempt.observe({ Darwin.fstatat(operations, name, &named, AT_SYMLINK_NOFOLLOW) }) == 0,
+                      originalEraseSourceFullFact(information) == expected.fullFact,
+                      originalEraseSourceFullFact(named) == expected.fullFact,
+                      information.st_mode & S_IFMT == S_IFDIR else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                return try PinnedScratchRootV1(originalCleanupOperationsURL: operationsURL,
+                    operations: operations, root: fd, operationsInformation: operationsInformation,
+                    rootInformation: information, requireBorrow: { try attempt.requireActive() })
+            }
+            let scratchPin = try openPin(name: Self.rootName, expected: expectedScratch)
+            let ingressPin = try initialImage.ingress.map { try openPin(name: "ProtectedIngressReceiptsV1", expected: $0) }
+            let store = try ScratchDataLeaseStoreV1(
+                originalCleanupRootURL: operationsURL.appendingPathComponent(Self.rootName, isDirectory: true),
+                clock: { Date() }, scratchAuthority: scratchPin, ingressAuthority: ingressPin, attempt: attempt)
+            attempt.store = store
+            #if DEBUG
+            attempt.diagnosticStage = .sourceCatalog
+            #endif
+            let catalog = try permit.beginCanonicalSourceCatalog(attempt: attempt)
+            attempt.catalogSession = catalog
+            try catalog.requireHeld(attempt: attempt)
+            try store.captureOriginalCleanupCanonicalSources()
+            try permit.finishCanonicalSourceCatalog(catalog, attempt: attempt)
+            try catalog.requireCompleted(attempt: attempt)
+            attempt.completedCatalogSessions.append(catalog)
+            attempt.catalogSession = nil
+            attempt.sourcesCaptured = true
+            // This existing synchronous engine includes every nested hygiene,
+            // ingress removal, lease rename, publication and marker tail.
+            try store.withProducerFilesystemLock { try store.eraseScratchDataSynchronously() }
+            // No instance primitive may inspect its old FDs after admission to
+            // final close. Private retained resource owners drain separately.
+            store.fenceOriginalCleanup(uncertain: false)
+            try attempt.drainOwnedResources(); try attempt.markClosed()
+            return try OriginalEraseScratchCleanupReceiptV1(attempt: attempt)
+        } catch {
+            let failure = error
+            attempt.poison()
+            do { try attempt.drainOwnedResources() } catch { throw error }
+            throw failure
+        }
+    }
+
+    @MainActor private func captureOriginalCleanupCanonicalSources() throws {
+        guard let attempt = originalCleanupAttempt, !attempt.sourcesCaptured else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        // Select roles from the authenticated initial image, never from a
+        // surviving directory scan after dependencies have disappeared.
+        for node in attempt.initialImage.scratch?.nodes ?? [] {
+            let parts = node.path.split(separator: "/", omittingEmptySubsequences: false)
+            guard parts.count == 2, parts[1] == Self.metadataName else { continue }
+            let directoryName = String(parts[0])
+            guard Self.isLeaseDirectoryName(directoryName) || Self.isDeletionTombstone(directoryName) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidLease
+            }
+            let descriptor = try openLeaseDirectory(directoryName)
+            guard let resource = attempt.resources[descriptor] else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            do {
+                let bytes = try readRegularFile(named: Self.metadataName, directoryDescriptor: descriptor, maximumBytes: 65_536)
+                let lease = try JSONDecoder().decode(ScratchDataLeaseV1.self, from: bytes)
+                try lease.request.validate()
+                let originalName = Self.isDeletionTombstone(directoryName)
+                    ? String(directoryName.dropFirst(Self.deletionPrefix.count)) : directoryName
+                guard lease.schemaVersion == ScratchDataLeaseV1.schemaVersion,
+                      lease.request.schemaVersion == ScratchDataLeaseRequestV1.schemaVersion,
+                      lease.request.protection == .complete,
+                      lease.request.backupPolicy == .excluded,
+                      lease.request.createdAt <= clock(),
+                      lease.relativeDirectory == originalName,
+                      originalName == Self.leaseDirectoryName(for: lease.request),
+                      try canonicalData(lease) == bytes else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+                try attempt.retainCanonicalSource(path: Self.rootName + "/" + node.path,
+                    bytes: bytes, fullFact: node.fullFact)
+                try attempt.closeResource(resource, terminalCleanup: false)
+            } catch {
+                let failure = error
+                attempt.poison(); try? attempt.closeResource(resource, terminalCleanup: true)
+                throw failure
+            }
+        }
+        for node in attempt.initialImage.scratch?.nodes ?? []
+        where !node.path.isEmpty && !node.path.contains("/") {
+            let fields = node.fullFact.split(separator: "|", omittingEmptySubsequences: false)
+            guard fields.count == 11, let mode = UInt32(fields[2]), mode & UInt32(S_IFMT) == UInt32(S_IFDIR),
+                  Self.isLeaseDirectoryName(node.path) || Self.isDeletionTombstone(node.path) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidLease
+            }
+            let path = Self.rootName + "/" + node.path
+            let metadataPath = path + "/" + Self.metadataName
+            let metadata: OriginalEraseScratchCleanupDirectorySourceV1.Metadata
+            if let source = attempt.canonicalSources[metadataPath] {
+                metadata = .validatedLease(bytes: source.bytes, fullFact: source.fullFact, sha256: source.sha256)
+            } else {
+                // Positive complete original-image absence, not a present
+                // corrupt lease converted into an orphan or a live lease.
+                guard !(attempt.initialImage.scratch?.nodes.contains(where: {
+                    $0.path == node.path + "/" + Self.metadataName
+                }) ?? true) else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+                metadata = .ownedOrphan
+            }
+            attempt.directorySources[path] = .init(originalPath: path,
+                originalFullFact: node.fullFact, metadata: metadata)
+            attempt.directoryMappings[path] = path
+        }
+        if let ingress = attempt.initialImage.ingress {
+            guard let pinned = ingressControlAuthority else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            for node in ingress.nodes where !node.path.isEmpty && !node.path.hasPrefix(".partial-") {
+                guard !node.path.contains("/") else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                if node.path != Self.controlEraseName { try validateIngressControlSnapshotName(node.path) }
+                let maximum = node.path == Self.controlEraseName ? 32 * 1_024 * 1_024 : 262_144
+                let bytes = try readRegularFile(named: node.path, directoryDescriptor: pinned.rootDescriptor, maximumBytes: maximum)
+                try attempt.retainCanonicalSource(path: "ProtectedIngressReceiptsV1/" + node.path,
+                    bytes: bytes, fullFact: node.fullFact)
+            }
+        }
+        try attempt.requireActive()
+    }
 
     init(
         applicationSupportURL: URL,
@@ -4248,6 +5537,23 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
     }
 
+    /// No root preparation, policy repair, producer activity or FD ownership.
+    /// Both real existing roots were admitted/opened by the retained attempt.
+    private init(originalCleanupRootURL: URL, clock: @escaping Clock,
+        scratchAuthority: PinnedScratchRootV1,
+        ingressAuthority: PinnedScratchRootV1?,
+        attempt: OriginalEraseScratchCleanupAttemptV1) throws {
+        rootURL = originalCleanupRootURL
+        self.clock = clock
+        ingressHygieneFailureInjection = .none; ingressMutationFailureInjection = .none
+        storagePreflight = StoragePreflightService(capacityProvider: { _ in nil })
+        authority = scratchAuthority
+        ingressControlAuthority = ingressAuthority
+        originalCleanupLifetime = .active; originalCleanupAttempt = attempt
+        exclusiveNoRepairRead = true
+        try requireOriginalCleanupDescriptorAccess()
+    }
+
     #if DEBUG
     convenience init(
         applicationSupportURL: URL,
@@ -4281,7 +5587,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         operationID: UUID,
         minimumAge: TimeInterval = 24 * 60 * 60
     ) throws -> ProtectedIngressStartupHygieneReceiptV1 {
-        try reconcileProtectedIngressHygiene(
+        try requireOriginalCleanupDescriptorAccess()
+        return try reconcileProtectedIngressHygiene(
             now: now, operationID: operationID, minimumAge: minimumAge
         )
     }
@@ -4294,6 +5601,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         operationID: UUID,
         minimumAge: TimeInterval = 24 * 60 * 60
     ) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        try requireOriginalCleanupDescriptorAccess()
         guard operationID != SettingsValidationV1.zeroUUID,
               now.timeIntervalSinceReferenceDate.isFinite,
               minimumAge > 0, minimumAge.isFinite else {
@@ -4364,6 +5672,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     func readProtectedIngressHygieneReceipt(
         operationID: UUID
     ) throws -> ProtectedIngressStartupHygieneReceiptV1? {
+        try requireOriginalCleanupDescriptorAccess()
         guard operationID != SettingsValidationV1.zeroUUID else {
             throw AppAccessContractFailureV1.invalidValue
         }
@@ -4392,6 +5701,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     func writeProtectedIngressHygieneReceipt(
         _ value: ProtectedIngressStartupHygieneReceiptV1
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         let validated = try ProtectedIngressStartupHygieneReceiptV1(
             operationID: value.operationID,
             inspectedCount: value.inspectedCount,
@@ -4415,9 +5725,19 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func protectedIngressReceiptDirectory() throws -> URL {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyRoot()
         let name = "ProtectedIngressReceiptsV1"
         let directory = rootURL.deletingLastPathComponent().appendingPathComponent(name, isDirectory: true)
+        if originalCleanupLifetime == .active {
+            guard let pinned = ingressControlAuthority else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            try pinned.verify(rootName: name)
+            try verifySourceReadPolicy(.stagingDirectory, at: directory)
+            try pinned.verify(rootName: name)
+            return directory
+        }
         if ingressControlAuthority == nil {
             try Self.prepareRoot(directory)
             let pinned = try PinnedScratchRootV1(operationsURL: directory.deletingLastPathComponent(), rootName: name)
@@ -4428,12 +5748,13 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             ingressControlAuthority = pinned
         }
         try ingressControlAuthority?.verify(rootName: name)
-        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: directory)
+        try originalCleanupVerifyPolicy(.stagingDirectory, at: directory)
         try ingressControlAuthority?.verify(rootName: name)
         return directory
     }
 
     private func ingressControlDescriptor() throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
         _ = try protectedIngressReceiptDirectory()
         guard let ingressControlAuthority else { throw AppAccessContractFailureV1.configurationUnknown }
         guard try regularFileInformationIfPresent(named: Self.controlEraseName,
@@ -4449,6 +5770,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func ingressControlFileExists(_ file: URL) throws -> Bool {
+        try requireOriginalCleanupDescriptorAccess()
         guard file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
@@ -4457,22 +5779,25 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func readIngressControlFile(_ file: URL, maximumBytes: Int) throws -> Data {
+        try requireOriginalCleanupDescriptorAccess()
         guard file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
         let data = try readRegularFile(named: file.lastPathComponent,
             directoryDescriptor: ingressControlDescriptor(), maximumBytes: maximumBytes)
-        try ProtectedFilePolicyV1.verify(.temporaryFile, at: file)
+        try originalCleanupVerifyPolicy(.temporaryFile, at: file)
         _ = try protectedIngressReceiptDirectory()
         return data
     }
 
     private func protectedIngressScratchDirectory() throws -> URL {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyRoot()
         return rootURL
     }
 
     private func protectedIngressReceiptFile(operationID: UUID) throws -> URL {
+        try requireOriginalCleanupDescriptorAccess()
         guard operationID != SettingsValidationV1.zeroUUID else {
             throw AppAccessContractFailureV1.invalidValue
         }
@@ -4483,6 +5808,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func protectedIngressPrepareFile(operationID: UUID) throws -> URL {
+        try requireOriginalCleanupDescriptorAccess()
         guard operationID != SettingsValidationV1.zeroUUID else {
             throw AppAccessContractFailureV1.invalidValue
         }
@@ -4496,6 +5822,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         request: C16IngressHygieneRequestV1,
         requestDigest: String
     ) throws -> C16IngressHygienePrepareV1 {
+        try requireOrdinaryScratchProducer()
         try verifyRoot()
         let names = try directoryNames(authority.rootDescriptor)
         guard names.count <= ProtectedIngressStartupHygieneReceiptV1.maximumInspectedCount else {
@@ -4513,7 +5840,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 let descriptor = try openLeaseDirectory(name)
                 defer { _ = Darwin.close(descriptor) }
                 let directory = rootURL.appendingPathComponent(name, isDirectory: true)
-                try ProtectedFilePolicyV1.verify(.stagingDirectory, at: directory)
+                try originalCleanupVerifyPolicy(.stagingDirectory, at: directory)
                 let files = try ingressHygieneFileIdentities(name: name, descriptor: descriptor)
                 var information = stat()
                 guard Darwin.fstat(descriptor, &information) == 0 else {
@@ -4549,6 +5876,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func ingressHygieneFileIdentities(name: String, descriptor: Int32) throws -> [C16IngressHygieneFileIdentityV1] {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyLeaseDirectory(name, descriptor: descriptor)
         let names = try directoryNames(descriptor)
         guard names.count <= 128 else { throw AppAccessContractFailureV1.configurationUnknown }
@@ -4570,19 +5898,21 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     /// The same removal owner may have renamed or removed it before interruption.
     /// Preserve every remaining identity before any target effect resumes.
     private func validatePreparedIngressTargetForRecovery(_ target: C16IngressHygieneTargetV1) throws {
+        try requireOriginalCleanupDescriptorAccess()
         let tombstone = Self.deletionTombstoneName(for: target.directoryName)
         let original = try directoryInformationIfPresent(named: target.directoryName)
         let deleting = try directoryInformationIfPresent(named: tombstone)
         if original == nil && deleting == nil { return }
         let name = deleting == nil ? target.directoryName : tombstone
         let descriptor = try openLeaseDirectory(name)
-        defer { _ = Darwin.close(descriptor) }
+        let deferredClose_descriptor = originalCleanupDeferredClose(descriptor)
+        defer { deferredClose_descriptor() }
         var pinned = stat()
-        guard Darwin.fstat(descriptor, &pinned) == 0,
+        guard try originalCleanupFstat(descriptor, &pinned) == 0,
               UInt64(pinned.st_dev) == target.device, UInt64(pinned.st_ino) == target.inode else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: rootURL.appendingPathComponent(name))
+        try originalCleanupVerifyPolicy(.stagingDirectory, at: rootURL.appendingPathComponent(name))
         let actual = try ingressHygieneFileIdentities(name: name, descriptor: descriptor)
         if deleting == nil {
             let modified = Date(timeIntervalSince1970: TimeInterval(pinned.st_mtimespec.tv_sec)
@@ -4599,6 +5929,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func removePreparedIngressTarget(_ target: C16IngressHygieneTargetV1) throws {
+        try requireOriginalCleanupDescriptorAccess()
         let tombstone = Self.deletionTombstoneName(for: target.directoryName)
         let original = try directoryInformationIfPresent(named: target.directoryName)
         let deleting = try directoryInformationIfPresent(named: tombstone)
@@ -4606,14 +5937,15 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         // A new original beside the prepared tombstone belongs to a later operation.
         let name = deleting == nil ? target.directoryName : tombstone
         let descriptor = try openLeaseDirectory(name)
-        defer { _ = Darwin.close(descriptor) }
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        let deferredClose_descriptor = originalCleanupDeferredClose(descriptor)
+        defer { deferredClose_descriptor() }
+        guard try originalCleanupLock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         var pinned = stat()
-        guard Darwin.fstat(descriptor, &pinned) == 0,
+        guard try originalCleanupFstat(descriptor, &pinned) == 0,
               UInt64(pinned.st_dev) == target.device, UInt64(pinned.st_ino) == target.inode else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
-        try ProtectedFilePolicyV1.verify(.stagingDirectory, at: rootURL.appendingPathComponent(name))
+        try originalCleanupVerifyPolicy(.stagingDirectory, at: rootURL.appendingPathComponent(name))
         let actual = try ingressHygieneFileIdentities(name: name, descriptor: descriptor)
         if deleting == nil {
             let modified = Date(timeIntervalSince1970: TimeInterval(pinned.st_mtimespec.tv_sec)
@@ -4622,8 +5954,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 throw AppAccessContractFailureV1.configurationUnknown
             }
             try verifyLeaseDirectory(name, descriptor: descriptor)
-            guard Darwin.renameat(authority.rootDescriptor, name, authority.rootDescriptor, tombstone) == 0,
-                  Darwin.fsync(authority.rootDescriptor) == 0 else {
+            guard try originalCleanupRename(authority.rootDescriptor, name, authority.rootDescriptor, tombstone) == 0,
+                  try originalCleanupSync(authority.rootDescriptor) == 0 else {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
         } else {
@@ -4636,6 +5968,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func readProtectedIngressPrepare(at file: URL) throws -> C16IngressHygienePrepareV1 {
+        try requireOriginalCleanupDescriptorAccess()
         let data = try readIngressControlFile(file, maximumBytes: 262_144)
         let value = try JSONDecoder().decode(C16IngressHygienePrepareV1.self, from: data)
         try value.validate()
@@ -4649,6 +5982,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         at file: URL,
         operationID: UUID
     ) throws -> ProtectedIngressStartupHygieneReceiptV1 {
+        try requireOriginalCleanupDescriptorAccess()
         let data = try readIngressControlFile(file, maximumBytes: 4_096)
         let decoded = try JSONDecoder().decode(ProtectedIngressStartupHygieneReceiptV1.self, from: data)
         let validated = try ProtectedIngressStartupHygieneReceiptV1(
@@ -4665,6 +5999,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func writeProtectedIngressCanonical(_ data: Data, to file: URL) throws {
+        try requireOriginalCleanupDescriptorAccess()
         guard data.count <= 262_144,
               file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {
             throw AppAccessContractFailureV1.configurationUnknown
@@ -4675,6 +6010,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func finalizeProtectedIngressPrepare(_ prepare: C16IngressHygienePrepareV1, at file: URL) throws {
+        try requireOriginalCleanupDescriptorAccess()
         let finalized = try prepare.finalizing()
         let current = try readProtectedIngressPrepare(at: file)
         if current == finalized { return }
@@ -4685,8 +6021,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             throw AppAccessContractFailureV1.effectMismatch
         }
         let descriptor = try ingressControlDescriptor()
-        guard Darwin.renameat(descriptor, staged.lastPathComponent, descriptor, file.lastPathComponent) == 0,
-              Darwin.fsync(descriptor) == 0,
+        guard try originalCleanupRename(descriptor, staged.lastPathComponent, descriptor, file.lastPathComponent) == 0,
+              try originalCleanupSync(descriptor) == 0,
               try readProtectedIngressPrepare(at: file) == finalized else {
             throw AppAccessContractFailureV1.effectMismatch
         }
@@ -4708,11 +6044,13 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     func pendingProtectedIngress() throws -> [PendingLockedExternalIntentV1] {
-        try withProducerFilesystemLock { try pendingIngressPublications().map(\.intent) }
+        try requireOriginalCleanupDescriptorAccess()
+        return try withProducerFilesystemLock { try pendingIngressPublications().map(\.intent) }
     }
 
     private func pendingIngressPublications() throws -> [C16IngressPublicationV1] {
-        try validatedIngressSnapshot().pending
+        try requireOriginalCleanupDescriptorAccess()
+        return try validatedIngressSnapshot().pending
     }
 
     /// Reconstructs the complete ingress control state under the caller's
@@ -4723,6 +6061,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         frozenErase: C16IngressEraseV1? = nil,
         applyingRecoveryEffects: Bool = true
     ) throws -> C16ValidatedIngressSnapshotV1 {
+        try requireOriginalCleanupDescriptorAccess()
         if let frozenErase {
             try frozenErase.validate()
             guard frozenErase.rootDevice == authority.rootDevice,
@@ -4810,7 +6149,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                     try validatePreparedIngressTargetForRecovery(directory)
                 } else {
                     let descriptor = try validateIngressClaim(claim)
-                    _ = Darwin.close(descriptor)
+                    _ = originalCleanupCloseResult(descriptor)
                 }
                 unresolvedPreparations.append(preparation)
                 continue // Claimed incomplete copy remains owned, but is not a pending intent.
@@ -4881,6 +6220,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         applyingEffects: Bool = true,
         expectedRemoval: C16IngressRemovalV1? = nil
     ) throws -> Bool {
+        try requireOriginalCleanupDescriptorAccess()
         let name = value.claim.preparation.lease.relativeDirectory
         guard clock() >= value.intent.expiresAt,
               try directoryInformationIfPresent(named: name) == nil,
@@ -4918,7 +6258,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     func stageProtectedIngress(_ request: ProtectedIngressStageRequestV1, source: URL) throws -> PendingLockedExternalIntentV1 {
-        try withProducerFilesystemLock {
+        try requireOrdinaryScratchProducer()
+        return try withProducerFilesystemLock {
             guard source.isFileURL, C16IngressPreparedStageV1.supportedKinds.contains(request.kind),
                   request.receivedAt <= clock(), clock() < request.expiresAt else {
                 throw AppAccessContractFailureV1.invalidValue
@@ -5017,6 +6358,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     func replaceProtectedIngress(expected: PendingLockedExternalIntentV1, replacement: PendingLockedExternalIntentV1) throws {
+        try requireOrdinaryScratchProducer()
         try withProducerFilesystemLock {
             try expected.validate()
             try replacement.validate()
@@ -5038,6 +6380,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func replaceIngressControlBytes(expected: Data, replacement: Data, at file: URL) throws {
+        try requireOrdinaryScratchProducer()
         guard try readIngressControlFile(file, maximumBytes: 262_144) == expected else {
             throw AppAccessContractFailureV1.effectMismatch
         }
@@ -5056,6 +6399,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     func removeProtectedIngress(expected: PendingLockedExternalIntentV1, disposition: LockedIngressDispositionV1) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try withProducerFilesystemLock {
             try expected.validate()
             guard disposition == .erased || (disposition == .expiredDeleted && clock() >= expected.expiresAt)
@@ -5085,6 +6429,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         _ removal: C16IngressRemovalV1,
         applyingEffects: Bool = true
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try removal.validate()
         let value = removal.expected
         try validateIngressPreparation(value.claim.preparation, intentID: value.intent.intentID)
@@ -5099,14 +6444,15 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         if original != nil || deleting != nil {
             let name = deleting == nil ? originalName : tombstone
             let descriptor = try openLeaseDirectory(name)
-            defer { _ = Darwin.close(descriptor) }
-            guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            let deferredClose_descriptor = originalCleanupDeferredClose(descriptor)
+        defer { deferredClose_descriptor() }
+            guard try originalCleanupLock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
             var information = stat()
-            guard Darwin.fstat(descriptor, &information) == 0,
+            guard try originalCleanupFstat(descriptor, &information) == 0,
                   UInt64(information.st_dev) == value.claim.device, UInt64(information.st_ino) == value.claim.inode else {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
-            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: rootURL.appendingPathComponent(name))
+            try originalCleanupVerifyPolicy(.stagingDirectory, at: rootURL.appendingPathComponent(name))
             let files = try ingressHygieneFileIdentities(name: name, descriptor: descriptor)
             let expectedFiles = [value.metadata, value.payload].sorted { $0.name < $1.name }
             guard deleting == nil ? files == expectedFiles : files.allSatisfy({ expectedFiles.contains($0) }) else {
@@ -5115,8 +6461,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             if applyingEffects {
                 if deleting == nil {
                     try verifyLeaseDirectory(name, descriptor: descriptor)
-                    guard Darwin.renameat(authority.rootDescriptor, name, authority.rootDescriptor, tombstone) == 0,
-                          Darwin.fsync(authority.rootDescriptor) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+                    guard try originalCleanupRename(authority.rootDescriptor, name, authority.rootDescriptor, tombstone) == 0,
+                          try originalCleanupSync(authority.rootDescriptor) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
                 }
                 try verifyLeaseDirectory(tombstone, descriptor: descriptor)
                 try deletePinnedDirectory(named: tombstone, descriptor: descriptor, expectedFiles: expectedFiles)
@@ -5132,14 +6478,15 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 throw AppAccessContractFailureV1.effectMismatch
             }
             let descriptor = try ingressControlDescriptor()
-            guard Darwin.unlinkat(descriptor, pendingFile.lastPathComponent, 0) == 0,
-                  Darwin.fsync(descriptor) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+            guard try originalCleanupUnlink(descriptor, pendingFile.lastPathComponent, 0) == 0,
+                  try originalCleanupSync(descriptor) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
         }
     }
 
     private func makeUnpublishedIngressEraseTarget(
         _ preparation: C16IngressPreparedStageV1
     ) throws -> C16IngressUnpublishedEraseTargetV1 {
+        try requireOriginalCleanupDescriptorAccess()
         let id = preparation.intent.intentID
         try validateIngressPreparation(preparation, intentID: id)
         for suffix in [".published.json", ".pending.json", ".terminal.json", ".aborted.json"] {
@@ -5160,7 +6507,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         guard claim.preparation == preparation else { throw AppAccessContractFailureV1.configurationUnknown }
         let descriptor = try validateIngressClaim(claim)
-        defer { _ = Darwin.close(descriptor) }
+        let deferredClose_descriptor = originalCleanupDeferredClose(descriptor)
+        defer { deferredClose_descriptor() }
         let children = try directoryNames(descriptor)
         guard children.count <= 128, children.allSatisfy({ child in
             if child == Self.metadataName || child == "opaque-data" { return true }
@@ -5171,7 +6519,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         try removeInterruptedPublications(directoryDescriptor: descriptor)
         let files = try ingressHygieneFileIdentities(name: name, descriptor: descriptor)
         var information = stat()
-        guard Darwin.fstat(descriptor, &information) == 0,
+        guard try originalCleanupFstat(descriptor, &information) == 0,
               UInt64(information.st_dev) == claim.device, UInt64(information.st_ino) == claim.inode else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
@@ -5190,6 +6538,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         preparation: C16IngressPreparedStageV1,
         claim: C16IngressDirectoryClaimV1?
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try aborted.validate()
         try validateIngressPreparation(preparation, intentID: preparation.intent.intentID)
         guard aborted.expected.preparation == preparation, aborted.expected.claim == claim else {
@@ -5210,6 +6559,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func removeUnpublishedIngress(
         _ target: C16IngressUnpublishedEraseTargetV1, operationID: UUID
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try target.validate()
         let id = target.preparation.intent.intentID
         guard let preparation = try readIngressControl(C16IngressPreparedStageV1.self,
@@ -5248,6 +6598,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     func eraseProtectedIngress(operationID: UUID) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try withProducerFilesystemLock {
             guard operationID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.invalidValue }
             let directory = try protectedIngressReceiptDirectory()
@@ -5306,6 +6657,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     /// called only while eraseProtectedIngress holds filesystemLock after a
     /// complete root admission. It never supplies a cache to another operation.
     private func removeFrozenIngressTarget(_ target: C16IngressPublicationV1) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try target.validate()
         let id = target.intent.intentID
         let prepareFile = try ingressControlURL(id, ".prepare.json")
@@ -5350,12 +6702,14 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func ingressControlURL(_ intentID: UUID, _ suffix: String) throws -> URL {
+        try requireOriginalCleanupDescriptorAccess()
         guard intentID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.invalidValue }
         return try protectedIngressReceiptDirectory().appendingPathComponent(
             try ingressControlName(intentID, suffix))
     }
 
     private func ingressControlName(_ intentID: UUID, _ suffix: String) throws -> String {
+        try requireOriginalCleanupDescriptorAccess()
         guard intentID != SettingsValidationV1.zeroUUID,
               [".prepare.json", ".claim.json", ".published.json", ".pending.json",
                ".terminal.json", ".aborted.json"].contains(suffix) else {
@@ -5365,11 +6719,13 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func readIngressControl<Value: Codable>(_ type: Value.Type, at file: URL) throws -> Value? {
+        try requireOriginalCleanupDescriptorAccess()
         guard try ingressControlFileExists(file) else { return nil }
         return try CompatibilityCanonicalV1.decode(type, from: readIngressControlFile(file, maximumBytes: 262_144))
     }
 
     private func beginIngressControlInventory() throws -> C16IngressControlInventoryV1 {
+        try requireOriginalCleanupDescriptorAccess()
         let descriptor = try ingressControlDescriptor()
         observeIngressControlInventoryForTesting()
         let names = try directoryNames(descriptor)
@@ -5379,6 +6735,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func finishIngressControlInventory(
         _ inventory: inout C16IngressControlInventoryV1
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try mutateBeforeIngressControlFinalInventoryForTesting()
         _ = try protectedIngressReceiptDirectory()
         observeIngressControlInventoryForTesting()
@@ -5396,6 +6753,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         at file: URL,
         inventory: inout C16IngressControlInventoryV1
     ) throws -> Value? {
+        try requireOriginalCleanupDescriptorAccess()
         guard file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
@@ -5403,7 +6761,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         guard inventory.expectedNames.contains(name) else { return nil }
         let data = try readRegularFile(named: name, directoryDescriptor: inventory.descriptor,
             maximumBytes: 262_144)
-        try ProtectedFilePolicyV1.verify(.temporaryFile, at: file)
+        try originalCleanupVerifyPolicy(.temporaryFile, at: file)
         _ = try protectedIngressReceiptDirectory()
         return try CompatibilityCanonicalV1.decode(type, from: data)
     }
@@ -5415,12 +6773,14 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func mutateBeforeIngressControlFinalInventoryForTesting() throws {
+        try requireOriginalCleanupDescriptorAccess()
         #if DEBUG
         try beforeIngressControlFinalInventory()
         #endif
     }
 
     private func validateIngressPreparation(_ value: C16IngressPreparedStageV1, intentID: UUID) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyRoot()
         try value.validate()
         guard value.intent.intentID == intentID, value.rootDevice == authority.rootDevice,
@@ -5430,6 +6790,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func ingressPreparations(
         inventory: inout C16IngressControlInventoryV1
     ) throws -> [C16IngressPreparedStageV1] {
+        try requireOriginalCleanupDescriptorAccess()
         let names = inventory.expectedNames.sorted()
         guard names.count <= 100_000 else { throw AppAccessContractFailureV1.configurationUnknown }
         var ids = Set<UUID>()
@@ -5474,6 +6835,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func ingressPreparations() throws -> [C16IngressPreparedStageV1] {
+        try requireOriginalCleanupDescriptorAccess()
         var inventory = try beginIngressControlInventory()
         let result = try ingressPreparations(inventory: &inventory)
         try finishIngressControlInventory(&inventory)
@@ -5481,6 +6843,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func ingressControlIdentifier(_ name: String, prefix: String, suffixes: [String]) throws -> UUID {
+        try requireOriginalCleanupDescriptorAccess()
         guard name.hasPrefix(prefix), let suffix = suffixes.first(where: { name.hasSuffix($0) }) else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
@@ -5491,9 +6854,10 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func hasExistingIngressControl() throws -> Bool {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyRoot()
         var information = stat()
-        if Darwin.fstatat(authority.operationsDescriptor, "ProtectedIngressReceiptsV1", &information, AT_SYMLINK_NOFOLLOW) != 0 {
+        if try originalCleanupFstatat(authority.operationsDescriptor, "ProtectedIngressReceiptsV1", &information, AT_SYMLINK_NOFOLLOW) != 0 {
             guard errno == ENOENT, ingressControlAuthority == nil else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
             return false
         }
@@ -5503,6 +6867,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func resumeIngressErasesForScratchLifecycle() throws {
+        try requireOriginalCleanupDescriptorAccess()
         guard try hasExistingIngressControl() else { return }
         _ = try ingressPreparations()
         for name in try directoryNames(ingressControlDescriptor())
@@ -5515,6 +6880,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func eraseUnpublishedIngressForScratchLifecycle(_ target: C16IngressUnpublishedEraseTargetV1) throws {
+        try requireOriginalCleanupDescriptorAccess()
         let operationID = UUID()
         let erase = C16IngressEraseV1(operationID: operationID, rootDevice: authority.rootDevice,
             rootInode: authority.rootInode, targets: [], unpublishedTargets: [target])
@@ -5525,6 +6891,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func recoverUnpublishedIngressForScratchLifecycle() throws -> (retainedNames: Set<String>, expiredCount: Int, removedBytes: UInt64) {
+        try requireOriginalCleanupDescriptorAccess()
         guard try hasExistingIngressControl() else { return ([], 0, 0) }
         try resumeIngressErasesForScratchLifecycle()
         var retainedNames = Set<String>()
@@ -5554,6 +6921,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func resumePreparedScratchHygiene() throws {
+        try requireOriginalCleanupDescriptorAccess()
         guard try hasExistingIngressControl() else { return }
         _ = try ingressPreparations()
         let directory = try protectedIngressReceiptDirectory()
@@ -5566,6 +6934,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func requireNoUnfinishedHygieneTarget(named name: String) throws {
+        try requireOriginalCleanupDescriptorAccess()
         guard try hasExistingIngressControl() else { return }
         let directory = try protectedIngressReceiptDirectory()
         for fileName in try directoryNames(ingressControlDescriptor())
@@ -5580,6 +6949,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func removeIngressScratchLeaseIfOwned(
         named name: String, expectedLease: ScratchDataLeaseV1? = nil
     ) throws -> Bool {
+        try requireOriginalCleanupDescriptorAccess()
         guard try hasExistingIngressControl() else { return false }
         guard let preparation = try ingressPreparations().first(where: { $0.lease.relativeDirectory == name }) else { return false }
         if let expectedLease, preparation.lease != expectedLease {
@@ -5605,6 +6975,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func validateIngressControlSnapshotName(_ name: String) throws {
+        try requireOriginalCleanupDescriptorAccess()
         if name.hasPrefix("ingress-") {
             _ = try ingressControlIdentifier(name, prefix: "ingress-", suffixes:
                 [".prepare.json", ".claim.json", ".published.json", ".pending.json", ".pending.json.replacement", ".terminal.json", ".aborted.json"])
@@ -5619,6 +6990,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     /// It remains until every original control file has been removed, so a
     /// partial deletion never needs to decode an incomplete receipt graph.
     private func eraseScratchIngressControl(resumeOnly: Bool) throws {
+        try requireOriginalCleanupDescriptorAccess()
         guard try hasExistingIngressControl() else { return }
         let directory = try protectedIngressReceiptDirectory()
         guard let pinned = ingressControlAuthority else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
@@ -5633,7 +7005,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         let marker: C16ScratchControlEraseV1
         if markerPresent {
             let data = try readRegularFile(named: Self.controlEraseName, directoryDescriptor: descriptor, maximumBytes: maximumMarkerBytes)
-            try ProtectedFilePolicyV1.verify(.temporaryFile, at: markerURL)
+            try originalCleanupVerifyPolicy(.temporaryFile, at: markerURL)
             marker = try CompatibilityCanonicalV1.decode(C16ScratchControlEraseV1.self, from: data)
         } else {
             _ = try ingressPreparations()
@@ -5647,7 +7019,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             }
             let files = try directoryNames(descriptor).map { name -> C16IngressHygieneFileIdentityV1 in
                 try validateIngressControlSnapshotName(name)
-                try ProtectedFilePolicyV1.verify(.temporaryFile, at: directory.appendingPathComponent(name))
+                try originalCleanupVerifyPolicy(.temporaryFile, at: directory.appendingPathComponent(name))
                 return try .init(name: name, information: regularFileInformation(named: name, directoryDescriptor: descriptor))
             }
             marker = .init(schemaVersion: 1, rootDevice: authority.rootDevice, rootInode: authority.rootInode,
@@ -5677,30 +7049,31 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             let current = try C16IngressHygieneFileIdentityV1(name: name,
                 information: regularFileInformation(named: name, directoryDescriptor: descriptor))
             guard expectedFiles[name] == current else { throw AppAccessContractFailureV1.configurationUnknown }
-            try ProtectedFilePolicyV1.verify(.temporaryFile, at: directory.appendingPathComponent(name))
+            try originalCleanupVerifyPolicy(.temporaryFile, at: directory.appendingPathComponent(name))
         }
         for name in remaining {
             _ = try protectedIngressReceiptDirectory()
             let current = try C16IngressHygieneFileIdentityV1(name: name,
                 information: regularFileInformation(named: name, directoryDescriptor: descriptor))
-            guard expectedFiles[name] == current, Darwin.unlinkat(descriptor, name, 0) == 0,
-                  Darwin.fsync(descriptor) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
+            guard expectedFiles[name] == current, try originalCleanupUnlink(descriptor, name, 0) == 0,
+                  try originalCleanupSync(descriptor) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
             try ingressMutationFailureInjection.interruptIfTriggered(.afterScratchControlEraseFile)
         }
         _ = try protectedIngressReceiptDirectory()
         guard try directoryNames(descriptor) == [Self.controlEraseName],
               try readRegularFile(named: Self.controlEraseName, directoryDescriptor: descriptor, maximumBytes: maximumMarkerBytes)
                 == CompatibilityCanonicalV1.encode(marker),
-              Darwin.unlinkat(descriptor, Self.controlEraseName, 0) == 0, Darwin.fsync(descriptor) == 0 else {
+              try originalCleanupUnlink(descriptor, Self.controlEraseName, 0) == 0, try originalCleanupSync(descriptor) == 0 else {
             throw AppAccessContractFailureV1.configurationUnknown
         }
         try pinned.verify(rootName: "ProtectedIngressReceiptsV1")
-        guard Darwin.unlinkat(authority.operationsDescriptor, "ProtectedIngressReceiptsV1", AT_REMOVEDIR) == 0,
-              Darwin.fsync(authority.operationsDescriptor) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        guard try originalCleanupUnlink(authority.operationsDescriptor, "ProtectedIngressReceiptsV1", AT_REMOVEDIR) == 0,
+              try originalCleanupSync(authority.operationsDescriptor) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
         ingressControlAuthority = nil
     }
 
     private func validateIngressClaim(_ claim: C16IngressDirectoryClaimV1) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
         try validateIngressPreparation(claim.preparation, intentID: claim.preparation.intent.intentID)
         let name = claim.preparation.lease.relativeDirectory
         let descriptor: Int32
@@ -5711,34 +7084,37 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         do {
             var information = stat()
-            guard Darwin.fstat(descriptor, &information) == 0,
+            guard try originalCleanupFstat(descriptor, &information) == 0,
                   UInt64(information.st_dev) == claim.device, UInt64(information.st_ino) == claim.inode else {
                 throw AppAccessContractFailureV1.configurationUnknown
             }
-            try ProtectedFilePolicyV1.verify(.stagingDirectory, at: rootURL.appendingPathComponent(name))
+            try originalCleanupVerifyPolicy(.stagingDirectory, at: rootURL.appendingPathComponent(name))
             try verifyLeaseDirectory(name, descriptor: descriptor)
             return descriptor
         } catch {
-            _ = Darwin.close(descriptor)
+            _ = originalCleanupCloseResult(descriptor)
             throw error
         }
     }
 
     private func validateIngressPublication(_ value: C16IngressPublicationV1, hashPayload: Bool) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try value.validate()
         let descriptor = try validateIngressClaim(value.claim)
-        defer { _ = Darwin.close(descriptor) }
+        let deferredClose_descriptor = originalCleanupDeferredClose(descriptor)
+        defer { deferredClose_descriptor() }
         let name = value.claim.preparation.lease.relativeDirectory
         let files = try ingressHygieneFileIdentities(name: name, descriptor: descriptor)
         guard files == [value.metadata, value.payload].sorted(by: { $0.name < $1.name }) else {
             throw AppAccessContractFailureV1.effectMismatch
         }
         if hashPayload {
-            let payload = Darwin.openat(descriptor, value.payload.name, O_RDONLY | O_NOFOLLOW)
+            let payload = try originalCleanupOpenat(descriptor, value.payload.name, O_RDONLY | O_NOFOLLOW)
             guard payload >= 0 else { throw AppAccessContractFailureV1.configurationUnknown }
-            defer { _ = Darwin.close(payload) }
+            let deferredClose_payload = originalCleanupDeferredClose(payload)
+        defer { deferredClose_payload() }
             var information = stat()
-            guard Darwin.fstat(payload, &information) == 0,
+            guard try originalCleanupFstat(payload, &information) == 0,
                   C16IngressHygieneFileIdentityV1(name: value.payload.name, information: information) == value.payload,
                   try opaqueSHA256(descriptor: payload, byteCount: value.intent.byteCount) == value.intent.sha256 else {
                 throw AppAccessContractFailureV1.effectMismatch
@@ -5752,6 +7128,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func validateOpaqueSourceLink(_ source: URL, expected: stat) throws {
+        try requireOrdinaryScratchProducer()
         var linked = stat()
         guard Darwin.lstat(source.path, &linked) == 0, (linked.st_mode & S_IFMT) == S_IFREG,
               linked.st_nlink == 1,
@@ -5762,21 +7139,35 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func opaqueSHA256(descriptor: Int32, byteCount: UInt64) throws -> String {
+        try requireOriginalCleanupDescriptorAccess()
         guard byteCount > 0, byteCount <= PendingLockedExternalIntentV1.maximumByteCount else {
             throw AppAccessContractFailureV1.invalidValue
         }
         var before = stat()
-        guard Darwin.fstat(descriptor, &before) == 0, (before.st_mode & S_IFMT) == S_IFREG,
-              before.st_nlink == 1, before.st_size >= 0, UInt64(before.st_size) == byteCount else {
+        guard try originalCleanupFstat(descriptor, &before) == 0, (before.st_mode & S_IFMT) == S_IFREG,
+              try originalCleanupPermitsDescriptorLinkCount(before, descriptor: descriptor),
+              before.st_size >= 0, UInt64(before.st_size) == byteCount else {
             throw AppAccessContractFailureV1.effectMismatch
+        }
+        var expectedSHA: String?
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            expectedSHA = try MainActor.assumeIsolated {
+                let path = try attempt.path(for: descriptor)
+                let node = try originalCleanupImageNode(path)
+                guard node.fullFact == Self.originalEraseSourceFullFact(before), let sha = node.contentSHA256 else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                return sha
+            }
         }
         var hash = SHA256()
         var offset: UInt64 = 0
         while offset < byteCount {
             let count = Int(min(UInt64(1_048_576), byteCount - offset))
             var data = Data(count: count)
-            let read = data.withUnsafeMutableBytes { bytes in
-                Darwin.pread(descriptor, bytes.baseAddress!, count, off_t(offset))
+            let read = try data.withUnsafeMutableBytes { bytes in
+                try originalCleanupObserve { Darwin.pread(descriptor, bytes.baseAddress!, count, off_t(offset)) }
             }
             guard read > 0 else { throw AppAccessContractFailureV1.effectMismatch }
             data.count = read
@@ -5784,16 +7175,24 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             offset += UInt64(read)
         }
         var after = stat()
-        guard Darwin.fstat(descriptor, &after) == 0, after.st_nlink == 1,
+        guard try originalCleanupFstat(descriptor, &after) == 0,
+              try originalCleanupPermitsDescriptorLinkCount(after, descriptor: descriptor),
               C16IngressHygieneFileIdentityV1(name: "source", information: before)
                 == C16IngressHygieneFileIdentityV1(name: "source", information: after) else {
             throw AppAccessContractFailureV1.effectMismatch
         }
-        return hash.finalize().map { String(format: "%02x", $0) }.joined()
+        let digest = hash.finalize().map { String(format: "%02x", $0) }.joined()
+        if let expectedSHA {
+            guard digest == expectedSHA, Self.originalEraseSourceFullFact(after) == Self.originalEraseSourceFullFact(before) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+        }
+        return digest
     }
 
     private func publishOpaqueIngress(sourceDescriptor: Int32, preparation: C16IngressPreparedStageV1,
                                       directoryDescriptor: Int32) throws -> C16IngressHygieneFileIdentityV1 {
+        try requireOrdinaryScratchProducer()
         let sinkActivity = try OwnedStorageProducerActivityV1.acquire(
             applicationSupportURL: producerApplicationSupportURL)
         var activityTransferred = false
@@ -5812,7 +7211,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                   try opaqueSHA256(descriptor: descriptor, byteCount: preparation.intent.byteCount) == preparation.intent.sha256 else {
                 throw AppAccessContractFailureV1.effectMismatch
             }
-            try ProtectedFilePolicyV1.verify(.temporaryFile, at: finalURL)
+            try originalCleanupVerifyPolicy(.temporaryFile, at: finalURL)
             try verifyLeaseDirectory(name, descriptor: directoryDescriptor)
             return .init(name: finalName, information: try regularFileInformation(named: finalName, directoryDescriptor: directoryDescriptor))
         }
@@ -5861,7 +7260,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         guard Darwin.linkat(directoryDescriptor, temporaryName, directoryDescriptor, finalName, 0) == 0,
               Darwin.unlinkat(directoryDescriptor, temporaryName, 0) == 0,
               Darwin.fsync(directoryDescriptor) == 0 else { throw AppAccessContractFailureV1.configurationUnknown }
-        try ProtectedFilePolicyV1.verify(.temporaryFile, at: finalURL)
+        try originalCleanupVerifyPolicy(.temporaryFile, at: finalURL)
         try verifyLeaseDirectory(name, descriptor: directoryDescriptor)
         let final = try regularFileInformation(named: finalName, directoryDescriptor: directoryDescriptor)
         guard final.st_dev == temporaryIdentity.st_dev, final.st_ino == temporaryIdentity.st_ino else {
@@ -5891,6 +7290,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         fileprivate init(store: ScratchDataLeaseStoreV1, lease: ScratchDataLeaseV1,
                          readerIsDrained: @escaping @MainActor () -> Bool,
                          exclusivePermit: ExclusiveEraseSourceReadPermit? = nil) throws {
+            try store.requireOrdinaryScratchProducer()
             try exclusivePermit?.requireHeld()
             let retainedActivity: OwnedStorageProducerActivityV1?
             if exclusivePermit == nil {
@@ -6328,6 +7728,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     @MainActor
     private func checkedOriginalEraseSourceCut()
         throws -> OriginalEraseExclusiveSourceCutV1 {
+        try requireOrdinaryScratchProducer()
         guard exclusiveNoRepairRead, let io = originalEraseSourceReceiptIO else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
@@ -7724,6 +9125,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     func withSourceReadScratch<Value>(request: ScratchDataLeaseRequestV1,
         readerIsDrained: @escaping @MainActor () -> Bool,
         _ read: (SourceReadDirectory) throws -> Value) throws -> Value {
+        try requireOrdinaryScratchProducer()
         guard request.purpose == .source, request.owner == .source else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
@@ -7754,7 +9156,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     func acquireScratchLease(
         _ request: ScratchDataLeaseRequestV1
     ) async throws -> ScratchDataLeaseV1 {
-        try withProducerFilesystemLock {
+        try requireOrdinaryScratchProducer()
+        return try withProducerFilesystemLock {
             let lease = try acquireScratchLeaseSynchronously(request)
             if producerActivities[lease.request.leaseID] == nil {
                 producerActivities[lease.request.leaseID] = try OwnedStorageProducerActivityV1.acquire(
@@ -7768,6 +9171,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         _ request: ScratchDataLeaseRequestV1,
         recoverExisting: Bool = true
     ) throws -> ScratchDataLeaseV1 {
+        try requireOrdinaryScratchProducer()
         try request.validate()
         let current = clock()
         guard request.createdAt <= current, current < request.expiresAt else {
@@ -7876,7 +9280,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         named: String,
         lease: ScratchDataLeaseV1
     ) async throws -> URL {
-        try withProducerFilesystemLock {
+        try requireOrdinaryScratchProducer()
+        return try withProducerFilesystemLock {
             try writeScratchDataSynchronously(data, named: named, lease: lease)
         }
     }
@@ -7886,6 +9291,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         named: String,
         lease: ScratchDataLeaseV1
     ) throws -> URL {
+        try requireOrdinaryScratchProducer()
         guard OperationalDiagnosticsBoundsV1.validRelativeName(named),
               named != Self.metadataName,
               active[lease.request.leaseID] == lease else {
@@ -7968,6 +9374,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         _ lease: ScratchDataLeaseV1,
         terminal: ScratchDataLeaseTerminalV1
     ) async throws {
+        try requireOrdinaryScratchProducer()
         try withProducerFilesystemLock {
             try releaseScratchLeaseSynchronously(lease, terminal: terminal)
             producerActivities.removeValue(forKey: lease.request.leaseID)?.close()
@@ -7980,6 +9387,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         exclusiveNoRepair: Bool = false,
         exclusiveExpectedFiles: [C16IngressHygieneFileIdentityV1]? = nil
     ) throws {
+        try requireOrdinaryScratchProducer()
         try verifyRoot()
         try lease.request.validate()
         guard lease.schemaVersion == ScratchDataLeaseV1.schemaVersion,
@@ -8012,12 +9420,14 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     func recoverScratchLeases() async throws -> ScratchDataLeaseRecoverySummaryV1 {
-        try withProducerFilesystemLock {
+        try requireOrdinaryScratchProducer()
+        return try withProducerFilesystemLock {
             try recoverScratchLeasesSynchronously()
         }
     }
 
     private func recoverScratchLeasesSynchronously() throws -> ScratchDataLeaseRecoverySummaryV1 {
+        try requireOrdinaryScratchProducer()
         let result = try recoverScratchLeaseState()
         return try ScratchDataLeaseRecoverySummaryV1(
             recoveredExpiredLeaseCount: result.expiredCount,
@@ -8030,6 +9440,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         expiredCount: Int,
         removedByteCount: UInt64
     ) {
+        try requireOrdinaryScratchProducer()
         try verifyRoot()
         try resumePreparedScratchHygiene()
         let ingressRecovery = try recoverUnpublishedIngressForScratchLifecycle()
@@ -8071,7 +9482,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                     directoryDescriptor: leaseDescriptor,
                     maximumBytes: 65_536
                 )
-                try ProtectedFilePolicyV1.verify(.temporaryFile, at: metadataURL)
+                try originalCleanupVerifyPolicy(.temporaryFile, at: metadataURL)
                 lease = try JSONDecoder().decode(
                     ScratchDataLeaseV1.self,
                     from: data
@@ -8138,12 +9549,14 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     func resetScratchData() async throws {
+        try requireOriginalCleanupDescriptorAccess()
         try withProducerFilesystemLock {
             try resetScratchDataSynchronously()
         }
     }
 
     private func resetScratchDataSynchronously() throws {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyRoot()
         try eraseScratchIngressControl(resumeOnly: true)
         if try hasExistingIngressControl() {
@@ -8162,21 +9575,23 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     func eraseScratchData() async throws {
+        try requireOriginalCleanupDescriptorAccess()
         try withProducerFilesystemLock {
             try eraseScratchDataSynchronously()
         }
     }
 
     private func eraseScratchDataSynchronously() throws {
+        try requireOriginalCleanupDescriptorAccess()
         try resetScratchDataSynchronously()
         try eraseScratchIngressControl(resumeOnly: false)
         try verifyRoot()
-        guard Darwin.unlinkat(
+        guard try originalCleanupUnlink(
             authority.operationsDescriptor,
             Self.rootName,
             AT_REMOVEDIR
         ) == 0,
-        Darwin.fsync(authority.operationsDescriptor) == 0 else {
+        try originalCleanupSync(authority.operationsDescriptor) == 0 else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         active.removeAll(keepingCapacity: false)
@@ -8186,6 +9601,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         directoryDescriptor: Int32,
         directoryURL: URL
     ) throws -> UInt64 {
+        try requireOriginalCleanupDescriptorAccess()
         var total: UInt64 = 0
         for name in try directoryNames(directoryDescriptor)
         where name != Self.metadataName {
@@ -8212,13 +9628,14 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         directoryDescriptor: Int32,
         directoryURL: URL
     ) throws -> UInt64 {
+        try requireOriginalCleanupDescriptorAccess()
         var total: UInt64 = 0
         for name in try directoryNames(directoryDescriptor) {
             let information = try regularFileInformation(
                 named: name,
                 directoryDescriptor: directoryDescriptor
             )
-            try ProtectedFilePolicyV1.verify(
+            try originalCleanupVerifyPolicy(
                 .temporaryFile,
                 at: directoryURL.appendingPathComponent(name)
             )
@@ -8236,6 +9653,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func requireExpectedScratchLease(
         _ expected: ScratchDataLeaseV1, named name: String, descriptor: Int32
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyLeaseDirectory(name, descriptor: descriptor)
         let metadata = rootURL.appendingPathComponent(name).appendingPathComponent(Self.metadataName)
         try verifySourceReadPolicy(.temporaryFile, at: metadata)
@@ -8255,6 +9673,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         exclusiveNoRepair: Bool = false,
         exclusiveExpectedFiles: [C16IngressHygieneFileIdentityV1]? = nil
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         guard Self.isLeaseDirectoryName(name) else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
@@ -8276,17 +9695,20 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         let descriptor = try openLeaseDirectory(name)
         var closeAttempted = false
+        let borrowedDeferredClose = originalCleanupDeferredClose(descriptor)
         defer {
-            if !closeAttempted {
+            if originalCleanupLifetime != .ordinary {
+                borrowedDeferredClose()
+            } else if !closeAttempted {
                 if exclusiveNoRepair {
                     let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
-                    if Darwin.close(descriptor) == 0 {
+                    if originalCleanupCloseResult(descriptor) == 0 {
                         ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
                     }
-                } else { _ = Darwin.close(descriptor) }
+                } else { _ = originalCleanupCloseResult(descriptor) }
             }
         }
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        guard try originalCleanupLock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         if let expectedLease {
             try requireExpectedScratchLease(expectedLease, named: name, descriptor: descriptor)
         }
@@ -8298,18 +9720,18 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 exclusiveExpectedFiles, descriptor: descriptor)
         }
         var pinned = stat()
-        guard Darwin.fstat(descriptor, &pinned) == 0,
-              Darwin.renameat(
+        guard try originalCleanupFstat(descriptor, &pinned) == 0,
+              try originalCleanupRename(
                   authority.rootDescriptor,
                   name,
                   authority.rootDescriptor,
                   tombstone
               ) == 0,
-              Darwin.fsync(authority.rootDescriptor) == 0 else {
+              try originalCleanupSync(authority.rootDescriptor) == 0 else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         var oldEntry = stat()
-        guard Darwin.fstatat(
+        guard try originalCleanupFstatat(
             authority.rootDescriptor,
             name,
             &oldEntry,
@@ -8320,7 +9742,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         }
         try verifyLeaseDirectory(tombstone, descriptor: descriptor)
         var linked = stat()
-        guard Darwin.fstatat(
+        guard try originalCleanupFstatat(
             authority.rootDescriptor,
             tombstone,
             &linked,
@@ -8336,7 +9758,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         if exclusiveNoRepair {
             closeAttempted = true
             let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
-            guard Darwin.close(descriptor) == 0 else {
+            guard originalCleanupCloseResult(descriptor) == 0 else {
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
             ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
@@ -8346,13 +9768,15 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     private func removeDeletionTombstone(
         named name: String, expectedLease: ScratchDataLeaseV1? = nil
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         guard Self.isDeletionTombstone(name) else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
         try requireNoUnfinishedHygieneTarget(named: String(name.dropFirst(Self.deletionPrefix.count)))
         let descriptor = try openLeaseDirectory(name)
-        defer { _ = Darwin.close(descriptor) }
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        let deferredClose_descriptor = originalCleanupDeferredClose(descriptor)
+        defer { deferredClose_descriptor() }
+        guard try originalCleanupLock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         if let expectedLease {
             try requireExpectedScratchLease(expectedLease, named: name, descriptor: descriptor)
         }
@@ -8371,6 +9795,31 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         named name: String,
         descriptor: Int32
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try MainActor.assumeIsolated {
+                guard Self.isDeletionTombstone(name) else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+                let current = Self.rootName + "/" + name
+                guard let original = attempt.directoryMappings[current],
+                      let source = attempt.directorySources[original] else { throw ScratchDataLeaseStoreFailureV1.invalidLease }
+                try verifyLeaseDirectory(name, descriptor: descriptor)
+                switch source.metadata {
+                case .ownedOrphan:
+                    guard try regularFileInformationIfPresent(named: Self.metadataName, directoryDescriptor: descriptor) == nil else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidLease
+                    }
+                case .validatedLease(let bytes, _, let sha):
+                    guard try CompatibilityCanonicalV1.sha256(bytes) == sha,
+                          try readRegularFile(named: Self.metadataName, directoryDescriptor: descriptor, maximumBytes: 65_536) == bytes else {
+                        throw ScratchDataLeaseStoreFailureV1.invalidLease
+                    }
+                    try verifySourceReadPolicy(.temporaryFile, at: rootURL.appendingPathComponent(name).appendingPathComponent(Self.metadataName))
+                }
+                try verifyLeaseDirectory(name, descriptor: descriptor); try attempt.requireActive()
+            }
+            return
+        }
         guard Self.isDeletionTombstone(name) else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
@@ -8383,7 +9832,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             directoryDescriptor: descriptor,
             maximumBytes: 65_536
         )
-        try ProtectedFilePolicyV1.verify(.temporaryFile, at: metadataURL)
+        try originalCleanupVerifyPolicy(.temporaryFile, at: metadataURL)
         let lease = try JSONDecoder().decode(ScratchDataLeaseV1.self, from: data)
         try lease.request.validate()
         guard lease.schemaVersion == ScratchDataLeaseV1.schemaVersion,
@@ -8414,6 +9863,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         _ expected: [C16IngressHygieneFileIdentityV1],
         descriptor: Int32
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         let names = try directoryNames(descriptor)
         guard !expected.isEmpty,
               Set(names) == Set(expected.map(\.name)),
@@ -8437,7 +9887,8 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         expectedFiles: [C16IngressHygieneFileIdentityV1]? = nil,
         exclusiveNoRepair: Bool = false
     ) throws {
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        try requireOriginalCleanupDescriptorAccess()
+        guard try originalCleanupLock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
         try verifyLeaseDirectory(name, descriptor: descriptor)
         if expectedFiles == nil && !exclusiveNoRepair {
             try removeInterruptedPublications(directoryDescriptor: descriptor)
@@ -8478,12 +9929,12 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                     throw AppAccessContractFailureV1.configurationUnknown
                 }
             }
-            guard Darwin.unlinkat(descriptor, child, 0) == 0 else {
+            guard try originalCleanupUnlink(descriptor, child, 0) == 0 else {
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
             if exclusiveNoRepair { exclusiveRemaining.remove(child) }
             if expectedFiles != nil {
-                guard Darwin.fsync(descriptor) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                guard try originalCleanupSync(descriptor) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
                 try ingressMutationFailureInjection.interruptIfTriggered(.afterPreparedDirectoryFileDeletion)
             }
         }
@@ -8493,16 +9944,16 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 throw ScratchDataLeaseStoreFailureV1.leaseCollision
             }
         }
-        guard Darwin.fsync(descriptor) == 0 else {
+        guard try originalCleanupSync(descriptor) == 0 else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         try verifyLeaseDirectory(name, descriptor: descriptor)
-        guard Darwin.unlinkat(authority.rootDescriptor, name, AT_REMOVEDIR) == 0,
-              Darwin.fsync(authority.rootDescriptor) == 0 else {
+        guard try originalCleanupUnlink(authority.rootDescriptor, name, AT_REMOVEDIR) == 0,
+              try originalCleanupSync(authority.rootDescriptor) == 0 else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         var absent = stat()
-        guard Darwin.fstatat(
+        guard try originalCleanupFstatat(
             authority.rootDescriptor,
             name,
             &absent,
@@ -8515,9 +9966,10 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func directoryInformationIfPresent(named name: String) throws -> stat? {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyRoot()
         var information = stat()
-        if Darwin.fstatat(
+        if try originalCleanupFstatat(
             authority.rootDescriptor,
             name,
             &information,
@@ -8536,12 +9988,13 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func openLeaseDirectory(_ name: String) throws -> Int32 {
+        try requireOriginalCleanupDescriptorAccess()
         guard OperationalDiagnosticsBoundsV1.validRelativeName(name) else {
             throw ScratchDataLeaseStoreFailureV1.invalidLease
         }
         try verifyRoot()
         var before = stat()
-        guard Darwin.fstatat(
+        guard try originalCleanupFstatat(
             authority.rootDescriptor,
             name,
             &before,
@@ -8551,7 +10004,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         UInt64(before.st_dev) == authority.rootDevice else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
-        let descriptor = Darwin.openat(
+        let descriptor = try originalCleanupOpenat(
             authority.rootDescriptor,
             name,
             O_RDONLY | O_DIRECTORY | O_NOFOLLOW
@@ -8560,16 +10013,16 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         var pinned = stat()
-        guard Darwin.fstat(descriptor, &pinned) == 0,
+        guard try originalCleanupFstat(descriptor, &pinned) == 0,
               (pinned.st_mode & S_IFMT) == S_IFDIR,
               pinned.st_dev == before.st_dev,
               pinned.st_ino == before.st_ino else {
             if exclusiveNoRepairRead {
                 let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(descriptor)
-                if Darwin.close(descriptor) == 0 {
+                if originalCleanupCloseResult(descriptor) == 0 {
                     ScratchUncertainCloseQuarantineV1.shared.complete(attempt)
                 }
-            } else { _ = Darwin.close(descriptor) }
+            } else { _ = originalCleanupCloseResult(descriptor) }
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
         return descriptor
@@ -8579,16 +10032,17 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         _ name: String,
         descriptor: Int32
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         try verifyRoot()
         var linked = stat()
         var pinned = stat()
-        guard Darwin.fstatat(
+        guard try originalCleanupFstatat(
             authority.rootDescriptor,
             name,
             &linked,
             AT_SYMLINK_NOFOLLOW
         ) == 0,
-        Darwin.fstat(descriptor, &pinned) == 0,
+        try originalCleanupFstat(descriptor, &pinned) == 0,
         (linked.st_mode & S_IFMT) == S_IFDIR,
         linked.st_dev == pinned.st_dev,
         linked.st_ino == pinned.st_ino else {
@@ -8597,6 +10051,11 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func directoryNames(_ descriptor: Int32) throws -> [String] {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            return try MainActor.assumeIsolated { try originalCleanupDirectoryNames(descriptor) }
+        }
         let duplicate = Darwin.dup(descriptor)
         guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) else {
             if duplicate >= 0 {
@@ -8655,6 +10114,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         named name: String,
         directoryDescriptor: Int32
     ) throws -> stat {
+        try requireOriginalCleanupDescriptorAccess()
         guard let information = try regularFileInformationIfPresent(
             named: name,
             directoryDescriptor: directoryDescriptor
@@ -8668,8 +10128,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         named name: String,
         directoryDescriptor: Int32
     ) throws -> stat? {
+        try requireOriginalCleanupDescriptorAccess()
         var information = stat()
-        if Darwin.fstatat(
+        if try originalCleanupFstatat(
             directoryDescriptor,
             name,
             &information,
@@ -8678,13 +10139,29 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             guard errno == ENOENT else {
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
+            if originalCleanupLifetime == .active {
+                guard Thread.isMainThread, let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                try MainActor.assumeIsolated {
+                    let path = try attempt.childPath(parent: directoryDescriptor, name: name)
+                    guard try originalCleanupImageNodeIfPresent(path) == nil else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                }
+            }
             return nil
         }
         guard (information.st_mode & S_IFMT) == S_IFREG,
-              information.st_nlink == 1,
+              try originalCleanupPermitsRegularLinkCount(information, parent: directoryDescriptor, name: name),
               information.st_size >= 0,
               UInt64(information.st_dev) == authority.rootDevice else {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread, let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try MainActor.assumeIsolated {
+                let path = try attempt.childPath(parent: directoryDescriptor, name: name)
+                guard try originalCleanupImageNode(path).fullFact == Self.originalEraseSourceFullFact(information) else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+            }
         }
         return information
     }
@@ -8696,6 +10173,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         finalURL: URL,
         leaseName: String?
     ) throws -> Bool {
+        try requireOriginalCleanupDescriptorAccess()
         guard let existing = try regularFileInformationIfPresent(
             named: name,
             directoryDescriptor: directoryDescriptor
@@ -8710,7 +10188,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
               ) == data else {
             throw ScratchDataLeaseStoreFailureV1.leaseCollision
         }
-        try ProtectedFilePolicyV1.verify(.temporaryFile, at: finalURL)
+        try originalCleanupVerifyPolicy(.temporaryFile, at: finalURL)
         if let leaseName {
             try verifyLeaseDirectory(
                 leaseName,
@@ -8734,6 +10212,13 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         directoryDescriptor: Int32,
         maximumBytes: Int
     ) throws -> Data {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            return try MainActor.assumeIsolated {
+                try originalCleanupReadRegularFile(named: name, directoryDescriptor: directoryDescriptor, maximumBytes: maximumBytes)
+            }
+        }
         let expected = try regularFileInformation(
             named: name,
             directoryDescriptor: directoryDescriptor
@@ -8824,6 +10309,18 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         atomicExclusiveRename: Bool = false,
         directoryAuthorityCheck: (() throws -> Void)? = nil
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
+        if originalCleanupLifetime == .active {
+            guard Thread.isMainThread else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try MainActor.assumeIsolated {
+                try publishOriginalCleanupDurably(data, named: name,
+                    directoryDescriptor: directoryDescriptor, directoryURL: directoryURL,
+                    finalURL: finalURL, leaseName: leaseName,
+                    atomicExclusiveRename: atomicExclusiveRename,
+                    directoryAuthorityCheck: directoryAuthorityCheck)
+            }
+            return
+        }
         try directoryAuthorityCheck?()
         let temporaryName = ".partial-\(UUID().uuidString.lowercased())"
         let descriptor = Darwin.openat(
@@ -8972,9 +10469,105 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
         try closeExclusivePublicationDescriptor()
     }
 
+    @MainActor private func publishOriginalCleanupDurably(_ data: Data,
+        named name: String, directoryDescriptor: Int32, directoryURL: URL,
+        finalURL: URL, leaseName: String?, atomicExclusiveRename: Bool,
+        directoryAuthorityCheck: (() throws -> Void)?) throws {
+        guard let attempt = originalCleanupAttempt,
+              leaseName == nil, let control = ingressControlAuthority,
+              control.rootDescriptor == directoryDescriptor,
+              directoryURL == rootURL.deletingLastPathComponent().appendingPathComponent("ProtectedIngressReceiptsV1", isDirectory: true),
+              finalURL == directoryURL.appendingPathComponent(name),
+              OperationalDiagnosticsBoundsV1.validRelativeName(name),
+              !atomicExclusiveRename || name == Self.controlEraseName else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        #if DEBUG
+        attempt.diagnosticStage = .publisher
+        #endif
+        try directoryAuthorityCheck?()
+        let finalPath = try attempt.childPath(parent: directoryDescriptor, name: name)
+        if try attempt.requireRetainedCanonicalPublication(path: finalPath, bytes: data) {
+            // A genuine original catalog source (or this exact completed
+            // publisher) authorizes only read-back equality, never replacement.
+            try verifySourceReadPolicy(.temporaryFile, at: finalURL)
+            guard try readRegularFile(named: name, directoryDescriptor: directoryDescriptor,
+                maximumBytes: data.count) == data else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try directoryAuthorityCheck?()
+            guard try attempt.requireRetainedCanonicalPublication(path: finalPath, bytes: data) else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            return
+        }
+        let temporaryName = ".partial-" + UUID().uuidString.lowercased()
+        let temporaryPath = try attempt.childPath(parent: directoryDescriptor, name: temporaryName)
+        let sha = try CompatibilityCanonicalV1.sha256(data)
+        let opened = try attempt.perform(.createTemporary(path: temporaryPath, finalPath: finalPath,
+            bytes: data, sha256: sha, mode: 0o600, exclusiveFinalRename: atomicExclusiveRename)) {
+            guard let intent = attempt.activeIntent else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            let fd = Darwin.openat(directoryDescriptor, temporaryName,
+                O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
+            let actualErrno = errno
+            if fd >= 0 { try attempt.retainDescriptor(fd, path: temporaryPath, role: .publication(requestID: intent.requestID)) }
+            errno = actualErrno
+            return Int64(fd)
+        }
+        guard opened >= 0, let resource = attempt.resources[Int32(opened)] else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let descriptor = Int32(opened)
+        do {
+            var offset = 0
+            while offset < data.count {
+                let requested = data.count - offset
+                let count = try attempt.perform(.writeTemporary(path: temporaryPath,
+                    offset: offset, requestedByteCount: requested)) {
+                    data.withUnsafeBytes { raw in
+                        Int64(Darwin.write(descriptor, raw.baseAddress!.advanced(by: offset), requested))
+                    }
+                }
+                guard count > 0, count <= Int64(requested) else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                offset += Int(count)
+            }
+            guard try originalCleanupSync(descriptor) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try applySourceReadPolicy(.temporaryFile, at: directoryURL.appendingPathComponent(temporaryName),
+                authorityCheck: { try directoryAuthorityCheck?(); try self.verifyRoot() })
+            let result: Int64
+            if atomicExclusiveRename {
+                result = try attempt.perform(.renamePublication(sourcePath: temporaryPath, finalPath: finalPath, exclusive: true)) {
+                    Int64(Darwin.renameatx_np(directoryDescriptor, temporaryName,
+                        directoryDescriptor, name, UInt32(RENAME_EXCL)))
+                }
+            } else {
+                result = try attempt.perform(.linkPublication(temporaryPath: temporaryPath, finalPath: finalPath)) {
+                    Int64(Darwin.linkat(directoryDescriptor, temporaryName, directoryDescriptor, name, 0))
+                }
+            }
+            // Matching bytes are never a collision/adoption capability here.
+            guard result == 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            if atomicExclusiveRename { resource.path = finalPath }
+            else { guard try originalCleanupUnlink(directoryDescriptor, temporaryName, 0) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot } }
+            guard try originalCleanupSync(directoryDescriptor) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+            try directoryAuthorityCheck?()
+            _ = try regularFileInformation(named: name, directoryDescriptor: directoryDescriptor)
+            try verifySourceReadPolicy(.temporaryFile, at: finalURL)
+            guard try readRegularFile(named: name, directoryDescriptor: directoryDescriptor, maximumBytes: data.count) == data else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            try directoryAuthorityCheck?()
+            try attempt.closeResource(resource, terminalCleanup: false)
+            try attempt.settlePublication(temporaryPath: temporaryPath, finalPath: finalPath, resource: resource)
+        } catch {
+            let failure = error
+            // Retain the exact producer request/image/temp on uncertainty.
+            // There is no unproved defer-unlink or second close attempt.
+            attempt.poison(); try? attempt.closeResource(resource, terminalCleanup: true)
+            throw failure
+        }
+    }
+
     private func removeInterruptedPublications(
         directoryDescriptor: Int32
     ) throws {
+        try requireOriginalCleanupDescriptorAccess()
         var removed = false
         for name in try directoryNames(directoryDescriptor)
         where name.hasPrefix(".partial-") {
@@ -8983,7 +10576,16 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
             var information = stat()
-            guard Darwin.fstatat(
+            if originalCleanupLifetime == .active {
+                guard try originalCleanupFstatat(directoryDescriptor, name, &information, AT_SYMLINK_NOFOLLOW) == 0,
+                      try originalCleanupPermitsRegularLinkCount(information, parent: directoryDescriptor, name: name) else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                guard Thread.isMainThread, let attempt = originalCleanupAttempt else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+                let path = try MainActor.assumeIsolated { try attempt.childPath(parent: directoryDescriptor, name: name) }
+                try verifySourceReadPolicy(.temporaryFile, at: rootURL.deletingLastPathComponent().appendingPathComponent(path))
+            }
+            guard try originalCleanupFstatat(
                 directoryDescriptor,
                 name,
                 &information,
@@ -8992,17 +10594,18 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             (information.st_mode & S_IFMT) == S_IFREG,
             information.st_nlink == 1 || information.st_nlink == 2,
             UInt64(information.st_dev) == authority.rootDevice,
-            Darwin.unlinkat(directoryDescriptor, name, 0) == 0 else {
+            try originalCleanupUnlink(directoryDescriptor, name, 0) == 0 else {
                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
             }
             removed = true
         }
-        if removed, Darwin.fsync(directoryDescriptor) != 0 {
+        if removed, try originalCleanupSync(directoryDescriptor) != 0 {
             throw ScratchDataLeaseStoreFailureV1.invalidRoot
         }
     }
 
     private func verifyRoot() throws {
+        try requireOriginalCleanupDescriptorAccess()
         try authority.verify(rootName: Self.rootName)
     }
 
@@ -9033,6 +10636,7 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
     }
 
     private func canonicalData<T: Encodable>(_ value: T) throws -> Data {
+        try requireOriginalCleanupDescriptorAccess()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(value)
@@ -9403,13 +11007,15 @@ extension ScratchDataLeaseStoreV1: EncryptedPortableEnvelopeScratchRecoveringV1 
     /// resumable scratch families retain their established recovery policy.
     func recoverEncryptedPortableEnvelopeScratch() async throws
         -> ScratchDataLeaseRecoverySummaryV1 {
-        try withProducerFilesystemLock {
+        try requireOrdinaryScratchProducer()
+        return try withProducerFilesystemLock {
             try recoverEncryptedPortableEnvelopeScratchSynchronously()
         }
     }
 
     private func recoverEncryptedPortableEnvelopeScratchSynchronously() throws
         -> ScratchDataLeaseRecoverySummaryV1 {
+        try requireOrdinaryScratchProducer()
         let recovered = try recoverScratchLeaseState()
         let interrupted = recovered.active.filter {
             EncryptedPortableEnvelopeScratchNamespaceV1.contains($0.request.leaseID)
@@ -9450,6 +11056,7 @@ extension ScratchDataLeaseStoreV1: EncryptedPortableEnvelopeScratchRecoveringV1 
 
 extension ScratchDataLeaseStoreV1: EncryptedPortableEnvelopeStreamingScratchPortV1 {
     func acquireOwnedStorageProducerActivity() async throws -> OwnedStorageProducerActivityV1 {
+        try requireOrdinaryScratchProducer()
         let activity = try OwnedStorageProducerActivityV1.acquire(
             applicationSupportURL: producerApplicationSupportURL)
         do {
@@ -9464,7 +11071,8 @@ extension ScratchDataLeaseStoreV1: EncryptedPortableEnvelopeStreamingScratchPort
         lease: ScratchDataLeaseV1,
         maximumByteCount: UInt64
     ) async throws -> any EncryptedPortableEnvelopeTerminalScratchV1 {
-        try withProducerFilesystemLock {
+        try requireOrdinaryScratchProducer()
+        return try withProducerFilesystemLock {
             try makeEncryptedPortableEnvelopeStreamingScratchSynchronously(named: named, lease: lease, maximumByteCount: maximumByteCount)
         }
     }
@@ -9474,6 +11082,7 @@ extension ScratchDataLeaseStoreV1: EncryptedPortableEnvelopeStreamingScratchPort
         lease: ScratchDataLeaseV1,
         maximumByteCount: UInt64
     ) throws -> any EncryptedPortableEnvelopeTerminalScratchV1 {
+        try requireOrdinaryScratchProducer()
         let sinkActivity = try OwnedStorageProducerActivityV1.acquire(
             applicationSupportURL: producerApplicationSupportURL)
         var activityTransferred = false
@@ -9589,6 +11198,7 @@ extension ScratchDataLeaseStoreV1 {
     private func temporalMemberCensus(directory: Int32, directoryURL: URL,
                                      budget: inout TemporalScratchCensusBudgetV1)
         throws -> [TemporalScratchMemberObservationV1] {
+        try requireOrdinaryScratchProducer()
         // dup(directory) shares its open-description offset and is unsuitable.
         let cursorFD = Darwin.openat(directory, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard cursorFD >= 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }

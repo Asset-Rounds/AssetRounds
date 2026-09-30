@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "1867edb19436c5243cbfccbd9bf2404b39abf53a",
+  "generatedAtHead": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
   "sweepOrder": [
     "S01",
     "S02",
@@ -3087,7 +3087,7 @@
     {
       "id": "S26",
       "tier": "D50C",
-      "estimatedSeconds": 1619.9,
+      "estimatedSeconds": 1739.9,
       "selectors": [
         "FieldEvidenceAppTests/C27S36TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C27S66TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
@@ -3110,6 +3110,8 @@
         "FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testReviewedCarryoverRebaseTargetCommitInterruptionRetriesExactlyOnce",
         "FieldEvidenceAppTests/V9_02FileAuthorityTests/testAutomaticPostSaveReproofRecordsAndSurfacesFailureSynchronously",
         "FieldEvidenceAppTests/V9_02FileAuthorityTests/testCachedValidResourceValuesCannotHideLaterPhysicalAttributeChanges",
+        "FieldEvidenceAppTests/V9_02FileAuthorityTests/testCheckedErasePolicyPreservesRealJournalAndDirectoryReadbacks",
+        "FieldEvidenceAppTests/V9_02FileAuthorityTests/testCheckedErasePolicyRejectsHardLinksBeforeRequests",
         "FieldEvidenceAppTests/V9_02FileAuthorityTests/testHardLinkedOwnedFileIsRejectedBeforeAttributeMutation",
         "FieldEvidenceAppTests/V9_02FileAuthorityTests/testJournalMediaReportAndDiagnosticsKindsUseTargetedPolicy",
         "FieldEvidenceAppTests/V9_02FileAuthorityTests/testMissingInvalidTypeAndAuthorityOrderingFailClosed",

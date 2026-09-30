@@ -565,6 +565,132 @@ final class V9_02FileAuthorityTests: XCTestCase {
         }
     }
 
+    func testCheckedErasePolicyPreservesRealJournalAndDirectoryReadbacks() throws {
+        let root = try makeTemporaryRoot("checked-erase-policy")
+        defer { try? fileManager.removeItem(at: root) }
+        let kinds: [OwnedFileKindV1] = [
+            .journal, .journalTemporary, .stagingFile,
+            .stagingDirectory, .durableDirectory,
+        ]
+        var uncertainDescriptors = [Int32]()
+        for kind in kinds {
+            let disposition = ProtectedFilePolicyV1.disposition(for: kind)
+            let item = root.appendingPathComponent(kind.rawValue,
+                isDirectory: disposition.expectsDirectory)
+            let bytes = Data(kind.rawValue.utf8)
+            if disposition.expectsDirectory {
+                try fileManager.createDirectory(at: item,
+                    withIntermediateDirectories: false)
+            } else {
+                XCTAssertTrue(fileManager.createFile(atPath: item.path,
+                    contents: bytes))
+            }
+            let applied = try ProtectedFilePolicyV1
+                .applyAndVerifyEraseColdPrivateWithCheckedClose(kind, at: item,
+                    retainUncertainDescriptor: { uncertainDescriptors.append($0) },
+                    authorityCheck: {})
+            var before = stat()
+            XCTAssertEqual(Darwin.lstat(item.path, &before), 0)
+            var verificationRequests = 0
+            let checked = try ProtectedFilePolicyV1
+                .verifyEraseColdPrivateWithCheckedClose(kind, at: item,
+                    retainUncertainDescriptor: { uncertainDescriptors.append($0) },
+                    beforeCompleteProtectionRequest: { verificationRequests += 1 })
+            XCTAssertEqual(checked, applied, kind.rawValue)
+            XCTAssertEqual(verificationRequests,
+                checked == .simulatorFileProtectionUnsupported ? 1 : 0)
+            try assertVerificationResourceValues(kind, at: item, result: checked)
+            XCTAssertEqual(try ProtectedFilePolicyV1.verify(kind, at: item), checked)
+            var after = stat()
+            XCTAssertEqual(Darwin.lstat(item.path, &after), 0)
+            XCTAssertEqual(after.st_dev, before.st_dev)
+            XCTAssertEqual(after.st_ino, before.st_ino)
+            XCTAssertEqual(after.st_mode, before.st_mode)
+            XCTAssertEqual(after.st_nlink, before.st_nlink)
+            if !disposition.expectsDirectory {
+                XCTAssertEqual(try Data(contentsOf: item), bytes)
+            }
+            if checked == .simulatorFileProtectionUnsupported {
+                // A fresh owner refusal must return before the actual request.
+                func facts() throws -> [String] {
+                    var value = stat()
+                    guard Darwin.lstat(item.path, &value) == 0 else {
+                        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+                    }
+                    return [String(value.st_dev), String(value.st_ino),
+                        String(value.st_mode), String(value.st_uid),
+                        String(value.st_gid), String(value.st_nlink),
+                        String(value.st_size), String(value.st_mtimespec.tv_sec),
+                        String(value.st_mtimespec.tv_nsec),
+                        String(value.st_ctimespec.tv_sec),
+                        String(value.st_ctimespec.tv_nsec)]
+                }
+                let originalFacts = try facts()
+                let refusal = NSError(domain: "V9_02.CheckedPolicyBeforeRequest", code: 1)
+                var refusalCalls = 0
+                XCTAssertThrowsError(try ProtectedFilePolicyV1
+                    .verifyEraseColdPrivateWithCheckedClose(kind, at: item,
+                        retainUncertainDescriptor: { uncertainDescriptors.append($0) },
+                        beforeCompleteProtectionRequest: {
+                            refusalCalls += 1
+                            throw refusal
+                        })) {
+                    XCTAssertEqual($0 as NSError, refusal)
+                }
+                XCTAssertEqual(refusalCalls, 1)
+                XCTAssertEqual(try facts(), originalFacts)
+                if !disposition.expectsDirectory {
+                    XCTAssertEqual(try Data(contentsOf: item), bytes)
+                }
+            }
+        }
+        XCTAssertTrue(uncertainDescriptors.isEmpty,
+            "Successful real policy work must settle its transient descriptors")
+    }
+
+    func testCheckedErasePolicyRejectsHardLinksBeforeRequests() throws {
+        let root = try makeTemporaryRoot("checked-erase-hard-link")
+        defer { try? fileManager.removeItem(at: root) }
+        let source = root.appendingPathComponent("journal")
+        let alias = root.appendingPathComponent("journal-alias")
+        let bytes = Data("retained journal bytes".utf8)
+        XCTAssertTrue(fileManager.createFile(atPath: source.path, contents: bytes))
+        try fileManager.linkItem(at: source, to: alias)
+        func facts(_ url: URL) throws -> [String] {
+            var value = stat()
+            guard Darwin.lstat(url.path, &value) == 0 else {
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+            }
+            return [String(value.st_dev), String(value.st_ino),
+                String(value.st_mode), String(value.st_uid), String(value.st_gid),
+                String(value.st_nlink), String(value.st_size),
+                String(value.st_mtimespec.tv_sec), String(value.st_mtimespec.tv_nsec),
+                String(value.st_ctimespec.tv_sec), String(value.st_ctimespec.tv_nsec)]
+        }
+        let beforeSource = try facts(source)
+        let beforeAlias = try facts(alias)
+        var uncertainDescriptors = [Int32]()
+        var firstEffects = 0
+        XCTAssertThrowsError(try ProtectedFilePolicyV1
+            .verifyEraseColdPrivateWithCheckedClose(.journal, at: alias,
+                retainUncertainDescriptor: { uncertainDescriptors.append($0) },
+                beforeCompleteProtectionRequest: { firstEffects += 1 })) {
+            XCTAssertEqual($0 as? ProtectedFilePolicyError, .hardLink)
+        }
+        XCTAssertThrowsError(try ProtectedFilePolicyV1
+            .applyAndVerifyEraseColdPrivateWithCheckedClose(.journal, at: alias,
+                retainUncertainDescriptor: { uncertainDescriptors.append($0) },
+                authorityCheck: {}, beforeFirstEffect: { firstEffects += 1 })) {
+            XCTAssertEqual($0 as? ProtectedFilePolicyError, .hardLink)
+        }
+        XCTAssertEqual(firstEffects, 0)
+        XCTAssertTrue(uncertainDescriptors.isEmpty)
+        XCTAssertEqual(try facts(source), beforeSource)
+        XCTAssertEqual(try facts(alias), beforeAlias)
+        XCTAssertEqual(try Data(contentsOf: source), bytes)
+        XCTAssertEqual(try Data(contentsOf: alias), bytes)
+    }
+
     func testWrongResourceValuesAreRepairedAndVerified() throws {
         let root = try makeTemporaryRoot("repair")
         defer { try? fileManager.removeItem(at: root) }

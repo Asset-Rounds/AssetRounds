@@ -2868,6 +2868,280 @@ final class EraseC05ColdPreparationJournalReaderV1 {
             && lhs.st_mode == rhs.st_mode && lhs.st_nlink == rhs.st_nlink
     }
 }
+/// Retained ownership of actual Store-controlled IO. Slots are registered
+/// before acquisition; ambiguous closes are never retried, including deinit.
+private final class OriginalCanonicalCheckedIOV1 {
+    private final class Slot {
+        var descriptor: Int32?
+        var directory: UnsafeMutablePointer<DIR>?
+        var closeAttempted = false
+        init() {}
+    }
+    private final class EffectSlot {
+        let name: String
+        let expectedBytes: Data?
+        let replacementBytes: Data?
+        var entered = false
+        init(name: String, expectedBytes: Data?, replacementBytes: Data?) {
+            self.name = name; self.expectedBytes = expectedBytes
+            self.replacementBytes = replacementBytes
+        }
+    }
+    private var effects: [EffectSlot] = []
+    private var failedEffects: [EffectSlot] = []
+    private var slots: [Slot] = []
+    private var uncertainDescriptors: [Int32] = []
+    private var uncertainDirectories: [UnsafeMutablePointer<DIR>] = []
+    private var effectUncertain = false
+
+    func requireNoUncertainty() throws {
+        guard !effectUncertain, uncertainDescriptors.isEmpty,
+              uncertainDirectories.isEmpty else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+    func requireSettled() throws {
+        try requireNoUncertainty()
+        guard slots.isEmpty, effects.isEmpty else { throw EraseIntentStoreError.invalidAuthority }
+    }
+    func poison() { effectUncertain = true }
+    func retainUncertainDescriptor(_ descriptor: Int32) {
+        uncertainDescriptors.append(descriptor)
+        effectUncertain = true
+    }
+    func withEffect<Value>(name: String, expectedBytes: Data?, replacementBytes: Data?,
+        _ body: () throws -> Value) throws -> Value {
+        try requireNoUncertainty()
+        let attempt = EffectSlot(name: name, expectedBytes: expectedBytes,
+            replacementBytes: replacementBytes)
+        effects.append(attempt) // retained BEFORE any actual publication/removal syscall
+        do {
+            let value = try body()
+            try requireNoUncertainty()
+            effects.removeAll { $0 === attempt }
+            return value
+        } catch {
+            effects.removeAll { $0 === attempt }
+            if attempt.entered {
+                failedEffects.append(attempt)
+                effectUncertain = true // begun effect never gets a decoded retrocertificate
+            }
+            throw error
+        }
+    }
+    func markEffectEntry() {
+        for attempt in effects { attempt.entered = true }
+    }
+    private func acquire(flags: Int32, _ open: () -> Int32) throws -> Int32 {
+        try requireNoUncertainty()
+        let slot = Slot()
+        slots.append(slot) // actual attempt retained BEFORE open
+        if flags & (O_CREAT | O_TRUNC) != 0 { markEffectEntry() }
+        let descriptor = open()
+        let failure = errno
+        guard descriptor >= 0 else {
+            slots.removeAll { $0 === slot }
+            throw failure == ENOENT ? EraseIntentStoreError.intentMismatch
+                : EraseIntentStoreError.invalidAuthority
+        }
+        slot.descriptor = descriptor
+        return descriptor
+    }
+    func openPath(_ path: String, flags: Int32) throws -> Int32 {
+        do { return try acquire(flags: flags) { Darwin.open(path, flags | O_NOFOLLOW | O_CLOEXEC) } }
+        catch { throw EraseIntentStoreError.invalidAuthority }
+    }
+    func openAt(_ parent: Int32, name: String, flags: Int32,
+                mode: mode_t = 0) throws -> Int32 {
+        try acquire(flags: flags) {
+            Darwin.openat(parent, name, flags | O_NOFOLLOW | O_CLOEXEC, mode)
+        }
+    }
+    func transferParentsToStore(_ descriptors: [Int32]) throws {
+        try requireNoUncertainty()
+        guard Set(descriptors).count == descriptors.count,
+              slots.count == descriptors.count, effects.isEmpty else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var parents: [Slot] = []
+        for descriptor in descriptors {
+            guard let slot = slots.first(where: { $0.descriptor == descriptor }),
+                  !slot.closeAttempted, slot.directory == nil else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            parents.append(slot)
+        }
+        // Validate the whole handoff before transferring either parent. No
+        // throwing operation follows until all stored properties are assigned.
+        for slot in parents { slot.descriptor = nil }
+        slots.removeAll()
+    }
+    func closeOwnedOnce(_ descriptor: Int32) throws {
+        guard let slot = slots.first(where: { $0.descriptor == descriptor }),
+              !slot.closeAttempted, slot.directory == nil else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        slot.closeAttempted = true
+        slot.descriptor = nil // permanent fence BEFORE close
+        slots.removeAll { $0 === slot }
+        guard Darwin.close(descriptor) == 0 else {
+            retainUncertainDescriptor(descriptor)
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+    func closeIfOwnedOnce(_ descriptor: Int32) throws {
+        if slots.contains(where: { $0.descriptor == descriptor && !$0.closeAttempted }) {
+            try closeOwnedOnce(descriptor)
+        }
+    }
+    func finishOwnedOnce() throws {
+        var failed = false
+        for slot in Array(slots) where !slot.closeAttempted {
+            if let directory = slot.directory {
+                slot.closeAttempted = true; slot.directory = nil
+                slot.descriptor = nil; slots.removeAll { $0 === slot }
+                if Darwin.closedir(directory) != 0 {
+                    uncertainDirectories.append(directory)
+                    effectUncertain = true; failed = true
+                }
+            } else if let descriptor = slot.descriptor {
+                do { try closeOwnedOnce(descriptor) } catch { failed = true }
+            }
+        }
+        if failed { throw EraseIntentStoreError.invalidAuthority }
+    }
+    func withOpen<Value>(parent: Int32, name: String, flags: Int32,
+                         mode: mode_t = 0,
+                         openFailure: EraseIntentStoreError? = nil,
+                         _ body: (Int32) throws -> Value) throws -> Value {
+        let descriptor: Int32
+        do { descriptor = try openAt(parent, name: name, flags: flags, mode: mode) }
+        catch {
+            if let openFailure { throw openFailure }
+            throw error
+        }
+        do {
+            let result = try body(descriptor)
+            try closeOwnedOnce(descriptor)
+            return result
+        } catch {
+            let failure = error
+            if let slot = slots.first(where: { $0.descriptor == descriptor }),
+               !slot.closeAttempted {
+                try closeOwnedOnce(descriptor)
+            }
+            throw failure
+        }
+    }
+    func names(parent: Int32, expected: [String],
+               boundary: () throws -> Void) throws -> [String] {
+        try boundary()
+        let descriptor = try openAt(parent, name: ".", flags: O_RDONLY | O_DIRECTORY)
+        guard let slot = slots.first(where: { $0.descriptor == descriptor }) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        do {
+            try boundary()
+            let stream = Darwin.fdopendir(descriptor)
+            let failure = errno
+            guard let stream else {
+                _ = failure
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            slot.directory = stream; slot.descriptor = nil // DIR is sole owner
+            var names: [String] = []
+            var dots = Set<String>()
+            let maximumCalls = expected.count + 3
+            var calls = 0
+            while true {
+                try boundary()
+                guard calls < maximumCalls else { throw EraseIntentStoreError.invalidAuthority }
+                calls += 1; errno = 0
+                let entry = Darwin.readdir(stream)
+                let readError = errno // preserve actual syscall errno BEFORE proof
+                try boundary()
+                guard let entry else {
+                    guard readError == 0 else { throw EraseIntentStoreError.invalidAuthority }
+                    break
+                }
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                if name == "." || name == ".." {
+                    guard dots.insert(name).inserted else { throw EraseIntentStoreError.invalidAuthority }
+                } else {
+                    guard expected.contains(name), !names.contains(name) else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    names.append(name)
+                }
+            }
+            try boundary()
+            slot.closeAttempted = true; slot.directory = nil
+            slots.removeAll { $0 === slot }
+            guard Darwin.closedir(stream) == 0 else {
+                uncertainDirectories.append(stream); effectUncertain = true
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            try boundary()
+            guard names.sorted() == expected.sorted() else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            return names.sorted()
+        } catch {
+            let failure = error
+            if !slot.closeAttempted {
+                if let stream = slot.directory {
+                    slot.closeAttempted = true; slot.directory = nil
+                    slots.removeAll { $0 === slot }
+                    if Darwin.closedir(stream) != 0 {
+                        uncertainDirectories.append(stream); effectUncertain = true
+                    }
+                } else if slot.descriptor != nil { try closeOwnedOnce(descriptor) }
+            }
+            throw failure
+        }
+    }
+}
+
+/// Fresh checked physical DATA only. It carries no descriptor or live permit.
+@MainActor
+final class EraseOriginalCanonicalControlReadbackV1 {
+    struct LeafV1: Equatable {
+        let canonicalBytes: Data
+        let fact: EraseColdControlLeafFactV1
+        let policy: TemporalPolicyObservationV1
+    }
+    struct NamedLeafV1: Equatable { let name: String; let leaf: LeafV1 }
+    private weak var store: EraseIntentStore?
+    let supportFact: EraseColdControlLeafFactV1
+    let eraseRootFact: EraseColdControlLeafFactV1
+    let eraseRootPolicy: TemporalPolicyObservationV1
+    let names: [String]
+    let intent: LeafV1
+    let preparation: LeafV1
+    let otherCanonicalControls: [NamedLeafV1]
+    fileprivate init(store: EraseIntentStore,
+        supportFact: EraseColdControlLeafFactV1,
+        eraseRootFact: EraseColdControlLeafFactV1,
+        eraseRootPolicy: TemporalPolicyObservationV1, names: [String],
+        intent: LeafV1, preparation: LeafV1, otherCanonicalControls: [NamedLeafV1]) {
+        self.store = store; self.supportFact = supportFact
+        self.eraseRootFact = eraseRootFact; self.eraseRootPolicy = eraseRootPolicy
+        self.names = names; self.intent = intent; self.preparation = preparation
+        self.otherCanonicalControls = otherCanonicalControls
+    }
+    func requireSameControlImage(as other: EraseOriginalCanonicalControlReadbackV1) throws {
+        guard let store, let otherStore = other.store, store === otherStore,
+              supportFact == other.supportFact, eraseRootFact == other.eraseRootFact,
+              eraseRootPolicy == other.eraseRootPolicy, names == other.names,
+              intent == other.intent, preparation == other.preparation,
+              otherCanonicalControls == other.otherCanonicalControls else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
 final class EraseIntentStore {
     @MainActor
     final class OriginalAuxiliaryRosterPublicationReceiptV1 {
@@ -2953,6 +3227,14 @@ final class EraseIntentStore {
         let inode: ino_t
     }
     private let originalRecoveryCheckedIO: EraseAbortCheckedSnapshotIOV1?
+    private let originalCanonicalSourceIO: OriginalCanonicalCheckedIOV1
+    private var originalCanonicalReadIO: OriginalCanonicalCheckedIOV1?
+    private var originalCanonicalReadFailed = false
+    private static let canonicalRetentionLock = NSLock()
+    nonisolated(unsafe) private static var canonicalUncertainIO: [OriginalCanonicalCheckedIOV1] = []
+    private static func retainCanonicalIO(_ io: OriginalCanonicalCheckedIOV1) {
+        canonicalRetentionLock.withLock { canonicalUncertainIO.append(io) }
+    }
     private var originalRecoveryCloseAttempted = false
     private var originalRecoveryUncertainPolicyDescriptors: [Int32] = []
     private static let uncertainOriginalRecoveryCloseLock = NSLock()
@@ -3154,6 +3436,17 @@ final class EraseIntentStore {
         originalRecoveryCheckedIO: EraseAbortCheckedSnapshotIOV1? = nil,
         originalNoRepairExistingRoot: Bool = false
     ) throws {
+        let canonicalIO = OriginalCanonicalCheckedIOV1()
+        var canonicalConstructed = false
+        defer {
+            if !canonicalConstructed {
+                do { try canonicalIO.finishOwnedOnce() } catch { canonicalIO.poison() }
+                if (try? canonicalIO.requireSettled()) == nil {
+                    Self.retainCanonicalIO(canonicalIO)
+                }
+            }
+        }
+
         try FunctionalRelationshipEraseIntentStorePolicyV1.validate()
         try EvidenceAssuranceEraseIntentStorePolicyV1.validate()
         try InspectionReviewEraseIntentStorePolicyV1.validate()
@@ -3179,18 +3472,9 @@ final class EraseIntentStore {
                 withIntermediateDirectories: true
             )
         }
-        let appDescriptor = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        let appDescriptor = try canonicalIO.openPath(root.path, flags: O_RDONLY | O_DIRECTORY)
         guard appDescriptor >= 0 else {
             throw EraseIntentStoreError.invalidAuthority
-        }
-        var ownsAppDescriptor = true
-        defer {
-            if ownsAppDescriptor, Darwin.close(appDescriptor) != 0,
-               originalRecoveryCheckedIO != nil {
-                Self.uncertainOriginalRecoveryCloseLock.withLock {
-                    Self.uncertainOriginalRecoveryDescriptors.append(appDescriptor)
-                }
-            }
         }
         let appIdentity = try Self.directoryIdentity(appDescriptor)
         if let expectedApplicationSupportIdentity {
@@ -3200,12 +3484,10 @@ final class EraseIntentStore {
             }
         }
 
-        var eraseDescriptor = Darwin.openat(
-            appDescriptor,
-            Self.directoryName,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        if eraseDescriptor < 0, errno == ENOENT,
+        var eraseDescriptor: Int32
+        do { eraseDescriptor = try canonicalIO.openAt(appDescriptor, name: Self.directoryName, flags: O_RDONLY | O_DIRECTORY) }
+        catch EraseIntentStoreError.intentMismatch { eraseDescriptor = -1 }
+        if eraseDescriptor < 0,
            !originalNoRepairExistingRoot, originalRecoveryCheckedIO == nil {
             guard Darwin.mkdirat(
                 appDescriptor,
@@ -3214,25 +3496,13 @@ final class EraseIntentStore {
             ) == 0 || errno == EEXIST else {
                 throw EraseIntentStoreError.invalidAuthority
             }
-            eraseDescriptor = Darwin.openat(
-                appDescriptor,
-                Self.directoryName,
-                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-            )
+            eraseDescriptor = try canonicalIO.openAt(appDescriptor, name: Self.directoryName, flags: O_RDONLY | O_DIRECTORY)
         }
         guard eraseDescriptor >= 0 else {
             throw EraseIntentStoreError.invalidAuthority
         }
-        var ownsEraseDescriptor = true
-        defer {
-            if ownsEraseDescriptor, Darwin.close(eraseDescriptor) != 0,
-               originalRecoveryCheckedIO != nil {
-                Self.uncertainOriginalRecoveryCloseLock.withLock {
-                    Self.uncertainOriginalRecoveryDescriptors.append(eraseDescriptor)
-                }
-            }
-        }
         let eraseIdentity = try Self.directoryIdentity(eraseDescriptor)
+        var canonicalPolicyEffectStarted = false
         do {
             if let originalRecoveryCheckedIO {
                 // The retained original owner already checked this exact
@@ -3245,10 +3515,9 @@ final class EraseIntentStore {
                 _ = try originalRecoveryCheckedIO.names(in: eraseDescriptor)
             } else {
             if originalNoRepairExistingRoot {
-                let observed = try ProtectedFilePolicyV1.observeTemporalPolicy(
-                    .stagingDirectory,
-                    at: root.appendingPathComponent(Self.directoryName,
-                        isDirectory: true))
+                let observed = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                    .stagingDirectory, at: root.appendingPathComponent(Self.directoryName, isDirectory: true),
+                    retainUncertainDescriptor: { canonicalIO.retainUncertainDescriptor($0) })
                 guard observed.state == .strictComplete,
                       observed.device == UInt64(eraseIdentity.device),
                       observed.inode == UInt64(eraseIdentity.inode),
@@ -3257,22 +3526,50 @@ final class EraseIntentStore {
                     throw EraseIntentStoreError.invalidAuthority
                 }
             } else {
-                try ProtectedFilePolicyV1.applyAndVerify(
-                    .stagingDirectory,
-                    relativePath: Self.directoryName,
-                    within: root
-                ) {
+                var supportPolicyRoot = stat(), erasePolicyRoot = stat()
+                guard Darwin.fstat(appDescriptor, &supportPolicyRoot) == 0,
+                      Darwin.fstat(eraseDescriptor, &erasePolicyRoot) == 0 else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                let constructionAuthority: () throws -> Void = {
                     guard try Self.directoryIdentity(appDescriptor) == appIdentity,
                           try Self.directoryIdentity(eraseDescriptor) == eraseIdentity else {
                         throw EraseIntentStoreError.invalidAuthority
                     }
+                    var namedSupport = stat(), named = stat()
+                    var heldSupport = stat(), heldErase = stat()
+                    guard Darwin.fstat(appDescriptor, &heldSupport) == 0,
+                          Darwin.fstat(eraseDescriptor, &heldErase) == 0,
+                          heldSupport.st_nlink == supportPolicyRoot.st_nlink,
+                          heldErase.st_nlink == erasePolicyRoot.st_nlink,
+                          Darwin.lstat(root.path, &namedSupport) == 0,
+                          namedSupport.st_mode & S_IFMT == S_IFDIR,
+                          namedSupport.st_dev == appIdentity.device,
+                          namedSupport.st_ino == appIdentity.inode,
+                          namedSupport.st_nlink == supportPolicyRoot.st_nlink,
+                          Darwin.fstatat(appDescriptor, Self.directoryName, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                          named.st_dev == eraseIdentity.device, named.st_ino == eraseIdentity.inode,
+                          named.st_nlink == erasePolicyRoot.st_nlink else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
                 }
+                try ProtectedFilePolicyV1.applyAndVerifyEraseColdPrivateWithCheckedClose(
+                    .stagingDirectory, at: root.appendingPathComponent(Self.directoryName, isDirectory: true),
+                    retainUncertainDescriptor: { canonicalIO.retainUncertainDescriptor($0) },
+                    authorityCheck: constructionAuthority,
+                    beforeFirstEffect: {
+                        try constructionAuthority()
+                        canonicalPolicyEffectStarted = true
+                    })
             }
             }
         } catch {
+            if canonicalPolicyEffectStarted { canonicalIO.poison() }
             throw EraseIntentStoreError.invalidAuthority
         }
 
+        try canonicalIO.transferParentsToStore([appDescriptor, eraseDescriptor])
+        canonicalConstructed = true
         self.applicationSupportURL = root
         self.applicationSupportDescriptor = appDescriptor
         self.applicationSupportIdentity = appIdentity
@@ -3280,12 +3577,11 @@ final class EraseIntentStore {
         self.eraseIdentity = eraseIdentity
         self.borrowsColdObservation = false
         self.originalRecoveryCheckedIO = originalRecoveryCheckedIO
+        self.originalCanonicalSourceIO = canonicalIO
         self.coldExpectedIntentBytes = nil
         self.coldExpectedPreparationBytes = nil
         self.coldExpectedIntentFact = nil
         self.coldExpectedPreparationFact = nil
-        ownsAppDescriptor = false
-        ownsEraseDescriptor = false
     }
 
     @MainActor
@@ -3303,6 +3599,7 @@ final class EraseIntentStore {
             device: held.eraseDevice, inode: held.eraseInode)
         self.borrowsColdObservation = true
         self.originalRecoveryCheckedIO = nil
+        self.originalCanonicalSourceIO = OriginalCanonicalCheckedIOV1()
         self.coldExpectedIntentBytes = held.intentBytes
         self.coldExpectedPreparationBytes = held.preparationBytes
         self.coldCapturedOpaqueNextBytes = held.opaqueIntentNextBytes
@@ -4689,8 +4986,18 @@ final class EraseIntentStore {
         // checked close is the only release. Closing here could hit a reused
         // descriptor after that owner has already closed it.
         guard !borrowsColdObservation, !originalRecoveryCloseAttempted else { return }
-        _ = Darwin.close(eraseDescriptor)
-        _ = Darwin.close(applicationSupportDescriptor)
+        originalRecoveryCloseAttempted = true // fence numeric parent slots BEFORE close
+        for descriptor in [eraseDescriptor, applicationSupportDescriptor] {
+            if Darwin.close(descriptor) != 0 {
+                Self.uncertainOriginalRecoveryCloseLock.withLock {
+                    Self.uncertainOriginalRecoveryDescriptors.append(descriptor)
+                }
+            }
+        }
+        if (try? originalCanonicalSourceIO.requireSettled()) == nil {
+            Self.retainCanonicalIO(originalCanonicalSourceIO)
+        }
+        if let originalCanonicalReadIO { Self.retainCanonicalIO(originalCanonicalReadIO) }
     }
 
     /// The first-effect writer is constructed only under the original EX/G.
@@ -4704,6 +5011,7 @@ final class EraseIntentStore {
         originalRecoveryCloseAttempted = true
         var failed = false
         if (try? originalRecoveryCheckedIO.requireSettled()) == nil
+            || (try? originalCanonicalSourceIO.requireSettled()) == nil
             || !originalRecoveryUncertainPolicyDescriptors.isEmpty { failed = true }
         for descriptor in [eraseDescriptor, applicationSupportDescriptor] {
             if Darwin.close(descriptor) != 0 {
@@ -5245,6 +5553,269 @@ final class EraseIntentStore {
         try verifyAuthority()
     }
 
+    private struct OriginalCanonicalExpectedLeafV1 {
+        let name: String
+        let bytes: Data
+        let fact: EraseColdControlLeafFactV1
+        let maximum: Int
+    }
+    @MainActor
+    private struct OriginalCanonicalLateProjectionV1 {
+        let operation: EraseRouterOperationV1
+        let roster: OriginalAuxiliaryRosterPublicationReceiptV1
+        let commitment: OriginalRecoveryRetiredCommitmentReceiptV1?
+        let stage: OriginalRecoveryRetiredStageIdentityReceiptV1?
+        let root: EraseColdControlLeafFactV1
+        let leaves: [OriginalCanonicalExpectedLeafV1]
+        var names: [String] { leaves.map(\.name).sorted() }
+    }
+
+    /// Memory only: no loader, publisher reproof, filesystem or Registry IO.
+    @MainActor
+    func originalScratchCanonicalControlExpectation(operation: EraseRouterOperationV1)
+        throws -> (intent: EraseIntentV1, preparation: ErasePreparationV2) {
+        guard originalCanonicalReadIO == nil else { throw EraseIntentStoreError.invalidAuthority }
+        let projection = try originalCanonicalLateProjection(operation: operation)
+        let intent = try decode(projection.leaves[0].bytes)
+        let preparation = try decodePreparation(projection.leaves[1].bytes)
+        guard preparation.matches(intent) else { throw EraseIntentStoreError.invalidAuthority }
+        return (intent, preparation)
+    }
+
+    private func requireOriginalCanonicalMemoryLifetime() throws {
+        guard !borrowsColdObservation, !originalRecoveryCloseAttempted,
+              !coldCloseAttempted, !coldClosed, !originalCanonicalReadFailed,
+              !originalAuxiliaryPublicationUncertain,
+              !originalAuxiliaryPhaseInFlight, !originalAuxiliaryPhaseUncertain,
+              !originalRetiredCommitmentUncertain, !originalRetiredStageIdentityUncertain,
+              originalAuxiliaryActiveFD == nil, originalAuxiliaryUncertainFDs.isEmpty,
+              originalAuxiliaryEnumerationFD == nil, originalAuxiliaryDirectoryStream == nil,
+              !originalAuxiliaryUncertainStreamClose,
+              originalRecoveryUncertainPolicyDescriptors.isEmpty,
+              coldActiveFD == nil, coldUncertainFDs.isEmpty,
+              !coldEffectUncertain, !coldRosterInFlight,
+              coldEnumerationFD == nil, coldDirectoryStream == nil,
+              !coldUncertainStreamClose else { throw EraseIntentStoreError.invalidAuthority }
+        try originalCanonicalSourceIO.requireSettled() // actual tracked writer/read ownership
+        try originalRecoveryCheckedIO?.requireSettled()
+    }
+
+    @MainActor
+    private func originalCanonicalLateProjection(operation: EraseRouterOperationV1)
+        throws -> OriginalCanonicalLateProjectionV1 {
+        try requireOriginalCanonicalMemoryLifetime()
+        guard originalAuxiliaryPublicationStarted,
+              let roster = originalAuxiliaryPublishedReceipt,
+              roster.store === self, roster.operation === operation, roster.checkedSettled,
+              originalAuxiliaryTemporaryDisposition != nil,
+              let root = originalAuxiliaryProjectedRoot,
+              let intentBytes = originalAuxiliaryProjectedIntentBytes,
+              let intentFact = originalAuxiliaryProjectedIntentFact,
+              (!originalRetiredCommitmentStarted || originalRetiredCommitmentReceipt != nil),
+              (!originalRetiredStageIdentityStarted || originalRetiredStageIdentityReceipt != nil) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var leaves = [
+            OriginalCanonicalExpectedLeafV1(name: Self.intentName,
+                bytes: intentBytes, fact: intentFact, maximum: Self.maximumJournalBytes),
+            OriginalCanonicalExpectedLeafV1(name: Self.preparationName,
+                bytes: roster.preparationBytes, fact: roster.preparationFact,
+                maximum: Self.maximumJournalBytes),
+            OriginalCanonicalExpectedLeafV1(name: Self.auxiliaryRosterName,
+                bytes: roster.canonicalBytes, fact: roster.recordFact,
+                maximum: Self.maximumJournalBytes)
+        ]
+        if let commitment = originalRetiredCommitmentReceipt {
+            guard commitment.store === self, commitment.operation === operation,
+                  commitment.checkedSettled else { throw EraseIntentStoreError.invalidAuthority }
+            leaves.append(OriginalCanonicalExpectedLeafV1(
+                name: Self.originalRetiredCommitmentName, bytes: commitment.canonicalBytes,
+                fact: commitment.recordFact, maximum: Self.maximumJournalBytes * 3))
+        }
+        if let stage = originalRetiredStageIdentityReceipt {
+            guard stage.store === self, stage.operation === operation, stage.checkedSettled,
+                  stage.commitment === originalRetiredCommitmentReceipt else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            leaves.append(OriginalCanonicalExpectedLeafV1(
+                name: Self.originalRetiredStageIdentityName, bytes: stage.canonicalBytes,
+                fact: stage.recordFact, maximum: Self.maximumJournalBytes * 3))
+        }
+        for leaf in leaves {
+            guard !leaf.bytes.isEmpty, leaf.bytes.count <= leaf.maximum,
+                  leaf.fact.size == off_t(leaf.bytes.count),
+                  leaf.fact.mode & S_IFMT == S_IFREG, leaf.fact.links == 1 else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        return OriginalCanonicalLateProjectionV1(operation: operation,
+            roster: roster, commitment: originalRetiredCommitmentReceipt,
+            stage: originalRetiredStageIdentityReceipt, root: root, leaves: leaves)
+    }
+
+    @MainActor
+    func observeOriginalCanonicalControls(scope: EraseOriginalCanonicalControlReadScopeV1)
+        throws -> EraseOriginalCanonicalControlReadbackV1 {
+        try scope.requireHeld(store: self) // pure real owner/G association, BEFORE numeric IO
+        guard originalCanonicalReadIO == nil else { throw EraseIntentStoreError.invalidAuthority }
+        let projection = try originalCanonicalLateProjection(operation: scope.operation)
+        guard try decode(projection.leaves[0].bytes) == scope.expectedIntent,
+              try decodePreparation(projection.leaves[1].bytes) == scope.expectedPreparation,
+              scope.expectedPreparation.matches(scope.expectedIntent) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let io = OriginalCanonicalCheckedIOV1()
+        originalCanonicalReadIO = io // retain actual attempt BEFORE first acquisition
+        let eraseRootURL = applicationSupportURL.appendingPathComponent(
+            Self.directoryName, isDirectory: true)
+        func bound() throws {
+            try scope.requireHeld(store: self)
+            try self.requireOriginalCanonicalMemoryLifetime()
+            guard self.originalCanonicalReadIO === io,
+                  self.originalAuxiliaryPublishedReceipt === projection.roster,
+                  self.originalRetiredCommitmentReceipt === projection.commitment,
+                  self.originalRetiredStageIdentityReceipt === projection.stage,
+                  self.originalAuxiliaryProjectedRoot == projection.root,
+                  self.originalAuxiliaryProjectedIntentFact == projection.leaves[0].fact else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            try io.requireNoUncertainty()
+        }
+        func syscall(_ operation: () -> Int32) throws {
+            try bound()
+            let result = operation(); let failure = errno
+            try bound()
+            guard result == 0 else { _ = failure; throw EraseIntentStoreError.invalidAuthority }
+        }
+        func roots() throws -> EraseColdControlLeafFactV1 {
+            var support = stat(), supportNamed = stat(), erase = stat(), eraseNamed = stat()
+            try syscall { Darwin.fstat(self.applicationSupportDescriptor, &support) }
+            try syscall { Darwin.lstat(self.applicationSupportURL.path, &supportNamed) }
+            try syscall { Darwin.fstat(self.eraseDescriptor, &erase) }
+            try syscall { Darwin.fstatat(self.applicationSupportDescriptor,
+                Self.directoryName, &eraseNamed, AT_SYMLINK_NOFOLLOW) }
+            let supportFact = EraseColdControlLeafFactV1(support)
+            guard support.st_mode & S_IFMT == S_IFDIR,
+                  support.st_dev == self.applicationSupportIdentity.device,
+                  support.st_ino == self.applicationSupportIdentity.inode,
+                  supportFact == EraseColdControlLeafFactV1(supportNamed),
+                  erase.st_mode & S_IFMT == S_IFDIR,
+                  erase.st_dev == self.eraseIdentity.device,
+                  erase.st_ino == self.eraseIdentity.inode,
+                  EraseColdControlLeafFactV1(erase) == projection.root,
+                  EraseColdControlLeafFactV1(eraseNamed) == projection.root else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            return supportFact
+        }
+        func leafFact(_ leaf: OriginalCanonicalExpectedLeafV1, descriptor: Int32) throws {
+            var held = stat(), named = stat()
+            try syscall { Darwin.fstat(descriptor, &held) }
+            try syscall { Darwin.fstatat(self.eraseDescriptor, leaf.name,
+                &named, AT_SYMLINK_NOFOLLOW) }
+            guard EraseColdControlLeafFactV1(held) == leaf.fact,
+                  EraseColdControlLeafFactV1(named) == leaf.fact else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        func policy(_ kind: OwnedFileKindV1, at url: URL,
+                    fact: EraseColdControlLeafFactV1) throws -> TemporalPolicyObservationV1 {
+            try bound()
+            let observed = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                kind, at: url,
+                retainUncertainDescriptor: { io.retainUncertainDescriptor($0) })
+            try bound()
+            guard observed.device == UInt64(fact.device), observed.inode == UInt64(fact.inode),
+                  observed.mode == UInt16(fact.mode), observed.linkCount == UInt64(fact.links) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            return observed // raw pending remains DATA, no setter/disposition
+        }
+        do {
+            let support = try roots()
+            let names = try io.names(parent: eraseDescriptor, expected: projection.names, boundary: bound)
+            guard try roots() == support else { throw EraseIntentStoreError.invalidAuthority }
+            let rootPolicy = try policy(.stagingDirectory, at: eraseRootURL, fact: projection.root)
+            var held: [(OriginalCanonicalExpectedLeafV1, Int32,
+                EraseOriginalCanonicalControlReadbackV1.LeafV1)] = []
+            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+            for leaf in projection.leaves {
+                try bound()
+                let descriptor = try io.openAt(eraseDescriptor, name: leaf.name,
+                    flags: O_RDONLY | O_NONBLOCK)
+                try bound(); try leafFact(leaf, descriptor: descriptor)
+                let beforePolicy = try policy(.journal, at: eraseRootURL.appendingPathComponent(leaf.name), fact: leaf.fact)
+                try leafFact(leaf, descriptor: descriptor)
+                var offset = 0
+                var calls = 0
+                let (maximumCalls, overflow) = leaf.bytes.count.addingReportingOverflow(1)
+                guard !overflow else { throw EraseIntentStoreError.invalidAuthority }
+                while true {
+                    try bound(); try leafFact(leaf, descriptor: descriptor)
+                    guard calls < maximumCalls else { throw EraseIntentStoreError.invalidAuthority }
+                    calls += 1
+                    let requested = offset == leaf.bytes.count ? 1 : min(buffer.count, leaf.bytes.count - offset)
+                    let count = buffer.withUnsafeMutableBytes {
+                        Darwin.read(descriptor, $0.baseAddress, requested)
+                    }
+                    let failure = errno // no callback can overwrite actual read errno
+                    try bound(); try leafFact(leaf, descriptor: descriptor)
+                    guard count >= 0 else { _ = failure; throw EraseIntentStoreError.invalidAuthority }
+                    if count == 0 {
+                        guard offset == leaf.bytes.count else { throw EraseIntentStoreError.invalidAuthority }
+                        break
+                    }
+                    guard count <= leaf.bytes.count - offset else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    let equal = leaf.bytes.withUnsafeBytes { expected in
+                        buffer.withUnsafeBytes { actual in
+                            memcmp(expected.baseAddress!.advanced(by: offset), actual.baseAddress!, count) == 0
+                        }
+                    }
+                    guard equal else { throw EraseIntentStoreError.invalidAuthority }
+                    offset += count
+                }
+                try leafFact(leaf, descriptor: descriptor)
+                let afterPolicy = try policy(.journal, at: eraseRootURL.appendingPathComponent(leaf.name), fact: leaf.fact)
+                guard beforePolicy == afterPolicy else { throw EraseIntentStoreError.invalidAuthority }
+                try leafFact(leaf, descriptor: descriptor)
+                held.append((leaf, descriptor, .init(canonicalBytes: leaf.bytes,
+                    fact: leaf.fact, policy: afterPolicy)))
+            }
+            guard try io.names(parent: eraseDescriptor, expected: projection.names, boundary: bound) == names,
+                  try roots() == support,
+                  try policy(.stagingDirectory, at: eraseRootURL, fact: projection.root) == rootPolicy else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            for (leaf, descriptor, _) in held {
+                try leafFact(leaf, descriptor: descriptor)
+                try bound(); try io.closeOwnedOnce(descriptor); try bound()
+                var named = stat()
+                try syscall { Darwin.fstatat(self.eraseDescriptor, leaf.name, &named, AT_SYMLINK_NOFOLLOW) }
+                guard EraseColdControlLeafFactV1(named) == leaf.fact else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            }
+            guard try roots() == support else { throw EraseIntentStoreError.invalidAuthority }
+            try io.requireSettled(); try bound()
+            let result = EraseOriginalCanonicalControlReadbackV1(store: self,
+                supportFact: support, eraseRootFact: projection.root,
+                eraseRootPolicy: rootPolicy, names: names, intent: held[0].2,
+                preparation: held[1].2,
+                otherCanonicalControls: held.dropFirst(2).map { .init(name: $0.0.name, leaf: $0.2) })
+            originalCanonicalReadIO = nil
+            return result
+        } catch {
+            let failure = error
+            originalCanonicalReadFailed = true
+            do { try io.finishOwnedOnce() } catch { io.poison() }
+            Self.retainCanonicalIO(io) // owns terminal uncertainty; no deinit retry
+            originalCanonicalReadIO = io
+            throw failure
+        }
+    }
+
     func load() throws -> EraseIntentV1? {
         try AssetLocatorEraseIntentEnrollmentV1.validate()
         try verifyAuthority()
@@ -5265,30 +5836,36 @@ final class EraseIntentStore {
             return nil
         case (nil, let pending?):
             let value = try decode(pending.data)
-            guard value.phase == .emptyGenerationPrepared,
-                  Darwin.renameatx_np(
-                    eraseDescriptor,
-                    Self.nextName,
-                    eraseDescriptor,
-                    Self.intentName,
-                    UInt32(RENAME_EXCL)
-                  ) == 0,
-                  Darwin.fsync(eraseDescriptor) == 0 else {
+            guard value.phase == .emptyGenerationPrepared else {
                 throw EraseIntentStoreError.invalidIntent
             }
-            try verifyPublishedPolicy(
-                .journal,
-                name: Self.intentName,
-                failure: .invalidIntent,
-                expectedIdentity: pending.identity
-            )
-            guard let promoted = try readIfPresent(Self.intentName),
-                  promoted.identity == pending.identity,
-                  promoted.data == pending.data else {
-                throw EraseIntentStoreError.invalidIntent
+            return try withOriginalCanonicalSourceEffect(name: Self.intentName,
+                expectedBytes: nil, replacementBytes: pending.data) {
+                markOriginalCanonicalEffectEntry()
+                guard Darwin.renameatx_np(
+                        eraseDescriptor,
+                        Self.nextName,
+                        eraseDescriptor,
+                        Self.intentName,
+                        UInt32(RENAME_EXCL)
+                      ) == 0,
+                      Darwin.fsync(eraseDescriptor) == 0 else {
+                    throw EraseIntentStoreError.invalidIntent
+                }
+                try verifyPublishedPolicy(
+                    .journal,
+                    name: Self.intentName,
+                    failure: .invalidIntent,
+                    expectedIdentity: pending.identity
+                )
+                guard let promoted = try readIfPresent(Self.intentName),
+                      promoted.identity == pending.identity,
+                      promoted.data == pending.data else {
+                    throw EraseIntentStoreError.invalidIntent
+                }
+                try verifyAuthority()
+                return value
             }
-            try verifyAuthority()
-            return value
         case (let canonical?, nil):
             return try decode(canonical.data)
         case (let canonical?, let pending?):
@@ -5327,29 +5904,33 @@ final class EraseIntentStore {
             return nil
         case (nil, let pending?):
             let value = try decodePreparation(pending.data)
-            guard Darwin.renameatx_np(
-                eraseDescriptor,
-                Self.preparationNextName,
-                eraseDescriptor,
-                Self.preparationName,
-                UInt32(RENAME_EXCL)
-            ) == 0,
-                  Darwin.fsync(eraseDescriptor) == 0 else {
-                throw EraseIntentStoreError.invalidPreparation
+            return try withOriginalCanonicalSourceEffect(name: Self.preparationName,
+                expectedBytes: nil, replacementBytes: pending.data) {
+                markOriginalCanonicalEffectEntry()
+                guard Darwin.renameatx_np(
+                    eraseDescriptor,
+                    Self.preparationNextName,
+                    eraseDescriptor,
+                    Self.preparationName,
+                    UInt32(RENAME_EXCL)
+                ) == 0,
+                      Darwin.fsync(eraseDescriptor) == 0 else {
+                    throw EraseIntentStoreError.invalidPreparation
+                }
+                try verifyPublishedPolicy(
+                    .journal,
+                    name: Self.preparationName,
+                    failure: .invalidPreparation,
+                    expectedIdentity: pending.identity
+                )
+                guard let promoted = try readIfPresent(Self.preparationName),
+                      promoted.identity == pending.identity,
+                      promoted.data == pending.data else {
+                    throw EraseIntentStoreError.invalidPreparation
+                }
+                try verifyAuthority()
+                return value
             }
-            try verifyPublishedPolicy(
-                .journal,
-                name: Self.preparationName,
-                failure: .invalidPreparation,
-                expectedIdentity: pending.identity
-            )
-            guard let promoted = try readIfPresent(Self.preparationName),
-                  promoted.identity == pending.identity,
-                  promoted.data == pending.data else {
-                throw EraseIntentStoreError.invalidPreparation
-            }
-            try verifyAuthority()
-            return value
         case (let canonical?, nil):
             return try decodePreparation(canonical.data)
         case (let canonical?, let pending?):
@@ -5386,46 +5967,50 @@ final class EraseIntentStore {
             throw EraseIntentStoreError.preparationAlreadyExists
         }
         let data = try encodePreparation(value)
-        let temporaryIdentity = try createLeaf(
-            Self.preparationNextName,
-            data: data
-        )
-        var published = false
-        do {
-            guard Darwin.renameatx_np(
-                eraseDescriptor,
+        try withOriginalCanonicalSourceEffect(name: Self.preparationName,
+            expectedBytes: nil, replacementBytes: data) {
+            let temporaryIdentity = try createLeaf(
                 Self.preparationNextName,
-                eraseDescriptor,
-                Self.preparationName,
-                UInt32(RENAME_EXCL)
-            ) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            published = true
-            guard Darwin.fsync(eraseDescriptor) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            try verifyPublishedPolicy(
-                .journal,
-                name: Self.preparationName,
-                failure: .writeFailed,
-                expectedIdentity: temporaryIdentity
+                data: data
             )
-            guard let written = try readIfPresent(Self.preparationName),
-                  written.identity == temporaryIdentity,
-                  written.data == data else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            try verifyAuthority()
-        } catch {
-            if published {
-                try? removeExact(
+            var published = false
+            do {
+                markOriginalCanonicalEffectEntry()
+                guard Darwin.renameatx_np(
+                    eraseDescriptor,
+                    Self.preparationNextName,
+                    eraseDescriptor,
                     Self.preparationName,
-                    expected: (data: data, identity: temporaryIdentity)
+                    UInt32(RENAME_EXCL)
+                ) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                published = true
+                guard Darwin.fsync(eraseDescriptor) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                try verifyPublishedPolicy(
+                    .journal,
+                    name: Self.preparationName,
+                    failure: .writeFailed,
+                    expectedIdentity: temporaryIdentity
                 )
-            }
-            throw error
-        }
+                guard let written = try readIfPresent(Self.preparationName),
+                      written.identity == temporaryIdentity,
+                      written.data == data else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                try verifyAuthority()
+            } catch {
+                if published {
+                    try? removeExact(
+                        Self.preparationName,
+                        expected: (data: data, identity: temporaryIdentity)
+                    )
+                }
+                throw error
+            }        }
+
     }
 
     func replacePreparation(
@@ -5463,98 +6048,102 @@ final class EraseIntentStore {
             coldDisplacedBytes = expectedData
             coldDisplacedFact = coldExpectedPreparationFact
         }
-        let replacementIdentity = try createLeaf(
-            Self.preparationNextName,
-            data: replacementData
-        )
-        var swapped = false
-        do {
-            guard Darwin.renameatx_np(
-                eraseDescriptor,
+        try withOriginalCanonicalSourceEffect(name: Self.preparationName,
+            expectedBytes: expectedData, replacementBytes: replacementData) {
+            let replacementIdentity = try createLeaf(
                 Self.preparationNextName,
-                eraseDescriptor,
-                Self.preparationName,
-                UInt32(RENAME_SWAP)
-            ) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            swapped = true
-            guard Darwin.fsync(eraseDescriptor) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            if borrowsColdObservation {
-                coldOwnPublishingName = Self.preparationName
-                coldOwnPublishedIdentity = replacementIdentity
-                coldPublishedVerified = false
-                coldExpectedPreparationBytes = replacementData
-            }
-            try verifyPublishedPolicy(
-                .journal,
-                name: Self.preparationName,
-                failure: .writeFailed,
-                expectedIdentity: replacementIdentity
+                data: replacementData
             )
-            try verifyPublishedPolicy(
-                .journalTemporary,
-                name: Self.preparationNextName,
-                failure: .writeFailed,
-                expectedIdentity: current.identity
-            )
-            guard let published = try readIfPresent(Self.preparationName),
-                  let displaced = try readIfPresent(Self.preparationNextName),
-                  published.identity == replacementIdentity,
-                  published.data == replacementData,
-                  displaced.identity == current.identity,
-                  displaced.data == expectedData else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            try removeExact(Self.preparationNextName, expected: displaced)
-            if borrowsColdObservation {
-                coldOwnPublishingName = nil
-                coldOwnPublishedIdentity = nil
-                coldDisplacedBytes = nil
-                coldDisplacedFact = nil
-                coldPublishedVerified = false
-                coldOwnTemporaryName = nil
-                coldOwnTemporaryIdentity = nil
-                coldOwnTemporaryBytes = nil
-            }
-            swapped = false
-            try verifyAuthority()
-        } catch {
-            if borrowsColdObservation {
-                // A failed or ambiguous swap is never rolled back by an
-                // ordinary pathname repair in a cold operation.
-                coldEffectUncertain = true
-                throw error
-            }
-            if swapped {
-                do {
-                    if let published = try readIfPresent(Self.preparationName),
-                       let displaced = try readIfPresent(Self.preparationNextName),
-                       published.identity == replacementIdentity,
-                       published.data == replacementData,
-                       displaced.identity == current.identity,
-                       displaced.data == expectedData {
-                        _ = Darwin.renameatx_np(
-                            eraseDescriptor,
-                            Self.preparationNextName,
-                            eraseDescriptor,
-                            Self.preparationName,
-                            UInt32(RENAME_SWAP)
-                        )
-                        _ = Darwin.fsync(eraseDescriptor)
-                    }
-                } catch {
-                    // Preserve uncertain state for recovery.
+            var swapped = false
+            do {
+                markOriginalCanonicalEffectEntry()
+                guard Darwin.renameatx_np(
+                    eraseDescriptor,
+                    Self.preparationNextName,
+                    eraseDescriptor,
+                    Self.preparationName,
+                    UInt32(RENAME_SWAP)
+                ) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
                 }
-            }
-            try? removeIfExact(
-                Self.preparationNextName,
-                expected: replacementIdentity
-            )
-            throw error
-        }
+                swapped = true
+                guard Darwin.fsync(eraseDescriptor) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                if borrowsColdObservation {
+                    coldOwnPublishingName = Self.preparationName
+                    coldOwnPublishedIdentity = replacementIdentity
+                    coldPublishedVerified = false
+                    coldExpectedPreparationBytes = replacementData
+                }
+                try verifyPublishedPolicy(
+                    .journal,
+                    name: Self.preparationName,
+                    failure: .writeFailed,
+                    expectedIdentity: replacementIdentity
+                )
+                try verifyPublishedPolicy(
+                    .journalTemporary,
+                    name: Self.preparationNextName,
+                    failure: .writeFailed,
+                    expectedIdentity: current.identity
+                )
+                guard let published = try readIfPresent(Self.preparationName),
+                      let displaced = try readIfPresent(Self.preparationNextName),
+                      published.identity == replacementIdentity,
+                      published.data == replacementData,
+                      displaced.identity == current.identity,
+                      displaced.data == expectedData else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                try removeExact(Self.preparationNextName, expected: displaced)
+                if borrowsColdObservation {
+                    coldOwnPublishingName = nil
+                    coldOwnPublishedIdentity = nil
+                    coldDisplacedBytes = nil
+                    coldDisplacedFact = nil
+                    coldPublishedVerified = false
+                    coldOwnTemporaryName = nil
+                    coldOwnTemporaryIdentity = nil
+                    coldOwnTemporaryBytes = nil
+                }
+                swapped = false
+                try verifyAuthority()
+            } catch {
+                if borrowsColdObservation {
+                    // A failed or ambiguous swap is never rolled back by an
+                    // ordinary pathname repair in a cold operation.
+                    coldEffectUncertain = true
+                    throw error
+                }
+                if swapped {
+                    do {
+                        if let published = try readIfPresent(Self.preparationName),
+                           let displaced = try readIfPresent(Self.preparationNextName),
+                           published.identity == replacementIdentity,
+                           published.data == replacementData,
+                           displaced.identity == current.identity,
+                           displaced.data == expectedData {
+                            _ = Darwin.renameatx_np(
+                                eraseDescriptor,
+                                Self.preparationNextName,
+                                eraseDescriptor,
+                                Self.preparationName,
+                                UInt32(RENAME_SWAP)
+                            )
+                            _ = Darwin.fsync(eraseDescriptor)
+                        }
+                    } catch {
+                        // Preserve uncertain state for recovery.
+                    }
+                }
+                try? removeIfExact(
+                    Self.preparationNextName,
+                    expected: replacementIdentity
+                )
+                throw error
+            }        }
+
     }
 
     func removePreparation(expected: ErasePreparationV2,
@@ -5596,43 +6185,47 @@ final class EraseIntentStore {
             throw EraseIntentStoreError.intentAlreadyExists
         }
         let data = try encode(value)
-        let temporaryIdentity = try createLeaf(Self.nextName, data: data)
-        var published = false
-        do {
-            guard Darwin.renameatx_np(
-                eraseDescriptor,
-                Self.nextName,
-                eraseDescriptor,
-                Self.intentName,
-                UInt32(RENAME_EXCL)
-            ) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            published = true
-            guard Darwin.fsync(eraseDescriptor) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            try verifyPublishedPolicy(
-                .journal,
-                name: Self.intentName,
-                failure: .writeFailed,
-                expectedIdentity: temporaryIdentity
-            )
-            guard let publishedValue = try readIfPresent(Self.intentName),
-                  publishedValue.identity == temporaryIdentity,
-                  publishedValue.data == data else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            try verifyAuthority()
-        } catch {
-            if published {
-                try? removeExact(
+        try withOriginalCanonicalSourceEffect(name: Self.intentName,
+            expectedBytes: nil, replacementBytes: data) {
+            let temporaryIdentity = try createLeaf(Self.nextName, data: data)
+            var published = false
+            do {
+                markOriginalCanonicalEffectEntry()
+                guard Darwin.renameatx_np(
+                    eraseDescriptor,
+                    Self.nextName,
+                    eraseDescriptor,
                     Self.intentName,
-                    expected: (data: data, identity: temporaryIdentity)
+                    UInt32(RENAME_EXCL)
+                ) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                published = true
+                guard Darwin.fsync(eraseDescriptor) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                try verifyPublishedPolicy(
+                    .journal,
+                    name: Self.intentName,
+                    failure: .writeFailed,
+                    expectedIdentity: temporaryIdentity
                 )
-            }
-            throw error
-        }
+                guard let publishedValue = try readIfPresent(Self.intentName),
+                      publishedValue.identity == temporaryIdentity,
+                      publishedValue.data == data else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                try verifyAuthority()
+            } catch {
+                if published {
+                    try? removeExact(
+                        Self.intentName,
+                        expected: (data: data, identity: temporaryIdentity)
+                    )
+                }
+                throw error
+            }        }
+
     }
 
     func replace(
@@ -5996,122 +6589,126 @@ final class EraseIntentStore {
             coldDisplacedBytes = expectedData
             coldDisplacedFact = coldExpectedIntentFact
         }
-        let replacementIdentity = try createLeaf(
-            Self.nextName,
-            data: replacementData
-        )
-#if DEBUG
-        if originalAuxiliaryPhaseTracingForTesting {
-            print("ORIGINAL_AUX_PHASE_V1 stage=generic-temp-written")
-        }
-#endif
-        var swapped = false
-        do {
-            guard Darwin.renameatx_np(
-                eraseDescriptor,
+        try withOriginalCanonicalSourceEffect(name: Self.intentName,
+            expectedBytes: expectedData, replacementBytes: replacementData) {
+            let replacementIdentity = try createLeaf(
                 Self.nextName,
-                eraseDescriptor,
-                Self.intentName,
-                UInt32(RENAME_SWAP)
-            ) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            swapped = true
-#if DEBUG
-            if originalAuxiliaryPhaseTracingForTesting {
-                print("ORIGINAL_AUX_PHASE_V1 stage=generic-swapped")
-            }
-#endif
-            guard Darwin.fsync(eraseDescriptor) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-#if DEBUG
-            if originalAuxiliaryPhaseTracingForTesting {
-                print("ORIGINAL_AUX_PHASE_V1 stage=generic-parent-synced")
-            }
-#endif
-            if borrowsColdObservation {
-                coldOwnPublishingName = Self.intentName
-                coldOwnPublishedIdentity = replacementIdentity
-                coldPublishedVerified = false
-                coldExpectedIntentBytes = replacementData
-            }
-            try verifyPublishedPolicy(
-                .journal,
-                name: Self.intentName,
-                failure: .writeFailed,
-                expectedIdentity: replacementIdentity
+                data: replacementData
             )
-            try verifyPublishedPolicy(
-                .journalTemporary,
-                name: Self.nextName,
-                failure: .writeFailed,
-                expectedIdentity: current.identity
-            )
-            guard
-                  let published = try readIfPresent(Self.intentName),
-                  let displaced = try readIfPresent(Self.nextName),
-                  published.identity == replacementIdentity,
-                  published.data == replacementData,
-                  displaced.identity == current.identity,
-                  displaced.data == expectedData else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            try removeExact(Self.nextName, expected: displaced)
-#if DEBUG
+    #if DEBUG
             if originalAuxiliaryPhaseTracingForTesting {
-                print("ORIGINAL_AUX_PHASE_V1 stage=generic-displaced-removed")
+                print("ORIGINAL_AUX_PHASE_V1 stage=generic-temp-written")
             }
-#endif
-            if borrowsColdObservation {
-                coldOwnPublishingName = nil
-                coldOwnPublishedIdentity = nil
-                coldDisplacedBytes = nil
-                coldDisplacedFact = nil
-                coldPublishedVerified = false
-                coldOwnTemporaryName = nil
-                coldOwnTemporaryIdentity = nil
-                coldOwnTemporaryBytes = nil
-            }
-            swapped = false
-            try verifyAuthority()
-#if DEBUG
-            if originalAuxiliaryPhaseTracingForTesting {
-                print("ORIGINAL_AUX_PHASE_V1 stage=generic-complete")
-            }
-#endif
-        } catch {
-            if borrowsColdObservation {
-                coldEffectUncertain = true
-                throw error
-            }
-            if swapped {
-                do {
-                    if let published = try readIfPresent(Self.intentName),
-                       let displaced = try readIfPresent(Self.nextName),
-                       published.identity == replacementIdentity,
-                       published.data == replacementData,
-                       displaced.identity == current.identity,
-                       displaced.data == expectedData {
-                        _ = Darwin.renameatx_np(
-                            eraseDescriptor,
-                            Self.nextName,
-                            eraseDescriptor,
-                            Self.intentName,
-                            UInt32(RENAME_SWAP)
-                        )
-                        _ = Darwin.fsync(eraseDescriptor)
-                    }
-                } catch {
-                    // Preserve the exact failure and leave uncertain state for recovery.
+    #endif
+            var swapped = false
+            do {
+                markOriginalCanonicalEffectEntry()
+                guard Darwin.renameatx_np(
+                    eraseDescriptor,
+                    Self.nextName,
+                    eraseDescriptor,
+                    Self.intentName,
+                    UInt32(RENAME_SWAP)
+                ) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
                 }
-            }
-            try? removeIfExact(
-                Self.nextName,
-                expected: replacementIdentity
-            )
-            throw error
-        }
+                swapped = true
+    #if DEBUG
+                if originalAuxiliaryPhaseTracingForTesting {
+                    print("ORIGINAL_AUX_PHASE_V1 stage=generic-swapped")
+                }
+    #endif
+                guard Darwin.fsync(eraseDescriptor) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+    #if DEBUG
+                if originalAuxiliaryPhaseTracingForTesting {
+                    print("ORIGINAL_AUX_PHASE_V1 stage=generic-parent-synced")
+                }
+    #endif
+                if borrowsColdObservation {
+                    coldOwnPublishingName = Self.intentName
+                    coldOwnPublishedIdentity = replacementIdentity
+                    coldPublishedVerified = false
+                    coldExpectedIntentBytes = replacementData
+                }
+                try verifyPublishedPolicy(
+                    .journal,
+                    name: Self.intentName,
+                    failure: .writeFailed,
+                    expectedIdentity: replacementIdentity
+                )
+                try verifyPublishedPolicy(
+                    .journalTemporary,
+                    name: Self.nextName,
+                    failure: .writeFailed,
+                    expectedIdentity: current.identity
+                )
+                guard
+                      let published = try readIfPresent(Self.intentName),
+                      let displaced = try readIfPresent(Self.nextName),
+                      published.identity == replacementIdentity,
+                      published.data == replacementData,
+                      displaced.identity == current.identity,
+                      displaced.data == expectedData else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                try removeExact(Self.nextName, expected: displaced)
+    #if DEBUG
+                if originalAuxiliaryPhaseTracingForTesting {
+                    print("ORIGINAL_AUX_PHASE_V1 stage=generic-displaced-removed")
+                }
+    #endif
+                if borrowsColdObservation {
+                    coldOwnPublishingName = nil
+                    coldOwnPublishedIdentity = nil
+                    coldDisplacedBytes = nil
+                    coldDisplacedFact = nil
+                    coldPublishedVerified = false
+                    coldOwnTemporaryName = nil
+                    coldOwnTemporaryIdentity = nil
+                    coldOwnTemporaryBytes = nil
+                }
+                swapped = false
+                try verifyAuthority()
+    #if DEBUG
+                if originalAuxiliaryPhaseTracingForTesting {
+                    print("ORIGINAL_AUX_PHASE_V1 stage=generic-complete")
+                }
+    #endif
+            } catch {
+                if borrowsColdObservation {
+                    coldEffectUncertain = true
+                    throw error
+                }
+                if swapped {
+                    do {
+                        if let published = try readIfPresent(Self.intentName),
+                           let displaced = try readIfPresent(Self.nextName),
+                           published.identity == replacementIdentity,
+                           published.data == replacementData,
+                           displaced.identity == current.identity,
+                           displaced.data == expectedData {
+                            _ = Darwin.renameatx_np(
+                                eraseDescriptor,
+                                Self.nextName,
+                                eraseDescriptor,
+                                Self.intentName,
+                                UInt32(RENAME_SWAP)
+                            )
+                            _ = Darwin.fsync(eraseDescriptor)
+                        }
+                    } catch {
+                        // Preserve the exact failure and leave uncertain state for recovery.
+                    }
+                }
+                try? removeIfExact(
+                    Self.nextName,
+                    expected: replacementIdentity
+                )
+                throw error
+            }        }
+
     }
 
     func remove(expected: EraseIntentV1) throws {
@@ -6214,48 +6811,80 @@ private extension EraseIntentStore {
                 _ = try readColdLeafIfPresent(name)
                 return
             }
-            let descriptor = Darwin.openat(
-                eraseDescriptor,
-                name,
-                O_RDONLY | O_NOFOLLOW
-            )
-            if descriptor < 0, errno == ENOENT { return }
-            guard descriptor >= 0 else {
-                throw EraseIntentStoreError.invalidAuthority
-            }
-            defer { _ = Darwin.close(descriptor) }
-            let expected = try Self.fileIdentity(descriptor)
-            if originalRecoveryCheckedIO != nil {
-                let url = applicationSupportURL
-                    .appendingPathComponent(Self.directoryName, isDirectory: true)
-                    .appendingPathComponent(name)
-                _ = try ProtectedFilePolicyV1
-                    .applyAndVerifyEraseColdPrivateWithCheckedClose(
-                        kind, at: url,
-                        retainUncertainDescriptor: { [self] in
-                            retainOriginalRecoveryUncertainDescriptor($0)
-                        },
+            do {
+                try originalCanonicalSourceIO.withOpen(parent: eraseDescriptor,
+                    name: name, flags: O_RDONLY) { descriptor in
+                    let expected = try Self.fileIdentity(descriptor)
+                    try applyOriginalCanonicalPolicy(
+                        kind, at: applicationSupportURL
+                            .appendingPathComponent(Self.directoryName, isDirectory: true)
+                            .appendingPathComponent(name),
                         authorityCheck: {
                             try self.verifyAuthority()
-                            try self.verifyLeaf(name,
-                                descriptor: descriptor, expected: expected)
+                            try self.verifyLeaf(name, descriptor: descriptor, expected: expected)
                         })
-                return
-            }
-            try ProtectedFilePolicyV1.applyAndVerify(
-                kind,
-                relativePath: policyRelativePath(name),
-                within: applicationSupportURL
-            ) {
-                try self.verifyAuthority()
-                try self.verifyLeaf(
-                    name,
-                    descriptor: descriptor,
-                    expected: expected
-                )
-            }
+                }
+            } catch EraseIntentStoreError.intentMismatch { return }
+
         } catch {
             throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    /// Tracks an actual normal Store policy request, rather than treating a
+    /// settled validation/decode refusal as a failed writer. Called only with
+    /// this Store's already retained descriptor/constructor source ownership.
+    func markOriginalCanonicalEffectEntry() {
+        if !borrowsColdObservation && originalRecoveryCheckedIO == nil {
+            originalCanonicalSourceIO.markEffectEntry()
+        }
+    }
+
+    func withOriginalCanonicalSourceEffect<Value>(name: String,
+        expectedBytes: Data?, replacementBytes: Data?, _ body: () throws -> Value)
+        throws -> Value {
+        if borrowsColdObservation || originalRecoveryCheckedIO != nil {
+            return try body()
+        }
+        return try originalCanonicalSourceIO.withEffect(name: name,
+            expectedBytes: expectedBytes, replacementBytes: replacementBytes, body)
+    }
+
+    func applyOriginalCanonicalPolicy(_ kind: OwnedFileKindV1, at url: URL,
+        authorityCheck: @escaping () throws -> Void) throws {
+        try authorityCheck()
+        var supportBefore = stat(), eraseBefore = stat()
+        guard Darwin.fstat(applicationSupportDescriptor, &supportBefore) == 0,
+              Darwin.fstat(eraseDescriptor, &eraseBefore) == 0 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        // The former relative-path policy helper pinned Support/Erase/leaf
+        // device, inode and link count. Keep that same parent relationship
+        // using this Store's retained parents, without unchecked helper pins.
+        func guardedAuthority() throws {
+            try authorityCheck()
+            var support = stat(), erase = stat()
+            guard Darwin.fstat(applicationSupportDescriptor, &support) == 0,
+                  Darwin.fstat(eraseDescriptor, &erase) == 0,
+                  support.st_dev == supportBefore.st_dev,
+                  support.st_ino == supportBefore.st_ino,
+                  support.st_nlink == supportBefore.st_nlink,
+                  erase.st_dev == eraseBefore.st_dev,
+                  erase.st_ino == eraseBefore.st_ino,
+                  erase.st_nlink == eraseBefore.st_nlink else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        var effectStarted = false
+        do {
+            _ = try ProtectedFilePolicyV1.applyAndVerifyEraseColdPrivateWithCheckedClose(
+                kind, at: url,
+                retainUncertainDescriptor: { self.originalCanonicalSourceIO.retainUncertainDescriptor($0) },
+                authorityCheck: guardedAuthority,
+                beforeFirstEffect: { try guardedAuthority(); effectStarted = true })
+        } catch {
+            if effectStarted { originalCanonicalSourceIO.poison() }
+            throw error
         }
     }
 
@@ -6298,18 +6927,15 @@ private extension EraseIntentStore {
                         })
                 return
             }
-            try ProtectedFilePolicyV1.applyAndVerify(
-                kind,
-                relativePath: policyRelativePath(name),
-                within: applicationSupportURL
-            ) {
-                try self.verifyAuthority()
-                try self.verifyLeaf(
-                    name,
-                    descriptor: descriptor,
-                    expected: expected
-                )
-            }
+            try applyOriginalCanonicalPolicy(
+                kind, at: applicationSupportURL
+                    .appendingPathComponent(Self.directoryName, isDirectory: true)
+                    .appendingPathComponent(name),
+                authorityCheck: {
+                    try self.verifyAuthority()
+                    try self.verifyLeaf(name, descriptor: descriptor, expected: expected)
+                })
+
         } catch {
             throw EraseIntentStoreError.writeFailed
         }
@@ -6412,33 +7038,27 @@ private extension EraseIntentStore {
                 return
             } catch { throw failure }
         }
-        let descriptor = Darwin.openat(
-            eraseDescriptor,
-            name,
-            O_RDONLY | O_NOFOLLOW
-        )
-        guard descriptor >= 0 else { throw failure }
-        defer { _ = Darwin.close(descriptor) }
+        var policyEffectStarted = false
         do {
-            try verifyAuthority()
-            try verifyLeaf(
-                name,
-                descriptor: descriptor,
-                expected: expectedIdentity
-            )
-            try ProtectedFilePolicyV1.verify(
-                kind,
-                at: applicationSupportURL
-                    .appendingPathComponent(Self.directoryName, isDirectory: true)
-                    .appendingPathComponent(name)
-            )
-            try verifyAuthority()
-            try verifyLeaf(
-                name,
-                descriptor: descriptor,
-                expected: expectedIdentity
-            )
+            try originalCanonicalSourceIO.withOpen(parent: eraseDescriptor,
+                name: name, flags: O_RDONLY) { descriptor in
+                try verifyAuthority()
+                try verifyLeaf(name, descriptor: descriptor, expected: expectedIdentity)
+                _ = try ProtectedFilePolicyV1.verifyEraseColdPrivateWithCheckedClose(
+                    kind, at: applicationSupportURL
+                        .appendingPathComponent(Self.directoryName, isDirectory: true)
+                        .appendingPathComponent(name),
+                    retainUncertainDescriptor: { self.originalCanonicalSourceIO.retainUncertainDescriptor($0) },
+                    beforeCompleteProtectionRequest: {
+                        try self.verifyAuthority()
+                        try self.verifyLeaf(name, descriptor: descriptor, expected: expectedIdentity)
+                        policyEffectStarted = true
+                    })
+                try verifyAuthority()
+                try verifyLeaf(name, descriptor: descriptor, expected: expectedIdentity)
+            }
         } catch {
+            if policyEffectStarted { originalCanonicalSourceIO.poison() }
             throw failure
         }
     }
@@ -6483,6 +7103,10 @@ private extension EraseIntentStore {
               !coldEffectUncertain, !coldRosterInFlight,
               coldEnumerationFD == nil,
               coldDirectoryStream == nil, !coldUncertainStreamClose else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try originalCanonicalSourceIO.requireNoUncertainty()
+        guard !originalCanonicalReadFailed, originalCanonicalReadIO == nil else {
             throw EraseIntentStoreError.invalidAuthority
         }
         try Self.requireDirectory(
@@ -6575,28 +7199,23 @@ private extension EraseIntentStore {
             try requireCapturedOpaqueNextNoRepair()
             return
         }
-        let reopenedApp = Darwin.open(
-            applicationSupportURL.path,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard reopenedApp >= 0 else {
-            throw EraseIntentStoreError.invalidAuthority
-        }
-        defer { _ = Darwin.close(reopenedApp) }
-        guard try Self.directoryIdentity(reopenedApp) == applicationSupportIdentity else {
-            throw EraseIntentStoreError.invalidAuthority
-        }
-        let reopenedErase = Darwin.openat(
-            reopenedApp,
-            Self.directoryName,
-            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
-        )
-        guard reopenedErase >= 0 else {
-            throw EraseIntentStoreError.invalidAuthority
-        }
-        defer { _ = Darwin.close(reopenedErase) }
-        guard try Self.directoryIdentity(reopenedErase) == eraseIdentity else {
-            throw EraseIntentStoreError.invalidAuthority
+        let reopenedApp = try originalCanonicalSourceIO.openPath(
+            applicationSupportURL.path, flags: O_RDONLY | O_DIRECTORY)
+        do {
+            guard try Self.directoryIdentity(reopenedApp) == applicationSupportIdentity else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            try originalCanonicalSourceIO.withOpen(parent: reopenedApp,
+                name: Self.directoryName, flags: O_RDONLY | O_DIRECTORY) { reopenedErase in
+                guard try Self.directoryIdentity(reopenedErase) == eraseIdentity else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            }
+            try originalCanonicalSourceIO.closeOwnedOnce(reopenedApp)
+        } catch {
+            let failure = error
+            try originalCanonicalSourceIO.closeIfOwnedOnce(reopenedApp)
+            throw failure
         }
     }
 
@@ -6710,51 +7329,46 @@ private extension EraseIntentStore {
         if borrowsColdObservation {
             return try readColdLeafIfPresent(name)
         }
-        let descriptor = Darwin.openat(
-            eraseDescriptor,
-            name,
-            O_RDONLY | O_NOFOLLOW
-        )
-        if descriptor < 0, errno == ENOENT { return nil }
-        guard descriptor >= 0 else {
-            throw EraseIntentStoreError.invalidAuthority
-        }
-        defer { _ = Darwin.close(descriptor) }
-        var before = stat()
-        guard Darwin.fstat(descriptor, &before) == 0,
-              (before.st_mode & S_IFMT) == S_IFREG,
-              before.st_nlink == 1 else {
-            throw EraseIntentStoreError.invalidAuthority
-        }
-        var data = Data()
-        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
-        while true {
-            let count = buffer.withUnsafeMutableBytes {
-                Darwin.read(descriptor, $0.baseAddress, $0.count)
-            }
-            if count > 0 {
-                data.append(contentsOf: buffer.prefix(count))
-                guard data.count <= Self.maximumJournalBytes else {
-                    throw EraseIntentStoreError.invalidAuthority
-                }
-            } else if count == 0 {
-                break
-            } else if errno != EINTR {
+        do {
+            return try originalCanonicalSourceIO.withOpen(parent: eraseDescriptor,
+                name: name, flags: O_RDONLY) { descriptor in
+            var before = stat()
+            guard Darwin.fstat(descriptor, &before) == 0,
+                  (before.st_mode & S_IFMT) == S_IFREG,
+                  before.st_nlink == 1 else {
                 throw EraseIntentStoreError.invalidAuthority
             }
-        }
-        var after = stat()
-        guard Darwin.fstat(descriptor, &after) == 0,
-              before.st_dev == after.st_dev,
-              before.st_ino == after.st_ino,
-              before.st_size == after.st_size,
-              data.count == Int(after.st_size) else {
-            throw EraseIntentStoreError.invalidAuthority
-        }
-        return (
-            data,
-            Identity(device: after.st_dev, inode: after.st_ino)
-        )
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+            while true {
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, $0.count)
+                }
+                if count > 0 {
+                    data.append(contentsOf: buffer.prefix(count))
+                    guard data.count <= Self.maximumJournalBytes else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                } else if count == 0 {
+                    break
+                } else if errno != EINTR {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            }
+            var after = stat()
+            guard Darwin.fstat(descriptor, &after) == 0,
+                  before.st_dev == after.st_dev,
+                  before.st_ino == after.st_ino,
+                  before.st_size == after.st_size,
+                  data.count == Int(after.st_size) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            return (
+                data,
+                Identity(device: after.st_dev, inode: after.st_ino)
+            )
+            }
+        } catch EraseIntentStoreError.intentMismatch { return nil }
     }
 
     private func closeColdActiveChecked() throws {
@@ -7215,51 +7829,47 @@ private extension EraseIntentStore {
         guard data.count <= Self.maximumJournalBytes else {
             throw EraseIntentStoreError.writeFailed
         }
-        let descriptor = Darwin.openat(
-            eraseDescriptor,
-            name,
-            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
-            mode_t(0o600)
-        )
-        guard descriptor >= 0 else {
-            throw EraseIntentStoreError.writeFailed
-        }
-        defer { _ = Darwin.close(descriptor) }
-        let expectedIdentity = try Self.fileIdentity(descriptor)
-        do {
-            try applyTemporaryPolicy(
-                .journalTemporary,
-                name: name,
-                descriptor: descriptor
-            )
-            try data.withUnsafeBytes { raw in
-                guard let base = raw.baseAddress else { return }
-                var offset = 0
-                while offset < raw.count {
-                    let count = Darwin.write(
-                        descriptor,
-                        base.advanced(by: offset),
-                        raw.count - offset
-                    )
-                    if count > 0 {
-                        offset += count
-                    } else if errno != EINTR {
-                        throw EraseIntentStoreError.writeFailed
+        return try originalCanonicalSourceIO.withOpen(parent: eraseDescriptor,
+            name: name, flags: O_WRONLY | O_CREAT | O_EXCL,
+            mode: mode_t(0o600), openFailure: .writeFailed) { descriptor in
+            let expectedIdentity = try Self.fileIdentity(descriptor)
+            do {
+                try applyTemporaryPolicy(
+                    .journalTemporary,
+                    name: name,
+                    descriptor: descriptor
+                )
+                try data.withUnsafeBytes { raw in
+                    guard let base = raw.baseAddress else { return }
+                    var offset = 0
+                    while offset < raw.count {
+                        let count = Darwin.write(
+                            descriptor,
+                            base.advanced(by: offset),
+                            raw.count - offset
+                        )
+                        if count > 0 {
+                            offset += count
+                        } else if errno != EINTR {
+                            throw EraseIntentStoreError.writeFailed
+                        }
                     }
                 }
+                guard Darwin.fsync(descriptor) == 0 else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                guard let written = try readIfPresent(name),
+                      written.identity == expectedIdentity,
+                      written.data == data else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                return written.identity
+            } catch {
+                let failure = error
+                do { try removeIfExact(name, expected: expectedIdentity) }
+                catch { originalCanonicalSourceIO.poison() }
+                throw failure
             }
-            guard Darwin.fsync(descriptor) == 0 else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            guard let written = try readIfPresent(name),
-                  written.identity == expectedIdentity,
-                  written.data == data else {
-                throw EraseIntentStoreError.writeFailed
-            }
-            return written.identity
-        } catch {
-            try? removeIfExact(name, expected: expectedIdentity)
-            throw error
         }
     }
 
@@ -7320,12 +7930,17 @@ private extension EraseIntentStore {
     }
 
     private func removeIfExact(_ name: String, expected: Identity) throws {
-        guard let current = try readIfPresent(name),
-              current.identity == expected,
-              Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
-              Darwin.fsync(eraseDescriptor) == 0,
-              case nil = try readIfPresent(name) else {
+        guard let current = try readIfPresent(name), current.identity == expected else {
             throw EraseIntentStoreError.cleanupFailed
+        }
+        try withOriginalCanonicalSourceEffect(name: name,
+            expectedBytes: current.data, replacementBytes: nil) {
+            markOriginalCanonicalEffectEntry()
+            guard Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
+                  Darwin.fsync(eraseDescriptor) == 0,
+                  case nil = try readIfPresent(name) else {
+                throw EraseIntentStoreError.cleanupFailed
+            }
         }
     }
 
@@ -7334,14 +7949,19 @@ private extension EraseIntentStore {
         expected: (data: Data, identity: Identity)
     ) throws {
         guard let current = try readIfPresent(name),
-              current.identity == expected.identity,
-              current.data == expected.data,
-              Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
-              Darwin.fsync(eraseDescriptor) == 0 else {
+              current.identity == expected.identity, current.data == expected.data else {
             throw EraseIntentStoreError.cleanupFailed
         }
-        guard case nil = try readIfPresent(name) else {
-            throw EraseIntentStoreError.cleanupFailed
+        try withOriginalCanonicalSourceEffect(name: name,
+            expectedBytes: expected.data, replacementBytes: nil) {
+            markOriginalCanonicalEffectEntry()
+            guard Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
+                  Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.cleanupFailed
+            }
+            guard case nil = try readIfPresent(name) else {
+                throw EraseIntentStoreError.cleanupFailed
+            }
         }
     }
 
