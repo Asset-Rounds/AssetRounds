@@ -1,0 +1,64 @@
+{
+  "author": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh"
+  },
+  "baseline": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/BASELINE.json",
+    "sha256": "30c40dcbf0661d0b3065c8dfc4dd86d197b545662ba58a842f5b9652650eedb7",
+    "sourceCount": 1206,
+    "sourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+    "sourceMismatches": []
+  },
+  "dependencies": {
+    "coldContractV2": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/COLD_CONTINUATION_CONTRACT_V2.md",
+      "sha256": "e275b2d2c0c719cbe039c5cf93d79ce67da0f64abd3973ddda8e25c840131692"
+    },
+    "scopeTypesFragment": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/BOUNDARY_SCOPE_TYPES_FRAGMENT.swift",
+      "sha256": "918587e97c98fdfffcb97824d931fd822f28ae58a357b27e2e29b220b9a9366b",
+      "status": "draft exact callable signatures; Ledger final issuer implementation independently owned"
+    }
+  },
+  "head": "dbdb4649e3e405eb50a1d2b443c8d7c061831a1a",
+  "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1",
+  "preserved": {
+    "existingEraseColdVerifyAndRequestSuffixByteIdentical": true,
+    "legacyObservationAndStrictOneLinkHelpersByteIdentical": true,
+    "legacyObservationAndStrictOneLinkHelpersSHA256": "e46794d34e467439bab9521bf5bfdb6298c2514270f4d2dc85abb20db8599368",
+    "trackedSourceMapUnchanged": true
+  },
+  "schemaVersion": 1,
+  "scope": "Only ignored candidate ProtectedFilePolicy.swift and requested packet records; no tracked/primary/tests/CI/pin/Git mutations.",
+  "source": {
+    "beforePath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/before/ProtectedFilePolicy.swift",
+    "beforeSHA256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+    "candidatePath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/candidate/ProtectedFilePolicy.swift",
+    "candidateSHA256": "8db23f0eddb1f73a0702c61bd04df59f60a253660b64cfa4fda5612a02daee7a",
+    "diffPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/ProtectedFilePolicy.diff",
+    "diffSHA256": "df8baada9b53d671b46785244f8f8f0596e053da36e58610cf2ed76539570773",
+    "trackedPath": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+  },
+  "verification": {
+    "acceptanceCredit": false,
+    "compile": "NOT RUN; root coupled compile required",
+    "debugParse": {
+      "command": "xcrun swiftc -frontend -parse -D DEBUG .codex-temp/cold-pair-policy-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "exitCode": 0,
+      "logPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/parse-debug.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "gateCredit": false,
+    "independentReview": "NOT PERFORMED; root independent consequential review required",
+    "native": "NOT RUN; root affected development native required",
+    "nondebugParse": {
+      "command": "xcrun swiftc -frontend -parse .codex-temp/cold-pair-policy-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "exitCode": 0,
+      "logPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/parse-nondebug.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtimeCredit": false
+  },
+  "worktree": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds"
+}

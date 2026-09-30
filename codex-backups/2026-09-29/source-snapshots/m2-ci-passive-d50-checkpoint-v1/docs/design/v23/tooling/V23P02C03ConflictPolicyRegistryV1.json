@@ -1,0 +1,197 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "75cba2e7a9b6584353d75ca90f12588cbb24829fa45f4d0778a7a668c9e3c279",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "e05839a52a93a367cf4b118974a45db0d47182d0",
+    "appBaseTree": "49dc23d51ddb18d1752e97c6820ec918b27aefca",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C03",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "977fa96c1c91515720786d629fe2ca50cec87d544653171811f1bb4430138426",
+    "coordinationAuthorityHead": "e0a662ca9f050b03c3f04439d3083c83b6bb89b9",
+    "coordinationAuthorityTree": "cb77483ead8b0bb3a38a2a35afdf8dd0c5ea6b71",
+    "coordinationCASSequence": 92,
+    "coordinationLedgerDigest": "ccf99b6769d804d48277d2e24f7bbaef2057452d019d482cac63cb1512e199db",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C03-G01",
+      "V23-P02-C03-A01",
+      "V23-P02-C03-H01",
+      "V23-P02-C03-I01",
+      "V23-P02-C03-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C02"
+    ],
+    "dossierDigest": "19d5bdf991e30ad2bc9d9533ce7236aeb4a813e6c8ad576f916f984be4997eb9",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "5cdfc8faf30aeea2ccd9f021fe1b655b6e8e801278cf19d16ee3e996047cdaca",
+    "hydrationTransitionDigest": "0755effff93435a3771fc797bbe9228868dbcff78c9039b71ef7b1f91f5af2e6",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "457ff9a99e9541d4e7590b946bafa8e0efc29129d65a21bfdf912a2e6455cadb",
+    "invalidationConsumers": [
+      "V23-P02-C04"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C03",
+    "ownerParallelOverrideAuthorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "pathFenceDigest": "20ae2fa339b0dfe67a9f862415d67ad85630b6440812063f6c278551777e1ee3",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "213b125f708006475ab59e23d99a424e8b767c6efcc3808d167a25012f8af971",
+    "registerOrdinal": 23,
+    "registerRowDigest": "2de00be32e26c5e366d28707f2323f3054f873aa95f15402bc7b671ab8a40188",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "SyncClassificationRegistryV1, ReplicationPolicyV1, and ConflictPolicyV1 completeness gates"
+  },
+  "cardID": "V23-P02-C03",
+  "conflictIdentity": {
+    "addRemoveOrChangeCompetitorChangesIdentity": true,
+    "competitorFields": [
+      "mutationID",
+      "canonicalInputSHA256"
+    ],
+    "duplicateMutationID": "FAIL_CLOSED",
+    "excludes": [
+      "destinationReceiptID",
+      "arrivalOrder",
+      "journalPosition",
+      "wallClock",
+      "replicaLocalSequence"
+    ],
+    "includes": [
+      "workspaceScopedSubjectIdentity",
+      "policyID",
+      "policyVersion",
+      "policySHA256",
+      "canonicallySortedCompetitorMutationIDsAndInputSHA256"
+    ],
+    "maximumCompetitorCount": 64,
+    "normalization": "LOWERCASE_MUTATION_UUID_COLON_SHA256_SORTED_LEXICOGRAPHICALLY",
+    "permutationInvariant": true,
+    "twoAndThreeWayPermutationsRequired": true
+  },
+  "conflictRuleCount": 6,
+  "conflictRules": [
+    "IMMUTABLE_VERSION",
+    "STABLE_ID_APPEND_UNION",
+    "EXACT_REVISION_MANUAL",
+    "DELETE_WINS",
+    "DERIVED_REBUILD",
+    "LOCAL_ONLY"
+  ],
+  "dispositions": [
+    "IMMUTABLE_UNION",
+    "STABLE_ID_APPEND_UNION",
+    "MANUAL_RESOLUTION_REQUIRED",
+    "DELETE_WINS",
+    "REBUILD_DERIVED",
+    "RETAIN_LOCAL_ONLY"
+  ],
+  "evidenceIDs": [
+    "V23-P02-C03-G01",
+    "V23-P02-C03-A01",
+    "V23-P02-C03-H01",
+    "V23-P02-C03-I01",
+    "V23-P02-C03-R01"
+  ],
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "prohibitedFields": [
+    "accountID",
+    "authenticatedUserID",
+    "inbox",
+    "outbox",
+    "providerID",
+    "remoteAcknowledgement",
+    "serverCursor",
+    "serverRevision",
+    "tenantID",
+    "vectorClock",
+    "accessToken",
+    "serviceCredential",
+    "secretMaterial"
+  ],
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "resolutionBasis": {
+    "allNamedInputsRequiredBeforeResolution": true,
+    "causalFrontierFields": [
+      "baseRevision",
+      "baseSemanticSHA256",
+      "observedInputs"
+    ],
+    "frozenFields": [
+      "conflictIdentity",
+      "subject",
+      "policy",
+      "competitors",
+      "causalFrontier",
+      "disposition"
+    ],
+    "lastWriterWinsAllowed": false,
+    "lateCompetitorDisposition": "CREATE_DETERMINISTIC_SUCCESSOR_IDENTITY",
+    "namedMissingInputDisposition": "DEFER_WITH_EXACT_SORTED_MISSING_INPUTS",
+    "priorBasisImmutable": true
+  },
+  "ruleDispositionMatrix": [
+    {
+      "disposition": "IMMUTABLE_UNION",
+      "rule": "IMMUTABLE_VERSION"
+    },
+    {
+      "disposition": "STABLE_ID_APPEND_UNION",
+      "rule": "STABLE_ID_APPEND_UNION"
+    },
+    {
+      "disposition": "MANUAL_RESOLUTION_REQUIRED",
+      "rule": "EXACT_REVISION_MANUAL"
+    },
+    {
+      "disposition": "DELETE_WINS",
+      "rule": "DELETE_WINS"
+    },
+    {
+      "disposition": "REBUILD_DERIVED",
+      "rule": "DERIVED_REBUILD"
+    },
+    {
+      "disposition": "RETAIN_LOCAL_ONLY",
+      "rule": "LOCAL_ONLY"
+    }
+  ],
+  "ruleSemantics": {
+    "DELETE_WINS": "CANONICAL_TOMBSTONE_DOMINATES_NONDELETE_COMPETITOR",
+    "DERIVED_REBUILD": "DISCARD_AND_REBUILD_FROM_NAMED_CANONICAL_INPUTS",
+    "EXACT_REVISION_MANUAL": "NO_AUTOMATIC_WINNER",
+    "IMMUTABLE_VERSION": "UNION_ONLY_IDENTICAL_VERSION_COLLISION_FAILS_CLOSED",
+    "LOCAL_ONLY": "RETAIN_DESTINATION_LOCAL_VALUE_NO_PORTABLE_MERGE",
+    "STABLE_ID_APPEND_UNION": "UNION_BY_STABLE_ID_CONFLICT_DEFERRED_OR_MANUAL"
+  },
+  "schema": "ConflictPolicyRegistryV1",
+  "schemaVersion": 1,
+  "sourceSymbols": [
+    "ConflictRuleV1",
+    "ConflictPolicyV1",
+    "ConflictIdentityV1.derive",
+    "ConflictResolutionBasisV1.readiness",
+    "ConflictResolutionBasisV1.successor"
+  ]
+}

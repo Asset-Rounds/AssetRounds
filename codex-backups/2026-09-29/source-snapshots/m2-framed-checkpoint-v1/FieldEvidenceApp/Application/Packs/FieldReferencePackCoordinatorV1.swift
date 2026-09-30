@@ -1,0 +1,130 @@
+import Foundation
+
+struct FieldReferenceImportItemV1: Equatable, Sendable {
+    let reference: ContentReferenceV1
+    let locator: ContentLocatorV1
+    let bytes: Data
+
+    init(reference: ContentReferenceV1, locator: ContentLocatorV1, bytes: Data) throws {
+        let observed = try ContentIntegrityV1.observe(
+            workspaceID: reference.workspaceID, contentID: reference.contentID,
+            data: bytes, mediaType: reference.mediaType,
+            algorithms: reference.digests.values.map(\.algorithm)
+        )
+        try ContentIntegrityV1.verify(reference: reference, locator: locator, observed: observed)
+        self.reference = reference; self.locator = locator; self.bytes = bytes
+    }
+}
+struct FieldReferenceImportPlanV1:Equatable,Sendable{let release:FieldReferenceReleaseV1;let items:[FieldReferenceImportItemV1];init(release:FieldReferenceReleaseV1,items:[FieldReferenceImportItemV1])throws{try release.validateContent(references:items.map(\.reference),locators:items.map(\.locator));guard items.count==release.manifest.entries.count,items.reduce(0,{$0+$1.bytes.count})<=64*1_048_576 else{throw FieldReferencePackFailureV1.invalidValue};self.release=release;self.items=items}}
+struct FieldReferenceWriteReceiptV1:Codable,Equatable,Sendable{let mutationID:MutationIDV1;let postImageSHA256:String;let canonicalMutationReceiptSHA256:String;init(mutationID:MutationIDV1,postImageSHA256:String,canonicalMutationReceiptSHA256:String)throws{try FieldReferenceValidationV1.digest(postImageSHA256);try FieldReferenceValidationV1.digest(canonicalMutationReceiptSHA256);self.mutationID=mutationID;self.postImageSHA256=postImageSHA256;self.canonicalMutationReceiptSHA256=canonicalMutationReceiptSHA256}}
+protocol FieldReferenceContentAuthorityV1:Sendable{func persist(_ plan:FieldReferenceImportPlanV1)async throws;func validateReadback(_ plan:FieldReferenceImportPlanV1)async throws;func readinessInputs(release:FieldReferenceReleaseV1,binding:FieldReferenceBindingV1,evaluatedAt:Date)async throws->FieldReferenceReadinessInputsV1;func discardIfUnbound(_ plan:FieldReferenceImportPlanV1)async throws}
+protocol FieldReferencePackWritingV1:Sendable{func acceptedReleaseReceipt(for release:FieldReferenceReleaseV1)async throws->FieldReferenceWriteReceiptV1?;func appendRelease(_ release:FieldReferenceReleaseV1)async throws->FieldReferenceWriteReceiptV1;func acceptedBindingReceipt(for binding:FieldReferenceBindingV1,release:FieldReferenceReleaseV1)async throws->FieldReferenceWriteReceiptV1?;func appendBinding(_ binding:FieldReferenceBindingV1,release:FieldReferenceReleaseV1)async throws->FieldReferenceWriteReceiptV1}
+
+actor FieldReferencePackCoordinatorV1{
+    private let content:any FieldReferenceContentAuthorityV1;private let writer:any FieldReferencePackWritingV1
+    init(content:any FieldReferenceContentAuthorityV1,writer:any FieldReferencePackWritingV1){self.content=content;self.writer=writer}
+    func importRelease(_ plan:FieldReferenceImportPlanV1)async throws->FieldReferenceWriteReceiptV1{try plan.release.validate();if let r=try await writer.acceptedReleaseReceipt(for:plan.release){try validate(r,mutationID:plan.release.mutationID,digest:plan.release.releaseSHA256);try await content.validateReadback(plan);return r};do{try await content.persist(plan);try await content.validateReadback(plan);let r=try await writer.appendRelease(plan.release);try validate(r,mutationID:plan.release.mutationID,digest:plan.release.releaseSHA256);return r}catch{try? await content.discardIfUnbound(plan);throw error}}
+    func bind(_ binding:FieldReferenceBindingV1,to release:FieldReferenceReleaseV1)async throws->FieldReferenceWriteReceiptV1{try binding.validate(release:release);let inputs=try await content.readinessInputs(release:release,binding:binding,evaluatedAt:binding.boundAt);guard inputs.evaluatedAt==binding.boundAt,inputs.policy == .exactLocalContentV1 else{throw FieldReferencePackFailureV1.staleBinding};let readiness=try FieldReferenceOfflineReadinessV1(release:release,binding:binding,inputs:inputs);try readiness.validate(recomputedFrom:inputs,release:release,binding:binding);guard readiness.availability == .readyOffline,readiness.missingContentIDs.isEmpty else{throw FieldReferencePackFailureV1.missingContent};if let r=try await writer.acceptedBindingReceipt(for:binding,release:release){try validate(r,mutationID:binding.mutationID,digest:binding.bindingSHA256);return r};let r=try await writer.appendBinding(binding,release:release);try validate(r,mutationID:binding.mutationID,digest:binding.bindingSHA256);return r}
+    private func validate(_ r:FieldReferenceWriteReceiptV1,mutationID:MutationIDV1,digest:String)throws{guard r.mutationID==mutationID,r.postImageSHA256==digest else{throw FieldReferencePackFailureV1.divergentRetry}}
+}
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Application_Packs_FieldReferencePackCoordinatorV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Application_Packs_FieldReferencePackCoordinatorV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Packs_FieldReferencePackCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Packs/FieldReferencePackCoordinatorV1.swift", role: .pack)
+}
+
+enum C31LightingConsumerBoundary_Application_Packs_FieldReferencePackCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/reference-pack-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}
+// MARK: - C32 assistance reference pack boundary
+
+enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Application_Packs_FieldReferencePackCoordinatorV1_swift {
+    static let proposalIsPersistent = AssistancePersistenceEnrollmentV1.proposalIsPersistent
+    static let rejectedProposalCorpusIsPersistent = AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent
+    static let durableFamilyCount = AssistancePersistenceEnrollmentV1.durableModelCount
+    static let acceptedMutationKind: WorkspaceCommandKindV1 = .applyAssistanceAcceptance
+    static let manualFallback: ManualFallbackActionV1 = .typeManually
+    static let sourcePackChangeInvalidatesProposal = true
+
+    static func validateProposal(_ proposal: AssistanceProposalV1, in context: AssistanceProposalEvaluationContextV1) throws {
+        try proposal.validate()
+        try context.validate()
+        guard proposal.verificationState.rawValue == AssistanceProposalVerificationStateV1.unverified.rawValue,
+              context.policy.manualFallback == .typeManually else {
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+        if let reason = try proposal.expiryReason(in: context) {
+            throw AssistanceContractFailureV1.expired(reason)
+        }
+    }
+
+    static func validateAcceptanceReceipt(_ receipt: AssistanceAcceptanceReceiptV1) throws {
+        try receipt.validate()
+    }
+}
+
+enum C33TemporalEvidenceBoundary_Application_Packs_FieldReferencePackCoordinatorV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row145 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}
+enum C46OperationalContactConformance_FieldEvidenceApp_Application_Packs_FieldReferencePackCoordinatorV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noSecondWriterOrAutomaticHandoff = true
+}
+
+// MARK: - C52 lifecycle and privacy boundary
+enum C52ServiceRequestBoundary_FieldEvidenceApp_Application_Packs_FieldReferencePackCoordinatorV1_swift {
+    static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let acceptedEventPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let duplicateProjectionPersistence: ServiceRequestPersistenceClassV1 = .nonpersistentDerived
+    static let rawCapabilityPersistence: ServiceRequestPersistenceClassV1 = .prohibitedPersistent
+    static let acceptedLifecycleEnrollment: ServiceRequestPersistenceEnrollmentV1.Type = ServiceRequestPersistenceEnrollmentV1.self
+    static let cloneOrForkInvalidatesActiveCapabilities: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities
+    static let duplicateProjectionIsRebuildable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.derivedProjectionIsRebuildable &&
+        !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityIsExcludedFromReportsAndDiagnostics: Bool =
+        !ServiceRequestLifecycleRegistrationBoundaryV1.rawCapabilityAppearsInReportsOrDiagnostics
+    static let sharedPortableFilesAreRecallable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
+    static let unverifiedAssertionsAreVerified: Bool = false
+    static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}

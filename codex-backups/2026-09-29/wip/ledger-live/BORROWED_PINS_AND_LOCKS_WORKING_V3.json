@@ -1,0 +1,20 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "3ee0ce67df9c2826522f3048a469c7224b3720a62e745c6b59ea7de826809814",
+  "candidateSHA256": "c98929b8c0a67c073c58bc23b212a1da778f08e619b6c9f314cdf0ac95fccf40",
+  "status": "WORKING borrowed-pin/nested-lock foundation; NOT callable/installable",
+  "change": [
+    "Borrowed pin initializer has no opens/repair/ownership/deinit close",
+    "Permanent Store memory fence + actual MainActor/nonrecursive held proof for loan",
+    "All nested shared producer lock entries reuse same actual loan; ordinary SH unchanged",
+    "Private constructor accepts actual admitted pins only",
+    "Borrowed ingress getter opens/repairs nothing; absent root cannot be adopted"
+  ],
+  "remaining": [
+    "Actual entry/source capture/full IO and effect/checked-close controller wiring",
+    "PFP checked before-policy/publication pair scopes and actual physical deltas",
+    "Original generic pair/provenance and full current capacity source origins",
+    "Source/semantic compilation/runtime/review due"
+  ]
+}

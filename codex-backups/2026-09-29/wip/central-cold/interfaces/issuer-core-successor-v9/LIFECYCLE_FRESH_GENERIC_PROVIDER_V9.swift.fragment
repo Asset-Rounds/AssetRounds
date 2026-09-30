@@ -1,0 +1,200 @@
+final class EraseSchema2ColdScratchLifecyclePermitV1 {
+    private let observationBinding: @MainActor () throws -> Void
+    private let c16ObservationBinding: @MainActor (String, Int) throws -> String
+    private let c16CurrentRecordBinding: @MainActor (String, Int) throws
+        -> (recordBindingSHA256: String, logicalProgressSHA256: String,
+            progress: OriginalEraseC16ReferenceProgressV1)
+    private let wholeProjection: @MainActor () throws -> Void
+    private let sourceAdmission: @MainActor (String, Data, String) throws -> Void
+    private let originalSource: @MainActor (String) throws -> (bytes: Data, fullFact: String)
+    private let bornSource: @MainActor (String, String) throws -> (bytes: Data, fullFact: String)
+    private let capturedBornSource: @MainActor (OriginalEraseC16BornProducerSlotV1) throws -> (bytes: Data, fullFact: String)?
+    private let firstPFact: @MainActor (String) throws -> String?
+    private let firstPSHA256: @MainActor (String) throws -> String
+    private let firstPPaths: @MainActor (String) throws -> [String]
+    private let genericScopeProvider: @MainActor () throws -> OriginalEraseSealedGenericObservationScopeV1?
+    private let retainUncertainty: @MainActor () -> Void
+    private var revoked = false
+    private var uncertain = false
+
+    fileprivate init(
+        observationBinding: @escaping @MainActor () throws -> Void,
+        c16ObservationBinding: @escaping @MainActor (String, Int) throws -> String,
+        c16CurrentRecordBinding: @escaping @MainActor (String, Int) throws
+            -> (recordBindingSHA256: String, logicalProgressSHA256: String,
+                progress: OriginalEraseC16ReferenceProgressV1),
+        wholeProjection: @escaping @MainActor () throws -> Void,
+        sourceAdmission: @escaping @MainActor (String, Data, String) throws -> Void,
+        originalSource: @escaping @MainActor (String) throws -> (bytes: Data, fullFact: String),
+        bornSource: @escaping @MainActor (String, String) throws -> (bytes: Data, fullFact: String),
+        capturedBornSource: @escaping @MainActor (OriginalEraseC16BornProducerSlotV1) throws -> (bytes: Data, fullFact: String)?,
+        firstPFact: @escaping @MainActor (String) throws -> String?,
+        firstPSHA256: @escaping @MainActor (String) throws -> String,
+        firstPPaths: @escaping @MainActor (String) throws -> [String],
+        genericScopeProvider: @escaping @MainActor () throws -> OriginalEraseSealedGenericObservationScopeV1?,
+        retainUncertainty: @escaping @MainActor () -> Void) {
+        self.observationBinding = observationBinding
+        self.c16ObservationBinding = c16ObservationBinding
+        self.c16CurrentRecordBinding = c16CurrentRecordBinding
+        self.wholeProjection = wholeProjection
+        self.sourceAdmission = sourceAdmission
+        self.originalSource = originalSource
+        self.bornSource = bornSource
+        self.capturedBornSource = capturedBornSource
+        self.firstPFact = firstPFact
+        self.firstPSHA256 = firstPSHA256
+        self.firstPPaths = firstPPaths
+        self.genericScopeProvider = genericScopeProvider
+        self.retainUncertainty = retainUncertainty
+    }
+
+    /// The role-scoped observer uses this nonrecursive binding proof. The
+    /// outer whole-tree check calls the observer, so invoking it here would
+    /// recurse and could skip an actual boundary instead of proving it.
+    func requireObservationBinding() throws {
+        guard !revoked, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try observationBinding()
+    }
+
+    /// A scope is current only at this exact canonical plan and actual
+    /// authenticated C16 ordinal. The issuer compares the Store stage and
+    /// mixed target subsequence; a still-live lexical capability cannot keep
+    /// an old or future scope valid after the monotonic record advances.
+    func requireC16ObservationBinding(planSHA256: String, ordinal: Int) throws -> String {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(planSHA256),
+              ordinal >= 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        let recordSHA256 = try c16ObservationBinding(planSHA256, ordinal)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(recordSHA256) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        return recordSHA256
+    }
+
+    /// The actual Store readback supplies both canonical record identity and
+    /// its current C16 stage/subsequence. An admitted initial DATA progress
+    /// value cannot prove a later uncaptured-birth or completed inspection.
+    /// Ledger validates this projection against the fixed plan on every use.
+    func requireC16CurrentRecordBinding(planSHA256: String, ordinal: Int) throws
+        -> (recordBindingSHA256: String, logicalProgressSHA256: String,
+            progress: OriginalEraseC16ReferenceProgressV1) {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(planSHA256),
+              ordinal >= 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        let current = try c16CurrentRecordBinding(planSHA256, ordinal)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(current.recordBindingSHA256),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(current.logicalProgressSHA256),
+              try c16ObservationBinding(planSHA256, ordinal) == current.recordBindingSHA256 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        return current
+    }
+
+    func requireHeld() throws {
+        try requireObservationBinding()
+        try wholeProjection()
+        try requireObservationBinding()
+    }
+
+    func requireTransferredSource(path: String, bytes: Data,
+        fullFact: String) throws {
+        try requireObservationBinding()
+        try sourceAdmission(path, bytes, fullFact)
+        try requireObservationBinding()
+    }
+
+    func canonicalTransferredSource(path: String) throws
+        -> (bytes: Data, fullFact: String) {
+        try requireObservationBinding()
+        let value = try originalSource(path)
+        try sourceAdmission(path, value.bytes, value.fullFact)
+        try requireObservationBinding()
+        return value
+    }
+
+    func canonicalBornTransferredSource(path: String, role: String) throws
+        -> (bytes: Data, fullFact: String) {
+        try requireObservationBinding()
+        let value = try bornSource(path, role)
+        try sourceAdmission(path, value.bytes, value.fullFact)
+        try requireObservationBinding()
+        return value
+    }
+
+    /// Optional absence is authenticated for one fixed producer slot by the
+    /// Store's actual retained slot table and current record. A path/role
+    /// lookup, missing survivor or latest captured version cannot supply it.
+    func canonicalCapturedBornSource(slot: OriginalEraseC16BornProducerSlotV1)
+        throws -> (bytes: Data, fullFact: String)? {
+        guard slot.producerOrdinal >= 0,
+              EraseSchema2ColdCleanupGrammarV1.validPath(slot.path) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try EraseSchema2ColdCleanupGrammarV1.requireBirthRole(slot.role,
+            path: slot.path)
+        try requireObservationBinding()
+        let value = try capturedBornSource(slot)
+        if let value {
+            try sourceAdmission(slot.path, value.bytes, value.fullFact)
+        }
+        try requireObservationBinding()
+        return value
+    }
+
+    func originalPPhysicalFact(path: String) throws -> String? {
+        try requireObservationBinding()
+        let value = try firstPFact(path)
+        try requireObservationBinding()
+        return value
+    }
+
+    func originalPPhysicalSHA256(path: String) throws -> String {
+        try requireObservationBinding()
+        let value = try firstPSHA256(path)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(value) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        return value
+    }
+
+    func originalPPhysicalPaths(prefix: String) throws -> [String] {
+        try requireObservationBinding()
+        let value = try firstPPaths(prefix)
+        try EraseSchema2ColdScratchBootstrapPermitV1.requireImmutablePaths(value, prefix: prefix)
+        try requireObservationBinding()
+        return value
+    }
+
+    /// Reissue after every actual control/record or owned physical cut.
+    /// The real provider revokes the prior lexical scope. A nil result keeps
+    /// ordinary nlink-one policy and cannot exclude an immutable partial.
+    func currentSealedGenericObservationScope() throws
+        -> OriginalEraseSealedGenericObservationScopeV1? {
+        do {
+            try requireObservationBinding()
+            let scope = try genericScopeProvider()
+            try scope?.requireCurrentBinding()
+            try requireObservationBinding()
+            return scope
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+    func poisonOnUncertainEffect() {
+        if !uncertain {
+            uncertain = true
+            retainUncertainty()
+        }
+    }
+
+    fileprivate func revoke() { revoked = true }
+}
+

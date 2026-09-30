@@ -1,0 +1,43 @@
+{
+  "schema": "V23P04C24DictationLocationProposalCorpusV1",
+  "schemaVersion": 1,
+  "sourceLocale": "en",
+  "selectors": ["V23-P04-C24-G01", "V23-P04-C24-A01", "V23-P04-C24-H01", "V23-P04-C24-I01", "V23-P04-C24-R01"],
+  "entryPoints": ["EXPLICIT_ON_DEVICE_DICTATION", "EXPLICIT_ONE_SHOT_LOCATION"],
+  "reviewActions": ["ACCEPT", "EDIT", "REJECT"],
+  "dictationBindings": ["REQUEST", "LOCALE", "TARGET", "SOURCE", "TRANSCRIPT_REVISION", "AUDIO_REVISION"],
+  "locationBindings": ["REQUEST", "TARGET", "SOURCE_REFERENCE", "LATITUDE", "LONGITUDE", "OBSERVED_AT", "HORIZONTAL_ACCURACY", "VERTICAL_ACCURACY", "OBSERVATION_SOURCE", "ACCURACY_AUTHORIZATION"],
+  "fallbackCases": ["MICROPHONE_DENIED", "SPEECH_DENIED", "LOCATION_DENIED", "UNSUPPORTED_LOCALE", "LOCATION_SERVICES_UNAVAILABLE", "LOCATION_TIMEOUT", "POOR_ACCURACY", "ACCESS_LOCKED"],
+  "hostileCases": ["STALE_TARGET", "SOURCE_CHANGED", "SERVER_DICTATION", "CONTINUOUS_LOCATION", "MISSING_LOCATION_FIELD", "AUDIO_BYTES_IN_PROPOSAL", "RAW_TRANSCRIPT_IN_SEARCH", "PRECISE_LOCATION_IN_REPORT"],
+  "interruptionCases": ["AUDIO_INTERRUPTED", "LOCATION_TIMEOUT", "SCRATCH_PREPARE_FAILURE", "PROVIDER_FAILURE", "FORGED_REVIEW_BEFORE_WRITER", "EDIT_SCRATCH_TRANSFER_NONTERMINAL", "CORRECTED_ACCEPT_TERMINAL_ONCE", "REJECT_TERMINAL_ONCE", "AFTER_REVIEW_BEFORE_ACCEPTANCE_RECEIPT"],
+  "privacy": {
+    "onDeviceDictationOnly": true,
+    "serverProcessingAllowed": false,
+    "continuousLocationAllowed": false,
+    "rawTranscriptSearchableOrReportable": false,
+    "audioSearchableOrReportable": false,
+    "preciseLocationProposalSearchableOrReportable": false,
+    "permissionStateSearchableOrReportable": false,
+    "scratchSearchableOrReportable": false,
+    "confidenceSearchableOrReportable": false
+  },
+  "persistence": {
+    "proposalDurable": false,
+    "audioScratchDurable": false,
+    "locationScratchDurable": false,
+    "acceptedReceiptDurable": true,
+    "restoreKeepsAcceptedReceipt": true,
+    "restoreKeepsEphemeralProposal": false,
+    "restoreKeepsScratch": false
+  },
+  "accessibility": {
+    "voiceOverOrderIsSourceOrder": true,
+    "voiceControlUsesVisibleNames": true,
+    "dynamicTypeMaximum": "AX5",
+    "rightToLeftSupported": true,
+    "stateUsesTextNotColorOnly": true,
+    "reduceMotionUsesStaticPresentation": true,
+    "errorFocusIsDeterministic": true
+  },
+  "statusFlags": {"shippingUIAdopted": false, "physicalDeviceEvidenceAccepted": false, "requiresAcceptedS10_6Reconciliation": true}
+}

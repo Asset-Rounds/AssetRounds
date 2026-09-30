@@ -1,0 +1,4781 @@
+{
+  "$id": "https://assetrounds.invalid/v23/migration-recovery.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "type": "boolean"
+    },
+    "acceptanceEnabled": {
+      "type": "boolean"
+    },
+    "acceptedS10_6Blocker": {
+      "type": "boolean"
+    },
+    "adoptionEnabled": {
+      "type": "boolean"
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedS10_6SeedBlocker": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "acceptedS10_6SeedDigest": {
+          "type": "null"
+        },
+        "authorizedPriorFenceOverlapCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "baseHead": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "baseTree": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationAuthorityHead": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "coordinationCASSequence": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "coordinationLedgerDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationLedgerSequence": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        },
+        "directPrerequisite": {
+          "additionalProperties": false,
+          "properties": {
+            "candidateHead": {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            },
+            "candidateTree": {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            },
+            "cardID": {
+              "const": "V23-P01-C02"
+            },
+            "checkpointDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "contextDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "ownedFilePrivacyInventoryDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "ownedFileProtectionContractDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "pathFenceDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "toolingManifestDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "verificationReceiptDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardID",
+            "candidateHead",
+            "candidateTree",
+            "contextDigest",
+            "pathFenceDigest",
+            "verificationReceiptDigest",
+            "checkpointDigest",
+            "ownedFileProtectionContractDigest",
+            "ownedFilePrivacyInventoryDigest",
+            "toolingManifestDigest"
+          ],
+          "type": "object"
+        },
+        "dossierDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "foundationDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "hydrationCorrectionReceiptDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "lineage": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "overlapEvidence": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "candidateHead": {
+                  "pattern": "^[0-9a-f]{40}$",
+                  "type": "string"
+                },
+                "candidateTree": {
+                  "pattern": "^[0-9a-f]{40}$",
+                  "type": "string"
+                },
+                "cardID": {
+                  "const": "V23-P01-C01"
+                },
+                "checkpointDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "contextDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "pathFenceDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "schemaIdentityContractDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "toolingManifestDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "verificationReceiptDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cardID",
+                "candidateHead",
+                "candidateTree",
+                "contextDigest",
+                "pathFenceDigest",
+                "verificationReceiptDigest",
+                "checkpointDigest",
+                "schemaIdentityContractDigest",
+                "toolingManifestDigest"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "candidateHead": {
+                  "pattern": "^[0-9a-f]{40}$",
+                  "type": "string"
+                },
+                "candidateTree": {
+                  "pattern": "^[0-9a-f]{40}$",
+                  "type": "string"
+                },
+                "cardID": {
+                  "const": "V23-P01-C02"
+                },
+                "checkpointDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "contextDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "ownedFilePrivacyInventoryDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "ownedFileProtectionContractDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "pathFenceDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "toolingManifestDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "verificationReceiptDigest": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cardID",
+                "candidateHead",
+                "candidateTree",
+                "contextDigest",
+                "pathFenceDigest",
+                "verificationReceiptDigest",
+                "checkpointDigest",
+                "ownedFileProtectionContractDigest",
+                "ownedFilePrivacyInventoryDigest",
+                "toolingManifestDigest"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array"
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerRowDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch",
+        "baseHead",
+        "baseTree",
+        "coordinationAuthorityHead",
+        "coordinationCASSequence",
+        "coordinationLedgerSequence",
+        "coordinationLedgerDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "hydrationCorrectionReceiptDigest",
+        "provisionalPrerequisiteDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationDigest",
+        "directPrerequisite",
+        "overlapEvidence",
+        "authorizedPriorFenceOverlapCount",
+        "lineage",
+        "deterministicEvidenceIDs",
+        "acceptedS10_6SeedDigest",
+        "acceptedS10_6SeedBlocker"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P01-C03"
+    },
+    "claims": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assertions": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sourceRequirements": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requiredSymbols": {
+                      "items": false,
+                      "maxItems": 6,
+                      "minItems": 6,
+                      "prefixItems": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "requiredSymbols"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "status",
+            "sourceRequirements",
+            "assertions"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assertions": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sourceRequirements": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requiredSymbols": {
+                      "items": false,
+                      "maxItems": 5,
+                      "minItems": 5,
+                      "prefixItems": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "requiredSymbols"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requiredSymbols": {
+                      "items": false,
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "prefixItems": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "requiredSymbols"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "status",
+            "sourceRequirements",
+            "assertions"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assertions": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sourceRequirements": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requiredSymbols": {
+                      "items": false,
+                      "maxItems": 4,
+                      "minItems": 4,
+                      "prefixItems": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "requiredSymbols"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requiredSymbols": {
+                      "items": false,
+                      "maxItems": 3,
+                      "minItems": 3,
+                      "prefixItems": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "requiredSymbols"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "status",
+            "sourceRequirements",
+            "assertions"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assertions": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sourceRequirements": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requiredSymbols": {
+                      "items": false,
+                      "maxItems": 6,
+                      "minItems": 6,
+                      "prefixItems": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "requiredSymbols"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "status",
+            "sourceRequirements",
+            "assertions"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "assertions": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sourceRequirements": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requiredSymbols": {
+                      "items": false,
+                      "maxItems": 3,
+                      "minItems": 3,
+                      "prefixItems": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "requiredSymbols"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "requiredSymbols": {
+                      "items": false,
+                      "maxItems": 3,
+                      "minItems": 3,
+                      "prefixItems": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ],
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "requiredSymbols"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "status",
+            "sourceRequirements",
+            "assertions"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "compatibility": {
+      "additionalProperties": false,
+      "properties": {
+        "backup": {
+          "type": "boolean"
+        },
+        "deleteErase": {
+          "type": "boolean"
+        },
+        "exportReport": {
+          "type": "boolean"
+        },
+        "normalizedCanonicalExportRequired": {
+          "type": "boolean"
+        },
+        "rawSQLiteByteEqualityRequired": {
+          "type": "boolean"
+        },
+        "restore": {
+          "type": "boolean"
+        },
+        "semanticReportManifestRequired": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "normalizedCanonicalExportRequired",
+        "semanticReportManifestRequired",
+        "rawSQLiteByteEqualityRequired",
+        "backup",
+        "restore",
+        "deleteErase",
+        "exportReport"
+      ],
+      "type": "object"
+    },
+    "faultBoundaries": {
+      "items": false,
+      "maxItems": 18,
+      "minItems": 18,
+      "prefixItems": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
+    "faultBoundaryMatrix": {
+      "items": false,
+      "maxItems": 18,
+      "minItems": 18,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "boundary",
+            "phase",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "faultClasses": {
+      "items": false,
+      "maxItems": 7,
+      "minItems": 7,
+      "prefixItems": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
+    "faultMatrix": {
+      "items": false,
+      "maxItems": 56,
+      "minItems": 56,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "fault": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "phase": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "publicationBoundaryCrossed": {
+              "type": "boolean"
+            },
+            "requiredRecovery": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "phase",
+            "fault",
+            "publicationBoundaryCrossed",
+            "requiredRecovery",
+            "result"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "forwardOnlyBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "atOrAfterPublicationOrPossibleV2Write": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "automaticDestructiveRecovery": {
+          "type": "boolean"
+        },
+        "beforePublication": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "inPlaceAcceptedStoreMutation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "beforePublication",
+        "atOrAfterPublicationOrPossibleV2Write",
+        "inPlaceAcceptedStoreMutation",
+        "automaticDestructiveRecovery"
+      ],
+      "type": "object"
+    },
+    "frozenIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "entityIDs": {
+          "type": "boolean"
+        },
+        "existingIDsPreservedByCanonicalSemanticEquality": {
+          "type": "boolean"
+        },
+        "frozenMarkerID": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "frozenMigrationID": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "frozenTargetGenerationID": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "frozenTargetVersion": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "generatedReplicaIDCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "generatedWorkspaceIDCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "replicaID": {
+          "type": "boolean"
+        },
+        "retryReusesIdentity": {
+          "type": "boolean"
+        },
+        "targetVersion": {
+          "type": "boolean"
+        },
+        "workspaceID": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "workspaceID",
+        "replicaID",
+        "entityIDs",
+        "targetVersion",
+        "retryReusesIdentity",
+        "generatedWorkspaceIDCount",
+        "generatedReplicaIDCount",
+        "existingIDsPreservedByCanonicalSemanticEquality",
+        "frozenMigrationID",
+        "frozenTargetGenerationID",
+        "frozenMarkerID",
+        "frozenTargetVersion"
+      ],
+      "type": "object"
+    },
+    "fullPathFence": {
+      "items": false,
+      "maxItems": 15,
+      "minItems": 15,
+      "prefixItems": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "type": "boolean"
+    },
+    "hostileChecks": {
+      "items": false,
+      "maxItems": 7,
+      "minItems": 7,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claimID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "expectedOutcome": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mutation": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "claimID",
+            "mutation",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claimID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "expectedOutcome": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mutation": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "claimID",
+            "mutation",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claimID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "expectedOutcome": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mutation": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "claimID",
+            "mutation",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claimID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "expectedOutcome": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mutation": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "claimID",
+            "mutation",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claimID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "expectedOutcome": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mutation": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "claimID",
+            "mutation",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claimID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "expectedOutcome": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mutation": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "claimID",
+            "mutation",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claimID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "expectedOutcome": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mutation": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "claimID",
+            "mutation",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "identityIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalSourceTargetSemanticEquality": {
+          "type": "boolean"
+        },
+        "existingIDs": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "frozenValues": {
+          "additionalProperties": false,
+          "properties": {
+            "markerID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "migrationID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "targetGenerationID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "targetVersion": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "migrationID",
+            "targetGenerationID",
+            "markerID",
+            "targetVersion"
+          ],
+          "type": "object"
+        },
+        "generatedByV1ToV2": {
+          "type": "boolean"
+        },
+        "generatedReplicaIDCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "generatedWorkspaceIDCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rawSQLiteByteEqualityRequired": {
+          "type": "boolean"
+        },
+        "replicaIDDisposition": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "retryReuses": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        },
+        "workspaceIDDisposition": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "generatedWorkspaceIDCount",
+        "generatedReplicaIDCount",
+        "generatedByV1ToV2",
+        "existingIDs",
+        "canonicalSourceTargetSemanticEquality",
+        "rawSQLiteByteEqualityRequired",
+        "frozenValues",
+        "retryReuses",
+        "workspaceIDDisposition",
+        "replicaIDDisposition"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "backupCompatibilityRequired": {
+          "type": "boolean"
+        },
+        "deleteCompatibilityRequired": {
+          "type": "boolean"
+        },
+        "exportCompatibilityRequired": {
+          "type": "boolean"
+        },
+        "interruption": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "migrationDelta": {
+          "type": "boolean"
+        },
+        "mode": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "recovery": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "restoreCompatibilityRequired": {
+          "type": "boolean"
+        },
+        "schemaDelta": {
+          "type": "boolean"
+        },
+        "successorTriggers": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        },
+        "supersession": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "schemaDelta",
+        "migrationDelta",
+        "backupCompatibilityRequired",
+        "restoreCompatibilityRequired",
+        "deleteCompatibilityRequired",
+        "exportCompatibilityRequired",
+        "supersession",
+        "successorTriggers",
+        "interruption",
+        "recovery"
+      ],
+      "type": "object"
+    },
+    "migrationPhases": {
+      "items": false,
+      "maxItems": 8,
+      "minItems": 8,
+      "prefixItems": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
+    "nativeCompileRan": {
+      "type": "boolean"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "type": "boolean"
+    },
+    "physicalEvidenceComplete": {
+      "type": "boolean"
+    },
+    "physicalLockedState": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "pointerTransition": {
+      "additionalProperties": false,
+      "properties": {
+        "publicationPhase": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "soleActivationBoundary": {
+          "type": "boolean"
+        },
+        "sourceFormat": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "targetFormat": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sourceFormat",
+        "targetFormat",
+        "publicationPhase",
+        "soleActivationBoundary"
+      ],
+      "type": "object"
+    },
+    "releaseCredit": {
+      "type": "boolean"
+    },
+    "releaseReady": {
+      "type": "boolean"
+    },
+    "requiredEvidence": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "type": "boolean"
+    },
+    "schema": {
+      "const": "V23P01C03MigrationRecoveryContractV1"
+    },
+    "schemaTransition": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sourceVersion": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        },
+        "target": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "targetStatus": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "targetVersion": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "sourceVersion",
+        "target",
+        "targetVersion",
+        "targetStatus"
+      ],
+      "type": "object"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "semanticDigestPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "normalizedCanonicalExport": {
+          "type": "boolean"
+        },
+        "preparedSourceManifestSemanticSHA256": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "rawSQLiteByteEquality": {
+          "type": "boolean"
+        },
+        "sourceClonedSourceSemanticDigest": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "v2TargetComparedToJournalSourceSemanticDigest": {
+          "type": "boolean"
+        },
+        "v2TargetSemanticSHA256": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "preparedSourceManifestSemanticSHA256",
+        "sourceClonedSourceSemanticDigest",
+        "v2TargetSemanticSHA256",
+        "v2TargetComparedToJournalSourceSemanticDigest",
+        "normalizedCanonicalExport",
+        "rawSQLiteByteEquality"
+      ],
+      "type": "object"
+    },
+    "sourceBindingComplete": {
+      "type": "boolean"
+    },
+    "sourceBindingCount": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 7,
+      "minItems": 7,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "requiredSymbols": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "role": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "role",
+            "status",
+            "sha256",
+            "bytes",
+            "requiredSymbols"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "requiredSymbols": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "role": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "role",
+            "status",
+            "sha256",
+            "bytes",
+            "requiredSymbols"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "requiredSymbols": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "role": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "role",
+            "status",
+            "sha256",
+            "bytes",
+            "requiredSymbols"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "requiredSymbols": {
+              "items": false,
+              "maxItems": 9,
+              "minItems": 9,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "role": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "role",
+            "status",
+            "sha256",
+            "bytes",
+            "requiredSymbols"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "requiredSymbols": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "role": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "role",
+            "status",
+            "sha256",
+            "bytes",
+            "requiredSymbols"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "requiredSymbols": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "role": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "role",
+            "status",
+            "sha256",
+            "bytes",
+            "requiredSymbols"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "requiredSymbols": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "role": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "role",
+            "status",
+            "sha256",
+            "bytes",
+            "requiredSymbols"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "fullPathFence",
+    "sourceBindings",
+    "sourceBindingCount",
+    "sourceBindingComplete",
+    "schemaTransition",
+    "pointerTransition",
+    "migrationPhases",
+    "faultClasses",
+    "faultBoundaries",
+    "faultMatrix",
+    "faultBoundaryMatrix",
+    "frozenIntent",
+    "identityIntent",
+    "semanticDigestPolicy",
+    "claims",
+    "hostileChecks",
+    "forwardOnlyBoundary",
+    "requiredEvidence",
+    "compatibility",
+    "lifecycle",
+    "acceptedS10_6Blocker",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "physicalLockedState",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "V23P01C03MigrationRecoveryContractV1",
+  "type": "object"
+}

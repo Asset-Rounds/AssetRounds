@@ -1,0 +1,169 @@
+{
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "927cbc7f32508cadede9d7bb5b094b8c54e2e1c887c3e5c3f7333dd78c17725a",
+  "authority": {
+    "appBaseHead": "1e8c1677c728bf0284fab8a5ec56d05c60e4569f",
+    "appBaseTree": "c6ed43e0ec81a5aa918c6f44f115abdc0ea2da9a",
+    "authorizedOverlapCount": 6557,
+    "cardID": "V23-P04-C05",
+    "contextDigest": "0da6087d34e3145e7516435c5458bae772f288c7646b70c941f0a905d0694667",
+    "coordinationHead": "5113779caf0b172558fd6353b204c91c2731cb83",
+    "coordinationLedgerDigest": "db30a4b53c92c792f3177ce9ce75ff4986d688c2e570a70f522283bc3de82780",
+    "coordinationProjectionDigest": "ecbd9c5b2bc21bbce3b6909afffbd8210f02cb6627257094e3025c25db8a57f5",
+    "coordinationSequence": 406,
+    "coordinationTree": "2091cce9c748d3accad53a1ed45cbe1c68335760",
+    "existingPathCount": 333,
+    "fencePathCount": 347,
+    "finalHashesSealed": true,
+    "hydrationTransitionDigest": "ed2c77b7c7ba08ba2d1ba26b6dcf1796c2ed25ba359f1f4dae1ecb5c6ba3a201",
+    "newPathCount": 14,
+    "pathFenceDigest": "1bf82731526fa55f0f91c53f30a38cea7b246ef1c23ee93c7e4cb1c7398bab31",
+    "prerequisiteDigest": "0e38ca0608ec7a05a42950067c0e06907ed3d89ffe838ba6eb93b6096d6c33ef",
+    "registerOrdinal": 93,
+    "s10ReservationOverlapCount": 0,
+    "sourcePins": {
+      "dossierSHA256": "08d1f049f78f4c87b202950f66838bdf83a41681c30db30d56ce2e21401dba16",
+      "dossierUTF8Length": 7302,
+      "inheritedV21BlockSHA256": "5597a5c732bf39d54ca79726b8fda0489be7e944648eaa3284194a505fd4731f",
+      "inheritedV21BlockUTF8Length": 7704,
+      "registerRowSHA256": "ffa09098c32e7200890104c36dcaacc8b2f2344b73f8d688428442f0ba8f39c0",
+      "registerRowUTF8Length": 298,
+      "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+      "registerSectionUTF8Length": 44217
+    },
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C05",
+  "evidenceIDs": [
+    "V23-P04-C05-G01",
+    "V23-P04-C05-A01",
+    "V23-P04-C05-H01",
+    "V23-P04-C05-I01",
+    "V23-P04-C05-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "nativeCompileRan": false,
+  "physicalEvidenceComplete": false,
+  "provisional": false,
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P04C05RoundSessionContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "absent": [
+      "ROUTE_AUTOMATION",
+      "QR",
+      "RECURRENCE",
+      "DUE",
+      "REMINDER",
+      "NETWORK",
+      "TEAM_DISPATCH"
+    ],
+    "allExistingProfilesRemainOff": true,
+    "closeout": "BLOCK_UNDISPOSITIONED_EXPECTED_ITEMS",
+    "counts": [
+      "EXPECTED",
+      "VISITED",
+      "COMPLETED",
+      "INACCESSIBLE",
+      "SKIPPED",
+      "DEFERRED"
+    ],
+    "evidenceIDs": [
+      "V23-P04-C05-G01",
+      "V23-P04-C05-A01",
+      "V23-P04-C05-H01",
+      "V23-P04-C05-I01",
+      "V23-P04-C05-R01"
+    ],
+    "interruption": "IDEMPOTENT_JOURNAL_RETRY_AND_RESUME",
+    "lifecycle": [
+      "MIGRATION",
+      "BACKUP",
+      "RESTORE",
+      "CLONE",
+      "FORK",
+      "IMPORT",
+      "EXPORT",
+      "REPORT",
+      "JOURNAL",
+      "REPLAY",
+      "SEARCH",
+      "REBUILD",
+      "DELETE",
+      "ERASE",
+      "STREAMING_ARCHIVE"
+    ],
+    "lifecycleCatalog": {
+      "durable": 179,
+      "laterOrigins": 301,
+      "total": 364
+    },
+    "models": 146,
+    "persistentFamily": "ROUND_SESSION_V1",
+    "records": 44,
+    "schemaVersion": 45,
+    "selectors": [
+      "testV23P04C05G01FullLegalStateTransitionMatrixAndExactCounts",
+      "testV23P04C05A01AlternateCrashResumeAndIdempotentRetryAtEveryTransition",
+      "testV23P04C05H01HostileDuplicateLostReorderedAndForbiddenVectors",
+      "testV23P04C05I01InterruptionEffectBeforeReceiptPartialAndDivergentJournal",
+      "testV23P04C05R01RecoveryMigrationBackupRestoreCloneForkExportAndCompatibility"
+    ],
+    "stateMachine": "LEGAL_BOUNDED_ORDERED_ROUND_ITEMS",
+    "ui": "NO_UI_C05_C07_OWNS_SURFACE"
+  },
+  "sourceRows": [
+    {
+      "byteCount": 31951,
+      "path": "FieldEvidenceApp/Domain/Rounds/RoundSessionContractsV1.swift",
+      "sha256": "90e4915272cc0bf00d9e737149534658ab9357b8048f70b2e691a80655a71333",
+      "status": "SEALED_SOURCE"
+    },
+    {
+      "byteCount": 1999,
+      "path": "FieldEvidenceApp/Domain/Models/RoundSessionPersistenceModelsV1.swift",
+      "sha256": "241726c93a497c6067eee11f3319e4f497d183caed0b1bf7a5be6f5aa4ff1071",
+      "status": "SEALED_SOURCE"
+    },
+    {
+      "byteCount": 6028,
+      "path": "FieldEvidenceApp/Application/Rounds/RoundSessionCoordinatorV1.swift",
+      "sha256": "0caee4cf976923d30ff589ec101854def5d7531bb948d37a2dba131212a18602",
+      "status": "SEALED_SOURCE"
+    },
+    {
+      "byteCount": 4129,
+      "path": "FieldEvidenceApp/Infrastructure/Rounds/RoundSessionLifecycleAdapterV1.swift",
+      "sha256": "358cdae4fb409773c6eeaf7309015ff6500110525c4a9546ba3fa5710524ef40",
+      "status": "SEALED_SOURCE"
+    },
+    {
+      "byteCount": 22581,
+      "path": "FieldEvidenceAppTests/V9_70RoundSessionStateTests.swift",
+      "sha256": "dcb0eaf90454adb67939db6d2dc209fb18d6e37db726ed7f541dc79117e7ef3b",
+      "status": "SEALED_SOURCE"
+    },
+    {
+      "byteCount": 3195,
+      "path": "FieldEvidenceAppTests/Fixtures/V22/Rounds/V22P04C05RoundSessionCorpusV1.json",
+      "sha256": "5103cc1d54760879793c172161bfb5cd7fb2058a2b1c0a59a760ff40303e28bb",
+      "status": "SEALED_SOURCE"
+    }
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "title": "RoundSession expected/visited/deferred completeness, schema, state machine, and interruption recovery"
+}

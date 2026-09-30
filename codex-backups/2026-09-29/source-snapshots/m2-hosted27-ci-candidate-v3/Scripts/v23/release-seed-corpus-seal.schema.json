@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "release-seed-corpus-seal.schema.json",
+  "title": "ReleaseSeedCorpusSealV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "state",
+    "owner",
+    "corpusID",
+    "corpusSHA256",
+    "policyManifestSHA256"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "state": { "enum": ["provisional_pre_public", "first_public"] },
+    "owner": { "enum": ["V23-P01-C07", "V23-P05-C01"] },
+    "corpusID": { "$ref": "#/$defs/token" },
+    "corpusSHA256": { "$ref": "#/$defs/sha256" },
+    "policyManifestSHA256": { "$ref": "#/$defs/sha256" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "provisional_pre_public" } }, "required": ["state"] },
+      "then": { "properties": { "owner": { "const": "V23-P01-C07" } } },
+      "else": { "properties": { "owner": { "const": "V23-P05-C01" } } }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:/+\\-]+$"
+    }
+  }
+}

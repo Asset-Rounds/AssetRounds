@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canonicalWrites": {
+      "const": 0
+    },
+    "capabilityInvoked": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P06-C06"
+    },
+    "declarativeOnly": {
+      "const": true
+    },
+    "disposition": {
+      "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
+    },
+    "schema": {
+      "const": "V23P06C06ManagedLabelStaticProtocolV1"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "disposition",
+    "declarativeOnly",
+    "capabilityInvoked",
+    "canonicalWrites",
+    "prohibitedCapabilities",
+    "scope",
+    "preconditions",
+    "evidenceIDs",
+    "flags"
+  ],
+  "type": "object"
+}

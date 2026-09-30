@@ -1,0 +1,258 @@
+{
+  "schema": "OwnerParallelImplementationOverrideV5",
+  "schemaVersion": 5,
+  "overrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-005",
+  "supersedesOverrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-004",
+  "supersedesPath": "docs/design/v23/authority/OwnerParallelImplementationOverrideV4.json",
+  "supersededAuthoritySHA256": "37a4cf56496f7297037166117999daa7718c78198fa39f752632a6ba4aa6479a",
+  "program": "AssetRounds V23",
+  "programBranch": "phase/v23-expansion",
+  "ownerAuthorizationBasis": {
+    "standingDirection": "WORK_EVERYTHING_POSSIBLE_BEFORE_MERGING_EXPANSION_INTO_MAIN_APP",
+    "phase10Restriction": "LEAVE_PHASE10_ALONE_AND_DO_NOT_POLL_IT_UNTIL_OWNER_REPORTS_ACCEPTED_S10_6",
+    "approvalPosture": "ALL_IN_SCOPE_APPROVALS_GRANTED",
+    "scopeEffect": "ENABLE_EXACT_P06_PROVISIONAL_STATIC_PREPARATION_ONLY_WITHOUT_PRODUCT_OR_ACCEPTANCE_CREDIT",
+    "mergeIntent": "S10_6_IS_A_MERGE_TIME_RECONCILIATION_GATE_NOT_A_BRANCH_DEVELOPMENT_HARD_GATE"
+  },
+  "authorityRoots": {
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "cardRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directEdgeCount": 230,
+    "cardCount": 146,
+    "originMainHead": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "originMainTree": "95b6520f4b36a671a1a541734699129d465ba5ea",
+    "a00AnchorHead": "d6b5e88622c5356770c6e9aa3a619afc771b759d",
+    "a00AnchorTree": "facca4fd13fc1c13accef1aae8a007cde642caa9"
+  },
+  "frozenPhase10Observation": {
+    "inheritsV4Observation": true,
+    "branch": "phase/s10-brand-refresh",
+    "observedHead": "d56de1c635dbbc695532f096a77161a5457aa80b",
+    "observedTree": "48d86b6d03a4fad911ef23432f161eb0f211f369",
+    "mergeBaseWithOriginMain": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "reservationPath": "docs/design/v23/foundation/ActiveS10OwnershipReservationV1.json",
+    "reservationContentDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "reservedPathCount": 86,
+    "reservationMode": "FROZEN_86_PATH_SET",
+    "phase10PollingDuringParallelExecution": false,
+    "phase10MutationAuthorized": false
+  },
+  "canonicalStructure": {
+    "cardRegisterChanged": false,
+    "directGraphChanged": false,
+    "topologicalOrderChanged": false,
+    "planningClassificationChanged": false,
+    "productSemanticsChanged": false
+  },
+  "continuation": {
+    "inheritsV4AuthorityPrecedenceAndNoPolling": true,
+    "inheritsV2AutomaticProvisionalExecution": true,
+    "inheritsV2NonautonomousExecutionRulesExceptExactStaticPlane": true,
+    "inheritsV2ProvisionalNoCreditRules": true,
+    "officialAcceptanceEnabled": false,
+    "releaseCredit": false,
+    "remoteMainMutationAuthorized": false
+  },
+  "deferredCardDisposition": {
+    "V23-P05-C02": {
+      "ordinal": 135,
+      "classification": "OWNER_ACTION",
+      "disposition": "DEFERRED_OWNER_ACTION",
+      "staticPreparationAuthorized": false
+    },
+    "V23-P05-C03": {
+      "ordinal": 136,
+      "classification": "MONITOR",
+      "disposition": "UNARMED_MONITOR",
+      "staticPreparationAuthorized": false
+    },
+    "V23-P06-C05": {
+      "ordinal": 141,
+      "classification": "DEFER",
+      "disposition": "DEFERRED",
+      "staticPreparationAuthorized": false
+    },
+    "V23-P06-C10": {
+      "ordinal": 146,
+      "classification": "DEFER",
+      "disposition": "DEFERRED",
+      "staticPreparationAuthorized": false
+    }
+  },
+  "provisionalStaticPreparationPlane": {
+    "plane": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+    "eligibleCardsInCanonicalOrder": [
+      "V23-P06-C01",
+      "V23-P06-C02",
+      "V23-P06-C03",
+      "V23-P06-C04",
+      "V23-P06-C06",
+      "V23-P06-C07",
+      "V23-P06-C08",
+      "V23-P06-C09"
+    ],
+    "eligibleOrdinalsInCanonicalOrder": [137, 138, 139, 140, 142, 143, 144, 145],
+    "allowedActivities": [
+      "HYDRATE_STATIC",
+      "DERIVE_EXACT_FENCE",
+      "MUTATE_EXACT_FENCE",
+      "STATIC_VERIFY",
+      "PROVISIONAL_CHECKPOINT"
+    ],
+    "exactFenceMutationScope": [
+      "VALIDATION_TOOLING",
+      "TESTS",
+      "SYNTHETIC_FIXTURES",
+      "EVIDENCE"
+    ],
+    "prohibitedActivities": [
+      "SHIPPING_PRODUCT_BEHAVIOR",
+      "NATIVE_CI_CLAIM",
+      "HOSTED_CI_CLAIM",
+      "PHYSICAL_CI_CLAIM",
+      "REAL_VALIDATION_STUDY",
+      "EXTERNAL_ACTIONS",
+      "CUSTOMER_DATA",
+      "ACCEPTANCE",
+      "SELECTOR_CREDIT",
+      "RELEASE_CREDIT",
+      "PHASE_CREDIT",
+      "MAIN_CREDIT",
+      "MERGE_CREDIT",
+      "S10_RESERVED_PATH_MUTATION"
+    ],
+    "exactDigestBoundFenceRequired": true,
+    "activePhase10ReservationExcluded": true,
+    "phase10WinsEverySharedConflict": true,
+    "sourceIntegrationRemainsSerial": true
+  },
+  "ProvisionalStaticOnlyPrerequisiteDispositionV1": {
+    "context": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+    "satisfiesStaticPreparation": true,
+    "satisfiesDirectExecutionPrerequisite": false,
+    "satisfiesValidationActivation": false,
+    "satisfiesAcceptance": false,
+    "satisfiesSelector": false,
+    "satisfiesImplementationCredit": false,
+    "satisfiesPhaseOrMergeCredit": false,
+    "satisfiesReleaseCredit": false
+  },
+  "staticPrerequisiteMap": {
+    "V23-P06-C01": {
+      "ordinal": 137,
+      "directPrerequisites": ["V23-P00-C03", "V23-P04-C13"],
+      "staticOnlyPrerequisiteSources": {
+        "V23-P00-C03": "OWNER_AUTHORIZED_STATIC_ANCHOR_ONLY",
+        "V23-P04-C13": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY"
+      }
+    },
+    "V23-P06-C02": {
+      "ordinal": 138,
+      "directPrerequisites": ["V23-P00-C03", "V23-P04-C23", "V23-P04-C24"],
+      "staticOnlyPrerequisiteSources": {
+        "V23-P00-C03": "OWNER_AUTHORIZED_STATIC_ANCHOR_ONLY",
+        "V23-P04-C23": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY",
+        "V23-P04-C24": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY"
+      }
+    },
+    "V23-P06-C03": {
+      "ordinal": 139,
+      "directPrerequisites": ["V23-P00-C03", "V23-P04-C07", "V23-P04-C20"],
+      "staticOnlyPrerequisiteSources": {
+        "V23-P00-C03": "OWNER_AUTHORIZED_STATIC_ANCHOR_ONLY",
+        "V23-P04-C07": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY",
+        "V23-P04-C20": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY"
+      }
+    },
+    "V23-P06-C04": {
+      "ordinal": 140,
+      "directPrerequisites": ["V23-P00-C03", "V23-P04-C18"],
+      "staticOnlyPrerequisiteSources": {
+        "V23-P00-C03": "OWNER_AUTHORIZED_STATIC_ANCHOR_ONLY",
+        "V23-P04-C18": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY"
+      }
+    },
+    "V23-P06-C06": {
+      "ordinal": 142,
+      "directPrerequisites": ["V23-P00-C03", "V23-P04-C13", "V23-P04-C21"],
+      "staticOnlyPrerequisiteSources": {
+        "V23-P00-C03": "OWNER_AUTHORIZED_STATIC_ANCHOR_ONLY",
+        "V23-P04-C13": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY",
+        "V23-P04-C21": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY"
+      }
+    },
+    "V23-P06-C07": {
+      "ordinal": 143,
+      "directPrerequisites": ["V23-P00-C03", "V23-P04-C22"],
+      "staticOnlyPrerequisiteSources": {
+        "V23-P00-C03": "OWNER_AUTHORIZED_STATIC_ANCHOR_ONLY",
+        "V23-P04-C22": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY"
+      }
+    },
+    "V23-P06-C08": {
+      "ordinal": 144,
+      "directPrerequisites": ["V23-P00-C03", "V23-P04-C25"],
+      "staticOnlyPrerequisiteSources": {
+        "V23-P00-C03": "OWNER_AUTHORIZED_STATIC_ANCHOR_ONLY",
+        "V23-P04-C25": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY"
+      }
+    },
+    "V23-P06-C09": {
+      "ordinal": 145,
+      "directPrerequisites": ["V23-P00-C03", "V23-P04-C19"],
+      "staticOnlyPrerequisiteSources": {
+        "V23-P00-C03": "OWNER_AUTHORIZED_STATIC_ANCHOR_ONLY",
+        "V23-P04-C19": "VERIFIED_PROVISIONAL_CHECKPOINT_ONLY"
+      }
+    }
+  },
+  "p00C03StaticAnchor": {
+    "permittedArtifact": "STATIC_ANCHOR_OR_REQUEST_ONLY",
+    "requestDisposition": "STATIC_PREPARATION_ONLY_NOT_VALIDATION_STUDY",
+    "validationStudyAuthorized": false,
+    "externalActions": "NONE",
+    "nonreleasePrerequisiteSatisfactionReceiptPermitted": false
+  },
+  "noCredit": {
+    "acceptanceReceiptProhibited": true,
+    "inclusionProofProhibited": true,
+    "selectorCreditProhibited": true,
+    "implementationCreditProhibited": true,
+    "acceptanceCreditProhibited": true,
+    "releaseCreditProhibited": true,
+    "phaseCreditProhibited": true,
+    "mainCreditProhibited": true,
+    "mergeCreditProhibited": true,
+    "nativeHostedPhysicalClaimsProhibited": true
+  },
+  "mergeTimeS10_6Reconciliation": {
+    "trigger": "OWNER_REPORTS_ACCEPTED_S10_6_COMPLETE",
+    "freezeNewAdmissionsFirst": true,
+    "fetchAcceptedPhase10IdentityOnce": true,
+    "verifyAcceptanceReceiptAndExactHeadCI": true,
+    "recomputeCompletePhase10ChangedPathSet": true,
+    "phase10WinsEveryConflict": true,
+    "deriveFinalAcceptedMainFences": true,
+    "nonForceIncorporationRequired": true,
+    "classifyEveryProvisionalCandidate": ["COMPATIBLE", "CORRECTION_REQUIRED", "SUPERSEDED"],
+    "reverifyAndReclassifyInCanonicalOrder": true,
+    "automaticConversionToAcceptance": false,
+    "phase10PollingBeforeOwnerReport": false
+  },
+  "expiryAndInvalidation": [
+    "PACKAGE_DIGEST_CHANGE",
+    "REGISTER_OR_DIRECT_GRAPH_DIGEST_CHANGE",
+    "ANCHOR_HEAD_OR_TREE_CHANGE",
+    "ORIGIN_MAIN_HEAD_OR_TREE_CHANGE",
+    "WRITER_AUTHORITY_CHANGE",
+    "OWNER_REVOCATION_OR_OVERRIDE_CHANGE",
+    "REMOTE_V23_BRANCH_MOVEMENT",
+    "UNOWNED_DIRTY_WORKTREE_OVERLAP",
+    "PROVISIONAL_PREDECESSOR_SUPERSESSION",
+    "CANDIDATE_TOOLCHAIN_OR_TEST_FIXTURE_CHANGE",
+    "OWNER_REPORTS_ACCEPTED_S10_6_RECONCILIATION_START"
+  ],
+  "effectiveAt": "2026-09-02T00:00:00.000Z",
+  "contentDigest": "57255dfd005eedb7971f1dffb42257d06d44f4dd929788b125be1abb6fdf1e38"
+}

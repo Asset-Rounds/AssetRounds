@@ -1,0 +1,68 @@
+{
+  "acceptanceState": "PENDING_NOT_ACCEPTING",
+  "adoptionState": "PENDING_NOT_ACCEPTING",
+  "artifactDigest": "1e93ef42e539da10b51309d0f4545b67f9ddffe64ccb6a3e855a835b831bd626",
+  "cardID": "V23-P03-C47",
+  "classification": "IMPLEMENT_NOW",
+  "evidenceIDs": [
+    "V23-P03-C47-G01",
+    "V23-P03-C47-A01",
+    "V23-P03-C47-H01",
+    "V23-P03-C47-I01",
+    "V23-P03-C47-R01"
+  ],
+  "nativeEvidenceState": "PENDING_NOT_ACCEPTING",
+  "persistence": {
+    "durableFamilies": [
+      "ActivitySessionEnvelopeV2",
+      "ActivityStateTransitionV2",
+      "CompletedActivitySnapshotV2",
+      "InstallationTaskResultV1",
+      "InstallationAsBuiltSnapshotV1",
+      "PunchReviewBasisSnapshotV1"
+    ],
+    "newDurableRowClasses": [
+      "ActivitySessionEnvelopeV2",
+      "ActivityStateTransitionV2",
+      "InstallationTaskResultV1",
+      "InstallationAsBuiltSnapshotV1",
+      "PunchReviewBasisSnapshotV1"
+    ],
+    "persistentSchemaVersion": 36,
+    "recordsSchemaVersion": 35,
+    "releasedDurableCompatibilityReferences": {
+      "CompletedActivitySnapshotV2": {
+        "member": "completedSnapshotReference",
+        "parallelRowForbidden": true,
+        "referenceType": "CompletedActivitySnapshotV2CompatibilityReferenceV1"
+      }
+    }
+  },
+  "physicalEvidenceState": "REQUIRED_PENDING_OWNER",
+  "releaseState": "PENDING_NOT_ACCEPTING",
+  "requiredSemanticsDigest": "7aeb17a9dcd6fe3b2699309bafc7cac5bc3078683b3ccca16c8d18464931e553",
+  "schema": "V23P03C47ActivityContractEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C47G01SharedEnvelopeInstallationAndPunchAcceptAsThreeIsolatedReceipts",
+    "testV23P03C47A01NoPlanFallbackReadinessDeferredUnableAndCancellationRemainExact",
+    "testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed",
+    "testV23P03C47I01ThreeReceiptWriterInterruptionRecoversWithoutCrossFamilyMutation",
+    "testV23P03C47R01BackupRestoreReplayDeleteEraseSearchReportAndForwardFixRemainExact"
+  ]
+}

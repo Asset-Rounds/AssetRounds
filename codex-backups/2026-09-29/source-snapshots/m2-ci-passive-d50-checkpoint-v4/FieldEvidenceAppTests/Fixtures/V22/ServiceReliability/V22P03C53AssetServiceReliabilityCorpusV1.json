@@ -1,0 +1,110 @@
+{
+  "schema": "V22P03C53AssetServiceReliabilityCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C53",
+  "corpusID": "v23-p03-c53-asset-service-reliability-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "contracts": [
+    "AssetServiceIncidentV1",
+    "ServiceImpactSegmentV1",
+    "ServiceCauseAssertionV1",
+    "ServiceRemedyAssertionV1",
+    "ServiceRepairIntervalV1",
+    "ServiceRestorationAssertionV1",
+    "QualifiedServiceExposureV1",
+    "ReliabilityMetricInputProjectionV1",
+    "ServiceReliabilityAtomicBundleV1",
+    "AssetServiceReliabilityCommitPlanV1",
+    "ServiceReliabilityWriterReceiptV1",
+    "WorkspaceExpectedRevisionV1",
+    "WorkspaceWriterV1",
+    "AssetServiceReliabilityLifecycleAdapterV1"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C53-G01",
+    "V23-P03-C53-A01",
+    "V23-P03-C53-H01",
+    "V23-P03-C53-I01",
+    "V23-P03-C53-R01"
+  ],
+  "impactKinds": [
+    "FULL_INTERRUPTION",
+    "DEGRADED",
+    "INTERMITTENT",
+    "UNKNOWN"
+  ],
+  "origins": [
+    "PLANNED",
+    "UNPLANNED",
+    "UNKNOWN"
+  ],
+  "coverageStates": [
+    "COMPLETE",
+    "INCOMPLETE",
+    "UNKNOWN"
+  ],
+  "golden": {
+    "exposureSeconds": 90,
+    "plannedExclusionSeconds": 10,
+    "downtimeSeconds": 30,
+    "operatingSeconds": 60,
+    "maximalDowntimeComponents": 1,
+    "qualifyingFailureStarts": 1,
+    "degradedAndIntermittentAreUnweighted": true,
+    "unavailableReasons": [
+      "UNAVAILABLE_ZERO_QUALIFIED_EXPOSURE",
+      "UNAVAILABLE_NO_QUALIFYING_FAILURE_STARTS",
+      "UNAVAILABLE_INCOMPLETE_COVERAGE",
+      "UNAVAILABLE_UNKNOWN_IMPACT",
+      "UNAVAILABLE_UNKNOWN_ORIGIN",
+      "UNAVAILABLE_OPEN_DOWNTIME"
+    ]
+  },
+  "alternate": {
+    "exposureSeconds": 100,
+    "plannedExclusionSeconds": 0,
+    "downtimeSeconds": 0,
+    "operatingSeconds": 100,
+    "maximalDowntimeComponents": 0,
+    "qualifyingFailureStarts": 0,
+    "degradedAndIntermittentAreUnweighted": true,
+    "unavailableReasons": [
+      "UNAVAILABLE_NO_QUALIFYING_FAILURE_STARTS",
+      "UNAVAILABLE_ZERO_QUALIFIED_OPERATING_EXPOSURE"
+    ]
+  },
+  "hostileCases": [
+    "ABSOLUTE_LOCAL_PATH",
+    "UNICODE_BIDI_CONTROL",
+    "UNKNOWN_ENUM",
+    "MEDIA_OR_RESOURCE_BYTES",
+    "NON_CANONICAL_JSON",
+    "OPEN_INTERVAL",
+    "PLANNED_OVERLAP",
+    "UNCERTAIN_TIME_BOUNDS"
+  ],
+  "lifecycle": {
+    "appendOnly": true,
+    "expectedRevision": true,
+    "oneWriter": true,
+    "durableReceipt": true,
+    "backupRestore": true,
+    "cloneForkInvalidation": true,
+    "journalReplay": true,
+    "projectionRebuild": true,
+    "erasePrivacy": true,
+    "compatibility": true
+  },
+  "claims": {
+    "restorationIsNotReleaseToService": true,
+    "restorationIsNotSafetyOrCompliance": true,
+    "mttrLabel": "MEAN_RECORDED_RESTORATION_INTERVAL",
+    "degradedAndIntermittentHaveNoWeight": true,
+    "telemetryAndPredictionAbsent": true
+  },
+  "typedAnchor": "V23-P03-C53-G01/A01/H01/I01/R01"
+}

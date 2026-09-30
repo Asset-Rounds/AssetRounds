@@ -1,0 +1,105 @@
+/// Actual source Manifest placement for the retained-session producer.
+/// Original/moved controls are selected by genuine Manifest effect receipts;
+/// a current same-name file cannot change this lineage.
+struct EraseSchema2TargetSemanticManifestSourceV4: Equatable {
+    enum Placement: UInt8 { case migrationTargetArtifact = 1, preservedDataManifest = 2 }
+    let placement: Placement
+    let url: URL
+    let canonicalBytes: Data
+    let canonicalSHA256: String
+    let fullFact: String
+}
+
+/// Separate observation-only producer origin over the real retained target
+/// session. The private actual issuer must bind its current controls/EX/G/
+/// inventory/reader before construction; this class has no decoded mint.
+@MainActor
+final class EraseSchema2TargetSemanticProducerPermitV4 {
+    let operationID: UUID
+    let eraseID: UUID
+    let targetGenerationID: UUID
+    let originBinding: String
+    private weak var session: StoreGenerationSession?
+    private let requireActualCut: @MainActor () throws -> String
+    private let requireActualSession: @MainActor (StoreGenerationSession) throws -> Void
+    private let manifestSource: @MainActor () throws -> EraseSchema2TargetSemanticManifestSourceV4
+    private let policyTarget: @MainActor (OwnedFileKindV1, URL) throws -> EraseSchema2CompactPolicyPathBindingV4
+    private let retainIO: @MainActor (EraseAbortCheckedSnapshotIOV1) -> Void
+    private let retainLoan: @MainActor (EraseSchema2TargetSemanticContextLoanV4) -> Void
+    private let retainPolicyAttempt: @MainActor (OriginalEraseC16CurrentTemporalObservationAttemptV1) -> Void
+    private let retainUncertainty: @MainActor () -> Void
+    private var active = true
+    private var uncertain = false
+    fileprivate init(operationID: UUID, eraseID: UUID, session: StoreGenerationSession,
+        originBinding: String,
+        requireActualCut: @escaping @MainActor () throws -> String,
+        requireActualSession: @escaping @MainActor (StoreGenerationSession) throws -> Void,
+        manifestSource: @escaping @MainActor () throws -> EraseSchema2TargetSemanticManifestSourceV4,
+        policyTarget: @escaping @MainActor (OwnedFileKindV1, URL) throws -> EraseSchema2CompactPolicyPathBindingV4,
+        retainIO: @escaping @MainActor (EraseAbortCheckedSnapshotIOV1) -> Void,
+        retainLoan: @escaping @MainActor (EraseSchema2TargetSemanticContextLoanV4) -> Void,
+        retainPolicyAttempt: @escaping @MainActor (OriginalEraseC16CurrentTemporalObservationAttemptV1) -> Void,
+        retainUncertainty: @escaping @MainActor () -> Void) throws {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(originBinding),
+              try requireActualCut() == originBinding else { throw EraseAllServiceError.invalidAuthority }
+        try requireActualSession(session)
+        self.operationID = operationID; self.eraseID = eraseID
+        targetGenerationID = session.generationID; self.session = session
+        self.originBinding = originBinding; self.requireActualCut = requireActualCut
+        self.requireActualSession = requireActualSession; self.manifestSource = manifestSource
+        self.policyTarget = policyTarget; self.retainIO = retainIO; self.retainLoan = retainLoan
+        self.retainPolicyAttempt = retainPolicyAttempt; self.retainUncertainty = retainUncertainty
+    }
+    func requireCurrentBinding() throws {
+        do {
+            guard active, !uncertain, let session,
+                  session.generationID == targetGenerationID,
+                  try requireActualCut() == originBinding else { throw EraseAllServiceError.invalidAuthority }
+            try requireActualSession(session)
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func requireBoundSession(_ expected: StoreGenerationSession) throws {
+        do {
+            try requireCurrentBinding()
+            guard session === expected else { throw EraseAllServiceError.invalidAuthority }
+            try requireActualSession(expected)
+            try requireCurrentBinding()
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func requireManifestSource() throws -> EraseSchema2TargetSemanticManifestSourceV4 {
+        do {
+            try requireCurrentBinding()
+            let value = try manifestSource()
+            guard value.url.isFileURL,
+                  value.fullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(value.canonicalSHA256),
+                  value.canonicalBytes.count <= 4_194_304,
+                  StoreMigrationCanonicalJSONV1.sha256(value.canonicalBytes) == value.canonicalSHA256 else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireCurrentBinding()
+            return value
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func requirePolicyTarget(_ kind: OwnedFileKindV1, at url: URL) throws -> EraseSchema2CompactPolicyPathBindingV4 {
+        do {
+            try requireCurrentBinding()
+            let value = try policyTarget(kind, url)
+            guard value.kind == kind, value.url == url,
+                  value.fullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+                  value.parentURL == url.deletingLastPathComponent(),
+                  value.parentFullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+                  !value.ancestors.isEmpty else { throw EraseAllServiceError.invalidAuthority }
+            try requireCurrentBinding()
+            return value
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func retainObservationAttempt(io: EraseAbortCheckedSnapshotIOV1) { retainIO(io) }
+    func retainSemanticLoan(_ loan: EraseSchema2TargetSemanticContextLoanV4) { retainLoan(loan) }
+    func retainPolicyObservationAttempt(_ attempt: OriginalEraseC16CurrentTemporalObservationAttemptV1) { retainPolicyAttempt(attempt) }
+    func poisonOnUncertainObservation() {
+        if !uncertain { uncertain = true; retainUncertainty() }
+    }
+    fileprivate func revoke() { active = false }
+}
+

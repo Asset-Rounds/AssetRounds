@@ -1,0 +1,34 @@
+{
+  "artifactDigest": "bd2a99c5f52738fd0aca2d15169d83a9119fa1253abddc45375f28699cada7cd",
+  "cardID": "V23-P03-C37",
+  "evidenceIDs": [
+    "V23-P03-C37-G01",
+    "V23-P03-C37-A01",
+    "V23-P03-C37-H01",
+    "V23-P03-C37-I01",
+    "V23-P03-C37-R01"
+  ],
+  "requiredSemanticsDigest": "35ac64470476cfb8b92b4a839431dd308d9f08acda0bc860da13eacb0c8ccf6a",
+  "schema": "V23P03C37PlacementPoseEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C37G01ReferenceFramedPoseHistoryAndQualifiedSnapshotAreDeterministic",
+    "testV23P03C37A01ManualNotObservedAndNoPlanFallbackRemainComplete",
+    "testV23P03C37H01InvalidFramesAnglesTransformsForksAndClaimsFailClosed",
+    "testV23P03C37I01InterruptedMoveRebaseAndPromotionExposeOldOrOneSealedSuccessor",
+    "testV23P03C37R01RestoreReplayRebuildAndHistoricArtifactsPreserveExactPoseTruth"
+  ]
+}

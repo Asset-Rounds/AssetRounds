@@ -1,0 +1,109 @@
+{
+  "accessibilityManifest": {
+    "path": "docs/accessibility/V23P04C15StaticProofAccessibilityManifestV1.json",
+    "sha256": "1b9edc89e86716c27fb82365092112f8ce5b9794dd9a083279f0438d07361110"
+  },
+  "acceptanceCredit": false,
+  "adoptionEnabled": false,
+  "brandBaselineReference": {
+    "authorityPath": "docs/design/v23/foundation/policies/V23-P00-C02-policy-manifest.json",
+    "authoritySHA256": "e00aefce6896b778ec87d74ba7f1e177ca042582cd8e1f319921b39f23349fd4",
+    "disposition": "INHERITED_BASELINE_REFERENCE_ONLY"
+  },
+  "brandRevisionReference": {
+    "authorityPath": "docs/design/v23/foundation/policies/BrandRevisionContractsV1.schema.json",
+    "authoritySHA256": "ee629c15af03d2e7382ee637d7634be1e70cbc249258fc030fd630a41012d8aa",
+    "disposition": "DISABLED_OR_DEFERRED",
+    "ownerApprovalReference": null
+  },
+  "candidateReference": {
+    "acceptedS10Candidate": false,
+    "head": "1a5d77d1452eb18c5d2a2a8b053c9be94963ee3f",
+    "status": "PROVISIONAL_NONCANDIDATE",
+    "tree": "235ed3880c9d0616d608727dbd4a363c6f6c3782"
+  },
+  "cardID": "V23-P04-C15",
+  "finalScreenshotBytes": false,
+  "networkProviderEnabled": false,
+  "proofs": [
+    {
+      "finalScreenshot": false,
+      "proofID": "c15-accessibility-proof-v1",
+      "proofKind": "ACCESSIBILITY",
+      "shotListReference": "shot-list/accessibility-static-v1",
+      "syntheticSampleID": "c15-accessibility-proof-v1",
+      "uploadReady": false,
+      "wireframeOnly": true
+    },
+    {
+      "finalScreenshot": false,
+      "proofID": "c15-home-proof-v1",
+      "proofKind": "HOME",
+      "shotListReference": "shot-list/home-static-v1",
+      "syntheticSampleID": "c15-home-proof-v1",
+      "uploadReady": false,
+      "wireframeOnly": true
+    },
+    {
+      "finalScreenshot": false,
+      "proofID": "c15-privacy-proof-v1",
+      "proofKind": "PRIVACY",
+      "shotListReference": "shot-list/privacy-static-v1",
+      "syntheticSampleID": "c15-privacy-proof-v1",
+      "uploadReady": false,
+      "wireframeOnly": true
+    },
+    {
+      "finalScreenshot": false,
+      "proofID": "c15-sample-report-proof-v1",
+      "proofKind": "SAMPLE_REPORT",
+      "shotListReference": "shot-list/sample-report-static-v1",
+      "syntheticSampleID": "c15-sample-report-proof-v1",
+      "uploadReady": false,
+      "wireframeOnly": true
+    },
+    {
+      "finalScreenshot": false,
+      "proofID": "c15-support-proof-v1",
+      "proofKind": "SUPPORT",
+      "shotListReference": "shot-list/support-static-v1",
+      "syntheticSampleID": "c15-support-proof-v1",
+      "uploadReady": false,
+      "wireframeOnly": true
+    },
+    {
+      "finalScreenshot": false,
+      "proofID": "c15-use-case-proof-v1",
+      "proofKind": "USE_CASE",
+      "shotListReference": "shot-list/use-case-static-v1",
+      "syntheticSampleID": "c15-use-case-proof-v1",
+      "uploadReady": false,
+      "wireframeOnly": true
+    }
+  ],
+  "provisional": true,
+  "publicationEligible": false,
+  "publish": false,
+  "releaseCredit": false,
+  "schema": "V23P04C15BrandedStaticProofManifestV1",
+  "schemaVersion": 1,
+  "status": "WIRE_FRAME_SHOT_LIST_SYNTHETIC_NONCANDIDATE_ONLY",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publish": false,
+    "release": false
+  },
+  "syntheticSampleManifest": {
+    "path": "docs/product/discovery/V23P04C15SyntheticSampleManifestV1.json",
+    "sha256": "41e17b55277dfb4758e6a185074c1ea91eaa84f6bded7e0ce322eca0a10ae384"
+  },
+  "upload": false
+}

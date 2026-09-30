@@ -1,0 +1,37 @@
+{
+  "actualHeldScope": "existing original Notification removal Registry G/EX/activity + actual removal permit",
+  "allowedZeroSourceCases": [
+    "original-P present Notification root with positive mapping/control absence",
+    "original-P absent Notification root with actual typed creation receipt and positive mapping/control absence"
+  ],
+  "authorModel": "gpt-6.1-sol",
+  "markerIdentity": "actual marker canonicalLeafFact String11",
+  "notVerified": [
+    "typecheck/SDK coupling",
+    "actual Store root projection under publisher partial cuts",
+    "root-composed live absent-root successor",
+    "runtime/OS readback/control removal/failure cuts",
+    "complete C16/auxiliary/terminal/ready family"
+  ],
+  "ownedIDs": "exact authentic OriginalEraseNotificationOSAbsenceReceiptV1 set; no missing-control/default-empty inference",
+  "parse": [
+    {
+      "exitCode": 0,
+      "mode": "DEBUG",
+      "stderr": ""
+    },
+    {
+      "exitCode": 0,
+      "mode": "nonDEBUG",
+      "stderr": ""
+    }
+  ],
+  "predeleteFragmentSHA256": "39e53942777b81b4ae255a5a346d659e4f505f2d4ed965aaa93949fd3eadaac9",
+  "reasoningEffort": "xhigh",
+  "retainedOperationField": "originalSchema2SurvivingNotificationObservation + exact weak originalSchema2SurvivingNotificationStore",
+  "revocationIdentity": "SHA exact CompatibilityCanonicalV1 encoded marker.revocation",
+  "routerCandidateSHA256": "910c2bef15b9d179dcbb8097c6c36c923b8ff852a1b22afec49741a6662bd462",
+  "status": "source_only_incomplete_tail_not_installable",
+  "storeAPIDependencySHA256": "69b4d3cb3292eebb566554990147118a18a2968dcc2fac69d9d8b677cdc38164",
+  "storeTypesDependencySHA256": "bb8e24801ddd69366beb5683206b7c4879e4831a380338e8085e359a930e785f"
+}

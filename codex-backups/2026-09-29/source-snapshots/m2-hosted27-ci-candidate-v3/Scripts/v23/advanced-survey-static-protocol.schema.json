@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "backend": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P06-C03"
+    },
+    "customerPayload": {
+      "const": false
+    },
+    "disposition": {
+      "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
+    },
+    "eav": {
+      "const": false
+    },
+    "exportInvoked": {
+      "const": false
+    },
+    "importInvoked": {
+      "const": false
+    },
+    "network": {
+      "const": false
+    },
+    "newRenderer": {
+      "const": false
+    },
+    "newStore": {
+      "const": false
+    },
+    "newWriter": {
+      "const": false
+    },
+    "publicClaim": {
+      "const": false
+    },
+    "schema": {
+      "const": "V23P06C03AdvancedSurveyStaticProtocolV1"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "disposition",
+    "eav",
+    "newStore",
+    "newWriter",
+    "newRenderer",
+    "importInvoked",
+    "exportInvoked",
+    "backend",
+    "network",
+    "customerPayload",
+    "publicClaim",
+    "scope",
+    "hypothesis",
+    "disconfirmers",
+    "preconditions",
+    "evidenceIDs",
+    "expiry",
+    "flags",
+    "forbiddenResults"
+  ],
+  "type": "object"
+}

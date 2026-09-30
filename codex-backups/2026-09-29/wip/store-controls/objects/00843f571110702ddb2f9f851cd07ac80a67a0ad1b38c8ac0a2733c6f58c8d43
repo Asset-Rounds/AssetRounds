@@ -1,0 +1,108 @@
+/// Published before the first raw source/plan leaf. The complete immutable
+/// table is the only admissible bootstrap namespace; exact prefix recovery
+/// still requires matching physical original-P source admission under EX/G.
+struct EraseSchema2ColdCleanupTransferV1: Codable, Equatable {
+    let schemaVersion: Int
+    let sources: EraseSchema2ColdCleanupSourcesV1
+    func canonicalBytes() throws -> Data {
+        try sources.validate(requirePublished: false)
+        guard schemaVersion == 1, sources.c16PlanFullFact == nil,
+              sources.sources.allSatisfy({ $0.leafFullFact == nil }) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(self)
+    }
+}
+
+/// Last named authority, published and positively read back before any
+/// terminal deletion. Final records remain data; Router/Service reestablish
+/// actual OS absence and namespace retirement on fresh terminal admission.
+struct EraseSchema2ColdCleanupTerminalV1: Codable, Equatable {
+    struct Leaf: Codable, Equatable {
+        let name: String
+        let fullFact: String
+        let sha256: String
+        let byteCount: Int
+    }
+    let schemaVersion: Int
+    let sources: EraseSchema2ColdCleanupSourcesV1
+    let progress: EraseSchema2ColdCleanupProgressV1
+    let notificationProvenance: EraseSchema2ColdSurvivingNotificationProvenanceV1
+    let cleanupIntentBytes: Data
+    let preparationBytes: Data
+    let deletionOrder: [Leaf]
+    func canonicalBytes() throws -> Data {
+        try sources.validate(); try progress.validate(sources: sources)
+        let notificationBytes = try notificationProvenance.canonicalBytes()
+        let intent = try EraseIntentCodecV1.decode(cleanupIntentBytes)
+        let preparation = try ErasePreparationCodecV2.decode(preparationBytes)
+        guard schemaVersion == 1, progress.isTerminal,
+              progress.stage == .phaseCASComplete,
+              intent.schemaVersion == 2, intent.phase == .cleanupComplete,
+              preparation.matches(intent),
+              try EraseIntentCodecV1.encode(intent) == cleanupIntentBytes,
+              try ErasePreparationCodecV2.encode(preparation) == preparationBytes,
+              intent.eraseID.uuidString.lowercased() == sources.eraseID,
+              notificationProvenance.eraseID == sources.eraseID,
+              notificationProvenance.preparationSHA256 == sources.preparationSHA256,
+              notificationProvenance.originalPAuxiliaryRosterSHA256 == sources.originalPAuxiliaryRosterSHA256,
+              notificationProvenance.targetPointerSHA256 == sources.targetPointerSHA256,
+              StoreMigrationCanonicalJSONV1.sha256(preparationBytes) == sources.preparationSHA256,
+              deletionOrder.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount + 16,
+              Set(deletionOrder.map(\.name)).count == deletionOrder.count,
+              deletionOrder.suffix(2).map(\.name) == ["preparation.json", "erase.json"] else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let fixedNames = Set(["original-retired-stage-identity.json",
+            "original-retired-transition.json", "schema2-cold-deletion-roster.json",
+            "auxiliary-retirement.json", "preparation.json", "erase.json"])
+        for leaf in deletionOrder {
+            guard EraseSchema2ColdCleanupGrammarV1.isCanonicalName(leaf.name) || fixedNames.contains(leaf.name),
+                  leaf.name != EraseSchema2ColdCleanupGrammarV1.terminalName,
+                  EraseSchema2ColdCleanupGrammarV1.validFact(leaf.fullFact),
+                  leaf.byteCount >= 0,
+                  leaf.byteCount <= EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(leaf.sha256)
+        }
+        guard let originalIntent = deletionOrder.last,
+              originalIntent.sha256 == StoreMigrationCanonicalJSONV1.sha256(cleanupIntentBytes),
+              originalIntent.byteCount == cleanupIntentBytes.count,
+              let originalPreparation = deletionOrder.dropLast().last,
+              originalPreparation.sha256 == StoreMigrationCanonicalJSONV1.sha256(preparationBytes),
+              originalPreparation.byteCount == preparationBytes.count,
+              deletionOrder.first(where: { $0.name == EraseSchema2ColdCleanupGrammarV1.notificationName })?.sha256
+                == StoreMigrationCanonicalJSONV1.sha256(notificationBytes) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(self)
+    }
+}
+
+struct EraseSchema2ColdCleanupTerminalObservationV1: Equatable {
+    let value: EraseSchema2ColdCleanupTerminalV1
+    let bytes: Data
+    let fact: EraseColdControlLeafFactV1
+    let policy: TemporalPolicyObservationV1?
+}
+
+@MainActor
+final class EraseSchema2ColdTerminalStoreCloseReceiptV1 {
+    fileprivate weak var store: EraseIntentStore?
+    fileprivate let eraseID: UUID
+    fileprivate let retirementIdentity: ObjectIdentifier
+    fileprivate init(store: EraseIntentStore, eraseID: UUID,
+        retirement: ErasedRegistryRetirementProofV1) {
+        self.store = store; self.eraseID = eraseID
+        self.retirementIdentity = ObjectIdentifier(retirement)
+    }
+    func requireBound(store: EraseIntentStore, expected: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1) throws {
+        guard self.store === store, expected.eraseID == eraseID,
+              expected.phase == .cleanupComplete,
+              ObjectIdentifier(retirement) == retirementIdentity else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}

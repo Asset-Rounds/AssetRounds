@@ -1,0 +1,16 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "2c065a08e4c0214a6eb0fe39e28c564303c6783f0ddf8857fe688366eb9e640d",
+  "afterSHA256": "6930cc6a9a2a758c77b1de76acadba9c43af9fd2497cc413d03715ed7e57f437",
+  "sealedGenericContractSHA256": "afcccf2438ae96d12f14662c8914fc3f68bf6e2a2d9f5d05141148ee4ea624d4",
+  "PFPWorkingSourceSHA256": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+  "status": "INTERMEDIATE NONINSTALLABLE; parse/typecheck/review/runtime due",
+  "remaining": [
+    "Actual Router fresh provider and lossless Store generic accounting provenance",
+    "Complete initial C16 role classification before authentic list equality, including unpaired generic partials",
+    "Fresh provider before/after every raw IO and owned one-effect receipt ordering",
+    "Mixed/legacy generic parent rename provenance outside authentic C16 mapping",
+    "Current image/order/tail codec bounds under root/reviewer direction"
+  ]
+}

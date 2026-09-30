@@ -1,0 +1,149 @@
+    /// Pure operation/phase binding for Registry's real synchronous G.
+    /// No census, Manifest projection or whole observer may enter here.
+    /// Registry supplies actual strict before/after bytes and the outer issuer
+    /// separately supplies current Store/source/physical projection proofs.
+    func requireSchema2ColdCleanupHeldGObservation(
+        registry expectedRegistry: GenerationLeaseRegistryV1,
+        activity expectedActivity: GenerationTemporalActivityHandleV1,
+        retirement expectedProof: ErasedRegistryRetirementProofV1?,
+        expectedTokens: [GenerationLeaseTokenV1]
+    ) throws {
+        try requireLive()
+        guard !schema2ColdCleanupRegistryUncertain,
+              registry === expectedRegistry,
+              schema2ColdActivity === expectedActivity,
+              let physical = schema2ColdPhysicalExclusion,
+              let identity = schema2ColdSupportIdentity,
+              !schema2ColdPhysicalExclusionClosed,
+              let store = schema2ColdIntentStore,
+              !schema2ColdIntentStoreClosed,
+              schema2ColdManifestOwner != nil,
+              !schema2ColdManifestOwnerClosed,
+              Set(expectedTokens.map(\.leaseID)).count == expectedTokens.count else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let expectedProof {
+            guard !serviceFrame, admissionSealed, retirementAcquisitionStarted,
+                  detached, let prepared,
+                  preparedIntentStore === store,
+                  let expectedIntent = preparedIntent,
+                  expectedIntent.schemaVersion == 2,
+                  expectedIntent.phase == .sessionActivated,
+                  prepared.proof === expectedProof,
+                  let retirement, retirement.ownsProof(expectedProof),
+                  let exclusion, let drain,
+                  let transfer = schema2ColdRetirementTransfer,
+                  transfer.operation === self, transfer.prepared === prepared,
+                  transfer.store === store, transfer.intent == expectedIntent,
+                  transfer.registry === expectedRegistry,
+                  transfer.activity === expectedActivity,
+                  transfer.physical === physical, transfer.drain === drain,
+                  transfer.binding == expectedProof.binding,
+                  drain.binding == transfer.binding,
+                  schema2ColdActivatedTargetSession == nil,
+                  expectedTokens.isEmpty else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try physical.requireTransferredRetirement(exclusion, transfer: transfer)
+            try expectedProof.requireSchema2ColdCleanupHeldGObservation(
+                binding: transfer.binding, registry: expectedRegistry,
+                activity: expectedActivity, drain: drain)
+        } else {
+            guard serviceFrame, !admissionSealed, !retirementAcquisitionStarted,
+                  !detached, prepared == nil, retirement == nil, exclusion == nil,
+                  schema2ColdRetirementTransfer == nil,
+                  let actual = schema2ColdTargetReaderTokenCensus,
+                  actual == expectedTokens,
+                  let reader = schema2ColdTargetReaderHandle,
+                  let session = schema2ColdActivatedTargetSession,
+                  actual.contains(reader.token), reader.token.role == .reader,
+                  session.readerLeaseToken == reader.token,
+                  session.generationEpoch == reader.token.epoch,
+                  schema2ColdPublishedIntent?.phase == .sessionActivated
+                    || schema2ColdActivatedEntryContinuation?.intent.phase
+                        == .sessionActivated else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+        try physical.requireHeld(expectedDevice: identity.device,
+            expectedInode: identity.inode)
+    }
+
+    /// Full real admission around an actual Registry G interval. Call this
+    /// outside that interval: reader/drain and Manifest checks may enter G.
+    /// Store R/preparation remain actual bytes throughout this named-Registry
+    /// stage; final control/Registry-name loss uses its separate typed tail.
+    func requireSchema2ColdCleanupRegistryBoundary(
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retirement: ErasedRegistryRetirementProofV1?,
+        expectedTokens: [GenerationLeaseTokenV1]
+    ) throws {
+        try requireStartupContinuation()
+        try requireSchema2ColdCleanupHeldGObservation(registry: registry,
+            activity: activity, retirement: retirement,
+            expectedTokens: expectedTokens)
+        guard let store = schema2ColdIntentStore,
+              let intent = try store.load(),
+              intent.schemaVersion == 2, intent.phase == .sessionActivated,
+              let preparation = try store.loadPreparation(),
+              preparation.matches(intent), preparation.c05JobDrainV3 == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let retirement {
+            guard let transfer = schema2ColdRetirementTransfer,
+                  transfer.intent == intent, let drain,
+                  transfer.drain === drain else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try store.requireRetirementObservation(transfer.observation)
+            try retirement.requireSchema2ColdCleanupRegistryBoundary(
+                binding: transfer.binding, registry: registry,
+                activity: activity, drain: drain)
+        } else {
+            try requireServiceAccess()
+            try requireSchema2ColdOriginalAuthority()
+            try requireSchema2ColdTargetReaderTokenCensus(registry: registry)
+            guard schema2ColdTargetReaderTokenCensus == expectedTokens,
+                  let manifest = schema2ColdManifestOwner else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try manifest.requireSchema2ColdFinalPointerCut(intent: intent,
+                operation: self)
+        }
+        try requireSchema2ColdCleanupHeldGObservation(registry: registry,
+            activity: activity, retirement: retirement,
+            expectedTokens: expectedTokens)
+        guard try store.load() == intent,
+              try store.loadPreparation() == preparation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireStartupContinuation()
+    }
+
+    /// Each current named Registry read is registered before its first FD
+    /// open. A checked-closed attempt may be retired; uncertain ones cannot.
+    func retainSchema2ColdCleanupRegistryObservation(
+        _ attempt: EraseSchema2ColdRegistryObservationAttemptV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        retirement: ErasedRegistryRetirementProofV1?,
+        expectedTokens: [GenerationLeaseTokenV1]
+    ) throws {
+        try requireSchema2ColdCleanupHeldGObservation(registry: registry,
+            activity: activity, retirement: retirement,
+            expectedTokens: expectedTokens)
+        schema2ColdCleanupRegistryObservations.removeAll { $0.isCheckedClosed }
+        guard schema2ColdCleanupRegistryObservations.count < 8,
+              !schema2ColdCleanupRegistryObservations.contains(where: {
+                  $0 === attempt
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        schema2ColdCleanupRegistryObservations.append(attempt)
+    }
+
+    func poisonSchema2ColdCleanupRegistryObservation() {
+        schema2ColdCleanupRegistryUncertain = true
+    }
+

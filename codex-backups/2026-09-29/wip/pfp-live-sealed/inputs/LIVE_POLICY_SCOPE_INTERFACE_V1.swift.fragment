@@ -1,0 +1,66 @@
+// DATA below never authorizes an effect. Scope and Pair initializers are
+// fileprivate to the actual FirstObserver-owned ImageOwner implementation.
+struct OriginalEraseScratchTemporalPolicyNodeV1 {
+    struct Ancestor { let url: URL; let fullFact: String }
+    let kind: OwnedFileKindV1
+    let url: URL
+    let fullFact: String
+    let parentURL: URL
+    let parentFullFact: String
+    let ancestors: [Ancestor] // Operations anchor, then contiguous parents.
+}
+struct OriginalEraseScratchTemporalPairV1 {
+    struct Member { let relativePath: String; let url: URL; let fullFact: String }
+    enum Role {
+        case declaredLinkPublication(createRequestID: UUID, linkRequestID: UUID,
+            temporaryPath: String, finalPath: String)
+        case admittedOriginalOwnedGenericAliases(premiseIndex: Int,
+            originalPaths: [String], originalFacts: [String],
+            originalSHA256: String, metadata: OriginalEraseScratchCleanupAliasMetadataV1)
+    }
+    let members: [Member] // exact two, UTF8-byte ordered Operations-relative paths
+    let kind: OwnedFileKindV1
+    let sha256: String
+    let byteCount: Int64
+    let device: UInt64
+    let inode: UInt64
+    let user: UInt32
+    let group: UInt32
+    let parentURL: URL
+    let parentFullFact: String
+    let ancestors: [OriginalEraseScratchTemporalPolicyNodeV1.Ancestor]
+    let role: Role
+}
+enum OriginalEraseScratchCleanupAliasMetadataV1: Equatable {
+    case validatedLease(directory: String, bytes: Data, sha256: String)
+    case ownedOrphan(directory: String)
+}
+@MainActor final class OriginalEraseScratchTemporalObservationScopeV1 {
+    let operationID: UUID
+    let observationID: UUID
+    func requireCurrentBinding() throws
+    func requirePolicyNode(_ kind: OwnedFileKindV1, at url: URL,
+        fullFact: String) throws -> OriginalEraseScratchTemporalPolicyNodeV1
+    func requirePair(aliasURLs: [URL]) throws -> OriginalEraseScratchTemporalPairV1
+    func retainObservationAttempt(_ attempt: OriginalEraseScratchTemporalPolicyAttemptV1)
+    func poisonOnUncertainObservation()
+}
+// Exact PFP consumers; separate LIVE names, old ordinary/PFP APIs unchanged.
+// @MainActor static func observeOriginalEraseScratchTemporalPolicyWithCheckedClose(
+//   _ kind: OwnedFileKindV1, at url: URL, fullFact: String,
+//   scope: OriginalEraseScratchTemporalObservationScopeV1,
+//   retainUncertainDescriptor: (Int32) -> Void) throws -> TemporalPolicyObservationV1
+// @MainActor static func observeOriginalEraseScratchTemporalPairWithCheckedClose(
+//   aliasURLs: [URL], scope: OriginalEraseScratchTemporalObservationScopeV1,
+//   retainUncertainDescriptor: (Int32) -> Void) throws -> [TemporalPolicyObservationV1]
+// Scope membership is privately minted only after a full raw before/after cut
+// equals the immutable original-role projection plus the retained exact owned
+// request/outcome delta. Every primitive checks actual admission/G and lexical
+// lifetime; PFP additionally checks complete held/named ancestry/current11.
+// The issuer does no repeated payload census inside primitive callbacks.
+// All PFP attempts remain retained by ImageOwner before opens and after failure.
+// Nil policy applies only to the exact unaccepted active create temporary;
+// scope.requirePolicyNode must refuse that node until its real request succeeds.
+// Payload work is 4*actual byteCount per pair PFP invocation, once per selected
+// pair per whole policy pass. Outer raw hashes/cursors, complete outside scans,
+// actual admission callbacks and Foundation internal IO are separate work.

@@ -1,0 +1,795 @@
+--- v3/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
++++ v4/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
+@@ -1702,6 +1702,7 @@
+     fileprivate let originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1
+     fileprivate let planSHA256: String
+     private let plan: OriginalEraseC16PlanV1
++    private let originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1?
+     private let initial: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
+     private let supportURL: URL, cachesURL: URL, temporaryURL: URL
+     private let targets: [Progress.Target]
+@@ -1722,7 +1723,8 @@
+         initial: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+         applicationSupportURL: URL, cachesURL: URL, temporaryURL: URL,
+         fixedTargets: [Progress.Target], c16Plan: OriginalEraseC16PlanV1,
+-        targetGenerationID: UUID, planSHA256: String) throws {
++        targetGenerationID: UUID, planSHA256: String,
++        originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1? = nil) throws {
+         try c16Plan.validate()
+         guard applicationSupportURL.isFileURL, cachesURL.isFileURL, temporaryURL.isFileURL,
+               originalP.canonicalBytes == (try StoreMigrationCanonicalJSONV1.encode(originalP.record)),
+@@ -1731,7 +1733,7 @@
+         let c16 = fixedTargets.filter { $0.kind == .c16 }
+         guard c16.count == c16Plan.steps.count,
+               c16.map(\.ordinal) == Array(c16Plan.steps.indices),
+-              fixedTargets.filter({ $0.kind != .c16 }) == (try Self.fixedNonC16Targets(originalP: originalP, c16Plan: c16Plan, targetGenerationID: targetGenerationID)),
++              fixedTargets.filter({ $0.kind != .c16 }) == (try Self.fixedNonC16Targets(originalP: originalP, c16Plan: c16Plan, targetGenerationID: targetGenerationID, originalPairAccounting: originalPairAccounting)),
+               Int64(initial.supportIdentity.device) == originalP.record.supportDevice,
+               UInt64(initial.supportIdentity.inode) == originalP.record.supportInode,
+               UInt32(initial.supportIdentity.mode) == originalP.record.supportMode,
+@@ -1755,6 +1757,7 @@
+             }
+         }
+         self.originalP = originalP; self.initial = initial; self.plan = c16Plan
++        self.originalPairAccounting = originalPairAccounting
+         self.planSHA256 = planSHA256; targets = fixedTargets
+         targetsSHA256 = StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(fixedTargets))
+         supportURL = applicationSupportURL.standardizedFileURL
+@@ -1789,11 +1792,25 @@
+         }
+         return relative
+     }
+-    private static func requireOriginalRootCensus(_ originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1) throws -> [(Int, Int64)] {
++    private static func requireOriginalRootCensus(_ originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1? = nil) throws -> [(Int, Int64)] {
+         guard originalP.canonicalBytes == (try StoreMigrationCanonicalJSONV1.encode(originalP.record)),
+               originalP.canonicalSHA256 == StoreMigrationCanonicalJSONV1.sha256(originalP.canonicalBytes),
+               originalP.record.trees.map(\.key) == recordedRootKeys else {
+             throw EraseAllServiceError.invalidAuthority
++        }
++        try originalPairAccounting?.requireOriginalPBinding(originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256)
++        var typedPairByPath: [String: EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1] = [:]
++        for pair in originalPairAccounting?.pairs ?? [] {
++            guard pair.operationsRelativeMemberPaths.count == 2, pair.observedFacts.count == 2,
++                  pair.observedFacts[0] == pair.observedFacts[1], pair.byteCount >= 0,
++                  pair.byteCount <= 1_073_741_824,
++                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(pair.sha256) else { throw EraseAllServiceError.invalidAuthority }
++            for path in pair.operationsRelativeMemberPaths {
++                guard typedPairByPath.updateValue(pair, forKey: "support/FieldEvidenceOperations/" + path) == nil else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++            }
+         }
+         return try originalP.record.trees.map { tree in
+             if tree.state == "absent" {
+@@ -1820,6 +1837,7 @@
+                 directChildren[parts.dropLast().joined(separator: "/"), default: []].append(child)
+             }
+             var bytes: Int64 = 0
++            var chargedTypedPairs = Set<String>()
+             for node in nodes {
+                 let qualified = node.path.isEmpty ? tree.key : tree.key + "/" + node.path
+                 let relative = try relativePath(qualified, root: tree.key)
+@@ -1838,10 +1856,24 @@
+                     guard node.kind == "file", mode & UInt32(S_IFMT) == UInt32(S_IFREG),
+                           node.members == nil, let sha = node.sha256,
+                           StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha),
+-                          let size = Int64(f[4]), size <= 1_073_741_824, bytes <= 1_073_741_824 - size else {
++                          let size = Int64(f[4]), size <= 1_073_741_824, let links = UInt64(f[3]) else {
+                         throw EraseAllServiceError.invalidAuthority
+                     }
+-                    bytes += size
++                    if let pair = typedPairByPath[qualified] {
++                        guard links == 2, pair.observedFacts.contains(node.fact), pair.sha256 == sha,
++                              pair.byteCount == size, pair.device == UInt64(f[0]), pair.inode == UInt64(f[1]),
++                              pair.operationsRelativeMemberPaths.allSatisfy({ member in
++                                  byPath[member]?.fact == node.fact && byPath[member]?.sha256 == sha
++                              }) else { throw EraseAllServiceError.invalidAuthority }
++                        let key = String(pair.device) + "|" + String(pair.inode)
++                        if chargedTypedPairs.insert(key).inserted {
++                            guard bytes <= 1_073_741_824 - size else { throw EraseAllServiceError.invalidAuthority }
++                            bytes += size
++                        }
++                    } else {
++                        guard links == 1, bytes <= 1_073_741_824 - size else { throw EraseAllServiceError.invalidAuthority }
++                        bytes += size
++                    }
+                 }
+             }
+             let expectedOrder = nodes.map(\.path).sorted { lhs, rhs in
+@@ -1857,9 +1889,10 @@
+     /// stream is C16's independently bounded steps plus these exact counts;
+     /// no global node limit narrows the nine admitted original trees.
+     static func fixedRootCensus(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
+-        c16Plan: OriginalEraseC16PlanV1, targetGenerationID: UUID) throws -> [RecordedRootCensusV1] {
+-        let original = try requireOriginalRootCensus(originalP)
+-        let generic = try fixedNonC16Targets(originalP: originalP, c16Plan: c16Plan, targetGenerationID: targetGenerationID)
++        c16Plan: OriginalEraseC16PlanV1, targetGenerationID: UUID,
++        originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1? = nil) throws -> [RecordedRootCensusV1] {
++        let original = try requireOriginalRootCensus(originalP, originalPairAccounting: originalPairAccounting)
++        let generic = try fixedNonC16Targets(originalP: originalP, c16Plan: c16Plan, targetGenerationID: targetGenerationID, originalPairAccounting: originalPairAccounting)
+         return recordedRootKeys.enumerated().map { index, key in
+             RecordedRootCensusV1(key: key, originalNodeCount: original[index].0,
+                 originalRegularBytes: original[index].1,
+@@ -1870,12 +1903,14 @@
+     /// policy, OS, birth or current-progress receipt. Those remain mandatory
+     /// in the enclosing retained scope and physical permit at every IO.
+     static func requireRecordedProjectionCensus(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
+-        projection: [Progress.Projection]) throws {
+-        _ = try requireOriginalRootCensus(originalP)
+-        try requireCurrentProjectionBounds(originalP: originalP, projection: projection)
++        projection: [Progress.Projection], originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1? = nil,
++        currentTypedPairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1] = []) throws {
++        _ = try requireOriginalRootCensus(originalP, originalPairAccounting: originalPairAccounting)
++        try requireCurrentProjectionBounds(originalP: originalP, projection: projection, currentTypedPairs: currentTypedPairs)
+     }
+     private static func requireCurrentProjectionBounds(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
+-        projection: [Progress.Projection]) throws {
++        projection: [Progress.Projection],
++        currentTypedPairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1]) throws {
+         // The retained owner's initializer already validates its immutable P.
+         // Rechecking this actual image never caches a scope/permit decision.
+         guard projection.map(\.path) == projection.map(\.path).sorted(),
+@@ -1899,6 +1934,20 @@
+             || recordedRootKeys.contains(where: { item.path == $0 || item.path.hasPrefix($0 + "/") }) }) else {
+             throw EraseAllServiceError.invalidAuthority
+         }
++        var typedPairByPath: [String: EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1] = [:]
++        for pair in currentTypedPairs {
++            guard pair.operationsRelativeMemberPaths.count == 2, pair.fullFacts.count == 2,
++                  pair.fullFacts[0] == pair.fullFacts[1], pair.byteCount >= 0, pair.byteCount <= 1_073_741_824 else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            for (index, path) in pair.operationsRelativeMemberPaths.enumerated() {
++                let qualified = "support/FieldEvidenceOperations/" + path
++                guard typedPairByPath.updateValue(pair, forKey: qualified) == nil,
++                      byPath[qualified]?.fullFact == pair.fullFacts[index], byPath[qualified]?.sha256 == pair.sha256 else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++            }
++        }
+         for root in recordedRootKeys {
+             let nodes = projection.filter { $0.path == root || $0.path.hasPrefix(root + "/") }
+             guard nodes.count <= 100_000 else { throw EraseAllServiceError.invalidAuthority }
+@@ -1907,6 +1956,7 @@
+                   let parent = byPath[String(root.split(separator: "/").first!) ] else { throw EraseAllServiceError.invalidAuthority }
+             let parentFields = try fields(parent.fullFact)
+             var bytes: Int64 = 0
++            var chargedTypedPairs = Set<String>()
+             for node in nodes {
+                 let relative = try relativePath(node.path, root: root)
+                 let parts = relative.isEmpty ? [] : relative.split(separator: "/").map(String.init)
+@@ -1932,10 +1982,21 @@
+                 } else {
+                     guard mode & UInt32(S_IFMT) == UInt32(S_IFREG), let sha = node.sha256,
+                           StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha),
+-                          let size = Int64(f[6]), size <= 1_073_741_824, bytes <= 1_073_741_824 - size else {
++                          let size = Int64(f[6]), size <= 1_073_741_824, let links = UInt64(f[5]) else {
+                         throw EraseAllServiceError.invalidAuthority
+                     }
+-                    bytes += size
++                    if let pair = typedPairByPath[node.path] {
++                        guard links == 2, pair.byteCount == size, pair.sha256 == sha,
++                              pair.device == UInt64(f[0]), pair.inode == UInt64(f[1]) else { throw EraseAllServiceError.invalidAuthority }
++                        let key = String(pair.device) + "|" + String(pair.inode)
++                        if chargedTypedPairs.insert(key).inserted {
++                            guard bytes <= 1_073_741_824 - size else { throw EraseAllServiceError.invalidAuthority }
++                            bytes += size
++                        }
++                    } else {
++                        guard links == 1, bytes <= 1_073_741_824 - size else { throw EraseAllServiceError.invalidAuthority }
++                        bytes += size
++                    }
+                 }
+             }
+         }
+@@ -1946,7 +2007,8 @@
+     /// Search/Notification leaves are fixed owner-produced names; their actual
+     /// presence/content/absence still requires the respective typed receipt.
+     static func fixedNonC16Targets(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
+-        c16Plan: OriginalEraseC16PlanV1, targetGenerationID: UUID) throws -> [Progress.Target] {
++        c16Plan: OriginalEraseC16PlanV1, targetGenerationID: UUID,
++        originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1? = nil) throws -> [Progress.Target] {
+         try c16Plan.validate()
+         var result: [Progress.Target] = []
+         func add(_ kind: Progress.Target.Kind, _ path: String,
+@@ -1958,7 +2020,7 @@
+                 semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(bytes),
+                 dependencyPaths: [], allowedBirthPaths: []))
+         }
+-        _ = try requireOriginalRootCensus(originalP)
++        _ = try requireOriginalRootCensus(originalP, originalPairAccounting: originalPairAccounting)
+         let operationsKey = "support/FieldEvidenceOperations"
+         guard let operations = originalP.record.trees.first(where: { $0.key == operationsKey }) else {
+             throw EraseAllServiceError.invalidAuthority
+@@ -2097,6 +2159,7 @@
+             }
+         }
+         var values: [Progress.Projection] = [], nodes: [String: Node] = [:]
++        var currentTypedPairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1] = []
+         let parents: [(String,Int32,URL,Int64,UInt64,UInt32,UInt32,UInt32)] = [
+             ("support", support, supportURL, originalP.record.supportDevice, originalP.record.supportInode,
+                 originalP.record.supportMode, originalP.record.supportUser, originalP.record.supportGroup),
+@@ -2147,6 +2210,7 @@
+                 operationsRelativePrefix: isOperations && (c16Scope != nil || initialScope != nil) ? "" : nil,
+                 requireBinding: bound,
+                 poison: { self.uncertain = true; permit.poisonOnUncertainEffect() })
++            if isOperations { currentTypedPairs.append(contentsOf: observed.typedPairs) }
+             for node in observed.nodes {
+                 let path = node.path.isEmpty ? tree.key : tree.key + "/" + node.path
+                 guard nodes.updateValue(node, forKey: path) == nil else { throw EraseAllServiceError.invalidAuthority }
+@@ -2166,7 +2230,7 @@
+         // Data/Erase descendants are the actual generation/Store owners'
+         // independent typed domains. Parent identities and closed child names
+         // are checked here; no self-containing Store leaf digest is invented.
+-        try Self.requireCurrentProjectionBounds(originalP: originalP, projection: projection)
++        try Self.requireCurrentProjectionBounds(originalP: originalP, projection: projection, currentTypedPairs: currentTypedPairs)
+         try permit.requireExternalBranches(projection)
+         return Image(projection: projection, nodes: nodes, supportNames: supportNames)
+     }
+--- v3/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift
++++ v4/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift
+@@ -908,6 +908,31 @@
+ }
+ #endif
+ #endif
++
++/// Immutable ORIGINAL-P accounting data, privately bound only after a real
++/// complete FirstCapture consumer and exact original record match. This never
++/// supplies a current pair policy/effect scope or an invented cold origin.
++@MainActor
++final class EraseSchema2ColdOriginalPairAccountingRosterV1 {
++    let originalPAuxiliaryRosterSHA256: String
++    let operationID: UUID
++    let captureOriginBinding: String
++    let pairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1]
++    fileprivate init(rosterSHA256: String, operationID: UUID, captureOriginBinding: String,
++        pairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1]) {
++        originalPAuxiliaryRosterSHA256 = rosterSHA256; self.operationID = operationID
++        self.captureOriginBinding = captureOriginBinding; self.pairs = pairs
++    }
++    /// Pure immutable lineage comparison. The enclosing actual Router/Store
++    /// source permit still proves the current record and source authority.
++    func requireOriginalPBinding(originalPAuxiliaryRosterSHA256: String) throws {
++        guard self.originalPAuxiliaryRosterSHA256 == originalPAuxiliaryRosterSHA256,
++              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(originalPAuxiliaryRosterSHA256),
++              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(captureOriginBinding) else {
++            throw StoreGenerationFailure.dataPointerInvalid
++        }
++    }
++}
+ 
+ /// Descriptor owner for the completed-abort source-byte witness. An ambiguous
+ /// close is kept here as an actual unresolved handle and bars every snapshot.
+@@ -1639,7 +1664,10 @@
+             directory = opened
+             try requireBinding()
+             var values: [String] = []
++            var entryReads = 0
+             while true {
++                guard entryReads < 100_003 else { throw StoreGenerationFailure.dataPointerInvalid }
++                entryReads += 1
+                 try requireBinding()
+                 errno = 0
+                 let entry = Darwin.readdir(opened)
+@@ -1651,7 +1679,10 @@
+                 }
+                 guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry),
+                       !name.utf8.contains(0), !name.contains("/") else { throw StoreGenerationFailure.dataPointerInvalid }
+-                if name != "." && name != ".." { values.append(name) }
++                if name != "." && name != ".." {
++                    guard values.count < 100_000 else { throw StoreGenerationFailure.dataPointerInvalid }
++                    values.append(name)
++                }
+             }
+             try requireBinding()
+             closeAttempted = true
+@@ -1671,6 +1702,69 @@
+                 }
+             }
+             throw error
++        }
++    }
++
++    /// Actual complete scoped observations, privately formed only after both
++    /// namespace members and real policy consumers passed. Data, never a lease,
++    /// historical-final claim, birth, source permission or effect capability.
++    struct Schema2ColdAuthenticatedPairObservationV1: Equatable {
++        let treeRelativeMemberPaths: [String]
++        let operationsRelativeMemberPaths: [String]
++        let fullFacts: [String]
++        let observedFacts: [String]
++        let sha256: String
++        let byteCount: Int64
++        let device: UInt64
++        let inode: UInt64
++        let operationID: UUID
++        let originKind: String
++        let originBinding: String
++        let policyObservations: [TemporalPolicyObservationV1]
++        let genericMetadata: OriginalEraseOwnedScratchMetadataV1?
++        fileprivate init(treeRelativeMemberPaths: [String], operationsRelativeMemberPaths: [String],
++            fullFacts: [String], observedFacts: [String], sha256: String, byteCount: Int64,
++            device: UInt64, inode: UInt64, operationID: UUID, originKind: String,
++            originBinding: String, policyObservations: [TemporalPolicyObservationV1],
++            genericMetadata: OriginalEraseOwnedScratchMetadataV1?) {
++            self.treeRelativeMemberPaths = treeRelativeMemberPaths
++            self.operationsRelativeMemberPaths = operationsRelativeMemberPaths
++            self.fullFacts = fullFacts; self.observedFacts = observedFacts; self.sha256 = sha256
++            self.byteCount = byteCount; self.device = device; self.inode = inode
++            self.operationID = operationID; self.originKind = originKind; self.originBinding = originBinding
++            self.policyObservations = policyObservations; self.genericMetadata = genericMetadata
++        }
++    }
++    struct Schema2ColdReadWorkV1: Equatable {
++        let physicalRegularBytes: UInt64
++        let pathRegularBytes: UInt64
++        let scannerPayloadReadBytes: UInt64
++        let scannerPayloadReadCalls: UInt64
++        let scannerEOFProbeCalls: UInt64
++        let scannerEOFProbeReservationBytes: UInt64
++        let totalReadReservationBytes: UInt64
++        let totalReadWorkLimitBytes: UInt64
++        let policyPairPayloadReadBytes: UInt64
++        let policyPairPayloadPasses: UInt64
++        let policyPairInvocations: UInt64
++        let payloadWorkReservationBytes: UInt64
++        let payloadWorkLimitBytes: UInt64
++        // Scope issuer/control/metadata IO is deliberately a separate domain.
++        fileprivate init(physicalRegularBytes: UInt64, pathRegularBytes: UInt64,
++            scannerPayloadReadBytes: UInt64, scannerPayloadReadCalls: UInt64,
++            scannerEOFProbeCalls: UInt64, scannerEOFProbeReservationBytes: UInt64,
++            totalReadReservationBytes: UInt64, totalReadWorkLimitBytes: UInt64,
++            policyPairPayloadReadBytes: UInt64, policyPairPayloadPasses: UInt64,
++            policyPairInvocations: UInt64, payloadWorkReservationBytes: UInt64,
++            payloadWorkLimitBytes: UInt64) {
++            self.physicalRegularBytes = physicalRegularBytes; self.pathRegularBytes = pathRegularBytes
++            self.scannerPayloadReadBytes = scannerPayloadReadBytes; self.scannerPayloadReadCalls = scannerPayloadReadCalls
++            self.scannerEOFProbeCalls = scannerEOFProbeCalls
++            self.scannerEOFProbeReservationBytes = scannerEOFProbeReservationBytes
++            self.totalReadReservationBytes = totalReadReservationBytes; self.totalReadWorkLimitBytes = totalReadWorkLimitBytes
++            self.policyPairPayloadReadBytes = policyPairPayloadReadBytes; self.policyPairPayloadPasses = policyPairPayloadPasses
++            self.policyPairInvocations = policyPairInvocations; self.payloadWorkReservationBytes = payloadWorkReservationBytes
++            self.payloadWorkLimitBytes = payloadWorkLimitBytes
+         }
+     }
+ 
+@@ -1697,6 +1791,95 @@
+         let rootFact: String
+         let digest: String
+         let nodes: [Node]
++        let typedPairs: [Schema2ColdAuthenticatedPairObservationV1]
++        let work: Schema2ColdReadWorkV1?
++        fileprivate init(rootFact: String, digest: String, nodes: [Node],
++            typedPairs: [Schema2ColdAuthenticatedPairObservationV1] = [], work: Schema2ColdReadWorkV1? = nil) {
++            self.rootFact = rootFact; self.digest = digest; self.nodes = nodes
++            self.typedPairs = typedPairs; self.work = work
++        }
++    }
++
++    /// Original capture only. Previously authenticated complete observations
++    /// are bound to the actual checked original roster publication receipt.
++    /// Publication invalidates the earlier FirstCapture token, so its retained
++    /// scope supplies immutable origin data here, never a fresh permission.
++    /// Cold replay requires its separately reviewed lossless source-role format.
++    @MainActor
++    static func makeOriginalPairAccountingRoster(
++        originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        capturedOperationsTree: Schema2ColdCurrentTreeV1,
++        capturedScope: OriginalEraseC16FirstCaptureObservationScopeV1,
++        publication: EraseIntentStore.OriginalAuxiliaryRosterPublicationReceiptV1,
++        store: EraseIntentStore, operation: EraseRouterOperationV1
++    ) throws -> EraseSchema2ColdOriginalPairAccountingRosterV1 {
++        try publication.requireBound(store: store, operation: operation, seal: publication.seal)
++        guard publication.canonicalBytes == originalP.canonicalBytes,
++              publication.seal.canonicalSHA256 == originalP.canonicalSHA256,
++              publication.seal.firstRoster.canonicalBytes == originalP.canonicalBytes,
++              originalP.record.eraseID == capturedScope.operationID.uuidString.lowercased(),
++              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(capturedScope.captureToken),
++              originalP.canonicalBytes == (try StoreMigrationCanonicalJSONV1.encode(originalP.record)),
++              originalP.canonicalSHA256 == StoreMigrationCanonicalJSONV1.sha256(originalP.canonicalBytes),
++              let tree = originalP.record.trees.first(where: { $0.key == "support/FieldEvidenceOperations" }),
++              tree.state == "present", let nodes = tree.nodes,
++              capturedOperationsTree.rootFact == tree.rootFact, capturedOperationsTree.digest == tree.digest,
++              capturedOperationsTree.nodes.count == nodes.count, capturedOperationsTree.work != nil else {
++            throw StoreGenerationFailure.dataPointerInvalid
++        }
++        let byPath = Dictionary(uniqueKeysWithValues: nodes.map { ($0.path, $0) })
++        func nine(_ full: String) throws -> String {
++            let f = full.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
++            guard f.count == 11 else { throw StoreGenerationFailure.dataPointerInvalid }
++            return [f[0],f[1],f[2],f[5],f[6],f[7],f[8],f[9],f[10]].joined(separator: "|")
++        }
++        for actual in capturedOperationsTree.nodes {
++            guard let original = byPath[actual.path], original.fact == (try nine(actual.fullFact)),
++                  original.members == actual.names, original.sha256 == actual.sha256,
++                  original.kind == (actual.names == nil ? "file" : "directory"), actual.policy != nil else {
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++        }
++        var members = Set<String>()
++        for pair in capturedOperationsTree.typedPairs {
++            guard pair.operationID == capturedScope.operationID, pair.originBinding == capturedScope.captureToken,
++                  pair.originKind == "firstCaptureCanonical" || pair.originKind == "firstCaptureObservedGeneric",
++                  pair.treeRelativeMemberPaths == pair.operationsRelativeMemberPaths,
++                  pair.observedFacts.count == 2, pair.fullFacts.count == 2,
++                  pair.operationsRelativeMemberPaths.count == 2 else { throw StoreGenerationFailure.dataPointerInvalid }
++            for index in 0..<2 {
++                let path = pair.operationsRelativeMemberPaths[index]
++                guard members.insert(path).inserted, let original = byPath[path], original.kind == "file",
++                      original.fact == pair.observedFacts[index], original.sha256 == pair.sha256 else {
++                    throw StoreGenerationFailure.dataPointerInvalid
++                }
++            }
++            if let metadata = pair.genericMetadata {
++                switch metadata {
++                case .validatedLease(let directory, let canonicalBytes, let hash):
++                    guard StoreMigrationCanonicalJSONV1.sha256(canonicalBytes) == hash,
++                          byPath[directory + "/lease.json"]?.sha256 == hash,
++                          pair.operationsRelativeMemberPaths.allSatisfy({ $0.split(separator: "/").dropLast().joined(separator: "/") == directory }) else {
++                        throw StoreGenerationFailure.dataPointerInvalid
++                    }
++                case .ownedOrphan(let directory):
++                    guard byPath[directory + "/lease.json"] == nil,
++                          pair.operationsRelativeMemberPaths.allSatisfy({ $0.split(separator: "/").dropLast().joined(separator: "/") == directory }) else {
++                        throw StoreGenerationFailure.dataPointerInvalid
++                    }
++                }
++            }
++        }
++        for node in nodes where node.kind == "file" {
++            let f = node.fact.split(separator: "|", omittingEmptySubsequences: false)
++            guard f.count == 9, let links = UInt64(f[3]),
++                  links == 1 || (links == 2 && members.contains(node.path)) else {
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++        }
++        try publication.requireBound(store: store, operation: operation, seal: publication.seal)
++        return .init(rosterSHA256: originalP.canonicalSHA256, operationID: capturedScope.operationID,
++            captureOriginBinding: capturedScope.captureToken, pairs: capturedOperationsTree.typedPairs)
+     }
+ 
+     @MainActor
+@@ -1722,7 +1905,7 @@
+                 .init(path: node.path.isEmpty ? name : name + "/" + node.path,
+                     fullFact: node.fullFact, names: node.names, sha256: node.sha256,
+                     policy: node.policy, publicationRole: node.publicationRole, firstCaptureRole: node.firstCaptureRole)
+-            })
++            }, typedPairs: value.typedPairs, work: value.work)
+     }
+ 
+     /// Complete data image of one fixed, private auxiliary tree. This adds no
+@@ -1751,12 +1934,47 @@
+         }
+         var parentFact = stat()
+         guard Darwin.fstat(parent, &parentFact) == 0,
+-              parentFact.st_mode & S_IFMT == S_IFDIR,
++              parentFact.st_mode & S_IFMT == S_IFDIR, parentFact.st_dev >= 0,
+               parentFact.st_uid == expectedUser, parentFact.st_gid == expectedGroup else {
+             throw StoreGenerationFailure.dataPointerInvalid
+         }
+-        var nodes: [Schema2ColdCurrentTreeV1.Node] = [], tokens: [String] = []
++        var nodes: [Schema2ColdCurrentTreeV1.Node] = []
++        var treeDigest = SHA256(), treeTokenCount = 0
+         var count = 0, totalBytes: Int64 = 0
++        let physicalLimit: UInt64 = 1_073_741_824
++        let multipliedLimit = physicalLimit.multipliedReportingOverflow(by: 18)
++        guard !multipliedLimit.overflow else { throw StoreGenerationFailure.dataPointerInvalid }
++        let workLimit = multipliedLimit.partialValue
++        let totalReadLimit = workLimit.addingReportingOverflow(100_000)
++        guard !totalReadLimit.overflow else { throw StoreGenerationFailure.dataPointerInvalid }
++        var pathBytes: UInt64 = 0, ownReadBytes: UInt64 = 0, ownReadCalls: UInt64 = 0
++        var eofProbeCalls: UInt64 = 0, eofProbeReserved: UInt64 = 0
++        var pairReadBytes: UInt64 = 0, pairPasses: UInt64 = 0, pairCalls: UInt64 = 0, workReserved: UInt64 = 0
++        struct PairCandidate: Equatable {
++            let paths: [String], operationsPaths: [String], facts: [String], nineFacts: [String]
++            let sha: String, bytes: Int64, device: UInt64, inode: UInt64, operationID: UUID
++            let originKind: String, originBinding: String
++            let policies: [TemporalPolicyObservationV1]
++            let genericMetadata: OriginalEraseOwnedScratchMetadataV1?
++        }
++        var pairs: [String: PairCandidate] = [:]
++        var pairMemberPaths = Set<String>()
++        func add(_ counter: inout UInt64, _ value: UInt64, limit: UInt64) throws {
++            let result = counter.addingReportingOverflow(value)
++            guard !result.overflow, result.partialValue <= limit else { throw StoreGenerationFailure.dataPointerInvalid }
++            counter = result.partialValue
++        }
++        func reservePairWork(_ bytes: Int64, _ kind: EraseC16TemporalPairReadWorkKindV1) throws -> (UInt64, UInt64) {
++            let work = try EraseC16TemporalPairReadWorkV1.maximumPayloadReadBytes(expectedByteCount: bytes, kind: kind)
++            let passes = EraseC16TemporalPairReadWorkV1.payloadBytePassesPerInvocation(kind: kind)
++            try add(&workReserved, work, limit: workLimit)
++            try add(&pairCalls, 1, limit: 100_000)
++            return (work, passes)
++        }
++        func completedPairWork(_ reserved: (UInt64, UInt64)) throws {
++            try add(&pairReadBytes, reserved.0, limit: workLimit)
++            try add(&pairPasses, reserved.1, limit: 800_000)
++        }
+         var rootFact: String?
+         func fullFact(_ f: stat) -> String {
+             [String(f.st_dev), String(f.st_ino), String(f.st_mode),
+@@ -1771,27 +1989,100 @@
+              String(f.st_ctimespec.tv_nsec)].joined(separator: "|")
+         }
+         func encoded(_ x: String) -> String { x.utf8.map { String(format: "%02x", $0) }.joined() }
++        func treePart(_ value: String) { treeDigest.update(data: Data(value.utf8)) }
++        func treeTokenBegin() {
++            if treeTokenCount != 0 { treePart("\n") }
++            treeTokenCount += 1
++        }
++        func directoryToken(_ path: String, _ before: stat, _ names: [String]) {
++            treeTokenBegin(); treePart("D|"); treePart(encoded(path)); treePart("|")
++            treePart(nine(before)); treePart("|")
++            for (index, name) in names.enumerated() {
++                if index != 0 { treePart(",") }
++                treePart(encoded(name))
++            }
++        }
++        func fileToken(_ path: String, _ before: stat, _ sha: String) {
++            treeTokenBegin(); treePart("F|"); treePart(encoded(path)); treePart("|")
++            treePart(nine(before)); treePart("|"); treePart(sha)
++        }
+         func bound() throws { try requireSettled(); try requireBinding(); try scope?.requireCurrentBinding(); try initialScope?.requireCurrentBinding(); try firstCaptureScope?.requireCurrentBinding() }
+         func retain(_ fd: Int32) { retainUncertainDescriptor(fd); scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); firstCaptureScope?.poisonOnUncertainObservation(); poison() }
+         func scopedDigest(_ fd: Int32, _ before: stat) throws -> String {
+-            var digest = SHA256(), bytes: off_t = 0
++            guard let size = UInt64(exactly: before.st_size), size <= physicalLimit else { throw StoreGenerationFailure.dataPointerInvalid }
++            try add(&workReserved, size, limit: workLimit)
++            var digest = SHA256(), offset: UInt64 = 0
+             var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+-            while true {
++            while offset < size {
+                 try bound()
+-                let count = buffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, $0.count) }
+-                let readError = errno
++                let wanted = Int(min(UInt64(buffer.count), size - offset))
++                try add(&ownReadCalls, 1, limit: 232_768)
++                let count = buffer.withUnsafeMutableBytes { Darwin.pread(fd, $0.baseAddress, wanted, off_t(offset)) }
+                 try bound()
+-                if count > 0 {
+-                    guard off_t(count) <= before.st_size - bytes else { throw StoreGenerationFailure.dataPointerInvalid }
+-                    bytes += off_t(count)
+-                    buffer.withUnsafeBytes { raw in
+-                        digest.update(bufferPointer: UnsafeRawBufferPointer(start: raw.baseAddress, count: count))
+-                    }
+-                } else if count == 0 { break }
+-                else if readError != EINTR { throw StoreGenerationFailure.dataPointerInvalid }
+-            }
+-            guard bytes == before.st_size else { throw StoreGenerationFailure.dataPointerInvalid }
++                guard count == wanted else { throw StoreGenerationFailure.dataPointerInvalid }
++                try add(&ownReadBytes, UInt64(count), limit: workLimit)
++                offset += UInt64(count)
++                buffer.withUnsafeBytes { raw in
++                    digest.update(bufferPointer: UnsafeRawBufferPointer(start: raw.baseAddress, count: count))
++                }
++            }
++            try bound()
++            var extra: UInt8 = 0
++            // Reserve the real one-byte EOF probe before IO. A changed file
++            // can return that byte before refusal; failed work is bounded too.
++            try add(&eofProbeCalls, 1, limit: 100_000)
++            try add(&eofProbeReserved, 1, limit: 100_000)
++            try add(&ownReadCalls, 1, limit: 232_768)
++            let end = Darwin.pread(fd, &extra, 1, off_t(size))
++            try bound()
++            guard end == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+             return digest.finalize().map { String(format: "%02x", $0) }.joined()
++        }
++        func observedNine(_ full: String) throws -> String {
++            let f = full.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
++            guard f.count == 11 else { throw StoreGenerationFailure.dataPointerInvalid }
++            return [f[0],f[1],f[2],f[5],f[6],f[7],f[8],f[9],f[10]].joined(separator: "|")
++        }
++        func recordPair(urls: [URL], facts: [String], policies: [TemporalPolicyObservationV1],
++            sha: String, bytes: Int64, before: stat, operationID: UUID, kind: String, binding: String,
++            metadata: OriginalEraseOwnedScratchMetadataV1? = nil) throws {
++            guard urls.count == 2, facts.count == 2, urls[0] != urls[1], facts[0] == facts[1],
++                  facts.contains(fullFact(before)), before.st_nlink == 2, Int64(before.st_size) == bytes,
++                  policies.count == 2, policies[0] == policies[1], policies.allSatisfy({
++                      $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
++                        && $0.isDirectory == false && $0.backupExcluded == true
++                        && ($0.state == .strictComplete || $0.state == .pendingSimulatorRequest)
++                  }) else { throw StoreGenerationFailure.dataPointerInvalid }
++            let prefix = rootURL.standardizedFileURL.path + "/"
++            var members: [(String, String)] = []
++            for (index, url) in urls.enumerated() {
++                guard url.isFileURL, url.standardizedFileURL == url, url.path.hasPrefix(prefix) else {
++                    throw StoreGenerationFailure.dataPointerInvalid
++                }
++                let relative = String(url.path.dropFirst(prefix.count))
++                let parts = relative.split(separator: "/", omittingEmptySubsequences: false)
++                guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.utf8.contains(0) }),
++                      parts.count <= 65 else { throw StoreGenerationFailure.dataPointerInvalid }
++                members.append((relative, facts[index]))
++            }
++            members.sort { $0.0.utf8.lexicographicallyPrecedes($1.0.utf8) }
++            let paths = members.map { $0.0 }
++            guard let rolePrefix = operationsRelativePrefix else { throw StoreGenerationFailure.dataPointerInvalid }
++            let operationsPaths = paths.map { rolePrefix.isEmpty ? $0 : rolePrefix + "/" + $0 }
++            let orderedFacts = members.map { $0.1 }
++            let candidate = PairCandidate(paths: paths, operationsPaths: operationsPaths, facts: orderedFacts,
++                nineFacts: try orderedFacts.map(observedNine), sha: sha, bytes: bytes,
++                device: UInt64(before.st_dev), inode: UInt64(before.st_ino), operationID: operationID,
++                originKind: kind, originBinding: binding, policies: policies, genericMetadata: metadata)
++            let key = String(before.st_dev) + "|" + String(before.st_ino)
++            if let prior = pairs[key] { guard prior == candidate else { throw StoreGenerationFailure.dataPointerInvalid } }
++            else {
++                guard paths.allSatisfy({ !pairMemberPaths.contains($0) }), bytes >= 0,
++                      totalBytes <= Int64(physicalLimit) - bytes else { throw StoreGenerationFailure.dataPointerInvalid }
++                // Positive scoped PFP proof already checked both names; the
++                // complete return below additionally requires both walker nodes.
++                totalBytes += bytes; pairs[key] = candidate; pairMemberPaths.formUnion(paths)
++            }
+         }
+         func named(_ parent: Int32, _ name: String, _ fd: Int32, _ before: stat) throws {
+             try bound()
+@@ -1844,7 +2135,7 @@
+                     if path.isEmpty { rootFact = fullFact(before) }
+                     nodes.append(.init(path: path, fullFact: fullFact(before), names: namesBefore,
+                         sha256: nil, policy: observedPolicy, publicationRole: .ordinary))
+-                    tokens.append("D|\(encoded(path))|\(nine(before))|\(namesBefore.map(encoded).joined(separator: ","))")
++                    directoryToken(path, before, namesBefore)
+                     for child in namesBefore {
+                         guard !child.isEmpty, child != ".", child != "..", !child.contains("/"),
+                               !child.utf8.contains(0) else { throw StoreGenerationFailure.dataPointerInvalid }
+@@ -1852,11 +2143,10 @@
+                     }
+                     guard try schema2ColdNames(in: fd, requireBinding: bound, poison: poison) == namesBefore else { throw StoreGenerationFailure.dataPointerInvalid }
+                 } else {
+-                    guard before.st_size >= 0, before.st_size <= 1_073_741_824,
+-                          totalBytes <= 1_073_741_824 - Int64(before.st_size) else {
++                    guard before.st_size >= 0, before.st_size <= 1_073_741_824 else {
+                         throw StoreGenerationFailure.dataPointerInvalid
+                     }
+-                    totalBytes += Int64(before.st_size) // Each recorded alias consumes its own tree allowance.
++                    try add(&pathBytes, UInt64(before.st_size), limit: 2 * physicalLimit)
+                     let sha = try scopedDigest(fd, before)
+                     try named(parent, leaf, fd, before)
+                     let rolePath = operationsRelativePrefix.map { path.isEmpty ? $0 : ($0.isEmpty ? path : $0 + "/" + path) }
+@@ -1881,12 +2171,35 @@
+                                   pair.expectedSHA256 == sha, pair.expectedByteCount == Int64(before.st_size) else {
+                                 throw StoreGenerationFailure.dataPointerInvalid
+                             }
++                            let reserved = try reservePairWork(pair.expectedByteCount, .firstCaptureOpaquePair)
+                             let values = try ProtectedFilePolicyV1.observeEraseC16FirstCaptureTemporalPairWithCheckedClose(
+                                 finalURL: pair.finalURL, partialURL: pair.partialURL, scope: firstCaptureScope,
+                                 retainUncertainDescriptor: retain)
+                             guard values.count == 2, values.allSatisfy({
+                                 $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
+                             }) else { throw StoreGenerationFailure.dataPointerInvalid }
++                            try completedPairWork(reserved)
++                            try recordPair(urls: [pair.finalURL, pair.partialURL], facts: [pair.finalFullFact, pair.partialFullFact],
++                                policies: values, sha: sha, bytes: pair.expectedByteCount, before: before,
++                                operationID: firstCaptureScope.operationID, kind: "firstCaptureCanonical", binding: firstCaptureScope.captureToken)
++                            observedPolicy = values[0]
++                        case .observedOwnedGenericAliases(let pair):
++                            guard let firstCaptureScope, scope == nil, initialScope == nil, before.st_nlink == 2,
++                                  pair.members.count == 2, pair.members.contains(where: { $0.url == url }),
++                                  pair.originBinding == firstCaptureScope.captureToken,
++                                  pair.operationID == firstCaptureScope.operationID,
++                                  pair.sha256 == sha, pair.byteCount == Int64(before.st_size),
++                                  pair.device == UInt64(before.st_dev), pair.inode == UInt64(before.st_ino) else {
++                                throw StoreGenerationFailure.dataPointerInvalid
++                            }
++                            let reserved = try reservePairWork(pair.byteCount, .observedOwnedGenericAliases)
++                            let values = try ProtectedFilePolicyV1.observeEraseObservedOwnedGenericAliasTemporalPairWithCheckedClose(
++                                aliasURLs: pair.members.map(\.url), scope: firstCaptureScope, retainUncertainDescriptor: retain)
++                            try completedPairWork(reserved)
++                            try recordPair(urls: pair.members.map(\.url), facts: pair.members.map(\.fullFact),
++                                policies: values, sha: sha, bytes: pair.byteCount, before: before,
++                                operationID: pair.operationID, kind: "firstCaptureObservedGeneric", binding: pair.originBinding,
++                                metadata: pair.metadata)
+                             observedPolicy = values[0]
+                         }
+                     } else { switch role {
+@@ -1896,17 +2209,23 @@
+                     case .pair(let pair):
+                         guard let scope, before.st_nlink == 2,
+                               url == pair.finalURL || url == pair.partialURL else { throw StoreGenerationFailure.dataPointerInvalid }
++                        let reserved = try reservePairWork(Int64(pair.bytes.count), .currentCanonicalPair)
+                         let values = try ProtectedFilePolicyV1.observeEraseC16CurrentTemporalPairWithCheckedClose(
+                             finalURL: pair.finalURL, partialURL: pair.partialURL, scope: scope,
+                             retainUncertainDescriptor: retain)
+                         guard values.count == 2, values.allSatisfy({
+                             $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
+                         }) else { throw StoreGenerationFailure.dataPointerInvalid }
++                        try completedPairWork(reserved)
++                        try recordPair(urls: [pair.finalURL, pair.partialURL], facts: [pair.finalFullFact, pair.partialFullFact],
++                            policies: values, sha: sha, bytes: Int64(pair.bytes.count), before: before,
++                            operationID: scope.operationID, kind: "currentCanonical", binding: scope.planSHA256 + "|" + String(scope.ordinal))
+                         observedPolicy = values[0]
+                     case .firstPPair(let pair):
+                         guard let scope, before.st_nlink == 2,
+                               url == pair.finalURL || url == pair.partialURL else { throw StoreGenerationFailure.dataPointerInvalid }
+                         let firstP = try scope.requireFirstPObservationScope()
++                        let reserved = try reservePairWork(pair.expectedByteCount, .firstPImmutablePair)
+                         let values = try ProtectedFilePolicyV1.observeEraseC16FirstPTemporalPairWithCheckedClose(
+                             finalURL: pair.finalURL, partialURL: pair.partialURL, scope: firstP,
+                             retainUncertainDescriptor: retain)
+@@ -1914,10 +2233,15 @@
+                             $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
+                         }), pair.expectedSHA256 == sha,
+                               pair.expectedByteCount == Int64(before.st_size) else { throw StoreGenerationFailure.dataPointerInvalid }
++                        try completedPairWork(reserved)
++                        try recordPair(urls: [pair.finalURL, pair.partialURL], facts: [pair.finalFullFact, pair.partialFullFact],
++                            policies: values, sha: sha, bytes: pair.expectedByteCount, before: before,
++                            operationID: scope.operationID, kind: "immutableFirstP", binding: firstP.planSHA256 + "|" + String(firstP.currentOrdinal))
+                         observedPolicy = values[0]
+                     case .initialPair(let pair):
+                         guard let initialScope, scope == nil, before.st_nlink == 2,
+                               url == pair.finalURL || url == pair.partialURL else { throw StoreGenerationFailure.dataPointerInvalid }
++                        let reserved = try reservePairWork(pair.expectedByteCount, .initialOpaquePair)
+                         let values = try ProtectedFilePolicyV1.observeEraseC16InitialTemporalPairWithCheckedClose(
+                             finalURL: pair.finalURL, partialURL: pair.partialURL, scope: initialScope,
+                             retainUncertainDescriptor: retain)
+@@ -1925,6 +2249,10 @@
+                             $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
+                         }), pair.expectedSHA256 == sha,
+                               pair.expectedByteCount == Int64(before.st_size) else { throw StoreGenerationFailure.dataPointerInvalid }
++                        try completedPairWork(reserved)
++                        try recordPair(urls: [pair.finalURL, pair.partialURL], facts: [pair.finalFullFact, pair.partialFullFact],
++                            policies: values, sha: sha, bytes: pair.expectedByteCount, before: before,
++                            operationID: initialScope.operationID, kind: "immutableInitial", binding: initialScope.originToken)
+                         observedPolicy = values[0]
+                     case .unacceptedEmptyPublication(let zero):
+                         guard before.st_nlink == 1, before.st_size == 0, url == zero.temporaryURL,
+@@ -1948,10 +2276,16 @@
+                             AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else { throw StoreGenerationFailure.dataPointerInvalid }
+                         observedPolicy = nil
+                     } }
++                    if !pairMemberPaths.contains(path) {
++                        guard before.st_nlink == 1, totalBytes <= Int64(physicalLimit) - Int64(before.st_size) else {
++                            throw StoreGenerationFailure.dataPointerInvalid
++                        }
++                        totalBytes += Int64(before.st_size)
++                    }
+                     try bound()
+                     nodes.append(.init(path: path, fullFact: fullFact(before), names: nil,
+                         sha256: sha, policy: observedPolicy, publicationRole: role, firstCaptureRole: captureRole))
+-                    tokens.append("F|\(encoded(path))|\(nine(before))|\(sha)")
++                    fileToken(path, before, sha)
+                 }
+                 try named(parent, leaf, fd, before)
+             }
+@@ -1960,9 +2294,38 @@
+         do {
+             try walk(parent, name, "", 0); try bound()
+             guard let rootFact else { throw StoreGenerationFailure.dataPointerInvalid }
++            let byPath = Dictionary(uniqueKeysWithValues: nodes.map { ($0.path, $0) })
++            var provedPairs: [Schema2ColdAuthenticatedPairObservationV1] = []
++            for pair in pairs.values.sorted(by: { $0.operationsPaths[0].utf8.lexicographicallyPrecedes($1.operationsPaths[0].utf8) }) {
++                for index in 0..<2 {
++                    guard let node = byPath[pair.paths[index]], node.names == nil,
++                          node.fullFact == pair.facts[index], node.sha256 == pair.sha,
++                          node.policy == pair.policies[index] else { throw StoreGenerationFailure.dataPointerInvalid }
++                }
++                provedPairs.append(.init(treeRelativeMemberPaths: pair.paths,
++                    operationsRelativeMemberPaths: pair.operationsPaths, fullFacts: pair.facts, observedFacts: pair.nineFacts,
++                    sha256: pair.sha, byteCount: pair.bytes, device: pair.device, inode: pair.inode,
++                    operationID: pair.operationID, originKind: pair.originKind, originBinding: pair.originBinding,
++                    policyObservations: pair.policies, genericMetadata: pair.genericMetadata))
++            }
++            let actual = ownReadBytes.addingReportingOverflow(pairReadBytes)
++            guard !actual.overflow, actual.partialValue == workReserved, actual.partialValue <= workLimit else {
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++            let totalReserved = workReserved.addingReportingOverflow(eofProbeReserved)
++            guard !totalReserved.overflow, totalReserved.partialValue <= totalReadLimit.partialValue else {
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++            try bound()
++            let work = Schema2ColdReadWorkV1(physicalRegularBytes: UInt64(totalBytes), pathRegularBytes: pathBytes,
++                scannerPayloadReadBytes: ownReadBytes, scannerPayloadReadCalls: ownReadCalls,
++                scannerEOFProbeCalls: eofProbeCalls, scannerEOFProbeReservationBytes: eofProbeReserved,
++                totalReadReservationBytes: totalReserved.partialValue, totalReadWorkLimitBytes: totalReadLimit.partialValue,
++                policyPairPayloadReadBytes: pairReadBytes, policyPairPayloadPasses: pairPasses,
++                policyPairInvocations: pairCalls, payloadWorkReservationBytes: workReserved, payloadWorkLimitBytes: workLimit)
+             return .init(rootFact: rootFact,
+-                digest: SHA256.hash(data: Data(tokens.joined(separator: "\n").utf8)).map { String(format: "%02x", $0) }.joined(),
+-                nodes: nodes.sorted { $0.path < $1.path })
++                digest: treeDigest.finalize().map { String(format: "%02x", $0) }.joined(),
++                nodes: nodes.sorted { $0.path < $1.path }, typedPairs: provedPairs, work: work)
+         } catch {
+             if (try? requireSettled()) == nil { scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); firstCaptureScope?.poisonOnUncertainObservation(); poison() }
+             throw error

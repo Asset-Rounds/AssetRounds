@@ -1,0 +1,2304 @@
+import CryptoKit
+import Foundation
+import SwiftData
+
+enum GuidedSurveySnapshotValidatorV1 {
+    static func validate(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.surveyPublication?.validate()
+    }
+}
+
+enum SnapshotValidationErrorV1: Error, Equatable {
+    case invalidAuthority
+}
+
+enum PracticeWorkspaceSnapshotValidatorV1 {
+    static func validate(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.practiceWorkspace?.validate()
+    }
+}
+
+enum AccessibleDocumentSnapshotValidatorV1{
+    static func validate(snapshot:CompletedActivitySnapshotV1,tree:AccessibleDocumentSemanticTreeV1)throws{try snapshot.validateAccessibleDocumentTree(tree)}
+    static func validate(receipt:AccessibleDocumentAssessmentReceiptV1,tree:AccessibleDocumentSemanticTreeV1,output:Data)throws{try receipt.validate(tree:tree);try receipt.validateOutput(output)}
+}
+
+enum ReviewedEvidenceSnapshotValidatorV1 {
+    static func validate(
+        snapshot: CompletedActivityEvidenceSequenceSnapshotV1,
+        projection: ReviewedEvidenceReportProjectionV1,
+        currentAssociationEvents: [EvidenceAssociationV1]
+    ) throws {
+        try snapshot.validate()
+        try snapshot.validateSourceFrontier(currentAssociationEvents)
+        try projection.validate(snapshot: snapshot)
+    }
+
+    static func validateSuccessor(
+        _ snapshot: CompletedActivityEvidenceSequenceSnapshotV1,
+        of prior: CompletedActivityEvidenceSequenceSnapshotV1
+    ) throws {
+        try snapshot.validateSuccessor(of: prior)
+    }
+}
+
+/// Computes the one stable integrity finding used when the immutable snapshot
+/// bytes and their report authority disagree.  The validator still fails
+/// closed; this helper makes the diagnostic classification deterministic for
+/// non-production callers without changing the legacy error surface.
+enum SnapshotIntegrityDiagnosticsV1 {
+    static func snapshotReportDivergenceFindings(
+        snapshotSHA256: String,
+        reportSHA256: String
+    ) -> [IntegrityFindingV1] {
+        guard snapshotSHA256 != reportSHA256,
+              let finding = try? IntegrityFindingV1(
+                  kind: .snapshotReportDivergence,
+                  reasonCode: "snapshot_report_divergence"
+              ) else {
+            return []
+        }
+        return [finding]
+    }
+}
+
+@MainActor
+enum ReportingPackageLifecycleRouteV1 {
+    case live(
+        dependencies: WorkspacePackageLifecycleDependenciesV1,
+        profile: WorkspacePackageLifecycleProfileV1
+    )
+    case expiringCompatibility(
+        profile: WorkspacePackageLifecycleProfileV1,
+        posture: String
+    )
+
+    var profile: WorkspacePackageLifecycleProfileV1 {
+        switch self {
+        case .live(_, let profile), .expiringCompatibility(let profile, _):
+            profile
+        }
+    }
+
+    /// Select the exact retained release from the existing live registry.
+    /// The caller's snapshot validator still proves every source and file
+    /// binding; selection alone grants no report authority.
+    func resolving(report: Report, modelContext: ModelContext) throws -> Self {
+        guard !modelContext.hasChanges else { throw SnapshotValidationErrorV1.invalidAuthority }
+        let recordID = report.sourceRecordID
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }
+        ))
+        guard records.count == 1, let source = records.first else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        let release = try PackageReleaseIdentityV1(
+            packageID: source.packID,
+            schemaVersion: source.packSchemaVersion,
+            contentVersion: source.packContentVersion
+        )
+        switch self {
+        case .live(let dependencies, _):
+            return .live(dependencies: dependencies, profile: try dependencies.profileRegistry.resolve(release))
+        case .expiringCompatibility(let profile, _):
+            guard profile.release == release else { throw SnapshotValidationErrorV1.invalidAuthority }
+            return self
+        }
+    }
+
+    func validate(generationRootURL: URL) throws {
+        switch self {
+        case .live(let dependencies, let profile):
+            guard dependencies.generationRootURL.standardizedFileURL
+                    == generationRootURL.standardizedFileURL,
+                  dependencies.generationID.uuidString.lowercased()
+                    == generationRootURL.standardizedFileURL.lastPathComponent,
+                  try dependencies.profileRegistry.resolve(profile.release) == profile else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        case .expiringCompatibility(let profile, let posture):
+            guard posture == WorkspacePackageLifecycleCompatibilityV1.expiration,
+                  profile.release.matches(profile.package) else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        }
+    }
+}
+
+struct ValidatedReportSnapshotV1: Sendable {
+    let snapshot: ReportSnapshotV1
+    let snapshotSHA256: String
+    let referencedImageByteCount: Int64
+    let currentEvidencePurposes: [SignPack.EvidencePurpose]
+
+    fileprivate let evidenceBytes: [UUID: ValidatedEvidenceBytesV1]
+    private let currentOriginalIDs: Set<UUID>
+    private let historyThumbnailIDs: Set<UUID>
+
+    fileprivate init(
+        snapshot: ReportSnapshotV1,
+        snapshotSHA256: String,
+        referencedImageByteCount: Int64,
+        currentEvidencePurposes: [SignPack.EvidencePurpose],
+        evidenceBytes: [UUID: ValidatedEvidenceBytesV1],
+        currentOriginalIDs: Set<UUID>,
+        historyThumbnailIDs: Set<UUID>
+    ) {
+        self.snapshot = snapshot
+        self.snapshotSHA256 = snapshotSHA256
+        self.referencedImageByteCount = referencedImageByteCount
+        self.currentEvidencePurposes = currentEvidencePurposes
+        self.evidenceBytes = evidenceBytes
+        self.currentOriginalIDs = currentOriginalIDs
+        self.historyThumbnailIDs = historyThumbnailIDs
+    }
+
+    func originalJPEG(for evidenceID: UUID) -> Data? {
+        guard currentOriginalIDs.contains(evidenceID) else { return nil }
+        return evidenceBytes[evidenceID]?.originalJPEG
+    }
+
+    func thumbnailJPEG(for evidenceID: UUID) -> Data? {
+        guard historyThumbnailIDs.contains(evidenceID) else { return nil }
+        return evidenceBytes[evidenceID]?.thumbnailJPEG
+    }
+
+    var requirementExplanations: [RequirementExplanationItemV1] {
+        snapshot.requirementAssurance.map {
+            RequirementExplanationProjectionV1.project($0.evaluations)
+        } ?? []
+    }
+}
+
+fileprivate struct ValidatedEvidenceBytesV1: Sendable {
+    let originalJPEG: Data
+    let thumbnailJPEG: Data
+}
+
+@MainActor
+struct SnapshotValidatorV1 {
+    private let sourceRecoveryAuthority: StoreMigrationSourceRecoveryAuthorityV1?
+    private let modelContext: ModelContext
+    private let generationRootURL: URL
+    private let resolvedGenerationRootURL: URL
+    private let fileManager: FileManager
+    private let signPack: SignPack
+    private let lifecycleProfile: WorkspacePackageLifecycleProfileV1
+    private let lifecycleRoute: ReportingPackageLifecycleRouteV1
+    private let mediaValidator = MediaNormalizerV1()
+
+    init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        fileManager: FileManager = .default,
+        signPack: SignPack = .illuminatedSignV1
+    ) throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: signPack
+        )
+        try self.init(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            fileManager: fileManager,
+            lifecycleRoute: .expiringCompatibility(
+                profile: profile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            )
+        )
+    }
+
+    init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        fileManager: FileManager = .default,
+        lifecycleProfile: WorkspacePackageLifecycleProfileV1,
+        lifecycleDependencies: WorkspacePackageLifecycleDependenciesV1
+    ) throws {
+        try self.init(
+            modelContext: modelContext,
+            generationRootURL: generationRootURL,
+            fileManager: fileManager,
+            lifecycleRoute: .live(
+                dependencies: lifecycleDependencies,
+                profile: lifecycleProfile
+            )
+        )
+    }
+
+    /// Read-only validation during the existing finalizer transaction. Its
+    /// caller has already resolved this exact profile and owns the writer
+    /// fence; querying that writer again would reject its staged context.
+    /// This preserves the profile instead of rebuilding legacy role mappings.
+    init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        fileManager: FileManager = .default,
+        resolvedFinalizationProfile: WorkspacePackageLifecycleProfileV1
+    ) throws {
+        try self.init(
+            modelContext: modelContext, generationRootURL: generationRootURL,
+            fileManager: fileManager,
+            lifecycleRoute: .expiringCompatibility(
+                profile: resolvedFinalizationProfile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            )
+        )
+    }
+
+    init(sourceRecoveryAuthority authority: StoreMigrationSourceRecoveryAuthorityV1) throws {
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: .illuminatedSignV1
+        )
+        try self.init(
+            modelContext: authority.recoveryContext(),
+            generationRootURL: authority.generationRootURL,
+            fileManager: .default,
+            lifecycleRoute: .expiringCompatibility(
+                profile: profile,
+                posture: WorkspacePackageLifecycleCompatibilityV1.expiration
+            ),
+            sourceRecoveryAuthority: authority
+        )
+    }
+
+    private init(
+        modelContext: ModelContext,
+        generationRootURL: URL,
+        fileManager: FileManager,
+        lifecycleRoute: ReportingPackageLifecycleRouteV1,
+        sourceRecoveryAuthority: StoreMigrationSourceRecoveryAuthorityV1? = nil
+    ) throws {
+        let root = generationRootURL.standardizedFileURL
+        try lifecycleRoute.validate(generationRootURL: root)
+        let lifecycleProfile = lifecycleRoute.profile
+        guard generationRootURL.isFileURL,
+              !root.path.isEmpty,
+              !Self.isSymbolicLink(root, fileManager: fileManager),
+              try Self.itemType(at: root, fileManager: fileManager) == .typeDirectory,
+              lifecycleProfile.release.matches(lifecycleProfile.package) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        self.modelContext = modelContext
+        self.generationRootURL = root
+        self.resolvedGenerationRootURL = root.resolvingSymlinksInPath()
+        self.fileManager = fileManager
+        self.signPack = lifecycleProfile.package
+        self.lifecycleProfile = lifecycleProfile
+        self.lifecycleRoute = lifecycleRoute
+        self.sourceRecoveryAuthority = sourceRecoveryAuthority
+    }
+
+    func validate(report: Report) throws -> ValidatedReportSnapshotV1 {
+        do {
+            try sourceRecoveryAuthority?.recoveryMutationGuard().validateCurrent()
+            return try validateAuthority(report: report)
+        } catch let error as SnapshotValidationErrorV1 {
+            throw error
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    func validateOriginalSource(report: Report) throws -> ValidatedReportSnapshotV1 {
+        try validateOriginalSourceReports([report])[0]
+    }
+
+    /// Reads a retained completed inspection without requiring a rendered PDF
+    /// or pretending that its record is still the packet's current tip.
+    /// The caller separately owns the current writer and selected receipt.
+    func validateCompletedInspection(
+        report: Report,
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity
+    ) throws -> ValidatedReportSnapshotV1 {
+        var result: ValidatedReportSnapshotV1?
+        try validateCompletedInspectionReports([report], expectedRootIdentity: expectedRootIdentity) { _, value in
+            result = value
+        }
+        guard let result else { throw SnapshotValidationErrorV1.invalidAuthority }
+        return result
+    }
+
+    /// The consumer is synchronous and nonescaping. Media for one selected
+    /// report can be discarded before validating the next selected report.
+    func validateCompletedInspectionReports(
+        _ reports: [Report],
+        expectedRootIdentity: ReportPDFAnchoredFile.RootIdentity,
+        consume: (Report, ValidatedReportSnapshotV1) throws -> Void
+    ) throws {
+        do {
+            guard reports.count <= 512, sourceRecoveryAuthority == nil, !modelContext.hasChanges,
+                  try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == expectedRootIdentity else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            try ReportRecoveryService.validateCompletedInspectionReplacementChains(
+                modelContext: modelContext, generationRootURL: generationRootURL,
+                expectedRootIdentity: expectedRootIdentity)
+            for report in reports {
+                let result = try validateAuthority(report: report, allowsOriginalPDFState: true)
+                try consume(report, result)
+            }
+            guard !modelContext.hasChanges,
+                  try ReportPDFAnchoredFile.rootIdentity(at: generationRootURL) == expectedRootIdentity else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    func validateOriginalSourceReports(_ reports: [Report]) throws -> [ValidatedReportSnapshotV1] {
+        guard let sourceRecoveryAuthority else { throw SnapshotValidationErrorV1.invalidAuthority }
+        try sourceRecoveryAuthority.recoveryMutationGuard().validateCurrent()
+        try ReportRecoveryService.validateOriginalReplacementChains(authority: sourceRecoveryAuthority)
+        return try reports.map { try validateAuthority(report: $0, allowsOriginalPDFState: true) }
+    }
+
+    private func validateAuthority(
+        report: Report, allowsOriginalPDFState: Bool = false
+    ) throws -> ValidatedReportSnapshotV1 {
+        if usesReleasedObservationFields, report.snapshotSchemaVersion != 1 {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        let reportID = canonicalID(report.id)
+        let expectedSnapshotPath = "snapshots/\(reportID).json"
+        let pdfAuthorityMatches: Bool
+        if allowsOriginalPDFState && report.pdfState == ReportPDFState.ready.rawValue {
+            pdfAuthorityMatches = report.pdfRelativePath == "pdfs/\(reportID).pdf"
+                && report.pdfSHA256.map(isLowercaseSHA256) == true
+        } else {
+            pdfAuthorityMatches = (report.pdfState == ReportPDFState.pending.rawValue
+                || (allowsOriginalPDFState && report.pdfState == ReportPDFState.failed.rawValue))
+                && report.pdfRelativePath == nil && report.pdfSHA256 == nil
+        }
+        guard report.schemaVersion == 1,
+              (1...4).contains(report.snapshotSchemaVersion),
+              report.snapshotRelativePath == expectedSnapshotPath,
+              isLowercaseSHA256(report.snapshotSHA256),
+              pdfAuthorityMatches else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+
+        let snapshotURL = generationRootURL
+            .appendingPathComponent("snapshots", isDirectory: true)
+            .appendingPathComponent("\(reportID).json", isDirectory: false)
+        let snapshotData = try readRegularNonsymlinkFile(
+            snapshotURL,
+            expectedRelativePath: expectedSnapshotPath
+        )
+        let encodedDigest = Self.sha256(snapshotData)
+        guard SnapshotIntegrityDiagnosticsV1.snapshotReportDivergenceFindings(
+            snapshotSHA256: encodedDigest,
+            reportSHA256: report.snapshotSHA256
+        ).isEmpty else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        let snapshot = try ReportSnapshotEncoderV1().decode(snapshotData)
+        try validateRequirementAssurance(snapshot)
+        try validateEvidenceAssurance(snapshot)
+        try validateAuthorityCriterion(snapshot)
+        try validateFunctionalRelationships(snapshot)
+        try validateInspectionReviewHistory(snapshot)
+        try validateWorkPacket(snapshot)
+        try validateC17LightingDayInventory(snapshot)
+        try validateC18LightingNightWorkflow(snapshot)
+        try validateTemporalEvidenceLinks(snapshot)
+        guard try ReportSnapshotEncoderV1().encode(snapshot).data == snapshotData,
+              snapshot.snapshotSchemaVersion == report.snapshotSchemaVersion,
+              snapshot.reportID == report.id,
+              snapshot.packetID == report.packetID,
+              snapshot.sourceRecordID == report.sourceRecordID,
+              snapshot.pdfTemplate == lifecycleProfile.pdfTemplate,
+              snapshot.pack.id == signPack.packID,
+              snapshot.pack.schemaVersion == signPack.schemaVersion,
+              snapshot.pack.contentVersion == signPack.contentVersion,
+              snapshot.display.assetSingular == signPack.nouns.asset.singular,
+              snapshot.display.checkSingular == signPack.nouns.check.singular,
+              snapshot.display.issueSingular == signPack.nouns.issue.singular,
+              snapshot.display.stage == stageDisplay(snapshot.stage),
+              snapshot.display.outcome == outcomeDisplay(snapshot.outcome),
+              snapshot.disclaimer == signPack.disclaimer,
+              canonicalDateEqual(snapshot.snapshotCreatedAt, report.createdAt) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+
+        let reports = try modelContext.fetch(FetchDescriptor<Report>())
+        guard let storedReport = unique(reports.filter { $0.id == report.id }),
+              storedReport.schemaVersion == report.schemaVersion,
+              storedReport.packetID == report.packetID,
+              storedReport.sourceRecordID == report.sourceRecordID,
+              storedReport.snapshotSchemaVersion == report.snapshotSchemaVersion,
+              storedReport.snapshotRelativePath == report.snapshotRelativePath,
+              storedReport.snapshotSHA256 == report.snapshotSHA256,
+              storedReport.pdfState == report.pdfState,
+              storedReport.pdfRelativePath == report.pdfRelativePath,
+              storedReport.pdfSHA256 == report.pdfSHA256,
+              canonicalDateEqual(storedReport.createdAt, report.createdAt),
+              storedReport.replacesReportID == report.replacesReportID else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        guard let packet = unique(packets.filter { $0.id == report.packetID }),
+              packet.schemaVersion == 1,
+              packet.stableRootID == snapshot.stableRootID,
+              (allowsOriginalPDFState || packet.currentRecordID == report.sourceRecordID),
+              packet.evaluationCounted,
+              packet.contentDeletedAt == nil,
+              packets.filter({ $0.stableRootID == packet.stableRootID }).count == 1,
+              (allowsOriginalPDFState || packets.filter({ $0.currentRecordID == report.sourceRecordID }).count == 1) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>())
+        let recordsByID = try uniqueRecords(records)
+        guard let source = recordsByID[report.sourceRecordID],
+              source.schemaVersion == 1,
+              source.state == WorkflowState.completed.rawValue,
+              source.packetID == report.packetID,
+              source.finalizationMutationID != nil,
+              source.packID == snapshot.pack.id,
+              source.packSchemaVersion == snapshot.pack.schemaVersion,
+              source.packContentVersion == snapshot.pack.contentVersion,
+              source.pdfTemplateID == snapshot.pdfTemplate.id,
+              source.pdfTemplateVersion == snapshot.pdfTemplate.version,
+              source.stage == snapshot.stage,
+              source.outcomeKey == snapshot.outcome,
+              source.note == snapshot.note,
+              validCompletedRecord(source) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        try validateWorkspaceScope(report: report, source: source)
+        try validateFrozenSourceFields(snapshot: snapshot, source: source)
+
+        let effectiveID = source.evidenceSourceRecordID ?? source.id
+        guard effectiveID == snapshot.evidenceSourceRecordID,
+              let effective = recordsByID[effectiveID],
+              effective.schemaVersion == 1,
+              effective.state == WorkflowState.completed.rawValue,
+              effective.revisionKind == WorkflowRevisionKind.original.rawValue,
+              effective.finalizationMutationID != nil,
+              effective.assetID == source.assetID,
+              effective.packetID == source.packetID,
+              validCompletedRecord(effective),
+              validSourceRevision(source, effective: effective, recordsByID: recordsByID) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+
+        let chain = try parentChain(endingAt: effective, recordsByID: recordsByID)
+        try validateLineage(chain)
+        try validatePacketAuthorities(
+            for: chain,
+            packets: packets,
+            recordsByID: recordsByID
+        )
+        let issueSnapshots = try expectedIssues(
+            for: chain,
+            assetID: source.assetID
+        )
+        guard issueSnapshotsEqual(snapshot.issues, issueSnapshots) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+
+        let expectedHistoryRecords: [WorkflowRecord]
+        if snapshot.issues.isEmpty {
+            expectedHistoryRecords = []
+        } else {
+            let ancestors = Array(chain.dropLast())
+            guard ancestors.allSatisfy({
+                $0.revisionKind == WorkflowRevisionKind.original.rawValue
+                    && validCompletedRecord($0)
+            }) else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            expectedHistoryRecords = ancestors.sorted(by: recordChronology)
+        }
+        guard let effectiveCompletedAt = effective.completedAt,
+              expectedHistoryRecords.allSatisfy({ record in
+                guard let completedAt = record.completedAt else { return false }
+                return completedAt < effectiveCompletedAt
+              }) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        guard snapshot.history.map(\.recordID) == expectedHistoryRecords.map(\.id),
+              !snapshot.history.contains(where: { $0.recordID == effective.id }) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+
+        let allEvidenceRows = try modelContext.fetch(FetchDescriptor<EvidenceFile>())
+        let evidenceRowsByID = try uniqueEvidenceRows(allEvidenceRows)
+        let currentRows = allEvidenceRows
+            .filter { $0.recordID == effective.id }
+            .sorted(by: evidenceOrder)
+        try validateCurrentCardinality(rows: currentRows, effective: effective)
+
+        var orderedRows = currentRows
+        var seenEvidenceIDs = Set(currentRows.map(\.id))
+        for (history, record) in zip(snapshot.history, expectedHistoryRecords) {
+            try validateHistory(
+                history,
+                against: record,
+                snapshotSchemaVersion: snapshot.snapshotSchemaVersion
+            )
+            let rows = allEvidenceRows
+                .filter { $0.recordID == record.id }
+                .sorted(by: evidenceOrder)
+            try validateHistoricalCardinality(rows: rows, record: record)
+            guard history.evidenceIDs == rows.map(\.id),
+                  history.issueIDs == (try historyIssueIDs(
+                    record: record,
+                    assetID: source.assetID,
+                    allIssues: try modelContext.fetch(FetchDescriptor<Issue>())
+                  )) else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            for row in rows where seenEvidenceIDs.insert(row.id).inserted {
+                orderedRows.append(row)
+            }
+        }
+
+        guard snapshot.evidence.count == orderedRows.count,
+              snapshot.evidence.map(\.evidenceID) == orderedRows.map(\.id),
+              Set(snapshot.evidence.map(\.evidenceID)).count == snapshot.evidence.count,
+              orderedRows.allSatisfy({ evidenceRowsByID[$0.id] != nil }) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+
+        var validatedBytes: [UUID: ValidatedEvidenceBytesV1] = [:]
+        for (value, row) in zip(snapshot.evidence, orderedRows) {
+            guard validateEvidenceSnapshot(value, row: row) else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            let id = canonicalID(row.id)
+            let original = try readRegularNonsymlinkFile(
+                generationRootURL
+                    .appendingPathComponent("evidence", isDirectory: true)
+                    .appendingPathComponent(id, isDirectory: true)
+                    .appendingPathComponent("original.jpg", isDirectory: false),
+                expectedRelativePath: "evidence/\(id)/original.jpg"
+            )
+            let thumbnail = try readRegularNonsymlinkFile(
+                generationRootURL
+                    .appendingPathComponent("evidence", isDirectory: true)
+                    .appendingPathComponent(id, isDirectory: true)
+                    .appendingPathComponent("thumbnail.jpg", isDirectory: false),
+                expectedRelativePath: "evidence/\(id)/thumbnail.jpg"
+            )
+            guard original.count == row.byteCount,
+                  thumbnail.count == row.thumbnailByteCount,
+                  Self.sha256(original) == row.sha256,
+                  Self.sha256(thumbnail) == row.thumbnailSHA256 else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            _ = try mediaValidator.validateCanonicalJPEG(original, kind: .original)
+            _ = try mediaValidator.validateCanonicalJPEG(thumbnail, kind: .thumbnail)
+            guard validatedBytes.updateValue(
+                ValidatedEvidenceBytesV1(
+                    originalJPEG: original,
+                    thumbnailJPEG: thumbnail
+                ),
+                forKey: row.id
+            ) == nil else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        }
+
+        let historyEvidenceIDs = Set(snapshot.history.flatMap(\.evidenceIDs))
+        var referencedByteCount: Int64 = 0
+        for row in orderedRows {
+            let selectedCount: Int
+            if row.recordID == effective.id {
+                selectedCount = row.byteCount
+            } else if historyEvidenceIDs.contains(row.id) {
+                selectedCount = row.thumbnailByteCount
+            } else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            let (next, overflow) = referencedByteCount.addingReportingOverflow(
+                Int64(selectedCount)
+            )
+            guard !overflow else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            referencedByteCount = next
+        }
+
+        return ValidatedReportSnapshotV1(
+            snapshot: snapshot,
+            snapshotSHA256: encodedDigest,
+            referencedImageByteCount: referencedByteCount,
+            currentEvidencePurposes: try currentEvidencePurposes(),
+            evidenceBytes: validatedBytes,
+            currentOriginalIDs: Set(currentRows.map(\.id)),
+            historyThumbnailIDs: historyEvidenceIDs
+        )
+    }
+
+    private func validateRequirementAssurance(
+        _ snapshot: ReportSnapshotV1
+    ) throws {
+        guard let assurance = snapshot.requirementAssurance else { return }
+        do {
+            try assurance.validate()
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateEvidenceAssurance(
+        _ snapshot: ReportSnapshotV1
+    ) throws {
+        guard let assurance = snapshot.assurance else { return }
+        do {
+            try assurance.validate()
+            if case .live(let dependencies, _) = lifecycleRoute {
+                guard assurance.preview.workspaceID == dependencies.workspaceID else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
+            for attestation in assurance.attestations {
+                guard attestation.purpose == .acknowledgeReport else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                guard let manifest = assurance.manifest,
+                      attestation.scope.kind == .assuranceManifest,
+                      attestation.scope.scopeID == manifest.manifestID,
+                      attestation.scope.scopeRevision == manifest.revision else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateAuthorityCriterion(_ snapshot: ReportSnapshotV1) throws {
+        guard let authority = snapshot.authorityCriterion else { return }
+        do {
+            try authority.validate()
+            if case .live(let dependencies, _) = lifecycleRoute,
+               authority.workspaceID != dependencies.workspaceID {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateFunctionalRelationships(_ snapshot: ReportSnapshotV1) throws {
+        guard let relationships = snapshot.functionalRelationships else { return }
+        do {
+            try relationships.validate()
+            if case .live(let dependencies, _) = lifecycleRoute,
+               relationships.workspaceID != dependencies.workspaceID {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    /// C14 is a frozen report boundary. Validate the complete history and
+    /// require every preceding C13/C38/C40/C41 digest to be carried forward;
+    /// the report validator never reconstructs or mutates the history.
+    private func validateInspectionReviewHistory(
+        _ snapshot: ReportSnapshotV1
+    ) throws {
+        guard (snapshot.snapshotSchemaVersion >= 4)
+                == (snapshot.inspectionReviewHistory != nil) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        guard let history = snapshot.inspectionReviewHistory else { return }
+        do {
+            try history.validate()
+            guard let assurance = snapshot.assurance,
+                  let accountability = snapshot.accountability,
+                  let authorityCriterion = snapshot.authorityCriterion,
+                  let functionalRelationships = snapshot.functionalRelationships,
+                  KernelCanonicalHashV1.validSHA256(
+                      history.binding.completedSnapshotSHA256
+                  ),
+                  history.binding.c38AccountabilitySHA256
+                      == accountability.snapshotSHA256,
+                  history.binding.c40AuthorityCriterionSHA256
+                      == authorityCriterion.snapshotSHA256,
+                  history.binding.c41FunctionalRelationshipsSHA256
+                      == functionalRelationships.snapshotSHA256,
+                  history.binding.c13AssuranceSHA256
+                      == KernelCanonicalHashV1.sha256(
+                          try ReportEvidenceAssuranceCanonicalCodecV1.encode(assurance)
+                      ),
+                  history.sourceSnapshotSHA256
+                      == history.binding.completedSnapshotSHA256 else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            try EvidenceDetailInspectionReviewProjectionGuardV1.validateHistory(
+                history,
+                assurance: assurance
+            )
+            if case .live(let dependencies, _) = lifecycleRoute {
+                guard history.workspaceID == dependencies.workspaceID,
+                      assurance.preview.workspaceID
+                          == dependencies.workspaceID else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    /// C15 packet coordination is an optional, bounded report projection. Its
+    /// completed snapshot and event rows remain the source of truth; this
+    /// validator admits only the typed customer-safe projection and never
+    /// reconstructs claims, leases, actors, results, or evidence content.
+    private func validateWorkPacket(_ snapshot: ReportSnapshotV1) throws {
+        guard let workPacket = snapshot.workPacket else { return }
+        do {
+            guard snapshot.snapshotSchemaVersion >= 4,
+                  workPacket.packetID == snapshot.packetID else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            try EvidenceDetailWorkPacketProjectionGuardV1.validate(
+                workPacket,
+                sourceSnapshotSHA256: workPacket.sourceSnapshotSHA256
+            )
+            guard workPacket.itemCount == workPacket.itemIDs.count,
+                  workPacket.itemCount == workPacket.itemStateLabels.count,
+                  workPacket.preservedResultCount >= 0,
+                  workPacket.collisionCount >= 0 else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateC17LightingDayInventory(_ snapshot: ReportSnapshotV1) throws {
+        guard let lighting = snapshot.lightingDayInventory else { return }
+        do {
+            try lighting.validate()
+            guard snapshot.snapshotSchemaVersion >= 4,
+                  lighting.projection.state != .safetyStopped,
+                  lighting.projection.claimBoundary
+                    == C17LightingDayInventoryReportProjectionV1.claimBoundary else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            if case .live(let dependencies, _) = lifecycleRoute {
+                guard lighting.projection.workspaceID
+                        == dependencies.workspaceID else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateC18LightingNightWorkflow(_ snapshot:ReportSnapshotV1)throws{
+        guard let value=snapshot.lightingNightWorkflow else{return}
+        do{try value.validate();guard snapshot.snapshotSchemaVersion>=4,
+              value.projection.limitationKey==C18LightingReportProjectionSupportV1.limitationKey,
+              !value.projection.safetyOrComplianceConclusionAllowed else{throw SnapshotValidationErrorV1.invalidAuthority}
+            if case .live(let dependencies,_)=lifecycleRoute{guard value.projection.workspaceID==dependencies.workspaceID else{throw SnapshotValidationErrorV1.invalidAuthority}}
+        }catch{throw SnapshotValidationErrorV1.invalidAuthority}
+    }
+
+    private func validateTemporalEvidenceLinks(_ snapshot: ReportSnapshotV1) throws {
+        guard let links = snapshot.temporalEvidenceLinks else { return }
+        do {
+            let clipRows = try modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            let anchorRows = try modelContext.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>())
+            for link in links {
+                guard link.derivativePreview != nil else {
+                    try link.validate()
+                    continue
+                }
+                let matchingClips = try clipRows.map { try $0.value() }
+                    .filter { $0.clipID == link.clipID }
+                guard matchingClips.count == 1,
+                      let clip = matchingClips.first,
+                      let preview = link.derivativePreview else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                let derivative = TemporalEvidenceDerivativeReferenceV1(
+                    derivativeID: preview.derivativeID,
+                    revision: preview.revision,
+                    derivativeSHA256: preview.derivativeSHA256,
+                    kind: preview.kind
+                )
+                let anchorIDs = Set(link.anchorBindings.map(\.anchorID))
+                let anchors = try anchorRows.map { try $0.value() }
+                    .filter { anchorIDs.contains($0.anchorID) }
+                guard anchors.count == anchorIDs.count else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                try C25TemporalEvidenceReportLinkageValidationV1.validate(
+                    link, clip: clip, anchors: anchors,
+                    currentDerivative: derivative
+                )
+                if case .live(let dependencies, _) = lifecycleRoute {
+                    guard link.workspaceID == dependencies.workspaceID else {
+                        throw SnapshotValidationErrorV1.invalidAuthority
+                    }
+                }
+            }
+        } catch {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateWorkspaceScope(report: Report, source: WorkflowRecord) throws {
+        guard case .live(let lifecycleDependencies, _) = lifecycleRoute else { return }
+        let identities = [
+            try WorkspaceEntityIdentityV1(kind: .report, id: report.id),
+            try WorkspaceEntityIdentityV1(kind: .asset, id: source.assetID),
+        ]
+        let request = try WorkspacePackageLifecycleQueryRequestV1(
+            workspaceID: lifecycleDependencies.workspaceID,
+            generationID: lifecycleDependencies.generationID,
+            operation: .reportPDF,
+            identities: identities
+        )
+        let result = try lifecycleDependencies.writer.query(request)
+        guard result.workspaceID == lifecycleDependencies.workspaceID,
+              result.generationID == lifecycleDependencies.generationID,
+              result.operation == .reportPDF,
+              result.revision.workspaceID == lifecycleDependencies.workspaceID,
+              result.revision.generationID == lifecycleDependencies.generationID,
+              Set(result.existingIdentities) == Set(identities),
+              result.packageBindings.count == 1,
+              let binding = result.packageBindings.first,
+              binding.assetID == source.assetID,
+              binding.packageID == lifecycleProfile.release.packageID,
+              binding.packageSchemaVersion == lifecycleProfile.release.schemaVersion,
+              binding.packageContentVersion == lifecycleProfile.release.contentVersion else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateFrozenSourceFields(
+        snapshot: ReportSnapshotV1,
+        source: WorkflowRecord
+    ) throws {
+        let expectedCNV = frozenCNV(source)
+        let companion: ObservationAndTimeRow?
+        if usesReleasedObservationFields { companion = nil }
+        else { companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: source.id, in: modelContext) }
+        let expectedBasis = try companion?.observationBasisV1()
+        let expectedTemporal = try companion?.temporalContextV1()
+        let observationAndTimeMatches: Bool
+        if snapshot.snapshotSchemaVersion == 1 {
+            // Released v1 snapshots intentionally remain byte-identical after
+            // a store migration enriches their source rows.
+            observationAndTimeMatches = snapshot.observationBasis == nil
+                && snapshot.temporalContext == nil
+        } else {
+            observationAndTimeMatches = snapshot.observationBasis == expectedBasis
+                && snapshot.temporalContext == expectedTemporal
+        }
+        let requiredAcknowledgements = signPack.acknowledgements.filter {
+            lifecycleProfile.requiredAcknowledgementKeys.contains($0.key)
+        }
+        guard let sourceAcknowledgements = acknowledgementSourceValues(source),
+              requiredAcknowledgements.map(\.key)
+                == lifecycleProfile.requiredAcknowledgementKeys,
+              snapshot.couldNotVerify == expectedCNV,
+              observationAndTimeMatches,
+              canonicalOptionalDateEqual(
+                snapshot.timeContext.observedAtUTC,
+                source.observedAtUTC
+              ),
+              snapshot.timeContext.timeZoneID == source.timeZoneID,
+              snapshot.timeContext.utcOffsetMinutes == source.utcOffsetMinutes,
+              snapshot.timeContext.localDate == source.localDate,
+              snapshot.timeContext.localTime == source.localTime,
+              snapshot.acknowledgements.count == requiredAcknowledgements.count,
+              sourceAcknowledgements.count == requiredAcknowledgements.count,
+              snapshot.acknowledgements.indices.allSatisfy({ index in
+                  let snapshotValue = snapshot.acknowledgements[index]
+                  let sourceValue = sourceAcknowledgements[index]
+                  let packageValue = requiredAcknowledgements[index]
+                  return snapshotValue.key == sourceValue.key
+                      && snapshotValue.copy == sourceValue.copy
+                      && snapshotValue.version == sourceValue.version
+                      && snapshotValue.accepted == sourceValue.accepted
+                      && snapshotValue.key == packageValue.key
+                      && snapshotValue.copy == packageValue.copy
+                      && snapshotValue.version == packageValue.version
+              }) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func acknowledgementSourceValues(
+        _ record: WorkflowRecord
+    ) -> [(key: String, copy: String, version: String, accepted: Bool)]? {
+        let groups: [(String?, String?, String?, Bool?)] = [
+            (
+                record.afterDarkAcknowledgementKey,
+                record.afterDarkAcknowledgementCopy,
+                record.afterDarkAcknowledgementVersion,
+                record.afterDarkAcknowledgementAccepted
+            ),
+            (
+                record.safePositionAcknowledgementKey,
+                record.safePositionAcknowledgementCopy,
+                record.safePositionAcknowledgementVersion,
+                record.safePositionAcknowledgementAccepted
+            ),
+        ]
+        var result: [(key: String, copy: String, version: String, accepted: Bool)] = []
+        for group in groups {
+            if group.0 == nil, group.1 == nil, group.2 == nil, group.3 == nil { continue }
+            guard let key = group.0, let copy = group.1,
+                  let version = group.2, let accepted = group.3 else { return nil }
+            result.append((key, copy, version, accepted))
+        }
+        return result
+    }
+
+    private func validCompletedRecord(_ record: WorkflowRecord) -> Bool {
+        guard record.schemaVersion == 1,
+              record.state == WorkflowState.completed.rawValue,
+              record.draftStepKey == nil,
+              record.completedAt != nil,
+              record.outcomeKey != nil,
+              record.finalizationMutationID != nil,
+              record.packID == signPack.packID,
+              record.packSchemaVersion == signPack.schemaVersion,
+              record.packContentVersion == signPack.contentVersion,
+              record.pdfTemplateID == lifecycleProfile.pdfTemplate.id,
+              record.pdfTemplateVersion == lifecycleProfile.pdfTemplate.version,
+              validOptionalTrimmed(record.note, maximum: 1_000) else {
+            return false
+        }
+        guard validObservationAndTime(record) else { return false }
+
+        switch record.revisionKind {
+        case WorkflowRevisionKind.original.rawValue:
+            guard record.recordRevisionRootID == record.id,
+                  record.revisesRecordID == nil,
+                  record.evidenceSourceRecordID == nil else {
+                return false
+            }
+        case WorkflowRevisionKind.clericalCorrection.rawValue:
+            guard record.recordRevisionRootID != record.id,
+                  record.revisesRecordID != nil,
+                  record.evidenceSourceRecordID == record.recordRevisionRootID else {
+                return false
+            }
+        default:
+            return false
+        }
+
+        let hasAnyCNV = record.couldNotVerifyKey != nil
+            || record.couldNotVerifyDisplaySnapshot != nil
+            || record.couldNotVerifyRegistryVersion != nil
+        let hasCompleteCNV = record.couldNotVerifyKey != nil
+            && record.couldNotVerifyDisplaySnapshot != nil
+            && record.couldNotVerifyRegistryVersion != nil
+        guard outcomeRole(for: record) == .couldNotVerify
+                ? hasCompleteCNV
+                : !hasAnyCNV else {
+            return false
+        }
+        if let cnv = frozenCNV(record) {
+            let matches = signPack.couldNotVerifyReasons.entries.filter {
+                $0.key == cnv.key
+            }
+            guard cnv.registryVersion == signPack.couldNotVerifyReasons.version,
+                  matches.count == 1,
+                  cnv.display == matches[0].display else {
+                return false
+            }
+        }
+
+        let hasRequiredAcknowledgements = acknowledgementSourceValues(record).map {
+            $0.map(\.key) == lifecycleProfile.requiredAcknowledgementKeys
+        } ?? false
+        let allRequiredAcknowledgementsAccepted = acknowledgementSourceValues(record)?.allSatisfy {
+            $0.accepted
+        } ?? false
+        let hasNoAcknowledgements = record.afterDarkAcknowledgementKey == nil
+            && record.afterDarkAcknowledgementCopy == nil
+            && record.afterDarkAcknowledgementVersion == nil
+            && record.afterDarkAcknowledgementAccepted == nil
+            && record.safePositionAcknowledgementKey == nil
+            && record.safePositionAcknowledgementCopy == nil
+            && record.safePositionAcknowledgementVersion == nil
+            && record.safePositionAcknowledgementAccepted == nil
+        let hasAllTimeFields = record.observedAtUTC != nil
+            && record.timeZoneID != nil
+            && record.utcOffsetMinutes != nil
+            && record.localDate != nil
+            && record.localTime != nil
+        let hasNoTimeFields = record.observedAtUTC == nil
+            && record.timeZoneID == nil
+            && record.utcOffsetMinutes == nil
+            && record.localDate == nil
+            && record.localTime == nil
+
+        switch record.stage {
+        case WorkflowStage.check.rawValue:
+            guard let stage = try? lifecycleProfile.stage(record.stage),
+                  let outcomeKey = record.outcomeKey,
+                  let role = outcomeRole(for: record) else { return false }
+            return record.parentRecordID == nil
+                && record.packetID != nil
+                && stage.outcomeKeys.contains(outcomeKey)
+                && ((role == .findingObserved) == (record.issueID != nil))
+                && record.workPerformedLocalDate == nil
+                && record.workDescription == nil
+                && hasRequiredAcknowledgements
+                && hasAllTimeFields
+                && allRequiredAcknowledgementsAccepted
+
+        case WorkflowStage.recheck.rawValue:
+            guard let stage = try? lifecycleProfile.stage(record.stage),
+                  let outcomeKey = record.outcomeKey else { return false }
+            return record.parentRecordID != nil
+                && record.issueID != nil
+                && record.packetID != nil
+                && stage.outcomeKeys.contains(outcomeKey)
+                && record.workPerformedLocalDate == nil
+                && record.workDescription == nil
+                && hasRequiredAcknowledgements
+                && hasAllTimeFields
+                && allRequiredAcknowledgementsAccepted
+
+        case WorkflowStage.work.rawValue:
+            guard let stage = try? lifecycleProfile.stage(record.stage),
+                  let outcomeKey = record.outcomeKey,
+                  stage.outcomes.contains(where: {
+                      $0.key == outcomeKey && $0.role == .workRecorded
+                  }) else { return false }
+            return record.parentRecordID != nil
+                && record.issueID != nil
+                && record.packetID == nil
+                && record.workPerformedLocalDate?.range(
+                    of: #"^\d{4}-\d{2}-\d{2}$"#,
+                    options: .regularExpression
+                ) != nil
+                && validRequiredTrimmed(record.workDescription, maximum: 160)
+                && hasNoAcknowledgements
+                && hasNoTimeFields
+
+        default:
+            return false
+        }
+    }
+
+    private func validSourceRevision(
+        _ source: WorkflowRecord,
+        effective: WorkflowRecord,
+        recordsByID: [UUID: WorkflowRecord]
+    ) -> Bool {
+        if source.id == effective.id {
+            return source.revisionKind == WorkflowRevisionKind.original.rawValue
+        }
+        guard source.revisionKind == WorkflowRevisionKind.clericalCorrection.rawValue,
+              source.recordRevisionRootID == effective.id,
+              source.evidenceSourceRecordID == effective.id else {
+            return false
+        }
+        var visited: Set<UUID> = [source.id]
+        var correction = source
+        var revisedID = correction.revisesRecordID
+        while let id = revisedID,
+              visited.insert(id).inserted,
+              let revision = recordsByID[id],
+              revision.assetID == source.assetID,
+              revision.packetID == source.packetID,
+              revision.recordRevisionRootID == effective.id,
+              validCompletedRecord(revision),
+              noteOnlyCorrection(correction, revises: revision) {
+            if revision.id == effective.id { return true }
+            guard revision.revisionKind
+                    == WorkflowRevisionKind.clericalCorrection.rawValue else {
+                return false
+            }
+            correction = revision
+            revisedID = revision.revisesRecordID
+        }
+        return false
+    }
+
+    private func noteOnlyCorrection(
+        _ correction: WorkflowRecord,
+        revises prior: WorkflowRecord
+    ) -> Bool {
+        correction.assetID == prior.assetID
+            && correction.packetID == prior.packetID
+            && correction.issueID == prior.issueID
+            && correction.parentRecordID == prior.parentRecordID
+            && correction.recordRevisionRootID == prior.recordRevisionRootID
+            && correction.evidenceSourceRecordID == prior.recordRevisionRootID
+            && correction.stage == prior.stage
+            && canonicalOptionalDatesEqual(
+                correction.observedAtUTC,
+                prior.observedAtUTC
+            )
+            && correction.timeZoneID == prior.timeZoneID
+            && correction.utcOffsetMinutes == prior.utcOffsetMinutes
+            && correction.localDate == prior.localDate
+            && correction.localTime == prior.localTime
+            && correction.afterDarkAcknowledgementKey
+                == prior.afterDarkAcknowledgementKey
+            && correction.afterDarkAcknowledgementCopy
+                == prior.afterDarkAcknowledgementCopy
+            && correction.afterDarkAcknowledgementVersion
+                == prior.afterDarkAcknowledgementVersion
+            && correction.afterDarkAcknowledgementAccepted
+                == prior.afterDarkAcknowledgementAccepted
+            && correction.safePositionAcknowledgementKey
+                == prior.safePositionAcknowledgementKey
+            && correction.safePositionAcknowledgementCopy
+                == prior.safePositionAcknowledgementCopy
+            && correction.safePositionAcknowledgementVersion
+                == prior.safePositionAcknowledgementVersion
+            && correction.safePositionAcknowledgementAccepted
+                == prior.safePositionAcknowledgementAccepted
+            && correction.packID == prior.packID
+            && correction.packSchemaVersion == prior.packSchemaVersion
+            && correction.packContentVersion == prior.packContentVersion
+            && correction.pdfTemplateID == prior.pdfTemplateID
+            && correction.pdfTemplateVersion == prior.pdfTemplateVersion
+            && correction.outcomeKey == prior.outcomeKey
+            && correction.couldNotVerifyKey == prior.couldNotVerifyKey
+            && correction.couldNotVerifyDisplaySnapshot
+                == prior.couldNotVerifyDisplaySnapshot
+            && correction.couldNotVerifyRegistryVersion
+                == prior.couldNotVerifyRegistryVersion
+            && correction.workPerformedLocalDate == prior.workPerformedLocalDate
+            && correction.workDescription == prior.workDescription
+    }
+
+    private func frozenCNV(_ record: WorkflowRecord) -> CouldNotVerifySnapshotV1? {
+        guard let key = record.couldNotVerifyKey,
+              let display = record.couldNotVerifyDisplaySnapshot,
+              let version = record.couldNotVerifyRegistryVersion else {
+            return nil
+        }
+        return CouldNotVerifySnapshotV1(
+            display: display,
+            key: key,
+            registryVersion: version
+        )
+    }
+
+    private func outcomeRole(
+        for record: WorkflowRecord
+    ) -> WorkspacePackageOutcomeRoleV1? {
+        guard let outcomeKey = record.outcomeKey,
+              let stage = try? lifecycleProfile.stage(record.stage),
+              let outcome = stage.outcomes.first(where: { $0.key == outcomeKey }) else {
+            return nil
+        }
+        return outcome.role
+    }
+
+    private func currentEvidencePurposes() throws -> [SignPack.EvidencePurpose] {
+        let keys = lifecycleProfile.evidencePurposeKeys(for: .captureRequired)
+        let values = keys.compactMap { key in
+            signPack.evidencePurposes.first(where: { $0.key == key })
+        }
+        guard values.count == keys.count else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        return values
+    }
+
+    private func validRequiredTrimmed(_ value: String?, maximum: Int) -> Bool {
+        guard let value else { return false }
+        return !value.isEmpty
+            && value.count <= maximum
+            && value == value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func validOptionalTrimmed(_ value: String?, maximum: Int) -> Bool {
+        value == nil || validRequiredTrimmed(value, maximum: maximum)
+    }
+
+    private func validateCurrentCardinality(
+        rows: [EvidenceFile],
+        effective: WorkflowRecord
+    ) throws {
+        let keys = rows.map(\.purposeKey)
+        guard effective.stage == WorkflowStage.check.rawValue
+                || effective.stage == WorkflowStage.recheck.rawValue else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        let requiredKeys = lifecycleProfile.evidencePurposeKeys(for: .captureRequired)
+        let supplementaryKeys = lifecycleProfile.evidencePurposeKeys(for: .captureSupplementary)
+        let allowedKeys = requiredKeys + supplementaryKeys
+        if outcomeRole(for: effective) == .couldNotVerify {
+            guard rows.count <= allowedKeys.count,
+                  Set(keys).count == keys.count,
+                  keys.allSatisfy(allowedKeys.contains) else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        } else {
+            guard keys == requiredKeys else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        }
+    }
+
+    private func validateHistoricalCardinality(
+        rows: [EvidenceFile],
+        record: WorkflowRecord
+    ) throws {
+        let keys = rows.map(\.purposeKey)
+        switch record.stage {
+        case WorkflowStage.work.rawValue:
+            let allowedKeys = lifecycleProfile.evidencePurposeKeys(for: .workSupplementary)
+            guard rows.count <= allowedKeys.count,
+                  Set(keys).count == keys.count,
+                  keys.allSatisfy(allowedKeys.contains) else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        case WorkflowStage.check.rawValue, WorkflowStage.recheck.rawValue:
+            let requiredKeys = lifecycleProfile.evidencePurposeKeys(for: .captureRequired)
+            let supplementaryKeys = lifecycleProfile.evidencePurposeKeys(for: .captureSupplementary)
+            let allowedKeys = requiredKeys + supplementaryKeys
+            if outcomeRole(for: record) == .couldNotVerify {
+                guard rows.count <= allowedKeys.count,
+                      Set(keys).count == keys.count,
+                      keys.allSatisfy(allowedKeys.contains) else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            } else {
+                guard keys == requiredKeys else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
+        default:
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validateHistory(
+        _ value: HistoryEntrySnapshotV1,
+        against record: WorkflowRecord,
+        snapshotSchemaVersion: Int
+    ) throws {
+        guard let completedAt = record.completedAt,
+              canonicalDateEqual(value.completedAt, completedAt),
+              value.recordID == record.id,
+              value.stage == record.stage,
+              value.outcome == record.outcomeKey,
+              value.stageDisplay == stageDisplay(record.stage),
+              value.outcomeDisplay == outcomeDisplay(record.outcomeKey),
+              value.note == record.note,
+              value.workDescription == record.workDescription,
+              value.workPerformedLocalDate == record.workPerformedLocalDate,
+              Set(value.evidenceIDs).count == value.evidenceIDs.count,
+              Set(value.issueIDs).count == value.issueIDs.count,
+              value.issueIDs == value.issueIDs.sorted(by: {
+                canonicalID($0) < canonicalID($1)
+              }),
+              validCompletedRecord(record) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        let expectedCNV = frozenCNV(record)
+        let companion: ObservationAndTimeRow?
+        if usesReleasedObservationFields { companion = nil }
+        else { companion = try ObservationAndTimeRowStoreV1.requireRow(recordID: record.id, in: modelContext) }
+        let expectedBasis = try companion?.observationBasisV1()
+        let expectedTemporal = try companion?.temporalContextV1()
+        let observationAndTimeMatches: Bool
+        if snapshotSchemaVersion == 1 {
+            observationAndTimeMatches = value.observationBasis == nil
+                && value.temporalContext == nil
+        } else {
+            observationAndTimeMatches = value.observationBasis == expectedBasis
+                && value.temporalContext == expectedTemporal
+        }
+        guard value.couldNotVerify == expectedCNV,
+              observationAndTimeMatches else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+    }
+
+    private func validObservationAndTime(_ record: WorkflowRecord) -> Bool {
+        if usesReleasedObservationFields { return true }
+        do {
+            let companion = try ObservationAndTimeRowStoreV1.requireRow(
+                recordID: record.id, in: modelContext
+            )
+            let basis = try companion.observationBasisV1()
+            let temporal = try companion.temporalContextV1()
+            let basisData = try ObservationAndTimeCodecV1.encode(basis)
+            let temporalData = try ObservationAndTimeCodecV1.encode(temporal)
+            return basisData == companion.observationBasisV1Data
+                && temporalData == companion.temporalContextV1Data
+        } catch {
+            return false
+        }
+    }
+
+    private var usesReleasedObservationFields: Bool {
+        guard let sourceRecoveryAuthority else { return false }
+        switch sourceRecoveryAuthority.sourceRelease {
+        case .v1, .v2, .v3, .v4: return true
+        default: return false
+        }
+    }
+
+    private func validateEvidenceSnapshot(
+        _ value: EvidenceSnapshotV1,
+        row: EvidenceFile
+    ) -> Bool {
+        let id = canonicalID(row.id)
+        let purposeMatches = signPack.evidencePurposes.filter {
+            $0.key == row.purposeKey
+        }
+        return row.schemaVersion == 1
+            && value.evidenceID == row.id
+            && value.recordID == row.recordID
+            && value.purposeKey == row.purposeKey
+            && purposeMatches.count == 1
+            && value.purposeDisplay == purposeMatches[0].display
+            && row.relativePath == "evidence/\(id)/original.jpg"
+            && value.relativePath == row.relativePath
+            && row.thumbnailRelativePath == "evidence/\(id)/thumbnail.jpg"
+            && value.thumbnailRelativePath == row.thumbnailRelativePath
+            && row.mimeType == MediaContractV1.durableMIMEType
+            && value.mimeType == row.mimeType
+            && row.byteCount > 0
+            && row.byteCount <= MediaContractV1.originalByteCountMaximum
+            && value.byteCount == row.byteCount
+            && row.thumbnailByteCount > 0
+            && row.thumbnailByteCount <= MediaContractV1.thumbnailByteCountMaximum
+            && value.thumbnailByteCount == row.thumbnailByteCount
+            && isLowercaseSHA256(row.sha256)
+            && value.sha256 == row.sha256
+            && isLowercaseSHA256(row.thumbnailSHA256)
+            && value.thumbnailSHA256 == row.thumbnailSHA256
+            && canonicalDateEqual(value.createdAt, row.createdAt)
+    }
+
+    private func expectedIssues(
+        for chain: [WorkflowRecord],
+        assetID: UUID
+    ) throws -> [IssueSnapshotV1] {
+        let allIssues = try modelContext.fetch(FetchDescriptor<Issue>())
+        var issueIDs = Set<UUID>()
+        for record in chain {
+            if let issueID = record.issueID { issueIDs.insert(issueID) }
+        }
+        for issue in allIssues where chain.contains(where: { $0.id == issue.openedByRecordID }) {
+            issueIDs.insert(issue.id)
+        }
+        var result: [IssueSnapshotV1] = []
+        for issueID in issueIDs {
+            guard let issue = unique(allIssues.filter { $0.id == issueID }),
+                  issue.schemaVersion == 1,
+                  issue.assetID == assetID,
+                  let openingRecord = chain.first(where: {
+                    $0.id == issue.openedByRecordID
+                  }),
+                  let openingCompletedAt = openingRecord.completedAt,
+                  canonicalDateEqual(issue.createdAt, openingCompletedAt),
+                  exactIssueDisplay(issue) else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            var status = IssueStatus.open.rawValue
+            var resolvedBy: UUID?
+            var updatedAt = issue.createdAt
+            for record in chain where record.issueID == issue.id {
+                guard let completed = record.completedAt else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                if record.stage == WorkflowStage.work.rawValue {
+                    status = IssueStatus.recheckDue.rawValue
+                    resolvedBy = nil
+                    updatedAt = completed
+                } else if record.stage == WorkflowStage.recheck.rawValue {
+                    switch outcomeRole(for: record) {
+                    case .resolved, .originalResolvedDifferentFinding:
+                        status = IssueStatus.resolved.rawValue
+                        resolvedBy = record.id
+                        updatedAt = completed
+                    case .findingStillPresent:
+                        status = IssueStatus.open.rawValue
+                        resolvedBy = nil
+                        updatedAt = completed
+                    case .couldNotVerify:
+                        break
+                    default:
+                        throw SnapshotValidationErrorV1.invalidAuthority
+                    }
+                }
+            }
+            result.append(IssueSnapshotV1(
+                createdAt: issue.createdAt,
+                display: issue.labelDisplaySnapshot,
+                issueID: issue.id,
+                key: issue.labelKey,
+                openedByRecordID: issue.openedByRecordID,
+                resolvedByRecordID: resolvedBy,
+                status: status,
+                updatedAt: updatedAt
+            ))
+        }
+        return result.sorted {
+            $0.createdAt < $1.createdAt
+                || ($0.createdAt == $1.createdAt
+                    && canonicalID($0.issueID) < canonicalID($1.issueID))
+        }
+    }
+
+    private func validateLineage(_ chain: [WorkflowRecord]) throws {
+        guard !chain.isEmpty else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        let allIssues = try modelContext.fetch(FetchDescriptor<Issue>())
+        for record in chain {
+            let opened = allIssues.filter { $0.openedByRecordID == record.id }
+            switch (record.stage, outcomeRole(for: record)) {
+            case (WorkflowStage.check.rawValue, .findingObserved):
+                guard opened.count == 1,
+                      opened[0].id == record.issueID else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            case (WorkflowStage.recheck.rawValue, .originalResolvedDifferentFinding):
+                guard opened.count == 1,
+                      opened[0].id != record.issueID else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            default:
+                guard opened.isEmpty else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
+        }
+        for index in chain.indices.dropFirst() {
+            let parent = chain[chain.index(before: index)]
+            let child = chain[index]
+            guard child.parentRecordID == parent.id,
+                  child.assetID == parent.assetID,
+                  (child.stage == WorkflowStage.work.rawValue
+                    || child.stage == WorkflowStage.recheck.rawValue),
+                  let childIssueID = child.issueID else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            if childIssueID != parent.issueID {
+                guard outcomeRole(for: parent) == .originalResolvedDifferentFinding,
+                      let opened = unique(allIssues.filter {
+                        $0.id == childIssueID && $0.openedByRecordID == parent.id
+                      }),
+                      opened.assetID == child.assetID else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+            }
+        }
+    }
+
+    private func validatePacketAuthorities(
+        for chain: [WorkflowRecord],
+        packets: [Packet],
+        recordsByID: [UUID: WorkflowRecord]
+    ) throws {
+        for record in chain {
+            if record.stage == WorkflowStage.work.rawValue {
+                guard record.packetID == nil else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                continue
+            }
+            guard record.stage == WorkflowStage.check.rawValue
+                    || record.stage == WorkflowStage.recheck.rawValue,
+                  let packetID = record.packetID,
+                  let packet = unique(packets.filter { $0.id == packetID }),
+                  packet.schemaVersion == 1,
+                  packet.evaluationCounted,
+                  packet.contentDeletedAt == nil,
+                  packets.filter({
+                    $0.stableRootID == packet.stableRootID
+                  }).count == 1,
+                  let currentRecordID = packet.currentRecordID,
+                  packets.filter({
+                    $0.currentRecordID == currentRecordID
+                  }).count == 1,
+                  let current = recordsByID[currentRecordID],
+                  current.assetID == record.assetID,
+                  current.packetID == packetID,
+                  current.recordRevisionRootID == record.id,
+                  validCompletedRecord(current),
+                  validSourceRevision(
+                    current,
+                    effective: record,
+                    recordsByID: recordsByID
+                  ) else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        }
+    }
+
+    private func historyIssueIDs(
+        record: WorkflowRecord,
+        assetID: UUID,
+        allIssues: [Issue]
+    ) throws -> [UUID] {
+        var issuesByID: [UUID: Issue] = [:]
+        for issue in allIssues {
+            guard issuesByID.updateValue(issue, forKey: issue.id) == nil else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        }
+        var result = Set(record.issueID.map { [$0] } ?? [])
+        result.formUnion(allIssues.compactMap {
+            $0.openedByRecordID == record.id ? $0.id : nil
+        })
+        guard result.allSatisfy({ id in
+            guard let issue = issuesByID[id] else { return false }
+            return issue.schemaVersion == 1
+                && issue.assetID == assetID
+                && !issue.labelKey.isEmpty
+                && !issue.labelDisplaySnapshot.isEmpty
+        }) else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        return result.sorted { canonicalID($0) < canonicalID($1) }
+    }
+
+    private func issueSnapshotsEqual(
+        _ lhs: [IssueSnapshotV1],
+        _ rhs: [IssueSnapshotV1]
+    ) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { pair in
+            let (left, right) = pair
+            return left.display == right.display
+                && left.issueID == right.issueID
+                && left.key == right.key
+                && left.openedByRecordID == right.openedByRecordID
+                && left.resolvedByRecordID == right.resolvedByRecordID
+                && left.status == right.status
+                && canonicalDateEqual(left.createdAt, right.createdAt)
+                && canonicalDateEqual(left.updatedAt, right.updatedAt)
+        }
+    }
+
+    private func exactIssueDisplay(_ issue: Issue) -> Bool {
+        let matches = signPack.issueLabels.filter { $0.key == issue.labelKey }
+        return matches.count == 1
+            && matches[0].display == issue.labelDisplaySnapshot
+    }
+
+    private func parentChain(
+        endingAt record: WorkflowRecord,
+        recordsByID: [UUID: WorkflowRecord]
+    ) throws -> [WorkflowRecord] {
+        var reversed: [WorkflowRecord] = []
+        var visited = Set<UUID>()
+        var current: WorkflowRecord? = record
+        while let value = current {
+            guard visited.insert(value.id).inserted else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            reversed.append(value)
+            if let parentID = value.parentRecordID {
+                guard let parent = recordsByID[parentID],
+                      parent.assetID == record.assetID else {
+                    throw SnapshotValidationErrorV1.invalidAuthority
+                }
+                current = parent
+            } else {
+                current = nil
+            }
+        }
+        return Array(reversed.reversed())
+    }
+
+    private func readRegularNonsymlinkFile(
+        _ url: URL,
+        expectedRelativePath: String
+    ) throws -> Data {
+        let candidate = url.standardizedFileURL
+        let resolvedCandidate = candidate.resolvingSymlinksInPath()
+        let resolvedExpected = resolvedGenerationRootURL
+            .appendingPathComponent(expectedRelativePath, isDirectory: false)
+            .standardizedFileURL
+        guard candidate.path.hasPrefix(generationRootURL.path + "/"),
+              resolvedCandidate == resolvedExpected,
+              relativePath(of: candidate) == expectedRelativePath else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        var ancestor = generationRootURL
+        let components = expectedRelativePath.split(separator: "/").map(String.init)
+        guard !components.isEmpty else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        for component in components.dropLast() {
+            guard !component.isEmpty, component != ".", component != ".." else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+            ancestor.appendPathComponent(component, isDirectory: true)
+            guard try Self.itemType(at: ancestor, fileManager: fileManager)
+                    == .typeDirectory else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        }
+        guard try Self.itemType(at: candidate, fileManager: fileManager) == .typeRegular else {
+            throw SnapshotValidationErrorV1.invalidAuthority
+        }
+        return try Data(contentsOf: candidate, options: [.mappedIfSafe])
+    }
+
+    private func relativePath(of url: URL) -> String? {
+        let prefix = generationRootURL.path + "/"
+        guard url.path.hasPrefix(prefix) else { return nil }
+        return String(url.path.dropFirst(prefix.count))
+    }
+
+    private func uniqueRecords(
+        _ records: [WorkflowRecord]
+    ) throws -> [UUID: WorkflowRecord] {
+        var result: [UUID: WorkflowRecord] = [:]
+        for record in records {
+            guard result.updateValue(record, forKey: record.id) == nil else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        }
+        return result
+    }
+
+    private func uniqueEvidenceRows(
+        _ rows: [EvidenceFile]
+    ) throws -> [UUID: EvidenceFile] {
+        var result: [UUID: EvidenceFile] = [:]
+        for row in rows {
+            guard result.updateValue(row, forKey: row.id) == nil else {
+                throw SnapshotValidationErrorV1.invalidAuthority
+            }
+        }
+        return result
+    }
+
+    private func unique<Value>(_ values: [Value]) -> Value? {
+        values.count == 1 ? values[0] : nil
+    }
+
+    private func evidenceOrder(_ lhs: EvidenceFile, _ rhs: EvidenceFile) -> Bool {
+        let left = purposeOrder(lhs.purposeKey)
+        let right = purposeOrder(rhs.purposeKey)
+        return left == right
+            ? canonicalID(lhs.id) < canonicalID(rhs.id)
+            : left < right
+    }
+
+    private func purposeOrder(_ value: String) -> Int {
+        lifecycleProfile.evidencePurposes.firstIndex(where: { $0.key == value })
+            ?? lifecycleProfile.evidencePurposes.count
+    }
+
+    private func stageDisplay(_ value: String) -> String? {
+        try? lifecycleProfile.stage(value).stageDisplay
+    }
+
+    private func outcomeDisplay(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let matches = lifecycleProfile.stages.flatMap(\.outcomes).filter {
+            $0.key == value
+        }
+        guard let first = matches.first,
+              matches.allSatisfy({ $0.display == first.display }) else { return nil }
+        return first.display
+    }
+
+    private func recordChronology(_ lhs: WorkflowRecord, _ rhs: WorkflowRecord) -> Bool {
+        guard let left = lhs.completedAt, let right = rhs.completedAt else { return false }
+        return left < right || (left == right && canonicalID(lhs.id) < canonicalID(rhs.id))
+    }
+
+    private func canonicalOptionalDateEqual(_ lhs: Date, _ rhs: Date?) -> Bool {
+        guard let rhs else { return false }
+        return canonicalDateEqual(lhs, rhs)
+    }
+
+    private func canonicalOptionalDatesEqual(_ lhs: Date?, _ rhs: Date?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil): true
+        case (.some(let left), .some(let right)): canonicalDateEqual(left, right)
+        default: false
+        }
+    }
+
+    private func canonicalDateEqual(_ lhs: Date, _ rhs: Date) -> Bool {
+        Self.canonicalTimestamp(lhs) == Self.canonicalTimestamp(rhs)
+    }
+
+    private func canonicalID(_ value: UUID) -> String {
+        value.uuidString.lowercased()
+    }
+
+    private func isLowercaseSHA256(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.allSatisfy {
+            (0x30...0x39).contains($0) || (0x61...0x66).contains($0)
+        }
+    }
+
+    private static func canonicalTimestamp(_ value: Date) -> String {
+        timestampFormatter.string(from: value)
+    }
+
+    private static let timestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
+
+    private static func itemType(
+        at url: URL,
+        fileManager: FileManager
+    ) throws -> FileAttributeType? {
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: url.path)
+            return attributes[.type] as? FileAttributeType
+        } catch let error as CocoaError where
+            error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+            return nil
+        }
+    }
+
+    private static func isSymbolicLink(
+        _ url: URL,
+        fileManager: FileManager
+    ) -> Bool {
+        (try? fileManager.destinationOfSymbolicLink(atPath: url.path)) != nil
+    }
+
+    private static func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension SnapshotValidatorV1 {
+    /// Validates the package identity pinned into a historical report without
+    /// resolving or rewriting the report against the current active pointer.
+    func validatePackageEvolutionReport(
+        _ projection: PackageEvolutionReportProjectionV1,
+        against release: InspectionPackageReleaseV1
+    ) throws -> PackageEvolutionReportProjectionV1 {
+        try projection.validate()
+        try projection.frozenRelease.validate(against: release)
+        return projection
+    }
+
+    func validatePackageEvolutionSandbox(
+        _ run: PackageSandboxRunV1
+    ) throws {
+        try PackageEvolutionReportConsumerPolicyV1.validateSandbox(run)
+    }
+
+    /// C19 validation is projection-only. It checks the frozen typed
+    /// measurement object and never resolves current instrument, calibration,
+    /// package, or operator state while reopening a historical report.
+    func validateMeasurementIntegrityProjection(
+        _ projection: MeasurementIntegrityReportProjectionV1
+    ) throws -> MeasurementIntegrityReportProjectionV1 {
+        try projection.validate()
+        try EvidenceDetailMeasurementIntegrityProjectionGuardV1.validate(projection)
+        return projection
+    }
+
+    static func validateMeasurementIntegrityProjection(
+        _ projection: MeasurementIntegrityReportProjectionV1
+    ) throws -> MeasurementIntegrityReportProjectionV1 {
+        try projection.validate()
+        try EvidenceDetailMeasurementIntegrityProjectionGuardV1.validate(projection)
+        return projection
+    }
+
+    /// C20 is validated as a frozen, audience-safe derivative binding. The
+    /// validator never resolves original content or a newer policy/review.
+    func validatePrivacyTransformProjection(
+        _ projection: PrivacyTransformReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try projection.validate()
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validatePrivacyTransformProjection(
+        _ projection: PrivacyTransformReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try projection.validate()
+        try PrivacyTransformReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validatePrivacyTransformOpenJSON(
+        _ data: Data
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenPrivacyTransform(data)
+    }
+
+    /// C23 validation is anchored to the release/binding/readiness values
+    /// already recorded in the report.  It does not resolve a current release
+    /// and it never opens restricted reference content.
+    func validateFieldReferenceProjection(
+        _ projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: format)
+    }
+
+    static func validateFieldReferenceProjection(
+        _ projection: FieldReferenceReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: format)
+    }
+
+    static func validateFieldReferenceOpenJSON(
+        _ data: Data
+    ) throws -> FieldReferenceReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenFieldReference(data)
+    }
+
+    /// C21 validates the frozen local admission/lifecycle projection without
+    /// consulting a current pointer. Withdrawal therefore cannot rewrite a
+    /// historic report, and the stored closed state remains the display truth.
+    func validateClientCapabilityProjection(
+        _ projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try projection.validate()
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validateClientCapabilityProjection(
+        _ projection: ClientCapabilityReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try projection.validate()
+        try ClientCapabilityReportConsumerPolicyV1.validate(projection, format: format)
+        return projection
+    }
+
+    static func validateClientCapabilityOpenJSON(
+        _ data: Data
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenClientCapability(data)
+    }
+}
+
+extension SnapshotValidatorV1 {
+    static func validateAdvancedScheduleProjection(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> AdvancedScheduleReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateAdvancedScheduleProjection(projection)
+    }
+    static let advancedScheduleHistoryIsFrozen = true
+    static let advancedSchedulePreviewFailsClosedOnFrontierMismatch = true
+}
+
+// MARK: - C25 survey-definition validation
+
+extension SnapshotValidatorV1 {
+    /// Validates a report projection against the pinned release supplied by
+    /// the caller.  It never consults a current pointer, so a later publish or
+    /// retirement cannot rewrite historic display semantics.
+    static func validateSurveyDefinitionProjection(
+        _ projection: SurveyDefinitionReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        try projection.validate(format: format)
+        return try ReportProjectionRegistryV1.validateSurveyDefinitionProjection(
+            projection,
+            format: format
+        )
+    }
+
+    static func validateSurveyDefinitionOpenJSON(
+        _ data: Data
+    ) throws -> SurveyDefinitionReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenSurveyDefinition(data)
+    }
+
+    static let surveyDefinitionHistoricDisplayIsImmutable = true
+    static let surveyDefinitionAnswersAreNeverReportInput = true
+    static let surveyDefinitionMissingStateFailsClosed = true
+}
+
+// MARK: - C27 asset-locator validation boundary
+
+extension SnapshotValidatorV1 {
+    static func validateAssetLocatorProjection(
+        _ projection: AssetLocatorReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateAssetLocatorProjection(
+            projection,
+            format: format
+        )
+    }
+
+    static func validateAssetLocatorOpenJSON(
+        _ data: Data
+    ) throws -> AssetLocatorReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenAssetLocator(data)
+    }
+
+    static let assetLocatorHistoricDisplayIsImmutable = true
+    static let assetLocatorResolutionIsReadOnly = true
+    static let assetLocatorMissingStateFailsClosed = true
+}
+
+// MARK: - C28 schedule projection validation
+
+extension SnapshotValidatorV1 {
+    static func validateScheduleProjection(
+        _ projection: ScheduleReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> ScheduleReportProjectionV1 {
+        try ReportProjectionRegistryV1.validateScheduleProjection(
+            projection,
+            format: format
+        )
+    }
+
+    static let scheduleHistoricDisplayIsImmutable = true
+    static let scheduleDueQueueIsDerivedOnly = true
+    static let scheduleReminderIsNotOccurrenceTruth = true
+    static let scheduleMissingHistoryFailsClosed = true
+}
+
+// MARK: - C29 plan and rebase projection validation
+
+extension SnapshotValidatorV1 {
+    /// Validates the frozen plan consumer projection without resolving a
+    /// current document or reinterpreting a preview. Stale references and
+    /// component conflicts therefore fail closed at the report boundary.
+    static func validatePlanProjection(
+        _ projection: PlanReportProjectionV1,
+        format: ReportProjectionFormatV1 = .openJSON
+    ) throws -> PlanReportProjectionV1 {
+        try ReportProjectionRegistryV1.validatePlanProjection(
+            projection,
+            format: format
+        )
+    }
+
+    static func validatePlanOpenJSON(
+        _ data: Data
+    ) throws -> PlanReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenPlan(data)
+    }
+
+    static let planHistoricDisplayIsImmutable = true
+    static let planPreviewIsNotAppliedTruth = true
+    static let planStaleReferenceFailsClosed = true
+    static let planComponentConflictFailsClosed = true
+    static let planMissingReceiptFailsClosed = true
+}
+
+// MARK: - C37 reference-framed pose validation
+
+extension SnapshotValidatorV1 {
+    /// C37 validates the exact frozen projection supplied by the snapshot.
+    /// It never asks a current-tip service to reinterpret historic output.
+    static func validatePlacementPoseProjection(
+        _ projection: C37PlacementPoseReportProjectionV1
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        try ReportProjectionRegistryV1.validatePlacementPoseProjection(projection)
+    }
+
+    static func validatePlacementPoseSnapshot(
+        _ snapshot: C37PlacementPoseFrozenSnapshotV1
+    ) throws -> C37PlacementPoseFrozenSnapshotV1 {
+        try snapshot.validate()
+        return snapshot
+    }
+
+    static func validatePlacementPoseOpenJSON(
+        _ data: Data
+    ) throws -> C37PlacementPoseReportProjectionV1 {
+        try DeterministicOpenJSONRendererV1.reopenPlacementPose(data)
+    }
+
+    static let placementPoseHistoricDisplayIsImmutable = true
+    static let placementPoseCurrentTipIsRecorded = true
+    static let placementPoseRebasePreviewIsNotApplied = true
+    static let placementPoseUnknownUncertaintyIsExplicit = true
+    static let placementPoseBareDirectionClaimsAreRejected = true
+    static let placementPoseSensorStreamIsExcluded = true
+}
+// MARK: - C30 operating-context validation
+
+extension SnapshotValidatorV1 {
+    static func validateOperatingContext(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> C30EvidenceContextReportReferenceV1 {
+        try projection.validate()
+        return try ReportProjectionRegistryV1.validateOperatingContextProjection(
+            projection
+        )
+    }
+
+    static let c30OperatingContextHistoricDisplayIsImmutable = true
+    static let c30OperatingContextDoesNotInferFromTimePhotoOrSolar = true
+    static let c30OperatingContextExpectedControlIsNotActual = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Reporting_SnapshotValidatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift", role: .report)
+}
+
+// MARK: - C31 lighting validation
+
+extension SnapshotValidatorV1 {
+    static func validateLightingProjection(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> C31LightingReportProjectionV1 {
+        try C31LightingReportProjectionRegistryV1.validate(projection)
+    }
+
+    static let lightingHistoricDisplayIsImmutable = true
+    static let lightingProjectionIsMetadataOnly = true
+    static let lightingOriginalEvidenceRemainsSeparate = true
+    static let lightingTimestampPhotoSolarInferenceRejected = true
+    static let lightingOperationalSafetySecurityComplianceClaimsRejected = true
+}
+
+/// C32 keeps assistance candidates outside every durable and derived surface;
+/// only explicit acceptance may reach the existing canonical writer/receipt path.
+enum C32AssistanceCompatibility_Reporting_SnapshotValidatorV1 {
+    enum ProposalDispositionV1: Sendable {
+        case nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+    }
+
+    enum AcceptanceDispositionV1: Sendable {
+        case durableThroughExistingCanonicalWriter
+    }
+
+    static func disposition(
+        for proposal: AssistanceProposalV1
+    ) throws -> ProposalDispositionV1 {
+        try proposal.validate()
+        guard !AssistancePersistenceEnrollmentV1.proposalIsPersistent,
+              !AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent else {
+            throw AssistanceContractFailureV1.nonCanonicalData
+        }
+        switch proposal.verificationState {
+        case .unverified:
+            return .nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+        }
+    }
+
+    static func disposition(
+        for receipt: AssistanceAcceptanceReceiptV1
+    ) throws -> AcceptanceDispositionV1 {
+        try receipt.validate()
+        guard AssistancePersistenceEnrollmentV1.durableModelCount == 1 else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+        return .durableThroughExistingCanonicalWriter
+    }
+
+    static let capabilityScratchIsDiscardedOnTerminalReview = true
+    static let manualFallbackRemainsAvailable = true
+    static let interruptionNeverPromotesAProposal = true
+    static let createsParallelStoreOrWriter = false
+}
+
+enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Reporting_SnapshotValidatorV1_swift {
+    static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
+    static func validate(clip: TemporalEvidenceClipV1,
+                         anchor: TimecodedEvidenceAnchorV1) throws {
+        try clip.validateIntrinsic()
+        try anchor.validate(clip: clip)
+        guard durableFamilyCount == 2 else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}
+
+enum C25TemporalEvidenceReportLinkageValidationV1 {
+    static let embedsOriginalMediaBytes = false
+    static let exposesScratchPrivateLocatorTranscriptOrActor = false
+
+    static func validate(_ link: TemporalEvidenceReportLinkV1,
+                         clip: TemporalEvidenceClipV1,
+                         anchors: [TimecodedEvidenceAnchorV1],
+                         currentDerivative: TemporalEvidenceDerivativeReferenceV1) throws {
+        try TemporalEvidenceReportProjectionPolicyV1.validate(link)
+        try link.validate(clip: clip, anchors: anchors,
+                          currentDerivative: currentDerivative)
+        guard !embedsOriginalMediaBytes,
+              !exposesScratchPrivateLocatorTranscriptOrActor,
+              link.manualTranscript == nil else {
+            throw SnapshotProjectionFailureV1.privacyViolation
+        }
+    }
+}
+
+/// C45 reopened accepted snapshots validate exact plan and artifact manifest digests.
+enum C45AssetLabelBoundary_SnapshotValidatorV1 {
+    static func validate(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws { try snapshot.validate() }
+    static let requiresManifestDigest = true
+}
+
+enum C46OperationalContactBoundary_28{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Reporting_SnapshotValidatorV1_swift {
+    static let integrationRole = "READ_VALIDATE_MUTATION_FAIL_CLOSED"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingReportInfrastructure = true
+    static let createsSecondRendererWriterOrStore = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+    static func validate(_ projection: ActivityContractReportProjectionV2) throws {
+        _ = try ActivityContractReportProjectionV2(
+            envelope: projection.envelope, completed: projection.completed,
+            installation: projection.installation, punch: projection.punch
+        )
+    }
+}
+
+enum C48PortableReviewSnapshotValidationBoundaryV1 {
+    static let validatesDerivedHistoryBeforeConsumerUse = true
+    static let capabilityBytesAccepted = false
+    static let capabilityProofBytesAccepted = false
+    static let responseBodyAccepted = false
+    static let rawRequestResponseBytesAccepted = false
+    static let workspaceAndReplicaIdentityAccepted = false
+    static let validationDoesNotAuthorizeMutation = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}
+
+// MARK: - C49 work-resource snapshot validation
+
+enum C49WorkResourceSnapshotValidationBoundaryV1 {
+    static let validatesBeforeEveryConsumer = true
+    static let correctionSnapshotsRemainAppendOnly = true
+    static let rawStockAndLiveInventorySnapshotsAccepted = false
+
+    static func validate(_ envelope: C49WorkResourceProjectionEnvelopeV1) throws {
+        try envelope.validate()
+        try C49WorkResourceReportSnapshotBoundaryV1.validate(envelope)
+    }
+
+    static func rebuild(
+        workspaceID: WorkspaceID,
+        snapshots: [WorkResourceSnapshotV1],
+        audience: C49WorkResourceAudienceV1 = .internalOnly,
+        includeDirectCostPreview: Bool = false
+    ) throws -> C49WorkResourceReportProjectionV1 {
+        let projection = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: snapshots,
+            audience: audience,
+            includeDirectCostPreview: includeDirectCostPreview
+        )
+        try C49WorkResourceProjectionSupportV1.validate(projection)
+        return projection
+    }
+}
+
+/// Snapshot validation remains anchored to canonical/report projections. C50
+/// scratch, quarantine, external availability, and live-inventory text cannot
+/// be admitted as historic report truth.
+enum C50IncumbentFileExchangeSnapshotValidatorBoundaryV1 {
+    static let validatesCanonicalProjectionBeforeRender = true
+    static let sourceAndQuarantineBytesRejected = true
+    static let externalAvailabilityNotSnapshotTruth = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let customerSafePrivacyFilterIsRequired = true
+    static let deterministicRebuildIsRequired = true
+
+    static func validate() -> Bool {
+        validatesCanonicalProjectionBeforeRender
+            && sourceAndQuarantineBytesRejected
+            && externalAvailabilityNotSnapshotTruth
+            && directCostProjectionIsAbsent
+            && customerSafePrivacyFilterIsRequired
+            && deterministicRebuildIsRequired
+    }
+}
+
+// MARK: - C34 route snapshot report validation exclusion
+
+enum C34RouteSnapshotReportValidatorBoundaryV1 {
+    static let snapshotType: Any.Type = SceneNavigationSnapshotV1.self
+    static let routeSnapshotAcceptedAsReportSnapshot = false
+    static let routeSnapshotAcceptedAsWorkspaceTruth = false
+    static let routeSnapshotBytesAcceptedAsEvidence = false
+    static let restorationReceiptAcceptedAsApproval = false
+
+    static func validate(_ lifecycle: SceneNavigationLifecycleDispositionV1 = .init()) -> Bool {
+        !lifecycle.workspaceTruth && !lifecycle.reportIncluded
+            && !routeSnapshotAcceptedAsReportSnapshot
+            && !routeSnapshotBytesAcceptedAsEvidence
+    }
+}
+
+// MARK: - C52 lifecycle and privacy boundary
+enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Reporting_SnapshotValidatorV1_swift {
+    static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let acceptedEventPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let duplicateProjectionPersistence: ServiceRequestPersistenceClassV1 = .nonpersistentDerived
+    static let rawCapabilityPersistence: ServiceRequestPersistenceClassV1 = .prohibitedPersistent
+    static let acceptedLifecycleEnrollment: ServiceRequestPersistenceEnrollmentV1.Type = ServiceRequestPersistenceEnrollmentV1.self
+    static let cloneOrForkInvalidatesActiveCapabilities: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities
+    static let duplicateProjectionIsRebuildable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.derivedProjectionIsRebuildable &&
+        !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityIsExcludedFromReportsAndDiagnostics: Bool =
+        !ServiceRequestLifecycleRegistrationBoundaryV1.rawCapabilityAppearsInReportsOrDiagnostics
+    static let sharedPortableFilesAreRecallable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
+    static let unverifiedAssertionsAreVerified: Bool = false
+    static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}
+
+// MARK: - C53 reliability snapshot validation
+
+enum C53ServiceReliabilitySnapshotValidatorV1 {
+    static let validatesTheSourceProjectionBeforeRendering = true
+    static let rejectsUnqualifiedExactMetrics = true
+    static let acceptsNoOperationalConclusion = true
+
+    static func validate(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws {
+        try projection.validate()
+    }
+
+    static func validate(
+        input: ReliabilityMetricInputProjectionV1
+    ) throws -> C53ServiceReliabilityReportProjectionV1 {
+        let projection = try C53ServiceReliabilityReportProjectionRegistryV1.projection(input: input)
+        try validate(projection)
+        return projection
+    }
+}
+
+// MARK: - C57 My Day source-bound validation
+
+enum C57MyDaySnapshotValidatorBoundaryV1 {
+    static let derivedValuesRequireLiveSourceClosure = true
+    static let staleProjectionFailsClosed = true
+
+    static func validate(
+        _ projection: C57MyDayReportProjectionV1,
+        plan: MyDayPlanV1,
+        readiness: MyDayReadinessProjectionV1
+    ) throws -> C57MyDayReportProjectionV1 {
+        try C57MyDayEvidenceDetailProjectionGuardV1.validate(
+            projection, plan: plan, readiness: readiness
+        )
+    }
+}

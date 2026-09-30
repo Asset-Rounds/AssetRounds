@@ -1,0 +1,1057 @@
+--- before/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift
++++ candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift
+@@ -5984,6 +5984,587 @@
+     fileprivate func revoke() { active = false }
+ }
+ 
++/// A private original-owner admission for the synchronous Scratch effect lane.
++/// Its snapshots are the operation's retained P and checked Notification cut.
++/// They are comparison data; every use also proves the actual lexical G owner.
++@MainActor
++final class OriginalEraseScratchCleanupInitialAdmissionV1 {
++    let operationID: UUID
++    let applicationSupportURL: URL
++    let observer: EraseSchema2ColdAuxiliaryFirstObserverV1
++    let firstSnapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
++    let notificationAfter: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
++    let physicalRoster: EraseSchema2ColdAuxiliaryPhysicalRosterV1
++    let policyReceipt: OriginalEraseScratchControlPolicyReceiptV1
++    // bcc's genuine original capture is strict single-link. A future original
++    // pair producer must supply its actual receipt; nil grants no pair role.
++    let originalGenericPairs: [OriginalEraseScratchCleanupOriginalAliasPremiseV1]? = nil
++    private weak var operation: EraseRouterOperationV1?
++    private var scope: OriginalEraseScratchCleanupHeldGScopeV1
++    var heldScope: OriginalEraseScratchCleanupHeldGScopeV1 { scope }
++    private weak var store: EraseIntentStore?
++    private weak var registry: GenerationLeaseRegistryV1?
++    private weak var exclusion: StoreTemporalNormalizationExclusionV1?
++    private weak var activity: GenerationTemporalActivityHandleV1?
++
++    fileprivate init(operation: EraseRouterOperationV1,
++        applicationSupportURL: URL,
++        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
++        firstSnapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
++        notificationAfter: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
++        physicalRoster: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        policyReceipt: OriginalEraseScratchControlPolicyReceiptV1,
++        scope: OriginalEraseScratchCleanupHeldGScopeV1,
++        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
++        exclusion: StoreTemporalNormalizationExclusionV1,
++        activity: GenerationTemporalActivityHandleV1) {
++        operationID = operation.operationID
++        self.operation = operation
++        self.applicationSupportURL = applicationSupportURL
++        self.observer = observer
++        self.firstSnapshot = firstSnapshot
++        self.notificationAfter = notificationAfter
++        self.physicalRoster = physicalRoster
++        self.policyReceipt = policyReceipt
++        self.scope = scope
++        self.store = store
++        self.registry = registry
++        self.exclusion = exclusion
++        self.activity = activity
++    }
++
++    func requireHeld() throws {
++        do {
++            guard let operation, let store, let registry,
++                  let exclusion, let activity else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try operation.requireOriginalEraseScratchCleanupAdmission(self)
++            try scope.requireHeld(operation: operation, store: store,
++                registry: registry, exclusion: exclusion, activity: activity)
++            try policyReceipt.requireBound(operation: operation, store: store,
++                registry: registry, exclusion: exclusion, activity: activity)
++        } catch {
++            operation?.failOriginalEraseScratchCleanupEffect()
++            throw error
++        }
++    }
++
++    /// Authenticate a canonical starting source against the COMPLETE retained
++    /// original roster before the observer keeps lossless bytes. Historical
++    /// wire facts contain nine fields; current owner/group are proved by the
++    /// actual selected parent/role-policy witness, including inherited SGID.
++    /// Historical ownership fields are not invented or read from Support.
++    func requireCanonicalSource(path: String, bytes: Data, fullFact: String) throws {
++        do {
++            try requireHeld()
++            let parts = path.split(separator: "/", omittingEmptySubsequences: false)
++            let current = fullFact.split(separator: "|", omittingEmptySubsequences: false)
++            guard parts.count >= 2,
++                  parts.first == "ScratchDataV1" || parts.first == "ProtectedIngressReceiptsV1",
++                  parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
++                  current.count == 11,
++                  let tree = physicalRoster.record.trees.first(where: {
++                    $0.key == "support/FieldEvidenceOperations"
++                  }), tree.state == "present", let nodes = tree.nodes,
++                  let node = nodes.first(where: { $0.path == path }),
++                  node.kind == "file", let expectedSHA = node.sha256 else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            guard let operation else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try operation.requireOriginalEraseScratchCleanupCanonicalSourceOwnership(
++                path: path, fullFact: fullFact)
++            let wire = [0, 1, 2, 5, 6, 7, 8, 9, 10]
++                .map { String(current[$0]) }.joined(separator: "|")
++            guard wire == node.fact,
++                  StoreMigrationCanonicalJSONV1.sha256(bytes) == expectedSHA else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try requireHeld()
++        } catch {
++            operation?.failOriginalEraseScratchCleanupEffect()
++            throw error
++        }
++    }
++
++    func requirePublicationRequest(intent: OriginalEraseScratchCleanupPrimitiveIntentV1) throws {
++        do {
++            try requireHeld()
++            guard let operation else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try operation.requireOriginalEraseScratchCleanupPublicationRequest(intent)
++            try requireHeld()
++        } catch {
++            operation?.failOriginalEraseScratchCleanupEffect()
++            throw error
++        }
++    }
++
++    /// The sole nonexclusive publication rename consumes the genuine
++    /// hygiene prepare's retained original/staged canonical source. The
++    /// Ledger's private decoder proves that exact finalized replacement;
++    /// this callback supplies no generic destination-replacement authority.
++    func requireFinalizedIngressReplacement(
++        intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
++        originalBytes: Data, stagedBytes: Data
++    ) throws {
++        do {
++            try requireHeld()
++            guard let operation else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try operation.requireOriginalEraseScratchCleanupFinalizedIngressReplacement(
++                intent: intent, originalBytes: originalBytes,
++                stagedBytes: stagedBytes)
++            try requireHeld()
++        } catch {
++            operation?.failOriginalEraseScratchCleanupEffect()
++            throw error
++        }
++    }
++
++    /// Per-subprimitive owner/request proof. It does not scan the complete
++    /// tree and cannot adopt any post-effect facts; physical effect scopes
++    /// additionally pin their selected current request/birth and exact delta.
++    func requirePrimitiveRequest(
++        intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
++        outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
++    ) throws {
++        do {
++            try requireHeld()
++            guard let operation else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try operation.requireOriginalEraseScratchCleanupPrimitiveRequest(
++                intent: intent, outcome: outcome)
++            try requireHeld()
++        } catch {
++            operation?.failOriginalEraseScratchCleanupEffect()
++            throw error
++        }
++    }
++
++    /// The catalog is a synchronous read-only resource window. This proves
++    /// the retained actual attempt/session association without a tree scan or
++    /// invoking the session's held check recursively.
++    func requireCatalogFrame(
++        attempt: OriginalEraseScratchCleanupAttemptV1,
++        session: OriginalEraseScratchCanonicalSourceCatalogSessionV1
++    ) throws {
++        do {
++            try requireHeld()
++            guard let operation else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try operation.requireOriginalEraseScratchCleanupCatalogFrame(
++                attempt: attempt, session: session)
++            try requireHeld()
++        } catch {
++            operation?.failOriginalEraseScratchCleanupEffect()
++            throw error
++        }
++    }
++
++    fileprivate func renewCompletedObservationScope(
++        _ scope: OriginalEraseScratchCleanupHeldGScopeV1) throws {
++        guard let operation else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try operation.requireOriginalEraseScratchCleanupCompletedRenewal(self, scope: scope)
++        self.scope = scope
++        try requireHeld()
++    }
++
++    func poisonOnUncertainCleanup() {
++        operation?.failOriginalEraseScratchCleanupEffect()
++    }
++}
++
++/// Effect permission exists only while the original Registry's real G scope
++/// and the Coordinator's retained-parent loan are active. Nested Ledger work
++/// reuses this exact frame; no ordinary producer SH or new owner is acquired.
++@MainActor
++final class OriginalEraseScratchCleanupEffectPermitV1 {
++    let operationID: UUID
++    private weak var operation: EraseRouterOperationV1?
++    private weak var store: EraseIntentStore?
++    private weak var registry: GenerationLeaseRegistryV1?
++    private weak var exclusion: StoreTemporalNormalizationExclusionV1?
++    private weak var activity: GenerationTemporalActivityHandleV1?
++    private let admission: OriginalEraseScratchCleanupInitialAdmissionV1
++    private let imageOwner: OriginalEraseScratchCleanupImageOwnerV1
++    private let support: Int32
++    private let caches: Int32
++    private let temporary: Int32
++    private let operations: Int32
++    private var active = true
++    private var uncertain = false
++    private var attempt: OriginalEraseScratchCleanupAttemptV1?
++    private var initialImage: OriginalEraseScratchCleanupImageV1?
++    private var currentImage: OriginalEraseScratchCleanupImageV1?
++    private var pending: OriginalEraseScratchCleanupPrimitiveIntentV1?
++    private var pendingOutcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
++    private var lastSequence: UInt64?
++    private var activeCatalog: OriginalEraseScratchCanonicalSourceCatalogSessionV1?
++    private var completedCatalog: OriginalEraseScratchCanonicalSourceCatalogSessionV1?
++
++    fileprivate init(operation: EraseRouterOperationV1,
++        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
++        exclusion: StoreTemporalNormalizationExclusionV1,
++        activity: GenerationTemporalActivityHandleV1,
++        admission: OriginalEraseScratchCleanupInitialAdmissionV1,
++        imageOwner: OriginalEraseScratchCleanupImageOwnerV1,
++        support: Int32, caches: Int32, temporary: Int32, operations: Int32) {
++        operationID = operation.operationID
++        self.operation = operation
++        self.store = store
++        self.registry = registry
++        self.exclusion = exclusion
++        self.activity = activity
++        self.admission = admission
++        self.imageOwner = imageOwner
++        self.support = support
++        self.caches = caches
++        self.temporary = temporary
++        self.operations = operations
++    }
++
++    /// Association data for the concrete Ledger receipt after lexical release.
++    /// This does not re-enable an effect or inspect a numeric descriptor.
++    func requireOrigin(operation: EraseRouterOperationV1,
++        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
++        exclusion: StoreTemporalNormalizationExclusionV1,
++        activity: GenerationTemporalActivityHandleV1) throws {
++        guard !uncertain, self.operation === operation,
++              self.store === store, self.registry === registry,
++              self.exclusion === exclusion, self.activity === activity,
++              operationID == operation.operationID else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try operation.requireOriginalEraseScratchCleanupPermitOrigin(self)
++    }
++
++    func requireHeld() throws {
++        do {
++            guard active, !uncertain, let operation else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try operation.requireOriginalEraseScratchCleanupPermit(self)
++            try admission.requireHeld()
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    func requireInitialImage(_ image: OriginalEraseScratchCleanupImageV1) throws {
++        do {
++            try requireHeld()
++            guard pending == nil, pendingOutcome == nil, activeCatalog == nil,
++                  initialImage == nil || initialImage == image,
++                  currentImage == nil || currentImage == image else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try imageOwner.requireInitialImage(image, support: support,
++                caches: caches, temporary: temporary, operations: operations)
++            try requireHeld()
++            initialImage = image
++            currentImage = image
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    func retainAttempt(_ attempt: OriginalEraseScratchCleanupAttemptV1) throws {
++        do {
++            try requireHeld()
++            guard self.attempt == nil || self.attempt === attempt else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            self.attempt = attempt
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    func requireCanonicalSource(path: String, bytes: Data, fullFact: String) throws {
++        do {
++            try requireHeld()
++            try imageOwner.requireCanonicalSource(path: path, bytes: bytes,
++                fullFact: fullFact)
++            try requireHeld()
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    func beginCanonicalSourceCatalog(
++        attempt: OriginalEraseScratchCleanupAttemptV1
++    ) throws -> OriginalEraseScratchCanonicalSourceCatalogSessionV1 {
++        do {
++            try requireHeld()
++            guard self.attempt === attempt,
++                  attempt.operationID == operationID,
++                  let initialImage, currentImage == initialImage,
++                  pending == nil, pendingOutcome == nil,
++                  lastSequence == nil, activeCatalog == nil,
++                  completedCatalog == nil else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            let session = try imageOwner.beginCanonicalSourceCatalog(
++                attempt: attempt, support: support, caches: caches,
++                temporary: temporary, operations: operations)
++            // The Ledger binds this exact session before its first source IO.
++            // The session's held check is deliberately not called before that
++            // private binding exists.
++            activeCatalog = session
++            try requireHeld()
++            return session
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    fileprivate func requireCatalogFrame(
++        attempt: OriginalEraseScratchCleanupAttemptV1,
++        session: OriginalEraseScratchCanonicalSourceCatalogSessionV1
++    ) throws {
++        try requireHeld()
++        guard self.attempt === attempt, activeCatalog === session,
++              completedCatalog == nil, pending == nil, pendingOutcome == nil,
++              initialImage != nil, currentImage == initialImage,
++              attempt.operationID == operationID else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try attempt.requireCanonicalCatalogFrame(session: session)
++        try requireHeld()
++    }
++
++    func finishCanonicalSourceCatalog(
++        _ session: OriginalEraseScratchCanonicalSourceCatalogSessionV1,
++        attempt: OriginalEraseScratchCleanupAttemptV1
++    ) throws {
++        do {
++            try requireCatalogFrame(attempt: attempt, session: session)
++            try imageOwner.finishCanonicalSourceCatalog(session, attempt: attempt,
++                support: support, caches: caches, temporary: temporary,
++                operations: operations)
++            try session.requireCompleted(attempt: attempt)
++            try requireHeld()
++            // This is retained sequence DATA after the complete physical and
++            // resource proof. It grants no permission and never resets the
++            // engine's sequence when namespace effects begin.
++            lastSequence = attempt.checkedPrimitiveSequence
++            completedCatalog = session
++            activeCatalog = nil
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    func willPerform(_ intent: OriginalEraseScratchCleanupPrimitiveIntentV1) throws {
++        do {
++            try requireHeld()
++            guard let attempt, let currentImage,
++                  intent.operationID == operationID,
++                  intent.attemptID == attempt.attemptID,
++                  intent.before == currentImage,
++                  pending == nil, pendingOutcome == nil,
++                  activeCatalog == nil else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            let next = (lastSequence ?? 0).addingReportingOverflow(1)
++            guard !next.overflow, intent.sequence == next.partialValue else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            // Retain the actual private engine request before any delegated IO.
++            pending = intent
++            try imageOwner.willPerform(intent, support: support,
++                caches: caches, temporary: temporary, operations: operations)
++            try requireHeld()
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    func didPerform(_ outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1)
++        throws -> OriginalEraseScratchCleanupPrimitiveReadbackV1 {
++        do {
++            try requireHeld()
++            guard pending === outcome.intent, pendingOutcome == nil,
++                  outcome.intent.before == currentImage else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            // An actual outcome remains retained on any failed postproof.
++            pendingOutcome = outcome
++            let after = try imageOwner.didPerform(outcome, support: support,
++                caches: caches, temporary: temporary, operations: operations)
++            try requireHeld()
++            currentImage = after
++            lastSequence = outcome.intent.sequence
++            pending = nil
++            pendingOutcome = nil
++            return OriginalEraseScratchCleanupPrimitiveReadbackV1(
++                permit: self, outcome: outcome, after: after)
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    fileprivate func requirePrimitiveRequest(
++        intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
++        outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
++    ) throws {
++        try requireHeld()
++        guard pending === intent, pendingOutcome === outcome,
++              let attempt, intent.operationID == operationID,
++              intent.attemptID == attempt.attemptID else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try attempt.requireObservationFrame(intent: intent, outcome: outcome)
++        try requireHeld()
++    }
++
++    /// Read-only policy observation of the actual current image. The physical
++    /// owner privately issues the role scope; it gives no setter/effect power.
++    func currentTemporalObservationScope() throws -> OriginalEraseScratchTemporalObservationScopeV1 {
++        do {
++            try requireHeld()
++            let scope = try imageOwner.currentTemporalObservationScope()
++            try requireHeld()
++            return scope
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    func requirePolicyEffectScope(
++        intent: OriginalEraseScratchCleanupPrimitiveIntentV1
++    ) throws -> OriginalEraseScratchCleanupPolicyEffectScopeV1 {
++        do {
++            try requirePrimitiveRequest(intent: intent, outcome: nil)
++            guard case .requestPolicy = intent.kind else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            let scope = try imageOwner.policyEffectScope(intent: intent)
++            try requirePrimitiveRequest(intent: intent, outcome: nil)
++            return scope
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    fileprivate func requireFinalizedIngressReplacement(
++        intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
++        originalBytes: Data, stagedBytes: Data
++    ) throws {
++        do {
++            try requirePrimitiveRequest(intent: intent, outcome: nil)
++            guard let attempt,
++                  case .renamePublication(_, _, let exclusive) = intent.kind,
++                  !exclusive else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try attempt.requireFinalizedIngressReplacement(intent: intent,
++                originalBytes: originalBytes, stagedBytes: stagedBytes)
++            try requirePrimitiveRequest(intent: intent, outcome: nil)
++        } catch {
++            poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++
++    fileprivate func requirePublicationRequest(
++        _ intent: OriginalEraseScratchCleanupPrimitiveIntentV1) throws {
++        try requireHeld()
++        guard pending === intent, pendingOutcome == nil, let attempt,
++              intent.before == currentImage,
++              case .createTemporary(let path, _, let bytes, let sha, let mode, _) = intent.kind,
++              mode == 0o600,
++              StoreMigrationCanonicalJSONV1.sha256(bytes) == sha,
++              try attempt.retainedPublicationIntent(temporaryPath: path) === intent else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try attempt.requireObservationFrame(intent: intent, outcome: nil)
++        try requireHeld()
++    }
++
++    fileprivate func requireReadback(
++        _ outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1,
++        after: OriginalEraseScratchCleanupImageV1) throws {
++        try requireHeld()
++        guard currentImage == after, lastSequence == outcome.intent.sequence,
++              pending == nil, pendingOutcome == nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++    }
++
++    fileprivate func requireFinal(_ receipt: OriginalEraseScratchCleanupReceiptV1) throws {
++        try requireHeld()
++        guard let initialImage, let currentImage, let attempt,
++              receipt.initialImage == initialImage,
++              receipt.finalImage == currentImage,
++              pending == nil, pendingOutcome == nil, activeCatalog == nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try receipt.requireBound(operationID: operationID, attempt: attempt,
++            finalImage: currentImage)
++        try receipt.requireCheckedSettlement()
++        try imageOwner.requireFinal(currentImage, support: support,
++            caches: caches, temporary: temporary, operations: operations)
++        try requireHeld()
++    }
++
++    func poisonOnUncertainCleanup() {
++        uncertain = true
++        operation?.failOriginalEraseScratchCleanupEffect()
++    }
++
++    fileprivate func revoke() { active = false }
++}
++
++/// One private whole-image acknowledgement, consumed by the issuing engine.
++@MainActor
++final class OriginalEraseScratchCleanupPrimitiveReadbackV1 {
++    let after: OriginalEraseScratchCleanupImageV1
++    private weak var permit: OriginalEraseScratchCleanupEffectPermitV1?
++    private let outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1
++    private var consumed = false
++
++    fileprivate init(permit: OriginalEraseScratchCleanupEffectPermitV1,
++        outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1,
++        after: OriginalEraseScratchCleanupImageV1) {
++        self.permit = permit
++        self.outcome = outcome
++        self.after = after
++    }
++
++    func requireBound(to outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1) throws {
++        do {
++            guard !consumed, self.outcome === outcome, let permit else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try permit.requireReadback(outcome, after: after)
++            consumed = true
++        } catch {
++            permit?.poisonOnUncertainCleanup()
++            throw error
++        }
++    }
++}
++
+ @MainActor
+ final class EraseRouterOperationV1 {
+ #if DEBUG
+@@ -5999,6 +6580,7 @@
+     fileprivate weak var router: StartupRouter?
+     fileprivate let ticket: StartupRouter.OriginalOperationTicket
+     let inventory: EraseReaderRetirementInventoryV1
++    var operationID: UUID { ticket.operationID }
+     private var binding: EraseRetirementBindingV1?
+     private var prepared: EraseCleanupAfterRetirementV1?
+     private var drain: EraseSessionDrainWitnessV1?
+@@ -6102,6 +6684,16 @@
+         EraseAbortCheckedSnapshotIOV1?
+     private var originalAuxiliaryScratchControlPolicyReceipt:
+         OriginalEraseScratchControlPolicyReceiptV1?
++    private var originalScratchCleanupInFlight = false
++    private var originalScratchCleanupUncertain = false
++    private var originalScratchCleanupIO: EraseAbortCheckedSnapshotIOV1?
++    private var originalScratchCleanupEngineIO: EraseAbortCheckedSnapshotIOV1?
++    private var originalScratchCleanupActivity: GenerationTemporalActivityHandleV1?
++    private var originalScratchCleanupAdmission: OriginalEraseScratchCleanupInitialAdmissionV1?
++    private var originalScratchCleanupImageOwner: OriginalEraseScratchCleanupImageOwnerV1?
++    private var originalScratchCleanupPermit: OriginalEraseScratchCleanupEffectPermitV1?
++    private var originalScratchCleanupScope: OriginalEraseScratchCleanupHeldGScopeV1?
++    private var originalScratchCleanupReceipt: OriginalEraseScratchCleanupReceiptV1?
+     private var originalPointerMutationInFlight: OriginalEraseRetainedPointerStageV1?
+     private var originalPointerMutationUncertain = false
+     private var originalPointerPublished = false
+@@ -8113,6 +8705,7 @@
+                 || originalNotificationMarkerInFlight
+                 || originalNotificationRemovalInFlight
+                 || originalAuxiliaryScratchControlPolicyInFlight
++                || originalScratchCleanupInFlight
+                 || originalPointerMutationInFlight != nil
+                 || originalTargetReaderInFlight
+                 || originalWriterRecoveryInFlight)
+@@ -8515,7 +9108,8 @@
+         notificationMarkerPermit:
+             OriginalEraseNotificationMarkerPermitV1? = nil,
+         notificationRemovalPermit:
+-            OriginalEraseNotificationRemovalPermitV1? = nil
++            OriginalEraseNotificationRemovalPermitV1? = nil,
++        scratchCleanupScope: OriginalEraseScratchCleanupHeldGScopeV1? = nil
+     ) throws {
+         guard let router, !detached, !detaching,
+               originalAuxiliaryFirstCaptureOwner === owner,
+@@ -8538,7 +9132,8 @@
+         let permits = [policyPermit != nil,
+             notificationPolicyPermit != nil,
+             notificationMarkerPermit != nil,
+-            notificationRemovalPermit != nil].filter { $0 }.count
++            notificationRemovalPermit != nil,
++            scratchCleanupScope != nil].filter { $0 }.count
+         guard permits <= 1 else {
+             throw GenerationLeaseRegistryFailureV1.uncertainOwner
+         }
+@@ -8550,6 +9145,15 @@
+             try notificationMarkerPermit.requireHeld()
+         } else if let notificationRemovalPermit {
+             try notificationRemovalPermit.requireHeld()
++        } else if let scratchCleanupScope {
++            guard originalScratchCleanupScope === scratchCleanupScope,
++                  let store = originalAuxiliaryStore,
++                  let registry = preparationRegistry,
++                  let activity = originalScratchCleanupActivity else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try scratchCleanupScope.requireHeld(operation: self, store: store,
++                registry: registry, exclusion: exclusion, activity: activity)
+         } else {
+             try exclusion.revalidate()
+         }
+@@ -9540,6 +10144,381 @@
+         }
+     }
+ 
++    /// The actual original owner runs the complete fixed Scratch engine
++    /// synchronously under its retained EX/activity and this Registry's G.
++    /// Only checked engine outcomes can advance the immutable-P projection.
++    func eraseOriginalScratchForRetainedOwner(
++        store: EraseIntentStore, coordinator: StoreSessionCoordinator
++    ) throws -> OriginalEraseScratchCleanupReceiptV1 {
++        guard !originalScratchCleanupUncertain,
++              !originalScratchCleanupInFlight,
++              originalAuxiliaryStore === store,
++              preparationCoordinator === coordinator else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        if originalAuxiliaryScratchControlPolicyReceipt == nil {
++            _ = try settleOriginalEraseAuxiliaryScratchControlPolicy(
++                store: store, coordinator: coordinator)
++        }
++        guard let router, !detached, !detaching,
++              !originalAuxiliaryScratchControlPolicyInFlight,
++              !originalAuxiliaryScratchControlPolicyUncertain,
++              let policy = originalAuxiliaryScratchControlPolicyReceipt,
++              let notification = originalAuxiliaryNotificationReceipt,
++              let notificationControl = originalAuxiliaryNotificationControl,
++              let notificationAfter = originalAuxiliaryNotificationAfter,
++              let first = originalAuxiliaryFirstSnapshot,
++              let observer = originalAuxiliaryFirstObserver,
++              let owner = originalAuxiliaryFirstCaptureOwner,
++              let roster = originalAuxiliaryFirstPhysicalRoster,
++              let rosterAdmission = originalAuxiliaryRosterAdmission,
++              rosterAdmission.seal.canonicalBytes == roster.canonicalBytes,
++              let intent = originalAuxiliaryProjectedIntent,
++              intent.schemaVersion == 2, intent.phase == .sessionActivated,
++              let exclusion = originalExclusion,
++              transferredExclusion == nil,
++              let registry = preparationRegistry,
++              registry === exclusion.registry,
++              let target = preparationWriterAllocation?.allocatedHandle,
++              preparationWriterPhase == .installed else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try router.requireEraseRetirementOperation(self)
++        try notification.requireBound(control: notificationControl,
++            operationID: intent.eraseID)
++        try requireOriginalEraseAuxiliarySearchPublished(
++            store: store, coordinator: coordinator)
++        try exclusion.revalidate()
++        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
++            registry: registry, coordinator: coordinator, writer: target.token)
++        try policy.requireBound(operation: self, store: store, registry: registry,
++            exclusion: exclusion, activity: activity)
++        let retained = originalScratchCleanupReceipt
++        let io: EraseAbortCheckedSnapshotIOV1
++        if let old = originalScratchCleanupIO {
++            guard retained != nil else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try old.requireSettled()
++            io = old
++        } else {
++            io = EraseAbortCheckedSnapshotIOV1()
++            originalScratchCleanupIO = io // retained BEFORE any child open
++        }
++        let engineIO: EraseAbortCheckedSnapshotIOV1
++        if let old = originalScratchCleanupEngineIO {
++            guard retained != nil else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try old.requireSettled()
++            engineIO = old
++        } else {
++            engineIO = EraseAbortCheckedSnapshotIOV1()
++            originalScratchCleanupEngineIO = engineIO
++        }
++        originalScratchCleanupActivity = activity
++        originalScratchCleanupInFlight = true
++        do {
++            let receipt = try registry.withOriginalEraseScratchCleanupEffect(
++                activity: activity, operation: self, store: store,
++                exclusion: exclusion) { scope in
++                self.originalScratchCleanupScope = scope
++                let admission: OriginalEraseScratchCleanupInitialAdmissionV1
++                let imageOwner: OriginalEraseScratchCleanupImageOwnerV1
++                if let retained {
++                    guard let oldAdmission = self.originalScratchCleanupAdmission,
++                          let oldOwner = self.originalScratchCleanupImageOwner,
++                          self.originalScratchCleanupReceipt === retained else {
++                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                    }
++                    admission = oldAdmission
++                    imageOwner = oldOwner
++                    try admission.renewCompletedObservationScope(scope)
++                } else {
++                    guard self.originalScratchCleanupAdmission == nil,
++                          self.originalScratchCleanupImageOwner == nil,
++                          self.originalScratchCleanupPermit == nil else {
++                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                    }
++                    admission = OriginalEraseScratchCleanupInitialAdmissionV1(
++                        operation: self,
++                        applicationSupportURL: coordinator.originalEraseAuxiliarySearchSupportURL,
++                        observer: observer, firstSnapshot: first,
++                        notificationAfter: notificationAfter,
++                        physicalRoster: roster, policyReceipt: policy, scope: scope,
++                        store: store, registry: registry, exclusion: exclusion,
++                        activity: activity)
++                    self.originalScratchCleanupAdmission = admission
++                    imageOwner = OriginalEraseScratchCleanupImageOwnerV1(admission: admission)
++                    self.originalScratchCleanupImageOwner = imageOwner
++                }
++                return try owner.withOriginalErasePostwriterAuxiliaryParents(
++                    operation: self, coordinator: coordinator, exclusion: exclusion,
++                    scratchCleanupScope: scope) { support, caches, temporary in
++                    try io.withOpen(parent: support,
++                        name: OwnedStorageRootKindV1.operations.rawValue,
++                        flags: O_RDONLY | O_DIRECTORY) { operations in
++                        if let retained {
++                            try retained.requireCheckedSettlement()
++                            try imageOwner.requireFinal(retained.finalImage,
++                                support: support, caches: caches,
++                                temporary: temporary, operations: operations)
++                            try retained.requireBound(operation: self, store: store,
++                                registry: registry, exclusion: exclusion,
++                                activity: activity)
++                            return retained
++                        }
++                        let permit = OriginalEraseScratchCleanupEffectPermitV1(
++                            operation: self, store: store, registry: registry,
++                            exclusion: exclusion, activity: activity,
++                            admission: admission, imageOwner: imageOwner,
++                            support: support, caches: caches, temporary: temporary,
++                            operations: operations)
++                        self.originalScratchCleanupPermit = permit
++                        defer { permit.revoke() } // fence BEFORE borrowed Ops close
++                        let initial = try imageOwner.captureInitial(support: support,
++                            caches: caches, temporary: temporary, operations: operations)
++                        try permit.requireInitialImage(initial)
++                        let value = try ScratchDataLeaseStoreV1.eraseForOriginalRetainedOwner(
++                            applicationSupportURL: admission.applicationSupportURL,
++                            operationID: self.operationID, support: support,
++                            operations: operations, initialImage: initial,
++                            retainedIO: engineIO, permit: permit)
++                        try permit.requireFinal(value)
++                        return value
++                    }
++                }
++            }
++            guard let scope = originalScratchCleanupScope else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try scope.requireCheckedRelease(operation: self, store: store,
++                registry: registry, exclusion: exclusion, activity: activity)
++            try io.requireSettled()
++            try engineIO.requireSettled()
++            try receipt.requireCheckedSettlement()
++            try receipt.requireBound(operation: self, store: store,
++                registry: registry, exclusion: exclusion, activity: activity)
++            originalScratchCleanupReceipt = receipt
++            originalScratchCleanupInFlight = false
++            return receipt
++        } catch {
++            // Retain request, projection and every uncertain resource. The
++            // numeric handles and this effect lane can never be revived.
++            failOriginalEraseScratchCleanupEffect()
++            throw error
++        }
++    }
++
++    /// Pure same-owner association check called ONLY by the actual held G
++    /// witness. Registry supplies the fresh physical cohort before/after body.
++    func requireOriginalEraseScratchCleanupEffectUnderHeldG(
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        store: EraseIntentStore,
++        exclusion: StoreTemporalNormalizationExclusionV1
++    ) throws -> [GenerationLeaseTokenV1] {
++        guard let router, !detached, !detaching,
++              originalScratchCleanupInFlight, !originalScratchCleanupUncertain,
++              originalScratchCleanupIO != nil,
++              originalScratchCleanupEngineIO != nil,
++              originalScratchCleanupActivity === activity,
++              originalExclusion === exclusion, transferredExclusion == nil,
++              originalAuxiliaryStore === store,
++              originalAuxiliaryProjectedIntent?.schemaVersion == 2,
++              originalAuxiliaryProjectedIntent?.phase == .sessionActivated,
++              originalAuxiliaryRosterAdmission != nil,
++              originalAuxiliaryFirstPhysicalRoster != nil,
++              originalAuxiliaryFirstSnapshot != nil,
++              originalAuxiliaryFirstCaptureOwner != nil,
++              originalAuxiliaryFirstObserver != nil,
++              originalAuxiliarySearchPublished, !originalAuxiliarySearchInFlight,
++              !originalAuxiliarySearchUncertain,
++              originalAuxiliarySearchWriter?.publishedBytes != nil,
++              !originalAuxiliaryNotificationInFlight,
++              !originalAuxiliaryNotificationUncertain,
++              originalAuxiliaryNotificationAfter != nil,
++              originalAuxiliaryNotificationReceipt != nil,
++              originalNotificationMarkerReceipt != nil,
++              originalNotificationRemovalReceipt != nil,
++              originalNotificationOSAbsence != nil,
++              !originalAuxiliaryScratchControlPolicyInFlight,
++              !originalAuxiliaryScratchControlPolicyUncertain,
++              let policy = originalAuxiliaryScratchControlPolicyReceipt,
++              let coordinator = preparationCoordinator,
++              let session = preparationTargetSession,
++              let writer = preparationTargetWriter,
++              coordinator.workspaceWriter === writer,
++              coordinator.modelContext === session.modelContext,
++              coordinator.generationID == session.generationID,
++              preparationWriterPhase == .installed,
++              originalOldWriterReleaseProjection != nil,
++              originalOldWriterProjectedSnapshot != nil,
++              exclusion.registry === registry, preparationRegistry === registry,
++              let transition = originalWriterTransition, transition.projected,
++              transition.prior == (try originalAuxiliaryFirstPlusReaderTokens()),
++              let target = transition.targetAllocation.allocatedHandle,
++              preparationWriterAllocation === transition.targetAllocation,
++              transition.targetAllocation.preparationPublishedToken == target.token,
++              exclusion.matchesOriginalEraseAuxiliaryPhase(registry: registry,
++                activity: activity, writer: target.token) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try router.requireEraseRetirementOperation(self)
++        try policy.requireBound(operation: self, store: store, registry: registry,
++            exclusion: exclusion, activity: activity)
++        return (transition.prior.filter {
++            $0.leaseID != transition.oldWriter.token.leaseID
++        } + [target.token]).sorted {
++            $0.leaseID.uuidString.lowercased() < $1.leaseID.uuidString.lowercased()
++        }
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupAdmission(
++        _ admission: OriginalEraseScratchCleanupInitialAdmissionV1) throws {
++        guard originalScratchCleanupAdmission === admission,
++              admission.operationID == operationID,
++              admission.observer === originalAuxiliaryFirstObserver,
++              admission.firstSnapshot == originalAuxiliaryFirstSnapshot,
++              admission.notificationAfter == originalAuxiliaryNotificationAfter,
++              admission.policyReceipt === originalAuxiliaryScratchControlPolicyReceipt,
++              admission.physicalRoster.canonicalBytes == originalAuxiliaryFirstPhysicalRoster?.canonicalBytes,
++              let registry = preparationRegistry,
++              let activity = originalScratchCleanupActivity,
++              let store = originalAuxiliaryStore,
++              let exclusion = originalExclusion else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        _ = try requireOriginalEraseScratchCleanupEffectUnderHeldG(
++            registry: registry, activity: activity, store: store, exclusion: exclusion)
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupPermitOrigin(
++        _ permit: OriginalEraseScratchCleanupEffectPermitV1) throws {
++        guard !detached, !detaching, !originalScratchCleanupUncertain,
++              originalScratchCleanupPermit === permit,
++              permit.operationID == operationID,
++              originalScratchCleanupInFlight || originalScratchCleanupReceipt != nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupPermit(
++        _ permit: OriginalEraseScratchCleanupEffectPermitV1) throws {
++        try requireOriginalEraseScratchCleanupPermitOrigin(permit)
++        guard originalScratchCleanupInFlight, originalScratchCleanupReceipt == nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupPublicationRequest(
++        _ intent: OriginalEraseScratchCleanupPrimitiveIntentV1) throws {
++        guard let permit = originalScratchCleanupPermit else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try permit.requirePublicationRequest(intent)
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupFinalizedIngressReplacement(
++        intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
++        originalBytes: Data, stagedBytes: Data
++    ) throws {
++        guard let permit = originalScratchCleanupPermit else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try permit.requireFinalizedIngressReplacement(intent: intent,
++            originalBytes: originalBytes, stagedBytes: stagedBytes)
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupCanonicalSourceOwnership(
++        path: String, fullFact: String
++    ) throws {
++        guard originalScratchCleanupInFlight, !originalScratchCleanupUncertain,
++              let admission = originalScratchCleanupAdmission,
++              let imageOwner = originalScratchCleanupImageOwner else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireOriginalEraseScratchCleanupAdmission(admission)
++        try imageOwner.requireCanonicalSourceOwnership(path: path, fullFact: fullFact)
++        try requireOriginalEraseScratchCleanupAdmission(admission)
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupPrimitiveRequest(
++        intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
++        outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
++    ) throws {
++        guard let permit = originalScratchCleanupPermit else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try permit.requirePrimitiveRequest(intent: intent, outcome: outcome)
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupCatalogFrame(
++        attempt: OriginalEraseScratchCleanupAttemptV1,
++        session: OriginalEraseScratchCanonicalSourceCatalogSessionV1
++    ) throws {
++        guard originalScratchCleanupInFlight, !originalScratchCleanupUncertain,
++              let permit = originalScratchCleanupPermit else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try permit.requireCatalogFrame(attempt: attempt, session: session)
++    }
++
++    fileprivate func requireOriginalEraseScratchCleanupCompletedRenewal(
++        _ admission: OriginalEraseScratchCleanupInitialAdmissionV1,
++        scope: OriginalEraseScratchCleanupHeldGScopeV1) throws {
++        guard originalScratchCleanupAdmission === admission,
++              originalScratchCleanupScope === scope,
++              let receipt = originalScratchCleanupReceipt,
++              let registry = preparationRegistry,
++              let activity = originalScratchCleanupActivity,
++              let store = originalAuxiliaryStore,
++              let exclusion = originalExclusion else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try receipt.requireCheckedSettlement()
++        try scope.requireHeld(operation: self, store: store, registry: registry,
++            exclusion: exclusion, activity: activity)
++    }
++
++    /// No prepared/EX-transfer edge can discard or move a started Scratch
++    /// lane before its actual resource and G receipts settle. These checks
++    /// inspect retained monotonic data, never closed numeric descriptors.
++    private func requireOriginalScratchCleanupCheckedBoundaryIfStarted() throws {
++        let started = originalScratchCleanupIO != nil
++            || originalScratchCleanupEngineIO != nil
++            || originalScratchCleanupAdmission != nil
++            || originalScratchCleanupImageOwner != nil
++            || originalScratchCleanupPermit != nil
++            || originalScratchCleanupScope != nil
++            || originalScratchCleanupReceipt != nil
++        guard !originalScratchCleanupInFlight, !originalScratchCleanupUncertain else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        guard started else { return }
++        guard let receipt = originalScratchCleanupReceipt,
++              let scope = originalScratchCleanupScope,
++              let io = originalScratchCleanupIO,
++              let engineIO = originalScratchCleanupEngineIO,
++              let store = originalAuxiliaryStore,
++              let registry = preparationRegistry,
++              let exclusion = originalExclusion,
++              let activity = originalScratchCleanupActivity else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try receipt.requireCheckedSettlement()
++        try receipt.requireBound(operation: self, store: store,
++            registry: registry, exclusion: exclusion, activity: activity)
++        try scope.requireCheckedRelease(operation: self, store: store,
++            registry: registry, exclusion: exclusion, activity: activity)
++        try io.requireSettled()
++        try engineIO.requireSettled()
++    }
++
++    func failOriginalEraseScratchCleanupEffect() {
++        originalScratchCleanupUncertain = true
++    }
++
+     /// The notification OS-success receipt and the first-P roster authorize
+     /// one existing ingress-control root policy transition. This does not
+     /// authorize the later ordinary ingress or Scratch deletion effects.
+@@ -11691,6 +12670,7 @@
+             throw AppAccessContractFailureV1.staleAttempt
+         }
+         try router.requireEraseRetirementOperation(self)
++        try requireOriginalScratchCleanupCheckedBoundaryIfStarted()
+         prepared = value
+     }
+ 
+@@ -11698,6 +12678,7 @@
+         guard let router, !detaching, !detached, let prepared, let binding else {
+             throw AppAccessContractFailureV1.staleAttempt
+         }
++        try requireOriginalScratchCleanupCheckedBoundaryIfStarted()
+         #if DEBUG
+         print("V23_ERASE_DETACH_V1 stage=source-proof.enter")
+         #endif

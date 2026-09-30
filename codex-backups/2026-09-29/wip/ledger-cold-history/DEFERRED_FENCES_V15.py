@@ -1,0 +1,6 @@
+from pathlib import Path
+import hashlib,json
+q=Path('.codex-temp/cold-ledger-continuation-successor-v1');p=q/'candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift';b=p.read_bytes();before='d7d992666a3c932d713c48b902342f3911626ebba0cf301af552bdeee5cbf8ee';assert hashlib.sha256(b).hexdigest()==before;s=b.decode()
+for name,opening in [('c16CaptureBornSourceSteps','        [.plan { [self] _ in\n'),('c16HygieneSteps','        [.plan { _ in\n'),('c16EraseIngressSteps','        [.plan { [self] _ in\n'),('c16FrozenIngressTargetSteps','        [.plan { [self] _ in\n')]:
+    pos=s.index('    private func '+name+'(');start=s.index(opening,pos);assert start-pos<450,(name,start-pos);end=start+len(opening);s=s[:end]+'            try self.requireScratchDescriptorAccess()\n'+s[end:]
+p.write_text(s);r={'model':'gpt-6.1-sol','reasoningEffort':'xhigh','beforeSHA256':before,'afterSHA256':hashlib.sha256(p.read_bytes()).hexdigest(),'change':'Additive memory-only fence first in four deferred shared-engine planners; no descriptor inspection or semantic relaxation','methods':['c16CaptureBornSourceSteps','c16HygieneSteps','c16EraseIngressSteps','c16FrozenIngressTargetSteps'],'status':'INTERMEDIATE; compile/review/runtime due'};(q/'DEFERRED_FENCES_V15.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))

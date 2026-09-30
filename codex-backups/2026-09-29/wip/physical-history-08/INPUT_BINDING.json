@@ -1,0 +1,14 @@
+{
+  "LedgerPendingRequestV10.swift.fragment": {
+    "sha256": "be527834e2ff704575672a61006ab37f46babe0ec577359d8970283f8cce4617",
+    "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/LEDGER_PENDING_REQUEST_SHAPE_V10.swift.fragment"
+  },
+  "PhysicalPendingRequestBindingV10.swift.fragment": {
+    "sha256": "c2d14f08a5fcf0edc82e447d852ee7098f33b7d1d751ffe6367a3b180caf2f6f",
+    "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/terminal-authority-interface-v10/PHYSICAL_PENDING_REQUEST_BINDING_V10.swift.fragment"
+  },
+  "StoreReadInterfaceV4.swift": {
+    "sha256": "7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+    "source": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1.swift"
+  }
+}

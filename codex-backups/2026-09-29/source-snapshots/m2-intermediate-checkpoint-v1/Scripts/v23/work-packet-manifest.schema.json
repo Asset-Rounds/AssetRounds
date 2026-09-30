@@ -1,0 +1,140 @@
+{
+  "$id": "https://assetrounds.invalid/v23/work-packet-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "boundaryRefs": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "conflictKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "coverage": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "creationBases": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "evidenceIDs": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "integrationSurfaces": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 11,
+      "minItems": 11,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "itemKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "ordinal": {
+      "type": "integer"
+    },
+    "persistentModelCount": {
+      "type": "integer"
+    },
+    "phase": {
+      "type": "string"
+    },
+    "provisionalFlags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "acceptance",
+        "adoption",
+        "hosted",
+        "native",
+        "release"
+      ],
+      "type": "object"
+    },
+    "recordsSchemaVersion": {
+      "type": "integer"
+    },
+    "releaseReasons": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "boundaryRefs",
+    "cardID",
+    "conflictKinds",
+    "coverage",
+    "creationBases",
+    "evidenceIDs",
+    "integrationSurfaces",
+    "itemKinds",
+    "ordinal",
+    "persistentModelCount",
+    "phase",
+    "provisionalFlags",
+    "recordsSchemaVersion",
+    "releaseReasons"
+  ],
+  "title": "V23 P03 C15 Work Packet Manifest Corpus",
+  "type": "object"
+}

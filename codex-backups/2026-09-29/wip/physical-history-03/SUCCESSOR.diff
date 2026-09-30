@@ -1,0 +1,32 @@
+--- v1/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
++++ v2/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
+@@ -1973,8 +1973,8 @@
+                 var members = node.members ?? []
+                 members.removeAll { deleted.contains(path + "/" + $0) }
+                 if path == "support/FieldEvidenceOperations" {
+-                    members = Array(Set(members).subtracting(["ScratchDataV1", "ProtectedIngressReceiptsV1", AppLockNotificationControlStoreV1.rootName]))
+-                    for name in ["ScratchDataV1", "ProtectedIngressReceiptsV1", AppLockNotificationControlStoreV1.rootName]
++                    members = Array(Set(members).subtracting(["ScratchDataV1", "ProtectedIngressReceiptsV1", "generation-leases", "schema-migration", AppLockNotificationControlStoreV1.rootName]))
++                    for name in ["ScratchDataV1", "ProtectedIngressReceiptsV1", "generation-leases", "schema-migration", AppLockNotificationControlStoreV1.rootName]
+                         where image.nodes[path + "/" + name] != nil { members.append(name) }
+                 }
+                 guard actual.names == members.sorted() else { throw EraseAllServiceError.invalidAuthority }
+@@ -2048,7 +2048,17 @@
+             }
+             for (path, node) in generic where !deleted.contains(path) {
+                 guard let actual = image.nodes[path], actual.sha256 == node.sha256,
+-                      try Self.nine(actual.fullFact) == node.fact else { throw EraseAllServiceError.invalidAuthority }
++                      let prior = expected[path], actual.fullFact == prior.fullFact else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                if node.kind == "file" {
++                    guard try Self.nine(actual.fullFact) == node.fact else { throw EraseAllServiceError.invalidAuthority }
++                } else {
++                    let first = try Self.fields(node.fact, count: 9), current = try Self.fields(actual.fullFact)
++                    let members = (node.members ?? []).filter { !deleted.contains(path + "/" + $0) }
++                    guard first[0] == current[0], first[1] == current[1], first[2] == current[2],
++                          actual.names == members.sorted() else { throw EraseAllServiceError.invalidAuthority }
++                }
+             }
+             if let scratch = image.nodes[prefix + "ScratchDataV1"] {
+                 let names = expectedPaths.filter { $0.hasPrefix(prefix + "ScratchDataV1/") }

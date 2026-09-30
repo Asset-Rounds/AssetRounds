@@ -1,0 +1,691 @@
+// Private versioned Erase-owned data. None of these values is an EX/G,
+// notification-absence, retirement, or ready capability.
+struct OriginalScratchLifecycleRecordV1 {
+    enum Stage: String, Codable {
+        case prepared = "PREPARED"
+        case preparing = "PREPARING"
+        case preparingCaptured = "PREPARING_CAPTURED"
+        case completed = "COMPLETED"
+        case completedEmpty = "COMPLETED_EMPTY"
+        case phaseCASPreparing = "PHASE_CAS_PREPARING"
+        case phaseCASComplete = "PHASE_CAS_COMPLETE"
+    }
+}
+
+enum EraseSchema2ColdCleanupGrammarV1 {
+    static let maximumEncodedBytes = 96 * 1_024 * 1_024
+    static let maximumCount = 100_000
+    static let transferName = "schema2-cleanup-transfer-v1.json"
+    static let terminalName = "schema2-cleanup-terminal-v1.json"
+    static let sourcesName = "schema2-cleanup-sources-v1.json"
+    static let progressName = "schema2-cleanup-progress-v1.json"
+    static let planName = "schema2-cleanup-plan-v1.json"
+    static let notificationName = "notification-retirement-v1.json"
+    static let canonicalNames = [transferName, terminalName, sourcesName, progressName, planName,
+        notificationName]
+
+    static func sourceLeafName(sha256: String) -> String {
+        "schema2-source-v1-\(sha256).bytes"
+    }
+    static func temporaryName(_ name: String) -> String { ".\(name).next" }
+    static func isCanonicalName(_ name: String) -> Bool {
+        if canonicalNames.contains(name) { return true }
+        guard name.hasPrefix("schema2-source-v1-"),
+              name.hasSuffix(".bytes") else { return false }
+        let sha = String(name.dropFirst("schema2-source-v1-".count)
+            .dropLast(".bytes".count))
+        return StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha)
+    }
+    static func isControlName(_ name: String) -> Bool {
+        if isCanonicalName(name) { return true }
+        return name.hasPrefix(".") && name.hasSuffix(".next")
+            && isCanonicalName(String(name.dropFirst().dropLast(5)))
+    }
+    static func canonicalName(_ name: String) -> String {
+        name.hasPrefix(".") && name.hasSuffix(".next")
+            ? String(name.dropFirst().dropLast(5)) : name
+    }
+    static func validPath(_ path: String) -> Bool {
+        !path.isEmpty && path.utf8.count <= 4 * 1_024
+            && !path.utf8.contains(0) && !path.hasPrefix("/")
+            && path.split(separator: "/", omittingEmptySubsequences: false)
+                .allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
+    }
+    static func validFact(_ fact: String) -> Bool {
+        let fields = fact.split(separator: "|", omittingEmptySubsequences: false)
+        guard fact.utf8.count <= 1_024, fields.count == 11,
+              let device = Int64(fields[0]), device >= 0,
+              let inode = UInt64(fields[1]), inode > 0,
+              let mode = UInt32(fields[2]), mode != 0,
+              let user = UInt32(fields[3]), let group = UInt32(fields[4]),
+              let links = UInt64(fields[5]), links > 0,
+              let size = Int64(fields[6]), size >= 0,
+              let ms = Int64(fields[7]), let mn = Int64(fields[8]),
+              let cs = Int64(fields[9]), let cn = Int64(fields[10]),
+              (0..<1_000_000_000).contains(mn),
+              (0..<1_000_000_000).contains(cn) else { return false }
+        return fields.map(String.init) == [String(device), String(inode),
+            String(mode), String(user), String(group), String(links),
+            String(size), String(ms), String(mn), String(cs), String(cn)]
+    }
+    static func fullFact(_ fact: EraseColdControlLeafFactV1) -> String {
+        [String(fact.device), String(fact.inode), String(fact.mode),
+         String(fact.user), String(fact.group), String(fact.links),
+         String(fact.size), String(fact.modifiedSeconds),
+         String(fact.modifiedNanoseconds), String(fact.changedSeconds),
+         String(fact.changedNanoseconds)].joined(separator: "|")
+    }
+    // The original role determines the ceiling; callers cannot enlarge it.
+    static func maximumSourceBytes(path: String) throws -> Int {
+        guard validPath(path) else { throw EraseIntentStoreError.invalidAuthority }
+        let parts = path.split(separator: "/").map(String.init)
+        if parts.count == 3, parts[0] == "ScratchDataV1",
+           parts[2] == "lease.json" { return 65_536 }
+        guard parts.count == 2,
+              parts[0] == "ProtectedIngressReceiptsV1" else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let name = parts[1]
+        if name == "scratch-erase.json" {
+            return 32 * 1_024 * 1_024
+        }
+        if name.hasPrefix("hygiene-") {
+            if name.hasSuffix(".prepare.json")
+                || name.hasSuffix(".prepare.json.finalizing") { return 262_144 }
+            if name.hasSuffix(".json") { return 4_096 }
+        }
+        if name.hasPrefix("ingress-"),
+           [".prepare.json", ".claim.json", ".published.json",
+            ".pending.json", ".pending.json.replacement", ".terminal.json",
+            ".aborted.json"].contains(where: name.hasSuffix) { return 262_144 }
+        if name.hasPrefix("erase-"),
+           [".prepare.json", ".complete.json"].contains(where: name.hasSuffix) {
+            return 262_144
+        }
+        throw EraseIntentStoreError.invalidAuthority
+    }
+    static func requireBirthRole(_ role: String, path: String) throws {
+        let pieces = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard pieces.count == 2, pieces[0] == "ProtectedIngressReceiptsV1" else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let name = String(pieces[1])
+        let permitted: Bool
+        switch role {
+        case "scratchControlErase": permitted = name == "scratch-erase.json"
+        case "freshIngressErasePrepare": permitted = name.hasPrefix("erase-") && name.hasSuffix(".prepare.json")
+        case "finalizedHygienePrepare": permitted = name.hasPrefix("hygiene-") && name.hasSuffix(".prepare.json")
+        case "hygieneFinalizing": permitted = name.hasPrefix("hygiene-") && name.hasSuffix(".prepare.json.finalizing")
+        case "hygieneReceipt": permitted = name.hasPrefix("hygiene-") && name.hasSuffix(".json") && !name.hasSuffix(".prepare.json")
+        case "ingressTerminal": permitted = name.hasPrefix("ingress-") && name.hasSuffix(".terminal.json")
+        case "ingressPending": permitted = name.hasPrefix("ingress-") && (name.hasSuffix(".pending.json") || name.hasSuffix(".pending.json.replacement"))
+        case "ingressAborted": permitted = name.hasPrefix("ingress-") && name.hasSuffix(".aborted.json")
+        case "ingressEraseComplete": permitted = name.hasPrefix("erase-") && name.hasSuffix(".complete.json")
+        default: permitted = false
+        }
+        guard permitted else { throw EraseIntentStoreError.invalidPreparation }
+        _ = try maximumSourceBytes(path: path)
+    }
+    static func requireDigest(_ sha: String) throws {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+    }
+    static func canonicalBytes<Value: Encodable>(_ value: Value) throws -> Data {
+        let bytes = try StoreMigrationCanonicalJSONV1.encode(value)
+        guard !bytes.isEmpty, bytes.count <= maximumEncodedBytes else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return bytes
+    }
+}
+
+struct EraseSchema2ColdCleanupSourcesV1: Codable, Equatable {
+    struct Source: Codable, Equatable {
+        let path: String
+        let fullFact: String
+        let sha256: String
+        let byteCount: Int
+        let maximumByteCount: Int
+        let leafName: String
+        // Nil is permitted in unpublished construction input only.
+        let leafFullFact: String?
+        func validate(requirePublished: Bool) throws {
+            let maximum = try EraseSchema2ColdCleanupGrammarV1
+                .maximumSourceBytes(path: path)
+            guard EraseSchema2ColdCleanupGrammarV1.validFact(fullFact),
+                  maximumByteCount == maximum, byteCount >= 0,
+                  byteCount <= maximum,
+                  leafName == EraseSchema2ColdCleanupGrammarV1
+                    .sourceLeafName(sha256: sha256),
+                  !requirePublished || leafFullFact != nil,
+                  leafFullFact.map(EraseSchema2ColdCleanupGrammarV1.validFact)
+                    ?? !requirePublished else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            let fields = fullFact.split(separator: "|", omittingEmptySubsequences: false)
+            guard let mode = UInt32(fields[2]), mode & UInt32(S_IFMT) == UInt32(S_IFREG),
+                  fields[6] == String(byteCount) else { throw EraseIntentStoreError.invalidPreparation }
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(sha256)
+        }
+        func published(fullFact: String) -> Self {
+            Self(path: path, fullFact: self.fullFact, sha256: sha256,
+                byteCount: byteCount, maximumByteCount: maximumByteCount,
+                leafName: leafName, leafFullFact: fullFact)
+        }
+    }
+    let schemaVersion: Int
+    let eraseID: String
+    let preparationSHA256: String
+    let originalPAuxiliaryRosterSHA256: String
+    let targetPointerSHA256: String
+    let c16PlanLeafName: String
+    let c16PlanSHA256: String
+    let c16PlanFullFact: String?
+    let sources: [Source]
+
+    func validate(requirePublished: Bool = true) throws {
+        guard schemaVersion == 1,
+              UUID(uuidString: eraseID)?.uuidString.lowercased() == eraseID,
+              c16PlanLeafName == EraseSchema2ColdCleanupGrammarV1.planName,
+              !requirePublished || c16PlanFullFact != nil,
+              c16PlanFullFact.map(EraseSchema2ColdCleanupGrammarV1.validFact)
+                ?? !requirePublished,
+              sources.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount,
+              sources.map(\.path) == sources.map(\.path).sorted(),
+              Set(sources.map(\.path)).count == sources.count else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        for sha in [preparationSHA256, originalPAuxiliaryRosterSHA256,
+                    targetPointerSHA256, c16PlanSHA256] {
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(sha)
+        }
+        var aggregate = 0
+        for source in sources {
+            try source.validate(requirePublished: requirePublished)
+            guard source.byteCount <= 1_024 * 1_024 * 1_024 - aggregate else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            aggregate += source.byteCount
+        }
+    }
+    func canonicalBytes() throws -> Data {
+        try validate()
+        return try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(self)
+    }
+    static func decodeCanonical(_ bytes: Data) throws -> Self {
+        guard bytes.count <= EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let value = try StoreMigrationCanonicalJSONV1.decodeCanonical(Self.self,
+            from: bytes)
+        guard try value.canonicalBytes() == bytes else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return value
+    }
+}
+
+struct EraseSchema2ColdCleanupProgressV1: Codable, Equatable {
+    typealias Stage = OriginalScratchLifecycleRecordV1.Stage
+    struct Target: Codable, Equatable {
+        enum Kind: String, Codable { case c16, scratchLease, scratchOrphan,
+            auxiliaryNode, auxiliaryRoot }
+        let kind: Kind
+        // c16 is the fixed C16 subsequence ordinal; other kinds bind their
+        // own immutable frozen order. activeTargetIndex is the mixed ordinal.
+        let ordinal: Int
+        let path: String
+        let semanticSHA256: String
+        let dependencyPaths: [String]
+        let allowedBirthPaths: [String]
+    }
+    struct Projection: Codable, Equatable {
+        let path: String
+        let fullFact: String
+        let sha256: String?
+    }
+    struct Birth: Codable, Equatable {
+        let role: String
+        let targetIndex: Int
+        let source: EraseSchema2ColdCleanupSourcesV1.Source
+    }
+    struct Transition: Codable, Equatable {
+        let targetIndex: Int
+        let preimageSHA256: String
+        let postimageSHA256: String?
+    }
+    let schemaVersion: Int
+    let eraseID: String
+    let preparationSHA256: String
+    let originalPAuxiliaryRosterSHA256: String
+    let targetPointerSHA256: String
+    let sourcesSHA256: String
+    let sourcesFullFact: String
+    let targets: [Target]
+    let stage: Stage
+    let completedPrefixCount: Int
+    let prefixSHA256: String
+    let activeTargetIndex: Int?
+    let physicalProjection: [Projection]
+    let births: [Birth]
+    let transition: Transition?
+    let checkedClose: Bool
+
+    static func projectionSHA256(_ projection: [Projection]) throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(projection))
+    }
+    static func firstPrefixSHA256(eraseID: String,
+        originalPAuxiliaryRosterSHA256: String, sourcesSHA256: String,
+        targets: [Target]
+    ) throws -> String {
+        struct Prefix: Codable {
+            let schemaVersion: Int; let eraseID: String
+            let originalPAuxiliaryRosterSHA256: String
+            let sourcesSHA256: String; let targets: [Target]
+        }
+        return StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(
+            Prefix(schemaVersion: 1, eraseID: eraseID,
+                originalPAuxiliaryRosterSHA256: originalPAuxiliaryRosterSHA256,
+                sourcesSHA256: sourcesSHA256, targets: targets)))
+    }
+    var completedC16PrefixCount: Int {
+        targets.prefix(completedPrefixCount).filter { $0.kind == .c16 }.count
+    }
+    var activeC16Ordinal: Int? {
+        guard let activeTargetIndex, targets.indices.contains(activeTargetIndex),
+              targets[activeTargetIndex].kind == .c16 else { return nil }
+        return targets[activeTargetIndex].ordinal
+    }
+    var isTerminal: Bool {
+        completedPrefixCount == targets.count
+            && (stage == .completed || stage == .completedEmpty
+                || stage == .phaseCASPreparing || stage == .phaseCASComplete)
+            && checkedClose
+    }
+    func validate(sources: EraseSchema2ColdCleanupSourcesV1) throws {
+        try sources.validate()
+        guard schemaVersion == 1, eraseID == sources.eraseID,
+              preparationSHA256 == sources.preparationSHA256,
+              originalPAuxiliaryRosterSHA256 == sources.originalPAuxiliaryRosterSHA256,
+              targetPointerSHA256 == sources.targetPointerSHA256,
+              sourcesSHA256 == StoreMigrationCanonicalJSONV1.sha256(
+                try sources.canonicalBytes()),
+              EraseSchema2ColdCleanupGrammarV1.validFact(sourcesFullFact),
+              targets.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount,
+              completedPrefixCount >= 0, completedPrefixCount <= targets.count,
+              physicalProjection.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount,
+              births.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount,
+              physicalProjection.map(\.path) == physicalProjection.map(\.path).sorted(),
+              Set(physicalProjection.map(\.path)).count == physicalProjection.count,
+              births.map({ $0.source.path }) == births.map({ $0.source.path }).sorted(),
+              Set(births.map({ "\($0.source.path)|\($0.targetIndex)|\($0.source.sha256)" })).count == births.count else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        try EraseSchema2ColdCleanupGrammarV1.requireDigest(prefixSHA256)
+        var c16Ordinal = 0
+        for target in targets {
+            guard target.ordinal >= 0,
+                  target.path.isEmpty || EraseSchema2ColdCleanupGrammarV1.validPath(target.path),
+                  target.dependencyPaths == target.dependencyPaths.sorted(),
+                  Set(target.dependencyPaths).count == target.dependencyPaths.count,
+                  target.allowedBirthPaths == target.allowedBirthPaths.sorted(),
+                  Set(target.allowedBirthPaths).count == target.allowedBirthPaths.count,
+                  target.dependencyPaths.allSatisfy(EraseSchema2ColdCleanupGrammarV1.validPath),
+                  target.allowedBirthPaths.allSatisfy(EraseSchema2ColdCleanupGrammarV1.validPath) else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(target.semanticSHA256)
+            if target.kind == .c16 {
+                guard target.ordinal == c16Ordinal else {
+                    throw EraseIntentStoreError.invalidPreparation
+                }
+                c16Ordinal += 1
+            }
+        }
+        for projection in physicalProjection {
+            guard (projection.path.isEmpty || EraseSchema2ColdCleanupGrammarV1.validPath(projection.path)),
+                  EraseSchema2ColdCleanupGrammarV1.validFact(projection.fullFact) else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            if let sha = projection.sha256 { try EraseSchema2ColdCleanupGrammarV1.requireDigest(sha) }
+        }
+        for birth in births {
+            try birth.source.validate(requirePublished: true)
+            try EraseSchema2ColdCleanupGrammarV1.requireBirthRole(birth.role, path: birth.source.path)
+            guard targets.indices.contains(birth.targetIndex),
+                  targets[birth.targetIndex].allowedBirthPaths.contains(birth.source.path),
+                  birth.targetIndex <= (activeTargetIndex ?? completedPrefixCount),
+                  birth.source.byteCount <= birth.source.maximumByteCount else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+        }
+        switch stage {
+        case .prepared:
+            guard prefixSHA256 == (try Self.firstPrefixSHA256(eraseID: eraseID,
+                originalPAuxiliaryRosterSHA256: originalPAuxiliaryRosterSHA256,
+                sourcesSHA256: sourcesSHA256, targets: targets)),
+                  completedPrefixCount == 0, activeTargetIndex == nil,
+                  transition == nil, births.isEmpty, !checkedClose else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+        case .preparing, .preparingCaptured:
+            guard completedPrefixCount < targets.count,
+                  activeTargetIndex == completedPrefixCount,
+                  transition?.targetIndex == activeTargetIndex,
+                  !checkedClose, transition?.postimageSHA256 == nil,
+                  stage != .preparingCaptured || births.contains(where: {
+                    $0.targetIndex == activeTargetIndex
+                  }) else { throw EraseIntentStoreError.invalidPreparation }
+        case .completed:
+            guard completedPrefixCount > 0, activeTargetIndex == nil,
+                  transition?.targetIndex == completedPrefixCount - 1,
+                  transition?.postimageSHA256 == (try Self.projectionSHA256(physicalProjection)),
+                  checkedClose else { throw EraseIntentStoreError.invalidPreparation }
+        case .completedEmpty:
+            guard prefixSHA256 == (try Self.firstPrefixSHA256(eraseID: eraseID,
+                originalPAuxiliaryRosterSHA256: originalPAuxiliaryRosterSHA256,
+                sourcesSHA256: sourcesSHA256, targets: targets)),
+                  targets.isEmpty, activeTargetIndex == nil,
+                  transition == nil, checkedClose else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+        case .phaseCASPreparing, .phaseCASComplete:
+            guard completedPrefixCount == targets.count,
+                  activeTargetIndex == nil, transition == nil,
+                  checkedClose else { throw EraseIntentStoreError.invalidPreparation }
+        }
+        if let transition {
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(transition.preimageSHA256)
+            if let post = transition.postimageSHA256 {
+                try EraseSchema2ColdCleanupGrammarV1.requireDigest(post)
+            }
+        }
+    }
+    func canonicalBytes(sources: EraseSchema2ColdCleanupSourcesV1) throws -> Data {
+        try validate(sources: sources)
+        return try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(self)
+    }
+    func permitsAdvance(to next: Self, sources: EraseSchema2ColdCleanupSourcesV1) throws -> Bool {
+        try validate(sources: sources); try next.validate(sources: sources)
+        guard schemaVersion == next.schemaVersion, eraseID == next.eraseID,
+              preparationSHA256 == next.preparationSHA256,
+              originalPAuxiliaryRosterSHA256 == next.originalPAuxiliaryRosterSHA256,
+              targetPointerSHA256 == next.targetPointerSHA256,
+              sourcesSHA256 == next.sourcesSHA256,
+              sourcesFullFact == next.sourcesFullFact, targets == next.targets else { return false }
+        switch (stage, next.stage) {
+        case (.prepared, .preparing), (.completed, .preparing):
+            return completedPrefixCount == next.completedPrefixCount
+                && prefixSHA256 == next.prefixSHA256 && births == next.births
+                && next.transition?.preimageSHA256 == (try Self.projectionSHA256(physicalProjection))
+        case (.preparing, .preparing), (.preparingCaptured, .preparingCaptured)
+            where births == next.births:
+            // Only a typed engine inspection receipt may issue this exact
+            // one-effect CAS. The record is the last checked cut, not a new
+            // source/plan baseline inferred from current survivors.
+            return completedPrefixCount == next.completedPrefixCount
+                && prefixSHA256 == next.prefixSHA256 && transition == next.transition
+                && activeTargetIndex == next.activeTargetIndex && births == next.births
+        case (.preparing, .preparingCaptured), (.preparingCaptured, .preparingCaptured):
+            return completedPrefixCount == next.completedPrefixCount
+                && prefixSHA256 == next.prefixSHA256 && transition == next.transition
+                && next.births.count == births.count + 1
+                && births.allSatisfy(next.births.contains)
+                && next.births.filter { !births.contains($0) }.allSatisfy {
+                    $0.targetIndex == activeTargetIndex
+                }
+        case (.preparing, .completed), (.preparingCaptured, .completed):
+            guard completedPrefixCount + 1 == next.completedPrefixCount,
+                  births == next.births, let transition, let completed = next.transition,
+                  transition.targetIndex == completed.targetIndex,
+                  transition.preimageSHA256 == completed.preimageSHA256,
+                  transition.postimageSHA256 == nil,
+                  completed.postimageSHA256 == (try Self.projectionSHA256(next.physicalProjection)) else { return false }
+            var bytes = Data(prefixSHA256.utf8)
+            bytes.append(try StoreMigrationCanonicalJSONV1.encode(completed))
+            return next.prefixSHA256 == StoreMigrationCanonicalJSONV1.sha256(bytes)
+        case (.prepared, .completedEmpty):
+            return targets.isEmpty && prefixSHA256 == next.prefixSHA256 && births == next.births
+        case (.completed, .phaseCASPreparing), (.completedEmpty, .phaseCASPreparing),
+             (.phaseCASPreparing, .phaseCASComplete):
+            return isTerminal && completedPrefixCount == next.completedPrefixCount
+                && prefixSHA256 == next.prefixSHA256 && births == next.births
+        default: return false
+        }
+    }
+    func capturing(_ birth: Birth, physicalProjection: [Projection], sources: EraseSchema2ColdCleanupSourcesV1) throws -> Self {
+        let next = Self(schemaVersion: schemaVersion, eraseID: eraseID,
+            preparationSHA256: preparationSHA256,
+            originalPAuxiliaryRosterSHA256: originalPAuxiliaryRosterSHA256,
+            targetPointerSHA256: targetPointerSHA256, sourcesSHA256: sourcesSHA256,
+            sourcesFullFact: sourcesFullFact, targets: targets, stage: .preparingCaptured,
+            completedPrefixCount: completedPrefixCount, prefixSHA256: prefixSHA256,
+            activeTargetIndex: activeTargetIndex, physicalProjection: physicalProjection,
+            births: (births + [birth]).sorted {
+                "\($0.source.path)|\($0.targetIndex)|\($0.source.sha256)"
+                    < "\($1.source.path)|\($1.targetIndex)|\($1.source.sha256)"
+            },
+            transition: transition, checkedClose: false)
+        guard try permitsAdvance(to: next, sources: sources) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return next
+    }
+}
+
+struct EraseSchema2ColdSurvivingNotificationProvenanceV1: Codable, Equatable {
+    struct Source: Codable, Equatable {
+        let path: String
+        let fullFact: String
+        let sha256: String
+    }
+    let schemaVersion: Int
+    let eraseID: String
+    let preparationSHA256: String
+    let originalPAuxiliaryRosterSHA256: String
+    let targetPointerSHA256: String
+    let originalSources: [Source]
+    let markerIdentity: String
+    let revocationIdentity: String
+    let ownedIDs: [String]
+    func canonicalBytes() throws -> Data {
+        guard schemaVersion == 1,
+              UUID(uuidString: eraseID)?.uuidString.lowercased() == eraseID,
+              !markerIdentity.isEmpty, markerIdentity.utf8.count <= 1_024,
+              !revocationIdentity.isEmpty, revocationIdentity.utf8.count <= 1_024,
+              ownedIDs == ownedIDs.sorted(), Set(ownedIDs).count == ownedIDs.count,
+              ownedIDs.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount,
+              ownedIDs.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 4_096 && !$0.utf8.contains(0) }),
+              originalSources.map(\.path) == originalSources.map(\.path).sorted(),
+              Set(originalSources.map(\.path)).count == originalSources.count,
+              originalSources.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount else { throw EraseIntentStoreError.invalidPreparation }
+        for sha in [preparationSHA256, originalPAuxiliaryRosterSHA256, targetPointerSHA256] {
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(sha)
+        }
+        for source in originalSources {
+            guard EraseSchema2ColdCleanupGrammarV1.validPath(source.path),
+                  EraseSchema2ColdCleanupGrammarV1.validFact(source.fullFact) else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(source.sha256)
+        }
+        return try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(self)
+    }
+}
+
+struct EraseSchema2ColdCleanupControlObservationV1: Equatable {
+    struct Leaf: Equatable {
+        let bytes: Data
+        let fact: EraseColdControlLeafFactV1
+        let policy: TemporalPolicyObservationV1?
+    }
+    let leaves: [String: Leaf]
+    let names: [String]
+    let eraseRoot: EraseColdControlLeafFactV1
+}
+
+@MainActor
+final class EraseSchema2ColdCleanupSourcesReceiptV1 {
+    fileprivate weak var store: EraseIntentStore?
+    let sources: EraseSchema2ColdCleanupSourcesV1
+    let indexSHA256: String
+    let indexFullFact: String
+    fileprivate init(store: EraseIntentStore, sources: EraseSchema2ColdCleanupSourcesV1,
+        indexFullFact: String) throws {
+        self.store = store; self.sources = sources
+        self.indexSHA256 = StoreMigrationCanonicalJSONV1.sha256(try sources.canonicalBytes())
+        self.indexFullFact = indexFullFact
+    }
+}
+
+struct EraseSchema2ColdSurvivingNotificationObservationV1: Equatable {
+    let value: EraseSchema2ColdSurvivingNotificationProvenanceV1
+    let bytes: Data
+    let fact: EraseColdControlLeafFactV1
+    let policy: TemporalPolicyObservationV1?
+}
+
+/// Published before the first raw source/plan leaf. The complete immutable
+/// table is the only admissible bootstrap namespace; exact prefix recovery
+/// still requires matching physical original-P source admission under EX/G.
+struct EraseSchema2ColdCleanupTransferV1: Codable, Equatable {
+    let schemaVersion: Int
+    let sources: EraseSchema2ColdCleanupSourcesV1
+    func canonicalBytes() throws -> Data {
+        try sources.validate(requirePublished: false)
+        guard schemaVersion == 1, sources.c16PlanFullFact == nil,
+              sources.sources.allSatisfy({ $0.leafFullFact == nil }) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(self)
+    }
+}
+
+/// Last named authority, published and positively read back before any
+/// terminal deletion. Final records remain data; Router/Service reestablish
+/// actual OS absence and namespace retirement on fresh terminal admission.
+struct EraseSchema2ColdCleanupTerminalV1: Codable, Equatable {
+    struct Leaf: Codable, Equatable {
+        let name: String
+        let fullFact: String
+        let sha256: String
+        let byteCount: Int
+    }
+    let schemaVersion: Int
+    let sources: EraseSchema2ColdCleanupSourcesV1
+    let progress: EraseSchema2ColdCleanupProgressV1
+    let notificationProvenance: EraseSchema2ColdSurvivingNotificationProvenanceV1
+    let cleanupIntentBytes: Data
+    let preparationBytes: Data
+    let deletionOrder: [Leaf]
+    func canonicalBytes() throws -> Data {
+        try sources.validate(); try progress.validate(sources: sources)
+        let notificationBytes = try notificationProvenance.canonicalBytes()
+        let intent = try EraseIntentCodecV1.decode(cleanupIntentBytes)
+        let preparation = try ErasePreparationCodecV2.decode(preparationBytes)
+        guard schemaVersion == 1, progress.isTerminal,
+              progress.stage == .phaseCASComplete,
+              intent.schemaVersion == 2, intent.phase == .cleanupComplete,
+              preparation.matches(intent),
+              try EraseIntentCodecV1.encode(intent) == cleanupIntentBytes,
+              try ErasePreparationCodecV2.encode(preparation) == preparationBytes,
+              intent.eraseID.uuidString.lowercased() == sources.eraseID,
+              notificationProvenance.eraseID == sources.eraseID,
+              notificationProvenance.preparationSHA256 == sources.preparationSHA256,
+              notificationProvenance.originalPAuxiliaryRosterSHA256 == sources.originalPAuxiliaryRosterSHA256,
+              notificationProvenance.targetPointerSHA256 == sources.targetPointerSHA256,
+              StoreMigrationCanonicalJSONV1.sha256(preparationBytes) == sources.preparationSHA256,
+              deletionOrder.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount + 16,
+              Set(deletionOrder.map(\.name)).count == deletionOrder.count,
+              deletionOrder.suffix(2).map(\.name) == ["preparation.json", "erase.json"] else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let fixedNames = Set(["original-retired-stage-identity.json",
+            "original-retired-transition.json", "schema2-cold-deletion-roster.json",
+            "auxiliary-retirement.json", "preparation.json", "erase.json"])
+        for leaf in deletionOrder {
+            guard EraseSchema2ColdCleanupGrammarV1.isCanonicalName(leaf.name) || fixedNames.contains(leaf.name),
+                  leaf.name != EraseSchema2ColdCleanupGrammarV1.terminalName,
+                  EraseSchema2ColdCleanupGrammarV1.validFact(leaf.fullFact),
+                  leaf.byteCount >= 0,
+                  leaf.byteCount <= EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(leaf.sha256)
+        }
+        guard let originalIntent = deletionOrder.last,
+              originalIntent.sha256 == StoreMigrationCanonicalJSONV1.sha256(cleanupIntentBytes),
+              originalIntent.byteCount == cleanupIntentBytes.count,
+              let originalPreparation = deletionOrder.dropLast().last,
+              originalPreparation.sha256 == StoreMigrationCanonicalJSONV1.sha256(preparationBytes),
+              originalPreparation.byteCount == preparationBytes.count,
+              deletionOrder.first(where: { $0.name == EraseSchema2ColdCleanupGrammarV1.notificationName })?.sha256
+                == StoreMigrationCanonicalJSONV1.sha256(notificationBytes) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(self)
+    }
+}
+
+struct EraseSchema2ColdCleanupTerminalObservationV1: Equatable {
+    let value: EraseSchema2ColdCleanupTerminalV1
+    let bytes: Data
+    let fact: EraseColdControlLeafFactV1
+    let policy: TemporalPolicyObservationV1?
+}
+
+@MainActor
+final class EraseSchema2ColdTerminalStoreCloseReceiptV1 {
+    fileprivate weak var store: EraseIntentStore?
+    fileprivate let eraseID: UUID
+    fileprivate let retirementIdentity: ObjectIdentifier
+    fileprivate init(store: EraseIntentStore, eraseID: UUID,
+        retirement: EraseSchema2ColdTerminalAuthorityV1) {
+        self.store = store; self.eraseID = eraseID
+        self.retirementIdentity = ObjectIdentifier(retirement)
+    }
+    func requireBound(store: EraseIntentStore, expected: EraseIntentV1,
+        retirement: EraseSchema2ColdTerminalAuthorityV1) throws {
+        guard self.store === store, expected.eraseID == eraseID,
+              expected.phase == .cleanupComplete,
+              ObjectIdentifier(retirement) == retirementIdentity else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
+enum EraseSchema2ColdCleanupCommitmentV1 {
+    struct SourceByteHash: Codable, Equatable { let path: String; let sha256: String }
+    private struct Commitment: Codable {
+        let schemaVersion: Int
+        let kind: String
+        let inputSHA256: [String]
+        let path: String?
+    }
+    static func makeEffect(kind: EraseSchema2ColdControlEffectV1.Kind,
+        inputSHA256: [String], expectedCanonicalSHA256: String? = nil,
+        path: String? = nil
+    ) throws -> EraseSchema2ColdControlEffectV1 {
+        for sha in inputSHA256 { try EraseSchema2ColdCleanupGrammarV1.requireDigest(sha) }
+        if let expectedCanonicalSHA256 {
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(expectedCanonicalSHA256)
+        }
+        guard path.map({ !$0.isEmpty && !$0.utf8.contains(0) && $0.utf8.count <= 4_096 }) ?? true else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let bytes = try StoreMigrationCanonicalJSONV1.encode(Commitment(schemaVersion: 1,
+            kind: kind.rawValue, inputSHA256: inputSHA256, path: path))
+        return EraseSchema2ColdControlEffectV1(kind: kind,
+            commitmentSHA256: StoreMigrationCanonicalJSONV1.sha256(bytes),
+            expectedCanonicalSHA256: expectedCanonicalSHA256, path: path)
+    }
+    static func sha256(_ string: String) -> String {
+        StoreMigrationCanonicalJSONV1.sha256(Data(string.utf8))
+    }
+    static func sourceByteTableSHA256(_ sources: EraseSchema2ColdCleanupSourcesV1) throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(
+            sources.sources.map { SourceByteHash(path: $0.path, sha256: $0.sha256) }))
+    }
+}
+

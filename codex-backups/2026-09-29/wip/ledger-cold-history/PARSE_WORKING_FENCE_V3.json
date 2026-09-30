@@ -1,0 +1,16 @@
+{
+  "sourceSHA256": "ba74454fc4f0bed1c008ec857ad5d106f029763d0fd4444ebfd7a2c0360632dd",
+  "results": [
+    {
+      "mode": "DEBUG",
+      "exit": 0,
+      "seconds": 0.04458283295389265
+    },
+    {
+      "mode": "nonDEBUG",
+      "exit": 0,
+      "seconds": 0.041576916992198676
+    }
+  ],
+  "scope": "syntax parse only; no typecheck/build/native"
+}

@@ -1,0 +1,239 @@
+@MainActor
+final class EraseSchema2ColdScratchBootstrapPermitV1 {
+    private let requireActualCut: @MainActor () throws -> Void
+    private let initialBinding: @MainActor ([OriginalEraseC16StepV1]) throws -> String
+    private let firstPFact: @MainActor (String) throws -> String?
+    private let firstPSHA256: @MainActor (String) throws -> String
+    private let firstPPaths: @MainActor (String) throws -> [String]
+    private let sourceAdmission: @MainActor (String, Data, String) throws -> Void
+    private let retainUncertainty: @MainActor () -> Void
+    private var active = true
+    private var uncertain = false
+
+    fileprivate init(
+        requireActualCut: @escaping @MainActor () throws -> Void,
+        initialBinding: @escaping @MainActor ([OriginalEraseC16StepV1]) throws -> String,
+        firstPFact: @escaping @MainActor (String) throws -> String?,
+        firstPSHA256: @escaping @MainActor (String) throws -> String,
+        firstPPaths: @escaping @MainActor (String) throws -> [String],
+        sourceAdmission: @escaping @MainActor (String, Data, String) throws -> Void,
+        retainUncertainty: @escaping @MainActor () -> Void
+    ) {
+        self.requireActualCut = requireActualCut
+        self.initialBinding = initialBinding
+        self.firstPFact = firstPFact
+        self.firstPSHA256 = firstPSHA256
+        self.firstPPaths = firstPPaths
+        self.sourceAdmission = sourceAdmission
+        self.retainUncertainty = retainUncertainty
+    }
+
+    private func requireCurrent() throws {
+        guard active, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireActualCut()
+    }
+
+    func requireInitialC16ObservationBinding(
+        firstPPartials: [OriginalEraseC16StepV1]
+    ) throws -> String {
+        try requireCurrent()
+        let token = try initialBinding(firstPPartials)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(token) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireCurrent()
+        return token
+    }
+
+    func originalPPhysicalFact(path: String) throws -> String? {
+        try requireCurrent()
+        let value = try firstPFact(path)
+        try requireCurrent()
+        return value
+    }
+
+    func originalPPhysicalSHA256(path: String) throws -> String {
+        try requireCurrent()
+        let value = try firstPSHA256(path)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(value) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireCurrent()
+        return value
+    }
+
+    func originalPPhysicalPaths(prefix: String) throws -> [String] {
+        try requireCurrent()
+        let value = try firstPPaths(prefix)
+        try Self.requireImmutablePaths(value, prefix: prefix)
+        try requireCurrent()
+        return value
+    }
+
+    fileprivate static func requireImmutablePaths(_ paths: [String], prefix: String) throws {
+        let components = prefix.split(separator: "/", omittingEmptySubsequences: false)
+        guard !prefix.isEmpty, !prefix.hasPrefix("/"), !prefix.hasSuffix("/"),
+              components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+              paths.count <= 100_000, paths == paths.sorted(),
+              Set(paths).count == paths.count,
+              paths.allSatisfy({ path in
+                  let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+                  return (path == prefix || path.hasPrefix(prefix + "/"))
+                    && parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." })
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireOriginalPSource(path: String, bytes: Data,
+        fullFact: String) throws {
+        try requireCurrent()
+        try sourceAdmission(path, bytes, fullFact)
+        try requireCurrent()
+    }
+
+    func poisonOnUncertainEffect() {
+        if !uncertain {
+            uncertain = true
+            retainUncertainty()
+        }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+
+
+@MainActor
+final class EraseSchema2ColdScratchLifecyclePermitV1 {
+    private let observationBinding: @MainActor () throws -> Void
+    private let c16ObservationBinding: @MainActor (String, Int) throws -> String
+    private let wholeProjection: @MainActor () throws -> Void
+    private let sourceAdmission: @MainActor (String, Data, String) throws -> Void
+    private let originalSource: @MainActor (String) throws -> (bytes: Data, fullFact: String)
+    private let bornSource: @MainActor (String, String) throws -> (bytes: Data, fullFact: String)
+    private let firstPFact: @MainActor (String) throws -> String?
+    private let firstPSHA256: @MainActor (String) throws -> String
+    private let firstPPaths: @MainActor (String) throws -> [String]
+    private let retainUncertainty: @MainActor () -> Void
+    private var revoked = false
+    private var uncertain = false
+
+    fileprivate init(
+        observationBinding: @escaping @MainActor () throws -> Void,
+        c16ObservationBinding: @escaping @MainActor (String, Int) throws -> String,
+        wholeProjection: @escaping @MainActor () throws -> Void,
+        sourceAdmission: @escaping @MainActor (String, Data, String) throws -> Void,
+        originalSource: @escaping @MainActor (String) throws -> (bytes: Data, fullFact: String),
+        bornSource: @escaping @MainActor (String, String) throws -> (bytes: Data, fullFact: String),
+        firstPFact: @escaping @MainActor (String) throws -> String?,
+        firstPSHA256: @escaping @MainActor (String) throws -> String,
+        firstPPaths: @escaping @MainActor (String) throws -> [String],
+        retainUncertainty: @escaping @MainActor () -> Void) {
+        self.observationBinding = observationBinding
+        self.c16ObservationBinding = c16ObservationBinding
+        self.wholeProjection = wholeProjection
+        self.sourceAdmission = sourceAdmission
+        self.originalSource = originalSource
+        self.bornSource = bornSource
+        self.firstPFact = firstPFact
+        self.firstPSHA256 = firstPSHA256
+        self.firstPPaths = firstPPaths
+        self.retainUncertainty = retainUncertainty
+    }
+
+    /// The role-scoped observer uses this nonrecursive binding proof. The
+    /// outer whole-tree check calls the observer, so invoking it here would
+    /// recurse and could skip an actual boundary instead of proving it.
+    func requireObservationBinding() throws {
+        guard !revoked, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try observationBinding()
+    }
+
+    /// A scope is current only at this exact canonical plan and actual
+    /// authenticated C16 ordinal. The issuer compares the Store stage and
+    /// mixed target subsequence; a still-live lexical capability cannot keep
+    /// an old or future scope valid after the monotonic record advances.
+    func requireC16ObservationBinding(planSHA256: String, ordinal: Int) throws -> String {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(planSHA256),
+              ordinal >= 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        let recordSHA256 = try c16ObservationBinding(planSHA256, ordinal)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(recordSHA256) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        return recordSHA256
+    }
+
+    func requireHeld() throws {
+        try requireObservationBinding()
+        try wholeProjection()
+        try requireObservationBinding()
+    }
+
+    func requireTransferredSource(path: String, bytes: Data,
+        fullFact: String) throws {
+        try requireObservationBinding()
+        try sourceAdmission(path, bytes, fullFact)
+        try requireObservationBinding()
+    }
+
+    func canonicalTransferredSource(path: String) throws
+        -> (bytes: Data, fullFact: String) {
+        try requireObservationBinding()
+        let value = try originalSource(path)
+        try sourceAdmission(path, value.bytes, value.fullFact)
+        try requireObservationBinding()
+        return value
+    }
+
+    func canonicalBornTransferredSource(path: String, role: String) throws
+        -> (bytes: Data, fullFact: String) {
+        try requireObservationBinding()
+        let value = try bornSource(path, role)
+        try sourceAdmission(path, value.bytes, value.fullFact)
+        try requireObservationBinding()
+        return value
+    }
+
+    func originalPPhysicalFact(path: String) throws -> String? {
+        try requireObservationBinding()
+        let value = try firstPFact(path)
+        try requireObservationBinding()
+        return value
+    }
+
+    func originalPPhysicalSHA256(path: String) throws -> String {
+        try requireObservationBinding()
+        let value = try firstPSHA256(path)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(value) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        return value
+    }
+
+    func originalPPhysicalPaths(prefix: String) throws -> [String] {
+        try requireObservationBinding()
+        let value = try firstPPaths(prefix)
+        try EraseSchema2ColdScratchBootstrapPermitV1.requireImmutablePaths(value, prefix: prefix)
+        try requireObservationBinding()
+        return value
+    }
+
+    func poisonOnUncertainEffect() {
+        if !uncertain {
+            uncertain = true
+            retainUncertainty()
+        }
+    }
+
+    fileprivate func revoke() { revoked = true }
+}
+

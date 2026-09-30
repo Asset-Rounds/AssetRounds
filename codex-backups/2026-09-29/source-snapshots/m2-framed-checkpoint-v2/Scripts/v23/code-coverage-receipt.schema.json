@@ -1,0 +1,1141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.invalid/v23/CodeCoverageReceiptV1.schema.json",
+  "title": "CodeCoverageReceiptV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "lifecycle",
+    "candidateHead",
+    "candidateTree",
+    "candidateBound",
+    "tierReleaseDigest",
+    "exclusionDigest",
+    "comparisonBaseDigest",
+    "acceptingXcresultPath",
+    "acceptingXcresultDigest",
+    "xcresultReusePolicy",
+    "toolchainIdentity",
+    "fixtureDigest",
+    "xccovStatus",
+    "changedDiffCommand",
+    "changedDiffArtifactPath",
+    "changedDiffDigest",
+    "changedCandidateLineSetDigest",
+    "changedCandidateLines",
+    "xccovExecutableLineIdentities",
+    "xccovExecutableLineSetDigest",
+    "changedExecutableLines",
+    "coverageByTier",
+    "evidenceArtifacts",
+    "blockers",
+    "currentness",
+    "performanceCoverageInstrumentationRejected",
+    "performanceCoverageInstrumentationUsed",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "receiptSatisfied",
+    "releaseReady",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "acceptanceCredit",
+    "releaseCredit",
+    "artifactDigest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "CodeCoverageReceiptV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "cardID": {
+      "const": "V23-P00-C13"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptID",
+        "executionMode",
+        "baseHead",
+        "baseTree",
+        "candidateBinding",
+        "packageDigest",
+        "dossierDigest",
+        "canonicalRegisterDigest",
+        "directGraphDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "ownerOverrideReceiptDigest",
+        "frozenS10ReservationDigest",
+        "bootstrapContextDigest",
+        "bootstrapPathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "deterministicEvidenceIDs",
+        "policyRefs",
+        "contractRefs",
+        "journeyRefs",
+        "aggregateAcceptanceMemberships",
+        "invalidationConsumers",
+        "impactManifestDigest",
+        "impactFacetDigest",
+        "planningProjectionDigest",
+        "impactRow",
+        "impactRowDigest",
+        "sourceDisposition",
+        "fixtureDisposition",
+        "currentnessDisposition",
+        "directPrerequisite",
+        "writerAuthority",
+        "ledgerDigest",
+        "ledgerCASSequence",
+        "phase10PollingDuringParallelExecution",
+        "acceptanceEnabled",
+        "hostedDispatchEnabled",
+        "adoptionEnabled",
+        "requiresAcceptedS10_6Reconciliation",
+        "releaseCredit"
+      ],
+      "properties": {
+        "attemptID": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "executionMode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseHead": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "baseTree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "candidateBinding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packageDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dossierDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "canonicalRegisterDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "directGraphDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selectorManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "relationManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dependencyDispositionDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ownerOverrideReceiptDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenS10ReservationDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bootstrapContextDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bootstrapPathFenceDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "provisionalPrerequisiteDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "deterministicEvidenceIDs": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false
+        },
+        "policyRefs": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false
+        },
+        "contractRefs": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "prefixItems": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false
+        },
+        "journeyRefs": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aggregateAcceptanceMemberships": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false
+        },
+        "invalidationConsumers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false
+        },
+        "impactManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "impactFacetDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "planningProjectionDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "impactRow": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "aggregateAcceptanceMemberships",
+            "invalidationConsumers",
+            "optionalCapabilityProviders",
+            "conformanceSubjects"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "aggregateAcceptanceMemberships": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "items": false
+            },
+            "invalidationConsumers": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ],
+              "items": false
+            },
+            "optionalCapabilityProviders": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 0,
+              "prefixItems": [],
+              "items": false
+            },
+            "conformanceSubjects": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 0,
+              "prefixItems": [],
+              "items": false
+            }
+          }
+        },
+        "impactRowDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceDisposition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fixtureDisposition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "currentnessDisposition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "directPrerequisite": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cardID",
+            "implementationHead",
+            "implementationTree",
+            "contextDigest",
+            "fenceDigest",
+            "verificationDigest",
+            "checkpointDigest",
+            "swiftLanguageModeClosureReceiptDigest",
+            "swiftLanguageModeClosureReceiptFileSHA256",
+            "toolingManifestDigest",
+            "toolingManifestFileSHA256",
+            "nativeCompileRan",
+            "nativeTestsRan",
+            "languageModeClosureSatisfied",
+            "acceptanceCredit",
+            "releaseCredit",
+            "directPrerequisiteEvidenceSetReceiptDigest",
+            "officialAcceptanceEvidence"
+          ],
+          "properties": {
+            "cardID": {
+              "const": "V23-P00-C12"
+            },
+            "implementationHead": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "implementationTree": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "contextDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "fenceDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "verificationDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "checkpointDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "swiftLanguageModeClosureReceiptDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "swiftLanguageModeClosureReceiptFileSHA256": {
+              "type": "string",
+              "minLength": 1
+            },
+            "toolingManifestDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "toolingManifestFileSHA256": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nativeCompileRan": {
+              "type": "boolean"
+            },
+            "nativeTestsRan": {
+              "type": "boolean"
+            },
+            "languageModeClosureSatisfied": {
+              "type": "boolean"
+            },
+            "acceptanceCredit": {
+              "type": "boolean"
+            },
+            "releaseCredit": {
+              "type": "boolean"
+            },
+            "directPrerequisiteEvidenceSetReceiptDigest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "officialAcceptanceEvidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "CardAcceptanceInclusionProofV1Digest",
+                "CardAcceptanceInclusionProofRecoveryReceiptV1Digest",
+                "CandidateAcceptanceCompatibilityReceiptV1Digest",
+                "acceptanceCurrentness",
+                "compatibility",
+                "zeroOrphanAcceptanceProofComplete"
+              ],
+              "properties": {
+                "CardAcceptanceInclusionProofV1Digest": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  ]
+                },
+                "CardAcceptanceInclusionProofRecoveryReceiptV1Digest": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  ]
+                },
+                "CandidateAcceptanceCompatibilityReceiptV1Digest": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  ]
+                },
+                "acceptanceCurrentness": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "compatibility": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "zeroOrphanAcceptanceProofComplete": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "writerAuthority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ownerID",
+            "writerGeneration"
+          ],
+          "properties": {
+            "ownerID": {
+              "type": "string",
+              "minLength": 1
+            },
+            "writerGeneration": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "ledgerDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledgerCASSequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "phase10PollingDuringParallelExecution": {
+          "type": "boolean"
+        },
+        "acceptanceEnabled": {
+          "type": "boolean"
+        },
+        "hostedDispatchEnabled": {
+          "type": "boolean"
+        },
+        "adoptionEnabled": {
+          "type": "boolean"
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persistence",
+        "supersession",
+        "successorTriggers",
+        "customerData",
+        "interruption",
+        "recovery"
+      ],
+      "properties": {
+        "persistence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supersession": {
+          "type": "string",
+          "minLength": 1
+        },
+        "successorTriggers": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ],
+          "items": false
+        },
+        "customerData": {
+          "type": "string",
+          "minLength": 1
+        },
+        "interruption": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recovery": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "candidateHead": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      ]
+    },
+    "candidateTree": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      ]
+    },
+    "candidateBound": {
+      "type": "boolean"
+    },
+    "tierReleaseDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "exclusionDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "comparisonBaseDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "acceptingXcresultPath": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "acceptingXcresultDigest": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ]
+    },
+    "xcresultReusePolicy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolchainIdentity": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "fixtureDigest": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ]
+    },
+    "xccovStatus": {
+      "type": "string",
+      "enum": [
+        "BLOCKED",
+        "FAIL",
+        "INCONCLUSIVE_BLOCKED",
+        "NOT_RUN",
+        "PASS"
+      ]
+    },
+    "changedDiffCommand": {
+      "type": "string",
+      "minLength": 1
+    },
+    "changedDiffArtifactPath": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1
+        }
+      ]
+    },
+    "changedDiffDigest": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ]
+    },
+    "changedCandidateLineSetDigest": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ]
+    },
+    "changedCandidateLines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "line",
+          "changeKind",
+          "candidateText"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "changeKind": {
+            "type": "string",
+            "enum": [
+              "ADDED",
+              "MODIFIED"
+            ]
+          },
+          "candidateText": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "xccovExecutableLineIdentities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "line"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "xccovExecutableLineSetDigest": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      ]
+    },
+    "changedExecutableLines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "line",
+          "changeKind",
+          "candidateText"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "changeKind": {
+            "type": "string",
+            "enum": [
+              "ADDED",
+              "MODIFIED"
+            ]
+          },
+          "candidateText": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "coverageByTier": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "executableLinePercent",
+            "functionPercent",
+            "changedExecutableLinePercent",
+            "changedFunctionCompletelyUncoveredCount",
+            "result"
+          ],
+          "properties": {
+            "tier": {
+              "type": "string",
+              "minLength": 1
+            },
+            "executableLinePercent": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              ]
+            },
+            "functionPercent": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              ]
+            },
+            "changedExecutableLinePercent": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              ]
+            },
+            "changedFunctionCompletelyUncoveredCount": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              ]
+            },
+            "result": {
+              "type": "string",
+              "enum": [
+                "BLOCKED",
+                "FAIL",
+                "INCONCLUSIVE_BLOCKED",
+                "NOT_RUN",
+                "PASS"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "executableLinePercent",
+            "functionPercent",
+            "changedExecutableLinePercent",
+            "changedFunctionCompletelyUncoveredCount",
+            "result"
+          ],
+          "properties": {
+            "tier": {
+              "type": "string",
+              "minLength": 1
+            },
+            "executableLinePercent": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              ]
+            },
+            "functionPercent": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              ]
+            },
+            "changedExecutableLinePercent": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              ]
+            },
+            "changedFunctionCompletelyUncoveredCount": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              ]
+            },
+            "result": {
+              "type": "string",
+              "enum": [
+                "BLOCKED",
+                "FAIL",
+                "INCONCLUSIVE_BLOCKED",
+                "NOT_RUN",
+                "PASS"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "semanticIntegrationEvidence",
+            "result"
+          ],
+          "properties": {
+            "tier": {
+              "type": "string",
+              "minLength": 1
+            },
+            "semanticIntegrationEvidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "result": {
+              "type": "string",
+              "enum": [
+                "BLOCKED",
+                "FAIL",
+                "INCONCLUSIVE_BLOCKED",
+                "NOT_RUN",
+                "PASS"
+              ]
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "evidenceArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "currentness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateBindingCurrent",
+        "xcresultCurrent",
+        "comparisonBaseCurrent",
+        "toolchainAndFixtureCurrent",
+        "result"
+      ],
+      "properties": {
+        "candidateBindingCurrent": {
+          "type": "boolean"
+        },
+        "xcresultCurrent": {
+          "type": "boolean"
+        },
+        "comparisonBaseCurrent": {
+          "type": "boolean"
+        },
+        "toolchainAndFixtureCurrent": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "BLOCKED",
+            "FAIL",
+            "INCONCLUSIVE_BLOCKED",
+            "NOT_RUN",
+            "PASS"
+          ]
+        }
+      }
+    },
+    "performanceCoverageInstrumentationRejected": {
+      "type": "boolean"
+    },
+    "performanceCoverageInstrumentationUsed": {
+      "type": "boolean"
+    },
+    "nativeCompileRan": {
+      "type": "boolean"
+    },
+    "hostedDispatchRan": {
+      "type": "boolean"
+    },
+    "adoptionEnabled": {
+      "type": "boolean"
+    },
+    "acceptanceEnabled": {
+      "type": "boolean"
+    },
+    "receiptSatisfied": {
+      "type": "boolean"
+    },
+    "releaseReady": {
+      "type": "boolean"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "type": "boolean"
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "type": "boolean"
+    },
+    "acceptanceCredit": {
+      "type": "boolean"
+    },
+    "releaseCredit": {
+      "type": "boolean"
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

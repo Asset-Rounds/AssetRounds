@@ -1,0 +1,172 @@
+{
+  "schema": "V22P03C54EncryptedPortableEnvelopeCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C54",
+  "corpusID": "v23-p03-c54-encrypted-portable-envelope-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsProductionSecrets": false,
+  "contracts": [
+    "EncryptedPortableEnvelopeProtocolReleaseV1",
+    "EncryptedEnvelopeKDFProfileV1",
+    "EncryptedEnvelopeAEADProfileV1",
+    "EncryptedEnvelopeSealReceiptV1",
+    "EncryptedEnvelopeOpenReceiptV1",
+    "PassphrasePolicyV1",
+    "EphemeralSecretHandlingDispositionV1",
+    "EncryptionExportComplianceDispositionV1",
+    "ReviewExchangeProtectionV1"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C54-G01",
+    "V23-P03-C54-A01",
+    "V23-P03-C54-H01",
+    "V23-P03-C54-I01",
+    "V23-P03-C54-R01"
+  ],
+  "innerKinds": [
+    "WORKSPACE_BACKUP",
+    "REVIEW_REQUEST",
+    "REVIEW_RESPONSE"
+  ],
+  "format": {
+    "uti": "com.assetrounds.encrypted-envelope",
+    "fileExtension": "arenvelope",
+    "pbkdf2Iterations": 600000,
+    "saltBytes": 32,
+    "derivedKeyBytes": 32,
+    "noncePrefixBytes": 8,
+    "frameIndexBytes": 4,
+    "maximumPlaintextFrameBytes": 1048576,
+    "authenticationTagBytes": 16,
+    "minimumFrameCount": 1,
+    "emptyInnerFrameCount": 1,
+    "innerProtocolVersion": 1,
+    "maximumOperationalPlaintextBytes": 4294852480,
+    "maximumOperationalScratchBytes": 4294967296,
+    "maximumOperationalFrameCount": 4096
+  },
+  "publishedVectors": {
+    "pbkdf2HMACSHA256": [
+      {
+        "passphraseUTF8Hex": "70617373776f7264",
+        "saltHex": "73616c74",
+        "iterations": 600000,
+        "derivedKeyBytes": 32,
+        "derivedKeyHex": "669cfe52482116fda1aa2cbe409b2f56c8e4563752b7a28f6eaab614ee005178"
+      }
+    ],
+    "aesGCM": [
+      {
+        "keyHex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "nonceHex": "000000000000000000000000",
+        "plaintextHex": "",
+        "authenticatedDataHex": "",
+        "ciphertextHex": "",
+        "tagHex": "530f8afbc74536b9a963b4f1c4cb738b"
+      },
+      {
+        "keyHex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "nonceHex": "000000000000000000000000",
+        "plaintextHex": "00000000000000000000000000000000",
+        "authenticatedDataHex": "",
+        "ciphertextHex": "cea7403d4d606b6e074ec5d3baf39d18",
+        "tagHex": "d0d1c8a799996bf0265b98b5d48ab919"
+      }
+    ]
+  },
+  "alternateCases": [
+    "NFC_EQUIVALENCE",
+    "LEADING_TRAILING_SPACES_PRESERVED",
+    "CASE_PRESERVED",
+    "EMOJI",
+    "RTL",
+    "MINIMUM_15_SCALARS",
+    "MAXIMUM_256_SCALARS",
+    "MAXIMUM_1024_UTF8_BYTES",
+    "EMPTY_INNER_ONE_FINAL_FRAME",
+    "ONE_MIB_FRAME",
+    "MULTIFRAME_CONTIGUOUS_NONCES",
+    "OPEN_READER_REQUIRES_NO_CONFIRMATION",
+    "CROSS_DEVICE_OFFLINE_REOPEN",
+    "LEGACY_CLEAR_READERS_REMAIN",
+    "ENCRYPTED_REVIEW_NO_DOWNGRADE"
+  ],
+  "hostileCases": [
+    "ZERO_FRAMES",
+    "MISSING_FINAL",
+    "EARLY_FINAL",
+    "MULTIPLE_FINAL",
+    "REORDERED_FRAME",
+    "DUPLICATE_FRAME",
+    "OMITTED_FRAME",
+    "TRUNCATED_FRAME",
+    "APPENDED_BYTES",
+    "OVERSIZE_FRAME",
+    "INTEGER_OVERFLOW",
+    "RESOURCE_ABUSE",
+    "UNKNOWN_VERSION",
+    "UNKNOWN_KDF_PROFILE",
+    "UNKNOWN_AEAD_PROFILE",
+    "HEADER_BIT_FLIP",
+    "HEADER_MAGIC_BIT_FLIP",
+    "HEADER_PROTOCOL_VERSION_BIT_FLIP",
+    "HEADER_INNER_KIND_BIT_FLIP",
+    "HEADER_INNER_VERSION_BIT_FLIP",
+    "HEADER_KDF_PROFILE_BIT_FLIP",
+    "HEADER_AEAD_PROFILE_BIT_FLIP",
+    "HEADER_ITERATION_COUNT_BIT_FLIP",
+    "HEADER_FRAME_LIMIT_BIT_FLIP",
+    "HEADER_FRAME_COUNT_BIT_FLIP",
+    "HEADER_PLAINTEXT_TOTAL_BIT_FLIP",
+    "HEADER_CIPHERTEXT_TOTAL_BIT_FLIP",
+    "HEADER_PUBLIC_ID_BIT_FLIP",
+    "HEADER_SALT_BIT_FLIP",
+    "HEADER_NONCE_PREFIX_BIT_FLIP",
+    "CIPHERTEXT_BIT_FLIP",
+    "TAG_BIT_FLIP",
+    "SERVICE_REQUEST_KIND",
+    "HOSTILE_DECRYPTED_INNER",
+    "WRONG_PASSPHRASE_OR_DAMAGE_SHARED_ERROR"
+  ],
+  "interruptions": [
+    "USER_CANCEL",
+    "BACKGROUND",
+    "APP_LOCK",
+    "MEMORY_PRESSURE",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "RNG_FAILURE",
+    "STORAGE_FAILURE"
+  ],
+  "recovery": {
+    "crashCleanup": true,
+    "idempotentRetry": true,
+    "crossDeviceOfflineOpen": true,
+    "strictSecretFreeReceipts": true,
+    "exportComplianceRequiresReleaseResolution": true,
+    "exportComplianceAssumesExemption": false
+  },
+  "privacyLeakSurfaces": [
+    "GENERATED_FILENAME",
+    "SHARE_TITLE",
+    "QUICK_LOOK_METADATA",
+    "SPOTLIGHT_METADATA",
+    "SUPPORT_BUNDLE"
+  ],
+  "claims": {
+    "unchangedInnerBytes": true,
+    "noIdentityProof": true,
+    "noAuthorityProof": true,
+    "noDeliveryProof": true,
+    "noLegalSignatureProof": true,
+    "noPartialSuccess": true,
+    "memoryOnlySecrets": true,
+    "noCanonicalPersistence": true,
+    "noReplication": true,
+    "eraseRemovesScratch": true,
+    "diagnosticsExcludeSecretsAndCustomerData": true
+  },
+  "typedAnchor": "V23-P03-C54-G01/A01/H01/I01/R01"
+}

@@ -1,0 +1,276 @@
+{
+  "$defs": {
+    "migrationPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "atomicActivation": {
+          "const": true
+        },
+        "duplicateRecordDisposition": {
+          "const": "REJECT"
+        },
+        "migrationID": {
+          "const": "kernel-persistence-v3-to-v4"
+        },
+        "phases": {
+          "const": [
+            "STAGING",
+            "STAGED",
+            "VALIDATING",
+            "VALIDATED",
+            "ACTIVE",
+            "DISCARDED",
+            "FORWARD_FIX_REQUIRED"
+          ]
+        },
+        "postWriteRecovery": {
+          "const": "FORWARD_FIX_READ_EXPORT_ONLY"
+        },
+        "preActivationRollback": {
+          "const": "DISCARD_STAGING"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "sourceSchemaVersion": {
+          "const": 3
+        },
+        "staged": {
+          "const": true
+        },
+        "targetSchemaVersion": {
+          "const": 4
+        },
+        "transitions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_maximumUTF8Bytes": 256,
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "unknownRecordDisposition": {
+          "const": "REJECT"
+        }
+      },
+      "required": [
+        "atomicActivation",
+        "duplicateRecordDisposition",
+        "migrationID",
+        "phases",
+        "postWriteRecovery",
+        "preActivationRollback",
+        "schemaVersion",
+        "sourceSchemaVersion",
+        "staged",
+        "targetSchemaVersion",
+        "transitions",
+        "unknownRecordDisposition"
+      ],
+      "type": "object"
+    },
+    "stagedRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "batchDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "Asset",
+            "CompletedActivitySnapshotV1",
+            "ContentReferenceV1",
+            "ContractSchemaDerivationReceiptV1",
+            "ControlledAmendmentSupersessionV1",
+            "DeletionLedgerRow",
+            "EntityMutationRevisionRow",
+            "EvidenceFile",
+            "Issue",
+            "MutationQuarantineRow",
+            "MutationReceiptRow",
+            "ObservationAndTimeRow",
+            "OpenJSONSchemaProjectionV1",
+            "Packet",
+            "PersistentSchemaReleaseMarker",
+            "Report",
+            "Site",
+            "WorkflowRecord",
+            "WorkspaceMutationStateRow"
+          ],
+          "type": "string"
+        },
+        "sourceCount": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stagedCount": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "batchDigest",
+        "kind",
+        "sourceCount",
+        "stagedCount"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.assetrounds.local/v23/p03/c07/kernel-migration-receipt/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "phase": {
+            "const": "VALIDATED"
+          }
+        },
+        "required": [
+          "phase"
+        ]
+      },
+      "then": {
+        "properties": {
+          "canonicalV4WriteObserved": {
+            "const": false
+          },
+          "published": {
+            "const": false
+          }
+        },
+        "required": [
+          "stagingDigest",
+          "schemaDescriptorDigest",
+          "archiveManifestDigest",
+          "exportManifestDigest"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "archiveManifestDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "canonicalV4WriteObserved": {
+      "type": "boolean"
+    },
+    "checkpointID": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "exportManifestDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "migrationID": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_maximumUTF8Bytes": 160,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "phase": {
+      "enum": [
+        "STAGING",
+        "STAGED",
+        "VALIDATING",
+        "VALIDATED",
+        "ACTIVE",
+        "DISCARDED",
+        "FORWARD_FIX_REQUIRED"
+      ],
+      "type": "string"
+    },
+    "published": {
+      "type": "boolean"
+    },
+    "schemaDescriptorDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sourceSchemaVersion": {
+      "const": 3
+    },
+    "sourceStoreDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "stagedRecords": {
+      "items": {
+        "$ref": "#/$defs/stagedRecord"
+      },
+      "maxItems": 19,
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "stagedRelationshipKinds": {
+      "items": {
+        "enum": [
+          "Asset.siteID->Site",
+          "CompletedActivitySnapshotV1.supersedesSnapshotID->CompletedActivitySnapshotV1",
+          "ControlledAmendmentSupersessionV1.originalSnapshotID->CompletedActivitySnapshotV1",
+          "ControlledAmendmentSupersessionV1.successorSnapshotID->CompletedActivitySnapshotV1",
+          "EvidenceFile.recordID->WorkflowRecord",
+          "Issue.assetID->Asset",
+          "Issue.openedByRecordID->WorkflowRecord",
+          "Issue.resolvedByRecordID->WorkflowRecord",
+          "Packet.currentRecordID->WorkflowRecord",
+          "Packet.stableRootID->Packet",
+          "Report.packetID->Packet",
+          "Report.replacesReportID->Report",
+          "Report.sourceRecordID->WorkflowRecord",
+          "WorkflowRecord.assetID->Asset",
+          "WorkflowRecord.evidenceSourceRecordID->WorkflowRecord",
+          "WorkflowRecord.issueID->Issue",
+          "WorkflowRecord.packetID->Packet",
+          "WorkflowRecord.parentRecordID->WorkflowRecord",
+          "WorkflowRecord.recordRevisionRootID->WorkflowRecord",
+          "WorkflowRecord.revisesRecordID->WorkflowRecord"
+        ],
+        "type": "string"
+      },
+      "maxItems": 20,
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "stagingDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "targetSchemaVersion": {
+      "const": 4
+    }
+  },
+  "required": [
+    "canonicalV4WriteObserved",
+    "checkpointID",
+    "migrationID",
+    "phase",
+    "published",
+    "sourceSchemaVersion",
+    "sourceStoreDigest",
+    "stagedRecords",
+    "stagedRelationshipKinds",
+    "targetSchemaVersion"
+  ],
+  "title": "KernelMigrationReceiptV4",
+  "type": "object",
+  "x_assetrounds_cardID": "V23-P03-C07",
+  "x_assetrounds_staticOnly": true
+}

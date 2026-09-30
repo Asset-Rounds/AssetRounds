@@ -1,0 +1,119 @@
+{
+  "$id": "https://assetrounds.invalid/v23/WorkRelationshipV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "DUPLICATE_OF"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "direction": {
+            "const": "DIRECTED"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "RELATED_TO"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "direction": {
+            "const": "SYMMETRIC"
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "actorID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "direction": {
+      "enum": [
+        "DIRECTED",
+        "SYMMETRIC"
+      ],
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "DUPLICATE_OF",
+        "RELATED_TO"
+      ],
+      "type": "string"
+    },
+    "mutationID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "relationshipID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceWorkID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "sourceWorkRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "targetWorkID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "targetWorkRevision": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "relationshipID",
+    "sourceWorkID",
+    "sourceWorkRevision",
+    "targetWorkID",
+    "targetWorkRevision",
+    "kind",
+    "direction",
+    "reason",
+    "actorID",
+    "mutationID",
+    "createdAt"
+  ],
+  "title": "WorkRelationshipV1",
+  "type": "object"
+}

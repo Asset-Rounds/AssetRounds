@@ -1,0 +1,512 @@
+{
+  "artifactDigest": "9e299f402f9bcb7cbcc1e0c4f0ba83587b963b536aa9d870ceaef00d63cf8037",
+  "attemptID": 3,
+  "authority": {
+    "acceptedDependencyMismatchDigest": "a83f89eb65d1a73c72b7812715c86c2349b4aaf06e1c918053b5fd9404f76eb1",
+    "appBaseHead": "4a8e63b7187613919f1e30d31d5154847c197a02",
+    "appBaseTree": "446193953f7fae06d377aa58a0584bb5d307b906",
+    "attemptID": 3,
+    "authorizedOverlapCount": 215,
+    "cardID": "V23-P03-C05",
+    "contextDigest": "148ea188dd2add6ea8bcce6cf2caa0e01dd1a6d10d5395cf552ff1bb3775fc44",
+    "coordinationAuthorityHead": "4178c6390f149f23f62c368560218e08b0f93202",
+    "coordinationAuthorityTree": "f6d8784f73943df39fa87df1316879beec4555d5",
+    "coordinationCASSequence": 390,
+    "coordinationHead": "4178c6390f149f23f62c368560218e08b0f93202",
+    "coordinationLedgerDigest": "d009d9c3322ae239943c6e9bb0b38cc4231e4d1b2e97587e52035907d961a6fc",
+    "coordinationProjectionDigest": "60c4321aa7545f1829de092bff2442b8f46b7cb5b16c0973bc0a8f915a4c865b",
+    "coordinationTree": "f6d8784f73943df39fa87df1316879beec4555d5",
+    "correctionReceiptDigest": "e3a0608fe7508e62615ae104d3d11116623c30c7c71634578b15d93d0fc2553a",
+    "directPrerequisiteCards": [
+      "V23-P03-C04"
+    ],
+    "dossierByteCount": 7267,
+    "dossierSHA256": "a28c945fe83b27203b42ef7f5568ed29b93e20312378b6102428ec72057331b4",
+    "evidenceIDs": [
+      "V23-P03-C05-G01",
+      "V23-P03-C05-A01",
+      "V23-P03-C05-H01",
+      "V23-P03-C05-I01",
+      "V23-P03-C05-R01"
+    ],
+    "expectedExistingPathCount": 18,
+    "expectedFencePathCount": 18,
+    "expectedNewPathCount": 0,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "60c4321aa7545f1829de092bff2442b8f46b7cb5b16c0973bc0a8f915a4c865b",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "d636607fc89d0707f12dbb7efd2ac50ba3c846687bc9826d4389d93fe6c7bfc5",
+    "inheritedV21BlockByteCount": 9610,
+    "inheritedV21BlockSHA256": "81d49b48b336fc1c9347928e8f361684ecd29b3f5b43be02c7b3a420e6ca8442",
+    "invalidationConsumers": [
+      "V23-P03-C06",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "journeyRefs": [
+      "FJ15"
+    ],
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "pathFenceDigest": "8ca993b5f491de9520c1b38a25f1c0021fcc84ec10f9f4c8b37ad183f7942524",
+    "previousContextDigest": "1ca2c721ea156d5a92e0494bb06c59306383a7c7e8f9c3ad224485deaee88bc2",
+    "previousLedgerDigest": "c2dd7e9af2f0395835525526dcb0eed33327b9aeefb4e853a55a3516025ea618",
+    "previousPathFenceDigest": "0faa2d50639929abd8009efda71bebab07e9c92c890eecbe59e17590b68b5ebf",
+    "previousTransitionDigest": "85f790a76efe0d834587ede5b3e57cc52cfc00ec44025fa3f323b653eb542780",
+    "priorFenceCount": 90,
+    "priorOwnedPathCount": 1443,
+    "provisionalPrerequisiteDigest": "fe983760cda3030c95733ba5f7948bb4e367aab3306e9f026efed86dae77b1d4",
+    "registerOrdinal": 36,
+    "registerRowByteCount": 307,
+    "registerRowSHA256": "c340deb4a2fa32d87f9be7be900347c59a818b26f01821e224fc5233bbec6774",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "title": "ContentReferenceV1, local ContentLocator/Manifest, media associations, immutable originals, derivatives, and provenance",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P03-C05",
+  "durableFamilies": [
+    "EVIDENCE_ASSOCIATION_EVENT",
+    "EVIDENCE_SEQUENCE_REVISION"
+  ],
+  "durableFamilyCount": 2,
+  "evidenceIDs": [
+    "V23-P03-C05-G01",
+    "V23-P03-C05-A01",
+    "V23-P03-C05-H01",
+    "V23-P03-C05-I01",
+    "V23-P03-C05-R01"
+  ],
+  "finalHashesSealed": true,
+  "fixtureProjection": {
+    "negativeCaseCount": 18,
+    "path": "FieldEvidenceAppTests/Fixtures/V21/Content/V21P03C05ContentReferenceProvenanceCorpusV1.json",
+    "sha256": "a7461a3131878243d4ad4143cbce348795b999bc7a15b39182732874de8ca27d"
+  },
+  "fixtureSHA256": "a7461a3131878243d4ad4143cbce348795b999bc7a15b39182732874de8ca27d",
+  "integrationEventKinds": [
+    "evidence.association_event.v1",
+    "evidence.sequence_revision.v1"
+  ],
+  "integrationLifecycle": "DERIVED_DROP_AND_REBUILD",
+  "integrationOrderingBasis": "ACCEPTED_WORKSPACE_REVISION_THEN_RECEIPT_IDENTITY_THEN_PAYLOAD_ORDINAL",
+  "integrationReplayLimit": 100000,
+  "integrationSourcePathCount": 6,
+  "integrationTestCount": 4,
+  "integrationTestMethods": [
+    "testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata",
+    "testV23P03C05Records42CorpusKeepsOrderedPredecessorClosedMetadata",
+    "testV23P03C05Records41ReadAndRecords42RestoreRejectFutureMetadata",
+    "testV23P03C05MetadataDeletionIsAppendOnlyAndContentRemainsIncumbentOwned"
+  ],
+  "lifecycle": {
+    "backup": {
+      "associationField": "evidenceAssociationEvents",
+      "canonicalCodec": "EvidenceMetadataCanonicalCodecV1",
+      "recordsSchemaVersion": 42,
+      "sequenceField": "evidenceSequenceRevisions"
+    },
+    "cloneFork": {
+      "emptyC05Metadata": "UNCHANGED",
+      "noSecondWriter": true,
+      "nonemptyC05Metadata": "FAIL_CLOSED",
+      "recordsAtOrBelow41": "UNCHANGED",
+      "sourceHistoryCarried": false
+    },
+    "compatibility": {
+      "downgrade": "FAIL_CLOSED_PRESERVE_RELEASED_EVIDENCE_METADATA",
+      "forwardFix": true,
+      "records": [
+        41,
+        42
+      ]
+    },
+    "deleteErase": {
+      "ordinaryDelete": "APPEND_ONLY_HISTORY",
+      "orphanCleanup": true,
+      "workspaceErase": "CLEAR_TWO_DURABLE_FAMILIES_AND_OWNED_DERIVATIVES"
+    },
+    "dimensions": [
+      "SCHEMA_VERSION",
+      "WRITER_QUERY",
+      "MIGRATION",
+      "BACKUP_REPLACE_RESTORE",
+      "CLONE_FORK",
+      "IMPORT_EXPORT",
+      "JOURNAL_REPLAY",
+      "SEARCH_REBUILD",
+      "REPORT_PROJECTION",
+      "DELETE_ERASE",
+      "RETENTION",
+      "COMPATIBILITY",
+      "DOWNGRADE_FORWARD_FIX",
+      "INTERRUPTION",
+      "IDEMPOTENT_RECEIPTS"
+    ],
+    "idempotency": {
+      "expectedRevision": true,
+      "mutationID": true,
+      "receipt": true
+    },
+    "interruption": {
+      "publication": "ZERO_OR_COMPLETE",
+      "receiptReadBack": true
+    },
+    "journalReplay": {
+      "divergence": "FAIL_CLOSED",
+      "receiptBound": true,
+      "successorReplay": true
+    },
+    "replace": {
+      "c05Metadata": "EXACT",
+      "unionOrProjection": false
+    },
+    "reportProjection": {
+      "contentBytesRemainExistingAuthority": true,
+      "metadataOnly": true
+    },
+    "restore": {
+      "materializesRows": [
+        "EvidenceAssociationEventRowV1",
+        "EvidenceSequenceRevisionRowV1"
+      ],
+      "partialEffect": "FAIL_CLOSED",
+      "sourceRowsMustBeEmpty": true
+    },
+    "retention": {
+      "derivativesRegenerable": true,
+      "originalsImmutable": true
+    },
+    "searchRebuild": {
+      "canonicalRowsOnly": true,
+      "projectionIsDerived": true
+    }
+  },
+  "lifecycleCoverage": [
+    "SCHEMA_VERSION",
+    "WRITER_QUERY",
+    "MIGRATION",
+    "BACKUP_REPLACE_RESTORE",
+    "CLONE_FORK",
+    "IMPORT_EXPORT",
+    "JOURNAL_REPLAY",
+    "SEARCH_REBUILD",
+    "REPORT_PROJECTION",
+    "DELETE_ERASE",
+    "RETENTION",
+    "COMPATIBILITY",
+    "DOWNGRADE_FORWARD_FIX",
+    "INTERRUPTION",
+    "IDEMPOTENT_RECEIPTS"
+  ],
+  "persistence": {
+    "activeModelCount": 144,
+    "backfillCreatesEvidenceTruth": false,
+    "backupRestore": "CANONICAL_V4_RECORDS42_FULL_REPLACE_RESTORE",
+    "compatibleRecordsSchemaVersions": [
+      41,
+      42
+    ],
+    "deleteErase": "APPEND_ONLY_HISTORY_UNTIL_WORKSPACE_ERASE",
+    "derivedFamily": "PROJECTION:StoreSemanticEnvelopeV43",
+    "durableFamilies": [
+      "EVIDENCE_ASSOCIATION_EVENT",
+      "EVIDENCE_SEQUENCE_REVISION"
+    ],
+    "durableFamilyCount": 2,
+    "durableRows": [
+      "EvidenceAssociationEventRowV1",
+      "EvidenceSequenceRevisionRowV1"
+    ],
+    "journalReplay": "MUTATION_RECEIPT_AND_SUCCESSOR_REPLAY",
+    "mode": "PERSISTENT_CANONICAL_EVIDENCE_METADATA_AND_SUCCESSOR_SEQUENCE",
+    "persistentSchemaVersion": 43,
+    "recordsSchemaVersion": 42,
+    "searchReport": "DERIVED_ONLY_REBUILT_FROM_CANONICAL_ROWS",
+    "sourceRowsMustBeEmpty": true
+  },
+  "persistentChangeMode": "PERSISTENT_CANONICAL_EVIDENCE_METADATA_AND_SUCCESSOR_SEQUENCE",
+  "persistentContractSchema": "EVIDENCE_METADATA_V1_V43_RECORDS42",
+  "persistentSchemaVersion": 43,
+  "provisional": false,
+  "receiptID": "v23-p03-c05-attempt-3-static-receipt",
+  "recordsSchemaVersion": 42,
+  "registrySHA256": "f7e446214888826c6945000cf59b59b8e4b3bdc46bad7f693b136eb14cee8ffe",
+  "result": "PASS",
+  "schema": "V23P03C05ContentEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "selectors": [
+    "G01",
+    "A01",
+    "H01",
+    "I01",
+    "R01"
+  ],
+  "semantics": {
+    "accessibilityDescription": {
+      "optional": true,
+      "reviewedAtRequired": true,
+      "reviewerRequired": true,
+      "type": "EvidenceAccessibilityDescriptionV1",
+      "utf8MaximumBytes": 2048
+    },
+    "associationCAS": {
+      "expectedRevisionField": "expectedEvidenceRevision",
+      "mutationIDRequired": true,
+      "resultingRevisionField": "resultingEvidenceRevision",
+      "staleOrRemovedBindingRejected": true,
+      "supersedesField": "supersedesAssociationEventID",
+      "type": "EvidenceAssociationV1"
+    },
+    "caption": {
+      "provenance": [
+        "USER_AUTHORED",
+        "IMPORTED_THEN_REVIEWED"
+      ],
+      "reviewedAtRequired": true,
+      "reviewerRequired": true,
+      "type": "EvidenceReviewedCaptionV1",
+      "utf8MaximumBytes": 1024
+    },
+    "durableFamilies": [
+      "EVIDENCE_ASSOCIATION_EVENT",
+      "EVIDENCE_SEQUENCE_REVISION"
+    ],
+    "durableRows": [
+      "EvidenceAssociationEventRowV1",
+      "EvidenceSequenceRevisionRowV1"
+    ],
+    "mutation": {
+      "existingWorkspaceWriter": "WorkspaceWriterV1",
+      "expectedSequenceRevision": true,
+      "mutationID": true,
+      "sequenceSuccessor": true,
+      "type": "EvidenceMetadataMutationV1"
+    },
+    "order": {
+      "fields": [
+        "role",
+        "caption",
+        "accessibilityDescription",
+        "ordinal",
+        "target",
+        "associationBinding"
+      ],
+      "ordinalStartsAt": 0,
+      "ordinalsContiguous": true,
+      "sequenceMaximumItems": 32,
+      "type": "EvidenceSequenceItemV1"
+    },
+    "policy": {
+      "fields": [
+        "policyID",
+        "workspaceID",
+        "maximumSequenceItems",
+        "maximumCaptionBytes",
+        "maximumAccessibilityDescriptionBytes"
+      ],
+      "maximumAccessibilityDescriptionBytes": 2048,
+      "maximumCaptionBytes": 1024,
+      "maximumSequenceItems": 32,
+      "schemaVersion": 1,
+      "type": "EvidenceCurationPolicyV1"
+    },
+    "replication": {
+      "checkpointStore": {
+        "canonicalTruth": false,
+        "pageValidator": "validateEvidenceMetadataEventPage",
+        "replaceable": true,
+        "type": "IntegrationProjectionCheckpointStoreV1"
+      },
+      "consumer": {
+        "advanceAndRebuild": true,
+        "derivedEffectsOnly": true,
+        "dropAndRebuild": true
+      },
+      "events": {
+        "contract": "EvidenceMetadataIntegrationContractV1",
+        "eventKinds": [
+          "evidence.association_event.v1",
+          "evidence.sequence_revision.v1"
+        ],
+        "eventVersion": 1,
+        "lifecycle": "DERIVED_DROP_AND_REBUILD",
+        "orderingBasis": "ACCEPTED_WORKSPACE_REVISION_THEN_RECEIPT_IDENTITY_THEN_PAYLOAD_ORDINAL",
+        "redaction": "NOT_REQUIRED",
+        "sensitivity": "WORKSPACE_DATA",
+        "visibility": "WORKSPACE_INTERNAL"
+      },
+      "journal": {
+        "acceptedReceiptOnly": true,
+        "commandKind": "applyEvidenceMetadata",
+        "contract": "EvidenceMetadataJournalContractV1",
+        "entityChangeCount": 2
+      },
+      "projection": {
+        "checkpointType": "ProjectionCheckpointV1",
+        "maximumEventsPerReplay": 100000,
+        "receiptShapeValidator": "validateEvidenceMetadataReceiptShape",
+        "replayValidator": "validateEvidenceMetadataReplay",
+        "streamValidator": "validateProjectedStream"
+      },
+      "receipt": {
+        "canonicalReceipt": "EvidenceMetadataMutationReceiptV1",
+        "duplicateWorkspaceRevisionRejected": true,
+        "identityType": "MutationReceiptIdentityV1",
+        "maximumAcceptedProjectionCount": 100000,
+        "postImageCount": 2,
+        "postImageKinds": [
+          "evidenceAssociationEvent",
+          "evidenceSequenceRevision"
+        ],
+        "projectionInput": "orderedAcceptedProjectionReceipts"
+      },
+      "sourceTruth": "ACCEPTED_MUTATION_RECEIPTS_AND_CHANGE_JOURNAL_V1",
+      "testMethods": [
+        "testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata",
+        "testV23P03C05Records42CorpusKeepsOrderedPredecessorClosedMetadata",
+        "testV23P03C05Records41ReadAndRecords42RestoreRejectFutureMetadata",
+        "testV23P03C05MetadataDeletionIsAppendOnlyAndContentRemainsIncumbentOwned"
+      ]
+    },
+    "roles": [
+      "CONTEXT",
+      "DETAIL",
+      "BEFORE",
+      "AFTER",
+      "OTHER"
+    ],
+    "selectors": [
+      "testV9_15G01LocatorReplacementPreservesCanonicalContentIdentity",
+      "testV9_15A01MatchingDigestNeverAliasesAcrossWorkspacesAndUnknownAlgorithmsFailClosed",
+      "testV9_15H01AssociationOrphanTamperAndRoleConfusionFailClosed",
+      "testV9_15I01InterruptedPublicationAndStoreFailuresExposeZeroOrCompleteState",
+      "testV9_15R01DerivativeOnlyRecoveryRetainsImmutableOriginalAndProvenance"
+    ],
+    "sequenceCAS": {
+      "canonicalDigest": "sequenceSHA256",
+      "codec": "EvidenceMetadataCanonicalCodecV1",
+      "expectedRevisionPlusOne": true,
+      "overflowRejected": true,
+      "successor": "predecessor",
+      "type": "EvidenceSequenceV1"
+    },
+    "textProvenance": [
+      "USER_AUTHORED",
+      "IMPORTED_THEN_REVIEWED"
+    ]
+  },
+  "sourceArtifacts": [
+    {
+      "byteCount": 46031,
+      "path": "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+      "sha256": "6bf5fb82e392f6bdd1b61b34797d4c9218145b157bf0c5ac97b8df6f04a0c738"
+    },
+    {
+      "byteCount": 79466,
+      "path": "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+      "sha256": "77208c6a935094ae1923b3d4679f175ee5679c931d055e0d2705472be742f93d"
+    },
+    {
+      "byteCount": 682300,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "sha256": "b89cd374fb02818612a2f5f98bef6c64733dc9820f10d3faa4adc29e30dd11cf"
+    },
+    {
+      "byteCount": 34019,
+      "path": "FieldEvidenceAppTests/S6_5ReplacementUnionTests.swift",
+      "sha256": "70d1abd8faf010e29150982000a5d87c40a555042f677f152ecc2a4fd7f67771"
+    },
+    {
+      "byteCount": 37361,
+      "path": "FieldEvidenceAppTests/V9_07CompatibilityPolicyTests.swift",
+      "sha256": "1bc87e79dbb9bc048629b36a1dbb99ceca419c183cd9e9ddd200fc5c330723e5"
+    }
+  ],
+  "sourceProjection": {
+    "implementationPaths": [],
+    "integrationEventKinds": [
+      "evidence.association_event.v1",
+      "evidence.sequence_revision.v1"
+    ],
+    "integrationLifecycle": "DERIVED_DROP_AND_REBUILD",
+    "integrationOrderingBasis": "ACCEPTED_WORKSPACE_REVISION_THEN_RECEIPT_IDENTITY_THEN_PAYLOAD_ORDINAL",
+    "integrationReplayLimit": 100000,
+    "integrationSourcePathCount": 6,
+    "integrationSourcePaths": [
+      "FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift",
+      "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+      "FieldEvidenceApp/Domain/Replication/IntegrationEventContractsV1.swift",
+      "FieldEvidenceApp/Infrastructure/Replication/IntegrationEventProjectionV1.swift",
+      "FieldEvidenceApp/Infrastructure/Replication/IntegrationConformanceConsumerV1.swift",
+      "FieldEvidenceApp/Infrastructure/Replication/IntegrationProjectionCheckpointStoreV1.swift"
+    ],
+    "integrationTestCount": 4,
+    "integrationTestMethods": [
+      "testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata",
+      "testV23P03C05Records42CorpusKeepsOrderedPredecessorClosedMetadata",
+      "testV23P03C05Records41ReadAndRecords42RestoreRejectFutureMetadata",
+      "testV23P03C05MetadataDeletionIsAppendOnlyAndContentRemainsIncumbentOwned"
+    ],
+    "pathCount": 5,
+    "paths": [
+      {
+        "byteCount": 46031,
+        "path": "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+        "sha256": "6bf5fb82e392f6bdd1b61b34797d4c9218145b157bf0c5ac97b8df6f04a0c738"
+      },
+      {
+        "byteCount": 79466,
+        "path": "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+        "sha256": "77208c6a935094ae1923b3d4679f175ee5679c931d055e0d2705472be742f93d"
+      },
+      {
+        "byteCount": 682300,
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+        "sha256": "b89cd374fb02818612a2f5f98bef6c64733dc9820f10d3faa4adc29e30dd11cf"
+      },
+      {
+        "byteCount": 34019,
+        "path": "FieldEvidenceAppTests/S6_5ReplacementUnionTests.swift",
+        "sha256": "70d1abd8faf010e29150982000a5d87c40a555042f677f152ecc2a4fd7f67771"
+      },
+      {
+        "byteCount": 37361,
+        "path": "FieldEvidenceAppTests/V9_07CompatibilityPolicyTests.swift",
+        "sha256": "1bc87e79dbb9bc048629b36a1dbb99ceca419c183cd9e9ddd200fc5c330723e5"
+      }
+    ],
+    "semanticSourcePathCount": 5,
+    "sourceSetDigest": "3ba1bb0fe8ff09aab6d1083dce4ab69db7265d071013936887cfef56571774e3"
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptanceCredit": false,
+    "acceptanceEnabled": false,
+    "acceptanceOrReleaseClaimed": false,
+    "activation": false,
+    "adoptionEnabled": false,
+    "hostedDispatchEnabled": false,
+    "hostedDispatchRan": false,
+    "nativeCompileRan": false,
+    "nativeOrHostedEvidenceClaimed": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidenceComplete": false,
+    "releaseCredit": false,
+    "releaseReady": false,
+    "requiresAcceptedS10_6Reconciliation": true
+  },
+  "testMethods": [
+    "testV9_15G01LocatorReplacementPreservesCanonicalContentIdentity",
+    "testV9_15A01MatchingDigestNeverAliasesAcrossWorkspacesAndUnknownAlgorithmsFailClosed",
+    "testV9_15H01AssociationOrphanTamperAndRoleConfusionFailClosed",
+    "testV9_15I01InterruptedPublicationAndStoreFailuresExposeZeroOrCompleteState",
+    "testV9_15R01DerivativeOnlyRecoveryRetainsImmutableOriginalAndProvenance"
+  ],
+  "title": "ContentReferenceV1, local ContentLocator/Manifest, media associations, immutable originals, derivatives, and provenance",
+  "verificationStatus": "PASS_STATIC_PROVISIONAL"
+}

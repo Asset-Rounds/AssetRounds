@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canonicalWrites": {
+      "const": 0
+    },
+    "capabilityInvoked": {
+      "const": false
+    },
+    "capturedMedia": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P06-C02"
+    },
+    "disposition": {
+      "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
+    },
+    "evidenceIDs": {
+      "minItems": 7,
+      "type": "array"
+    },
+    "flags": {
+      "type": "object"
+    },
+    "locationData": {
+      "const": false
+    },
+    "modelOutput": {
+      "const": false
+    },
+    "network": {
+      "const": false
+    },
+    "schema": {
+      "const": "V23P06C02AssistedCaptureStaticProtocolV1"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "disposition",
+    "purpose",
+    "capabilityInvoked",
+    "network",
+    "canonicalWrites",
+    "capturedMedia",
+    "modelOutput",
+    "locationData",
+    "scope",
+    "hypothesis",
+    "disconfirmers",
+    "preconditions",
+    "evidenceIDs",
+    "expiry",
+    "flags",
+    "forbiddenResults"
+  ],
+  "type": "object"
+}

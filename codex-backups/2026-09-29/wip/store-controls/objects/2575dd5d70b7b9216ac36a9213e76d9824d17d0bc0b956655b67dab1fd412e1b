@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "status": "MUTABLE incomplete v4 source draft; representation/terminal agreement unresolved; not installable",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "parentCandidateSHA256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+  "parentBindingSHA256": "e866c9044c0c77077a64d35e12f85bb960de871aa50e9202859f201b54caf3c9",
+  "parentSealSHA256": "94f0f36ff9a465e1a962c53510ebf49806e20041c9afa40d16a8f439992c84d0",
+  "beforeSHA256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+  "candidateSHA256": "b3a2edfb29caf3792baa39db52e1fb0dc78a6333807025207b816e001d0cb607",
+  "diffSHA256": "03d89ee91c039aefc56235aa68c9ded2d5f6b2d63dd58cfd2007692fbe5dbe64",
+  "parseRecordSHA256": "98c5f3dcfccb880ca11a0775a6f3881b961e1a28662f41bf8175aa62548598e3",
+  "compile": false,
+  "runtime": false,
+  "independentReview": false,
+  "capacityCorrectionImplemented": false,
+  "changes": [
+    "Original control observation memberwise initializer order leaves,names,eraseRoot.",
+    "Original published-roster names local let to var for actual accumulated projection.",
+    "Legacy original closer rejects completion/terminal/cold-close/uncertainty and active slots before numeric close.",
+    "Typed terminal numeric routes and shared root/read/enumeration helpers check permanent close/uncertainty slots before descriptor IO.",
+    "Intended typed postcompletion terminal root/close remains permitted; actual original-IO origin not excluded."
+  ],
+  "remaining": [
+    "New segmented mixed representation and exact finite prefix/CAS/GC grammar not implemented.",
+    "Compact terminal consumer transition unapproved by root.",
+    "Actual canonical ID bound must retain authenticated prior provenance/drain origin, not current survivors.",
+    "Actual central/Ledger/physical/first-observer/opaque authority counterparts and coupled compiler/runtime/capacity verification remain due."
+  ]
+}

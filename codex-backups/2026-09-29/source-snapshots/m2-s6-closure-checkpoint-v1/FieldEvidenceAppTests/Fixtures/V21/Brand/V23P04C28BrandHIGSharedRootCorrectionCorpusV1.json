@@ -1,0 +1,171 @@
+{
+  "affectedConsumerGraph": [
+    {"consumerID":"feedback.mail.screen","labelKey":"feedback.mail.composer.title","productionOwner":"FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift","role":"SCREEN"},
+    {"consumerID":"feedback.mail.recipient","labelKey":"feedback.mail.recipient","productionOwner":"FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift","role":"GROUP"},
+    {"consumerID":"feedback.mail.attachment-count","labelKey":"feedback.mail.attachment_count","productionOwner":"FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift","role":"STATUS"},
+    {"consumerID":"feedback.mail.body","labelKey":"feedback.mail.message.label","productionOwner":"FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift","role":"TEXT_FIELD"},
+    {"consumerID":"feedback.mail.done","labelKey":"common.done","productionOwner":"FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift","role":"BUTTON"}
+  ],
+  "appIconDisposition": "NO_CHANGE_NO_ACCEPTED_BRAND_INTENT",
+  "authority": {
+    "appBaseHead": "803f75bc94a46b7b0ca50b14f1a49401f38550f1",
+    "appBaseTree": "6f1cc0077cf74a1adb532124880b1cd5e4a031cc",
+    "allocationRevision": 2,
+    "contextDigest": "1b2bff5c876c8f618dae7015b12d4dd51d431c6756678824d72421b4d55a80a9",
+    "coordinationHead": "b30a1640d495bd2d6641ea2dbd816d8d4d23a186",
+    "coordinationLedgerDigest": "5dd37b9b75422a8366b9e052781d09d022951ed2b3cbe51492765ab58cf2eb5f",
+    "coordinationTree": "f5b3106d41380a906cfa1c0cbf9cdcc8268b4d22",
+    "correctionSequence": 507,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationCorrectionReceiptDigest": "2b610d2031667696ba09337e194c8b42e39e09265fc6245a3f94fdd6271ac294",
+    "ownerAuthorizedPathAllocationDigest": "27c242e6c316767b3731c3bda81948ad8a8dc5258b54c385994248c24033f48c",
+    "pathFenceDigest": "52a48f30deafc62962e99607f690e84fb393f668c548a01fe496b96b450d3817",
+    "projectionDigest": "a7064d17aa0bdd7ef1401b411087ff38c64ecefff7a3a9515039aa009d963df5",
+    "provisionalPrerequisiteDigest": "83888037dd5c9762466f711f232ef5ecad7f34ffce1d773795f10dd8920763ce",
+    "supersedesAllocationDigest": "f296173b2ae29f892447395bba5d2a48817607375e8da8d3173faf5ff739f3c1"
+  },
+  "brandRevisionDisposition": "UNCHANGED_NO_ACCEPTED_DIRECTION",
+  "cardID": "V23-P04-C28",
+  "containsCustomerData": false,
+  "conformance": {
+    "appearanceProfiles": ["DARK", "INCREASED_CONTRAST", "LIGHT"],
+    "claimDisposition": "UNCHANGED",
+    "dynamicTypeMaximum": "AX5",
+    "inheritedCommonStateCount": 18,
+    "nonColorStatusRequired": true
+  },
+  "correctionLedger": {
+    "path": "docs/product/brand/V23P04C28BrandHIGSharedRootCorrectionLedgerV1.json",
+    "schema": "V23P04C28BrandHIGSharedRootCorrectionLedgerV1"
+  },
+  "deferredS10Clusters": [
+    {
+      "acceptanceCredit": false,
+      "adopted": false,
+      "clusterID": "all-other-shipping-phase-number-ids-in-S10-reserved-ui-root-paths",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+        "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+        "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+        "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+        "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+        "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+        "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+        "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+        "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+        "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+        "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+        "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift"
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "acceptanceCredit": false,
+      "adopted": false,
+      "clusterID": "visual-DesignTokens-and-WorklightComponents",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+        "FieldEvidenceApp/DesignSystem/WorklightComponents.swift"
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "acceptanceCredit": false,
+      "adopted": false,
+      "clusterID": "saved-photo-RecordWork-and-IssueDetail",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+        "FieldEvidenceApp/Features/Issues/IssueDetailView.swift"
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    },
+    {
+      "acceptanceCredit": false,
+      "adopted": false,
+      "clusterID": "app-icon-and-artwork",
+      "disposition": "DEFERRED_PENDING_ACCEPTED_S10_6",
+      "memberPaths": [
+        "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png",
+        "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json"
+      ],
+      "reservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+    }
+  ],
+  "historicReportBindings": [
+    {"path":"FieldEvidenceAppTests/Fixtures/S3_3ReportSnapshotV1.json","sha256":"8b81589641276df9ee94dba99ac390ce8679fcc2932825e79e4178eb91377b3e"},
+    {"path":"FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportOpenV1.json","sha256":"3675469de64040dd16f3312b4f8cb9c3ffa8d15645684320a0387acf4b66399a"}
+  ],
+  "hostileCases": [
+    {"caseID":"H01_SHARED_CORRECTION_DROPS_INHERITED_STATE","expected":"REJECT_INCOMPLETE_STATE_CLOSURE"},
+    {"caseID":"H02_DUPLICATE_SEMANTIC_ROLE","expected":"REJECT_DUPLICATE_ROLE"},
+    {"caseID":"H03_AX5_TRUNCATION","expected":"REJECT_DYNAMIC_TYPE_TRUNCATION"},
+    {"caseID":"H04_DARK_HIGH_CONTRAST_COLLISION","expected":"REJECT_NONCONFORMING_CONTRAST"},
+    {"caseID":"H05_PACKAGE_WORDING_CHANGES_CLAIM","expected":"REJECT_CLAIM_CHANGE"},
+    {"caseID":"H06_HISTORIC_REPORT_BYTE_DRIFT","expected":"REJECT_HISTORIC_BYTE_DRIFT"},
+    {"caseID":"H07_PARTIAL_CONSUMER_GRAPH","expected":"REJECT_PARTIAL_CONSUMER_GRAPH"},
+    {"caseID":"H08_REJECTED_INTENTIONAL_DIRECTION_ACTIVATED","expected":"REJECT_UNAUTHORIZED_BRAND_REVISION"},
+    {"caseID":"H09_APP_ICON_FABRICATED","expected":"REJECT_APP_ICON_ACTIVATION"},
+    {"caseID":"H10_PRODUCTION_LEGACY_MAIL_ALIAS","expected":"REJECT_PRODUCTION_LEGACY_ALIAS"}
+  ],
+  "manifestLastRecovery": {
+    "boundaries": [
+      {"acceptedSetCount":0,"boundary":"BEFORE_ARTIFACTS","retryAcceptedSetCount":1},
+      {"acceptedSetCount":0,"boundary":"AFTER_ARTIFACTS_BEFORE_MANIFEST","retryAcceptedSetCount":1},
+      {"acceptedSetCount":1,"boundary":"AFTER_MANIFEST","retryAcceptedSetCount":1}
+    ],
+    "deterministicRetry": true,
+    "protocol": "MANIFEST_LAST_ATOMIC_REPLACE"
+  },
+  "persistentKinds": [],
+  "predecessor": {
+    "cardID": "V23-P04-C27",
+    "head": "803f75bc94a46b7b0ca50b14f1a49401f38550f1",
+    "inventoryPath": "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json",
+    "inventorySHA256": "b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2",
+    "tree": "6f1cc0077cf74a1adb532124880b1cd5e4a031cc"
+  },
+  "publicCopyBindings": [
+    {"key":"common.done","value":"Done"},
+    {"key":"feedback.mail.attachment_count","one":"Diagnostic attachment: %lld","other":"Diagnostic attachments: %lld","value":"Diagnostic attachments: %lld"},
+    {"key":"feedback.mail.composer.title","value":"Feedback composer"},
+    {"key":"feedback.mail.message.label","value":"Feedback message"},
+    {"key":"feedback.mail.recipient","value":"To: %@"}
+  ],
+  "schema": "V23P04C28BrandHIGSharedRootCorrectionCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    "testV23P04C28G01LowestOwnerCorrectionsCloseC27FindingsAndPreserveHistoricReports",
+    "testV23P04C28A01NativeSemanticParityPreservesTasksIdentityAndHistoricBytes",
+    "testV23P04C28H01SharedStateRoleAXContrastClaimsAndReportDriftFailClosed",
+    "testV23P04C28I01InterruptedCorrectionPreservesAcceptedC27BaselineAndNoPartialReceipt",
+    "testV23P04C28R01RejectedDirectionAndFailedRetryPreserveAcceptedBrandRevision"
+  ],
+  "stableFeedbackSemantics": [
+    {"deprecatedAliases":[],"id":"feedback.mail.screen","labelKey":"feedback.mail.composer.title","role":"SCREEN"},
+    {"deprecatedAliases":[],"id":"feedback.mail.recipient","labelKey":"feedback.mail.recipient","role":"GROUP"},
+    {"deprecatedAliases":[],"id":"feedback.mail.attachment-count","labelKey":"feedback.mail.attachment_count","role":"STATUS"},
+    {"deprecatedAliases":[],"id":"feedback.mail.body","labelKey":"feedback.mail.message.label","role":"TEXT_FIELD"},
+    {"deprecatedAliases":[],"id":"feedback.mail.done","labelKey":"common.done","role":"BUTTON"}
+  ],
+  "statusFlags": {"acceptance":false,"adoption":false,"native":false,"publication":false,"release":false},
+  "syntheticOnly": true,
+  "technicalIdentityDisposition": "UNCHANGED_EXACT_C27_BINDING",
+  "testSupportLegacyAliases": [
+    "s8.4.mail.attachment-count",
+    "s8.4.mail.body",
+    "s8.4.mail.done",
+    "s8.4.mail.recipient",
+    "s8.4.mail.screen"
+  ]
+}

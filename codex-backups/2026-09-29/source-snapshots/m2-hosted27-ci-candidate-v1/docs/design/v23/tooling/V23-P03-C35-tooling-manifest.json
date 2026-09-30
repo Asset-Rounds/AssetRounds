@@ -1,0 +1,409 @@
+{
+  "artifactDigest": "752b8b99990a175b13042a424cddfe4f450da1a0c11d6ca962d330d2b6e35848",
+  "artifactSetDigest": "bbb3ad076ee1eab4fb010412be46ee9243e603fe330832c03f71b53b8f3f400c",
+  "artifacts": [
+    {
+      "bytes": 688,
+      "path": "FieldEvidenceApp/Domain/Models/Site.swift",
+      "sha256": "13a2271f982e4a9d4d5f9a0caff9fee6338a2483e265b9c4e4acc9b7e23dbd6c"
+    },
+    {
+      "bytes": 881,
+      "path": "FieldEvidenceApp/Domain/Models/Asset.swift",
+      "sha256": "0a8b9033700537be9f08db67108b40cbaabb3ecb1f55005d2102a11f9dc7edc9"
+    },
+    {
+      "bytes": 29851,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+      "sha256": "d303191d236d6204e367f7ccef369d64fe49e870b81d347cf6cc94a2ab626a2b"
+    },
+    {
+      "bytes": 366010,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "sha256": "ae6b2192f31f287a34bd75159c7afc9747b122af8de32245e9e36a9a7f97212b"
+    },
+    {
+      "bytes": 56615,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+      "sha256": "a462a3da3e65552296847effc20a1fc8f61d7cff667502a03e927e740178f7b4"
+    },
+    {
+      "bytes": 34142,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentPersistentKindLifecycleCatalogV1.swift",
+      "sha256": "b7899c0aed25670baca91b37d672b951052ad89f72773dc7de42f9f75674f07f"
+    },
+    {
+      "bytes": 43305,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+      "sha256": "f8f8efa2312ff9db48c1b156e8e8d4ee5ad2165ef6325556f70a8c67e03f12fc"
+    },
+    {
+      "bytes": 53058,
+      "path": "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+      "sha256": "b677901c85fb623090c9a3b9bdb99f70347ff156b7ffd9c2441042dd5457c463"
+    },
+    {
+      "bytes": 13056,
+      "path": "FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift",
+      "sha256": "5a1b19ada88d73ff4fbe047f9cc8babd45b44926e4cbc0ed025ecdbd3012335b"
+    },
+    {
+      "bytes": 47340,
+      "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+      "sha256": "c19dea2adeaa5a58aee78b9dabd01937e7199effd8e25cd655be6d8aa17b8b99"
+    },
+    {
+      "bytes": 41211,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+      "sha256": "7fc757a27e1d11cdfb3aa430fba24e9b95a49929248b76c23ec5560cf84d99eb"
+    },
+    {
+      "bytes": 71000,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+      "sha256": "60eb44f67ae34775eba2b17490149368ee09c6dcb43ca283f90fa35d8d9e730f"
+    },
+    {
+      "bytes": 16698,
+      "path": "FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift",
+      "sha256": "caf56c05060e0613336e1cabcafc587f8e0fd14ceb2231c8fb5f6f98029c19a9"
+    },
+    {
+      "bytes": 77199,
+      "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+      "sha256": "ee90d8aeb72246c902b3ab990c836dc41536437e917138f5e4b24d32c13b5609"
+    },
+    {
+      "bytes": 69520,
+      "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+      "sha256": "d9f08b9a7953ada390dfe8e26b870f3011595229e8693f333dc22fd360c579a6"
+    },
+    {
+      "bytes": 36714,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+      "sha256": "88bc3bb3d5de0dd1672c5f6783084d77e504063fd084ef10fbcdfa68dfd9c4bb"
+    },
+    {
+      "bytes": 3783,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+      "sha256": "1d576dd3fde89195de8e4d3fe0e215e3b43045400ff90728f683ffa220fb68dc"
+    },
+    {
+      "bytes": 12760,
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+      "sha256": "459af408451e0036c97cb5e6eb895023566b901621cdc76d78924425825adc7d"
+    },
+    {
+      "bytes": 99030,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "sha256": "85072043b51d2b2f4f760129e1d0606814bf2f0cceeb44386c759e37ad2ed0f7"
+    },
+    {
+      "bytes": 30733,
+      "path": "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+      "sha256": "eb8306798d3b788eea2faa78f85a9e3c4299628ddbb5177a672752bd21fe4ebe"
+    },
+    {
+      "bytes": 101317,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "sha256": "f28e544a1e49d32e1b24043f7cf34534f55fddd9c772792121d3013a567cbd91"
+    },
+    {
+      "bytes": 156083,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "sha256": "28e0c638d3a6584747980510183ab32d8070834e15ddc9e848677a7d6e8c1248"
+    },
+    {
+      "bytes": 5110,
+      "path": "FieldEvidenceApp/Domain/Backup/DeletionLedgerV2.swift",
+      "sha256": "f271c1c6e0fe1f1d8fead4214b1b833c4ca9e9b647434bf56b924bca9add434a"
+    },
+    {
+      "bytes": 27981,
+      "path": "FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift",
+      "sha256": "b1f3f1e0a4235aeaa78dd852bb9d6001b399d4726b897674b3392f632949ad72"
+    },
+    {
+      "bytes": 110736,
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "sha256": "cac937bc79061961bd8809489358be2d4f9575533ab7fe8ebe2cec640ddc6250"
+    },
+    {
+      "bytes": 29060,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/CompletedActivitySnapshotContractsV1.swift",
+      "sha256": "bceb7f07798ed4eee8d765b78aea34c71636785ae12fe0de9802d56c2fe5323a"
+    },
+    {
+      "bytes": 14803,
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+      "sha256": "28d5624837ca749647f0083eaabf4366e36ba2633fc2e047d7abaff0274cf696"
+    },
+    {
+      "bytes": 30576,
+      "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+      "sha256": "1442362350e6a013fba44546eb982ab9aaaf29acbd7e5dcae8a5be2eee974dde"
+    },
+    {
+      "bytes": 23423,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+      "sha256": "cd71fe3aa4a05bbeab82f16ba03b15c6f6b29b41b9868488714f0be0e9046b07"
+    },
+    {
+      "bytes": 20689,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift",
+      "sha256": "bf4556f7496be799a3d0b08f24af3f253ff9ccef99a1efacf796c5ad60b5192d"
+    },
+    {
+      "bytes": 19395,
+      "path": "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift",
+      "sha256": "b499fc6c55932cd0f1512026b368751f6fe1718461e2fd350b0e711055195013"
+    },
+    {
+      "bytes": 30758,
+      "path": "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+      "sha256": "549209ad78b093c55e64614e4bcc0167e407471586a45bdfec58aa2fbd0a5bd7"
+    },
+    {
+      "bytes": 50064,
+      "path": "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+      "sha256": "ab5fd63729fbad6af86a9e0d907b5f824964a1c1f96ccd1b12d804c745dff80f"
+    },
+    {
+      "bytes": 52304,
+      "path": "FieldEvidenceAppTests/V9_13PersistentKindLifecycleCoverageTests.swift",
+      "sha256": "90f60e9883c749bd875ce87534d6143ff035caca6449ae3e45f48745a35ef1a6"
+    },
+    {
+      "bytes": 69657,
+      "path": "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests.swift",
+      "sha256": "59651954b40067a9ca720d7e8de3a9bd99c9c1c360b52f7c9b3a19f72b611170"
+    },
+    {
+      "bytes": 27652,
+      "path": "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+      "sha256": "e5e1b62ad24ed1e1640203782f11fabbce8f4723fbdc5763e0016bc7f6bdac41"
+    },
+    {
+      "bytes": 17631,
+      "path": "FieldEvidenceApp/Domain/Models/LocationPersistenceModelsV1.swift",
+      "sha256": "f2ad8e0aefec9f8dd5b1a5116982ce006cfeded2305d031ce38d141cf7862d81"
+    },
+    {
+      "bytes": 48320,
+      "path": "FieldEvidenceApp/Domain/Location/LocationHierarchyContractsV1.swift",
+      "sha256": "402236ae25d1e9e0bcdebb07cffc53a3641c53991be82fd60037c178903f731a"
+    },
+    {
+      "bytes": 22304,
+      "path": "FieldEvidenceApp/Domain/Location/AssetPlacementContractsV1.swift",
+      "sha256": "36421a95cfad7fabc4b145d8a7f59ed499c32b7372d9e109c112627ca380f5c5"
+    },
+    {
+      "bytes": 18436,
+      "path": "FieldEvidenceApp/Domain/Location/AssetCompositionContractsV1.swift",
+      "sha256": "917786615452245bcaf57733b05efea6a66bdac7d1bd94cbe8170dc6f06e5e7f"
+    },
+    {
+      "bytes": 5997,
+      "path": "FieldEvidenceApp/Domain/Location/CompletedLocationCompositionSnapshotV1.swift",
+      "sha256": "423a654157389df2ef688b9cc0f17016b3eeebdef53a7b015e8e1a10b57b04f2"
+    },
+    {
+      "bytes": 7667,
+      "path": "FieldEvidenceApp/Application/Location/AssetPlacementChangeCoordinatorV1.swift",
+      "sha256": "ccf7c01e7e19b55724511a6ef4d8b4524227800624960345534fd5db764690f2"
+    },
+    {
+      "bytes": 42327,
+      "path": "FieldEvidenceAppTests/V9_LocationHierarchyPlacementCompositionTests.swift",
+      "sha256": "99a60c0800e7cfd3d8820acc845344c943ba6249edae8ca959e051c64431ae44"
+    },
+    {
+      "bytes": 6757,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Location/V21P03C35LocationPlacementCompositionCorpusV1.json",
+      "sha256": "173e6c97b488969940b2bcc9bfff3203cdae7ebd07d1c8f0711964bb4018d9f3"
+    },
+    {
+      "bytes": 12845,
+      "path": "Scripts/v23/p03_c35_contracts.py",
+      "sha256": "897b6254ad181a8935dbbc13672e7737866ebf9267531caa392fd0004e395401"
+    },
+    {
+      "bytes": 1579,
+      "path": "Scripts/v23/generate_p03_c35_contracts.py",
+      "sha256": "7f67cbf8a15cb7450db344f1295a0d51d8ca1299cd5114ba422e3ad70b17a3f1"
+    },
+    {
+      "bytes": 14495,
+      "path": "Scripts/v23/verify_p03_c35_contracts.py",
+      "sha256": "63220de241d72fb81e2ba6bb1e8eaf483d40636fa21f5a744a4437dd1d71bcac"
+    },
+    {
+      "bytes": 15170,
+      "path": "Scripts/v23/location-placement-composition.schema.json",
+      "sha256": "1b22b9b1192f2d4de34ab425c81d416dc49261a3a498c986eb852d92b7928229"
+    },
+    {
+      "bytes": 17857,
+      "path": "docs/design/v23/tooling/V23P03C35LocationPlacementCompositionContractV1.json",
+      "sha256": "12bc5b73958f30b0ee2048c7d02ed9ed00099623a46f89a9ea717290d9d1ce66"
+    },
+    {
+      "bytes": 14145,
+      "path": "docs/design/v23/tooling/V23P03C35LocationPlacementCompositionEvidenceReceiptV1.json",
+      "sha256": "13ea002be741b2bf48f071778b413ec3e9dd04efd28226043dc2ebc04e2ba4ee"
+    },
+    {
+      "bytes": 53440,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "sha256": "d3b0c557716826ff7bf04b477cb1f286ecf8ffa4f297dc5dfadcd8958bba3b1b"
+    },
+    {
+      "bytes": 16548,
+      "path": "FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift",
+      "sha256": "f3e3e53685c76957333e95396d855fb0ab0e600387171859b6291ee63a43eff3"
+    },
+    {
+      "bytes": 22878,
+      "path": "FieldEvidenceAppTests/V10_01WorkspaceWriterTests.swift",
+      "sha256": "68e2c6412cc28ec648ef1b68a57bb766f23e43871a82d044951839b71ec7c64d"
+    },
+    {
+      "bytes": 25675,
+      "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+      "sha256": "816bd293cfe88f416bbe4fff2ce2052ed2311bb3cf885d652beb1dce7787aabe"
+    },
+    {
+      "bytes": 38599,
+      "path": "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift",
+      "sha256": "81e73a392c2e1fc09ddb727b0ff1f044c6629ad05ca6ef450fa42518081a1d6f"
+    },
+    {
+      "bytes": 80562,
+      "path": "FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift",
+      "sha256": "3e296a00ee65f2666d725f6cd2be4e3808764a34d4d566df30401c592ca813b5"
+    },
+    {
+      "bytes": 17017,
+      "path": "FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift",
+      "sha256": "bdc8218ebca073ae1beb376390c320081b1a6478a12017f417fd658f2e5f0da9"
+    }
+  ],
+  "authority": {
+    "acceptanceCredit": false,
+    "acceptanceEnabled": false,
+    "adoptionEnabled": false,
+    "allowedPathCount": 58,
+    "appBaseHead": "884773401c32956c75fa425d36c60733e40a8fe1",
+    "appBaseTree": "d136ccab1a393d2f52f52a4132634135c1eda563",
+    "attemptID": 1,
+    "backupBehaviorDelta": true,
+    "backupCompatibilityRequired": true,
+    "cardID": "V23-P03-C35",
+    "contextDigest": "e47b3a46ba3297c81f0ce5f4a5de9a8d5b1210646cdcdeb5da4fe2459359412c",
+    "coordinationCASSequence": 175,
+    "coordinationLedgerDigest": "e2df2856fd07592b70922568dae7a6e55ec89c786b99d8bffb05af054a06ef3d",
+    "coordinationProjectionDigest": "edada017c87aaad449b843d7705129349a7415e2b64a38411c7f58fdb5da5797",
+    "deferredAdoptionObligations": [
+      "FINALIZATION_SERVICE_CURRENT_LOCATION_COMPOSITION_SNAPSHOT_ADOPTION_AFTER_ACCEPTED_S10_6_RECONCILIATION"
+    ],
+    "deleteBehaviorDelta": true,
+    "deleteCompatibilityRequired": true,
+    "downgradeDisposition": "FORWARD_FIX_ONLY_AFTER_FIRST_V6_WRITE",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "existingPathCount": 43,
+    "exportBehaviorDelta": true,
+    "exportCompatibilityRequired": true,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hostedDispatchEnabled": false,
+    "hydrationCorrectionReceiptDigest": "f7d5fe412fff3bc19b3c296a18ad54925263b39c2a12b87b7aacbe42c6800748",
+    "hydrationRevision": 4,
+    "migrationBehaviorDelta": true,
+    "nativeCompileRan": false,
+    "newPathCount": 15,
+    "pathFenceDigest": "64717de4cadb146884ba58d336e18dcdf0d1ad884cd527d7ab4faa7108382cfe",
+    "persistentChangeMode": "SCHEMA_AND_CONTENT",
+    "persistentContractSchema": "PERSISTENT_SCHEMA_V6_LOCATION_PLACEMENT_COMPOSITION",
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidenceComplete": false,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "provisionalPrerequisiteDigest": "c0d85f7f9f6da3da50423ebd9d0e0a1942b257b8df3a6421c978dd7f76711e07",
+    "releaseCredit": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "restoreBehaviorDelta": true,
+    "restoreCompatibilityRequired": true,
+    "schemaBehaviorDelta": true
+  },
+  "evidenceIDs": [
+    "V23-P03-C35-G01",
+    "V23-P03-C35-A01",
+    "V23-P03-C35-H01",
+    "V23-P03-C35-I01",
+    "V23-P03-C35-R01"
+  ],
+  "pathFence": [
+    "FieldEvidenceApp/Domain/Models/Site.swift",
+    "FieldEvidenceApp/Domain/Models/Asset.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/CurrentPersistentKindLifecycleCatalogV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+    "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+    "FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift",
+    "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift",
+    "FieldEvidenceApp/Domain/Replication/SyncClassificationRegistryV1.swift",
+    "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+    "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Domain/Backup/DeletionLedgerV2.swift",
+    "FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/CompletedActivitySnapshotContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+    "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift",
+    "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift",
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+    "FieldEvidenceAppTests/V9_13PersistentKindLifecycleCoverageTests.swift",
+    "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests.swift",
+    "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+    "FieldEvidenceApp/Domain/Models/LocationPersistenceModelsV1.swift",
+    "FieldEvidenceApp/Domain/Location/LocationHierarchyContractsV1.swift",
+    "FieldEvidenceApp/Domain/Location/AssetPlacementContractsV1.swift",
+    "FieldEvidenceApp/Domain/Location/AssetCompositionContractsV1.swift",
+    "FieldEvidenceApp/Domain/Location/CompletedLocationCompositionSnapshotV1.swift",
+    "FieldEvidenceApp/Application/Location/AssetPlacementChangeCoordinatorV1.swift",
+    "FieldEvidenceAppTests/V9_LocationHierarchyPlacementCompositionTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Location/V21P03C35LocationPlacementCompositionCorpusV1.json",
+    "Scripts/v23/p03_c35_contracts.py",
+    "Scripts/v23/generate_p03_c35_contracts.py",
+    "Scripts/v23/verify_p03_c35_contracts.py",
+    "Scripts/v23/location-placement-composition.schema.json",
+    "docs/design/v23/tooling/V23P03C35LocationPlacementCompositionContractV1.json",
+    "docs/design/v23/tooling/V23P03C35LocationPlacementCompositionEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C35-tooling-manifest.json",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Features/Signs/FirstSignCoordinator.swift",
+    "FieldEvidenceAppTests/V10_01WorkspaceWriterTests.swift",
+    "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+    "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift",
+    "FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift"
+  ],
+  "pathFenceCount": 58,
+  "s10FenceOverlapPaths": [],
+  "schema": "V23P03C35ToolingManifestV1",
+  "schemaVersion": 1,
+  "sourcePathCount": 51,
+  "toolPathCount": 7
+}

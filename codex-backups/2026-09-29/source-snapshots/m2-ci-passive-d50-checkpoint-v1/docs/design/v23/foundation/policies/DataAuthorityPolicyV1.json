@@ -1,0 +1,83 @@
+{
+  "schema": "DataAuthorityPolicyV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C02",
+  "authorityDefault": "DEVICE_LOCAL_APP_OWNED",
+  "fileProtectionDefault": "NSFileProtectionComplete",
+  "backgroundAccessExceptionRule": "REQUIRES_LATER_EXACT_EVIDENCE_AND_NARROWER_DECLARED_CLASS",
+  "classes": [
+    {
+      "classID": "CANONICAL_SWIFTDATA_RECORDS",
+      "members": ["Site", "Asset", "WorkflowRecord", "EvidenceFile", "Issue", "Packet", "Report"],
+      "authority": "APP_OWNED_CANONICAL",
+      "backupRestore": "INCLUDE",
+      "archiveExport": "EXPLICIT_USER_BACKUP_ONLY",
+      "deleteErase": "DECLARED_GRAPH_DELETE_AND_ERASE_ALL",
+      "retention": "UNTIL_DECLARED_DELETE_ERASE_OR_ACCEPTED_RETENTION_RULE",
+      "protection": "NSFileProtectionComplete_TARGET"
+    },
+    {
+      "classID": "IMMUTABLE_ACCEPTED_ORIGINALS",
+      "members": ["evidence originals", "accepted media", "historic report source facts"],
+      "authority": "APP_OWNED_IMMUTABLE_HISTORY",
+      "backupRestore": "INCLUDE",
+      "archiveExport": "EXPLICIT_USER_HANDOFF_ONLY",
+      "deleteErase": "DECLARED_OWNER_DELETE_OR_ERASE_ALL",
+      "retention": "NO_SILENT_REWRITE_OR_REBRAND",
+      "protection": "NSFileProtectionComplete_TARGET"
+    },
+    {
+      "classID": "FINALIZED_REPORT_BYTES",
+      "members": ["finalized PDF", "historic brand facts", "historic source facts"],
+      "authority": "APP_OWNED_UNTIL_EXPLICIT_HANDOFF",
+      "backupRestore": "INCLUDE_WHEN_OWNED",
+      "archiveExport": "EXPLICIT_USER_HANDOFF_ONLY",
+      "deleteErase": "DECLARED_REPORT_DELETE_OR_ERASE_ALL_WHILE_OWNED",
+      "retention": "NEVER_SILENTLY_REGENERATE_REWRITE_OR_REBRAND",
+      "protection": "NSFileProtectionComplete_TARGET"
+    },
+    {
+      "classID": "EXTERNAL_USER_HANDOFF",
+      "members": [".fieldrecordbackup package", "user-saved PDF", "share-sheet copy"],
+      "authority": "EXTERNAL_AFTER_EXPLICIT_USER_HANDOFF",
+      "backupRestore": "IMPORT_ONLY_AFTER_EXPLICIT_SELECTION_AND_VALIDATION",
+      "archiveExport": "USER_CONTROLLED",
+      "deleteErase": "OUTSIDE_APP_ERASE_AFTER_HANDOFF",
+      "retention": "USER_OR_DESTINATION_CONTROLLED",
+      "protection": "DESTINATION_CONTROLLED"
+    },
+    {
+      "classID": "REBUILDABLE_DERIVED_AND_SCRATCH",
+      "members": ["cache", "thumbnail cache", "derived scratch", "rejected proposal", "transient capture bytes", "temporary export staging"],
+      "authority": "NONCANONICAL",
+      "backupRestore": "EXCLUDE",
+      "archiveExport": "EXCLUDE_UNLESS_REBUILT_INTO_DECLARED_PAYLOAD",
+      "deleteErase": "BOUNDED_CLEANUP_AND_ERASE_ALL",
+      "retention": "DELETE_AFTER_EFFECT_COMPLETION_EXPIRY_OR_RECOVERY",
+      "protection": "NSFileProtectionComplete_WHILE_PRESENT"
+    },
+    {
+      "classID": "SECRET_FREE_DIAGNOSTICS",
+      "members": ["bounded local counters", "bounded MetricKit summary", "synthetic support export"],
+      "authority": "DEVICE_LOCAL_DIAGNOSTIC",
+      "backupRestore": "EXCLUDE",
+      "archiveExport": "EXPLICIT_REVIEWED_SUPPORT_HANDOFF_ONLY",
+      "deleteErase": "ERASE_ALL_AND_BOUNDED_RETENTION",
+      "retention": "BOUNDED_NO_CUSTOMER_CONTENT",
+      "protection": "NSFileProtectionComplete_TARGET"
+    },
+    {
+      "classID": "STOREKIT_PROVIDER_TRUTH",
+      "members": ["verified transaction facts", "derived local entitlement state"],
+      "authority": "STOREKIT_VERIFIED_PROVIDER_FACT",
+      "backupRestore": "EXCLUDE_FROM_DATA_BACKUP",
+      "archiveExport": "EXCLUDE",
+      "deleteErase": "LOCAL_STATE_MAY_CLEAR_BUT_SUBSCRIPTION_IS_NOT_CANCELLED",
+      "retention": "PROVIDER_AND_VERIFICATION_LIFECYCLE",
+      "protection": "PLATFORM_AND_LOCAL_COMPLETE_TARGET"
+    }
+  ],
+  "unresolvedClassCount": 0,
+  "productMutation": false,
+  "acceptanceEnabled": false
+}

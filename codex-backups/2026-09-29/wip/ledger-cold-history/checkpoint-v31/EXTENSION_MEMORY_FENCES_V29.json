@@ -1,0 +1,10 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "3e3edbcebddb4a27eb6184e7d65d834d1d2b14ed036db317ed9f4995b58e995a",
+  "afterSHA256": "8c5c436e7293d8550eafa05bdc8acea50abfc1748ab68b39f8acbf4ec7860041",
+  "change": "Explicit permanent memory fence and ordinary-only admission on separate C54 recovery/census extension primitives before legacy numeric FD work",
+  "reachability": "Recovery already indirectly fenced through producer lock/recoverScratch; census has no current call site. Additive direct entry fences retain ordinary behavior.",
+  "semanticCompile": "due",
+  "runtime": "due"
+}

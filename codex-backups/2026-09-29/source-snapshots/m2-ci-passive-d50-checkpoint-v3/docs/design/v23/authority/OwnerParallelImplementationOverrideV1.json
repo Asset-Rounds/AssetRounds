@@ -1,0 +1,91 @@
+{
+  "schema": "OwnerParallelImplementationOverrideV1",
+  "schemaVersion": 1,
+  "overrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-001",
+  "program": "AssetRounds V23",
+  "programBranch": "phase/v23-expansion",
+  "programHeadBeforeOverride": "493a33c4520b79e4c420ea5fe70940272286d4a6",
+  "programTreeBeforeOverride": "3277d722cb9157e7adb756d7aaea43fc993618a8",
+  "activePhase10": {
+    "branch": "phase/s10-brand-refresh",
+    "observedHead": "728f76fa51186dd99f4359a529272c667fd1218f",
+    "ownershipReservation": "docs/design/v23/foundation/ActiveS10OwnershipReservationV1.json",
+    "statusAtAuthorization": "ACTIVE_NOT_ACCEPTED"
+  },
+  "ownerDirections": [
+    "I want to give approval to start now before 10.6 is done. Its taking too long I need to start this expansion now.",
+    "Once 10.6 is done, i will tell you so we could make changes",
+    "Can we start coding V23 while phase 10 is finishing? Can we remove that hard gate and make it work",
+    "Yes lets work on v23 in its entirity, just leave phase 10 alone, once phase 10 is done, I will let you know and we will fix or authorize whatever is needed so its all fine.",
+    "So we can work in proper order of this handoff."
+  ],
+  "supersededGate": {
+    "oldRule": "ACCEPTED_S10_6_REQUIRED_BEFORE_ANY_V23_MUTATION_OR_TEST",
+    "newRule": "ACCEPTED_S10_6_REQUIRED_BEFORE_OFFICIAL_ACCEPTANCE_INTEGRATION_OR_RELEASE",
+    "canonicalCardOrderChanged": false,
+    "canonicalDirectGraphChanged": false,
+    "authorityPackageRewritten": false
+  },
+  "provisionalExecution": {
+    "enabled": true,
+    "scope": "ALL_V23_CARDS_IN_CANONICAL_TOPOLOGICAL_ORDER",
+    "allowedActivities": [
+      "READ_ONLY_HYDRATION",
+      "DISJOINT_REPOSITORY_MUTATION",
+      "LOCAL_STATIC_VERIFICATION",
+      "TASK_NAMED_MACOS_CI",
+      "PROVISIONAL_TARGETED_GREEN_CHECKPOINT",
+      "PROVISIONAL_SUCCESSOR_HYDRATION"
+    ],
+    "prohibitedActivities": [
+      "WRITE_PHASE10_BRANCH",
+      "MODIFY_ACTIVE_PHASE10_OWNED_PATH",
+      "CANCEL_OR_RERUN_PHASE10_WORKFLOW",
+      "CLAIM_ACCEPTED_S10_6",
+      "OFFICIAL_V23_CARD_ACCEPTANCE",
+      "V23_ACCEPTANCE_OR_RELEASE_CREDIT",
+      "MERGE_OR_WRITE_MAIN",
+      "RELEASE_TESTFLIGHT_OR_APP_STORE"
+    ],
+    "predecessorRule": "A_PROVISIONAL_EXECUTION_PREREQUISITE_RECEIPT_MAY_SATISFY_ORDERED_MUTATION_AND_TEST_READINESS_ONLY",
+    "successorRule": "NO_CARD_MAY_START_BEFORE_EVERY_DIRECT_PREDECESSOR_HAS_A_VERIFIED_PROVISIONAL_CHECKPOINT_OR_CANONICAL_ACCEPTANCE",
+    "acceptanceEnabled": false,
+    "releaseCredit": false
+  },
+  "pathOwnership": {
+    "phase10WinsEveryConflict": true,
+    "everyCardRequiresExactPathFence": true,
+    "pathFenceMustExcludeCurrentPhase10Inventory": true,
+    "phase10HeadChangeFreezesNewMutationsUntilFenceRefresh": true,
+    "overlappingProvisionalWorkDisposition": "QUARANTINE_AND_REHYDRATE_AFTER_OWNER_RECONCILIATION",
+    "nonoverlappingProvisionalWorkDisposition": "REVERIFY_AND_CONTINUE"
+  },
+  "provisionalEvidence": {
+    "prerequisiteReceiptSchema": "ProvisionalExecutionPrerequisiteReceiptV1",
+    "checkpointReceiptSchema": "ProvisionalCardCheckpointReceiptV1",
+    "requiredBindings": [
+      "CARD_AND_ATTEMPT",
+      "CANONICAL_DIRECT_PREDECESSORS",
+      "EXACT_CANDIDATE_HEAD_AND_TREE",
+      "EXACT_PATH_FENCE",
+      "ACTIVE_PHASE10_HEAD_AND_RESERVED_PATH_DIGEST",
+      "TEST_COMMANDS_AND_RESULTS",
+      "NO_OVERLAP_PROOF",
+      "NO_ACCEPTANCE_OR_RELEASE_CREDIT"
+    ]
+  },
+  "s10_6Reconciliation": {
+    "trigger": "OWNER_REPORTS_S10_6_ACCEPTED",
+    "requiredBeforeOfficialAcceptance": [
+      "VERIFY_EXACT_ACCEPTED_S10_6_HEAD_TREE_AND_CI_EVIDENCE",
+      "INCORPORATE_ACCEPTED_S10_6_WITH_NONFORCE_HISTORY_PRESERVATION",
+      "REFRESH_PHASE10_OWNERSHIP_AND_ALL_ACTIVE_PATH_FENCES",
+      "REBUILD_PRE_V23_COMPATIBILITY_SEED",
+      "CLASSIFY_EVERY_PROVISIONAL_CANDIDATE_AS_COMPATIBLE_CORRECTION_REQUIRED_OR_SUPERSEDED",
+      "RERUN_EVERY_AFFECTED_TEST_AND_ACCEPTANCE_PLAN_IN_CANONICAL_ORDER"
+    ],
+    "conflictPolicy": "ACCEPTED_S10_6_WINS_SHARED_BRAND_NAVIGATION_AND_UI_CONFLICTS",
+    "automaticAcceptanceFromProvisionalEvidence": false
+  },
+  "effectiveAt": "2026-08-25T14:01:04.977Z"
+}

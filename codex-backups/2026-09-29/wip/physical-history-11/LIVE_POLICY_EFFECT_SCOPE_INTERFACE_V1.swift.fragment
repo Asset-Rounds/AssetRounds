@@ -1,0 +1,48 @@
+// Distinct LIVE policy EFFECT scope. FirstObserver privately issues it only
+// for the exact current retained requestPolicy intent after willPerform.
+// PFP owns actual private Attempt/Outcome constructors and real setter calls.
+@MainActor final class OriginalEraseScratchCleanupPolicyEffectScopeV1 {
+    let operationID: UUID
+    let requestID: UUID
+    let sourceSHA256: String?
+    let byteCount: Int64?
+    func requireCurrentBinding() throws
+    func requireTarget(_ kind: OwnedFileKindV1, at: URL,
+        initialFullFact: String) throws -> OriginalEraseScratchTemporalPolicyNodeV1
+    func retainPolicyAttempt(_ attempt: OriginalEraseScratchPublicationPolicyAttemptV1)
+    func requireOwnedPolicyPostFact(fullFact: String,
+        outcome: OriginalEraseScratchPublicationPolicyOutcomeV1) throws
+    func poisonOnUncertainPolicy()
+}
+// PFP-owned actual private types; no caller success/fact constructor.
+enum OriginalEraseScratchPublicationPolicyStepV1 {
+    case completeProtection, backupExclusion
+}
+@MainActor final class OriginalEraseScratchPublicationPolicyOutcomeV1 {
+    let step: OriginalEraseScratchPublicationPolicyStepV1
+    func requireBound(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        kind: OwnedFileKindV1, at: URL, fullFact: String) throws
+    // Actual same retained PFP attempt/step, exact observed held/named postfact
+    // and actual saved Foundation call event. Protection intermediate cannot
+    // claim the final strict/pending predicate before backup is actually set.
+}
+@MainActor final class OriginalEraseScratchPublicationPolicyAttemptV1 {
+    func requireCheckedSettlement(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        kind: OwnedFileKindV1, at: URL) throws
+    // MEMORY ONLY: positive private actual final policy/SHA proofs + both step
+    // events + all owned resources checked-closed; no closed numeric FD reads.
+}
+// Exact PFP callable:
+// @MainActor static func applyOriginalEraseScratchPublicationPolicyWithCheckedClose(
+//  _ kind: OwnedFileKindV1, at url: URL, initialFullFact: String,
+//  scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+//  retainUncertainDescriptor: (Int32) -> Void) throws -> TemporalPolicyObservationV1
+// Minimal direction: ALWAYS attempt actual complete-protection setter then
+// actual backup-exclusion setter, including when old metadata looks correct.
+// Only the unchanged ordinary platform-qualified protection predicate may
+// recognize actual unsupported protection; no OS success is manufactured.
+// Final qualification belongs actual private Attempt after real full readback.
+// Every subprimitive freshly binds the real Ledger active request + EX/G and
+// the complete exact held/named ancestor/member/source tuples. Observation
+// scopes cannot call this API. Full image equality/delta is proved before and
+// after the complete setter; intermediate outcomes are not future receipts.

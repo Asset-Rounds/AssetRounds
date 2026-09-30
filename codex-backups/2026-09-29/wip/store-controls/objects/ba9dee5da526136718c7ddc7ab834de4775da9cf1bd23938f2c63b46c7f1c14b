@@ -1,0 +1,33 @@
+enum EraseSchema2ColdCleanupCommitmentV1 {
+    struct SourceByteHash: Codable, Equatable { let path: String; let sha256: String }
+    private struct Commitment: Codable {
+        let schemaVersion: Int
+        let kind: String
+        let inputSHA256: [String]
+        let path: String?
+    }
+    static func makeEffect(kind: EraseSchema2ColdControlEffectV1.Kind,
+        inputSHA256: [String], expectedCanonicalSHA256: String? = nil,
+        path: String? = nil
+    ) throws -> EraseSchema2ColdControlEffectV1 {
+        for sha in inputSHA256 { try EraseSchema2ColdCleanupGrammarV1.requireDigest(sha) }
+        if let expectedCanonicalSHA256 {
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(expectedCanonicalSHA256)
+        }
+        guard path.map({ !$0.isEmpty && !$0.utf8.contains(0) && $0.utf8.count <= 4_096 }) ?? true else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let bytes = try StoreMigrationCanonicalJSONV1.encode(Commitment(schemaVersion: 1,
+            kind: kind.rawValue, inputSHA256: inputSHA256, path: path))
+        return EraseSchema2ColdControlEffectV1(kind: kind,
+            commitmentSHA256: StoreMigrationCanonicalJSONV1.sha256(bytes),
+            expectedCanonicalSHA256: expectedCanonicalSHA256, path: path)
+    }
+    static func sha256(_ string: String) -> String {
+        StoreMigrationCanonicalJSONV1.sha256(Data(string.utf8))
+    }
+    static func sourceByteTableSHA256(_ sources: EraseSchema2ColdCleanupSourcesV1) throws -> String {
+        StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(
+            sources.sources.map { SourceByteHash(path: $0.path, sha256: $0.sha256) }))
+    }
+}

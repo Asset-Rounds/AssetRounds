@@ -1,0 +1,366 @@
+/// A distinct observation origin. Generic owned payloads never acquire a
+/// fictitious C16 settlement ordinal or an arbitrary mixed target.
+enum OriginalEraseSealedGenericObservationOriginV1: Equatable {
+    case sealedPBeforeSources(controlCutSHA256: String)
+    case sourcesPlanBeforeProgress(planSHA256: String,
+        sourcesLogicalSHA256: String, controlCutSHA256: String)
+    case currentC16Tree(planSHA256: String, c16Ordinal: Int,
+        recordBindingSHA256: String, logicalProgressSHA256: String)
+    case mixedTarget(planSHA256: String, mixedTargetIndex: Int,
+        stage: EraseSchema2ColdCleanupProgressV1.Stage,
+        recordBindingSHA256: String, logicalProgressSHA256: String)
+
+    fileprivate var recordBindingSHA256: String? {
+        switch self {
+        case .sealedPBeforeSources, .sourcesPlanBeforeProgress: return nil
+        case .currentC16Tree(_, _, let record, _),
+             .mixedTarget(_, _, _, let record, _): return record
+        }
+    }
+}
+
+/// Original metadata DATA and its authenticated current relation are kept
+/// separate. Removing an originally validated lease never turns it into an
+/// original orphan. The real Store record/target mapping proves consumption.
+enum OriginalEraseSealedScratchMetadataRelationV1: Equatable {
+    case originalAbsent
+    case unchanged(currentFullFact: String)
+    case consumedMixed(mixedTargetIndex: Int, recordBindingSHA256: String)
+    case consumedC16(c16Ordinal: Int, recordBindingSHA256: String)
+}
+
+enum OriginalEraseSealedGenericPathMappingV1: Equatable {
+    case unchanged
+    case c16ParentRename(originalParent: String, currentParent: String,
+        c16Ordinal: Int, recordBindingSHA256: String)
+}
+
+struct OriginalEraseSealedOwnedGenericAliasPairV1: Equatable {
+    let members: [OriginalEraseObservedOwnedGenericAliasPairV1.Member]
+    let original: OriginalEraseAuxiliaryPairAccountingDataV1.Row
+    let metadataRelation: OriginalEraseSealedScratchMetadataRelationV1
+    let pathMapping: OriginalEraseSealedGenericPathMappingV1
+    let operationID: UUID
+    let originBinding: String
+    let accountingSHA256: String
+    var sha256: String { original.sha256 }
+    var byteCount: Int64 { original.byteCount }
+    var device: UInt64 { original.device }
+    var inode: UInt64 { original.inode }
+    var declaredPairIndex: Int { original.index }
+}
+
+/// DATA about one exact fixed member loss, never a deletion capability. A
+/// current PREPARING absence cut and a completed postimage are distinct.
+struct OriginalEraseSealedGenericConsumedMemberV1: Equatable {
+    enum Disposition: Equatable { case completedPostimage, activePreparingAbsence }
+    let operationsRelativePath: String
+    enum Target: Equatable { case mixedTarget(Int), c16Step(Int) }
+    let target: Target // exact actual fixed effect, never a generic C16 settlement
+    let disposition: Disposition
+    let recordBindingSHA256: String
+}
+
+struct OriginalEraseSealedOwnedGenericSingleSurvivorV1: Equatable {
+    let member: OriginalEraseObservedOwnedGenericAliasPairV1.Member
+    let original: OriginalEraseAuxiliaryPairAccountingDataV1.Row
+    let consumed: OriginalEraseSealedGenericConsumedMemberV1
+    let metadataRelation: OriginalEraseSealedScratchMetadataRelationV1
+    let pathMapping: OriginalEraseSealedGenericPathMappingV1
+    let operationID: UUID
+    let originBinding: String
+    let accountingSHA256: String
+    var sha256: String { original.sha256 }
+}
+
+enum OriginalEraseSealedOwnedGenericEvolutionV1: Equatable {
+    case intact(OriginalEraseSealedOwnedGenericAliasPairV1)
+    case oneMemberConsumed(OriginalEraseSealedOwnedGenericSingleSurvivorV1)
+    case bothMembersConsumed(original: OriginalEraseAuxiliaryPairAccountingDataV1.Row,
+        consumed: [OriginalEraseSealedGenericConsumedMemberV1],
+        metadataRelation: OriginalEraseSealedScratchMetadataRelationV1,
+        pathMapping: OriginalEraseSealedGenericPathMappingV1,
+        operationID: UUID, originBinding: String, accountingSHA256: String)
+}
+
+enum OriginalEraseSealedGenericPathRoleV1: Equatable {
+    case ordinary
+    case observedOwnedGenericAliases(OriginalEraseSealedOwnedGenericAliasPairV1)
+    case ownedGenericSingleSurvivor(OriginalEraseSealedOwnedGenericSingleSurvivorV1)
+}
+
+/// Router alone can privately issue a lexical scope from the actual live
+/// accounting receipt OR authenticated retained Store accounting source,
+/// immutable P, complete fixed role table and real current owner/record cut.
+/// These required callbacks are nonrecursive: they prove real EX/G/control
+/// and exact source/current projection, not the outer whole-tree observer.
+/// No initializer/callback outside Router can manufacture this capability.
+@MainActor
+final class OriginalEraseSealedGenericObservationScopeV1 {
+    let operationID: UUID
+    let originBinding: String
+    let accountingSHA256: String
+    let origin: OriginalEraseSealedGenericObservationOriginV1
+    private let operationsURL: URL
+    private let requireOrigin: @MainActor () throws -> String
+    private let aliases: @MainActor ([URL]) throws -> OriginalEraseSealedOwnedGenericAliasPairV1
+    private let pathRole: @MainActor (String, String, String) throws -> OriginalEraseSealedGenericPathRoleV1
+    private let evolution: @MainActor (Int) throws -> OriginalEraseSealedOwnedGenericEvolutionV1
+    private let retainAttempt: @MainActor (OriginalEraseC16CurrentTemporalObservationAttemptV1) -> Void
+    private let poisonOrigin: @MainActor () -> Void
+    private var active = true
+    private var uncertain = false
+
+    fileprivate init(operationID: UUID, originBinding: String,
+        accountingSHA256: String, origin: OriginalEraseSealedGenericObservationOriginV1,
+        operationsURL: URL,
+        requireOrigin: @escaping @MainActor () throws -> String,
+        aliases: @escaping @MainActor ([URL]) throws -> OriginalEraseSealedOwnedGenericAliasPairV1,
+        pathRole: @escaping @MainActor (String, String, String) throws -> OriginalEraseSealedGenericPathRoleV1,
+        evolution: @escaping @MainActor (Int) throws -> OriginalEraseSealedOwnedGenericEvolutionV1,
+        retainAttempt: @escaping @MainActor (OriginalEraseC16CurrentTemporalObservationAttemptV1) -> Void,
+        poisonOrigin: @escaping @MainActor () -> Void) {
+        self.operationID = operationID; self.originBinding = originBinding
+        self.accountingSHA256 = accountingSHA256; self.origin = origin
+        self.operationsURL = operationsURL.standardizedFileURL
+        self.requireOrigin = requireOrigin; self.aliases = aliases
+        self.pathRole = pathRole; self.evolution = evolution
+        self.retainAttempt = retainAttempt; self.poisonOrigin = poisonOrigin
+    }
+
+    func requireCurrentBinding() throws {
+        do {
+            guard active, !uncertain,
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(originBinding),
+                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(accountingSHA256),
+                  try requireOrigin() == originBinding else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+
+    func requireObservedOwnedGenericAliases(aliasURLs: [URL]) throws
+        -> OriginalEraseSealedOwnedGenericAliasPairV1 {
+        return try withCurrentProof {
+            let urls = aliasURLs.map(\.standardizedFileURL)
+            let pair = try aliases(urls)
+            try requirePairData(pair)
+            guard urls.count == 2, pair.members.map(\.url) == urls else {
+                poisonOnUncertainObservation()
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return pair
+        }
+    }
+
+    func roleFor(path: String, fullFact: String, sha256: String) throws
+        -> OriginalEraseSealedGenericPathRoleV1 {
+        return try withCurrentProof {
+            try Self.requirePath(path)
+            let role = try pathRole(path, fullFact, sha256)
+            switch role {
+            case .ordinary: break // Required lookup proves complete role-table absence.
+            case .observedOwnedGenericAliases(let pair):
+                try requirePairData(pair)
+                guard let member = pair.members.first(where: {
+                    $0.operationsRelativePath == path
+                }), member.fullFact == fullFact, pair.sha256 == sha256 else {
+                    poisonOnUncertainObservation()
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            case .ownedGenericSingleSurvivor(let survivor):
+                try requireSurvivorData(survivor)
+                guard survivor.member.operationsRelativePath == path,
+                      survivor.member.fullFact == fullFact,
+                      survivor.sha256 == sha256 else {
+                    poisonOnUncertainObservation()
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            return role
+        }
+    }
+
+    func requireOwnedGenericEvolution(accountingRowIndex: Int) throws
+        -> OriginalEraseSealedOwnedGenericEvolutionV1 {
+        return try withCurrentProof {
+            guard accountingRowIndex >= 0 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let value = try evolution(accountingRowIndex)
+            switch value {
+            case .intact(let pair):
+                try requirePairData(pair)
+                guard pair.original.index == accountingRowIndex else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            case .oneMemberConsumed(let survivor):
+                try requireSurvivorData(survivor)
+                guard survivor.original.index == accountingRowIndex else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            case .bothMembersConsumed(let row, let consumed, let metadata, let mapping,
+                let actualOperation, let binding, let accounting):
+                try requireOriginalRow(row, metadata: metadata)
+                guard row.index == accountingRowIndex,
+                      actualOperation == operationID, binding == originBinding,
+                      accounting == accountingSHA256, consumed.count == 2,
+                      consumed.map(\.operationsRelativePath) == row.members.map(\.operationsRelativePath),
+                      consumed[0].target != consumed[1].target else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                for source in row.members {
+                    _ = try currentPath(source.operationsRelativePath, mapping: mapping)
+                }
+                for item in consumed { try requireConsumedMember(item, row: row) }
+            }
+            return value
+        }
+    }
+
+    private func requireOriginalRow(_ row: OriginalEraseAuxiliaryPairAccountingDataV1.Row,
+        metadata: OriginalEraseSealedScratchMetadataRelationV1) throws {
+        let paths = row.members.map(\.operationsRelativePath)
+        guard row.index >= 0, row.kind == "observedOwnedGenericAliases",
+              row.producerRole == nil, row.members.count == 2,
+              paths[0].utf8.lexicographicallyPrecedes(paths[1].utf8),
+              row.byteCount >= 0,
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(row.sha256),
+              let originalMetadata = row.metadata else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        for path in paths { try Self.requirePath(path) }
+        switch metadata {
+        case .originalAbsent:
+            guard originalMetadata.state == "ownedOrphan",
+                  originalMetadata.canonicalBytes == nil,
+                  originalMetadata.sha256 == nil,
+                  originalMetadata.observedFact == nil,
+                  originalMetadata.fullFact == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        case .unchanged(let fact):
+            guard originalMetadata.state == "validatedLease",
+                  originalMetadata.canonicalBytes != nil,
+                  originalMetadata.sha256 != nil,
+                  originalMetadata.observedFact != nil,
+                  originalMetadata.fullFact == fact else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        case .consumedMixed(let index, let record),
+             .consumedC16(let index, let record):
+            guard index >= 0, originalMetadata.state == "validatedLease",
+                  originalMetadata.canonicalBytes != nil,
+                  originalMetadata.sha256 != nil,
+                  originalMetadata.observedFact != nil,
+                  originalMetadata.fullFact != nil,
+                  origin.recordBindingSHA256 == record else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    private func requirePairData(_ pair: OriginalEraseSealedOwnedGenericAliasPairV1) throws {
+        try requireOriginalRow(pair.original, metadata: pair.metadataRelation)
+        guard pair.operationID == operationID, pair.originBinding == originBinding,
+              pair.accountingSHA256 == accountingSHA256,
+              pair.members.count == 2 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        for (current, original) in zip(pair.members, pair.original.members) {
+            guard current.operationsRelativePath == (try currentPath(original.operationsRelativePath, mapping: pair.pathMapping)),
+                  current.url == operationsURL.appendingPathComponent(current.operationsRelativePath).standardizedFileURL,
+                  current.fullFact == original.fullFact,
+                  current.observedFact == original.observedFact else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    private func requireConsumedMember(_ item: OriginalEraseSealedGenericConsumedMemberV1,
+        row: OriginalEraseAuxiliaryPairAccountingDataV1.Row) throws {
+        let ordinal: Int
+        switch item.target { case .mixedTarget(let value), .c16Step(let value): ordinal = value }
+        guard ordinal >= 0,
+              origin.recordBindingSHA256 == item.recordBindingSHA256,
+              row.members.contains(where: {
+                  $0.operationsRelativePath == item.operationsRelativePath
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // The required real lookup proves exact immutable mixed target
+        // membership, prefix/stage, consumed absence and completed postimage
+        // or the one active PREPARING loss. No range test grants that proof.
+    }
+
+    private func requireSurvivorData(_ value: OriginalEraseSealedOwnedGenericSingleSurvivorV1) throws {
+        try requireOriginalRow(value.original, metadata: value.metadataRelation)
+        try requireConsumedMember(value.consumed, row: value.original)
+        guard value.operationID == operationID, value.originBinding == originBinding,
+              value.accountingSHA256 == accountingSHA256,
+              let original = try value.original.members.first(where: {
+                  try currentPath($0.operationsRelativePath, mapping: value.pathMapping) == value.member.operationsRelativePath
+              }), original.operationsRelativePath != value.consumed.operationsRelativePath,
+              value.member.url == operationsURL.appendingPathComponent(value.member.operationsRelativePath).standardizedFileURL else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let before = original.fullFact.split(separator: "|", omittingEmptySubsequences: false)
+        let after = value.member.fullFact.split(separator: "|", omittingEmptySubsequences: false)
+        let nine = [0, 1, 2, 5, 6, 7, 8, 9, 10]
+        guard before.count == 11, after.count == 11,
+              before[5] == "2", after[5] == "1",
+              [0, 1, 2, 3, 4, 6, 7, 8].allSatisfy({ before[$0] == after[$0] }),
+              nine.map({ String(after[$0]) }).joined(separator: "|") == value.member.observedFact else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // Only link count and real unlink ctime may differ. The current
+        // fact is checked data from the actual receipt/finite PREPARING cut,
+        // never a newly adopted original file or predicted future ctime.
+    }
+
+    private func currentPath(_ original: String,
+        mapping: OriginalEraseSealedGenericPathMappingV1) throws -> String {
+        try Self.requirePath(original)
+        switch mapping {
+        case .unchanged: return original
+        case .c16ParentRename(let before, let after, let ordinal, let record):
+            try Self.requirePath(before); try Self.requirePath(after)
+            guard before != after, ordinal >= 0,
+                  origin.recordBindingSHA256 == record,
+                  original.hasPrefix(before + "/") else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            // Required authenticated lookup proves this exact fixed plan's
+            // real parent-rename effect and inode/name projection. Matching
+            // a prefix/ordinal range alone never grants that authority.
+            return after + String(original.dropFirst(before.count))
+        }
+    }
+
+    private func withCurrentProof<Value>(_ body: () throws -> Value) throws -> Value {
+        do {
+            try requireCurrentBinding()
+            let value = try body()
+            try requireCurrentBinding()
+            return value
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+
+    private static func requirePath(_ path: String) throws {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard !parts.isEmpty, parts.allSatisfy({
+            !$0.isEmpty && $0 != "." && $0 != ".." && !$0.utf8.contains(0)
+        }) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+    }
+
+    func retainObservationAttempt(_ attempt: OriginalEraseC16CurrentTemporalObservationAttemptV1) {
+        // The actual Router-owned attempt owner retains before any open;
+        // even revoked/uncertain evidence is never discarded by this scope.
+        retainAttempt(attempt)
+        if !active || uncertain { poisonOnUncertainObservation() }
+    }
+    func poisonOnUncertainObservation() {
+        if !uncertain { uncertain = true; active = false; poisonOrigin() }
+    }
+    fileprivate func revoke() { active = false }
+}

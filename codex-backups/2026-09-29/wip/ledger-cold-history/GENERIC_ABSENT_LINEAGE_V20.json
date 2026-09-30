@@ -1,0 +1,9 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "2f5966b47e6c32d29f743d19986f1682f6ea68cf5478b47741576362dcd3dc87",
+  "afterSHA256": "6bab181fcbaf627de84e71b812c2c7589a1cde6f7004dfb2accac0626b4b8ec9",
+  "scopeV2SHA256": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+  "change": "Actual original-path accounting/evolution lookup for intact/single/both-consumed cold replay; immutable P source9 equality and fresh current token on both sides; no survivor/cached authorization",
+  "status": "INTERMEDIATE NONINSTALLABLE; actual issuer/source/accounting and compile/review/runtime due"
+}

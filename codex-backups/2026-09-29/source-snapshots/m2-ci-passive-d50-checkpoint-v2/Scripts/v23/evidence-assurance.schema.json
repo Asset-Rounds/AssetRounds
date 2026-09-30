@@ -1,0 +1,1074 @@
+{
+  "$id": "https://assetrounds.invalid/v23/evidence-assurance.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assuranceManifests": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "excludedLinkIDs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "immutable": {
+            "type": "boolean"
+          },
+          "includedLinkIDs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "projectionVersion": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "snapshotSHA256": {
+            "type": "string"
+          },
+          "sourcePreviewID": {
+            "type": "string"
+          },
+          "supersedesManifestID": {
+            "type": "null"
+          },
+          "voided": {
+            "type": "boolean"
+          },
+          "workspaceID": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience",
+          "excludedLinkIDs",
+          "id",
+          "immutable",
+          "includedLinkIDs",
+          "projectionVersion",
+          "purpose",
+          "revision",
+          "snapshotSHA256",
+          "sourcePreviewID",
+          "supersedesManifestID",
+          "voided",
+          "workspaceID"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    },
+    "assuranceProjectionPreviews": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "excludedLinkIDs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "includedLinkIDs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "projectionVersion": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "snapshotSHA256": {
+            "type": "string"
+          },
+          "staleAfterSnapshotChange": {
+            "type": "boolean"
+          },
+          "workspaceID": {
+            "type": "string"
+          },
+          "writes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "audience",
+          "disposition",
+          "excludedLinkIDs",
+          "id",
+          "includedLinkIDs",
+          "projectionVersion",
+          "purpose",
+          "snapshotSHA256",
+          "staleAfterSnapshotChange",
+          "workspaceID",
+          "writes"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    },
+    "attestationMethods": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "attestationPurposes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "attestations": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "legalOrNonrepudiationClaim": {
+                "type": "boolean"
+              },
+              "localOnly": {
+                "type": "boolean"
+              },
+              "manifestID": {
+                "type": "string"
+              },
+              "manifestRevision": {
+                "type": "integer"
+              },
+              "method": {
+                "type": "string"
+              },
+              "purpose": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "scopeID": {
+                "type": "string"
+              },
+              "scopeKind": {
+                "type": "string"
+              },
+              "scopeRevision": {
+                "type": "integer"
+              },
+              "supersedesAttestationID": {
+                "type": "null"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "legalOrNonrepudiationClaim",
+              "localOnly",
+              "manifestID",
+              "manifestRevision",
+              "method",
+              "purpose",
+              "revision",
+              "scopeID",
+              "scopeKind",
+              "scopeRevision",
+              "supersedesAttestationID",
+              "workspaceID"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "legalOrNonrepudiationClaim": {
+                "type": "boolean"
+              },
+              "localOnly": {
+                "type": "boolean"
+              },
+              "manifestID": {
+                "type": "string"
+              },
+              "manifestRevision": {
+                "type": "integer"
+              },
+              "method": {
+                "type": "string"
+              },
+              "purpose": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "scopeID": {
+                "type": "string"
+              },
+              "scopeKind": {
+                "type": "string"
+              },
+              "scopeRevision": {
+                "type": "integer"
+              },
+              "supersedesAttestationID": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "id",
+              "legalOrNonrepudiationClaim",
+              "localOnly",
+              "manifestID",
+              "manifestRevision",
+              "method",
+              "purpose",
+              "revision",
+              "scopeID",
+              "scopeKind",
+              "scopeRevision",
+              "supersedesAttestationID",
+              "workspaceID"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "claimEvidenceLinks": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "type": "string"
+              },
+              "claimID": {
+                "type": "string"
+              },
+              "disposition": {
+                "type": "string"
+              },
+              "evidenceID": {
+                "type": "string"
+              },
+              "evidenceRevision": {
+                "type": "integer"
+              },
+              "evidenceSHA256": {
+                "type": "string"
+              },
+              "frozen": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "limitation": {
+                "type": "string"
+              },
+              "projectionVersion": {
+                "type": "string"
+              },
+              "snapshotSHA256": {
+                "type": "string"
+              },
+              "visibilityID": {
+                "type": "string"
+              },
+              "visibilityRevision": {
+                "type": "integer"
+              },
+              "visibilitySHA256": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "audience",
+              "claimID",
+              "disposition",
+              "evidenceID",
+              "evidenceRevision",
+              "evidenceSHA256",
+              "frozen",
+              "id",
+              "limitation",
+              "projectionVersion",
+              "snapshotSHA256",
+              "visibilityID",
+              "visibilityRevision",
+              "visibilitySHA256",
+              "workspaceID"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "type": "string"
+              },
+              "claimID": {
+                "type": "string"
+              },
+              "disposition": {
+                "type": "string"
+              },
+              "evidenceID": {
+                "type": "string"
+              },
+              "evidenceRevision": {
+                "type": "integer"
+              },
+              "evidenceSHA256": {
+                "type": "string"
+              },
+              "frozen": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "string"
+              },
+              "projectionVersion": {
+                "type": "string"
+              },
+              "snapshotSHA256": {
+                "type": "string"
+              },
+              "visibilityID": {
+                "type": "string"
+              },
+              "visibilityRevision": {
+                "type": "integer"
+              },
+              "visibilitySHA256": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "audience",
+              "claimID",
+              "disposition",
+              "evidenceID",
+              "evidenceRevision",
+              "evidenceSHA256",
+              "frozen",
+              "id",
+              "projectionVersion",
+              "snapshotSHA256",
+              "visibilityID",
+              "visibilityRevision",
+              "visibilitySHA256",
+              "workspaceID"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "ACCOUNT_OR_AUTHENTICATED_IDENTITY": {
+          "type": "boolean"
+        },
+        "CLOUD_PROVIDER_OR_REMOTE_STORAGE": {
+          "type": "boolean"
+        },
+        "CUSTOMER_DATA_TELEMETRY_OR_MARKETING": {
+          "type": "boolean"
+        },
+        "FINALIZATION_OR_RELEASE_APPROVAL_PRODUCER": {
+          "type": "boolean"
+        },
+        "LEGAL_SIGNATURE_OR_NONREPUDIATION": {
+          "type": "boolean"
+        },
+        "NATIVE_IPAD_OR_SECOND_UI_SURFACE": {
+          "type": "boolean"
+        },
+        "OUTBOX_DELIVERY_OR_TRANSMISSION": {
+          "type": "boolean"
+        },
+        "SECOND_STORE_OR_SECOND_CANONICAL_WRITER": {
+          "type": "boolean"
+        },
+        "SECURITY_CERTIFICATION_OR_VERIFIED_IDENTITY": {
+          "type": "boolean"
+        },
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ACCOUNT_OR_AUTHENTICATED_IDENTITY",
+        "CLOUD_PROVIDER_OR_REMOTE_STORAGE",
+        "CUSTOMER_DATA_TELEMETRY_OR_MARKETING",
+        "FINALIZATION_OR_RELEASE_APPROVAL_PRODUCER",
+        "LEGAL_SIGNATURE_OR_NONREPUDIATION",
+        "NATIVE_IPAD_OR_SECOND_UI_SURFACE",
+        "OUTBOX_DELIVERY_OR_TRANSMISSION",
+        "SECOND_STORE_OR_SECOND_CANONICAL_WRITER",
+        "SECURITY_CERTIFICATION_OR_VERIFIED_IDENTITY",
+        "acceptance",
+        "acceptanceCredit",
+        "adoption",
+        "hosted",
+        "native",
+        "release",
+        "releaseCredit"
+      ],
+      "type": "object"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "currentProjectionPersistence": {
+      "type": "string"
+    },
+    "currentProjectionRows": {
+      "maxItems": 0,
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "denyByDefault": {
+      "type": "boolean"
+    },
+    "forbiddenCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "accounts": {
+          "type": "boolean"
+        },
+        "authentication": {
+          "type": "boolean"
+        },
+        "cloud": {
+          "type": "boolean"
+        },
+        "delivery": {
+          "type": "boolean"
+        },
+        "finalizationProducer": {
+          "type": "boolean"
+        },
+        "legalClaims": {
+          "type": "boolean"
+        },
+        "nonrepudiation": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        },
+        "signing": {
+          "type": "boolean"
+        },
+        "submission": {
+          "type": "boolean"
+        },
+        "upload": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accounts",
+        "authentication",
+        "cloud",
+        "delivery",
+        "finalizationProducer",
+        "legalClaims",
+        "nonrepudiation",
+        "secondStore",
+        "secondWriter",
+        "signing",
+        "submission",
+        "upload"
+      ],
+      "type": "object"
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20,
+      "minItems": 20,
+      "type": "array"
+    },
+    "inclusionDispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 12,
+      "minItems": 12,
+      "type": "array"
+    },
+    "lifecycleCoverage": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "dimension": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "enrolledBeforeFirstWrite": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dimension",
+          "disposition",
+          "enrolledBeforeFirstWrite"
+        ],
+        "type": "object"
+      },
+      "maxItems": 13,
+      "minItems": 13,
+      "type": "array"
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "accountStore": {
+          "type": "boolean"
+        },
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "cloudStore": {
+          "type": "boolean"
+        },
+        "compatibilityRequired": {
+          "type": "boolean"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "currentProjectionRows": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "deliveryOutbox": {
+          "type": "boolean"
+        },
+        "descriptorEventOnlyPersistence": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportImportPreviewRequired": {
+          "type": "boolean"
+        },
+        "firstWriteEnrolled": {
+          "type": "boolean"
+        },
+        "legacyRowsCreated": {
+          "type": "integer"
+        },
+        "lifecycleOwner": {
+          "type": "string"
+        },
+        "migration": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "predecessorRecordSchemaVersion": {
+          "type": "integer"
+        },
+        "predecessorSchemaVersion": {
+          "type": "integer"
+        },
+        "purposeBinding": {
+          "type": "string"
+        },
+        "recordSchemaVersion": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        },
+        "snapshotBinding": {
+          "type": "string"
+        },
+        "supersessionAndVoid": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountStore",
+        "backupRestoreRequired",
+        "canonicalWriter",
+        "cloudStore",
+        "compatibilityRequired",
+        "currentProjectionRowCount",
+        "currentProjectionRows",
+        "deleteEraseRequired",
+        "deliveryOutbox",
+        "descriptorEventOnlyPersistence",
+        "downgrade",
+        "exportImportPreviewRequired",
+        "firstWriteEnrolled",
+        "legacyRowsCreated",
+        "lifecycleOwner",
+        "migration",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "predecessorRecordSchemaVersion",
+        "predecessorSchemaVersion",
+        "purposeBinding",
+        "recordSchemaVersion",
+        "recordsSchemaVersion",
+        "schemaRelease",
+        "secondStore",
+        "secondWriter",
+        "snapshotBinding",
+        "supersessionAndVoid"
+      ],
+      "type": "object"
+    },
+    "previewPublication": {
+      "additionalProperties": false,
+      "properties": {
+        "defaultDisposition": {
+          "type": "string"
+        },
+        "previewIsZeroWrite": {
+          "type": "boolean"
+        },
+        "publicationCannotRewriteHistory": {
+          "type": "boolean"
+        },
+        "publicationRequiresExactSnapshot": {
+          "type": "boolean"
+        },
+        "publicationRequiresPurpose": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "defaultDisposition",
+        "previewIsZeroWrite",
+        "publicationCannotRewriteHistory",
+        "publicationRequiresExactSnapshot",
+        "publicationRequiresPurpose"
+      ],
+      "type": "object"
+    },
+    "purposeBindingRequired": {
+      "type": "boolean"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "sensitivityClasses": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "snapshotBindingRequired": {
+      "type": "boolean"
+    },
+    "supersessionImmutable": {
+      "type": "boolean"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "visibilityAudiences": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "visibilityRecords": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "allowedAudiences": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "defaultDisposition": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "immutable": {
+                "type": "boolean"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "sensitivity": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "allowedAudiences",
+              "defaultDisposition",
+              "id",
+              "immutable",
+              "revision",
+              "sensitivity",
+              "workspaceID"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "allowedAudiences": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "defaultDisposition": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "immutable": {
+                "type": "boolean"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "sensitivity": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "allowedAudiences",
+              "defaultDisposition",
+              "id",
+              "immutable",
+              "revision",
+              "sensitivity",
+              "workspaceID"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "allowedAudiences": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "defaultDisposition": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "immutable": {
+                "type": "boolean"
+              },
+              "revision": {
+                "type": "integer"
+              },
+              "sensitivity": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "allowedAudiences",
+              "defaultDisposition",
+              "id",
+              "immutable",
+              "revision",
+              "sensitivity",
+              "workspaceID"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "voidImmutable": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "assuranceManifests",
+    "assuranceProjectionPreviews",
+    "attestationMethods",
+    "attestationPurposes",
+    "attestations",
+    "cardID",
+    "claimEvidenceLinks",
+    "claims",
+    "containsCustomerData",
+    "containsSecrets",
+    "currentProjectionPersistence",
+    "currentProjectionRows",
+    "denyByDefault",
+    "forbiddenCapabilities",
+    "hostileCases",
+    "inclusionDispositions",
+    "interruptionCases",
+    "lifecycleCoverage",
+    "persistence",
+    "previewPublication",
+    "purposeBindingRequired",
+    "recoveryCases",
+    "requiredContractNames",
+    "schema",
+    "schemaVersion",
+    "sensitivityClasses",
+    "snapshotBindingRequired",
+    "supersessionImmutable",
+    "synthetic",
+    "visibilityAudiences",
+    "visibilityRecords",
+    "voidImmutable"
+  ],
+  "title": "V23 P03 C13 Evidence Assurance Corpus",
+  "type": "object"
+}

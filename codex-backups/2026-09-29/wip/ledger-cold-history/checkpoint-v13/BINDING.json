@@ -1,0 +1,33 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "status": "immutable intermediate checkpoint, not installable/approval",
+  "beforeSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+  "candidateSHA256": "9e103f62be4aeb15d72c7e822c2c89eb17853c5aa2c9f837fdb2abcac1977723",
+  "diffSHA256": "40c0e8e8aeacd4424027a8ec337ecc76b5a5245b03d3ff6b615fe53cdf1aa833",
+  "patchProof": [
+    {
+      "direction": "forward",
+      "exit": 0,
+      "actualSHA256": "9e103f62be4aeb15d72c7e822c2c89eb17853c5aa2c9f837fdb2abcac1977723",
+      "expectedSHA256": "9e103f62be4aeb15d72c7e822c2c89eb17853c5aa2c9f837fdb2abcac1977723",
+      "exact": true
+    },
+    {
+      "direction": "reverse",
+      "exit": 0,
+      "actualSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+      "expectedSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+      "exact": true
+    }
+  ],
+  "parseOnly": "PARSE_WORKING_V13.json both0, no compile/runtime result",
+  "actualCapturedSlotContract": "7da5496de5321bf772b7cac989df424d24fd584edbb343278899f0d254e95c37",
+  "freshCurrentRecordContract": "e2f4dc2b3267ba1b84733c309cb6cd0552aa1e8ce9a46b836844ba7b11a6a3c1",
+  "limitations": [
+    "Actual central/private Store source/progress/slot/current-state callbacks remain unimplemented coupling.",
+    "Distinct generic DATA sealed-P authority/carry and immutable pair accounting are central/Store/Migration-owned and unfrozen.",
+    "Live root-marker change2470\u20132519 must be exact independently reviewed composition, never guessed merge.",
+    "Root alone compiles/native/CI/reviews/imports; all gates remain due."
+  ]
+}

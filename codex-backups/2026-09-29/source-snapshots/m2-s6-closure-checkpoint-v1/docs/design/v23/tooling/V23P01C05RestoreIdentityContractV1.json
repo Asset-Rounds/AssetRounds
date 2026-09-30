@@ -1,0 +1,544 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "activationPhases": [
+    "intentPrepared",
+    "sourceValidated",
+    "identityPlanFrozen",
+    "generationStaged",
+    "generationValidated",
+    "pointerPublished",
+    "firstLaunchReconciled",
+    "secondLaunchReconciled",
+    "exportReconciled"
+  ],
+  "artifactDigest": "66b20022ef3ab4fa8a734df8bd7d6302d31620b8855f4706a6bb32d0dae7da08",
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "activeS10OverlapCount": 0,
+    "authorityCorrectionReceiptDigest": "5d230487a628b897a939ab82817698b0e757836f99679d5dc9f965874fd4c8da",
+    "baseHead": "8e2536f42e6381412d22de302b013f606c2ec42f",
+    "baseTree": "f5db4dbdb8b393dc35e963ca05bd598a9fccf953",
+    "branch": "phase/v23-expansion",
+    "conformanceSubjectSet": "KernelConformanceSubjectSetV1",
+    "contextDigest": "3c58e2346b8c608c52729580bd867e8c8f329ea19119cb029e9bcff228e34ff5",
+    "coordinationAuthorityHead": "c73c6b05cf1f50e135e265be033fbe9d6a55c8bb",
+    "coordinationCASSequence": 71,
+    "coordinationLedgerDigest": "53bc489b243045d2abc9174e27d490f9324b6ab77b913fd80754e5def1efbda5",
+    "coordinationLedgerSequence": 71,
+    "correctedProjectionDigest": "61bf7e0788893bdc015118a86290e1e8b3d4b3407eb7d00e856582d48e98538e",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C05-G01",
+      "V23-P01-C05-A01",
+      "V23-P01-C05-H01",
+      "V23-P01-C05-I01",
+      "V23-P01-C05-R01"
+    ],
+    "directPrerequisite": "V23-P01-C04",
+    "dossierDigest": "528e5aacfac8fb5f330b31fe6da18188cbf21b730f5d41549f1c222a26b1abc0",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationTransitionDigest": "3c8473e539474d2e23f4932ae81b0f072c9be71b855c81bc5b3dc91bfd38c5d4",
+    "inheritedV21BlockDigest": "451ce63ceafea76f32c23face560273ee75aed24a9d7fda0f9d0c9f613700176",
+    "invalidationConsumer": "V23-P01-C06",
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "ownerParallelOverrideAuthorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "ownerParallelOverrideReason": "OWNER_AUTHORIZED_PRE_S10_6_ORDERED_IMPLEMENTATION_V4",
+    "pathFenceDigest": "d33d9dc7eb467939eb7e682e56dbd0c5b0152f7c140867115bd17bd918d7083a",
+    "priorCoordinationLedgerDigest": "da7699908e225b0f2e6d6c771d8887d9fee7ae797822071f16cea593f54b9e59",
+    "provisionalPrerequisiteDigest": "8d812b35d7d8c0d68148dfebfee38049caae7083db54138763d8430f0f9d1a95",
+    "registerRowDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "supplementalPrerequisiteDigest": "7c3f0c6ee84c789587dc0b24503399b271a09c2df7c954d6137026e86eadf633"
+  },
+  "cardID": "V23-P01-C05",
+  "collisionPolicy": {
+    "identityPlanFrozenBeforeCanonicalWrite": true,
+    "immutableEmbeddedRecordIDsPreserved": true,
+    "rawRecordUUIDRemapping": false,
+    "record": "PRESERVE_RAW_UUID_AND_SCOPE_SEMANTIC_IDENTITY_BY_WORKSPACE_ID",
+    "replica": "REJECT_SOURCE_REUSE_AND_DESTINATION_COLLISION",
+    "retryReusesFrozenIdentityPlan": true,
+    "silentRewrite": false,
+    "workspace": "MODE_BOUND_REJECT_OR_FROZEN_MINT"
+  },
+  "crashRecoveryMatrix": [
+    {
+      "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+      "phase": "intentPrepared",
+      "publicationState": "PRE_PUBLICATION"
+    },
+    {
+      "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+      "phase": "sourceValidated",
+      "publicationState": "PRE_PUBLICATION"
+    },
+    {
+      "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+      "phase": "identityPlanFrozen",
+      "publicationState": "PRE_PUBLICATION"
+    },
+    {
+      "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+      "phase": "generationStaged",
+      "publicationState": "PRE_PUBLICATION"
+    },
+    {
+      "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+      "phase": "generationValidated",
+      "publicationState": "PRE_PUBLICATION"
+    },
+    {
+      "expectedRecovery": "FORWARD_ONLY_RECONCILE_NEVER_REVERSE_MIGRATE",
+      "phase": "pointerPublished",
+      "publicationState": "POST_PUBLICATION"
+    },
+    {
+      "expectedRecovery": "FORWARD_ONLY_RECONCILE_NEVER_REVERSE_MIGRATE",
+      "phase": "firstLaunchReconciled",
+      "publicationState": "POST_PUBLICATION"
+    },
+    {
+      "expectedRecovery": "FORWARD_ONLY_RECONCILE_NEVER_REVERSE_MIGRATE",
+      "phase": "secondLaunchReconciled",
+      "publicationState": "POST_PUBLICATION"
+    },
+    {
+      "expectedRecovery": "FORWARD_ONLY_RECONCILE_NEVER_REVERSE_MIGRATE",
+      "phase": "exportReconciled",
+      "publicationState": "POST_PUBLICATION"
+    }
+  ],
+  "failureRecovery": [
+    {
+      "expectedOutcome": "REJECT_ALL_MODES_BEFORE_ACTIVATION",
+      "failure": "SOURCE_REPLICA_REUSE"
+    },
+    {
+      "expectedOutcome": "REJECT_OR_DETERMINISTICALLY_MINT_PER_MODE",
+      "failure": "WORKSPACE_ID_COLLISION"
+    },
+    {
+      "expectedOutcome": "REJECT_OR_RETRY_FROZEN_DESTINATION_MINT",
+      "failure": "REPLICA_ID_COLLISION"
+    },
+    {
+      "expectedOutcome": "REJECT_SAME_WORKSPACE_COLLISION_ALLOW_RAW_UUID_RESCOPING_BY_DISTINCT_WORKSPACE",
+      "failure": "RECORD_ID_COLLISION"
+    },
+    {
+      "expectedOutcome": "REJECT_BEFORE_STAGING",
+      "failure": "WRONG_RESTORE_MODE"
+    },
+    {
+      "expectedOutcome": "REJECT_WITHOUT_PUBLICATION",
+      "failure": "STALE_POINTER"
+    },
+    {
+      "expectedOutcome": "REJECT_WITHOUT_PUBLICATION",
+      "failure": "STALE_REVISION"
+    },
+    {
+      "expectedOutcome": "DISCARD_PREPUBLICATION_STAGING",
+      "failure": "CANCELLED"
+    },
+    {
+      "expectedOutcome": "DISCARD_PREPUBLICATION_STAGING",
+      "failure": "LOW_STORAGE"
+    },
+    {
+      "expectedOutcome": "REJECT_WITHOUT_MUTATION",
+      "failure": "FUTURE_SCHEMA"
+    },
+    {
+      "expectedOutcome": "REJECT_WITHOUT_MUTATION",
+      "failure": "CORRUPT_MANIFEST"
+    },
+    {
+      "expectedOutcome": "RELAUNCH_DISCARDS_OR_RESUMES_FROZEN_STAGING",
+      "failure": "CRASH_BEFORE_POINTER"
+    },
+    {
+      "expectedOutcome": "RELAUNCH_RECONCILES_ATOMIC_POINTER_V3",
+      "failure": "CRASH_DURING_POINTER"
+    },
+    {
+      "expectedOutcome": "FORWARD_ONLY_RECONCILIATION_NEVER_REVERSE_MIGRATES",
+      "failure": "CRASH_AFTER_POINTER"
+    },
+    {
+      "expectedOutcome": "FAIL_CLOSED_FORWARD_FIX_REQUIRED",
+      "failure": "SECOND_LAUNCH_MISMATCH"
+    },
+    {
+      "expectedOutcome": "FAIL_CLOSED_NO_SUCCESS_RECEIPT",
+      "failure": "EXPORT_RECONCILIATION_MISMATCH"
+    }
+  ],
+  "fullCardFence": [
+    "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+    "FieldEvidenceApp/Domain/Backup/RestoreIntentV1.swift",
+    "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceIdentity.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Restore/V21P01C05IdentityTransformationsV1.json",
+    "Scripts/v23/p01_c05_contracts.py",
+    "Scripts/v23/generate_p01_c05_contracts.py",
+    "Scripts/v23/verify_p01_c05_contracts.py",
+    "Scripts/v23/restore-identity.schema.json",
+    "Scripts/v23/restore-identity-fixture.schema.json",
+    "docs/design/v23/tooling/V23P01C05RestoreIdentityContractV1.json",
+    "docs/design/v23/tooling/V23P01C05IdentityTransformationManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C05-tooling-manifest.json"
+  ],
+  "hostedDispatchRan": false,
+  "identityTable": [
+    {
+      "destinationPrecondition": "NO_CANONICAL_WORKSPACE",
+      "existingDestinationContent": "MUST_BE_EMPTY",
+      "mode": "EMPTY",
+      "recordIDs": "PRESERVE_SOURCE",
+      "replicaID": "MINT_DESTINATION_OWNED",
+      "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+      "sourceWorkspaceLineage": "CONTINUATION_SOURCE_WORKSPACE",
+      "workspaceID": "PRESERVE_SOURCE"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_MATCHED_DESTINATION_AUTHORITY",
+      "existingDestinationContent": "REPLACE_UNDER_DELETION_WINS",
+      "mode": "REPLACE",
+      "recordIDs": "PRESERVE_SOURCE_REPLACEMENT_UNION",
+      "replicaID": "RETAIN_DESTINATION_OR_MINT_IF_ABSENT",
+      "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+      "sourceWorkspaceLineage": "SOURCE_ARCHIVE_PROVENANCE_ONLY",
+      "workspaceID": "PRESERVE_DESTINATION"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_CLONE_AUTHORIZATION",
+      "existingDestinationContent": "NEW_GENERATION_ONLY",
+      "mode": "CLONE",
+      "recordIDs": "PRESERVE_SOURCE",
+      "replicaID": "MINT_DESTINATION_OWNED",
+      "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+      "sourceWorkspaceLineage": "SOURCE_ARCHIVE_PROVENANCE_ONLY",
+      "workspaceID": "MINT_DESTINATION_OWNED"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_FORK_AUTHORIZATION",
+      "existingDestinationContent": "NEW_GENERATION_ONLY",
+      "mode": "FORK",
+      "recordIDs": "PRESERVE_RAW_UUID_RESCOPED_BY_NEW_WORKSPACE",
+      "replicaID": "MINT_DESTINATION_OWNED",
+      "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+      "sourceWorkspaceLineage": "REQUIRED_EXPLICIT_SOURCE_WORKSPACE_LINEAGE",
+      "workspaceID": "MINT_DESTINATION_OWNED"
+    }
+  ],
+  "lifecycle": {
+    "backupCompatibilityRequired": true,
+    "cloneForkRequired": true,
+    "deleteErase": "DELETION_WINS_PRESERVED",
+    "downgradePolicy": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION",
+    "importExportRequired": true,
+    "interruption": "DISCARD_BEFORE_PUBLICATION_FORWARD_FIX_AFTER",
+    "journalReplay": "RESTORE_INTENT_V2_PHASE_BOUND",
+    "migrationRequired": false,
+    "mode": "CONTENT_ONLY",
+    "recovery": "ATOMIC_POINTER_V3_RELAUNCH_RECONCILIATION",
+    "replaceRestoreRequired": true,
+    "retention": "SOURCE_GENERATION_IMMUTABLE",
+    "schemaDelta": false,
+    "searchRebuild": "RECONCILE_AFTER_POINTER_PUBLICATION",
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_ARTIFACT"
+  },
+  "nativeCompileRan": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "protocolVersions": {
+    "backupManifestReaders": [
+      1,
+      2
+    ],
+    "backupManifestWriter": 2,
+    "currentGenerationPointerReaders": [
+      2,
+      3
+    ],
+    "currentGenerationPointerWriter": 3,
+    "legacyManifestV1Retained": true,
+    "restoreIntentReaders": [
+      1,
+      2
+    ],
+    "restoreIntentWriter": 2,
+    "unknownVersionDisposition": "FAIL_CLOSED"
+  },
+  "reconciliation": {
+    "export": "MANIFEST_V2_SOURCE_IDENTITY_MATCHES_ACTIVE_POINTER_V3",
+    "mismatchDisposition": "FAIL_CLOSED_FORWARD_FIX_REQUIRED_NO_SUCCESS_RECEIPT",
+    "relaunch": "INTENT_POINTER_AND_GENERATION_IDENTITY_EXACT",
+    "secondLaunch": "NO_PENDING_INTENT_ACTIVE_POINTER_V3_IDENTICAL"
+  },
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C05RestoreIdentityContractV1",
+  "schemaVersion": 1,
+  "sourceBindings": [
+    {
+      "bytes": 9476,
+      "path": "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+      "requiredSymbols": [
+        "BackupRestoreMode",
+        "RestoreIdentityDecisionV1",
+        "sourceReplicaReuse",
+        "knownReplicaIDs",
+        "recordDisposition = .preserve",
+        "case .emptyInstall",
+        "case .replaceExisting",
+        "case .clone",
+        "case .fork"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "a18c9d24c6be9c5d65b3c9699a3af8bded5e93823c093cf300dc0632b80e7cfd",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 15347,
+      "path": "FieldEvidenceApp/Domain/Backup/RestoreIntentV1.swift",
+      "requiredSymbols": [
+        "RestoreIntentV1",
+        "schemaVersion = 2",
+        "case 1:",
+        "case 2:",
+        "isSuperset(",
+        "identity"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "7ad9f4f3c0e42bbbc166376312873bf2351ffdeb359522d78eefefdd628f97d9",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 5599,
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+      "requiredSymbols": [
+        "V4BackupManifestV1",
+        "backupSchemaVersion",
+        "replicaID"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "bbc76f88f205334f1b3e2e13e01c1f27766b31fded6a9d723234f82975d053d6",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 17085,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+      "requiredSymbols": [
+        "BackupCanonicalEncoderV1",
+        "encodeManifest",
+        "case (1, nil, nil)",
+        "case (2, let workspaceID?, let replicaID?)"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "39e822a5d2b26942ffbdbbfa09eb7132e77b0822d2060039d77a7df3ed659149",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 78502,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "requiredSymbols": [
+        "BackupExportService",
+        "backupSchemaVersion: 2",
+        "replicaID: sourceIdentity.replicaID.rawValue"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "8faf84afde0593ac140405127df8dd981f44d3effa69d027e15a86a1e0a4bf1d",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 50660,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "requiredSymbols": [
+        "BackupImportService",
+        "stageAndValidate",
+        "validateManifestBounds",
+        "let zero = UUID",
+        "workspaceID != zero",
+        "replicaID != zero",
+        "case (1, nil, nil)",
+        "case (2, let workspaceID?, let replicaID?)"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "b73cf0cfa9c1bfced88ea0a510a3b01cb8b4ee3bb32f6bb43cd063f73db74553",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 71466,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "requiredSymbols": [
+        "BackupPackageValidatorV1",
+        "ValidatedV4BackupPackageV1",
+        "let zero = UUID",
+        "workspaceID != zero",
+        "replicaID != zero",
+        "case (1, nil, nil)",
+        "case (2, let workspaceID?, let replicaID?)"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "38698b96d7adfe9a05c2d93aeffb7dd3dbf36d279e75d2839ce7b2e402e35aa1",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 106029,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "requiredSymbols": [
+        "BackupRestoreService",
+        "func restore(",
+        "RestoreIdentityDecisionV1.decide",
+        "currentGenerationPointerV3",
+        "prepareRestoreStagingGenerationManifest",
+        "requireInstalledRestoreGenerationSnapshot",
+        "removePreparedRestoreGenerationManifestBeforeDiscard",
+        "prepareStreaming()",
+        "unavailableWorkspaces.formUnion",
+        "unavailableReplicas.formUnion",
+        "destinationWorkspaceID",
+        "destinationOwnedForRestore",
+        "for _ in 0..<16",
+        "reconcileAtStartup"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "a532e4a8728d9ea8f4f3d0ec134b3df9e383ef36db3daf3d7da5ed69f053bf6d",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 21625,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift",
+      "requiredSymbols": [
+        "RestoreIntentStore",
+        "RestoreIntentCodecV1",
+        "func load()",
+        "func create("
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "080498db202a9c90c14632581b721a8bed71fec504d2801c678f1f1b9e72bd1f",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 3944,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceIdentity.swift",
+      "requiredSymbols": [
+        "WorkspaceID",
+        "ReplicaID",
+        "WorkspaceIdentity"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "173dcaaf9d4a478031f08fa8eff63f53e6321b8b9e4e4c56921c7cee24144e63",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 27892,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+      "requiredSymbols": [
+        "CurrentGenerationPointerV3",
+        "knownReplicaIDs",
+        "decodeCanonical"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "2cd6caa96247db32916392573ed44e1bca6d0f26c531004bb114db03d75d3919",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 239111,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "requiredSymbols": [
+        "StoreGenerationFactory",
+        "CurrentGenerationPointerV3",
+        "makeRestoreCurrentPointerV3",
+        "switchCurrentGeneration"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "d65fd4e4c0464982524b8949a066f49a206a10d9c0b6c072d6ac0ab77174ad63",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 930,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "requiredSymbols": [
+        "StoreSessionCoordinator",
+        "workspaceID",
+        "replicaID"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "95875cc92498c77426450fabb40b4c0eeb9e295c8c65c1ca97e1f819fed0d397",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 31315,
+      "path": "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift",
+      "requiredSymbols": [
+        "V9_05RestoreIdentityTests",
+        "test"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "399ab1ab14fbc5c57f6484ae61ab72e6e26ed7aa6728c572c09b79bff47c0139",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 21298,
+      "path": "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+      "requiredSymbols": [
+        "V9_01VersionedSchemaIdentityTests",
+        "WorkspaceID",
+        "ReplicaID"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "5afe89f70af70f899c7a55cbb7badbdd389b6b07a1872ab7d476a37e58376b0e",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 34165,
+      "path": "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+      "requiredSymbols": [
+        "V9_03MigrationRecoveryTests",
+        "CurrentGenerationPointer"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "e1ee04b3a5e1220d38c23b775edbf45d46d74a9020e05b3f89071b6f77f112c3",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 2838,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Restore/V21P01C05IdentityTransformationsV1.json",
+      "requiredSymbols": [
+        "\"schemaVersion\"",
+        "\"cases\""
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "18f14d34d9482519eb17bbd539cc73f89412c60538cb478a0596747e516a043a",
+      "status": "BOUND"
+    }
+  ],
+  "sourceReplicaPolicy": {
+    "archiveFieldRequiredInManifestV2": true,
+    "destinationReplicaAuthority": "DEVICE_LOCAL_DESTINATION_OWNED",
+    "manifestV1Disposition": "EXPLICIT_LEGACY_UNKNOWN_PROVENANCE",
+    "mayBecomeDestinationActiveReplica": false,
+    "rejectReuseAcrossModes": [
+      "EMPTY",
+      "REPLACE",
+      "CLONE",
+      "FORK"
+    ]
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "schema": "V22P03C29PlanRebaseCorpusV1",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V22Plans", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C29",
+  "persistentSchemaVersion": 28,
+  "recordsSchemaVersion": 27,
+  "persistentKindLifecycleModelCount": 100,
+  "durableFamilyCount": 4,
+  "durableFamilies": [
+    "PlanDocumentV1",
+    "PlanRevisionV1",
+    "PlanPlacementV1",
+    "RebaseReceiptV1"
+  ],
+  "requiredContractNames": [
+    "PlanDocumentV1",
+    "PlanRevisionV1",
+    "SpatialReferenceFrameV1",
+    "PlanPlacementV1",
+    "PlanRebaseComponentV1",
+    "PlanRebaseComponentRegistryV1",
+    "PlanRebaseCoordinatorV1",
+    "RebasePreviewV1",
+    "RebaseReceiptV1"
+  ],
+  "rebaseOutcomes": [
+    "UNCHANGED",
+    "TRANSFORMED",
+    "OUT_OF_BOUNDS",
+    "ORPHANED",
+    "RESIDUAL_WARNING",
+    "REVIEW_REQUIRED",
+    "APPROVED",
+    "REJECTED"
+  ],
+  "evidenceSelectors": [
+    "testV23P03C29G01ImmutableRevisionAndNormalizedPlacementProduceOneDeterministicRebaseReceipt",
+    "testV23P03C29A01MissingUnsupportedOrInaccessiblePlanPreservesCompleteManualFallback",
+    "testV23P03C29H01CorruptHugeInvalidBoundsAndRegistryForksFailClosedWithoutPartialActivation",
+    "testV23P03C29I01InterruptedApprovalExposesOldSetOrOneSealedNewSet",
+    "testV23P03C29R01RestorePreservesOriginalRevisionHistoricReportAndOfflineReadiness"
+  ],
+  "coverage": {
+    "versionedOfflinePlanIdentity": true,
+    "normalizedCoordinatePlacement": true,
+    "referenceFrameBinding": true,
+    "contentAndLocatorPrerequisites": true,
+    "componentRegistryDeterminism": true,
+    "deterministicPreview": true,
+    "manualFallback": true,
+    "applyReceiptExactness": true,
+    "idempotentRecovery": true,
+    "backupRestoreCloneFork": true,
+    "deleteErase": true,
+    "searchReportLocalizationAccessibility": true
+  },
+  "hostileVectors": [
+    "negativeOrOverflowNormalizedCoordinate",
+    "invalidAffineTransform",
+    "duplicatePlacement",
+    "duplicateRegistryOrdinal",
+    "foreignWorkspacePlacement",
+    "forgedPreviewRegistryVersion",
+    "conflictingComponentContribution",
+    "staleMissingAmbiguousPrerequisite",
+    "receiptForkOrCycle",
+    "partialActivation"
+  ],
+  "interruptionBoundaries": [
+    "beforePreview",
+    "afterPreviewBeforeApproval",
+    "effectBeforeReceipt",
+    "receiptBeforeFinalState",
+    "restoreBeforeRebuild",
+    "replayBeforeCommit"
+  ],
+  "historicSemantics": {
+    "immutableOriginalRevision": true,
+    "historicReportBytesRemainStable": true,
+    "offlineReadinessUsesRecordedRelease": true,
+    "silentPinRecalculation": false,
+    "secondByteStore": false
+  },
+  "c37PoseRebaseClosure": {
+    "poseEventType": "AssetPoseEventV1",
+    "anchorObservationType": "SpatialAnchorObservationV1",
+    "locationPathSnapshotType": "LocationPathSnapshotV1",
+    "rebaseComponentType": "PoseFrameRebaseComponentV1",
+    "rebasePolicyType": "PoseFrameRebasePolicyV1",
+    "referenceFrameType": "PlanRelativePoseFrameBindingV1",
+    "derivedSource": "PLACEMENT_CARRY_FORWARD",
+    "derivedActorResponsibility": "RECORDED_BY",
+    "directActorResponsibility": "OBSERVED_BY",
+    "closureAssertions": {
+      "planRevisionAndTransformRemainDigestBound": true,
+      "locationPathSnapshotIsRequiredOnPoseEvent": true,
+      "poseSuccessorPreservesRootObservation": true,
+      "poseAndAnchorHistoriesRejectForks": true,
+      "nonUniformShearAndSingularTransformsAreNotPromoted": true,
+      "rebasePreviewDoesNotMutateDraftOrPoseHistory": true,
+      "historicPlanAndPoseBytesRemainReadable": true
+    }
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "c30EvidenceContextCompatibility": {
+    "persistentSchemaVersion": 30,
+    "recordsSchemaVersion": 29,
+    "durableFamilies": ["EvidenceContextV1", "PairedObservationLinkV1"],
+    "providerFreeSolar": true,
+    "pairMismatchReasonCount": 8
+  },
+  "c31LightingPackageCompatibility": {
+    "compatibilityCardID": "V23-P03-C31",
+    "persistentSchemaVersion": 31,
+    "recordsSchemaVersion": 30,
+    "durableFamilies": ["LightingSystemV1", "LightingObservationV1", "LightingIssueV1", "MeasurementPlanV1", "LightingClaimStateV1"],
+    "claimTierCount": 5,
+    "hostileCaseCount": 45,
+    "photoExifNeverMeasurement": true,
+    "exactFootcandleLuxConversion": "10.76391",
+    "sharedSupportNoClones": true,
+    "safetyStopKinds": ["ELECTRICAL", "TRAFFIC"]
+  },
+  "c32AssistanceProposalCompatibility": {
+    "compatibilityCardID": "V23-P03-C32",
+    "proposalLifecycle": "NONPERSISTENT",
+    "acceptanceReceiptPersistentSchemaVersion": 32,
+    "planOrDefinitionChangeExpiresProposal": true,
+    "proposalNeverRebasesOrMutatesPlan": true,
+    "manualPlanPathRemainsEquivalent": true
+  },
+  "c33TemporalEvidenceCompatibility": {
+    "compatibilityCardID": "V23-P03-C33",
+    "clipAndAnchorPersistentSchemaVersion": 33,
+    "planRebaseNeverRewritesImmutableOriginal": true,
+    "anchorKeepsExactClipRevisionAndDigest": true,
+    "stalePlanOrSessionRevisionFailsClosed": true
+  },
+  "c45AssetLabelCompatibility": {
+    "compatibilityCardID": "V23-P03-C45",
+    "soleLocatorAuthorityCardID": "V23-P03-C27",
+    "soleRendererAuthorityCardID": "V23-P03-C24",
+    "acceptedSnapshotsAreCanonical": true,
+    "unacceptedPlansAndResultsAreLeasedScratch": true,
+    "outputReceiptDoesNotClaimExternalPossession": true,
+    "physicalPrintScanEvidenceOwnerPending": true
+  },
+  "c46OperationalContactCompatibility": {
+    "compatibilityCardID": "V23-P03-C46",
+    "operationalContactsArePurposeSeparated": true,
+    "siteRoleOwnershipForbidden": true,
+    "subscriberConsentCampaignAndMeasurementProjectionForbidden": true,
+    "systemHandoffsAreExplicitEphemeralAndNoncanonical": true,
+    "contactExportIsExcludedByDefault": true,
+    "importedSourceBytesRemainLeasedScratch": true
+  }
+}

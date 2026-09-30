@@ -1,0 +1,12 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "status": "EXACT_DATA_AND_FIXED_QUERY_ABI_NONINSTALLABLE",
+  "rootDirection": "349fbc7147135ee00e9ce63264c1705e9baf68b2c6e43ea8567b9d6ac62af9b7",
+  "files": {
+    "FACTORY_LOAN_ABI_V12.md": "0f8b2180eff07915c4d70774a9736c3a9a67027498c1459fccc286bcaef87f05",
+    "ROUTER_REAL_TARGET_PRODUCER_SCOPE_V12.swift.fragment": "462de0dd913db651f4aba1a45e226207db73348c54801c09d42eabb8f43b76d5",
+    "SEMANTIC_TARGET_FIXED_DATA_V12.swift.fragment": "65f70b79427c8db8c745d0c0260843237f7cd35bfd71774694341f2ccbd8d5af",
+    "SERVICE_FIXED_GRAPH_FRAME_V12.swift.fragment": "8e13687a5288b449d7b05a607c7a8c46f5c6f34a9a4a3f2e1b633cef36bf4c92"
+  }
+}

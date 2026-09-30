@@ -1,0 +1,416 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactCount": 36,
+  "artifactDigest": "5d6e694d05ed4922e70fe20d0516bf290cee17b40d09d1c095d204614a7959b5",
+  "artifactSetDigest": "3afbc9b7d9a477b5362c112d3b48f6c7bc7f39353fbc39dc5f21764133f0fc32",
+  "artifacts": [
+    {
+      "bytes": 1121,
+      "path": "FieldEvidenceApp/Application/Ports/DeterministicAsyncPorts.swift",
+      "sha256": "b5d2ac7f26fdd1b7fb243bc8c58c693f7ff71d55122a191d3b1d53931e78b8cc"
+    },
+    {
+      "bytes": 71082,
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "sha256": "1a048ada29789240ab0d5dfa42de912a48ac308394fd18d9e5a75fdfa83be14f"
+    },
+    {
+      "bytes": 90933,
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+      "sha256": "312265f809cc4f848262b8e2f39906afa06e2672b42dce78c7bf4f0194a1eeb5"
+    },
+    {
+      "bytes": 10772,
+      "path": "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+      "sha256": "2371483a4ebf79c20687c0ed5b32698986a20d0194bb47e8cd0d032f83c40ac6"
+    },
+    {
+      "bytes": 20162,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
+      "sha256": "f8be8f17a6dfe062ee5c1e6b374ce5b6eced995c01aa8517fd7545abeb413adb"
+    },
+    {
+      "bytes": 30003,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+      "sha256": "77869412033327591e8f38a32d47d2bbca392c12212cf006e7a2e5bf36e71fd9"
+    },
+    {
+      "bytes": 47318,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+      "sha256": "9aa15d53c56b49eefa48b0cec2251e23db06523fd03415b99d203a82d2edcf2e"
+    },
+    {
+      "bytes": 49313,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+      "sha256": "b0b3619f49e8f3d2084563a1eeeced1ccfe96234bd15cf578dbfcfe8a7d09bd3"
+    },
+    {
+      "bytes": 27837,
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+      "sha256": "40c2c71ed4dcfe59c1c273dc6b84f4dc5b93bbcde55e159f87cca8104d4d1053"
+    },
+    {
+      "bytes": 3783,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+      "sha256": "1d576dd3fde89195de8e4d3fe0e215e3b43045400ff90728f683ffa220fb68dc"
+    },
+    {
+      "bytes": 25431,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+      "sha256": "887ff764883906c88861379ea13b1a7cf51d17d2107e3b0e2c5876c06eb27efb"
+    },
+    {
+      "bytes": 83597,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "sha256": "83f076d5324873e3e56205468c174e3dd394e04cd70111ae3f5e3f1d4deb38a1"
+    },
+    {
+      "bytes": 53353,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "sha256": "8748e278a240eb4029dd6252d6abc24a443e4d922ec308acc948e0e104bd45e3"
+    },
+    {
+      "bytes": 75895,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "sha256": "98b180c8d5855e4e5b608c6b869ff669f0beaf127c9f9c6641423b3aa6a7be39"
+    },
+    {
+      "bytes": 119056,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "sha256": "cf5e44c073106b538c7edade2f065e57b94a20fe2fa95a0b612673c67ef479a3"
+    },
+    {
+      "bytes": 58959,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift",
+      "sha256": "f4b069c1176942c9b425b0077b85cfa0086345ada06d712fbd6c8455981df60a"
+    },
+    {
+      "bytes": 2407,
+      "path": "FieldEvidenceAppTests/V23_P00_C11MailComposerConcurrencyTests.swift",
+      "sha256": "741d5fd361578fe832ce3041c8fc46e4449e7f6622a34f3544ff2542f90b3dd6"
+    },
+    {
+      "bytes": 4900,
+      "path": "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+      "sha256": "be6bd9d562bffdab742cbe3114c2e55850ef0d29ce8d0d6e6c652b9545e0bfe3"
+    },
+    {
+      "bytes": 15858,
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+      "sha256": "3f54137050a2c4bb89be177c4418af9d0d613e7c573bb77d87209488a0c17618"
+    },
+    {
+      "bytes": 4559,
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreSchemaV1.swift",
+      "sha256": "cf0da9e4b3297502715bc2e3294c7a33145402d1b55fa979b97bb1f42cf2d391"
+    },
+    {
+      "bytes": 33565,
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+      "sha256": "f05a8010132515f2aab59c4da56fbb33df4c01d4bef8c386fd4c8e8557229e49"
+    },
+    {
+      "bytes": 35950,
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+      "sha256": "c2926553d7bfa0cb7ba34974ba27920fe1a8f09f8bf4ab71264740514406c581"
+    },
+    {
+      "bytes": 3954,
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/JobScaleBudgetPolicyV1.swift",
+      "sha256": "983ce950af6eb622028304d4d15cd40b206250ed93cb91175b035d40da767354"
+    },
+    {
+      "bytes": 53793,
+      "path": "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift",
+      "sha256": "b1380c9d9650ab8d3a283014bfd2460eccfbc1ec525c2b33e6a83f9c1923fa0e"
+    },
+    {
+      "bytes": 2098,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Concurrency/V21P02C05ConcurrencyScaleCorpusV1.json",
+      "sha256": "77dc3eda4315030e60e6c80535efd24d24d6e14f0ac0bf2eb1836e2a937adcf2"
+    },
+    {
+      "bytes": 49035,
+      "path": "Scripts/v23/p02_c05_contracts.py",
+      "sha256": "9ba95771629d6adbc54dbd2802a890556e69bee5c81edc1fb0e309b7764768cd"
+    },
+    {
+      "bytes": 1573,
+      "path": "Scripts/v23/generate_p02_c05_contracts.py",
+      "sha256": "e82427ab323d9423aec7d05a78d1c248f2c8ebc5dff6d03ae1668140e4ad24d4"
+    },
+    {
+      "bytes": 38414,
+      "path": "Scripts/v23/verify_p02_c05_contracts.py",
+      "sha256": "6127645fc3b37172050760d5bc25512c08256d461814796c1ce9c4ef3cc04854"
+    },
+    {
+      "bytes": 63023,
+      "path": "Scripts/v23/resumable-local-job.schema.json",
+      "sha256": "6137a10935f35136ac67dba52f4ddd47eed588b7953014f819ca36ec308cba49"
+    },
+    {
+      "bytes": 46629,
+      "path": "Scripts/v23/local-job-store.schema.json",
+      "sha256": "fb742a5fb67a01d124a62a075645904826c82f4cf1389f940cc96d7d46c97ea8"
+    },
+    {
+      "bytes": 25220,
+      "path": "Scripts/v23/concurrency-scale-budget.schema.json",
+      "sha256": "eb7ab8e1f5113e1970982d76c87b462099baba9c9a59c659def05925b4978a0a"
+    },
+    {
+      "bytes": 27912,
+      "path": "Scripts/v23/concurrency-scale-corpus.schema.json",
+      "sha256": "92330d1a0722037eed9276dcce2e6ec3bbcb59bd8790404e82681135c1fcf21d"
+    },
+    {
+      "bytes": 21360,
+      "path": "docs/design/v23/tooling/V23P02C05ResumableLocalJobContractV1.json",
+      "sha256": "ba276387f30b4e21e9d7cf27c217c3c0bb7e1853807c38251da74e8c011a3f09"
+    },
+    {
+      "bytes": 15561,
+      "path": "docs/design/v23/tooling/V23P02C05LocalJobStoreLifecycleContractV1.json",
+      "sha256": "f2cdb43868e2390167032aadd38d9cc093c0bc67e16cc51a95958c2e8db487b7"
+    },
+    {
+      "bytes": 8661,
+      "path": "docs/design/v23/tooling/V23P02C05ConcurrencyScaleBudgetPolicyV1.json",
+      "sha256": "2b3c19e0cb5a2281e511277477f144b451997d0dc1500024586001a9e6bc4740"
+    },
+    {
+      "bytes": 9564,
+      "path": "docs/design/v23/tooling/V23P02C05ConcurrencyScaleCorpusManifestV1.json",
+      "sha256": "2794d09acbe00850d4439dc0a218163d0f2e7eebc8bff3d86e92898eefacdd53"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "a6742867a235ad7cc4e4bc07f2b650cca82434cd",
+    "appBaseTree": "fc0d86d8d02fc463621540637321d4645ad727f8",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C05",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "625a596b0bd0f67c4ca83befe0b05309f35535c9db70584ff9bef3df87bdacaa",
+    "coordinationAuthorityHead": "a02692c9f20c6fe4944c7771dde6dd9bdcd51a71",
+    "coordinationAuthorityTree": "f326ad839c04b312bb07cbdba17953c6a10237f6",
+    "coordinationCASSequence": 101,
+    "coordinationLedgerDigest": "1cd7e2f90d12258b9e079c650d40d4ce4cee1f22a6b28970167883a26f6d3916",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C05-G01",
+      "V23-P02-C05-A01",
+      "V23-P02-C05-H01",
+      "V23-P02-C05-I01",
+      "V23-P02-C05-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P00-C08",
+      "V23-P02-C04"
+    ],
+    "dossierDigest": "ec42ff8d9671a79c44c9d20d861958771689e6b391e00de2d6527dac31e206fe",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "65d096f19e97ee8b8bdc52a297d58510a57397b952ec9da02432b23ba9145fb2",
+    "hydrationTransitionDigest": "620971c0df32ad82017122d3c81a73f2edec048196412a4454ad8be2a3f6e5d1",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "2d967b801e515707b91344039ceb22c2dad717847cb297f05b4fddb510e6989b",
+    "invalidationConsumers": [
+      "V23-P02-C06"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C05",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "336ad660a86cb30e4ea70ae99ca157f3dbaac1f89dd3011d0f37dd61926a73ac",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "9da050851718d6877bb678614f014e657e60868fa9160a62a3a5778da7776d1b",
+    "registerOrdinal": 25,
+    "registerRowDigest": "59877398b77b4aefa0bd64678165c52939906eb97bc82e0f9288704366f8f283",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Off-main resumable local jobs, cancellation, concurrency, and scale budgets"
+  },
+  "cardID": "V23-P02-C05",
+  "evidenceIDs": [
+    "V23-P02-C05-G01",
+    "V23-P02-C05-A01",
+    "V23-P02-C05-H01",
+    "V23-P02-C05-I01",
+    "V23-P02-C05-R01"
+  ],
+  "existingPaths": [
+    "FieldEvidenceApp/Application/Ports/DeterministicAsyncPorts.swift",
+    "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift",
+    "FieldEvidenceAppTests/V23_P00_C11MailComposerConcurrencyTests.swift"
+  ],
+  "fenceProof": {
+    "allowedDeletePaths": [],
+    "allowedRenamePaths": [],
+    "authorizedPriorFenceOverlapCount": 42,
+    "baseHead": "a6742867a235ad7cc4e4bc07f2b650cca82434cd",
+    "baseTree": "fc0d86d8d02fc463621540637321d4645ad727f8",
+    "pathFenceDigest": "336ad660a86cb30e4ea70ae99ca157f3dbaac1f89dd3011d0f37dd61926a73ac",
+    "priorFenceOverlapCount": 42,
+    "unauthorizedPriorFenceOverlapCount": 0
+  },
+  "generatedPaths": [
+    "Scripts/v23/resumable-local-job.schema.json",
+    "Scripts/v23/local-job-store.schema.json",
+    "Scripts/v23/concurrency-scale-budget.schema.json",
+    "Scripts/v23/concurrency-scale-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C05ResumableLocalJobContractV1.json",
+    "docs/design/v23/tooling/V23P02C05LocalJobStoreLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C05ConcurrencyScaleBudgetPolicyV1.json",
+    "docs/design/v23/tooling/V23P02C05ConcurrencyScaleCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C05-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230205,
+    "version": "p02-c05-contracts-v1"
+  },
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "newPaths": [
+    "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreSchemaV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/JobScaleBudgetPolicyV1.swift",
+    "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Concurrency/V21P02C05ConcurrencyScaleCorpusV1.json",
+    "Scripts/v23/p02_c05_contracts.py",
+    "Scripts/v23/generate_p02_c05_contracts.py",
+    "Scripts/v23/verify_p02_c05_contracts.py",
+    "Scripts/v23/resumable-local-job.schema.json",
+    "Scripts/v23/local-job-store.schema.json",
+    "Scripts/v23/concurrency-scale-budget.schema.json",
+    "Scripts/v23/concurrency-scale-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C05ResumableLocalJobContractV1.json",
+    "docs/design/v23/tooling/V23P02C05LocalJobStoreLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C05ConcurrencyScaleBudgetPolicyV1.json",
+    "docs/design/v23/tooling/V23P02C05ConcurrencyScaleCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C05-tooling-manifest.json"
+  ],
+  "pathFence": [
+    "FieldEvidenceApp/Application/Ports/DeterministicAsyncPorts.swift",
+    "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift",
+    "FieldEvidenceAppTests/V23_P00_C11MailComposerConcurrencyTests.swift",
+    "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreSchemaV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/JobScaleBudgetPolicyV1.swift",
+    "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Concurrency/V21P02C05ConcurrencyScaleCorpusV1.json",
+    "Scripts/v23/p02_c05_contracts.py",
+    "Scripts/v23/generate_p02_c05_contracts.py",
+    "Scripts/v23/verify_p02_c05_contracts.py",
+    "Scripts/v23/resumable-local-job.schema.json",
+    "Scripts/v23/local-job-store.schema.json",
+    "Scripts/v23/concurrency-scale-budget.schema.json",
+    "Scripts/v23/concurrency-scale-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C05ResumableLocalJobContractV1.json",
+    "docs/design/v23/tooling/V23P02C05LocalJobStoreLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C05ConcurrencyScaleBudgetPolicyV1.json",
+    "docs/design/v23/tooling/V23P02C05ConcurrencyScaleCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C05-tooling-manifest.json"
+  ],
+  "pathFenceCount": 37,
+  "persistentSchemaActivatedByTooling": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23-P02-C05-tooling-manifest",
+  "schemaVersion": 1,
+  "sourcePathCount": 25,
+  "sourcePaths": [
+    "FieldEvidenceApp/Application/Ports/DeterministicAsyncPorts.swift",
+    "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportHistoryCoordinator.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/SnapshotValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/WorklightPDFRendererV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift",
+    "FieldEvidenceAppTests/V23_P00_C11MailComposerConcurrencyTests.swift",
+    "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreSchemaV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/JobScaleBudgetPolicyV1.swift",
+    "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Concurrency/V21P02C05ConcurrencyScaleCorpusV1.json"
+  ],
+  "toolingPathCount": 12,
+  "toolingPaths": [
+    "Scripts/v23/p02_c05_contracts.py",
+    "Scripts/v23/generate_p02_c05_contracts.py",
+    "Scripts/v23/verify_p02_c05_contracts.py",
+    "Scripts/v23/resumable-local-job.schema.json",
+    "Scripts/v23/local-job-store.schema.json",
+    "Scripts/v23/concurrency-scale-budget.schema.json",
+    "Scripts/v23/concurrency-scale-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C05ResumableLocalJobContractV1.json",
+    "docs/design/v23/tooling/V23P02C05LocalJobStoreLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C05ConcurrencyScaleBudgetPolicyV1.json",
+    "docs/design/v23/tooling/V23P02C05ConcurrencyScaleCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C05-tooling-manifest.json"
+  ]
+}

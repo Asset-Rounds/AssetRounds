@@ -1,0 +1,137 @@
+    private struct OriginalEraseC16InitialPairPolicyV1 {
+        let pair: OriginalEraseC16InitialPairV1
+        let observations: [TemporalPolicyObservationV1]
+    }
+    @MainActor private var originalEraseC16BootstrapPermit: EraseSchema2ColdScratchBootstrapPermitV1?
+    private var originalEraseC16InitialPartials: [OriginalEraseC16StepV1] = []
+    private var originalEraseC16InitialPairPolicies: [String: OriginalEraseC16InitialPairPolicyV1] = [:]
+    @MainActor private var originalEraseC16InitialScope: OriginalEraseC16InitialObservationScopeV1?
+    @MainActor private static var retainedFailedC16InitialScopes: [OriginalEraseC16InitialObservationScopeV1] = []
+
+    @MainActor func originalEraseC16InitialObservationScope() throws -> OriginalEraseC16InitialObservationScopeV1 {
+        try requireScratchDescriptorAccess()
+        guard originalEraseC16InitialSourceProof, originalEraseC16ReferencePlan == nil,
+              let scope = originalEraseC16InitialScope else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        try scope.requireCurrentBinding(); return scope
+    }
+
+    @MainActor private func issueOriginalEraseC16InitialPairs(
+        permit: EraseSchema2ColdScratchBootstrapPermitV1,
+        firstPPartials: [OriginalEraseC16StepV1]
+    ) throws {
+        try requireScratchDescriptorAccess()
+        guard originalEraseC16ReferencePlan == nil, originalEraseC16InitialSourceProof,
+              let operationID = originalEraseOperationID, firstPPartials.count <= 100_000 else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        let token = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+        var pairs: [OriginalEraseC16InitialPairV1] = []
+        for (index, step) in firstPPartials.enumerated() {
+            guard case let .settleFirstPPartial(location, name, device, inode, byteCount) = step else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            let prefix: String, parentURL: URL, parent: Int32, needsClose: Bool
+            switch location {
+            case .control:
+                prefix = "ProtectedIngressReceiptsV1/"; parentURL = try protectedIngressReceiptDirectory()
+                parent = try ingressControlDescriptor(); needsClose = false
+            case let .lease(lease):
+                prefix = "ScratchDataV1/" + lease + "/"; parentURL = rootURL.appendingPathComponent(lease)
+                parent = try openLeaseDirectory(lease); needsClose = true
+            }
+            guard let originalPartial = try permit.originalPPhysicalFact(path: prefix + name) else {
+                if needsClose { try closeObservedScratchDescriptor(parent) }
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            var initialFacts: [String: String] = [:]
+            let namesResult = Result { try directoryNames(parent) }
+            let names: [String]
+            do { names = try namesResult.get() }
+            catch { if needsClose { try closeObservedScratchDescriptor(parent) }; throw error }
+            guard names.count <= 100_000 else {
+                if needsClose { try closeObservedScratchDescriptor(parent) }; throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+            }
+            do {
+                for child in names {
+                    guard let fact = try permit.originalPPhysicalFact(path: prefix + child) else {
+                        throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                    }
+                    initialFacts[child] = fact
+                }
+            } catch { if needsClose { try closeObservedScratchDescriptor(parent) }; throw error }
+            let inspect = { (parent: Int32) throws -> (String, String, String)? in
+                try self.requireScratchDescriptorAccess()
+                var partial = stat()
+                guard Darwin.fstatat(parent, name, &partial, AT_SYMLINK_NOFOLLOW) == 0,
+                      partial.st_mode & S_IFMT == S_IFREG,
+                      Self.originalEraseC16NineFieldFact(partial) == originalPartial,
+                      UInt64(partial.st_dev) == device, UInt64(partial.st_ino) == inode,
+                      Int64(partial.st_size) == byteCount else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                guard partial.st_nlink == 2 else { return nil }
+                let aliases = initialFacts.filter { $0.key != name && $0.value == originalPartial }.map(\.key)
+                guard aliases.count == 1, let finalName = aliases.first, !finalName.hasPrefix(".partial-") else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                var final = stat(), parentFact = stat()
+                guard Darwin.fstatat(parent, finalName, &final, AT_SYMLINK_NOFOLLOW) == 0,
+                      Darwin.fstat(parent, &parentFact) == 0,
+                      Self.originalEraseC16NineFieldFact(final) == originalPartial,
+                      Self.originalEraseSourceFullFact(final) == Self.originalEraseSourceFullFact(partial) else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                let group = parentFact.st_mode & S_ISGID == 0 ? Darwin.getegid() : parentFact.st_gid
+                guard partial.st_uid == Darwin.geteuid(), partial.st_gid == group, partial.st_mode & 0o7777 == 0o600,
+                      byteCount >= 0, byteCount <= 1_024 * 1_024 * 1_024 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                return (finalName, Self.originalEraseSourceFullFact(final), Self.originalEraseSourceFullFact(partial))
+            }
+            let observed = needsClose ? try withObservedScratchDescriptor(parent, inspect) : try inspect(parent)
+            if let observed {
+                let finalSHA = try permit.originalPPhysicalSHA256(path: prefix + observed.0)
+                let partialSHA = try permit.originalPPhysicalSHA256(path: prefix + name)
+                guard finalSHA == partialSHA, CompatibilityCanonicalV1.validSHA256(finalSHA) else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                pairs.append(.init(finalURL: parentURL.appendingPathComponent(observed.0),
+                    partialURL: parentURL.appendingPathComponent(name), finalOriginalFact: originalPartial,
+                    partialOriginalFact: originalPartial, expectedSHA256: finalSHA, expectedByteCount: byteCount,
+                    expectedDevice: device, finalFullFact: observed.1, partialFullFact: observed.2,
+                    originToken: token, declaredPartialIndex: index))
+            }
+        }
+        let scope = OriginalEraseC16InitialObservationScopeV1(operationID: operationID, originToken: token, pairs: pairs,
+            requireBinding: { [self] in
+                try requireScratchDescriptorAccess()
+                guard originalEraseC16InitialSourceProof, originalEraseC16ReferencePlan == nil,
+                      try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials) == token else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                try originalEraseBorrowedLocalLineageCheck()
+            }, poison: { [self] in
+                originalEraseBorrowedLifetime = .uncertain; permit.poisonOnUncertainEffect()
+                if let scope = originalEraseC16InitialScope { Self.retainedFailedC16InitialScopes.append(scope) }
+            })
+        originalEraseC16InitialScope = scope
+        for pair in pairs {
+            let observed = try ProtectedFilePolicyV1.observeEraseC16InitialTemporalPairWithCheckedClose(
+                finalURL: pair.finalURL, partialURL: pair.partialURL, scope: scope,
+                retainUncertainDescriptor: { _ = ScratchUncertainCloseQuarantineV1.shared.begin($0) })
+            let value = OriginalEraseC16InitialPairPolicyV1(pair: pair, observations: observed)
+            originalEraseC16InitialPairPolicies[pair.finalURL.path] = value
+            originalEraseC16InitialPairPolicies[pair.partialURL.path] = value
+        }
+        try scope.requireCurrentBinding()
+    }
+
+    private func originalEraseC16VerifyInitialPairPolicy(at url: URL) throws -> Bool {
+        try requireScratchDescriptorAccess()
+        guard let value = originalEraseC16InitialPairPolicies[url.path], !value.observations.isEmpty else { return false }
+        try originalEraseBorrowedExclusiveCheck?()
+        var final = stat(), partial = stat()
+        guard Darwin.lstat(value.pair.finalURL.path, &final) == 0,
+              Darwin.lstat(value.pair.partialURL.path, &partial) == 0,
+              Self.originalEraseSourceFullFact(final) == value.pair.finalFullFact,
+              Self.originalEraseSourceFullFact(partial) == value.pair.partialFullFact else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try originalEraseBorrowedExclusiveCheck?(); return true
+    }

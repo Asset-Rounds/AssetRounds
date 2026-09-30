@@ -1,0 +1,412 @@
+{
+  "$id": "https://assetrounds.invalid/v23/round-session-field-flow.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P04-C07"
+    },
+    "counts": {
+      "const": [
+        "EXPECTED",
+        "VISITED",
+        "COMPLETED",
+        "INACCESSIBLE",
+        "SKIPPED",
+        "DEFERRED"
+      ]
+    },
+    "dispositions": {
+      "const": [
+        "PENDING",
+        "VISITED",
+        "COMPLETED",
+        "INACCESSIBLE",
+        "SKIPPED",
+        "DEFERRED"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "forbidden": {
+      "const": [
+        "ACCOUNT",
+        "AUTHENTICATION",
+        "TENANCY",
+        "REMOTE_SYNC",
+        "BACKEND",
+        "NETWORK_TRANSPORT",
+        "QR_OR_NETWORK_TAG_RESOLUTION",
+        "RECURRENCE",
+        "DUE_QUEUE",
+        "NOTIFICATION",
+        "TEAM_DISPATCH",
+        "PROVIDER_OUTBOX_INBOX_ACK_UPLOAD_STATE",
+        "REMOTE_EMAIL_OR_LINK",
+        "ANALYTICS",
+        "NATIVE_IPAD",
+        "S10_ROUTE_WIRING",
+        "DISCARD_INCOMPLETE_WITHOUT_INFORMED_ACTION"
+      ]
+    },
+    "lifecycle": {
+      "const": [
+        "BACKUP",
+        "REPLACE_RESTORE",
+        "CLONE",
+        "FORK",
+        "IMPORT",
+        "EXPORT",
+        "REPORT",
+        "JOURNAL",
+        "REPLAY",
+        "SEARCH",
+        "REBUILD",
+        "DELETE",
+        "ERASE",
+        "RETENTION",
+        "COMPATIBILITY",
+        "DOWNGRADE",
+        "FORWARD_FIX",
+        "INTERRUPTION",
+        "IDEMPOTENT_RECEIPT"
+      ]
+    },
+    "ordinal": {
+      "const": 95
+    },
+    "physicalLockedState": {
+      "const": "REQUIRED_PENDING_OWNER"
+    },
+    "provisional": {
+      "const": false
+    },
+    "schema": {
+      "const": "ROUND_SESSION_FIELD_FLOW_V1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P04C07G01MultiAssetSelectionOrderParityJumpAndCloseoutHandoff",
+        "testV23P04C07A01PoseAnchorPositionResumeAndOutOfOrderRemainExplicit",
+        "testV23P04C07H01DisagreementInaccessibleAndResourceFailuresRemainFailClosed",
+        "testV23P04C07I01InterruptionJournalReplaySearchExportAndReceiptsAreBounded",
+        "testV23P04C07R01RecoveryLifecycleDeleteEraseCompatibilityAndForwardFixStayCanonical"
+      ]
+    },
+    "semantics": {
+      "const": {
+        "accessibilityAndLocalization": {
+          "contrastAndNonColor": true,
+          "dynamicType": true,
+          "keyboardAndErrorFocus": true,
+          "localeAndRTL": true,
+          "offlineAndPermissionOutcomesTruthful": true,
+          "reduceMotion": true,
+          "switchControl": true,
+          "voiceControl": true,
+          "voiceOver": true
+        },
+        "anchorStates": [
+          "CURRENT",
+          "STALE_REQUIREMENT_FALLBACK"
+        ],
+        "backupRestoreRequired": true,
+        "canonicalPersistenceOwner": "V23-P04-C05_ROUND_SESSION_V1",
+        "closeout": {
+          "completedRecordsAndExportsReconcile": true,
+          "inaccessibleBlocksUntilExplicitDisposition": true,
+          "requiresEveryExpectedItemDispositioned": true
+        },
+        "counts": [
+          "EXPECTED",
+          "VISITED",
+          "COMPLETED",
+          "INACCESSIBLE",
+          "SKIPPED",
+          "DEFERRED"
+        ],
+        "countsAndJump": {
+          "complete": "COMPLETED+INACCESSIBLE+SKIPPED+DEFERRED",
+          "flagged": "INACCESSIBLE+DEFERRED",
+          "incomplete": "EXPECTED-COMPLETE",
+          "jumpToNextFlagged": true,
+          "jumpToNextIncomplete": true
+        },
+        "deleteEraseRequired": true,
+        "derivedLifecycle": {
+          "FieldPositionAnchorV1": "DEVICE_OPERATIONAL_STABLE_IDS_AND_BOUNDED_POSITION_ONLY",
+          "FieldSectionIndexProjectionV1": "DETERMINISTIC_REBUILD_FROM_CANONICAL_ROUND_DRAFT_REQUIREMENT_AND_PACKAGE_INPUTS"
+        },
+        "derivedOwners": [
+          "FieldSectionIndexProjectionV1",
+          "FieldPositionAnchorV1"
+        ],
+        "dispositions": [
+          "PENDING",
+          "VISITED",
+          "COMPLETED",
+          "INACCESSIBLE",
+          "SKIPPED",
+          "DEFERRED"
+        ],
+        "downgradePolicy": "FORWARD_FIX_ONLY",
+        "evidenceIDs": [
+          "V23-P04-C07-G01",
+          "V23-P04-C07-A01",
+          "V23-P04-C07-H01",
+          "V23-P04-C07-I01",
+          "V23-P04-C07-R01"
+        ],
+        "exportReportRequired": true,
+        "forbidden": [
+          "ACCOUNT",
+          "AUTHENTICATION",
+          "TENANCY",
+          "REMOTE_SYNC",
+          "BACKEND",
+          "NETWORK_TRANSPORT",
+          "QR_OR_NETWORK_TAG_RESOLUTION",
+          "RECURRENCE",
+          "DUE_QUEUE",
+          "NOTIFICATION",
+          "TEAM_DISPATCH",
+          "PROVIDER_OUTBOX_INBOX_ACK_UPLOAD_STATE",
+          "REMOTE_EMAIL_OR_LINK",
+          "ANALYTICS",
+          "NATIVE_IPAD",
+          "S10_ROUTE_WIRING",
+          "DISCARD_INCOMPLETE_WITHOUT_INFORMED_ACTION"
+        ],
+        "forbiddenCapabilities": [
+          "ACCOUNT",
+          "AUTHENTICATION",
+          "TENANCY",
+          "REMOTE_SYNC",
+          "BACKEND",
+          "NETWORK_TRANSPORT",
+          "QR_OR_NETWORK_TAG_RESOLUTION",
+          "RECURRENCE",
+          "DUE_QUEUE",
+          "NOTIFICATION",
+          "TEAM_DISPATCH",
+          "PROVIDER_OUTBOX_INBOX_ACK_UPLOAD_STATE",
+          "REMOTE_EMAIL_OR_LINK",
+          "ANALYTICS",
+          "NATIVE_IPAD",
+          "S10_ROUTE_WIRING",
+          "DISCARD_INCOMPLETE_WITHOUT_INFORMED_ACTION"
+        ],
+        "included": [
+          "MANUAL_MULTI_ASSET_SELECTION_AND_ORDERING_UI",
+          "DURABLE_PROGRESS_RESUME_AND_INACCESSIBLE_REASONS",
+          "BOUNDED_SEARCH_INDEX_EXTENSION_AND_REBUILD",
+          "BATCH_EXPORT_HANDOFF_AND_LOCAL_CLOSEOUT_RECONCILIATION",
+          "DELETE_RECOVERY_UX",
+          "COMMON_TASK_ACCESSIBILITY",
+          "POSE_AXIS_EDITOR_STATE_AND_C36_DRAFT_POSITION_PRESERVATION",
+          "COMPLETE_INCOMPLETE_FLAGGED_COUNTS_AND_JUMP",
+          "PACKAGE_PERMITTED_OUT_OF_ORDER_WORK"
+        ],
+        "invariants": [
+          "UI_NEVER_ADVANCES_AHEAD_OF_DURABLE_STATE",
+          "MANUAL_FLOW_REQUIRES_NO_PERMISSION",
+          "COMPLETED_RECORDS_AND_EXPORTS_RECONCILE_TO_CLOSEOUT",
+          "BACK_NAVIGATION_FLUSHES_C36_BEFORE_LEAVING",
+          "ROUTE_CONTAINS_NO_USER_TEXT_OR_VALUE",
+          "UI_ADOPTION_AND_ACCEPTANCE_DEFERRED_PENDING_S10_6"
+        ],
+        "lifecycle": [
+          "BACKUP",
+          "REPLACE_RESTORE",
+          "CLONE",
+          "FORK",
+          "IMPORT",
+          "EXPORT",
+          "REPORT",
+          "JOURNAL",
+          "REPLAY",
+          "SEARCH",
+          "REBUILD",
+          "DELETE",
+          "ERASE",
+          "RETENTION",
+          "COMPATIBILITY",
+          "DOWNGRADE",
+          "FORWARD_FIX",
+          "INTERRUPTION",
+          "IDEMPOTENT_RECEIPT"
+        ],
+        "lineage": "EXACT_WITH_GENERATION_REBIND",
+        "migrationRequired": false,
+        "noNativeIPad": true,
+        "noProviderOrNotificationClaim": true,
+        "noRecurrenceOrQRClaim": true,
+        "noS10RouteWiring": true,
+        "persistentContractMode": "CONTENT_ONLY",
+        "schemaVersion": "NOT_APPLICABLE",
+        "searchExportDeleteRecovery": {
+          "delete": "EXPLICIT_RECOVERY_UX_PRESERVES_IMMUTABLE_HISTORY",
+          "export": "BATCH_HANDOFF_RECONCILES_TO_CLOSEOUT",
+          "orphanFree": true,
+          "recovery": "DISABLE_NEW_ENTRY_PRESERVE_READ_EXPORT_RECOVERY",
+          "searchIndex": "BOUNDED_EXTENSION_AND_DETERMINISTIC_REBUILD"
+        },
+        "sectionPosition": {
+          "anchor": "FieldPositionAnchorV1",
+          "changedRequirement": "STALE_REQUIREMENT_FALLBACK",
+          "draftAnchor": "DraftResumeAnchorV1",
+          "preserveAcrossBackKillResume": true,
+          "projection": "FieldSectionIndexProjectionV1",
+          "requirementBinding": "REQUIREMENT_SHA256",
+          "routeContainsNoUserTextOrValue": true
+        },
+        "selectors": [
+          "testV23P04C07G01MultiAssetSelectionOrderParityJumpAndCloseoutHandoff",
+          "testV23P04C07A01PoseAnchorPositionResumeAndOutOfOrderRemainExplicit",
+          "testV23P04C07H01DisagreementInaccessibleAndResourceFailuresRemainFailClosed",
+          "testV23P04C07I01InterruptionJournalReplaySearchExportAndReceiptsAreBounded",
+          "testV23P04C07R01RecoveryLifecycleDeleteEraseCompatibilityAndForwardFixStayCanonical"
+        ],
+        "sessionStates": [
+          "DRAFT",
+          "ACTIVE",
+          "PAUSED",
+          "COMPLETED",
+          "ARCHIVED"
+        ],
+        "sourceContractProof": {
+          "currentFrontierValidation": "ALL_SEARCH_CLOSEOUT_HANDOFF_DELETE_RECOVERY_LIFECYCLE_DERIVATIVES",
+          "digestPerturbationEvidence": true,
+          "fieldSectionIndexPersistence": "NONPERSISTENT_NON_CODABLE_DERIVED_ONLY",
+          "fieldSectionIndexValidation": "validate(session: RoundSessionV1)",
+          "packageWorkflowPermissionGating": "EXACT_RELEASE_PACKAGE_AND_WORKFLOW_HASHES_PER_ITEM",
+          "packageWorkflowPermissionRows": [
+            "itemID",
+            "packageReleaseID",
+            "packageSHA256",
+            "workflowSHA256",
+            "permitsOutOfOrderNavigation"
+          ],
+          "postCommitSearchFailure": "CANONICAL_RECEIPT_PRESERVED_REBUILD_REQUIRED",
+          "projectionDigest": "EXHAUSTIVE_WORKSPACE_MUTATION_CANONICAL_V1_BASIS",
+          "projectionDigestInputs": [
+            "session",
+            "requirementBindings",
+            "draftAnchors",
+            "packagePermissions",
+            "sections",
+            "completeCount",
+            "incompleteCount",
+            "flaggedCount"
+          ],
+          "uiBackFlow": "FLUSH_THEN_CONDITIONAL_REQUIRED_ANCHOR_READBACK"
+        },
+        "stateMachine": {
+          "closeoutRequiresAllExpectedItemsDispositioned": true,
+          "inaccessibleReasonsAreVisible": true,
+          "orderedItems": true,
+          "packagePermittedOutOfOrder": true,
+          "terminalDispositions": [
+            "COMPLETED",
+            "INACCESSIBLE",
+            "SKIPPED",
+            "DEFERRED"
+          ],
+          "uiNeverAdvancesAheadOfDurableState": true
+        },
+        "transitions": [
+          "CREATE",
+          "REVISE_SELECTION",
+          "START",
+          "VISIT_ITEM",
+          "COMPLETE_ITEM",
+          "MARK_INACCESSIBLE",
+          "SKIP_ITEM",
+          "DEFER_ITEM",
+          "RETRY_ITEM",
+          "PAUSE",
+          "RESUME",
+          "CLOSE",
+          "ARCHIVE"
+        ],
+        "ui": "POST_S10_6_ADOPTION_SKIP_NO_RESERVED_COMPOSITION_EDIT"
+      }
+    },
+    "sessionStates": {
+      "const": [
+        "DRAFT",
+        "ACTIVE",
+        "PAUSED",
+        "COMPLETED",
+        "ARCHIVED"
+      ]
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "statusFlags": {
+      "const": {
+        "acceptance": false,
+        "activation": false,
+        "adoption": false,
+        "hosted": false,
+        "hostedAcceptance": false,
+        "native": false,
+        "nativeAcceptance": false,
+        "phase10PollingDuringParallelExecution": false,
+        "physicalEvidence": false,
+        "release": false
+      }
+    },
+    "transitions": {
+      "const": [
+        "CREATE",
+        "REVISE_SELECTION",
+        "START",
+        "VISIT_ITEM",
+        "COMPLETE_ITEM",
+        "MARK_INACCESSIBLE",
+        "SKIP_ITEM",
+        "DEFER_ITEM",
+        "RETRY_ITEM",
+        "PAUSE",
+        "RESUME",
+        "CLOSE",
+        "ARCHIVE"
+      ]
+    },
+    "uiAcceptanceCredit": {
+      "const": false
+    },
+    "uiAdoptionSkipped": {
+      "const": true
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "ordinal",
+    "selectors",
+    "counts",
+    "dispositions",
+    "sessionStates",
+    "transitions",
+    "lifecycle",
+    "forbidden",
+    "semantics",
+    "sourceReady",
+    "physicalLockedState",
+    "uiAdoptionSkipped",
+    "uiAcceptanceCredit",
+    "statusFlags",
+    "finalHashesSealed",
+    "provisional"
+  ],
+  "title": "V23-P04-C07 RoundSession field flow",
+  "type": "object"
+}

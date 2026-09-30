@@ -1,0 +1,56 @@
+{
+  "archiveProofState": "PENDING_NOT_ACCEPTING",
+  "artifactDigest": "865161668563b1ec5503a55f476d0135d9f06902babaceea23a57350fc280719",
+  "cardID": "V23-P03-C43",
+  "classification": "PREPARE_NOW",
+  "collectionDisposition": "DISABLED_NO_COLLECTION",
+  "evidenceIDs": [
+    "V23-P03-C43-G01",
+    "V23-P03-C43-A01",
+    "V23-P03-C43-H01",
+    "V23-P03-C43-I01",
+    "V23-P03-C43-R01"
+  ],
+  "persistence": {
+    "acceptedContractReleaseDisposition": "IMMUTABLE_VERSION_AND_DIGEST_SUPERSESSION_ONLY",
+    "durableFamilyCount": 0,
+    "eventInstancePersistence": false,
+    "mode": "NONPERSISTENT_STATIC_POLICY_AND_SYNTHETIC_TESTSUPPORT_ONLY",
+    "networkLifecycle": false,
+    "operationalReceiptProjectionPersistence": false,
+    "persistedFamilies": [],
+    "persistentKindLifecycleModelCount": 0,
+    "persistentSchemaVersion": null,
+    "recordsSchemaVersion": null,
+    "runtimeInvocation": false
+  },
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "requiredSemanticsDigest": "fde3666e4859026288763b06ed7186cf05eead721f82c9f0765cebc775189789",
+  "runtimeNetworkProofState": "PENDING_NOT_ACCEPTING",
+  "schema": "V23P03C43CustomerLearningEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "archive": false,
+    "archiveAcceptance": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false,
+    "runtime": false,
+    "runtimeAcceptance": false
+  },
+  "testSelectors": [
+    "testV23P03C43G01StaticCatalogRemainsZeroCollectionAndPurposeBound",
+    "testV23P03C43A01MissingThresholdAndDelayedSourcesRemainUnknownOrSuppressed",
+    "testV23P03C43H01ForbiddenIdentityJoinsActivationAndRuntimeProvidersFailClosed",
+    "testV23P03C43I01SyntheticEvaluationIsDeterministicAndLeavesNoRuntimeState",
+    "testV23P03C43R01ArchiveRuntimeRollbackAndSupersessionPreserveZeroCollection"
+  ]
+}

@@ -1,0 +1,1240 @@
+{
+  "$id": "https://assetrounds.invalid/v23/SyncClassificationRegistryV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "e05839a52a93a367cf4b118974a45db0d47182d0"
+        },
+        "appBaseTree": {
+          "const": "49dc23d51ddb18d1752e97c6820ec918b27aefca"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C03"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "977fa96c1c91515720786d629fe2ca50cec87d544653171811f1bb4430138426"
+        },
+        "coordinationAuthorityHead": {
+          "const": "e0a662ca9f050b03c3f04439d3083c83b6bb89b9"
+        },
+        "coordinationAuthorityTree": {
+          "const": "cb77483ead8b0bb3a38a2a35afdf8dd0c5ea6b71"
+        },
+        "coordinationCASSequence": {
+          "const": 92
+        },
+        "coordinationLedgerDigest": {
+          "const": "ccf99b6769d804d48277d2e24f7bbaef2057452d019d482cac63cb1512e199db"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C03-G01"
+            },
+            {
+              "const": "V23-P02-C03-A01"
+            },
+            {
+              "const": "V23-P02-C03-H01"
+            },
+            {
+              "const": "V23-P02-C03-I01"
+            },
+            {
+              "const": "V23-P02-C03-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C02"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "19d5bdf991e30ad2bc9d9533ce7236aeb4a813e6c8ad576f916f984be4997eb9"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "5cdfc8faf30aeea2ccd9f021fe1b655b6e8e801278cf19d16ee3e996047cdaca"
+        },
+        "hydrationTransitionDigest": {
+          "const": "0755effff93435a3771fc797bbe9228868dbcff78c9039b71ef7b1f91f5af2e6"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "457ff9a99e9541d4e7590b946bafa8e0efc29129d65a21bfdf912a2e6455cadb"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C04"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C03"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "pathFenceDigest": {
+          "const": "20ae2fa339b0dfe67a9f862415d67ad85630b6440812063f6c278551777e1ee3"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "213b125f708006475ab59e23d99a424e8b767c6efcc3808d167a25012f8af971"
+        },
+        "registerOrdinal": {
+          "const": 23
+        },
+        "registerRowDigest": {
+          "const": "2de00be32e26c5e366d28707f2323f3054f873aa95f15402bc7b671ab8a40188"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "SyncClassificationRegistryV1, ReplicationPolicyV1, and ConflictPolicyV1 completeness gates"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C03"
+    },
+    "classificationGuarantees": {
+      "additionalProperties": false,
+      "properties": {
+        "CONTENT_BLOB": {
+          "const": "BOUNDED_IMMUTABLE_HISTORY_ELIGIBLE"
+        },
+        "DERIVED_REBUILDABLE": {
+          "const": "REBUILT_FROM_CANONICAL_INPUTS; PORTABILITY_IS_EXPLICIT_PER_SUBJECT_ROUTE; CURRENT_PORTABLE_PROJECTIONS_ARE_PORTABLE"
+        },
+        "LOCAL_ONLY": {
+          "const": "DESTINATION_LOCAL; PORTABILITY_IS_EXPLICIT_PER_SUBJECT_ROUTE; REVIEWED_DIAGNOSTIC_EXPORT_IS_PORTABLE"
+        },
+        "PRIVATE_DEVICE_ONLY": {
+          "const": "NEVER_PORTABLE_NEVER_TRANSPORTED"
+        },
+        "REPLICATED": {
+          "const": "ELIGIBLE_FOR_FUTURE_ACCEPTED_MUTATION_TRANSPORT_NOT_TRANSPORT_ITSELF"
+        }
+      },
+      "required": [
+        "REPLICATED",
+        "LOCAL_ONLY",
+        "DERIVED_REBUILDABLE",
+        "CONTENT_BLOB",
+        "PRIVATE_DEVICE_ONLY"
+      ],
+      "type": "object"
+    },
+    "classificationSetClosed": {
+      "const": true
+    },
+    "classifications": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "REPLICATED"
+        },
+        {
+          "const": "LOCAL_ONLY"
+        },
+        {
+          "const": "DERIVED_REBUILDABLE"
+        },
+        {
+          "const": "CONTENT_BLOB"
+        },
+        {
+          "const": "PRIVATE_DEVICE_ONLY"
+        }
+      ],
+      "type": "array"
+    },
+    "completeness": {
+      "additionalProperties": false,
+      "properties": {
+        "categoryCounts": {
+          "additionalProperties": false,
+          "properties": {
+            "DIAGNOSTIC": {
+              "const": 1
+            },
+            "INDEX": {
+              "const": 1
+            },
+            "JOURNAL": {
+              "const": 6
+            },
+            "OWNED_FILE_CLASS": {
+              "const": 20
+            },
+            "PERSISTENT_MODEL": {
+              "const": 13
+            },
+            "PROJECTION": {
+              "const": 2
+            },
+            "SECRET": {
+              "const": 0
+            }
+          },
+          "required": [
+            "DIAGNOSTIC",
+            "INDEX",
+            "JOURNAL",
+            "OWNED_FILE_CLASS",
+            "PERSISTENT_MODEL",
+            "PROJECTION",
+            "SECRET"
+          ],
+          "type": "object"
+        },
+        "classificationCounts": {
+          "additionalProperties": false,
+          "properties": {
+            "CONTENT_BLOB": {
+              "const": 3
+            },
+            "DERIVED_REBUILDABLE": {
+              "const": 7
+            },
+            "LOCAL_ONLY": {
+              "const": 21
+            },
+            "PRIVATE_DEVICE_ONLY": {
+              "const": 3
+            },
+            "REPLICATED": {
+              "const": 9
+            }
+          },
+          "required": [
+            "CONTENT_BLOB",
+            "DERIVED_REBUILDABLE",
+            "LOCAL_ONLY",
+            "PRIVATE_DEVICE_ONLY",
+            "REPLICATED"
+          ],
+          "type": "object"
+        },
+        "defaultClassificationAllowed": {
+          "const": false
+        },
+        "derivedIndexes": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "ReportHistoryIndexValue"
+            },
+            {
+              "const": "reportHistoryChronology"
+            }
+          ],
+          "type": "array"
+        },
+        "derivedProjections": {
+          "items": false,
+          "maxItems": 8,
+          "minItems": 8,
+          "prefixItems": [
+            {
+              "const": "EntityMutationRevisionSemanticV1"
+            },
+            {
+              "const": "MutationQuarantineSemanticV1"
+            },
+            {
+              "const": "MutationReceiptSemanticV1"
+            },
+            {
+              "const": "StoreSemanticEnvelopeV3"
+            },
+            {
+              "const": "StoreSemanticEnvelopeV4"
+            },
+            {
+              "const": "WorkspaceMutationStateSemanticV1"
+            },
+            {
+              "const": "entityMutationRevision"
+            },
+            {
+              "const": "workspaceMutationState"
+            }
+          ],
+          "type": "array"
+        },
+        "diagnosticKinds": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "DiagnosticExportV1"
+            },
+            {
+              "const": "DiagnosticsLogEvent"
+            },
+            {
+              "const": "DiagnosticsV1"
+            },
+            {
+              "const": "LaunchTimeMillisecondsV1"
+            },
+            {
+              "const": "MetricKitSummaryV1"
+            },
+            {
+              "const": "PurchaseResultHistogram"
+            },
+            {
+              "const": "diagnosticCounters"
+            }
+          ],
+          "type": "array"
+        },
+        "everyCurrentSubjectExactlyOnce": {
+          "const": true
+        },
+        "journalRecoveryKinds": {
+          "items": false,
+          "maxItems": 21,
+          "minItems": 21,
+          "prefixItems": [
+            {
+              "const": "CurrentGenerationPointerV2"
+            },
+            {
+              "const": "CurrentGenerationPointerV3"
+            },
+            {
+              "const": "DeletionIntentV1"
+            },
+            {
+              "const": "EraseIntentV1"
+            },
+            {
+              "const": "ErasePreparationV2"
+            },
+            {
+              "const": "FinalizationIntentV1"
+            },
+            {
+              "const": "MutationEnvelopeV1"
+            },
+            {
+              "const": "MutationHistoryQuarantineRecordV1"
+            },
+            {
+              "const": "MutationReceiptV1"
+            },
+            {
+              "const": "PreparedMigrationEnvelopeV1"
+            },
+            {
+              "const": "RestoreIntentV1"
+            },
+            {
+              "const": "ReversalBasisV1"
+            },
+            {
+              "const": "SemanticReversalReceiptV1"
+            },
+            {
+              "const": "StoreGenerationManifestV1"
+            },
+            {
+              "const": "StoreMigrationJournalV1"
+            },
+            {
+              "const": "deletionIntent"
+            },
+            {
+              "const": "eraseIntent"
+            },
+            {
+              "const": "finalizationIntent"
+            },
+            {
+              "const": "mutationReceipt"
+            },
+            {
+              "const": "restoreIntent"
+            },
+            {
+              "const": "storeMigration"
+            }
+          ],
+          "type": "array"
+        },
+        "maximumRegistrationCount": {
+          "const": 128
+        },
+        "namedGroupUnionsEqualDeclaredInventories": {
+          "const": true
+        },
+        "namedGroupsPairwiseDisjoint": {
+          "const": true
+        },
+        "ownedFileKindCount": {
+          "const": 20
+        },
+        "ownedFileKindNamedGroups": {
+          "additionalProperties": false,
+          "properties": {
+            "contentBlob": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "mediaOriginal"
+                },
+                {
+                  "const": "reportPDF"
+                },
+                {
+                  "const": "reportSnapshot"
+                }
+              ],
+              "type": "array"
+            },
+            "derivedRebuildable": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "cache"
+                },
+                {
+                  "const": "mediaThumbnail"
+                },
+                {
+                  "const": "scratch"
+                }
+              ],
+              "type": "array"
+            },
+            "localOnly": {
+              "items": false,
+              "maxItems": 12,
+              "minItems": 12,
+              "prefixItems": [
+                {
+                  "const": "database"
+                },
+                {
+                  "const": "databaseSHM"
+                },
+                {
+                  "const": "databaseWAL"
+                },
+                {
+                  "const": "durableDirectory"
+                },
+                {
+                  "const": "generationPointer"
+                },
+                {
+                  "const": "generationPointerTemporary"
+                },
+                {
+                  "const": "journal"
+                },
+                {
+                  "const": "journalTemporary"
+                },
+                {
+                  "const": "restoreStaging"
+                },
+                {
+                  "const": "stagingDirectory"
+                },
+                {
+                  "const": "stagingFile"
+                },
+                {
+                  "const": "temporaryFile"
+                }
+              ],
+              "type": "array"
+            },
+            "privateDeviceOnly": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "commerceEntitlementCache"
+                },
+                {
+                  "const": "diagnostics"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "contentBlob",
+            "derivedRebuildable",
+            "privateDeviceOnly",
+            "localOnly"
+          ],
+          "type": "object"
+        },
+        "ownedFileKinds": {
+          "items": false,
+          "maxItems": 20,
+          "minItems": 20,
+          "prefixItems": [
+            {
+              "const": "cache"
+            },
+            {
+              "const": "commerceEntitlementCache"
+            },
+            {
+              "const": "database"
+            },
+            {
+              "const": "databaseSHM"
+            },
+            {
+              "const": "databaseWAL"
+            },
+            {
+              "const": "diagnostics"
+            },
+            {
+              "const": "durableDirectory"
+            },
+            {
+              "const": "generationPointer"
+            },
+            {
+              "const": "generationPointerTemporary"
+            },
+            {
+              "const": "journal"
+            },
+            {
+              "const": "journalTemporary"
+            },
+            {
+              "const": "mediaOriginal"
+            },
+            {
+              "const": "mediaThumbnail"
+            },
+            {
+              "const": "reportPDF"
+            },
+            {
+              "const": "reportSnapshot"
+            },
+            {
+              "const": "restoreStaging"
+            },
+            {
+              "const": "scratch"
+            },
+            {
+              "const": "stagingDirectory"
+            },
+            {
+              "const": "stagingFile"
+            },
+            {
+              "const": "temporaryFile"
+            }
+          ],
+          "type": "array"
+        },
+        "persistentModelCount": {
+          "const": 13
+        },
+        "persistentModelNamedGroups": {
+          "additionalProperties": false,
+          "properties": {
+            "derivedRebuildable": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "EntityMutationRevisionRow"
+                }
+              ],
+              "type": "array"
+            },
+            "localOnly": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "MutationQuarantineRow"
+                },
+                {
+                  "const": "PersistentSchemaReleaseMarker"
+                },
+                {
+                  "const": "WorkspaceMutationStateRow"
+                }
+              ],
+              "type": "array"
+            },
+            "replicatedAppendUnion": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "MutationReceiptRow"
+                }
+              ],
+              "type": "array"
+            },
+            "replicatedDeleteWins": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "DeletionLedgerRow"
+                }
+              ],
+              "type": "array"
+            },
+            "replicatedExactRevision": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "const": "Asset"
+                },
+                {
+                  "const": "EvidenceFile"
+                },
+                {
+                  "const": "Issue"
+                },
+                {
+                  "const": "Packet"
+                },
+                {
+                  "const": "Report"
+                },
+                {
+                  "const": "Site"
+                },
+                {
+                  "const": "WorkflowRecord"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "replicatedDeleteWins",
+            "replicatedAppendUnion",
+            "derivedRebuildable",
+            "localOnly",
+            "replicatedExactRevision"
+          ],
+          "type": "object"
+        },
+        "persistentModels": {
+          "items": false,
+          "maxItems": 13,
+          "minItems": 13,
+          "prefixItems": [
+            {
+              "const": "Asset"
+            },
+            {
+              "const": "DeletionLedgerRow"
+            },
+            {
+              "const": "EntityMutationRevisionRow"
+            },
+            {
+              "const": "EvidenceFile"
+            },
+            {
+              "const": "Issue"
+            },
+            {
+              "const": "MutationQuarantineRow"
+            },
+            {
+              "const": "MutationReceiptRow"
+            },
+            {
+              "const": "Packet"
+            },
+            {
+              "const": "PersistentSchemaReleaseMarker"
+            },
+            {
+              "const": "Report"
+            },
+            {
+              "const": "Site"
+            },
+            {
+              "const": "WorkflowRecord"
+            },
+            {
+              "const": "WorkspaceMutationStateRow"
+            }
+          ],
+          "type": "array"
+        },
+        "portableContentProjections": {
+          "items": false,
+          "maxItems": 13,
+          "minItems": 13,
+          "prefixItems": [
+            {
+              "const": "DeletionLedgerV2"
+            },
+            {
+              "const": "MutationHistorySnapshotV1"
+            },
+            {
+              "const": "ReportSnapshotV1"
+            },
+            {
+              "const": "StreamingArchiveIndexV1"
+            },
+            {
+              "const": "V4BackupAssetDTO"
+            },
+            {
+              "const": "V4BackupEvidenceFileDTO"
+            },
+            {
+              "const": "V4BackupIssueDTO"
+            },
+            {
+              "const": "V4BackupManifestV1"
+            },
+            {
+              "const": "V4BackupPacketDTO"
+            },
+            {
+              "const": "V4BackupRecordsV1"
+            },
+            {
+              "const": "V4BackupReportDTO"
+            },
+            {
+              "const": "V4BackupSiteDTO"
+            },
+            {
+              "const": "V4BackupWorkflowRecordDTO"
+            }
+          ],
+          "type": "array"
+        },
+        "registrationCount": {
+          "const": 43
+        },
+        "secretKinds": {
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        },
+        "unknownOrDuplicateSubject": {
+          "const": "FAIL_CLOSED"
+        },
+        "unmatchedDeclaredModelOrFileKind": {
+          "const": "FAIL_CLOSED_INCOMPLETE_INVENTORY"
+        }
+      },
+      "required": [
+        "everyCurrentSubjectExactlyOnce",
+        "defaultClassificationAllowed",
+        "unknownOrDuplicateSubject",
+        "maximumRegistrationCount",
+        "registrationCount",
+        "persistentModels",
+        "persistentModelCount",
+        "ownedFileKinds",
+        "ownedFileKindCount",
+        "portableContentProjections",
+        "derivedIndexes",
+        "derivedProjections",
+        "journalRecoveryKinds",
+        "diagnosticKinds",
+        "secretKinds",
+        "categoryCounts",
+        "classificationCounts",
+        "persistentModelNamedGroups",
+        "ownedFileKindNamedGroups",
+        "namedGroupsPairwiseDisjoint",
+        "namedGroupUnionsEqualDeclaredInventories",
+        "unmatchedDeclaredModelOrFileKind"
+      ],
+      "type": "object"
+    },
+    "currentCatalog": {
+      "additionalProperties": false,
+      "properties": {
+        "categoryCounts": {
+          "additionalProperties": false,
+          "properties": {
+            "DIAGNOSTIC": {
+              "const": 7
+            },
+            "INDEX": {
+              "const": 2
+            },
+            "JOURNAL": {
+              "const": 21
+            },
+            "OWNED_FILE_CLASS": {
+              "const": 20
+            },
+            "PERSISTENT_MODEL": {
+              "const": 13
+            },
+            "PROJECTION": {
+              "const": 21
+            },
+            "SECRET": {
+              "const": 0
+            }
+          },
+          "required": [
+            "DIAGNOSTIC",
+            "INDEX",
+            "JOURNAL",
+            "OWNED_FILE_CLASS",
+            "PERSISTENT_MODEL",
+            "PROJECTION",
+            "SECRET"
+          ],
+          "type": "object"
+        },
+        "classificationCounts": {
+          "additionalProperties": false,
+          "properties": {
+            "CONTENT_BLOB": {
+              "const": 4
+            },
+            "DERIVED_REBUILDABLE": {
+              "const": 26
+            },
+            "LOCAL_ONLY": {
+              "const": 32
+            },
+            "PRIVATE_DEVICE_ONLY": {
+              "const": 8
+            },
+            "REPLICATED": {
+              "const": 14
+            }
+          },
+          "required": [
+            "CONTENT_BLOB",
+            "DERIVED_REBUILDABLE",
+            "LOCAL_ONLY",
+            "PRIVATE_DEVICE_ONLY",
+            "REPLICATED"
+          ],
+          "type": "object"
+        },
+        "entryPoint": {
+          "const": "CurrentSyncClassificationCatalogV1.current.validate()"
+        },
+        "inventoryIsExplicitAndClosed": {
+          "const": true
+        },
+        "keychainUsageDeclared": {
+          "const": false
+        },
+        "persistentModelRuntimeNameBinding": {
+          "additionalProperties": false,
+          "properties": {
+            "equalsDeclaredPersistentModelNames": {
+              "const": true
+            },
+            "normalization": {
+              "const": "STRING_DESCRIBING_TYPE_LAST_COMPONENT_SORTED"
+            },
+            "objectIdentifierSetEqualityAlsoRequired": {
+              "const": true
+            },
+            "requiresUniqueValidTokens": {
+              "const": true
+            },
+            "runtimeSource": {
+              "const": "PersistentSchemaV4.models"
+            }
+          },
+          "required": [
+            "runtimeSource",
+            "normalization",
+            "requiresUniqueValidTokens",
+            "equalsDeclaredPersistentModelNames",
+            "objectIdentifierSetEqualityAlsoRequired"
+          ],
+          "type": "object"
+        },
+        "registrationCount": {
+          "const": 84
+        },
+        "registryEntryPoint": {
+          "const": "SyncClassificationRegistryV1.validate()"
+        },
+        "searchImplementationPresent": {
+          "const": false
+        },
+        "secretKinds": {
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array"
+        }
+      },
+      "required": [
+        "entryPoint",
+        "registryEntryPoint",
+        "registrationCount",
+        "categoryCounts",
+        "classificationCounts",
+        "searchImplementationPresent",
+        "keychainUsageDeclared",
+        "secretKinds",
+        "inventoryIsExplicitAndClosed",
+        "persistentModelRuntimeNameBinding"
+      ],
+      "type": "object"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C03-G01"
+        },
+        {
+          "const": "V23-P02-C03-A01"
+        },
+        {
+          "const": "V23-P02-C03-H01"
+        },
+        {
+          "const": "V23-P02-C03-I01"
+        },
+        {
+          "const": "V23-P02-C03-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "prohibitedFields": {
+      "items": false,
+      "maxItems": 13,
+      "minItems": 13,
+      "prefixItems": [
+        {
+          "const": "accountID"
+        },
+        {
+          "const": "authenticatedUserID"
+        },
+        {
+          "const": "inbox"
+        },
+        {
+          "const": "outbox"
+        },
+        {
+          "const": "providerID"
+        },
+        {
+          "const": "remoteAcknowledgement"
+        },
+        {
+          "const": "serverCursor"
+        },
+        {
+          "const": "serverRevision"
+        },
+        {
+          "const": "tenantID"
+        },
+        {
+          "const": "vectorClock"
+        },
+        {
+          "const": "accessToken"
+        },
+        {
+          "const": "serviceCredential"
+        },
+        {
+          "const": "secretMaterial"
+        }
+      ],
+      "type": "array"
+    },
+    "provisional": {
+      "const": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "SyncClassificationRegistryV1"
+    },
+    "schemaID": {
+      "const": "SYNC_REPLICATION_CONFLICT_POLICY_V1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceSymbols": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "SyncClassificationV1"
+        },
+        {
+          "const": "SyncSubjectCategoryV1"
+        },
+        {
+          "const": "SyncClassificationRegistrationV1"
+        },
+        {
+          "const": "SyncClassificationRegistryV1"
+        },
+        {
+          "const": "CurrentSyncClassificationCatalogV1"
+        }
+      ],
+      "type": "array"
+    },
+    "subjectCategories": {
+      "items": false,
+      "maxItems": 7,
+      "minItems": 7,
+      "prefixItems": [
+        {
+          "const": "PERSISTENT_MODEL"
+        },
+        {
+          "const": "OWNED_FILE_CLASS"
+        },
+        {
+          "const": "JOURNAL"
+        },
+        {
+          "const": "INDEX"
+        },
+        {
+          "const": "PROJECTION"
+        },
+        {
+          "const": "DIAGNOSTIC"
+        },
+        {
+          "const": "SECRET"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "schemaID",
+    "classifications",
+    "classificationSetClosed",
+    "subjectCategories",
+    "completeness",
+    "currentCatalog",
+    "classificationGuarantees",
+    "sourceSymbols",
+    "prohibitedFields",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "SyncClassificationRegistryV1",
+  "type": "object"
+}

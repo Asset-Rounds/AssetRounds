@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "authority": "V23-P01-C05",
+  "cases": [
+    {
+      "id": "V23-P01-C05-G01-empty-install",
+      "family": "G01",
+      "mode": "empty_install",
+      "expectedWorkspace": "source",
+      "expectedReplica": "destinationFresh",
+      "expected": "accept"
+    },
+    {
+      "id": "V23-P01-C05-G01-replace-existing",
+      "family": "G01",
+      "mode": "replace_existing",
+      "expectedWorkspace": "source",
+      "expectedReplica": "destinationFresh",
+      "expected": "accept"
+    },
+    {
+      "id": "V23-P01-C05-G01-clone-workspace",
+      "family": "G01",
+      "mode": "clone",
+      "expectedWorkspace": "destinationFresh",
+      "expectedReplica": "destinationFresh",
+      "expectedRawRecordIDs": "preserve",
+      "expected": "accept"
+    },
+    {
+      "id": "V23-P01-C05-G01-fork-workspace",
+      "family": "G01",
+      "mode": "fork",
+      "expectedWorkspace": "destinationFresh",
+      "expectedReplica": "destinationFresh",
+      "expectedRawRecordIDs": "preserve",
+      "lineageProvenance": "source.workspaceID+source.replicaID",
+      "expected": "accept"
+    },
+    {
+      "id": "V23-P01-C05-A01-bounded-collision-retry",
+      "family": "A01",
+      "mode": "clone",
+      "mutation": "generated-workspace-or-replica-collides-before-success",
+      "expected": "accept"
+    },
+    {
+      "id": "V23-P01-C05-A01-cross-workspace-source",
+      "family": "A01",
+      "mode": "replace_existing",
+      "mutation": "source-workspace-differs-from-current",
+      "expected": "accept"
+    },
+    {
+      "id": "V23-P01-C05-H01-role-identity-collision",
+      "family": "H01",
+      "mutation": "workspace-replica-or-generation-role-collision",
+      "expected": "reject"
+    },
+    {
+      "id": "V23-P01-C05-H01-source-replica-reuse",
+      "family": "H01",
+      "mutation": "destination-reuses-source-or-known-replica",
+      "expected": "reject"
+    },
+    {
+      "id": "V23-P01-C05-I01-prepublication-crash",
+      "family": "I01",
+      "mutation": "interrupt-before-pointer-publication",
+      "expected": "discard-staged"
+    },
+    {
+      "id": "V23-P01-C05-I01-partial-activation",
+      "family": "I01",
+      "mutation": "interrupt-after-pointer-publication",
+      "expected": "forward-only-reconcile"
+    },
+    {
+      "id": "V23-P01-C05-R01-prepublication-discard",
+      "family": "R01",
+      "mutation": "relaunch-before-publication",
+      "expected": "discard-staged"
+    },
+    {
+      "id": "V23-P01-C05-R01-postpublication-forward-only",
+      "family": "R01",
+      "mutation": "relaunch-after-publication",
+      "expected": "forward-only-reconcile"
+    },
+    {
+      "id": "V23-P01-C05-R01-export-reconciliation",
+      "family": "R01",
+      "mutation": "export-after-relaunch-reconciliation",
+      "expected": "identity-matches-current-pointer"
+    }
+  ]
+}

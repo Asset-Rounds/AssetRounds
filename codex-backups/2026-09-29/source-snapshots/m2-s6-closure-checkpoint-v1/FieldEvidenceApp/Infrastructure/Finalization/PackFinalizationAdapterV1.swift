@@ -1,0 +1,139 @@
+import Foundation
+import SwiftData
+
+struct PackFinalizationAdapterOutcomeV1: Equatable, Sendable {
+    let finalization: FinalizationServiceOutcome
+    let binding: PackFinalizationBindingV1
+    let durableReceiptIdentity: MutationReceiptIdentityV1?
+    let zeroFeatureWriteClosureClaimed: Bool
+}
+
+/// Package binding over the canonical writer-owned finalization transaction.
+@MainActor
+final class PackFinalizationAdapterV1 {
+    static let compatibilityOwner = "V23-P03-C08"
+    static let expiresAfter = WorkspacePackageLifecycleCompatibilityV1.expiration
+
+    private let dependencies: WorkspacePackageLifecycleDependenciesV1
+    private let profile: WorkspacePackageLifecycleProfileV1
+    private let service: FinalizationService
+    private let liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?
+
+    init(
+        dependencies: WorkspacePackageLifecycleDependenciesV1,
+        profile: WorkspacePackageLifecycleProfileV1,
+        legacyModelContext: ModelContext,
+        intentStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        failureInjection: FinalizationServiceFailureInjection? = nil,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil
+    ) throws {
+        guard try dependencies.profileRegistry.resolve(profile.release) == profile,
+              profile.release.matches(profile.package) else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        self.dependencies = dependencies
+        self.profile = profile
+        self.liveOperation = liveOperation
+        service = try FinalizationService(
+            modelContext: legacyModelContext,
+            signPack: profile.package,
+            generationRootURL: dependencies.generationRootURL,
+            intentStoreFailureInjection: intentStoreFailureInjection,
+            failureInjection: failureInjection,
+            workspaceWriter: dependencies.writer,
+            authorizing: liveOperation
+        )
+    }
+
+    func finalize(
+        _ input: FinalizationServiceInput,
+        binding: PackFinalizationBindingV1,
+        expectedWorkflowRecordRevision: UInt64? = nil
+    ) async throws -> PackFinalizationAdapterOutcomeV1 {
+        try Task.checkCancellation()
+        try withLiveAuthorization { try validateBinding(input, binding: binding) }
+
+        let outcome = try await service.finalize(
+            input, expectedWorkflowRecordRevision: expectedWorkflowRecordRevision
+        )
+        let durableReceipt = try withLiveAuthorization {
+            try dependencies.writer.durableReceipt(mutationID: binding.mutationID)
+        }
+        guard let durableReceipt,
+              binding.durableReceiptIdentity.map({ $0 == durableReceipt.identity }) ?? true else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return PackFinalizationAdapterOutcomeV1(
+            finalization: outcome,
+            binding: binding,
+            durableReceiptIdentity: durableReceipt.identity,
+            zeroFeatureWriteClosureClaimed: true
+        )
+    }
+
+    func readCommittedFinalization(
+        _ input: FinalizationServiceInput,
+        binding: PackFinalizationBindingV1,
+        expectedWorkflowRecordRevision: UInt64? = nil
+    ) throws -> ReviewedFinalizationCommitV1? {
+        try Task.checkCancellation()
+        try withLiveAuthorization { }
+        try validateBinding(input, binding: binding)
+        guard let committed = try service.readCommittedFinalization(
+            input, expectedWorkflowRecordRevision: expectedWorkflowRecordRevision
+        ) else {
+            guard binding.durableReceiptIdentity == nil else {
+                throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+            }
+            return nil
+        }
+        guard committed.receipt.mutationID == binding.mutationID,
+              committed.receipt.identity.workspaceID == binding.workspaceID,
+              binding.durableReceiptIdentity.map({ $0 == committed.receipt.identity }) ?? true else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return committed
+    }
+
+    private func withLiveAuthorization<T>(_ body: () throws -> T) throws -> T {
+        if let liveOperation {
+            return try liveOperation.withFinalizationWriterAuthorization(dependencies.writer,
+                generationID: dependencies.generationID, generationRootURL: dependencies.generationRootURL, body)
+        }
+        return try body()
+    }
+
+    private func validateBinding(
+        _ input: FinalizationServiceInput,
+        binding: PackFinalizationBindingV1
+    ) throws {
+        guard binding.workspaceID == dependencies.workspaceID,
+              binding.generationID == dependencies.generationID,
+              binding.packageRelease == profile.release,
+              binding.mutationID.rawValue == input.identifiers.mutationID,
+              !binding.preservesReservedLegacyRawWriteDebt else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        let assetIdentity = try WorkspaceEntityIdentityV1(kind: .asset, id: input.asset.id)
+        let recordIdentity = try WorkspaceEntityIdentityV1(
+            kind: .workflowRecord,
+            id: input.draft.id
+        )
+        let request = try WorkspacePackageLifecycleQueryRequestV1(
+            workspaceID: dependencies.workspaceID,
+            generationID: dependencies.generationID,
+            operation: .finalize,
+            identities: [assetIdentity, recordIdentity]
+        )
+        let query = try dependencies.queryClient.query(request)
+        guard query.existingIdentities == request.identities,
+              query.packageBindings == [WorkspacePackageBindingV1(
+                assetID: input.asset.id,
+                packageID: profile.release.packageID,
+                packageSchemaVersion: profile.release.schemaVersion,
+                packageContentVersion: profile.release.contentVersion
+              )] else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+    }
+}

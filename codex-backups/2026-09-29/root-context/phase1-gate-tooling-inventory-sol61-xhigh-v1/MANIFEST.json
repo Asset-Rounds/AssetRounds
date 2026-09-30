@@ -1,0 +1,31 @@
+{
+  "schema": "immutable-read-only-inventory-manifest.v1",
+  "head": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "tree": "af8b177e266be1cb0d3bd7578ecf71d475a281ec",
+  "files": {
+    "INPUTS.json": {
+      "sha256": "96e6808d1ddf3dd631ac827835d5de2726035d946194bf08e8f9793aa83fa2ff",
+      "bytes": 18534
+    },
+    "REVIEW.md": {
+      "sha256": "f66e0979dbb1bf291643bd8381e4f8b5798fa747e5f3d322fb0ee57c00814c74",
+      "bytes": 13802
+    },
+    "HANDOFF.md": {
+      "sha256": "c1215dd472dc548f0d09c5ba4d1cfdc5555658c1fb1f34b6d46af90ec18f360b",
+      "bytes": 2098
+    },
+    "RECORD_SNAPSHOTS/VERIFICATION_DUE.md": {
+      "sha256": "345574b62886d8c50b0a7753435ddf92ba84283cbd824901a47b37360a6a56e8",
+      "bytes": 183597
+    },
+    "RECORD_SNAPSHOTS/ACTIVE_BRIEF.md": {
+      "sha256": "962d72f643b12cdab3f9b86bb3abda099a1540e795ba2c6a544d732873169955",
+      "bytes": 7653
+    },
+    "RECORD_SNAPSHOTS/AGENTS.md": {
+      "sha256": "794faa1aacc772cc598bb916225c44af6506bbf359b410ee462e0fe2102f7833",
+      "bytes": 23950
+    }
+  }
+}

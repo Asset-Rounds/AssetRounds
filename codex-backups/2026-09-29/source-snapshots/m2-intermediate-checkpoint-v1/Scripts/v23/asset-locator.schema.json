@@ -1,0 +1,78 @@
+{
+  "$id": "https://assetrounds.invalid/v23/asset-locator.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P03-C27"
+    },
+    "durableFamilies": {
+      "const": [
+        "AssetLocatorV1",
+        "LocatorBindingReceiptV1"
+      ],
+      "type": "array"
+    },
+    "durableFamilyCount": {
+      "const": 2
+    },
+    "persistentKindLifecycleModelCount": {
+      "const": 94
+    },
+    "persistentSchemaVersion": {
+      "const": 26
+    },
+    "recordsSchemaVersion": {
+      "const": 25
+    },
+    "requiredContractNames": {
+      "const": [
+        "AssetLocatorV1",
+        "ExternalKeyV1",
+        "LocatorResolutionV1",
+        "LocatorBindingReceiptV1"
+      ],
+      "type": "array"
+    },
+    "resolutionOutcomes": {
+      "const": [
+        "MATCHED",
+        "NO_MATCH",
+        "FOREIGN_WORKSPACE",
+        "AMBIGUOUS",
+        "DAMAGED_OR_INCOMPLETE",
+        "RETIRED",
+        "REVOKED",
+        "REPLACED"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V22P03C27AssetLocatorCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "persistentKindLifecycleModelCount",
+    "durableFamilyCount",
+    "durableFamilies",
+    "resolutionOutcomes",
+    "requiredContractNames",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C27 Asset Locator Corpus",
+  "type": "object"
+}

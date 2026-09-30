@@ -1,0 +1,625 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "a5c5e09c0d16c075ba47f406b9f6a4fca66550efd4f3384a985dcf66d270555d",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "a875778e6900f4513b9c1a56069a174d06f29dfc",
+    "appBaseTree": "c550b5c0ccbeee3f0d7c48ed54f58d7e44aef257",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P03-C03",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "21227e12d0713af5dd8ebca71e6117a171c59b8c96acd41002ad5c862e170aa0",
+    "coordinationAuthorityHead": "80c631478b99e9ef09bc376c188ab6c8481e9875",
+    "coordinationAuthorityTree": "3553b4399ebc914d392f58ef75cb800f6d7a7a43",
+    "coordinationCASSequence": 144,
+    "coordinationLedgerDigest": "61b2734c119325136fe8cf00cfbf807fcda0ba5b9bae786a67e44a8da3bf48f8",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P03-C03-G01",
+      "V23-P03-C03-A01",
+      "V23-P03-C03-H01",
+      "V23-P03-C03-I01",
+      "V23-P03-C03-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P03-C02"
+    ],
+    "dossierDigest": "ea72d3483ee79f78d2dea348cb94b26f219c6c9a4cfc44af704e9fa46e5e94ca",
+    "dossierLength": 7073,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "f46ef2dbcc35675a4a240565d694827a3231b58a6c476baae1b2d80fd96d1729",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "b7c7d8238f8f81c0067040e1ab68731a468b4e323f3d0ef31b89719f24d9937d",
+    "inheritedV21BlockLength": 6879,
+    "invalidationConsumers": [
+      "V23-P03-C04",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P03-C03",
+    "pathFenceDigest": "8e424c0e0718d8df4127a2034744f1a347f14c3aed23f684cc0c0c4f6b525bf6",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "362e0bcefbe84aaacc803784d3295fe928554155992bac272ece84f0a6a432de",
+    "registerOrdinal": 34,
+    "registerRowDigest": "26d44aaa6bd20ad7ebab0c3bef3d874ba57b6c29e30fd180fee3d4d0c4994bf1",
+    "registerRowLength": 274,
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionLength": 44217,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Closed typed responses, exact fixed-point/unit semantics, and repeat identity"
+  },
+  "backupBehaviorDelta": false,
+  "backupRestoreRequired": false,
+  "brandSurfaceDelta": false,
+  "cardID": "V23-P03-C03",
+  "deleteBehaviorDelta": false,
+  "deleteEraseRequired": false,
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "evidenceIDs": [
+    "V23-P03-C03-G01",
+    "V23-P03-C03-A01",
+    "V23-P03-C03-H01",
+    "V23-P03-C03-I01",
+    "V23-P03-C03-R01"
+  ],
+  "exportBehaviorDelta": false,
+  "exportReportRequired": false,
+  "fixtureProjection": {
+    "canonicalSHA256": "03f14f0fc4362dbc752ec49cf0887bcc86513f6dcfcb44a2d092cb37fd168198",
+    "measurementDimensions": [
+      "DIMENSIONLESS",
+      "DURATION",
+      "ILLUMINANCE",
+      "LENGTH",
+      "TEMPERATURE"
+    ],
+    "repeatActivities": [
+      "ACTIVE",
+      "INACTIVE_BY_PATH",
+      "REACTIVATION_REVIEW_REQUIRED"
+    ],
+    "requiredMarkers": [
+      "NO_VALUE",
+      "NOT_APPLICABLE",
+      "MEASUREMENT",
+      "KERNEL_UNIT_POLICY_V1",
+      "TIE_EVEN_UNCHANGED",
+      "ACTIVE",
+      "INACTIVE_BY_PATH",
+      "REACTIVATION_REVIEW_REQUIRED",
+      "FAIL_CLOSED"
+    ],
+    "responseKinds": [
+      "BOOLEAN",
+      "CONTENT_REFERENCE",
+      "DECIMAL",
+      "DURATION",
+      "ENTITY_REFERENCE",
+      "INSTANT",
+      "INTEGER",
+      "LOCAL_DATE",
+      "LOCAL_TIME",
+      "MEASUREMENT",
+      "MULTIPLE_OPTIONS",
+      "NOT_APPLICABLE",
+      "NO_VALUE",
+      "SINGLE_OPTION",
+      "TEXT",
+      "TRI_STATE"
+    ],
+    "roundingDispositions": [
+      "EXACT",
+      "NEAREST_AWAY_FROM_ZERO",
+      "NEAREST_TOWARD_ZERO",
+      "TIE_EVEN_ADJUSTED",
+      "TIE_EVEN_UNCHANGED"
+    ],
+    "schema": "V21P03C03TypedResponseCorpusV1",
+    "schemaVersion": 1,
+    "sourceSHA256": "9db9078649159d32a393fefaa12871e269e3a775f0e05a8c8ad7380f12446ef5",
+    "testOnly": true,
+    "topLevelKeys": [
+      "failureDisposition",
+      "historicBindingSHA256",
+      "historicReleaseSHA256",
+      "lifecycle",
+      "limits",
+      "measurementDimensions",
+      "negativeCases",
+      "publication",
+      "repeatActivities",
+      "responseKinds",
+      "roundingDispositions",
+      "roundingPolicy",
+      "schema",
+      "schemaVersion",
+      "testOnly",
+      "unitIDs",
+      "unitPolicyVersion"
+    ],
+    "unitIDs": [
+      "1",
+      "Cel",
+      "K",
+      "[degF]",
+      "[fc_i]",
+      "[ft_i]",
+      "[in_i]",
+      "cm",
+      "h",
+      "lx",
+      "m",
+      "min",
+      "mm",
+      "ms",
+      "s"
+    ]
+  },
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "kernelBoundary": {
+    "declarationOnly": true,
+    "noCanonicalUserWrite": true,
+    "noFloatingPointPersistence": true,
+    "noNetwork": true,
+    "noProductionCapture": true
+  },
+  "migrationBehaviorDelta": false,
+  "migrationRequired": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "noNewSwiftDataV6Entity": true,
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "KERNEL_RESPONSE_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "response": {
+    "canonicalCodec": "ResponseValueCanonicalCodecV1",
+    "closedUnion": true,
+    "kindSpecificExactPayload": true,
+    "kinds": [
+      "NO_VALUE",
+      "NOT_APPLICABLE",
+      "BOOLEAN",
+      "TRI_STATE",
+      "SINGLE_OPTION",
+      "MULTIPLE_OPTIONS",
+      "TEXT",
+      "LOCAL_DATE",
+      "LOCAL_TIME",
+      "INSTANT",
+      "DURATION",
+      "INTEGER",
+      "DECIMAL",
+      "MEASUREMENT",
+      "ENTITY_REFERENCE",
+      "CONTENT_REFERENCE"
+    ],
+    "malformedPayloadDisposition": "FAIL_CLOSED",
+    "maximumCanonicalBytes": 1048576,
+    "maximumOptionCount": 128,
+    "maximumTextUTF8Bytes": 4096,
+    "noArbitraryJSON": true,
+    "noEAV": true,
+    "triStateValues": [
+      "TRUE",
+      "FALSE",
+      "UNKNOWN"
+    ],
+    "type": "ResponseValueV1",
+    "unknownKindDisposition": "FAIL_CLOSED"
+  },
+  "restoreBehaviorDelta": false,
+  "schema": "V23P03C03ResponseValueContractV1",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+  "sourceBindings": [
+    {
+      "bytes": 15911,
+      "owner": "workflow-grammar-response-bridge",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+      "requiredTokens": [
+        "BranchPredicateV1",
+        "WorkflowGrammarLimitsV1",
+        "maximumRepeatCount",
+        "KernelClosedCodingV1"
+      ],
+      "sha256": "d70cfc575eecaf0be428859ba7a1c5cda9a337d5d07c308005495675abb49f3c",
+      "symbols": [
+        "WorkflowNodeKindV1",
+        "WorkflowFactValueV1",
+        "ResponseValueV1",
+        "RepeatInstanceStateV1"
+      ]
+    },
+    {
+      "bytes": 10208,
+      "owner": "workflow-definition-field-binding",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+      "requiredTokens": [
+        "validateResponseFieldDefinitions",
+        "packageReleaseID",
+        "workflowSHA256",
+        "declaredFieldIDs"
+      ],
+      "sha256": "3872f3c5226c4ff24f6df4f28cecfd9aafd65424247a2bac60a26f2f8b7b2624",
+      "symbols": [
+        "WorkflowNodeV1",
+        "WorkflowDefinitionV1",
+        "ResponseFieldDefinitionV1"
+      ]
+    },
+    {
+      "bytes": 12567,
+      "owner": "workflow-graph-response-validation",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+      "requiredTokens": [
+        "responseFieldDefinitions",
+        "computeDominators",
+        "forwardPredicateReference"
+      ],
+      "sha256": "c6430ad4096cb2e182661bbfa8df66ed8a8583ce886fea3c5792979eb2fcea7d",
+      "symbols": [
+        "WorkflowGraphValidatorV1"
+      ]
+    },
+    {
+      "bytes": 13396,
+      "owner": "shipping-legacy-response-adapter",
+      "path": "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+      "requiredTokens": [
+        "inspectionPackage",
+        "signPack",
+        "outcomeDisplays",
+        "issueLabels",
+        "couldNotVerifyReasons",
+        "acknowledgements",
+        "parityReceipt",
+        "exactParity"
+      ],
+      "sha256": "e25bfe51aa05226d49c20ff7fc0ba19fcc2b4a622ba9a393096b7543d760cb56",
+      "symbols": [
+        "ShippingIlluminatedSignAdapterV1",
+        "ShippingIlluminatedSignParityReceiptV1"
+      ]
+    },
+    {
+      "bytes": 16346,
+      "owner": "closed-response-union",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/ResponseValueV1.swift",
+      "requiredTokens": [
+        "NO_VALUE",
+        "NOT_APPLICABLE",
+        "BOOLEAN",
+        "TRI_STATE",
+        "SINGLE_OPTION",
+        "MULTIPLE_OPTIONS",
+        "TEXT",
+        "LOCAL_DATE",
+        "LOCAL_TIME",
+        "INSTANT",
+        "DURATION",
+        "INTEGER",
+        "DECIMAL",
+        "MEASUREMENT",
+        "ENTITY_REFERENCE",
+        "CONTENT_REFERENCE",
+        "ResponseClosedCodingV1",
+        "requireExact",
+        "maximumTextUTF8Bytes",
+        "maximumOptionCount"
+      ],
+      "sha256": "a83d177547ab1deffd760ad34692056a59408fcb8dc8e41e7b90db5e74244068",
+      "symbols": [
+        "ResponseValueKindV1",
+        "ResponseValueV1",
+        "ResponseValueCanonicalCodecV1"
+      ]
+    },
+    {
+      "bytes": 21922,
+      "owner": "exact-measurement-semantics",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/ExactMeasurementSemanticsV1.swift",
+      "requiredTokens": [
+        "1",
+        "Cel",
+        "K",
+        "[degF]",
+        "[fc_i]",
+        "[ft_i]",
+        "[in_i]",
+        "cm",
+        "h",
+        "lx",
+        "m",
+        "min",
+        "mm",
+        "ms",
+        "s",
+        "TIES_TO_EVEN_V1",
+        "canonicalScale",
+        "arithmeticOverflow",
+        "precisionLoss",
+        "noFloatPersistence"
+      ],
+      "sha256": "c67c7dd34eaefc7e51e96aed07fa8d9f8a0a699f397403551d1fbedc335dd701",
+      "symbols": [
+        "ExactDecimalV1",
+        "ExactRationalV1",
+        "KernelUnitRegistryV1",
+        "ExactUnitConverterV1",
+        "ExactMeasurementV1"
+      ]
+    },
+    {
+      "bytes": 30365,
+      "owner": "response-field-and-repeat-contracts",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/ResponseFieldDefinitionV1.swift",
+      "requiredTokens": [
+        "stableIdentity",
+        "allowedOptionIDs",
+        "maximumPrecisionScale",
+        "maximumUncertaintyCanonical",
+        "repeatNodeID",
+        "ZERO_OR_COMPLETE"
+      ],
+      "sha256": "16ee7c74868c84275c27acd0c3b9beb2f4686d5524d320f9bef7777bd9859557",
+      "symbols": [
+        "ResponseFieldDefinitionV1",
+        "RepeatResponseBindingV1",
+        "BoundResponseValueV1",
+        "KernelResponseRegistryV1"
+      ]
+    },
+    {
+      "bytes": 16103,
+      "owner": "evidence-tests",
+      "path": "FieldEvidenceAppTests/V9_13TypedResponseTests.swift",
+      "requiredTokens": [
+        "XCTestCase",
+        "XCTAssert",
+        "XCTAssertThrowsError",
+        "ResponseValueV1",
+        "ExactMeasurementV1",
+        "interruption",
+        "relaunch",
+        "fail"
+      ],
+      "sha256": "63653cdd52c91a4f1f53403d0c67e1913d6c1218da4b620aba3e71f5cbc4e942",
+      "symbols": [
+        "testV9_13G01EveryClosedResponseKindRoundTripsCanonically",
+        "testV9_13A01UnitsDimensionsRangesPrecisionAndUnknownKindsFailClosed",
+        "testV9_13H01RepeatIdentitySurvivesReorderResumeAndRejectsCollisions",
+        "testV9_13I01InterruptedDormantContractPublicationExposesZeroOrCompleteRegistry",
+        "testV9_13R01LegacySignParityAndDormantRecoveryPreserveExactSemantics"
+      ]
+    },
+    {
+      "bytes": 1833,
+      "owner": "typed-response-corpus",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C03TypedResponseCorpusV1.json",
+      "requiredTokens": [
+        "NO_VALUE",
+        "NOT_APPLICABLE",
+        "MEASUREMENT",
+        "KERNEL_UNIT_POLICY_V1",
+        "TIE_EVEN_UNCHANGED",
+        "ACTIVE",
+        "INACTIVE_BY_PATH",
+        "REACTIVATION_REVIEW_REQUIRED",
+        "FAIL_CLOSED"
+      ],
+      "sha256": "9db9078649159d32a393fefaa12871e269e3a775f0e05a8c8ad7380f12446ef5",
+      "symbols": [
+        "schema",
+        "schemaVersion",
+        "testOnly"
+      ]
+    }
+  ],
+  "sourceProjection": {
+    "fieldDefinition": {
+      "cardinalityType": "ResponseCardinalityV1",
+      "fieldKeys": [
+        "schemaVersion",
+        "fieldID",
+        "packageReleaseID",
+        "workflowSHA256",
+        "valueKind",
+        "cardinality",
+        "allowsNotApplicable",
+        "allowsUnknownTriState",
+        "maximumTextUTF8Bytes",
+        "allowedOptionIDs",
+        "minimumNumericValue",
+        "maximumNumericValue",
+        "measurementDimension",
+        "allowedUnitIDs",
+        "maximumPrecisionScale",
+        "maximumUncertaintyCanonical",
+        "repeatNodeID",
+        "allowedEntityKindIDs"
+      ],
+      "idempotentReceipt": "EXACT_CANONICAL_BYTES_ADOPTION",
+      "interruption": "ZERO_OR_COMPLETE",
+      "maximumResponses": 128,
+      "rangeBinding": "KIND_REQUIREDNESS_CARDINALITY_TEXT_OPTION_NUMERIC_DIMENSION_UNIT_PRECISION_UNCERTAINTY",
+      "registryType": "KernelResponseRegistryV1",
+      "repeatBindingType": "RepeatResponseBindingV1",
+      "requiredBindings": [
+        "fieldID",
+        "packageReleaseID",
+        "workflowSHA256",
+        "valueKind",
+        "cardinality"
+      ],
+      "responseBindingType": "BoundResponseValueV1",
+      "sourceSHA256": "16ee7c74868c84275c27acd0c3b9beb2f4686d5524d320f9bef7777bd9859557",
+      "type": "ResponseFieldDefinitionV1"
+    },
+    "measurement": {
+      "canonicalStorage": "ENTERED_MANTISSA_SCALE_UNIT_AND_CANONICAL_MANTISSA_SCALE_UNIT_WITH_RECEIPT",
+      "conversion": "EXACT_RATIONAL_OR_AFFINE_SIGNED_FIXED_POINT",
+      "decimalMaximumScale": 9,
+      "decimalType": "ExactDecimalV1",
+      "dimensions": [
+        "DIMENSIONLESS",
+        "LENGTH",
+        "ILLUMINANCE",
+        "DURATION",
+        "TEMPERATURE"
+      ],
+      "identifierMaximumUTF8Bytes": 128,
+      "measurementSources": [
+        "MANUAL_ENTRY",
+        "INSTRUMENT_OBSERVED",
+        "IMPORTED",
+        "DERIVED"
+      ],
+      "noFloatPersistence": true,
+      "overflowDisposition": "FAIL_CLOSED_ARITHMETIC_OVERFLOW",
+      "precisionDisposition": "FAIL_CLOSED_PRECISION_LOSS",
+      "rationalType": "ExactRationalV1",
+      "roundingDispositions": [
+        "EXACT",
+        "NEAREST_TOWARD_ZERO",
+        "NEAREST_AWAY_FROM_ZERO",
+        "TIE_EVEN_UNCHANGED",
+        "TIE_EVEN_ADJUSTED"
+      ],
+      "roundingPolicy": "TIES_TO_EVEN_V1",
+      "sourceSHA256": "c67c7dd34eaefc7e51e96aed07fa8d9f8a0a699f397403551d1fbedc335dd701",
+      "type": "ExactMeasurementV1",
+      "unitIDs": [
+        "1",
+        "[degF]",
+        "[fc_i]",
+        "[ft_i]",
+        "[in_i]",
+        "Cel",
+        "K",
+        "cm",
+        "h",
+        "lx",
+        "m",
+        "min",
+        "mm",
+        "ms",
+        "s"
+      ],
+      "unitPolicyVersion": "KERNEL_UNIT_POLICY_V1"
+    },
+    "response": {
+      "canonicalCodec": "ResponseValueCanonicalCodecV1",
+      "canonicalRules": [
+        "SORTED_KEYS",
+        "WITHOUT_ESCAPING_SLASHES",
+        "ROUND_TRIP_BYTE_EQUALITY",
+        "NO_FLOATING_POINT_CANONICAL_PERSISTENCE",
+        "MAXIMUM_CANONICAL_BYTES_1048576"
+      ],
+      "cases": [
+        "noValue",
+        "notApplicable",
+        "boolean",
+        "triState",
+        "singleOption",
+        "multipleOptions",
+        "text",
+        "localDate",
+        "localTime",
+        "instant",
+        "duration",
+        "integer",
+        "decimal",
+        "measurement",
+        "entityReference",
+        "contentReference"
+      ],
+      "closedEncoding": "KIND_PLUS_KIND_SPECIFIC_PAYLOAD_EXACT_KEYS",
+      "collectionRule": "SORTED_UNIQUE_BOUNDED_OPTION_IDS",
+      "kindType": "ResponseValueKindV1",
+      "kinds": [
+        "NO_VALUE",
+        "NOT_APPLICABLE",
+        "BOOLEAN",
+        "TRI_STATE",
+        "SINGLE_OPTION",
+        "MULTIPLE_OPTIONS",
+        "TEXT",
+        "LOCAL_DATE",
+        "LOCAL_TIME",
+        "INSTANT",
+        "DURATION",
+        "INTEGER",
+        "DECIMAL",
+        "MEASUREMENT",
+        "ENTITY_REFERENCE",
+        "CONTENT_REFERENCE"
+      ],
+      "limits": {
+        "maximumCanonicalBytes": 1048576,
+        "maximumOptionCount": 128,
+        "maximumTextUTF8Bytes": 4096
+      },
+      "payloadRule": "EXACTLY_ONE_TAG_PAYLOAD_OR_KIND_ONLY_NO_ARBITRARY_JSON",
+      "sourceSHA256": "a83d177547ab1deffd760ad34692056a59408fcb8dc8e41e7b90db5e74244068",
+      "triStateValues": [
+        "TRUE",
+        "FALSE",
+        "UNKNOWN"
+      ],
+      "type": "ResponseValueV1"
+    },
+    "sourceCount": 9,
+    "workflowAndAdapter": {
+      "adapterBoundary": "PURE_LEGACY_SIGN_MAPPING_NO_NEUTRAL_KERNEL_SIGN_BRANCH",
+      "branchTruthValues": [
+        "TRUE",
+        "FALSE",
+        "UNKNOWN"
+      ],
+      "forbiddenIntegration": "NO_NETWORK_NO_PERSISTENCE_NO_REMOTE_PACKAGE_NO_TELEMETRY",
+      "repeatActivities": [
+        "ACTIVE",
+        "INACTIVE_BY_PATH",
+        "REACTIVATION_REVIEW_REQUIRED"
+      ],
+      "responseFieldValidation": "TYPE_RANGE_CARDINALITY_AND_REPEAT_BINDING_BEFORE_ACCEPTANCE",
+      "shippingAdapterSHA256": "e25bfe51aa05226d49c20ff7fc0ba19fcc2b4a622ba9a393096b7543d760cb56",
+      "workflowDefinitionSHA256": "3872f3c5226c4ff24f6df4f28cecfd9aafd65424247a2bac60a26f2f8b7b2624",
+      "workflowGrammarSHA256": "d70cfc575eecaf0be428859ba7a1c5cda9a337d5d07c308005495675abb49f3c",
+      "workflowGraphValidatorSHA256": "c6430ad4096cb2e182661bbfa8df66ed8a8583ce886fea3c5792979eb2fcea7d"
+    }
+  },
+  "testMethods": [
+    "testV9_13G01EveryClosedResponseKindRoundTripsCanonically",
+    "testV9_13A01UnitsDimensionsRangesPrecisionAndUnknownKindsFailClosed",
+    "testV9_13H01RepeatIdentitySurvivesReorderResumeAndRejectsCollisions",
+    "testV9_13I01InterruptedDormantContractPublicationExposesZeroOrCompleteRegistry",
+    "testV9_13R01LegacySignParityAndDormantRecoveryPreserveExactSemantics"
+  ],
+  "uiSurfaceDelta": false
+}

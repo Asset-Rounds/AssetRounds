@@ -1,0 +1,1975 @@
+import Foundation
+
+enum C50IncumbentFileExchangeReplacementRestoreRuleV1 {
+    static let excludesSceneRouteState = C34SceneNavigationCompatibilityBoundaryV1.validate()
+    static let replacesCanonicalImportedRowsThroughExistingOwners = true
+    static let restoresProfileOrSelectionState = false
+    static let restoresScratchSourceOrQuarantine = false
+    static let restoresExternalFilePossession = false
+
+    static func validate() -> Bool {
+        excludesSceneRouteState
+            && replacesCanonicalImportedRowsThroughExistingOwners
+            && !restoresProfileOrSelectionState
+            && !restoresScratchSourceOrQuarantine
+            && !restoresExternalFilePossession
+    }
+}
+
+struct ReplacementRestoreRuleInput: Equatable, Sendable {
+    let currentPackets: [V4BackupPacketDTO]
+    let incomingPackets: [V4BackupPacketDTO]
+    let replacementAt: Date
+}
+
+enum C49WorkResourceReplacementRestoreRuleV1 {
+    static func validate(_ records: V4BackupRecordsV1) throws {
+        _ = try records.validateC49WorkResources()
+    }
+}
+
+struct ReplacementRestorePlan: Equatable, Sendable {
+    let packetsAfter: [V4BackupPacketDTO]
+    let currentOnlyTombstones: [V4BackupPacketDTO]
+    let consumedEvaluationRootIDs: [UUID]
+}
+
+struct DeletionWinningRestoreInputV2: Equatable, Sendable {
+    let currentRecords: V4BackupRecordsV1
+    let currentIdentity: WorkspaceReplicaIdentityV1?
+    let incomingRecords: V4BackupRecordsV1
+    let incomingIdentity: WorkspaceReplicaIdentityV1?
+    let mode: BackupRestoreMode
+    let replacementAt: Date
+
+    init(
+        currentRecords: V4BackupRecordsV1,
+        currentIdentity: WorkspaceReplicaIdentityV1? = nil,
+        incomingRecords: V4BackupRecordsV1,
+        incomingIdentity: WorkspaceReplicaIdentityV1? = nil,
+        mode: BackupRestoreMode,
+        replacementAt: Date
+    ) {
+        self.currentRecords = currentRecords
+        self.currentIdentity = currentIdentity
+        self.incomingRecords = incomingRecords
+        self.incomingIdentity = incomingIdentity
+        self.mode = mode
+        self.replacementAt = replacementAt
+    }
+}
+
+struct DeletionWinningRestorePlanV2: Equatable, Sendable {
+    let recordsAfter: V4BackupRecordsV1
+    let deletionLedger: DeletionLedgerV2
+}
+
+enum ReplacementRestoreRuleError: Error, Equatable {
+    case invalidAuthority
+}
+
+enum ReplacementRestoreRule {
+    static func makePlan(
+        _ input: ReplacementRestoreRuleInput
+    ) throws -> ReplacementRestorePlan {
+        guard validDate(input.replacementAt),
+              validPacketSet(input.currentPackets),
+              validPacketSet(input.incomingPackets) else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+
+        let incomingByID = Dictionary(
+            uniqueKeysWithValues: input.incomingPackets.map { ($0.id, $0) }
+        )
+        let incomingByRoot = Dictionary(
+            uniqueKeysWithValues: input.incomingPackets.map { ($0.stableRootID, $0) }
+        )
+        let currentByID = Dictionary(
+            uniqueKeysWithValues: input.currentPackets.map { ($0.id, $0) }
+        )
+
+        for current in input.currentPackets {
+            let idMatch = incomingByID[current.id]
+            let rootMatch = incomingByRoot[current.stableRootID]
+            guard (idMatch == nil) == (rootMatch == nil) else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            if let idMatch, let rootMatch {
+                guard idMatch.id == rootMatch.id,
+                      sameImmutableFacts(current, idMatch) else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+            }
+        }
+
+        var currentOnlyTombstones = [V4BackupPacketDTO]()
+        for current in input.currentPackets where incomingByRoot[current.stableRootID] == nil {
+            guard current.evaluationCounted,
+                  input.replacementAt >= current.createdAt,
+                  current.contentDeletedAt.map({ input.replacementAt >= $0 }) ?? true else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            currentOnlyTombstones.append(
+                current.currentRecordID == nil
+                    ? current
+                    : V4BackupPacketDTO(
+                        id: current.id,
+                        schemaVersion: current.schemaVersion,
+                        stableRootID: current.stableRootID,
+                        currentRecordID: nil,
+                        evaluationCounted: true,
+                        contentDeletedAt: input.replacementAt,
+                        createdAt: current.createdAt
+                    )
+            )
+        }
+        currentOnlyTombstones.sort(by: packetOrder)
+
+        let incomingAfterDeletionWins = input.incomingPackets.map { incoming in
+            guard let current = currentByID[incoming.id],
+                  current.currentRecordID == nil else {
+                return incoming
+            }
+            return current
+        }
+        let packetsAfter = (incomingAfterDeletionWins + currentOnlyTombstones)
+            .sorted(by: packetOrder)
+        guard validPacketSet(packetsAfter),
+              Set(packetsAfter.map(\.stableRootID))
+                == Set(
+                    (input.currentPackets + input.incomingPackets)
+                        .filter(\.evaluationCounted)
+                        .map(\.stableRootID)
+                ) else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+
+        return ReplacementRestorePlan(
+            packetsAfter: packetsAfter,
+            currentOnlyTombstones: currentOnlyTombstones,
+            consumedEvaluationRootIDs: packetsAfter
+                .filter(\.evaluationCounted)
+                .map(\.stableRootID)
+                .sorted(by: idOrder)
+        )
+    }
+
+    static func makeDeletionWinningPlan(
+        _ input: DeletionWinningRestoreInputV2
+    ) throws -> DeletionWinningRestorePlanV2 {
+        try makeDeletionWinningPlan(input, preferValidatedTargetOnEqualRevision: false)
+    }
+
+    static func makeRecoveredDeletionWinningPlan(
+        _ input: DeletionWinningRestoreInputV2,
+        validatedTarget: ValidatedRestoreRecoveryTargetV1
+    ) throws -> DeletionWinningRestorePlanV2 {
+        guard input.incomingRecords == validatedTarget.records else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        return try makeDeletionWinningPlan(input, preferValidatedTargetOnEqualRevision: true)
+    }
+
+    private static func makeDeletionWinningPlan(
+        _ input: DeletionWinningRestoreInputV2,
+        preferValidatedTargetOnEqualRevision: Bool
+    ) throws -> DeletionWinningRestorePlanV2 {
+        #if DEBUG
+        var diagnosticPhase = "replacement-time"
+        #endif
+        do {
+            guard validDate(input.replacementAt) else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            #if DEBUG
+            diagnosticPhase = "normalized-ledger"
+            #endif
+            var ledger = try normalizedLedger(input.currentRecords)
+                .union(normalizedLedger(input.incomingRecords))
+            var incoming = input.incomingRecords
+            let crossWorkspacePartsStockReplacement = input.mode == .replaceExisting
+                && input.incomingRecords.recordsSchemaVersion
+                    >= C55PartsStockBackupEnrollmentV1.recordsSchemaVersion
+                && input.currentIdentity?.workspaceID != input.incomingIdentity?.workspaceID
+            if crossWorkspacePartsStockReplacement {
+                #if DEBUG
+                diagnosticPhase = "cross-workspace-identities"
+                #endif
+                guard let currentWorkspaceID = input.currentIdentity?.workspaceID,
+                      let incomingWorkspaceID = input.incomingIdentity?.workspaceID,
+                      currentWorkspaceID != incomingWorkspaceID else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                do {
+                    #if DEBUG
+                    diagnosticPhase = "current-c55-boundary"
+                    #endif
+                    try C55PartsStockBackupImportBoundaryV1.validate(
+                        input.currentRecords,
+                        workspaceID: currentWorkspaceID
+                    )
+                    #if DEBUG
+                    diagnosticPhase = "incoming-c55-boundary"
+                    #endif
+                    try C55PartsStockBackupImportBoundaryV1.validate(
+                        input.incomingRecords,
+                        workspaceID: incomingWorkspaceID
+                    )
+                } catch {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+            }
+
+            if input.mode == .replaceExisting {
+                #if DEBUG
+                diagnosticPhase = "packet-plan"
+                #endif
+                let packetPlan = try makePlan(.init(
+                    currentPackets: input.currentRecords.packets,
+                    incomingPackets: input.incomingRecords.packets,
+                    replacementAt: input.replacementAt
+                ))
+                incoming = replacingPackets(in: incoming, with: packetPlan.packetsAfter)
+                #if DEBUG
+                diagnosticPhase = "packet-deletion-entries"
+                #endif
+                let packetEntries = try packetPlan.packetsAfter.compactMap { packet -> DeletionLedgerEntryV2? in
+                    guard packet.currentRecordID == nil,
+                          let deletedAt = packet.contentDeletedAt else { return nil }
+                    return try DeletionLedgerEntryV2(
+                        identity: DeletionIdentityV2(kind: .packet, id: packet.id),
+                        deletedAt: deletedAt
+                    )
+                }
+                #if DEBUG
+                diagnosticPhase = "packet-ledger-union"
+                #endif
+                ledger = try ledger.union(DeletionLedgerV2(
+                    entries: packetEntries.sorted { $0.identity < $1.identity }
+                ))
+            }
+
+            let mutationHistory: MutationHistorySnapshotV1?
+            let assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1]
+            switch input.mode {
+            case .emptyInstall, .clone, .fork:
+                mutationHistory = input.incomingRecords.mutationHistory
+                assistanceAcceptanceReceipts = input.incomingRecords.assistanceAcceptanceReceipts
+            case .replaceExisting:
+                #if DEBUG
+                diagnosticPhase = "merged-mutation-history"
+                #endif
+                mutationHistory = try mergedMutationHistory(
+                    current: input.currentRecords.mutationHistory,
+                    currentIdentity: input.currentIdentity,
+                    incoming: input.incomingRecords.mutationHistory,
+                    incomingIdentity: input.incomingIdentity,
+                    preferValidatedTargetOnEqualRevision: preferValidatedTargetOnEqualRevision
+                )
+                #if DEBUG
+                diagnosticPhase = "merged-assistance"
+                #endif
+                assistanceAcceptanceReceipts = try C32AssistanceReplacementRestorePolicyV1.merged(
+                    current: input.currentRecords.assistanceAcceptanceReceipts,
+                    incoming: input.incomingRecords.assistanceAcceptanceReceipts
+                )
+            }
+            #if DEBUG
+            diagnosticPhase = "replace-mutation-history"
+            #endif
+            incoming = replacingMutationHistory(
+                in: incoming,
+                with: mutationHistory,
+                assistanceAcceptanceReceipts: assistanceAcceptanceReceipts
+            )
+            if input.mode == .replaceExisting {
+                #if DEBUG
+                diagnosticPhase = "merged-requirement-assurance"
+                #endif
+                incoming = try replacingRequirementAssurance(
+                    in: incoming,
+                    with: mergedRequirementAssurance(
+                        current: input.currentRecords.requirementAssurance,
+                        incoming: incoming.requirementAssurance,
+                        retainedWorkflowIDs: Set(incoming.workflowRecords.map(\.id))
+                    )
+                )
+            }
+            #if DEBUG
+            diagnosticPhase = "filtered-records"
+            #endif
+            let filtered = try filtering(
+                incoming,
+                through: ledger,
+                validatesPartsStock: !crossWorkspacePartsStockReplacement
+            )
+            let historyWorkspace = input.mode == .replaceExisting
+                ? input.currentIdentity?.workspaceID : input.incomingIdentity?.workspaceID
+            let recordsAfter = try planningDeletionHistory(
+                in: filtered, ledger: ledger, workspaceID: historyWorkspace
+            )
+            return DeletionWinningRestorePlanV2(
+                recordsAfter: recordsAfter,
+                deletionLedger: ledger
+            )
+        } catch {
+            #if DEBUG
+            let observed = error as NSError
+            print("C55 restore-plan failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error))) domain=\(observed.domain) code=\(observed.code)")
+            #endif
+            throw error
+        }
+    }
+}
+
+/// Schedule rows are immutable/append-only restore material. Replacement
+/// filtering validates and carries this closure forward; due/reminder queues
+/// and generation plans are rebuilt locally and never restored as truth.
+enum ScheduleReplacementRestorePolicyV1 {
+    static let cloneForkSourceScheduleAutomaticallyActive = false
+    static let derivedProjectionsRestored = false
+    static let notificationStateRestored = false
+
+    static func validate(_ records: [V27BackupScheduleRecordV1]) throws {
+        guard records == records.sorted(by: {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }),
+        Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count
+            == records.count,
+        C51ScheduleBackupClosureV1.validatesEnvelope(records),
+        C51ScheduleBackupClosureV1.allDaysMigrationPreservesOccurrenceIdentityAndDate,
+        !cloneForkSourceScheduleAutomaticallyActive,
+        !derivedProjectionsRestored,
+        !notificationStateRestored else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        guard !records.isEmpty else { return }
+        var definitions: [ScheduleDefinitionReleaseV1] = []
+        var history: [OccurrenceHistoryEventV1] = []
+        var calendars: [ExceptionCalendarReleaseV1] = []
+        var overrides: [ScheduleOverrideEventV1] = []
+        for record in records {
+            guard record.revision > 0, !record.canonicalData.isEmpty else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            do {
+                switch record.kind {
+                case .scheduleRelease:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ScheduleDefinitionReleaseV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.releaseID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    definitions.append(value)
+                case .occurrenceHistory:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        OccurrenceHistoryEventV1.self, from: record.canonicalData
+                    )
+                    try value.validateIntrinsic()
+                    guard value.eventID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    history.append(value)
+                case .exceptionCalendarRelease:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ExceptionCalendarReleaseV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.releaseID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    calendars.append(value)
+                case .scheduleOverrideEvent:
+                    let value = try ScheduleCanonicalCodecV1.decode(
+                        ScheduleOverrideEventV1.self, from: record.canonicalData
+                    )
+                    try value.validate()
+                    guard value.eventID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    overrides.append(value)
+                }
+            } catch let error as ReplacementRestoreRuleError {
+                throw error
+            } catch {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+        }
+        do {
+            try ScheduleLifecycleClosureV1(
+                definitions: definitions, history: history
+            ).validate()
+            for group in Dictionary(grouping: calendars, by: \.calendarID).values {
+                let ordered = group.sorted { $0.revision < $1.revision }
+                guard ordered.first?.revision == 1 else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                if ordered.count > 1 {
+                    for index in 1..<ordered.count {
+                        try ordered[index].validateSuccessor(of: ordered[index - 1])
+                    }
+                }
+            }
+            guard C51ScheduleBackupClosureV1.validatesAdvancedCalendarReferences(
+                definitions: definitions, calendars: calendars
+            ) else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            _ = try ScheduleOverridePrecedenceV1.activeEvents(overrides)
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+}
+
+private extension ReplacementRestoreRule {
+    static func normalizedLedger(_ records: V4BackupRecordsV1) throws
+        -> DeletionLedgerV2 {
+        let explicit: DeletionLedgerV2
+        switch (
+            records.recordsSchemaVersion,
+            records.deletionLedger,
+            records.mutationHistory
+        ) {
+        case (1, nil, nil):
+            explicit = .empty
+        case (2, let ledger?, nil):
+            try ledger.validate()
+            explicit = ledger
+        case (3, let ledger?, let history?), (4, let ledger?, let history?),
+             (5, let ledger?, let history?), (6, let ledger?, let history?),
+             (7, let ledger?, let history?), (8, let ledger?, let history?),
+             (9, let ledger?, let history?), (10, let ledger?, let history?),
+             (11, let ledger?, let history?), (12, let ledger?, let history?),
+             (13, let ledger?, let history?), (14, let ledger?, let history?),
+             (15, let ledger?, let history?), (16, let ledger?, let history?),
+             (17, let ledger?, let history?), (18, let ledger?, let history?),
+             (19, let ledger?, let history?), (20, let ledger?, let history?),
+             (21, let ledger?, let history?), (22, let ledger?, let history?),
+             (23, let ledger?, let history?), (24, let ledger?, let history?),
+             (25, let ledger?, let history?), (26, let ledger?, let history?),
+             (27, let ledger?, let history?), (28, let ledger?, let history?),
+             (29, let ledger?, let history?), (30, let ledger?, let history?),
+             (31, let ledger?, let history?), (32, let ledger?, let history?),
+             (33, let ledger?, let history?), (34, let ledger?, let history?),
+             (35, let ledger?, let history?), (36, let ledger?, let history?),
+             (37, let ledger?, let history?), (38, let ledger?, let history?),
+             (39, let ledger?, let history?), (40, let ledger?, let history?),
+             (41, let ledger?, let history?), (42, let ledger?, let history?),
+             (C04ShopReportProfileBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (C08ImportBulkBackupEnrollmentV1.legacyRecordsSchemaVersion, let ledger?, let history?),
+             (C08ImportBulkBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (FastSurveyInboxBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (ReinspectionExceptionQueueBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (EntityIdentityResolutionBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (PracticeWorkspaceBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (LightingDayInventoryBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?),
+             (LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion, let ledger?, let history?):
+            try ledger.validate()
+            try MutationJournalStoreV1.validateImportedSnapshot(history)
+            explicit = ledger
+        default:
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        let legacyPacketEntries = try records.packets.compactMap { packet -> DeletionLedgerEntryV2? in
+            guard packet.currentRecordID == nil,
+                  packet.evaluationCounted,
+                  let deletedAt = packet.contentDeletedAt else { return nil }
+            return try DeletionLedgerEntryV2(
+                identity: DeletionIdentityV2(kind: .packet, id: packet.id),
+                deletedAt: deletedAt
+            )
+        }.sorted { $0.identity < $1.identity }
+        return try explicit.union(DeletionLedgerV2(entries: legacyPacketEntries))
+    }
+
+    static func filtering(
+        _ records: V4BackupRecordsV1,
+        through ledger: DeletionLedgerV2,
+        validatesPartsStock: Bool
+    ) throws -> V4BackupRecordsV1 {
+        #if DEBUG
+        var diagnosticPhase = "ledger-validation"
+        #endif
+        do {
+            try ledger.validate()
+            #if DEBUG
+            diagnosticPhase = "service-request-closure"
+            #endif
+            try C52ServiceRequestReplacementRestorePolicyV1.validate(
+                records,
+                validatesPartsStock: validatesPartsStock
+            )
+            #if DEBUG
+            diagnosticPhase = "asset-locator-closure"
+            #endif
+            try AssetLocatorReplacementRestorePolicyV1.validate(records.assetLocators)
+            #if DEBUG
+            diagnosticPhase = "schedule-closure"
+            #endif
+            try ScheduleReplacementRestorePolicyV1.validate(records.schedules)
+            #if DEBUG
+            diagnosticPhase = "plan-closure"
+            #endif
+            try PlanReplacementRestorePolicyV1.validate(records.plans)
+            let deleted = Dictionary(
+                uniqueKeysWithValues: ledger.entries.map { ($0.identity, $0) }
+            )
+            func isDeleted(_ kind: DeletionRecordKindV2, _ id: UUID) throws -> Bool {
+                deleted[try DeletionIdentityV2(kind: kind, id: id)] != nil
+            }
+
+            #if DEBUG
+            diagnosticPhase = "deleted-row-filter"
+            #endif
+            let sites = try records.sites.filter { try !isDeleted(.site, $0.id) }
+            let assets = try records.assets.filter { try !isDeleted(.asset, $0.id) }
+            let workflow = try records.workflowRecords.filter {
+                try !isDeleted(.workflowRecord, $0.id)
+            }
+            let retainedWorkflowIDs = Set(workflow.map(\.id))
+            let requirementAssurance = records.requirementAssurance.filter {
+                retainedWorkflowIDs.contains($0.workflowRecordID)
+            }
+            let evidence = try records.evidenceFiles.filter {
+                try !isDeleted(.evidenceFile, $0.id)
+            }
+            let issues = try records.issues.filter { try !isDeleted(.issue, $0.id) }
+            let reports = try records.reports.filter { try !isDeleted(.report, $0.id) }
+            #if DEBUG
+            diagnosticPhase = "packet-deletion-filter"
+            #endif
+            let packets = try records.packets.map { packet -> V4BackupPacketDTO in
+                let identity = try DeletionIdentityV2(kind: .packet, id: packet.id)
+                guard let entry = deleted[identity] else { return packet }
+                guard packet.evaluationCounted,
+                      packet.createdAt <= entry.deletedAt else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                return V4BackupPacketDTO(
+                    id: packet.id,
+                    schemaVersion: packet.schemaVersion,
+                    stableRootID: packet.stableRootID,
+                    currentRecordID: nil,
+                    evaluationCounted: true,
+                    contentDeletedAt: entry.deletedAt,
+                    createdAt: packet.createdAt
+                )
+            }
+
+            #if DEBUG
+            diagnosticPhase = "result-records"
+            #endif
+            let result = V4BackupRecordsV1(
+                guidedSurveys:records.guidedSurveys,
+                assetLocators: records.assetLocators,
+                schedules: records.schedules,
+                plans: records.plans,
+                placementPoses: records.placementPoses,
+                accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+                surveyDefinitions: records.surveyDefinitions,
+                fieldReferences:records.fieldReferences,
+                recoverabilityReceipts: records.recoverabilityReceipts,
+                clientCapabilities: records.clientCapabilities,
+                privacyTransforms: records.privacyTransforms,
+                measurementIntegrity: records.measurementIntegrity,
+                packageEvolution: records.packageEvolution,
+                fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+                evidenceAssurance: records.evidenceAssurance,
+                functionalRelationships: records.functionalRelationships,
+                authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
+                assetCompositionEdges: records.assetCompositionEdges,
+                assetCompositionEvents: records.assetCompositionEvents,
+                assetPlacementEvents: records.assetPlacementEvents,
+                assets: assets,
+                deletionLedger: ledger,
+                evidenceFiles: evidence,
+                issues: issues,
+                locationHierarchyEvents: records.locationHierarchyEvents,
+                locationMigrationReceipts: records.locationMigrationReceipts,
+                locationNodes: records.locationNodes,
+                mutationHistory: records.mutationHistory,
+                packets: packets,
+                partyAccountability: records.partyAccountability,
+                recordsSchemaVersion: records.mutationHistory == nil
+                    ? 2
+                    : records.recordsSchemaVersion,
+                reports: reports,
+                requirementAssurance: requirementAssurance,
+                savedSmartViews: records.savedSmartViews,
+                sites: sites,
+                workflowRecords: workflow,
+                evidenceContexts: records.evidenceContexts,
+                pairedObservationLinks: records.pairedObservationLinks,
+                lighting: records.lighting,
+                lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+                lightingNightWorkflows: records.lightingNightWorkflows,
+                assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+                temporalEvidence: records.temporalEvidence,
+                acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+                operationalContacts: records.operationalContacts,
+                activityContracts: records.activityContracts,
+                workResources: records.workResources,
+                serviceRequests: records.serviceRequests,
+                serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+                serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+                serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+                serviceImpactSegments: records.serviceImpactSegments,
+                serviceCauseAssertions: records.serviceCauseAssertions,
+                serviceRemedyAssertions: records.serviceRemedyAssertions,
+                serviceRepairIntervals: records.serviceRepairIntervals,
+                serviceRestorationAssertions: records.serviceRestorationAssertions,
+                qualifiedServiceExposures: records.qualifiedServiceExposures,
+                serviceReliabilityReceipts: records.serviceReliabilityReceipts,
+                partsStockSnapshot: records.partsStockSnapshot,
+                myDayPlans: records.myDayPlans,
+                myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+                nonactivePlanReferences: records.nonactivePlanReferences,
+                evidenceAssociationEvents: records.evidenceAssociationEvents,
+                evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+                importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts,
+                evidenceQuality: records.evidenceQuality,
+                fastSurveyInbox: records.fastSurveyInbox,
+                reinspectionExceptionQueue: records.reinspectionExceptionQueue,
+                entityIdentityResolution: records.entityIdentityResolution,
+                practiceWorkspaceProvenance: records.practiceWorkspaceProvenance
+            )
+            #if DEBUG
+            diagnosticPhase = "result-reference-closure"
+            #endif
+            guard validReferences(result), noDeletedLiveIdentity(result, ledger: ledger),
+                  validLocationReferences(result, ledger: ledger) else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            return result
+        } catch {
+            #if DEBUG
+            let observed = error as NSError
+            print("C55 restore-filter failure phase=\(diagnosticPhase) type=\(String(reflecting: type(of: error))) domain=\(observed.domain) code=\(observed.code)")
+            #endif
+            throw error
+        }
+    }
+
+    // Plan only effects owned by this deletion-winning transformation. No
+    // destination readback is copied into the independent expected records.
+    static func planningDeletionHistory(
+        in records: V4BackupRecordsV1,
+        ledger: DeletionLedgerV2,
+        workspaceID: WorkspaceID?
+    ) throws -> V4BackupRecordsV1 {
+        guard let history = records.mutationHistory else { return records }
+        try MutationJournalStoreV1.validateImportedSnapshot(history)
+        try ledger.validate()
+        // Released identity-less recovery retains its original plan semantics.
+        // Only an explicitly bound workspace can select receipt-backed images;
+        // never infer that authority from an arbitrary retained receipt.
+        guard let workspaceID else { return records }
+        let receiptImages = try MutationJournalStoreV1.receiptTerminalImages(
+            in: history, workspaceID: workspaceID
+        )
+        let deleted = Set(ledger.entries.map(\.identity))
+        let liveIDs: [WorkspaceEntityKindV1: Set<UUID>] = [
+            .site: Set(records.sites.map(\.id)),
+            .asset: Set(records.assets.map(\.id)),
+            .workflowRecord: Set(records.workflowRecords.map(\.id)),
+            .evidenceFile: Set(records.evidenceFiles.map(\.id)),
+            .issue: Set(records.issues.map(\.id)),
+            .report: Set(records.reports.map(\.id)),
+        ]
+        let deletionKinds: [WorkspaceEntityKindV1: DeletionRecordKindV2] = [
+            .site: .site, .asset: .asset, .workflowRecord: .workflowRecord,
+            .evidenceFile: .evidenceFile, .issue: .issue, .report: .report,
+        ]
+        let packets = Dictionary(grouping: records.packets, by: \.id)
+        let ledgerByID = Dictionary(grouping: ledger.entries, by: { $0.identity.id })
+        let terminals = try history.entityRevisions.map { value -> MutationHistoryEntityRevisionV1 in
+            let plannedDigest: String
+            if let deletionKind = deletionKinds[value.identity.kind],
+               deleted.contains(try DeletionIdentityV2(kind: deletionKind, id: value.identity.id)) {
+                guard liveIDs[value.identity.kind]?.contains(value.identity.id) == false else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                plannedDigest = try MutationJournalStoreV1.restoreTombstoneSHA256(
+                    identity: value.identity, revision: value.revision
+                )
+            } else if value.identity.kind == .packet,
+                      let matches = packets[value.identity.id],
+                      matches.contains(where: { $0.currentRecordID == nil && $0.contentDeletedAt != nil }) {
+                guard matches.count == 1, let packet = matches.first else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                plannedDigest = try MutationJournalStoreV1.restorePacketSHA256(
+                    packet, revision: value.revision
+                )
+            } else if value.identity.kind == .deletionLedgerEntry,
+                      let matches = ledgerByID[value.identity.id] {
+                // Journal identity is the UUID; two typed deletions sharing it
+                // cannot be resolved by choosing an arbitrary ledger entry.
+                guard matches.count == 1, let entry = matches.first else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                plannedDigest = try MutationJournalStoreV1.restoreDeletionEntrySHA256(
+                    entry, revision: value.revision
+                )
+            } else {
+                return value
+            }
+            if value.externalProjectionSHA256 == plannedDigest { return value }
+            if value.externalProjectionSHA256 == nil,
+               let image = receiptImages[value.identity],
+               image.revision == value.revision,
+               image.semanticSHA256 == plannedDigest { return value }
+            return MutationHistoryEntityRevisionV1(
+                identity: value.identity, revision: value.revision,
+                externalProjectionSHA256: plannedDigest
+            )
+        }
+        let planned = MutationHistorySnapshotV1(
+            workspaceRevision: history.workspaceRevision,
+            lastLocalSequence: history.lastLocalSequence,
+            receipts: history.receipts, quarantines: history.quarantines,
+            entityRevisions: terminals.sorted { $0.identity.stableKey < $1.identity.stableKey }
+        )
+        try MutationJournalStoreV1.validateImportedSnapshot(planned)
+        return replacingMutationHistory(
+            in: records, with: planned,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts
+        )
+    }
+
+    static func replacingPackets(
+        in records: V4BackupRecordsV1,
+        with packets: [V4BackupPacketDTO]
+    ) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
+            schedules: records.schedules,
+            plans: records.plans,
+            placementPoses: records.placementPoses,
+            accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
+            fieldReferences:records.fieldReferences,
+            recoverabilityReceipts: records.recoverabilityReceipts,
+            clientCapabilities: records.clientCapabilities,
+            privacyTransforms: records.privacyTransforms,
+            measurementIntegrity: records.measurementIntegrity,
+            packageEvolution: records.packageEvolution,
+            fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+            evidenceAssurance: records.evidenceAssurance,
+            functionalRelationships: records.functionalRelationships,
+            authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
+            assets: records.assets,
+            deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
+            mutationHistory: records.mutationHistory,
+            packets: packets,
+            partyAccountability: records.partyAccountability,
+            recordsSchemaVersion: records.recordsSchemaVersion,
+            reports: records.reports,
+            requirementAssurance: records.requirementAssurance,
+            savedSmartViews: records.savedSmartViews,
+            sites: records.sites,
+            workflowRecords: records.workflowRecords,
+            evidenceContexts: records.evidenceContexts,
+            pairedObservationLinks: records.pairedObservationLinks,
+            lighting: records.lighting,
+            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: records.lightingNightWorkflows,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence,
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+            operationalContacts: records.operationalContacts,
+            activityContracts: records.activityContracts,
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts,
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences,
+            evidenceAssociationEvents: records.evidenceAssociationEvents,
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+            importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts,
+            evidenceQuality: records.evidenceQuality,
+            fastSurveyInbox: records.fastSurveyInbox,
+            reinspectionExceptionQueue: records.reinspectionExceptionQueue,
+            entityIdentityResolution: records.entityIdentityResolution,
+            practiceWorkspaceProvenance: records.practiceWorkspaceProvenance
+        )
+    }
+
+    static func replacingMutationHistory(
+        in records: V4BackupRecordsV1,
+        with mutationHistory: MutationHistorySnapshotV1?,
+        assistanceAcceptanceReceipts: [V32BackupAssistanceAcceptanceRecordV1]
+    ) -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
+            schedules: records.schedules,
+            plans: records.plans,
+            placementPoses: records.placementPoses,
+            accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
+            fieldReferences:records.fieldReferences,
+            recoverabilityReceipts: records.recoverabilityReceipts,
+            clientCapabilities: records.clientCapabilities,
+            privacyTransforms: records.privacyTransforms,
+            measurementIntegrity: records.measurementIntegrity,
+            packageEvolution: records.packageEvolution,
+            fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+            evidenceAssurance: records.evidenceAssurance,
+            functionalRelationships: records.functionalRelationships,
+            authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
+            assets: records.assets,
+            deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles,
+            issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes,
+            mutationHistory: mutationHistory,
+            packets: records.packets,
+            partyAccountability: records.partyAccountability,
+            recordsSchemaVersion: mutationHistory == nil
+                ? min(records.recordsSchemaVersion, 2)
+                : records.recordsSchemaVersion,
+            reports: records.reports,
+            requirementAssurance: records.requirementAssurance,
+            savedSmartViews: records.savedSmartViews,
+            sites: records.sites,
+            workflowRecords: records.workflowRecords,
+            evidenceContexts: records.evidenceContexts,
+            pairedObservationLinks: records.pairedObservationLinks,
+            lighting: records.lighting,
+            lightingDayInventoryWorkflows: mutationHistory == nil ? [] : records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: mutationHistory == nil ? [] : records.lightingNightWorkflows,
+            assistanceAcceptanceReceipts: assistanceAcceptanceReceipts,
+            temporalEvidence: mutationHistory == nil ? [] : records.temporalEvidence,
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+            operationalContacts: records.operationalContacts,
+            activityContracts: records.activityContracts,
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts,
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences,
+            evidenceAssociationEvents: records.evidenceAssociationEvents,
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+            importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts,
+            evidenceQuality: records.evidenceQuality,
+            fastSurveyInbox: records.fastSurveyInbox,
+            reinspectionExceptionQueue: records.reinspectionExceptionQueue,
+            entityIdentityResolution: records.entityIdentityResolution,
+            practiceWorkspaceProvenance: records.practiceWorkspaceProvenance
+        )
+    }
+
+    static func replacingRequirementAssurance(
+        in records: V4BackupRecordsV1,
+        with requirementAssurance: [V8BackupRequirementAssuranceRecordV1]
+    ) throws -> V4BackupRecordsV1 {
+        V4BackupRecordsV1(
+            guidedSurveys:records.guidedSurveys,
+            assetLocators: records.assetLocators,
+            schedules: records.schedules,
+            plans: records.plans,
+            placementPoses: records.placementPoses,
+            accessibleDocumentAssessments:records.accessibleDocumentAssessments,
+            surveyDefinitions: records.surveyDefinitions,
+            fieldReferences:records.fieldReferences,
+            recoverabilityReceipts: records.recoverabilityReceipts,
+            clientCapabilities: records.clientCapabilities,
+            privacyTransforms: records.privacyTransforms,
+            measurementIntegrity: records.measurementIntegrity,
+            packageEvolution: records.packageEvolution,
+            fieldDrafts: records.fieldDrafts, workPackets:records.workPackets, inspectionReview: records.inspectionReview,
+            evidenceAssurance: records.evidenceAssurance,
+            functionalRelationships: records.functionalRelationships,
+            authorityCriterion: records.authorityCriterion, assetSemantics: records.assetSemantics,
+            assetCompositionEdges: records.assetCompositionEdges,
+            assetCompositionEvents: records.assetCompositionEvents,
+            assetPlacementEvents: records.assetPlacementEvents,
+            assets: records.assets, deletionLedger: records.deletionLedger,
+            evidenceFiles: records.evidenceFiles, issues: records.issues,
+            locationHierarchyEvents: records.locationHierarchyEvents,
+            locationMigrationReceipts: records.locationMigrationReceipts,
+            locationNodes: records.locationNodes, mutationHistory: records.mutationHistory,
+            packets: records.packets, partyAccountability: records.partyAccountability,
+            recordsSchemaVersion: records.recordsSchemaVersion,
+            reports: records.reports, requirementAssurance: requirementAssurance,
+            savedSmartViews: records.savedSmartViews, sites: records.sites,
+            workflowRecords: records.workflowRecords,
+            evidenceContexts: records.evidenceContexts,
+            pairedObservationLinks: records.pairedObservationLinks,
+            lighting: records.lighting,
+            lightingDayInventoryWorkflows: records.lightingDayInventoryWorkflows,
+            lightingNightWorkflows: records.lightingNightWorkflows,
+            assistanceAcceptanceReceipts: records.assistanceAcceptanceReceipts,
+            temporalEvidence: records.temporalEvidence,
+            acceptedLabelGenerationSnapshots: records.acceptedLabelGenerationSnapshots,
+            operationalContacts: records.operationalContacts,
+            activityContracts: records.activityContracts,
+            workResources: records.workResources,
+            serviceRequests: records.serviceRequests,
+            serviceRequestDispositionEvents: records.serviceRequestDispositionEvents,
+            serviceRequestWorkLinkEvents: records.serviceRequestWorkLinkEvents,
+            serviceReliabilityIncidents: records.serviceReliabilityIncidents,
+            serviceImpactSegments: records.serviceImpactSegments,
+            serviceCauseAssertions: records.serviceCauseAssertions,
+            serviceRemedyAssertions: records.serviceRemedyAssertions,
+            serviceRepairIntervals: records.serviceRepairIntervals,
+            serviceRestorationAssertions: records.serviceRestorationAssertions,
+            qualifiedServiceExposures: records.qualifiedServiceExposures,
+            serviceReliabilityReceipts: records.serviceReliabilityReceipts,
+            partsStockSnapshot: records.partsStockSnapshot,
+            myDayPlans: records.myDayPlans,
+            myDayCarryoverReceipts: records.myDayCarryoverReceipts,
+            nonactivePlanReferences: records.nonactivePlanReferences,
+            evidenceAssociationEvents: records.evidenceAssociationEvents,
+            evidenceSequenceRevisions: records.evidenceSequenceRevisions, shopReportProfiles: records.shopReportProfiles, roundSessions: records.roundSessions,
+            importMappingProfiles: records.importMappingProfiles, bulkSessions: records.bulkSessions, bulkCommitReceipts: records.bulkCommitReceipts,
+            evidenceQuality: records.evidenceQuality,
+            fastSurveyInbox: records.fastSurveyInbox,
+            reinspectionExceptionQueue: records.reinspectionExceptionQueue,
+            entityIdentityResolution: records.entityIdentityResolution,
+            practiceWorkspaceProvenance: records.practiceWorkspaceProvenance
+        )
+    }
+
+    static func mergedRequirementAssurance(
+        current: [V8BackupRequirementAssuranceRecordV1],
+        incoming: [V8BackupRequirementAssuranceRecordV1],
+        retainedWorkflowIDs: Set<UUID>
+    ) throws -> [V8BackupRequirementAssuranceRecordV1] {
+        var result = Dictionary(uniqueKeysWithValues: incoming.map { ($0.workflowRecordID, $0) })
+        for candidate in current where retainedWorkflowIDs.contains(candidate.workflowRecordID) {
+            guard let existing = result[candidate.workflowRecordID] else {
+                result[candidate.workflowRecordID] = candidate
+                continue
+            }
+            let currentSnapshot = try candidate.snapshot()
+            let incomingSnapshot = try existing.snapshot()
+            if currentSnapshot.evaluatedRevision > incomingSnapshot.evaluatedRevision {
+                result[candidate.workflowRecordID] = candidate
+            } else if currentSnapshot.evaluatedRevision == incomingSnapshot.evaluatedRevision,
+                      currentSnapshot != incomingSnapshot {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+        }
+        return result.values.sorted {
+            $0.workflowRecordID.uuidString < $1.workflowRecordID.uuidString
+        }
+    }
+
+    static func mergedMutationHistory(
+        current: MutationHistorySnapshotV1?,
+        currentIdentity: WorkspaceReplicaIdentityV1?,
+        incoming: MutationHistorySnapshotV1?,
+        incomingIdentity: WorkspaceReplicaIdentityV1?,
+        preferValidatedTargetOnEqualRevision: Bool
+    ) throws -> MutationHistorySnapshotV1? {
+        guard let current else { return incoming }
+        guard let incoming else { return current }
+        do {
+            try MutationJournalStoreV1.validateImportedSnapshot(current)
+            try MutationJournalStoreV1.validateImportedSnapshot(incoming)
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+
+        var receiptByMutationID: [String: MutationHistoryReceiptRecordV1] = [:]
+        var receiptIdentityByMutationID: [String: String] = [:]
+        var mutationIDByReceiptIdentity: [String: String] = [:]
+        for record in current.receipts + incoming.receipts {
+            let envelope: MutationEnvelopeV1
+            let receipt: MutationReceiptV1
+            do {
+                envelope = try MutationEnvelopeV1.decodeCanonical(
+                    from: record.envelopeData
+                )
+                receipt = try MutationReceiptV1.decodeCanonical(
+                    from: record.receiptData
+                )
+            } catch {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            let mutationID = MutationWorkspaceKeyV1.value(
+                workspaceID: envelope.workspaceID,
+                mutationID: envelope.mutationID
+            )
+            let receiptIdentity = receipt.identity.stableKey
+            if let existing = receiptByMutationID[mutationID], existing != record {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            if let existing = mutationIDByReceiptIdentity[receiptIdentity],
+               existing != mutationID {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            receiptByMutationID[mutationID] = record
+            receiptIdentityByMutationID[mutationID] = receiptIdentity
+            mutationIDByReceiptIdentity[receiptIdentity] = mutationID
+        }
+        let receipts = receiptByMutationID.keys.sorted {
+            receiptIdentityByMutationID[$0]! < receiptIdentityByMutationID[$1]!
+        }.map { receiptByMutationID[$0]! }
+
+        var quarantines: [String: MutationHistoryQuarantineRecordV1] = [:]
+        for value in current.quarantines + incoming.quarantines {
+            let key = MutationWorkspaceKeyV1.value(
+                workspaceID: value.workspaceID,
+                mutationID: try MutationIDV1(rawValue: value.mutationID)
+            )
+            if let existing = quarantines[key], existing != value {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            quarantines[key] = value
+        }
+        let orderedQuarantines = quarantines.values.sorted {
+            let lhs = "\($0.workspaceID.rawValue.uuidString.lowercased()):\($0.mutationID.uuidString.lowercased())"
+            let rhs = "\($1.workspaceID.rawValue.uuidString.lowercased()):\($1.mutationID.uuidString.lowercased())"
+            return lhs < rhs
+        }
+
+        var revisions: [
+            WorkspaceEntityIdentityV1: MutationHistoryEntityRevisionV1
+        ] = [:]
+        for value in current.entityRevisions + incoming.entityRevisions {
+            guard let existing = revisions[value.identity] else {
+                revisions[value.identity] = value
+                continue
+            }
+            // Only recovery's authenticated destination may replace equal-revision
+            // metadata. Raw archives retain the released current-first rule.
+            if value.revision > existing.revision
+                || (preferValidatedTargetOnEqualRevision && value.revision == existing.revision) {
+                revisions[value.identity] = value
+            }
+        }
+        let entityRevisions = revisions.values.sorted {
+            $0.identity.stableKey < $1.identity.stableKey
+        }
+        let retainedSequence = currentIdentity != nil
+            && currentIdentity == incomingIdentity
+            ? max(current.lastLocalSequence, incoming.lastLocalSequence)
+            : current.lastLocalSequence
+        let result = MutationHistorySnapshotV1(
+            workspaceRevision: max(
+                current.workspaceRevision,
+                incoming.workspaceRevision
+            ),
+            lastLocalSequence: retainedSequence,
+            receipts: receipts,
+            quarantines: orderedQuarantines,
+            entityRevisions: entityRevisions
+        )
+        do { try MutationJournalStoreV1.validateImportedSnapshot(result) }
+        catch { throw ReplacementRestoreRuleError.invalidAuthority }
+        return result
+    }
+
+    static func noDeletedLiveIdentity(
+        _ records: V4BackupRecordsV1,
+        ledger: DeletionLedgerV2
+    ) -> Bool {
+        let deleted = Set(ledger.entries.map(\.identity))
+        func absent(_ kind: DeletionRecordKindV2, _ ids: [UUID]) -> Bool {
+            ids.allSatisfy { id in
+                guard let identity = try? DeletionIdentityV2(kind: kind, id: id) else {
+                    return false
+                }
+                return !deleted.contains(identity)
+            }
+        }
+        guard absent(.site, records.sites.map(\.id)),
+              absent(.asset, records.assets.map(\.id)),
+              absent(.workflowRecord, records.workflowRecords.map(\.id)),
+              absent(.evidenceFile, records.evidenceFiles.map(\.id)),
+              absent(.issue, records.issues.map(\.id)),
+              absent(.report, records.reports.map(\.id)) else { return false }
+        return records.packets.allSatisfy { packet in
+            guard let identity = try? DeletionIdentityV2(kind: .packet, id: packet.id),
+                  let entry = ledger.entries.first(where: { $0.identity == identity }) else {
+                return true
+            }
+            return packet.currentRecordID == nil
+                && packet.evaluationCounted
+                && packet.contentDeletedAt == entry.deletedAt
+        }
+    }
+
+    static func validLocationReferences(
+        _ records: V4BackupRecordsV1,
+        ledger: DeletionLedgerV2
+    ) -> Bool {
+        guard (5...LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion)
+                .contains(records.recordsSchemaVersion) else {
+            return records.locationNodes.isEmpty
+                && records.assetPlacementEvents.isEmpty
+                && records.assetCompositionEdges.isEmpty
+                && records.assetCompositionEvents.isEmpty
+                && records.locationHierarchyEvents.isEmpty
+                && records.locationMigrationReceipts.isEmpty
+        }
+        let liveSites = Set(records.sites.map(\.id))
+        let liveAssets = Set(records.assets.map(\.id))
+        let deletedSites = Set(ledger.entries.compactMap {
+            $0.identity.kind == .site ? $0.identity.id : nil
+        })
+        let deletedAssets = Set(ledger.entries.compactMap {
+            $0.identity.kind == .asset ? $0.identity.id : nil
+        })
+        let knownSites = liveSites.union(deletedSites)
+        let knownAssets = liveAssets.union(deletedAssets)
+        func decode<T: Codable>(_ type: T.Type, _ record: V5BackupLocationRecordV1) throws -> T {
+            try LocationPersistenceCodecV1.decode(type, from: record.canonicalData)
+        }
+        do {
+            let nodes = try records.locationNodes.map { try decode(LocationNodeV1.self, $0) }
+            let nodeIDs = Set(nodes.map(\.id))
+            guard nodes.allSatisfy({
+                knownSites.contains($0.siteID)
+                    && (!deletedSites.contains($0.siteID) || $0.state == .archived)
+            }) else { return false }
+
+            let placements = try records.assetPlacementEvents.map {
+                try decode(AssetPlacementEventV1.self, $0)
+            }
+            let placementIDs = Set(placements.map(\.id))
+            guard placements.allSatisfy({ value in
+                knownAssets.contains(value.assetID)
+                    && knownSites.contains(value.siteID)
+                    && value.locationNodeID.map(nodeIDs.contains) ?? true
+                    && value.predecessorEventID.map(placementIDs.contains) ?? true
+            }) else { return false }
+            for history in Dictionary(grouping: placements, by: \.assetID).values {
+                try AssetPlacementHistoryV1.validate(history)
+            }
+            let predecessorIDs = Set(placements.compactMap(\.predecessorEventID))
+            let tips = placements.filter { !predecessorIDs.contains($0.id) }
+            guard Set(tips.map(\.assetID)).count == tips.count,
+                  Set(tips.map(\.assetID)) == Set(placements.map(\.assetID)),
+                  liveAssets.isSubset(of: Set(tips.map(\.assetID))) else { return false }
+            let placementsByID = Dictionary(uniqueKeysWithValues: placements.map { ($0.id, $0) })
+            var reachedPlacementIDs = Set<UUID>()
+            for tip in tips {
+                var cursor: AssetPlacementEventV1? = tip
+                var visited = Set<UUID>()
+                while let value = cursor {
+                    guard value.assetID == tip.assetID,
+                          visited.insert(value.id).inserted,
+                          reachedPlacementIDs.insert(value.id).inserted else { return false }
+                    cursor = value.predecessorEventID.flatMap { placementsByID[$0] }
+                }
+            }
+            guard reachedPlacementIDs.count == placements.count else { return false }
+            let liveSiteByAsset = Dictionary(uniqueKeysWithValues: records.assets.map { ($0.id, $0.siteID) })
+            guard tips.allSatisfy({ tip in
+                guard liveAssets.contains(tip.assetID) else { return deletedAssets.contains(tip.assetID) }
+                return liveSites.contains(tip.siteID) && liveSiteByAsset[tip.assetID] == tip.siteID
+            }) else { return false }
+            let placementByAsset = Dictionary(uniqueKeysWithValues: tips.map { ($0.assetID, $0) })
+
+            let edges = try records.assetCompositionEdges.map {
+                try decode(AssetCompositionEdgeV1.self, $0)
+            }
+            guard edges.allSatisfy({ edge in
+                knownAssets.contains(edge.parentAssetID)
+                    && knownAssets.contains(edge.childAssetID)
+                    && (!edge.isActive || (liveAssets.contains(edge.parentAssetID)
+                        && liveAssets.contains(edge.childAssetID)))
+            }) else { return false }
+            try AssetCompositionPolicyV1.validate(
+                edges: edges.filter(\.isActive),
+                placementByAssetID: placementByAsset
+            )
+            let edgeIDs = Set(edges.map(\.id))
+            let compositionEvents = try records.assetCompositionEvents.map {
+                try decode(AssetCompositionEventV1.self, $0)
+            }
+            guard compositionEvents.allSatisfy({ event in
+                edgeIDs.contains(event.edge.id)
+                    && knownAssets.contains(event.edge.parentAssetID)
+                    && knownAssets.contains(event.edge.childAssetID)
+            }) else { return false }
+            let compositionHistoryByEdgeID = Dictionary(grouping: compositionEvents, by: { $0.edge.id })
+            guard Set(compositionHistoryByEdgeID.keys) == edgeIDs else { return false }
+            let currentEdgeByID = Dictionary(uniqueKeysWithValues: edges.map { ($0.id, $0) })
+            for (edgeID, history) in compositionHistoryByEdgeID {
+                guard let currentEdge = currentEdgeByID[edgeID] else { return false }
+                try AssetCompositionHistoryV1.validate(history, currentEdge: currentEdge)
+            }
+
+            for record in records.locationHierarchyEvents {
+                guard let receiptData = record.secondaryCanonicalData else { return false }
+                let plan = try decode(LocationHierarchyChangePlanV1.self, record)
+                let receipt = try LocationPersistenceCodecV1.decode(
+                    LocationHierarchyChangeReceiptV1.self, from: receiptData
+                )
+                guard plan.operationID == record.id,
+                      receipt.planSHA256 == plan.planSHA256,
+                      plan.affectedAssetIDs.allSatisfy(knownAssets.contains),
+                      (plan.beforeNodes + plan.afterNodes).allSatisfy({ knownSites.contains($0.siteID) }),
+                      (plan.beforePaths + plan.afterPaths).allSatisfy({ knownSites.contains($0.siteID) }) else {
+                    return false
+                }
+            }
+            let migrationReceipts = try records.locationMigrationReceipts.map {
+                try decode(LocationMigrationReceiptV1.self, $0)
+            }
+            guard migrationReceipts.count <= 1,
+                  migrationReceipts.allSatisfy({ receipt in
+                receipt.bindings.allSatisfy {
+                    knownAssets.contains($0.assetID) && knownSites.contains($0.siteID)
+                }
+            }) else { return false }
+            try LocationMigrationIntegrityV1.validate(
+                receipt: migrationReceipts.first,
+                placementEvents: placements,
+                knownAssetIDs: knownAssets,
+                liveAssetSiteByID: liveSiteByAsset
+            )
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func validReferences(_ records: V4BackupRecordsV1) -> Bool {
+        let sites = Set(records.sites.map(\.id))
+        let assets = Set(records.assets.map(\.id))
+        let workflow = Set(records.workflowRecords.map(\.id))
+        let issues = Set(records.issues.map(\.id))
+        let packets = Set(records.packets.map(\.id))
+        let reports = Set(records.reports.map(\.id))
+        let allIDs = records.sites.map(\.id) + records.assets.map(\.id)
+            + records.workflowRecords.map(\.id) + records.evidenceFiles.map(\.id)
+            + records.issues.map(\.id) + records.packets.map(\.id)
+            + records.reports.map(\.id)
+        guard Set(allIDs).count == allIDs.count,
+              records.assets.allSatisfy({ sites.contains($0.siteID) }),
+              records.workflowRecords.allSatisfy({ record in
+                  assets.contains(record.assetID)
+                    && record.packetID.map(packets.contains) ?? true
+                    && record.issueID.map(issues.contains) ?? true
+                    && record.parentRecordID.map(workflow.contains) ?? true
+                    && workflow.contains(record.recordRevisionRootID)
+                    && record.revisesRecordID.map(workflow.contains) ?? true
+                    && record.evidenceSourceRecordID.map(workflow.contains) ?? true
+              }),
+              records.evidenceFiles.allSatisfy({ workflow.contains($0.recordID) }),
+              records.issues.allSatisfy({ issue in
+                  assets.contains(issue.assetID)
+                    && workflow.contains(issue.openedByRecordID)
+                    && issue.resolvedByRecordID.map(workflow.contains) ?? true
+              }),
+              records.packets.allSatisfy({ packet in
+                  packet.currentRecordID.map(workflow.contains) ?? true
+              }),
+              records.reports.allSatisfy({ report in
+                  packets.contains(report.packetID)
+                    && workflow.contains(report.sourceRecordID)
+                    && report.replacesReportID.map(reports.contains) ?? true
+              }) else { return false }
+        return true
+    }
+
+    static func validPacketSet(_ packets: [V4BackupPacketDTO]) -> Bool {
+        guard sortedUnique(packets.map(\.id)),
+              Set(packets.map(\.stableRootID)).count == packets.count else {
+            return false
+        }
+        return packets.allSatisfy(validPacket)
+    }
+
+    static func validPacket(_ packet: V4BackupPacketDTO) -> Bool {
+        guard packet.schemaVersion == 1,
+              packet.evaluationCounted,
+              validDate(packet.createdAt) else {
+            return false
+        }
+        if packet.currentRecordID != nil {
+            return packet.contentDeletedAt == nil
+        }
+        guard let deletedAt = packet.contentDeletedAt else { return false }
+        return validDate(deletedAt) && packet.createdAt <= deletedAt
+    }
+
+    static func sameImmutableFacts(
+        _ current: V4BackupPacketDTO,
+        _ incoming: V4BackupPacketDTO
+    ) -> Bool {
+        current.id == incoming.id
+            && current.schemaVersion == incoming.schemaVersion
+            && current.stableRootID == incoming.stableRootID
+            && current.evaluationCounted == incoming.evaluationCounted
+            && current.createdAt == incoming.createdAt
+    }
+
+    static func sortedUnique(_ ids: [UUID]) -> Bool {
+        Set(ids).count == ids.count && ids == ids.sorted(by: idOrder)
+    }
+
+    static func packetOrder(
+        _ lhs: V4BackupPacketDTO,
+        _ rhs: V4BackupPacketDTO
+    ) -> Bool {
+        idOrder(lhs.id, rhs.id)
+    }
+
+    static func idOrder(_ lhs: UUID, _ rhs: UUID) -> Bool {
+        lhs.uuidString.lowercased() < rhs.uuidString.lowercased()
+    }
+
+    static func validDate(_ date: Date) -> Bool {
+        date.timeIntervalSinceReferenceDate.isFinite
+    }
+}
+
+/// Replacement restore treats locator records as immutable public history.
+/// Their canonical bytes are checked before any deletion-ledger filtering so a
+/// forged lookup row cannot become an active destination binding.
+enum AssetLocatorReplacementRestorePolicyV1 {
+    static let durableRecordKinds: Set<V26BackupAssetLocatorRecordV1.Kind> = [
+        .locator, .bindingReceipt
+    ]
+    static let cloneForkSourceSignatureActive = false
+    static let privateKeyMaterialExported = false
+
+    static func validate(_ records: [V26BackupAssetLocatorRecordV1]) throws {
+        guard records == records.sorted(by: {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }),
+        Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count
+            == records.count else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        var locators: [AssetLocatorV1] = []
+        var receipts: [LocatorBindingReceiptV1] = []
+        for record in records {
+            guard durableRecordKinds.contains(record.kind),
+                  record.revision > 0,
+                  !record.canonicalData.isEmpty else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            do {
+                switch record.kind {
+                case .locator:
+                    let value = try AssetLocatorCanonicalCodecV1.decode(
+                        AssetLocatorV1.self, from: record.canonicalData
+                    )
+                    guard value.locatorID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    locators.append(value)
+                case .bindingReceipt:
+                    let value = try AssetLocatorCanonicalCodecV1.decode(
+                        LocatorBindingReceiptV1.self, from: record.canonicalData
+                    )
+                    guard value.receiptID == record.id,
+                          value.workspaceID.rawValue == record.workspaceID,
+                          value.revision == record.revision else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                    receipts.append(value)
+                }
+            } catch let error as ReplacementRestoreRuleError {
+                throw error
+            } catch {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+        }
+        do {
+            try AssetLocatorLifecycleClosureV1(
+                locators: locators, receipts: receipts
+            ).validate()
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+}
+
+/// Plan replacement is append-only.  The incoming package may supersede a
+/// plan revision, but it may not discard an older document/revision/placement
+/// or turn a derived preview/component registry into durable backup state.
+enum PlanReplacementRestorePolicyV1 {
+    static let persistentSchemaVersion = 28
+    static let recordsSchemaVersion = 27
+    static let durableFamilyCount = 4
+    static let derivedPreviewRestored = false
+    static let sourcePlanAutomaticallyActiveOnCloneOrFork = false
+
+    static func validate(_ records: [V28BackupPlanRecordV1]) throws {
+        guard persistentSchemaVersion == PlanPersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlanPersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              !derivedPreviewRestored,
+              !sourcePlanAutomaticallyActiveOnCloneOrFork else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        guard records == records.sorted(by: {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }), Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count == records.count else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            let values = try PlanBackupRecordSetV1.decode(records)
+            let revisionIDs = Set(values.revisions.map(\.planRevisionID))
+            for receipt in values.receipts {
+                if receipt.decision == .approved {
+                    guard let resultingRevision = receipt.resultingRevision,
+                          revisionIDs.contains(resultingRevision.planRevisionID) else {
+                        throw ReplacementRestoreRuleError.invalidAuthority
+                    }
+                }
+            }
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+}
+
+/// C37 replacement keeps pose history as an immutable closure. Deletion
+/// filtering may remove an asset's pose rows only when the asset itself is
+/// deleted; it may not trim an event chain or leave a dangling predecessor.
+enum PlacementPoseReplacementRestorePolicyV1 {
+    static let persistentSchemaVersion = 29
+    static let recordsSchemaVersion = 28
+    static let durableFamilyCount = 2
+    static let derivedProjectionsRestored = false
+    static let cloneForkRequiresHistoricRebind = true
+
+    static func validate(_ records: [V29BackupPlacementPoseRecordV1]) throws {
+        guard persistentSchemaVersion == PlacementPosePersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlacementPosePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == PlacementPosePersistenceEnrollmentV1.durableModelCount,
+              !derivedProjectionsRestored,
+              cloneForkRequiresHistoricRebind else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        guard records == records.sorted(by: {
+            "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())"
+                < "\($1.kind.rawValue)\u{0}\($1.id.uuidString.lowercased())"
+        }), Set(records.map { "\($0.kind.rawValue)\u{0}\($0.id.uuidString.lowercased())" }).count == records.count else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do { _ = try PlacementPoseBackupRecordSetV1.decode(records) }
+        catch { throw ReplacementRestoreRuleError.invalidAuthority }
+    }
+}
+
+/// Replacement restore cannot overwrite context history or silently accept a
+/// different paired-comparison basis. Incoming rows are checked as one
+/// canonical closure before the ordinary packet merge runs.
+enum C30EvidenceContextReplacementRestorePolicyV1 {
+    static let ordinaryReplacementPreservesHistoricContexts = true
+    static let cloneForkRequiresExplicitRebind = true
+    static let ambiguousPairingIsRejected = true
+
+    static func validate(current: [V30BackupEvidenceContextRecordV1],
+                         incoming: [V30BackupEvidenceContextRecordV1]) throws {
+        let currentSet = try EvidenceContextBackupRecordSetV1.decode(current)
+        let incomingSet = try EvidenceContextBackupRecordSetV1.decode(incoming)
+        guard ordinaryReplacementPreservesHistoricContexts,
+              cloneForkRequiresExplicitRebind,
+              ambiguousPairingIsRejected,
+              Set(currentSet.contexts.map(\.contextID)).count == currentSet.contexts.count,
+              Set(incomingSet.contexts.map(\.contextID)).count == incomingSet.contexts.count else {
+            throw EvidenceContextFailureV1.duplicateIdentity
+        }
+    }
+}
+
+/// Replacement restore validates lighting as one graph before packet merge.
+/// It never substitutes a partial topology and never makes a clone/fork
+/// source claim current without an explicit destination rebind.
+enum C31LightingReplacementRestorePolicyV1 {
+    static let preservesImmutableOriginals = true
+    static let rejectsPartialTopology = true
+    static let cloneForkRequiresExplicitRebind = true
+
+    static func validate(current: V4BackupRecordsV1,
+                         incoming: V4BackupRecordsV1,
+                         mode: BackupRestoreMode = .replaceExisting) throws {
+        guard preservesImmutableOriginals, rejectsPartialTopology,
+              cloneForkRequiresExplicitRebind else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            try current.validateC31LightingClosure()
+            try incoming.validateC31LightingClosure()
+            let currentSet = try LightingBackupRecordSetV1.decode(current.lighting)
+            let incomingSet = try LightingBackupRecordSetV1.decode(incoming.lighting)
+            let currentWorkspaces = Set(current.lighting.map(\.workspaceID))
+            let incomingWorkspaces = Set(incoming.lighting.map(\.workspaceID))
+            guard currentWorkspaces.count <= 1, incomingWorkspaces.count <= 1 else {
+                throw LightingContractFailureV1.wrongWorkspace
+            }
+            if mode == .replaceExisting {
+                guard currentWorkspaces == incomingWorkspaces else {
+                    throw LightingContractFailureV1.wrongWorkspace
+                }
+            }
+            guard (currentSet.systems.isEmpty
+                    == (currentSet.observations.isEmpty && currentSet.issues.isEmpty
+                        && currentSet.plans.isEmpty && currentSet.claims.isEmpty)),
+                  (incomingSet.systems.isEmpty
+                    == (incomingSet.observations.isEmpty && incomingSet.issues.isEmpty
+                        && incomingSet.plans.isEmpty && incomingSet.claims.isEmpty)) else {
+                throw LightingContractFailureV1.incompleteTopology
+            }
+        } catch let failure as ReplacementRestoreRuleError {
+            throw failure
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+}
+
+enum C32AssistanceReplacementRestorePolicyV1 {
+    static let preservesExistingReceipts = true
+    static let rejectsDivergentMutationIdentity = true
+    static let proposalsRestored = false
+
+    static func validate(current: [V32BackupAssistanceAcceptanceRecordV1],
+                         incoming: [V32BackupAssistanceAcceptanceRecordV1]) throws {
+        guard preservesExistingReceipts, rejectsDivergentMutationIdentity,
+              !proposalsRestored else { throw ReplacementRestoreRuleError.invalidAuthority }
+        do {
+            var currentByMutation: [UUID: V32BackupAssistanceAcceptanceRecordV1] = [:]
+            for record in current {
+                guard currentByMutation.updateValue(record, forKey: record.mutationID) == nil else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+            }
+            guard Set(incoming.map(\.mutationID)).count == incoming.count else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            for record in current + incoming { _ = try record.value() }
+            for record in incoming where currentByMutation[record.mutationID] != nil {
+                guard currentByMutation[record.mutationID] == record else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+            }
+        } catch let failure as ReplacementRestoreRuleError { throw failure }
+        catch { throw ReplacementRestoreRuleError.invalidAuthority }
+    }
+
+    static func merged(
+        current: [V32BackupAssistanceAcceptanceRecordV1],
+        incoming: [V32BackupAssistanceAcceptanceRecordV1]
+    ) throws -> [V32BackupAssistanceAcceptanceRecordV1] {
+        try validate(current: current, incoming: incoming)
+        var byMutation = Dictionary(uniqueKeysWithValues: current.map { ($0.mutationID, $0) })
+        for record in incoming { byMutation[record.mutationID] = record }
+        return byMutation.values.sorted {
+            $0.receiptID.uuidString.lowercased() < $1.receiptID.uuidString.lowercased()
+        }
+    }
+}
+
+enum C45AcceptedLabelReplacementBoundaryV1 { static let snapshotFollowsWorkspaceReplacement=true;static let projectionScratchIsRestored=false }
+
+enum C46OperationalContactBoundary_04{static let recordsSchemaVersion=34;static let sourceBytesPersistent=false;static let platformOutcomesPersistent=false}
+enum C47ActivityContractReplacementBoundaryV2 { static let recordsSchemaVersion=35;static let sameWorkspacePreservesCanonicalBytes=true;static let crossWorkspaceRebindsFullMutationHistory=true;static let completedSnapshotDigestIsPreserved=true }
+
+enum C48PortableExchangeReplacementRuleV2 {
+    static func validate(
+        _ snapshot: PortableExchangeBackupSnapshotV2,
+        targetWorkspaceID: UUID
+    ) throws {
+        try snapshot.validate()
+        guard snapshot.sessions.allSatisfy({
+            $0.workspaceID == nil || $0.workspaceID == targetWorkspaceID
+        }) else { throw ReplacementRestoreRuleError.invalidAuthority }
+    }
+}
+
+/// C52 canonical request rows are replaced atomically by their existing
+/// writer. The restore rule never rewrites an escaped source byte or treats a
+/// duplicate/state projection as canonical; clone/fork rebinding is explicit.
+enum C52ServiceRequestReplacementRestorePolicyV1 {
+    static let persistentSchemaVersion = C52ServiceRequestBackupEnrollmentV1.persistentSchemaVersion
+    static let recordsSchemaVersion = C52ServiceRequestBackupEnrollmentV1.recordsSchemaVersion
+    static let sameWorkspaceReplacementPreservesHistory = true
+    static let sameWorkspaceReplacementPreservesImmutableSourceBytes = true
+    static let cloneForkPreservesHistoryAsHistoricEvidence = true
+    static let cloneForkRequiresExplicitWorkspaceRebind = true
+    static let cloneForkInvalidatesOutstandingCapabilitiesViaC48Store = true
+    static let derivedProjectionsAreRebuilt = true
+    static let rawCapabilityBytesAreRestored = false
+    static let automaticWorkOrDuplicateActionIsPermitted = false
+
+    static func requiresExplicitWorkspaceRebind(for mode: BackupRestoreMode) -> Bool {
+        mode == .clone || mode == .fork
+    }
+
+    static func validate(
+        _ records: V4BackupRecordsV1,
+        targetWorkspaceID: UUID? = nil,
+        validatesPartsStock: Bool = true
+    ) throws {
+        guard persistentSchemaVersion == 39,
+              recordsSchemaVersion == 38,
+              sameWorkspaceReplacementPreservesHistory,
+              sameWorkspaceReplacementPreservesImmutableSourceBytes,
+              cloneForkPreservesHistoryAsHistoricEvidence,
+              cloneForkRequiresExplicitWorkspaceRebind,
+              cloneForkInvalidatesOutstandingCapabilitiesViaC48Store,
+              derivedProjectionsAreRebuilt,
+              !rawCapabilityBytesAreRestored,
+              !automaticWorkOrDuplicateActionIsPermitted else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            if records.recordsSchemaVersion >= C53ServiceReliabilityBackupEnrollmentV1.recordsSchemaVersion {
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: records,
+                    workspaceID: targetWorkspaceID
+                )
+            } else {
+                try C52ServiceRequestBackupEnrollmentV1.validate(
+                    records: records,
+                    workspaceID: targetWorkspaceID
+                )
+            }
+            if validatesPartsStock {
+                try C55PartsStockBackupEnrollmentV1.validate(
+                    records,
+                    workspaceID: targetWorkspaceID.map { WorkspaceID(rawValue: $0) }
+                )
+            }
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+
+    static func validate(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        sourceWorkspaceID: UUID? = nil,
+        targetWorkspaceID: UUID? = nil
+    ) throws {
+        guard sameWorkspaceReplacementPreservesHistory,
+              cloneForkPreservesHistoryAsHistoricEvidence else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        switch mode {
+        case .emptyInstall, .replaceExisting:
+            try validate(incoming, targetWorkspaceID: targetWorkspaceID)
+            try validate(current, targetWorkspaceID: targetWorkspaceID)
+        case .clone, .fork:
+            guard cloneForkRequiresExplicitWorkspaceRebind,
+                  cloneForkInvalidatesOutstandingCapabilitiesViaC48Store,
+                  let sourceWorkspaceID,
+                  let targetWorkspaceID,
+                  sourceWorkspaceID != targetWorkspaceID else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            // Both snapshots are validated under their source identity. The
+            // destination binding is established by RestoreIdentityV1 before
+            // any canonical row is accepted by the writer.
+            try validate(current, targetWorkspaceID: sourceWorkspaceID)
+            try validate(incoming, targetWorkspaceID: sourceWorkspaceID)
+        }
+    }
+}
+enum C52ServiceRequestBoundary_ReplacementRestoreRule {
+    static let sourceKind: ServiceRequestSourceKindV1 = .portableSubmission
+    static let requesterAssertionType: ServiceRequestRequesterAssertionV1.Type = ServiceRequestRequesterAssertionV1.self
+    static let contactAssertionType: ServiceRequestContactAssertionV1.Type = ServiceRequestContactAssertionV1.self
+    static let requesterIdentityIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.requesterIdentityIsVerified
+    static let contactAssertionWording: String = "SELF_ASSERTED_UNVERIFIED"
+    static let urgencyIsUnverified: Bool = !PortableServiceRequestFormatBoundaryV1.urgencyIsVerified
+    static let cleartextIsReadableAndForwardable: Bool = PortableServiceRequestFormatBoundaryV1.submissionIsCleartext && PortableServiceRequestFormatBoundaryV1.invitationIsReadableAndForwardable
+    static let providerContactPurposeSeparationRequired: Bool = true
+    static let canonicalSourceBytesAreAuthoritative: Bool = true
+    static let duplicateCandidatesAreDerived: Bool = !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityMayBecomeWorkspaceTruth: Bool = ServiceRequestNoncanonicalBoundaryV1.rawCapabilityIsWorkspaceTruth
+    static let automaticWorkOrDuplicateActionPermitted: Bool = ServiceRequestNoncanonicalBoundaryV1.automaticWorkCreationPermitted || ServiceRequestNoncanonicalBoundaryV1.automaticDuplicateMergePermitted
+    static let excludedSurfaces: [String] = ["REPORT", "SEARCH", "DIAGNOSTIC", "LIFECYCLE", "COMPATIBILITY", "BACKUP", "DELETE"]
+}
+
+/// C53 replacement/clone planning carries reliability source rows and
+/// receipts as immutable evidence; no derived reliability projection is
+/// treated as restore input.
+enum C53ServiceReliabilityReplacementRestoreBoundaryV1 {
+    static let persistentSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.targetPersistentSchemaVersion
+    static let recordsSchemaVersion = AssetServiceReliabilityPersistenceEnrollmentV1.recordsSchemaVersion
+    static let preservesAppendOnlyIncidentAndExposureHistory = true
+    static let preservesReliabilityIdentityEpochs = true
+    static let cloneForkRequiresExplicitWorkspaceRebind = true
+    static let cloneForkAutomaticallyActivatesSourceRows = false
+    static let derivedProjectionsAreRebuilt = true
+
+    static func validate(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        sourceWorkspaceID: UUID?,
+        targetWorkspaceID: UUID?
+    ) throws {
+        guard persistentSchemaVersion == 40,
+              recordsSchemaVersion == 39,
+              preservesAppendOnlyIncidentAndExposureHistory,
+              preservesReliabilityIdentityEpochs,
+              cloneForkRequiresExplicitWorkspaceRebind,
+              !cloneForkAutomaticallyActivatesSourceRows,
+              derivedProjectionsAreRebuilt,
+              (current.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+                || current.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion),
+              (incoming.recordsSchemaVersion <= C05RoundSessionBackupEnrollmentV1.recordsSchemaVersion
+                || incoming.recordsSchemaVersion == LightingNightWorkflowBackupEnrollmentV1.recordsSchemaVersion) else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            switch mode {
+            case .emptyInstall:
+                guard !containsRows(current) else { throw ReplacementRestoreRuleError.invalidAuthority }
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: current
+                )
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: incoming,
+                    workspaceID: targetWorkspaceID
+                )
+            case .replaceExisting:
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: current,
+                    workspaceID: targetWorkspaceID
+                )
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: incoming,
+                    workspaceID: targetWorkspaceID
+                )
+            case .clone, .fork:
+                guard let sourceWorkspaceID, let targetWorkspaceID,
+                      sourceWorkspaceID != targetWorkspaceID else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                try C53ServiceReliabilityBackupEnrollmentV1.validate(
+                    records: incoming,
+                    workspaceID: sourceWorkspaceID
+                )
+            }
+        } catch {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+    }
+
+    static func canonicalRows(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        sourceWorkspaceID: UUID?,
+        targetWorkspaceID: UUID?
+    ) throws -> C53ServiceReliabilityBackupRowsV1 {
+        try validate(
+            current: current,
+            incoming: incoming,
+            mode: mode,
+            sourceWorkspaceID: sourceWorkspaceID,
+            targetWorkspaceID: targetWorkspaceID
+        )
+        let incomingRows=try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+            from: incoming,
+            workspaceID: mode == .clone || mode == .fork ? sourceWorkspaceID:targetWorkspaceID
+        )
+        guard mode == .replaceExisting else{return incomingRows}
+        let currentRows=try C53ServiceReliabilityBackupEnrollmentV1.canonicalRows(
+            from: current,
+            workspaceID: targetWorkspaceID
+        )
+        return try .init(
+            incidents:merge(currentRows.incidents,incomingRows.incidents,key:{"\($0.incidentID.uuidString)|\($0.revision)"}),
+            impactSegments:merge(currentRows.impactSegments,incomingRows.impactSegments,key:{"\($0.segmentID.uuidString)|\($0.revision)"}),
+            causeAssertions:merge(currentRows.causeAssertions,incomingRows.causeAssertions,key:{"\($0.assertionID.uuidString)|\($0.revision)"}),
+            remedyAssertions:merge(currentRows.remedyAssertions,incomingRows.remedyAssertions,key:{"\($0.assertionID.uuidString)|\($0.revision)"}),
+            repairIntervals:merge(currentRows.repairIntervals,incomingRows.repairIntervals,key:{"\($0.repairID.uuidString)|\($0.revision)"}),
+            restorationAssertions:merge(currentRows.restorationAssertions,incomingRows.restorationAssertions,key:{"\($0.assertionID.uuidString)|\($0.revision)"}),
+            qualifiedExposures:merge(currentRows.qualifiedExposures,incomingRows.qualifiedExposures,key:{"\($0.exposureID.uuidString)|\($0.revision)"}),
+            receipts:merge(currentRows.receipts,incomingRows.receipts,key:{$0.mutationReceipt.mutationID.rawValue.uuidString})
+        )
+    }
+
+    private static func merge<T:Equatable>(_ current:[T],_ incoming:[T],key:(T)->String)throws->[T]{
+        var values:[String:T]=[:]
+        for value in current+incoming{let identity=key(value)
+            if let prior=values[identity],prior != value{throw ReplacementRestoreRuleError.invalidAuthority}
+            values[identity]=value
+        }
+        return values.sorted{$0.key<$1.key}.map(\.value)
+    }
+
+    private static func containsRows(_ records:V4BackupRecordsV1)->Bool{
+        !records.serviceReliabilityIncidents.isEmpty
+            || !records.serviceImpactSegments.isEmpty
+            || !records.serviceCauseAssertions.isEmpty
+            || !records.serviceRemedyAssertions.isEmpty
+            || !records.serviceRepairIntervals.isEmpty
+            || !records.serviceRestorationAssertions.isEmpty
+            || !records.qualifiedServiceExposures.isEmpty
+            || !records.serviceReliabilityReceipts.isEmpty
+    }
+}
+
+enum C05EvidenceMetadataReplacementRestoreBoundaryV1 {
+    static let appendOnlyFamiliesAreUnionedOnReplacement = true
+    static let cloneForkWithoutRebindFailsClosed = true
+    static let derivedContentUsesIncumbentContentLifecycle = true
+
+    static func canonicalRows(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        sourceWorkspaceID: UUID?,
+        targetWorkspaceID: UUID?
+    ) throws -> (associations: [EvidenceAssociationV1], sequences: [EvidenceSequenceV1]) {
+        guard appendOnlyFamiliesAreUnionedOnReplacement,
+              cloneForkWithoutRebindFailsClosed,
+              derivedContentUsesIncumbentContentLifecycle else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        do {
+            try C05EvidenceMetadataBackupEnrollmentV1.validate(incoming)
+            try C04ShopReportProfileBackupEnrollmentV1.validate(incoming)
+            try C05RoundSessionBackupEnrollmentV1.validate(incoming)
+            switch mode {
+            case .emptyInstall:
+                guard current.evidenceAssociationEvents.isEmpty,
+                      current.evidenceSequenceRevisions.isEmpty else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                return (incoming.evidenceAssociationEvents, incoming.evidenceSequenceRevisions)
+            case .clone, .fork:
+                guard incoming.evidenceAssociationEvents.isEmpty,
+                      incoming.evidenceSequenceRevisions.isEmpty else {
+                    throw ReplacementRestoreRuleError.invalidAuthority
+                }
+                return ([], [])
+            case .replaceExisting:
+                try C05EvidenceMetadataBackupEnrollmentV1.validate(current)
+                try C04ShopReportProfileBackupEnrollmentV1.validate(current)
+                try C05RoundSessionBackupEnrollmentV1.validate(current)
+                let associations = try merge(
+                    current.evidenceAssociationEvents,
+                    incoming.evidenceAssociationEvents,
+                    key: { "\($0.workspaceID)|\($0.associationEventID)" }
+                )
+                let sequences = try merge(
+                    current.evidenceSequenceRevisions,
+                    incoming.evidenceSequenceRevisions,
+                    key: { EvidenceSequenceRevisionRowV1.rowID(sequenceID: $0.sequenceID, revision: $0.revision) }
+                )
+                let combined = incoming.replacingEvidenceMetadata(associations, sequences)
+                try C05EvidenceMetadataBackupEnrollmentV1.validate(combined)
+                try C04ShopReportProfileBackupEnrollmentV1.validate(combined)
+                try C05RoundSessionBackupEnrollmentV1.validate(combined)
+                return (associations, sequences)
+            }
+        } catch let error as ReplacementRestoreRuleError { throw error }
+        catch { throw ReplacementRestoreRuleError.invalidAuthority }
+    }
+
+    private static func merge<T: Equatable>(
+        _ current: [T], _ incoming: [T], key: (T) -> String
+    ) throws -> [T] {
+        var values: [String: T] = [:]
+        for value in current + incoming {
+            let identity = key(value)
+            if let prior = values[identity], prior != value {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            values[identity] = value
+        }
+        return values.sorted { $0.key < $1.key }.map(\.value)
+    }
+}
+
+enum C05RoundSessionReplacementRestoreBoundaryV1 {
+    static let sameWorkspaceReplacementPreservesExactRows = true
+    static let cloneForkUsesRestoreIdentityRebind = true
+    static let appendOnlyRowsAreNotMergedAcrossDistinctWorkspaces = true
+
+    static func canonicalRows(
+        current: V4BackupRecordsV1,
+        incoming: V4BackupRecordsV1,
+        mode: BackupRestoreMode,
+        identity: RestoreIdentityV1?
+    ) throws -> [RoundSessionV1] {
+        guard sameWorkspaceReplacementPreservesExactRows,
+              cloneForkUsesRestoreIdentityRebind,
+              appendOnlyRowsAreNotMergedAcrossDistinctWorkspaces else {
+            throw ReplacementRestoreRuleError.invalidAuthority
+        }
+        try C05RoundSessionBackupEnrollmentV1.validate(incoming)
+        switch mode {
+        case .emptyInstall:
+            guard current.roundSessions.isEmpty else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            return incoming.roundSessions
+        case .replaceExisting:
+            try C05RoundSessionBackupEnrollmentV1.validate(current)
+            guard current.roundSessions.isEmpty || current.roundSessions == incoming.roundSessions else {
+                throw ReplacementRestoreRuleError.invalidAuthority
+            }
+            return incoming.roundSessions
+        case .clone, .fork:
+            guard let identity else { throw ReplacementRestoreRuleError.invalidAuthority }
+            return try C05RoundSessionRestoreIdentityBoundaryV1.rebinding(
+                incoming.roundSessions,
+                identity: identity
+            )
+        }
+    }
+}

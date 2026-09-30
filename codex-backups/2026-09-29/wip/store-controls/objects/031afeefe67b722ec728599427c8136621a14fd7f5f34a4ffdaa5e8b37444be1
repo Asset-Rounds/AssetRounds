@@ -1,0 +1,713 @@
+    @MainActor
+    private func beginSchema2ColdCleanupControlScope(
+        _ permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        try permit.requireHeld()
+        guard !coldCloseAttempted, !coldClosed, !coldEffectUncertain,
+              coldActiveFD == nil, coldUncertainFDs.isEmpty,
+              coldEnumerationFD == nil, coldDirectoryStream == nil,
+              !coldUncertainStreamClose else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        coldCleanupPermit = permit
+        try verifyAuthority()
+        try permit.requireHeld()
+    }
+
+    /// Read exactly one held/named leaf without decode, repair or policy
+    /// promotion. All numeric descriptor slots are cleared before close.
+    private func readSchema2CleanupOpaqueLeaf(_ name: String,
+        maximumBytes: Int = EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes
+    ) throws -> EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1? {
+        guard EraseSchema2ColdCleanupGrammarV1.isControlName(name),
+              coldActiveFD == nil, coldUncertainFDs.isEmpty,
+              !coldCloseAttempted, !coldClosed, !coldEffectUncertain,
+              maximumBytes > 0 else { throw EraseIntentStoreError.invalidAuthority }
+        let descriptor = Darwin.openat(eraseDescriptor, name,
+            O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        if descriptor < 0 {
+            guard errno == ENOENT else { throw EraseIntentStoreError.invalidAuthority }
+            return nil
+        }
+        coldActiveFD = descriptor
+        do {
+            var held = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &held) == 0,
+                  held.st_mode & S_IFMT == S_IFREG, held.st_nlink == 1,
+                  held.st_mode & 0o7777 == 0o600,
+                  held.st_uid == Darwin.getuid(), held.st_gid == Darwin.getgid(),
+                  held.st_size >= 0, held.st_size <= off_t(maximumBytes),
+                  Darwin.fstatat(eraseDescriptor, name, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseColdControlLeafFactV1(held) == EraseColdControlLeafFactV1(named) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            let first = EraseColdControlLeafFactV1(held)
+            let kind: OwnedFileKindV1 = name.hasSuffix(".next") ? .journalTemporary : .journal
+            let url = applicationSupportURL.appendingPathComponent(policyRelativePath(name))
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                kind, at: url, retainUncertainDescriptor: { self.coldUncertainFDs.append($0) })
+            guard policy.device == UInt64(first.device),
+                  policy.inode == UInt64(first.inode),
+                  policy.mode == UInt16(first.mode), policy.linkCount == UInt64(first.links) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            var bytes = Data(), buffer = [UInt8](repeating: 0, count: 16 * 1_024)
+            while true {
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.read(descriptor, $0.baseAddress, $0.count)
+                }
+                if count > 0 {
+                    guard count <= maximumBytes - bytes.count else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    bytes.append(contentsOf: buffer.prefix(count))
+                } else if count == 0 { break }
+                else if errno != EINTR { throw EraseIntentStoreError.invalidAuthority }
+            }
+            guard bytes.count == Int(first.size),
+                  Darwin.fstat(descriptor, &held) == 0,
+                  Darwin.fstatat(eraseDescriptor, name, &named,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseColdControlLeafFactV1(held) == first,
+                  EraseColdControlLeafFactV1(named) == first,
+                  try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(kind,
+                    at: url, retainUncertainDescriptor: {
+                        self.coldUncertainFDs.append($0)
+                    }) == policy else { throw EraseIntentStoreError.invalidAuthority }
+            try closeColdActiveChecked()
+            return .init(bytes: bytes, fact: first, policy: policy)
+        } catch {
+            let failure = error
+            if coldActiveFD != nil { try closeColdActiveChecked() }
+            throw failure
+        }
+    }
+
+    @MainActor
+    func observeSchema2ColdCleanupControls(
+        operation: EraseColdPreparationOperationV1
+    ) throws -> EraseSchema2ColdCleanupControlObservationV1 {
+        try operation.requireSchema2ColdIntentStore(self)
+        guard borrowsColdObservation, coldCleanupControlAttempt == nil else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try verifyAuthority()
+        var before = stat(), named = stat()
+        guard Darwin.fstat(eraseDescriptor, &before) == 0,
+              Darwin.fstatat(applicationSupportDescriptor, Self.directoryName,
+                &named, AT_SYMLINK_NOFOLLOW) == 0,
+              EraseColdControlLeafFactV1(before) == EraseColdControlLeafFactV1(named) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let names = try coldNamesChecked()
+        guard names.filter(EraseSchema2ColdCleanupGrammarV1.isControlName)
+                == coldCleanupFirstLeaves.keys.sorted() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var leaves: [String: EraseSchema2ColdCleanupControlObservationV1.Leaf] = [:]
+        for name in coldCleanupFirstLeaves.keys.sorted() {
+            guard let first = coldCleanupFirstLeaves[name],
+                  let current = try readSchema2CleanupOpaqueLeaf(name), current == first else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            leaves[name] = .init(bytes: current.bytes, fact: current.fact, policy: current.policy)
+        }
+        guard Darwin.fstat(eraseDescriptor, &named) == 0,
+              EraseColdControlLeafFactV1(before) == EraseColdControlLeafFactV1(named) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try operation.requireSchema2ColdIntentStore(self)
+        return .init(leaves: leaves, names: names,
+            eraseRoot: EraseColdControlLeafFactV1(before))
+    }
+
+    @MainActor
+    private func authenticateSchema2CleanupLeaf(_ name: String,
+        expected: EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1,
+        permit: EraseSchema2ColdControlPermitV1, maximumBytes: Int
+    ) throws -> EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1 {
+        try permit.requireHeld()
+        guard let before = try readSchema2CleanupOpaqueLeaf(name, maximumBytes: maximumBytes),
+              before == expected else { throw EraseIntentStoreError.invalidAuthority }
+        let kind: OwnedFileKindV1 = name.hasSuffix(".next") ? .journalTemporary : .journal
+        let url = applicationSupportURL.appendingPathComponent(policyRelativePath(name))
+        let disposition = try ProtectedFilePolicyV1.verifyEraseColdTemporalPolicyWithCheckedRequest(
+            kind, at: url, retainUncertainDescriptor: {
+                self.coldUncertainFDs.append($0); permit.poisonOnUncertainEffect()
+            }, unchangedWitness: {
+                try permit.requireHeld()
+                guard let current = try self.readSchema2CleanupOpaqueLeaf(name,
+                    maximumBytes: maximumBytes), current == before else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                return before.fact
+            })
+        guard let after = try readSchema2CleanupOpaqueLeaf(name, maximumBytes: maximumBytes),
+              after.bytes == before.bytes, after.fact == before.fact,
+              after.policy?.state == .strictComplete ||
+                (after.policy?.state == .pendingSimulatorRequest
+                    && disposition == .simulatorFileProtectionUnsupported) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try permit.requireHeld()
+        coldCleanupProjectedLeaves[name] = after
+        return after
+    }
+
+    @MainActor
+    private func requireSchema2CleanupLeaf(_ name: String, bytes: Data,
+        fullFact: String?, maximumBytes: Int,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1 {
+        try permit.requireHeld()
+        guard let leaf = try readSchema2CleanupOpaqueLeaf(name, maximumBytes: maximumBytes),
+              leaf.bytes == bytes,
+              fullFact.map({ EraseSchema2ColdCleanupGrammarV1.fullFact(leaf.fact) == $0 }) ?? true,
+              let expected = coldCleanupProjectedLeaves[name], expected == leaf else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let authenticated = try authenticateSchema2CleanupLeaf(name, expected: leaf,
+            permit: permit, maximumBytes: maximumBytes)
+        try permit.requireHeld()
+        return authenticated
+    }
+
+    /// Sole incumbent O_EXCL writer, no-replace/swap publisher, checked
+    /// policy requests, fsync, byte/fact readback and checked transient close.
+    /// An interrupted zero/prefix/swap is classified against exact expected
+    /// canonical and next bytes before any mutation; foreign cuts refuse.
+    @MainActor
+    private func publishSchema2CleanupLeaf(_ name: String,
+        bytes: Data, expectedBytes: Data?, maximumBytes: Int,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1 {
+        try beginSchema2ColdCleanupControlScope(permit)
+        guard EraseSchema2ColdCleanupGrammarV1.isCanonicalName(name),
+              bytes.count <= maximumBytes else { throw EraseIntentStoreError.invalidPreparation }
+        let next = EraseSchema2ColdCleanupGrammarV1.temporaryName(name)
+        // A concrete attempt exists before stat/open/policy/write. An
+        // ambiguous effect retains it and poisons this owner permanently.
+        coldCleanupControlAttempt = (name, expectedBytes, bytes)
+        coldCleanupOwnBytes[name] = bytes
+        coldCleanupOwnBytes[next] = bytes
+        do {
+            try permit.requireHeld()
+            let firstCanonical = try readSchema2CleanupOpaqueLeaf(name, maximumBytes: maximumBytes)
+            let firstTemporary = try readSchema2CleanupOpaqueLeaf(next, maximumBytes: maximumBytes)
+            if let firstCanonical,
+               let retained = coldCleanupProjectedLeaves[name], firstCanonical != retained {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            if let firstTemporary,
+               let retained = coldCleanupProjectedLeaves[next], firstTemporary != retained {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            if firstCanonical?.bytes == bytes {
+                let canonical = try authenticateSchema2CleanupLeaf(name,
+                    expected: firstCanonical!, permit: permit, maximumBytes: maximumBytes)
+                if let temporary = firstTemporary {
+                    // Only the displaced exact predecessor or a same-byte
+                    // publication temp can survive an authenticated swap.
+                    guard temporary.bytes == expectedBytes || temporary.bytes == bytes else {
+                        throw EraseIntentStoreError.invalidAuthority
+                    }
+                    _ = try authenticateSchema2CleanupLeaf(next, expected: temporary,
+                        permit: permit, maximumBytes: maximumBytes)
+                    try removeSchema2CleanupLeafExact(next, expected: temporary,
+                        permit: permit)
+                }
+                clearSchema2CleanupPublisherTransients()
+                try permit.requireHeld()
+                return canonical
+            }
+            guard firstCanonical?.bytes == expectedBytes else {
+                throw EraseIntentStoreError.intentMismatch
+            }
+            if let canonical = firstCanonical {
+                _ = try authenticateSchema2CleanupLeaf(name, expected: canonical,
+                    permit: permit, maximumBytes: maximumBytes)
+            }
+            var temporary = firstTemporary
+            if let temporary, temporary.bytes != bytes {
+                guard bytes.starts(with: temporary.bytes),
+                      temporary.bytes.count < bytes.count else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+                _ = try authenticateSchema2CleanupLeaf(next, expected: temporary,
+                    permit: permit, maximumBytes: maximumBytes)
+                try removeSchema2CleanupLeafExact(next, expected: temporary, permit: permit)
+                clearSchema2CleanupPublisherTransients()
+                self.coldCleanupOwnBytes[name] = bytes
+                self.coldCleanupOwnBytes[next] = bytes
+            }
+            temporary = try readSchema2CleanupOpaqueLeaf(next, maximumBytes: maximumBytes)
+            if temporary == nil {
+                // This invokes the existing checked publisher's only writer.
+                _ = try createColdLeaf(next, data: bytes, maximumBytes: maximumBytes)
+                temporary = try readSchema2CleanupOpaqueLeaf(next, maximumBytes: maximumBytes)
+            }
+            guard let temporary, temporary.bytes == bytes,
+                  try readSchema2CleanupOpaqueLeaf(name, maximumBytes: maximumBytes) == firstCanonical else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            _ = try authenticateSchema2CleanupLeaf(next, expected: temporary,
+                permit: permit, maximumBytes: maximumBytes)
+            try permit.requireHeld()
+            let flags = expectedBytes == nil ? UInt32(RENAME_EXCL) : UInt32(RENAME_SWAP)
+            guard Darwin.renameatx_np(eraseDescriptor, next, eraseDescriptor, name, flags) == 0,
+                  Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            coldOwnPublishingName = name
+            coldOwnPublishedIdentity = Identity(device: temporary.fact.device,
+                inode: temporary.fact.inode)
+            guard let canonical = try readSchema2CleanupOpaqueLeaf(name, maximumBytes: maximumBytes),
+                  canonical.bytes == bytes,
+                  canonical.fact.device == temporary.fact.device,
+                  canonical.fact.inode == temporary.fact.inode else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            coldCleanupProjectedLeaves[name] = canonical
+            let authenticated = try authenticateSchema2CleanupLeaf(name, expected: canonical,
+                permit: permit, maximumBytes: maximumBytes)
+            if expectedBytes != nil {
+                guard let displaced = try readSchema2CleanupOpaqueLeaf(next, maximumBytes: maximumBytes),
+                      displaced.bytes == expectedBytes,
+                      displaced.fact.device == firstCanonical?.fact.device,
+                      displaced.fact.inode == firstCanonical?.fact.inode else {
+                    throw EraseIntentStoreError.intentMismatch
+                }
+                coldCleanupProjectedLeaves[next] = displaced
+                try removeSchema2CleanupLeafExact(next, expected: displaced, permit: permit)
+            } else {
+                guard try readSchema2CleanupOpaqueLeaf(next, maximumBytes: maximumBytes) == nil else {
+                    throw EraseIntentStoreError.writeFailed
+                }
+                coldCleanupProjectedLeaves.removeValue(forKey: next)
+            }
+            clearSchema2CleanupPublisherTransients()
+            try permit.requireHeld()
+            return authenticated
+        } catch {
+            coldEffectUncertain = true
+            permit.poisonOnUncertainEffect()
+            throw error
+        }
+    }
+
+    private func clearSchema2CleanupPublisherTransients() {
+        coldOwnTemporaryName = nil; coldOwnTemporaryIdentity = nil
+        coldOwnTemporaryBytes = nil; coldOwnPublishingName = nil
+        coldOwnPublishedIdentity = nil; coldPublishedVerified = false
+    }
+
+    @MainActor
+    private func removeSchema2CleanupLeafExact(_ name: String,
+        expected: EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        try permit.requireHeld()
+        guard try readSchema2CleanupOpaqueLeaf(name,
+                maximumBytes: max(1, expected.bytes.count)) == expected else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try permit.requireHeld()
+        guard Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
+              Darwin.fsync(eraseDescriptor) == 0,
+              try readSchema2CleanupOpaqueLeaf(name,
+                maximumBytes: max(1, expected.bytes.count)) == nil else {
+            throw EraseIntentStoreError.cleanupFailed
+        }
+        coldCleanupProjectedLeaves.removeValue(forKey: name)
+        coldCleanupOwnBytes.removeValue(forKey: name)
+        try permit.requireHeld()
+    }
+
+    @MainActor
+    private func requireSchema2CleanupLineage(_ sources: EraseSchema2ColdCleanupSourcesV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        try permit.requireHeld()
+        guard let intent = try load(), intent.schemaVersion == 2,
+              intent.eraseID.uuidString.lowercased() == sources.eraseID,
+              let preparation = try loadPreparation(), preparation.matches(intent),
+              StoreMigrationCanonicalJSONV1.sha256(try ErasePreparationCodecV2.encode(preparation))
+                == sources.preparationSHA256,
+              let rosterBytes = coldCapturedOpaqueAuxiliaryRosterBytes
+                ?? originalAuxiliaryPublishedReceipt?.seal.canonicalBytes,
+              StoreMigrationCanonicalJSONV1.sha256(rosterBytes)
+                == sources.originalPAuxiliaryRosterSHA256 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let roster = try EraseSchema2ColdAuxiliaryPhysicalRosterV1.decodeCanonical(rosterBytes,
+            intent: intent, preparation: preparation)
+        guard roster.record.firstIntentPhase == EraseIntentPhaseV1.emptyGenerationPrepared.rawValue,
+              roster.record.eraseID == sources.eraseID else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let originalNodes = roster.record.trees.first {
+            $0.key == "support/FieldEvidenceOperations"
+        }?.nodes ?? []
+        for source in sources.sources {
+            guard let node = originalNodes.first(where: { $0.path == source.path }),
+                  node.kind == "file", node.sha256 == source.sha256 else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            let full = source.fullFact.split(separator: "|", omittingEmptySubsequences: false)
+            let projected = [full[0], full[1], full[2], full[5], full[6],
+                full[7], full[8], full[9], full[10]].joined(separator: "|")
+            guard node.fact == projected else { throw EraseIntentStoreError.invalidAuthority }
+        }
+        try permit.requireHeld()
+    }
+
+    @MainActor
+    func publishSchema2ColdCleanupSources(_ sources: EraseSchema2ColdCleanupSourcesV1,
+        sourceBytes: [String: Data], planBytes: Data,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdCleanupSourcesReceiptV1 {
+        try beginSchema2ColdCleanupControlScope(permit)
+        try sources.validate(requirePublished: false)
+        guard Set(sourceBytes.keys) == Set(sources.sources.map(\.path)),
+              planBytes.count <= OriginalEraseC16PlanV1.maximumEncodedBytes,
+              StoreMigrationCanonicalJSONV1.sha256(planBytes) == sources.c16PlanSHA256 else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let plan = try StoreMigrationCanonicalJSONV1.decodeCanonical(OriginalEraseC16PlanV1.self,
+            from: planBytes)
+        try plan.validate()
+        try requireSchema2CleanupLineage(sources, permit: permit)
+        var published: [EraseSchema2ColdCleanupSourcesV1.Source] = []
+        for source in sources.sources {
+            guard let bytes = sourceBytes[source.path], bytes.count == source.byteCount,
+                  StoreMigrationCanonicalJSONV1.sha256(bytes) == source.sha256 else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            let leaf = try publishSchema2CleanupLeaf(source.leafName, bytes: bytes,
+                expectedBytes: nil, maximumBytes: source.maximumByteCount, permit: permit)
+            published.append(source.published(fullFact:
+                EraseSchema2ColdCleanupGrammarV1.fullFact(leaf.fact)))
+        }
+        let planLeaf = try publishSchema2CleanupLeaf(sources.c16PlanLeafName, bytes: planBytes,
+            expectedBytes: nil, maximumBytes: OriginalEraseC16PlanV1.maximumEncodedBytes, permit: permit)
+        let resolved = EraseSchema2ColdCleanupSourcesV1(schemaVersion: sources.schemaVersion,
+            eraseID: sources.eraseID, preparationSHA256: sources.preparationSHA256,
+            originalPAuxiliaryRosterSHA256: sources.originalPAuxiliaryRosterSHA256,
+            targetPointerSHA256: sources.targetPointerSHA256,
+            c16PlanLeafName: sources.c16PlanLeafName, c16PlanSHA256: sources.c16PlanSHA256,
+            c16PlanFullFact: EraseSchema2ColdCleanupGrammarV1.fullFact(planLeaf.fact),
+            sources: published)
+        let bytes = try resolved.canonicalBytes()
+        let index = try publishSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.sourcesName,
+            bytes: bytes, expectedBytes: nil,
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)
+        let receipt = try EraseSchema2ColdCleanupSourcesReceiptV1(store: self, sources: resolved,
+            indexFullFact: EraseSchema2ColdCleanupGrammarV1.fullFact(index.fact))
+        coldCleanupSourcesReceipt = receipt
+        _ = try requireSchema2ColdCleanupSources(receipt, permit: permit)
+        return receipt
+    }
+
+    @MainActor
+    func requireSchema2ColdCleanupSources(_ receipt: EraseSchema2ColdCleanupSourcesReceiptV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdCleanupSourcesV1 {
+        try beginSchema2ColdCleanupControlScope(permit)
+        guard receipt.store === self else { throw EraseIntentStoreError.invalidAuthority }
+        try requireSchema2CleanupSourceIndex(receipt.sources, indexFullFact: receipt.indexFullFact,
+            permit: permit)
+        try permit.requireHeld()
+        return receipt.sources
+    }
+
+    @MainActor
+    private func requireSchema2CleanupSourceIndex(_ sources: EraseSchema2ColdCleanupSourcesV1,
+        indexFullFact: String?, permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        try sources.validate()
+        let bytes = try sources.canonicalBytes()
+        _ = try requireSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.sourcesName,
+            bytes: bytes, fullFact: indexFullFact,
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)
+        guard let planLeaf = try readSchema2CleanupOpaqueLeaf(sources.c16PlanLeafName,
+                maximumBytes: OriginalEraseC16PlanV1.maximumEncodedBytes),
+              EraseSchema2ColdCleanupGrammarV1.fullFact(planLeaf.fact) == sources.c16PlanFullFact,
+              StoreMigrationCanonicalJSONV1.sha256(planLeaf.bytes) == sources.c16PlanSHA256 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        _ = try requireSchema2CleanupLeaf(sources.c16PlanLeafName, bytes: planLeaf.bytes,
+            fullFact: sources.c16PlanFullFact,
+            maximumBytes: OriginalEraseC16PlanV1.maximumEncodedBytes, permit: permit)
+        for source in sources.sources {
+            guard let leaf = try readSchema2CleanupOpaqueLeaf(source.leafName,
+                    maximumBytes: source.maximumByteCount),
+                  leaf.bytes.count == source.byteCount,
+                  StoreMigrationCanonicalJSONV1.sha256(leaf.bytes) == source.sha256 else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            _ = try requireSchema2CleanupLeaf(source.leafName, bytes: leaf.bytes,
+                fullFact: source.leafFullFact, maximumBytes: source.maximumByteCount, permit: permit)
+        }
+    }
+
+    @MainActor
+    func canonicalSchema2ColdTransferredSource(path: String,
+        sources: EraseSchema2ColdCleanupSourcesV1,
+        progress: EraseSchema2ColdCleanupProgressV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> (bytes: Data, fullFact: String) {
+        try beginSchema2ColdCleanupControlScope(permit)
+        try progress.validate(sources: sources)
+        try requireSchema2CleanupSourceIndex(sources,
+            indexFullFact: progress.sourcesFullFact, permit: permit)
+        guard let current = try loadSchema2ColdCleanupProgress(sources: sources, permit: permit),
+              current == progress, let active = current.activeTargetIndex,
+              current.targets[active].dependencyPaths.contains(path) ||
+                current.targets[active].allowedBirthPaths.contains(path),
+              let source = sources.sources.first(where: { $0.path == path })
+                ?? current.births.first(where: { $0.source.path == path })?.source,
+              let leaf = try readSchema2CleanupOpaqueLeaf(source.leafName,
+                maximumBytes: source.maximumByteCount),
+              leaf.bytes.count == source.byteCount,
+              StoreMigrationCanonicalJSONV1.sha256(leaf.bytes) == source.sha256 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        _ = try requireSchema2CleanupLeaf(source.leafName, bytes: leaf.bytes,
+            fullFact: source.leafFullFact, maximumBytes: source.maximumByteCount, permit: permit)
+        try permit.requireHeld()
+        return (leaf.bytes, source.fullFact)
+    }
+
+    @MainActor
+    private func requireSchema2CleanupProgressPlan(_ progress: EraseSchema2ColdCleanupProgressV1,
+        sources: EraseSchema2ColdCleanupSourcesV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        try progress.validate(sources: sources)
+        try requireSchema2CleanupSourceIndex(sources,
+            indexFullFact: progress.sourcesFullFact, permit: permit)
+        guard let leaf = try readSchema2CleanupOpaqueLeaf(sources.c16PlanLeafName,
+                maximumBytes: OriginalEraseC16PlanV1.maximumEncodedBytes) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let plan = try StoreMigrationCanonicalJSONV1.decodeCanonical(OriginalEraseC16PlanV1.self,
+            from: leaf.bytes)
+        try plan.validate()
+        let targets = progress.targets.filter { $0.kind == .c16 }
+        guard targets.count == plan.steps.count else { throw EraseIntentStoreError.invalidPreparation }
+        for (target, step) in zip(targets, plan.steps) {
+            guard target.semanticSHA256 == StoreMigrationCanonicalJSONV1.sha256(
+                try StoreMigrationCanonicalJSONV1.encode(step)) else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+        }
+    }
+
+    @MainActor
+    func loadSchema2ColdCleanupProgress(sources: EraseSchema2ColdCleanupSourcesV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdCleanupProgressV1? {
+        try beginSchema2ColdCleanupControlScope(permit)
+        try requireSchema2CleanupSourceIndex(sources, indexFullFact: nil, permit: permit)
+        let name = EraseSchema2ColdCleanupGrammarV1.progressName
+        guard let leaf = try readSchema2CleanupOpaqueLeaf(name) else {
+            guard coldCleanupProjectedLeaves[name] == nil,
+                  try readSchema2CleanupOpaqueLeaf(
+                    EraseSchema2ColdCleanupGrammarV1.temporaryName(name)) == nil else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            try permit.requireHeld()
+            return nil
+        }
+        let value = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+            EraseSchema2ColdCleanupProgressV1.self, from: leaf.bytes)
+        guard try value.canonicalBytes(sources: sources) == leaf.bytes else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        _ = try requireSchema2CleanupLeaf(name, bytes: leaf.bytes,
+            fullFact: nil, maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes,
+            permit: permit)
+        try requireSchema2CleanupProgressPlan(value, sources: sources, permit: permit)
+        try permit.requireHeld()
+        return value
+    }
+
+    @MainActor
+    func createSchema2ColdCleanupProgress(_ initial: EraseSchema2ColdCleanupProgressV1,
+        sources: EraseSchema2ColdCleanupSourcesV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        try beginSchema2ColdCleanupControlScope(permit)
+        guard initial.stage == .prepared,
+              initial.completedPrefixCount == 0 else { throw EraseIntentStoreError.invalidPreparation }
+        try requireSchema2CleanupProgressPlan(initial, sources: sources, permit: permit)
+        let bytes = try initial.canonicalBytes(sources: sources)
+        _ = try publishSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.progressName,
+            bytes: bytes, expectedBytes: nil,
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)
+        guard try loadSchema2ColdCleanupProgress(sources: sources, permit: permit) == initial else {
+            throw EraseIntentStoreError.writeFailed
+        }
+    }
+
+    @MainActor
+    func replaceSchema2ColdCleanupProgress(expected: EraseSchema2ColdCleanupProgressV1,
+        with replacement: EraseSchema2ColdCleanupProgressV1,
+        sources: EraseSchema2ColdCleanupSourcesV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        try beginSchema2ColdCleanupControlScope(permit)
+        guard try expected.permitsAdvance(to: replacement, sources: sources) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        try requireSchema2CleanupProgressPlan(expected, sources: sources, permit: permit)
+        try requireSchema2CleanupProgressPlan(replacement, sources: sources, permit: permit)
+        _ = try publishSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.progressName,
+            bytes: replacement.canonicalBytes(sources: sources),
+            expectedBytes: expected.canonicalBytes(sources: sources),
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)
+        guard try loadSchema2ColdCleanupProgress(sources: sources, permit: permit) == replacement else {
+            throw EraseIntentStoreError.writeFailed
+        }
+    }
+
+    @MainActor
+    func captureSchema2ColdBornCleanupSource(path: String, bytes: Data, fullFact: String,
+        expected: EraseSchema2ColdCleanupProgressV1,
+        sources: EraseSchema2ColdCleanupSourcesV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdCleanupProgressV1 {
+        try beginSchema2ColdCleanupControlScope(permit)
+        try expected.validate(sources: sources)
+        guard [.preparing, .preparingCaptured].contains(expected.stage),
+              let active = expected.activeTargetIndex,
+              expected.targets[active].allowedBirthPaths.contains(path),
+              EraseSchema2ColdCleanupGrammarV1.validFact(fullFact),
+              !sources.sources.contains(where: { $0.path == path }) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let maximum = try EraseSchema2ColdCleanupGrammarV1.maximumSourceBytes(path: path)
+        guard bytes.count <= maximum else { throw EraseIntentStoreError.invalidPreparation }
+        let sha = StoreMigrationCanonicalJSONV1.sha256(bytes)
+        if let birth = expected.births.first(where: { $0.source.path == path }) {
+            guard birth.targetIndex == active, birth.source.fullFact == fullFact,
+                  birth.source.sha256 == sha, birth.source.byteCount == bytes.count else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            _ = try requireSchema2CleanupLeaf(birth.source.leafName, bytes: bytes,
+                fullFact: birth.source.leafFullFact, maximumBytes: maximum, permit: permit)
+            guard try loadSchema2ColdCleanupProgress(sources: sources, permit: permit) == expected else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            return expected
+        }
+        let name = EraseSchema2ColdCleanupGrammarV1.sourceLeafName(sha256: sha)
+        let leaf = try publishSchema2CleanupLeaf(name, bytes: bytes, expectedBytes: nil,
+            maximumBytes: maximum, permit: permit)
+        let source = EraseSchema2ColdCleanupSourcesV1.Source(path: path, fullFact: fullFact,
+            sha256: sha, byteCount: bytes.count, maximumByteCount: maximum, leafName: name,
+            leafFullFact: EraseSchema2ColdCleanupGrammarV1.fullFact(leaf.fact))
+        let replacement = try expected.capturing(.init(targetIndex: active, source: source), sources: sources)
+        try replaceSchema2ColdCleanupProgress(expected: expected, with: replacement,
+            sources: sources, permit: permit)
+        return replacement
+    }
+
+    @MainActor
+    func publishSchema2ColdSurvivingNotificationProvenance(
+        _ value: EraseSchema2ColdSurvivingNotificationProvenanceV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdSurvivingNotificationObservationV1 {
+        try beginSchema2ColdCleanupControlScope(permit)
+        let bytes = try value.canonicalBytes()
+        let leaf = try publishSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.notificationName,
+            bytes: bytes, expectedBytes: nil,
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)
+        let result = EraseSchema2ColdSurvivingNotificationObservationV1(value: value,
+            bytes: bytes, fact: leaf.fact, policy: leaf.policy)
+        _ = try requireSchema2ColdSurvivingNotificationProvenance(result, permit: permit)
+        return result
+    }
+
+    @MainActor
+    func requireSchema2ColdSurvivingNotificationProvenance(
+        _ expected: EraseSchema2ColdSurvivingNotificationObservationV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdSurvivingNotificationProvenanceV1 {
+        try beginSchema2ColdCleanupControlScope(permit)
+        guard try expected.value.canonicalBytes() == expected.bytes else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let leaf = try requireSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.notificationName,
+            bytes: expected.bytes, fullFact: EraseSchema2ColdCleanupGrammarV1.fullFact(expected.fact),
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)
+        guard leaf.policy == expected.policy else { throw EraseIntentStoreError.invalidAuthority }
+        try permit.requireHeld()
+        return expected.value
+    }
+
+    @MainActor
+    func removeSchema2ColdCleanupControlsAfterCompletion(expected: EraseIntentV1,
+        progress: EraseSchema2ColdCleanupProgressV1,
+        retirement: ErasedRegistryRetirementProofV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        try beginSchema2ColdCleanupControlScope(permit)
+        try retirement.requireCompletionControlRemoval(expected: expected)
+        try requireRetirementRoot(retirement)
+        guard expected.phase == .cleanupComplete, progress.stage == .phaseCASComplete,
+              progress.isTerminal, progress.eraseID == expected.eraseID.uuidString.lowercased() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        if !coldCleanupTerminalRemovalStarted {
+            guard let indexLeaf = try readSchema2CleanupOpaqueLeaf(EraseSchema2ColdCleanupGrammarV1.sourcesName) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            let sources = try EraseSchema2ColdCleanupSourcesV1.decodeCanonical(indexLeaf.bytes)
+            try progress.validate(sources: sources)
+            guard try loadSchema2ColdCleanupProgress(sources: sources, permit: permit) == progress,
+                  let notification = try readSchema2CleanupOpaqueLeaf(
+                    EraseSchema2ColdCleanupGrammarV1.notificationName) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            let provenance = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+                EraseSchema2ColdSurvivingNotificationProvenanceV1.self, from: notification.bytes)
+            guard try provenance.canonicalBytes() == notification.bytes,
+                  provenance.eraseID == sources.eraseID,
+                  provenance.originalPAuxiliaryRosterSHA256 == sources.originalPAuxiliaryRosterSHA256,
+                  provenance.preparationSHA256 == sources.preparationSHA256,
+                  provenance.targetPointerSHA256 == sources.targetPointerSHA256 else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            // Sources/births remain authenticated until all downstream work
+            // and the actual OS-absence/namespace-retirement consumer finish.
+            let leaves = Set(sources.sources.map(\.leafName) + progress.births.map { $0.source.leafName })
+            coldCleanupTerminalRemovalNames = leaves.sorted() + [sources.c16PlanLeafName,
+                EraseSchema2ColdCleanupGrammarV1.sourcesName,
+                EraseSchema2ColdCleanupGrammarV1.progressName,
+                EraseSchema2ColdCleanupGrammarV1.notificationName]
+            guard Set(coldCleanupProjectedLeaves.keys) == Set(coldCleanupTerminalRemovalNames) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            coldCleanupTerminalRemovalStarted = true
+        }
+        while coldCleanupTerminalRemovalIndex < coldCleanupTerminalRemovalNames.count {
+            let name = coldCleanupTerminalRemovalNames[coldCleanupTerminalRemovalIndex]
+            try permit.requireHeld()
+            try retirement.requireCompletionControlRemoval(expected: expected)
+            try requireRetirementRoot(retirement)
+            guard let retained = coldCleanupProjectedLeaves[name] else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            _ = try authenticateSchema2CleanupLeaf(name, expected: retained, permit: permit,
+                maximumBytes: max(1, retained.bytes.count))
+            try removeSchema2CleanupLeafExact(name, expected: retained, permit: permit)
+            coldCleanupTerminalRemovalIndex += 1
+            try retirement.requireCompletionControlRemoval(expected: expected)
+        }
+        guard coldCleanupProjectedLeaves.isEmpty else { throw EraseIntentStoreError.cleanupFailed }
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expected)
+        try permit.requireHeld()
+    }

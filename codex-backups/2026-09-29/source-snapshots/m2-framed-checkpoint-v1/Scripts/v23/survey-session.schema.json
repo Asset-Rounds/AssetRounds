@@ -1,0 +1,195 @@
+{
+  "$id": "https://assetrounds.invalid/v23/survey-session.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "availabilityStates": {
+      "const": [
+        "AVAILABLE",
+        "MISSING",
+        "STALE",
+        "QUARANTINED",
+        "INCOMPATIBLE"
+      ],
+      "type": "array"
+    },
+    "cardID": {
+      "const": "V23-P03-C26"
+    },
+    "durableFamilies": {
+      "const": [
+        "SurveySessionV1",
+        "FactCaptureV1",
+        "ProvisionalSubjectV1",
+        "SubjectPromotionReceiptV1",
+        "SurveyPublicationSnapshotV1"
+      ],
+      "type": "array"
+    },
+    "durableFamilyCount": {
+      "const": 5
+    },
+    "factActions": {
+      "const": [
+        "RECORD",
+        "CORRECT",
+        "RETRACT",
+        "RESOLVE_CONFLICT"
+      ],
+      "type": "array"
+    },
+    "failureCases": {
+      "const": [
+        "UNKNOWN_ACTIVITY_KIND",
+        "WRONG_WORKSPACE",
+        "WRONG_DEFINITION_RELEASE",
+        "WRONG_PACKAGE_RELEASE",
+        "TARGET_REVISION_CHANGED",
+        "DUPLICATE_CAPTURE_ID",
+        "CONCURRENT_FACT_CONFLICT_NO_LWW",
+        "DIVERGENT_SAME_ID",
+        "FORGED_SESSION_DIGEST",
+        "FORGED_CAPTURE_DIGEST",
+        "ILLEGAL_SESSION_TRANSITION",
+        "INCOMPLETE_REQUIRED_FACT",
+        "PASS_FAIL_CLAIM_FORBIDDEN",
+        "DUPLICATE_PROVISIONAL_SUBJECT",
+        "PROMOTION_WITHOUT_PREVIEW",
+        "FORGED_PROMOTION_PREDECESSOR",
+        "ALIAS_FORK",
+        "ALIAS_CYCLE",
+        "ARCHIVE_ORPHAN_EVENT",
+        "ARCHIVE_FOREIGN_EVENT",
+        "ARCHIVE_DISCONNECTED_EVENT",
+        "BACKUP_MANIFEST_MISMATCH",
+        "REPLAY_DUPLICATE_EFFECT",
+        "REPLAY_EFFECT_BEFORE_CHECKPOINT",
+        "MALFORMED_LOCAL_RECENT_PAYLOAD",
+        "REMOTE_PROVIDER_OR_ACCOUNT_FIELD"
+      ],
+      "type": "array"
+    },
+    "interruptionPoints": {
+      "const": [
+        "BEFORE_SESSION_ROW",
+        "AFTER_SESSION_BEFORE_TRANSITION_RECEIPT",
+        "AFTER_FACT_BEFORE_RECEIPT",
+        "AFTER_PUBLICATION_BEFORE_RECEIPT",
+        "AFTER_PROMOTION_BEFORE_RECEIPT",
+        "RESTORE_BEFORE_RENAME",
+        "SEARCH_AFTER_DROP_BEFORE_REBUILD",
+        "ERASE_AFTER_MARKER_BEFORE_CLEANUP",
+        "REPLAY_AFTER_EFFECT_BEFORE_CHECKPOINT"
+      ],
+      "type": "array"
+    },
+    "nonPersistentFamilies": {
+      "const": [
+        "SurveySemanticTreeV1",
+        "SurveyImportPreviewV1",
+        "SurveyDraftScratchV1"
+      ],
+      "type": "array"
+    },
+    "persistentKindLifecycleModelCount": {
+      "const": 92
+    },
+    "persistentSchemaVersion": {
+      "const": 25
+    },
+    "promotionActions": {
+      "const": [
+        "PROMOTE_TO_ASSET",
+        "RECONCILE_AS_ALIAS",
+        "REVERSE"
+      ],
+      "type": "array"
+    },
+    "recordsSchemaVersion": {
+      "const": 24
+    },
+    "requiredContractNames": {
+      "const": [
+        "SurveySessionV1",
+        "FactCaptureV1",
+        "ProvisionalSubjectV1",
+        "SubjectPromotionReceiptV1",
+        "SurveyPublicationSnapshotV1"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V22P03C26SurveySessionCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sessionStates": {
+      "const": [
+        "DRAFT",
+        "PAUSED",
+        "REVIEW_REQUIRED",
+        "COMPLETED",
+        "AMENDED",
+        "SUPERSEDED",
+        "ARCHIVED",
+        "DELETED"
+      ],
+      "type": "array"
+    },
+    "sessionTransitions": {
+      "const": [
+        "CREATE",
+        "PAUSE",
+        "RESUME",
+        "SUBMIT_FOR_REVIEW",
+        "RETURN_FOR_AMENDMENT",
+        "COMPLETE",
+        "REOPEN_AMENDMENT",
+        "SUPERSEDE",
+        "ARCHIVE",
+        "DELETE"
+      ],
+      "type": "array"
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    },
+    "subjectStates": {
+      "const": [
+        "ACTIVE",
+        "PROMOTED",
+        "RECONCILED_ALIAS",
+        "PROMOTION_REVERSED",
+        "ARCHIVED"
+      ],
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "persistentKindLifecycleModelCount",
+    "durableFamilyCount",
+    "durableFamilies",
+    "nonPersistentFamilies",
+    "sessionStates",
+    "sessionTransitions",
+    "factActions",
+    "promotionActions",
+    "subjectStates",
+    "availabilityStates",
+    "failureCases",
+    "interruptionPoints",
+    "requiredContractNames",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C26 Survey Session Corpus",
+  "type": "object"
+}

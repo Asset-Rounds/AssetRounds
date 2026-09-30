@@ -1,0 +1,254 @@
+{
+  "availabilityStates": [
+    "AVAILABLE",
+    "MISSING",
+    "STALE",
+    "QUARANTINED",
+    "INCOMPATIBLE"
+  ],
+  "cardID": "V23-P03-C26",
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "durableFamilies": [
+    "SurveySessionV1",
+    "FactCaptureV1",
+    "ProvisionalSubjectV1",
+    "SubjectPromotionReceiptV1",
+    "SurveyPublicationSnapshotV1"
+  ],
+  "durableFamilyCount": 5,
+  "evidenceCases": [
+    {
+      "assertion": "Create, pause, resume, review, publish, amend retains exact session and definition authority.",
+      "id": "C26-S01",
+      "kind": "GOLDEN"
+    },
+    {
+      "assertion": "Typed facts and repeat groups distinguish unknown, missing, outlier, and conflict without inventing inspection outcomes.",
+      "id": "C26-S02",
+      "kind": "ALTERNATE"
+    },
+    {
+      "assertion": "Foreign, stale, duplicate, partial, forged, unavailable, and revoked inputs fail closed before canonical mutation.",
+      "id": "C26-S03",
+      "kind": "HOSTILE"
+    },
+    {
+      "assertion": "Interrupted capture, promotion, publication, amendment, and receipts retry idempotently with zero or one effect.",
+      "id": "C26-S04",
+      "kind": "INTERRUPTION"
+    },
+    {
+      "assertion": "Backup/restore/clone/fork/delete/Erase/search/replay preserve history and immutable report bytes.",
+      "id": "C26-S05",
+      "kind": "RECOVERY"
+    },
+    {
+      "assertion": "The sealed C26 fence contains exactly 137 paths: 123 existing and 14 new, with 1,466 authorized overlaps and zero unauthorized overlaps.",
+      "id": "C26-F01",
+      "kind": "PATH_FENCE"
+    },
+    {
+      "assertion": "Native, hosted, adoption, acceptance, release, provider, network, account, cloud, and Phase 10 flags remain false.",
+      "id": "C26-B01",
+      "kind": "STATIC_BOUNDARY"
+    }
+  ],
+  "factActions": [
+    "RECORD",
+    "CORRECT",
+    "RETRACT",
+    "RESOLVE_CONFLICT"
+  ],
+  "failureCases": [
+    "UNKNOWN_ACTIVITY_KIND",
+    "WRONG_WORKSPACE",
+    "WRONG_DEFINITION_RELEASE",
+    "WRONG_PACKAGE_RELEASE",
+    "TARGET_REVISION_CHANGED",
+    "DUPLICATE_CAPTURE_ID",
+    "CONCURRENT_FACT_CONFLICT_NO_LWW",
+    "DIVERGENT_SAME_ID",
+    "FORGED_SESSION_DIGEST",
+    "FORGED_CAPTURE_DIGEST",
+    "ILLEGAL_SESSION_TRANSITION",
+    "INCOMPLETE_REQUIRED_FACT",
+    "PASS_FAIL_CLAIM_FORBIDDEN",
+    "DUPLICATE_PROVISIONAL_SUBJECT",
+    "PROMOTION_WITHOUT_PREVIEW",
+    "FORGED_PROMOTION_PREDECESSOR",
+    "ALIAS_FORK",
+    "ALIAS_CYCLE",
+    "ARCHIVE_ORPHAN_EVENT",
+    "ARCHIVE_FOREIGN_EVENT",
+    "ARCHIVE_DISCONNECTED_EVENT",
+    "BACKUP_MANIFEST_MISMATCH",
+    "REPLAY_DUPLICATE_EFFECT",
+    "REPLAY_EFFECT_BEFORE_CHECKPOINT",
+    "MALFORMED_LOCAL_RECENT_PAYLOAD",
+    "REMOTE_PROVIDER_OR_ACCOUNT_FIELD"
+  ],
+  "forbiddenClaims": [
+    "AUTOMATIC_ASSET_CREATION_OR_OCR",
+    "AUTOMATIC_SUBJECT_MERGE",
+    "SURVEY_AS_INSPECTION_PASS_FAIL_OR_COMPLIANCE",
+    "LAST_WRITE_WINS_FACT_MERGING",
+    "RUNTIME_CODE_OR_GENERIC_EAV",
+    "SECOND_WRITER_OR_SECOND_STORE",
+    "NETWORK_CLOUD_ACCOUNT_PROVIDER_OR_REMOTE_IDENTITY",
+    "LICENSED_BYTES_OR_EXTERNAL_DURABILITY",
+    "LEGAL_DIAGNOSIS_OR_NONREPUDIATION",
+    "NATIVE_HOSTED_ADOPTION_ACCEPTANCE_OR_RELEASE",
+    "PHASE10_OR_UI_SURFACE"
+  ],
+  "interruptionPoints": [
+    "BEFORE_SESSION_ROW",
+    "AFTER_SESSION_BEFORE_TRANSITION_RECEIPT",
+    "AFTER_FACT_BEFORE_RECEIPT",
+    "AFTER_PUBLICATION_BEFORE_RECEIPT",
+    "AFTER_PROMOTION_BEFORE_RECEIPT",
+    "RESTORE_BEFORE_RENAME",
+    "SEARCH_AFTER_DROP_BEFORE_REBUILD",
+    "ERASE_AFTER_MARKER_BEFORE_CLEANUP",
+    "REPLAY_AFTER_EFFECT_BEFORE_CHECKPOINT"
+  ],
+  "nonPersistentFamilies": [
+    "SurveySemanticTreeV1",
+    "SurveyImportPreviewV1",
+    "SurveyDraftScratchV1"
+  ],
+  "persistence": {
+    "backupRestoreRequired": true,
+    "canonicalSourceOfTruth": [
+      "SurveySessionV1",
+      "FactCaptureV1",
+      "ProvisionalSubjectV1",
+      "SubjectPromotionReceiptV1",
+      "SurveyPublicationSnapshotV1"
+    ],
+    "canonicalWriter": "V23-P02-C01",
+    "cloneForkRequired": true,
+    "currentProjectionRowCount": 0,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V25_WRITE",
+    "durableFamilyCount": 5,
+    "exportReportRequired": true,
+    "forwardFix": "DROP_DERIVED_PREVIEWS_REBUILD_FROM_IMMUTABLE_FACTS_APPEND_SUCCESSOR_NEVER_REWRITE_HISTORY",
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "nonPersistentFamilies": [
+      "SurveySemanticTreeV1",
+      "SurveyImportPreviewV1",
+      "SurveyDraftScratchV1"
+    ],
+    "persistedFamilies": [
+      "SurveySessionV1",
+      "FactCaptureV1",
+      "ProvisionalSubjectV1",
+      "SubjectPromotionReceiptV1",
+      "SurveyPublicationSnapshotV1"
+    ],
+    "persistentKindLifecycleModelCount": 92,
+    "persistentSchemaVersion": 25,
+    "providerRows": 0,
+    "recordsSchemaVersion": 24,
+    "replayRequired": true,
+    "schemaRelease": "SURVEY_SESSION_V1",
+    "searchRebuildRequired": true,
+    "secondStore": false,
+    "secondWriter": false
+  },
+  "persistentKindLifecycleModelCount": 92,
+  "persistentSchemaVersion": 25,
+  "promotionActions": [
+    "PROMOTE_TO_ASSET",
+    "RECONCILE_AS_ALIAS",
+    "REVERSE"
+  ],
+  "recordsSchemaVersion": 24,
+  "requiredBehaviors": [
+    {
+      "contract": "SurveySessionV1",
+      "id": "CLOSED_TYPED_SESSION_BOUNDARY",
+      "requirement": "Bind every session to workspace, survey definition release, immutable SurveyPackageReleaseReferenceV1 (release ID, package ID/content version, package SHA-256, workflow SHA-256, published state), actor, subject, revision, and exact mutation receipt; no silent rebind or raw package bytes."
+    },
+    {
+      "contract": "FactCaptureV1",
+      "id": "TYPED_FACT_CAPTURE_AND_CONFLICT",
+      "requirement": "Keep a closed typed fact vocabulary, deterministic repeat coordinates, explicit unknown/retract/conflict states, and exact predecessor references."
+    },
+    {
+      "contract": "ProvisionalSubjectV1",
+      "id": "EXPLICIT_PROVISIONAL_SUBJECT_PROMOTION",
+      "requirement": "Create no asset automatically; promotion, reversal, and alias history are explicit receipt-backed operations."
+    },
+    {
+      "contract": "SurveyPublicationSnapshotV1",
+      "id": "IMMUTABLE_PUBLICATION",
+      "requirement": "Publish immutable facts and report projections with unknown/not-observed values, and amend by successor snapshots only."
+    },
+    {
+      "contract": "SurveySessionCoordinatorV1",
+      "id": "EXISTING_WRITER_AND_JOURNAL",
+      "requirement": "Route all canonical effects through the existing WorkspaceWriter and mutation journal with effect-before-receipt and idempotent retry."
+    },
+    {
+      "contract": "PERSISTENT_SCHEMA_V25",
+      "id": "ORDERED_V25_LIFECYCLE",
+      "requirement": "Close migration, backup/restore/clone/fork, deletion/Erase, report/search/replay, retention, compatibility, interruption, and forward-fix for 92 models and five families."
+    }
+  ],
+  "requiredContractNames": [
+    "SurveySessionV1",
+    "FactCaptureV1",
+    "ProvisionalSubjectV1",
+    "SubjectPromotionReceiptV1",
+    "SurveyPublicationSnapshotV1"
+  ],
+  "schema": "V22P03C26SurveySessionCorpusV1",
+  "schemaVersion": 1,
+  "sessionStates": [
+    "DRAFT",
+    "PAUSED",
+    "REVIEW_REQUIRED",
+    "COMPLETED",
+    "AMENDED",
+    "SUPERSEDED",
+    "ARCHIVED",
+    "DELETED"
+  ],
+  "sessionTransitions": [
+    "CREATE",
+    "PAUSE",
+    "RESUME",
+    "SUBMIT_FOR_REVIEW",
+    "RETURN_FOR_AMENDMENT",
+    "COMPLETE",
+    "REOPEN_AMENDMENT",
+    "SUPERSEDE",
+    "ARCHIVE",
+    "DELETE"
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "subjectStates": [
+    "ACTIVE",
+    "PROMOTED",
+    "RECONCILED_ALIAS",
+    "PROMOTION_REVERSED",
+    "ARCHIVED"
+  ],
+  "synthetic": true
+}

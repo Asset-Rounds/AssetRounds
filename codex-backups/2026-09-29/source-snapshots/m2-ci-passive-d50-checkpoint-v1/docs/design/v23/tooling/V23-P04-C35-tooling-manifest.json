@@ -1,0 +1,168 @@
+{
+  "authority": {
+    "allocationDigest": "29a5c339ad47a438561b91c66ee8c917262778443436e471d8f50ef233840efa",
+    "appBaseHead": "681b0306887c5fe3cac61bbbe3301e3815890b4f",
+    "appBaseTree": "43a2f696548480b7e9fd7b597316fe015301396a",
+    "cardID": "V23-P04-C35",
+    "contextDigest": "91d701f1461e7bd7193d948d2abbf7a252139c679ebd0e31632d79042dd0c288",
+    "coordinationHead": "75d6e2d5692c2cc7548bbb9d45378b1ad6e3aaf1",
+    "coordinationTree": "fb253e276ea5f338eacd53e8c9601bbe5de10b53",
+    "existingPathCount": 1,
+    "fencePathCount": 14,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "ledgerDigest": "a79a7a1edbea2a75875dac4df4585bf6b4f8a8b73c1510a2ff1ee71751e8d26c",
+    "newPathCount": 13,
+    "orderedPathFence": [
+      "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+      "FieldEvidenceApp/Application/ReviewExchange/RecipientReviewWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/ReviewExchange/V23P04C35RecipientReviewWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C35RecipientReviewWorkflowUITests.swift",
+      "Scripts/v23/p04_c35_contracts.py",
+      "Scripts/v23/generate_p04_c35_contracts.py",
+      "Scripts/v23/verify_p04_c35_contracts.py",
+      "Scripts/v23/recipient-review-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C35RecipientReviewWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C35RecipientReviewWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C35BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C35-tooling-manifest.json"
+    ],
+    "ordinal": 120,
+    "pathFenceDigest": "d36c0a3c2b351a525358e23554a76466a7c0bdb12079e648f4da7b956e00b7fe",
+    "prerequisiteDigest": "c85bd99436ad53a100ba4745d29ea08f1d7ca57ac993ffd8f05b4f0b960d5d32",
+    "priorFenceProof": {
+      "authorizedOverlapEdgeCount": 5,
+      "fenceCount": 125,
+      "overlapEdgeCount": 5,
+      "priorOwnedPathCount": 1,
+      "s10ReservedOverlapCount": 0,
+      "unauthorizedOverlapCount": 0
+    },
+    "productTestUIFixturePathCount": 5,
+    "projectionDigest": "fd6be7be53cc15cbe5455d181bf2a5ada2aa2124cc790d4e8b918937f50d2168",
+    "s10ReservationOverlapCount": 0,
+    "sequence": 537,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C35",
+        "sha256": "9468219aceffb6b4668ff0417984320794b589b0a28151be61245bc6eeec49b1",
+        "utf8Length": 7630
+      },
+      {
+        "anchor": "V21-P04-C35",
+        "sha256": "64650ce172e512e076ec2aff658105e9f378ec61bcb0c52fa73be47da416fb67",
+        "utf8Length": 4885
+      },
+      {
+        "anchor": "V23-P04-C35-register",
+        "sha256": "09604cb5ffa6bf8fde3bf302131f3aa923dfdb163a0c9f3ace5e10618bcc3afd",
+        "utf8Length": 329
+      }
+    ],
+    "toolingPathCount": 8,
+    "transitionDigest": "02fae8c2b92fbf6fca3883f0ba963ea86261786b4d91183d005564ce144f03b0"
+  },
+  "cardID": "V23-P04-C35",
+  "counts": {
+    "durableFamilyCount": 0,
+    "existingPathCount": 1,
+    "fencePathCount": 14,
+    "newPathCount": 13,
+    "productTestUIFixturePathCount": 5,
+    "s10ReservationOverlapCount": 0,
+    "toolingPathCount": 8
+  },
+  "files": [
+    {
+      "path": "docs/design/v23/tooling/V23P04C35RecipientReviewWorkflowContractV1.json",
+      "sha256": "e87432be64919591c2a04625009b065b025ce527bdd01a4ed29c2bffb6f68422"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C35RecipientReviewWorkflowEvidenceReceiptV1.json",
+      "sha256": "b669c474bc0c0bc2d4ad4b9bb136a5338a00f856e862458786dbf3fe1b13ec27"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C35BrandImpactManifestV1.json",
+      "sha256": "8c895f3fe4a92ed51da95b8560b1ec2f85034359bcd8d4ac8e503eaa54fc304a"
+    },
+    {
+      "path": "Scripts/v23/recipient-review-workflow.schema.json",
+      "sha256": "816c192b1e72a0ec8df79888930f4b417bd28b3e4e3380ddc72802282cac6e54"
+    }
+  ],
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false
+  },
+  "independence": {
+    "c33SemanticDependency": false,
+    "entitlementIndependent": true,
+    "installationDependency": false,
+    "isolatedRecipientFlow": true,
+    "optionalEncryptionOnly": true,
+    "optionalEncryptionProvider": "V23-P03-C54:ENCRYPTED_REVIEW",
+    "planDependency": false
+  },
+  "ordinal": 120,
+  "pathFence": [
+    "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+    "FieldEvidenceApp/Application/ReviewExchange/RecipientReviewWorkflowCoordinatorV1.swift",
+    "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
+    "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V23/ReviewExchange/V23P04C35RecipientReviewWorkflowCorpusV1.json",
+    "FieldEvidenceAppUITests/V23_P04_C35RecipientReviewWorkflowUITests.swift",
+    "Scripts/v23/p04_c35_contracts.py",
+    "Scripts/v23/generate_p04_c35_contracts.py",
+    "Scripts/v23/verify_p04_c35_contracts.py",
+    "Scripts/v23/recipient-review-workflow.schema.json",
+    "docs/design/v23/tooling/V23P04C35RecipientReviewWorkflowContractV1.json",
+    "docs/design/v23/tooling/V23P04C35RecipientReviewWorkflowEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P04C35BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P04-C35-tooling-manifest.json"
+  ],
+  "schema": "V23P04C35ToolingManifestV1",
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+      "sha256": "066a3c391029319db9dd1a5f365a2effb5c4076966a3ce2164d7f126fec25550",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/ReviewExchange/RecipientReviewWorkflowCoordinatorV1.swift",
+      "sha256": "451a09c2567b69cd9a2d6c2ba21fc037d6882d174409b2f22321f32c4548cab9",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/ReviewExchange/RecipientReviewWorkflowView.swift",
+      "sha256": "590e4210beb49052f753b6cdc4fa11d31339bbd317ad78fd139cca88d9657d16",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests.swift",
+      "sha256": "0a824a19da6196ec621296a0261fb19c25e3ddc918c64c5e3c26ce726a1c9681",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/ReviewExchange/V23P04C35RecipientReviewWorkflowCorpusV1.json",
+      "sha256": "8078af2400230d20f3d3633be282100ebe8751ddb437449b01a360492e38f445",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C35RecipientReviewWorkflowUITests.swift",
+      "sha256": "ab8eb2ad81ba39302e009e19a96ac2999d47090648339f0e23ae9e4bd964b63d",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

@@ -1,0 +1,692 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactCount": 23,
+  "artifactDigest": "2d9fcbbd411faa7dee4409a451321c3fd7ae3107d9e073709de30419271595d8",
+  "artifactSetDigest": "48ce50ffb1f54516493ca85f8b3a53c0a642589378a147913c1f3017f4e9111c",
+  "artifacts": [
+    {
+      "bytes": 15911,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+      "sha256": "d70cfc575eecaf0be428859ba7a1c5cda9a337d5d07c308005495675abb49f3c"
+    },
+    {
+      "bytes": 10208,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+      "sha256": "3872f3c5226c4ff24f6df4f28cecfd9aafd65424247a2bac60a26f2f8b7b2624"
+    },
+    {
+      "bytes": 12567,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+      "sha256": "c6430ad4096cb2e182661bbfa8df66ed8a8583ce886fea3c5792979eb2fcea7d"
+    },
+    {
+      "bytes": 13396,
+      "path": "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+      "sha256": "e25bfe51aa05226d49c20ff7fc0ba19fcc2b4a622ba9a393096b7543d760cb56"
+    },
+    {
+      "bytes": 16346,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/ResponseValueV1.swift",
+      "sha256": "a83d177547ab1deffd760ad34692056a59408fcb8dc8e41e7b90db5e74244068"
+    },
+    {
+      "bytes": 21922,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/ExactMeasurementSemanticsV1.swift",
+      "sha256": "c67c7dd34eaefc7e51e96aed07fa8d9f8a0a699f397403551d1fbedc335dd701"
+    },
+    {
+      "bytes": 30365,
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/ResponseFieldDefinitionV1.swift",
+      "sha256": "16ee7c74868c84275c27acd0c3b9beb2f4686d5524d320f9bef7777bd9859557"
+    },
+    {
+      "bytes": 16103,
+      "path": "FieldEvidenceAppTests/V9_13TypedResponseTests.swift",
+      "sha256": "63653cdd52c91a4f1f53403d0c67e1913d6c1218da4b620aba3e71f5cbc4e942"
+    },
+    {
+      "bytes": 1833,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C03TypedResponseCorpusV1.json",
+      "sha256": "9db9078649159d32a393fefaa12871e269e3a775f0e05a8c8ad7380f12446ef5"
+    },
+    {
+      "bytes": 63061,
+      "path": "Scripts/v23/p03_c03_contracts.py",
+      "sha256": "1b981cd71aa793c325d4c54cd7ed95d460825ece7740eae892c0aabbc1efe4b0"
+    },
+    {
+      "bytes": 1660,
+      "path": "Scripts/v23/generate_p03_c03_contracts.py",
+      "sha256": "f66507921a5fa4df4c89f98a013d1e05b0265b2f028617b90c17573ab2897e52"
+    },
+    {
+      "bytes": 10893,
+      "path": "Scripts/v23/verify_p03_c03_contracts.py",
+      "sha256": "1f47c417add791ebf5242b7ccc3d2cbdc5257e2348f954cb6bebcbceb29da577"
+    },
+    {
+      "bytes": 11192,
+      "path": "Scripts/v23/response-value.schema.json",
+      "sha256": "65c6e7ce807a14d9a7ba30ac5fe82f11dbace2bf67fc2e479dba407b61041df4"
+    },
+    {
+      "bytes": 4426,
+      "path": "Scripts/v23/response-field-definition.schema.json",
+      "sha256": "99da441c4a59f5da344d9ad268beb2ec50eb4c1fb52cdd23260bab19d0bef11c"
+    },
+    {
+      "bytes": 423,
+      "path": "Scripts/v23/exact-decimal.schema.json",
+      "sha256": "65c5c1f3588960d9213216a9a9e97d89e00f02677138a2c45b9a629f8845d390"
+    },
+    {
+      "bytes": 1340,
+      "path": "Scripts/v23/unit-definition.schema.json",
+      "sha256": "ba2d01368b4a415166476282c9ec708a3c36baf0b6bf99f599a5c8b1d6d561e2"
+    },
+    {
+      "bytes": 3406,
+      "path": "Scripts/v23/exact-measurement.schema.json",
+      "sha256": "b5c21c19c8a8144fddbcb53dbbd249f9927e592578f8d077fe07907fd857520c"
+    },
+    {
+      "bytes": 6903,
+      "path": "Scripts/v23/typed-response-evidence-receipt.schema.json",
+      "sha256": "7c00390da77c07397bed6fd1862456e9e53603254228f1875f5f37609b020d23"
+    },
+    {
+      "bytes": 19419,
+      "path": "docs/design/v23/tooling/V23P03C03ResponseValueContractV1.json",
+      "sha256": "fe1e50a091184696f3ee09c5d64cdd701db65fd30af66f6e16b8b2a5e5787d81"
+    },
+    {
+      "bytes": 19890,
+      "path": "docs/design/v23/tooling/V23P03C03ExactMeasurementContractV1.json",
+      "sha256": "552f51598d98c587384393b2581ccf6ca88d81f102479e31c56d284eddd286b6"
+    },
+    {
+      "bytes": 19382,
+      "path": "docs/design/v23/tooling/V23P03C03RepeatResponseIdentityContractV1.json",
+      "sha256": "945ebc363ace6b9dfd74b72561233112771b2615ea790ed22fc8c58d36c5cef8"
+    },
+    {
+      "bytes": 19137,
+      "path": "docs/design/v23/tooling/V23P03C03LegacySignResponseMappingContractV1.json",
+      "sha256": "2354812d2d5dd4845786134d67013aacf413b7af0ddbefbc43cf92543d43c67a"
+    },
+    {
+      "bytes": 23265,
+      "path": "docs/design/v23/tooling/V23P03C03TypedResponseEvidenceReceiptV1.json",
+      "sha256": "579fed59932d2deb1eeb4659c1898c5ad59341c9e0cb02147197f776c698f959"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "a875778e6900f4513b9c1a56069a174d06f29dfc",
+    "appBaseTree": "c550b5c0ccbeee3f0d7c48ed54f58d7e44aef257",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P03-C03",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "21227e12d0713af5dd8ebca71e6117a171c59b8c96acd41002ad5c862e170aa0",
+    "coordinationAuthorityHead": "80c631478b99e9ef09bc376c188ab6c8481e9875",
+    "coordinationAuthorityTree": "3553b4399ebc914d392f58ef75cb800f6d7a7a43",
+    "coordinationCASSequence": 144,
+    "coordinationLedgerDigest": "61b2734c119325136fe8cf00cfbf807fcda0ba5b9bae786a67e44a8da3bf48f8",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P03-C03-G01",
+      "V23-P03-C03-A01",
+      "V23-P03-C03-H01",
+      "V23-P03-C03-I01",
+      "V23-P03-C03-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P03-C02"
+    ],
+    "dossierDigest": "ea72d3483ee79f78d2dea348cb94b26f219c6c9a4cfc44af704e9fa46e5e94ca",
+    "dossierLength": 7073,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "f46ef2dbcc35675a4a240565d694827a3231b58a6c476baae1b2d80fd96d1729",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "b7c7d8238f8f81c0067040e1ab68731a468b4e323f3d0ef31b89719f24d9937d",
+    "inheritedV21BlockLength": 6879,
+    "invalidationConsumers": [
+      "V23-P03-C04",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P03-C03",
+    "pathFenceDigest": "8e424c0e0718d8df4127a2034744f1a347f14c3aed23f684cc0c0c4f6b525bf6",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "362e0bcefbe84aaacc803784d3295fe928554155992bac272ece84f0a6a432de",
+    "registerOrdinal": 34,
+    "registerRowDigest": "26d44aaa6bd20ad7ebab0c3bef3d874ba57b6c29e30fd180fee3d4d0c4994bf1",
+    "registerRowLength": 274,
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionLength": 44217,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Closed typed responses, exact fixed-point/unit semantics, and repeat identity"
+  },
+  "backupBehaviorDelta": false,
+  "backupRestoreRequired": false,
+  "brandSurfaceDelta": false,
+  "cardID": "V23-P03-C03",
+  "contractDocumentCount": 5,
+  "declarationOnly": true,
+  "deleteBehaviorDelta": false,
+  "deleteEraseRequired": false,
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "evidenceIDs": [
+    "V23-P03-C03-G01",
+    "V23-P03-C03-A01",
+    "V23-P03-C03-H01",
+    "V23-P03-C03-I01",
+    "V23-P03-C03-R01"
+  ],
+  "existingPaths": [
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift"
+  ],
+  "exportBehaviorDelta": false,
+  "exportReportRequired": false,
+  "fenceProof": {
+    "activeS10Overlap": false,
+    "activeS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "allowedDeletePaths": [],
+    "allowedPathCount": 24,
+    "allowedRenamePaths": [],
+    "authorizedOverlapEdges": [
+      {
+        "boundEvidence": {
+          "attemptID": 1,
+          "candidateHead": "76039ad7d48f04f11f19937ed623dd28b12ea49a",
+          "candidateTree": "80418a317e75216c8ccc26d7acba5c6cce293d1d",
+          "cardID": "V23-P03-C01",
+          "checkpointDigest": "d4500fb867fe334245f83dc8de20267af377aa30ad41ebfdc60c650f951f49be",
+          "contextDigest": "4221ebc43e391f9b81cad953b9ab2f4c188da324e6c434a92efb2687f941a028",
+          "pathFenceDigest": "fae827d3757adfaf3af7485b3b5076db54ebbf92193a450a37e7ce8e042fb1d3",
+          "verificationReceiptDigest": "49665b4d712469087dd81f9aec9c95279e24b54405251a82bd93540c6c4bcfb2"
+        },
+        "disposition": "EXTEND_C01_SHIPPING_ADAPTER_WITH_PURE_LEGACY_SIGN_RESPONSE_PARITY_MAPPING_PRESERVING_CLOSED_REGISTRY_CANONICAL_PACKAGE_BYTES_AND_ZERO_SIGN_BRANCH_IN_KERNEL",
+        "path": "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+        "priorCardID": "V23-P03-C01",
+        "priorFenceDigest": "fae827d3757adfaf3af7485b3b5076db54ebbf92193a450a37e7ce8e042fb1d3"
+      },
+      {
+        "boundEvidence": {
+          "attemptID": 1,
+          "candidateHead": "a875778e6900f4513b9c1a56069a174d06f29dfc",
+          "candidateTree": "c550b5c0ccbeee3f0d7c48ed54f58d7e44aef257",
+          "cardID": "V23-P03-C02",
+          "checkpointDigest": "d1dc917dc07987153b1e7a94dea9578742f978ffbc812acdbb2d8ea19cf1264c",
+          "contextDigest": "3c238ced11eeffb0b7eb93f968c0e6fc7df555f64e45154bf43b696f25cf5cac",
+          "pathFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba",
+          "verificationReceiptDigest": "6ee99bdab7d80ffd36802c3ab891f0409cc881d8942ae4470d9b94f18cca9ff2"
+        },
+        "disposition": "EXTEND_C02_FIELD_ID_DECLARATIONS_WITH_C03_CLOSED_RESPONSE_FIELD_DESCRIPTORS_PRESERVING_CANONICAL_PACKAGE_RELEASE_HASH_BINDING",
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+        "priorCardID": "V23-P03-C02",
+        "priorFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba"
+      },
+      {
+        "boundEvidence": {
+          "attemptID": 1,
+          "candidateHead": "a875778e6900f4513b9c1a56069a174d06f29dfc",
+          "candidateTree": "c550b5c0ccbeee3f0d7c48ed54f58d7e44aef257",
+          "cardID": "V23-P03-C02",
+          "checkpointDigest": "d1dc917dc07987153b1e7a94dea9578742f978ffbc812acdbb2d8ea19cf1264c",
+          "contextDigest": "3c238ced11eeffb0b7eb93f968c0e6fc7df555f64e45154bf43b696f25cf5cac",
+          "pathFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba",
+          "verificationReceiptDigest": "6ee99bdab7d80ffd36802c3ab891f0409cc881d8942ae4470d9b94f18cca9ff2"
+        },
+        "disposition": "EXTEND_C02_CLOSED_WORKFLOW_FACT_AND_REPEAT_SEMANTICS_WITH_C03_TYPED_RESPONSE_AND_STABLE_REPEAT_RESPONSE_IDENTITY_PRESERVING_NODE_PREDICATE_AND_LIMIT_CONTRACTS",
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+        "priorCardID": "V23-P03-C02",
+        "priorFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba"
+      },
+      {
+        "boundEvidence": {
+          "attemptID": 1,
+          "candidateHead": "a875778e6900f4513b9c1a56069a174d06f29dfc",
+          "candidateTree": "c550b5c0ccbeee3f0d7c48ed54f58d7e44aef257",
+          "cardID": "V23-P03-C02",
+          "checkpointDigest": "d1dc917dc07987153b1e7a94dea9578742f978ffbc812acdbb2d8ea19cf1264c",
+          "contextDigest": "3c238ced11eeffb0b7eb93f968c0e6fc7df555f64e45154bf43b696f25cf5cac",
+          "pathFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba",
+          "verificationReceiptDigest": "6ee99bdab7d80ffd36802c3ab891f0409cc881d8942ae4470d9b94f18cca9ff2"
+        },
+        "disposition": "EXTEND_C02_GRAPH_VALIDATION_WITH_C03_TYPE_RANGE_CARDINALITY_AND_REPEAT_RESPONSE_VALIDATION_PRESERVING_CYCLE_DOMINANCE_AND_OUTGOING_CARDINALITY_RULES",
+        "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+        "priorCardID": "V23-P03-C02",
+        "priorFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba"
+      }
+    ],
+    "authorizedPriorFenceOverlapCount": 4,
+    "baseHead": "a875778e6900f4513b9c1a56069a174d06f29dfc",
+    "baseTree": "c550b5c0ccbeee3f0d7c48ed54f58d7e44aef257",
+    "existingPathCount": 4,
+    "newPathCount": 20,
+    "pathFenceDigest": "8e424c0e0718d8df4127a2034744f1a347f14c3aed23f684cc0c0c4f6b525bf6",
+    "priorFenceCount": 34,
+    "priorFenceOverlapCount": 4,
+    "priorOwnedPathCount": 550,
+    "unauthorizedPriorFenceOverlapCount": 0
+  },
+  "fixtureProjection": {
+    "canonicalSHA256": "03f14f0fc4362dbc752ec49cf0887bcc86513f6dcfcb44a2d092cb37fd168198",
+    "measurementDimensions": [
+      "DIMENSIONLESS",
+      "DURATION",
+      "ILLUMINANCE",
+      "LENGTH",
+      "TEMPERATURE"
+    ],
+    "repeatActivities": [
+      "ACTIVE",
+      "INACTIVE_BY_PATH",
+      "REACTIVATION_REVIEW_REQUIRED"
+    ],
+    "requiredMarkers": [
+      "NO_VALUE",
+      "NOT_APPLICABLE",
+      "MEASUREMENT",
+      "KERNEL_UNIT_POLICY_V1",
+      "TIE_EVEN_UNCHANGED",
+      "ACTIVE",
+      "INACTIVE_BY_PATH",
+      "REACTIVATION_REVIEW_REQUIRED",
+      "FAIL_CLOSED"
+    ],
+    "responseKinds": [
+      "BOOLEAN",
+      "CONTENT_REFERENCE",
+      "DECIMAL",
+      "DURATION",
+      "ENTITY_REFERENCE",
+      "INSTANT",
+      "INTEGER",
+      "LOCAL_DATE",
+      "LOCAL_TIME",
+      "MEASUREMENT",
+      "MULTIPLE_OPTIONS",
+      "NOT_APPLICABLE",
+      "NO_VALUE",
+      "SINGLE_OPTION",
+      "TEXT",
+      "TRI_STATE"
+    ],
+    "roundingDispositions": [
+      "EXACT",
+      "NEAREST_AWAY_FROM_ZERO",
+      "NEAREST_TOWARD_ZERO",
+      "TIE_EVEN_ADJUSTED",
+      "TIE_EVEN_UNCHANGED"
+    ],
+    "schema": "V21P03C03TypedResponseCorpusV1",
+    "schemaVersion": 1,
+    "sourceSHA256": "9db9078649159d32a393fefaa12871e269e3a775f0e05a8c8ad7380f12446ef5",
+    "testOnly": true,
+    "topLevelKeys": [
+      "failureDisposition",
+      "historicBindingSHA256",
+      "historicReleaseSHA256",
+      "lifecycle",
+      "limits",
+      "measurementDimensions",
+      "negativeCases",
+      "publication",
+      "repeatActivities",
+      "responseKinds",
+      "roundingDispositions",
+      "roundingPolicy",
+      "schema",
+      "schemaVersion",
+      "testOnly",
+      "unitIDs",
+      "unitPolicyVersion"
+    ],
+    "unitIDs": [
+      "1",
+      "Cel",
+      "K",
+      "[degF]",
+      "[fc_i]",
+      "[ft_i]",
+      "[in_i]",
+      "cm",
+      "h",
+      "lx",
+      "m",
+      "min",
+      "mm",
+      "ms",
+      "s"
+    ]
+  },
+  "generatedPaths": [
+    "Scripts/v23/response-value.schema.json",
+    "Scripts/v23/response-field-definition.schema.json",
+    "Scripts/v23/exact-decimal.schema.json",
+    "Scripts/v23/unit-definition.schema.json",
+    "Scripts/v23/exact-measurement.schema.json",
+    "Scripts/v23/typed-response-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C03ResponseValueContractV1.json",
+    "docs/design/v23/tooling/V23P03C03ExactMeasurementContractV1.json",
+    "docs/design/v23/tooling/V23P03C03RepeatResponseIdentityContractV1.json",
+    "docs/design/v23/tooling/V23P03C03LegacySignResponseMappingContractV1.json",
+    "docs/design/v23/tooling/V23P03C03TypedResponseEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C03-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230303,
+    "version": "p03-c03-contracts-v1"
+  },
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": false,
+  "migrationRequired": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "newPaths": [
+    "FieldEvidenceApp/Domain/InspectionKernel/ResponseValueV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/ExactMeasurementSemanticsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/ResponseFieldDefinitionV1.swift",
+    "FieldEvidenceAppTests/V9_13TypedResponseTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C03TypedResponseCorpusV1.json",
+    "Scripts/v23/p03_c03_contracts.py",
+    "Scripts/v23/generate_p03_c03_contracts.py",
+    "Scripts/v23/verify_p03_c03_contracts.py",
+    "Scripts/v23/response-value.schema.json",
+    "Scripts/v23/response-field-definition.schema.json",
+    "Scripts/v23/exact-decimal.schema.json",
+    "Scripts/v23/unit-definition.schema.json",
+    "Scripts/v23/exact-measurement.schema.json",
+    "Scripts/v23/typed-response-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C03ResponseValueContractV1.json",
+    "docs/design/v23/tooling/V23P03C03ExactMeasurementContractV1.json",
+    "docs/design/v23/tooling/V23P03C03RepeatResponseIdentityContractV1.json",
+    "docs/design/v23/tooling/V23P03C03LegacySignResponseMappingContractV1.json",
+    "docs/design/v23/tooling/V23P03C03TypedResponseEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C03-tooling-manifest.json"
+  ],
+  "noNetwork": true,
+  "noNewSwiftDataV6Entity": true,
+  "noRuntimeDownloads": true,
+  "pathFence": [
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/ResponseValueV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/ExactMeasurementSemanticsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/ResponseFieldDefinitionV1.swift",
+    "FieldEvidenceAppTests/V9_13TypedResponseTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C03TypedResponseCorpusV1.json",
+    "Scripts/v23/p03_c03_contracts.py",
+    "Scripts/v23/generate_p03_c03_contracts.py",
+    "Scripts/v23/verify_p03_c03_contracts.py",
+    "Scripts/v23/response-value.schema.json",
+    "Scripts/v23/response-field-definition.schema.json",
+    "Scripts/v23/exact-decimal.schema.json",
+    "Scripts/v23/unit-definition.schema.json",
+    "Scripts/v23/exact-measurement.schema.json",
+    "Scripts/v23/typed-response-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C03ResponseValueContractV1.json",
+    "docs/design/v23/tooling/V23P03C03ExactMeasurementContractV1.json",
+    "docs/design/v23/tooling/V23P03C03RepeatResponseIdentityContractV1.json",
+    "docs/design/v23/tooling/V23P03C03LegacySignResponseMappingContractV1.json",
+    "docs/design/v23/tooling/V23P03C03TypedResponseEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C03-tooling-manifest.json"
+  ],
+  "pathFenceCount": 24,
+  "pendingArtifactCount": 0,
+  "pendingFencePaths": [],
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "KERNEL_RESPONSE_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "privacyAllowlistOnly": true,
+  "provisional": true,
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": false,
+  "schema": "V23-P03-C03-tooling-manifest",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+  "sourcePathCount": 9,
+  "sourcePaths": [
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Packs/ShippingIlluminatedSignAdapterV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/ResponseValueV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/ExactMeasurementSemanticsV1.swift",
+    "FieldEvidenceApp/Domain/InspectionKernel/ResponseFieldDefinitionV1.swift",
+    "FieldEvidenceAppTests/V9_13TypedResponseTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C03TypedResponseCorpusV1.json"
+  ],
+  "sourceProjection": {
+    "fieldDefinition": {
+      "cardinalityType": "ResponseCardinalityV1",
+      "fieldKeys": [
+        "schemaVersion",
+        "fieldID",
+        "packageReleaseID",
+        "workflowSHA256",
+        "valueKind",
+        "cardinality",
+        "allowsNotApplicable",
+        "allowsUnknownTriState",
+        "maximumTextUTF8Bytes",
+        "allowedOptionIDs",
+        "minimumNumericValue",
+        "maximumNumericValue",
+        "measurementDimension",
+        "allowedUnitIDs",
+        "maximumPrecisionScale",
+        "maximumUncertaintyCanonical",
+        "repeatNodeID",
+        "allowedEntityKindIDs"
+      ],
+      "idempotentReceipt": "EXACT_CANONICAL_BYTES_ADOPTION",
+      "interruption": "ZERO_OR_COMPLETE",
+      "maximumResponses": 128,
+      "rangeBinding": "KIND_REQUIREDNESS_CARDINALITY_TEXT_OPTION_NUMERIC_DIMENSION_UNIT_PRECISION_UNCERTAINTY",
+      "registryType": "KernelResponseRegistryV1",
+      "repeatBindingType": "RepeatResponseBindingV1",
+      "requiredBindings": [
+        "fieldID",
+        "packageReleaseID",
+        "workflowSHA256",
+        "valueKind",
+        "cardinality"
+      ],
+      "responseBindingType": "BoundResponseValueV1",
+      "sourceSHA256": "16ee7c74868c84275c27acd0c3b9beb2f4686d5524d320f9bef7777bd9859557",
+      "type": "ResponseFieldDefinitionV1"
+    },
+    "measurement": {
+      "canonicalStorage": "ENTERED_MANTISSA_SCALE_UNIT_AND_CANONICAL_MANTISSA_SCALE_UNIT_WITH_RECEIPT",
+      "conversion": "EXACT_RATIONAL_OR_AFFINE_SIGNED_FIXED_POINT",
+      "decimalMaximumScale": 9,
+      "decimalType": "ExactDecimalV1",
+      "dimensions": [
+        "DIMENSIONLESS",
+        "LENGTH",
+        "ILLUMINANCE",
+        "DURATION",
+        "TEMPERATURE"
+      ],
+      "identifierMaximumUTF8Bytes": 128,
+      "measurementSources": [
+        "MANUAL_ENTRY",
+        "INSTRUMENT_OBSERVED",
+        "IMPORTED",
+        "DERIVED"
+      ],
+      "noFloatPersistence": true,
+      "overflowDisposition": "FAIL_CLOSED_ARITHMETIC_OVERFLOW",
+      "precisionDisposition": "FAIL_CLOSED_PRECISION_LOSS",
+      "rationalType": "ExactRationalV1",
+      "roundingDispositions": [
+        "EXACT",
+        "NEAREST_TOWARD_ZERO",
+        "NEAREST_AWAY_FROM_ZERO",
+        "TIE_EVEN_UNCHANGED",
+        "TIE_EVEN_ADJUSTED"
+      ],
+      "roundingPolicy": "TIES_TO_EVEN_V1",
+      "sourceSHA256": "c67c7dd34eaefc7e51e96aed07fa8d9f8a0a699f397403551d1fbedc335dd701",
+      "type": "ExactMeasurementV1",
+      "unitIDs": [
+        "1",
+        "[degF]",
+        "[fc_i]",
+        "[ft_i]",
+        "[in_i]",
+        "Cel",
+        "K",
+        "cm",
+        "h",
+        "lx",
+        "m",
+        "min",
+        "mm",
+        "ms",
+        "s"
+      ],
+      "unitPolicyVersion": "KERNEL_UNIT_POLICY_V1"
+    },
+    "response": {
+      "canonicalCodec": "ResponseValueCanonicalCodecV1",
+      "canonicalRules": [
+        "SORTED_KEYS",
+        "WITHOUT_ESCAPING_SLASHES",
+        "ROUND_TRIP_BYTE_EQUALITY",
+        "NO_FLOATING_POINT_CANONICAL_PERSISTENCE",
+        "MAXIMUM_CANONICAL_BYTES_1048576"
+      ],
+      "cases": [
+        "noValue",
+        "notApplicable",
+        "boolean",
+        "triState",
+        "singleOption",
+        "multipleOptions",
+        "text",
+        "localDate",
+        "localTime",
+        "instant",
+        "duration",
+        "integer",
+        "decimal",
+        "measurement",
+        "entityReference",
+        "contentReference"
+      ],
+      "closedEncoding": "KIND_PLUS_KIND_SPECIFIC_PAYLOAD_EXACT_KEYS",
+      "collectionRule": "SORTED_UNIQUE_BOUNDED_OPTION_IDS",
+      "kindType": "ResponseValueKindV1",
+      "kinds": [
+        "NO_VALUE",
+        "NOT_APPLICABLE",
+        "BOOLEAN",
+        "TRI_STATE",
+        "SINGLE_OPTION",
+        "MULTIPLE_OPTIONS",
+        "TEXT",
+        "LOCAL_DATE",
+        "LOCAL_TIME",
+        "INSTANT",
+        "DURATION",
+        "INTEGER",
+        "DECIMAL",
+        "MEASUREMENT",
+        "ENTITY_REFERENCE",
+        "CONTENT_REFERENCE"
+      ],
+      "limits": {
+        "maximumCanonicalBytes": 1048576,
+        "maximumOptionCount": 128,
+        "maximumTextUTF8Bytes": 4096
+      },
+      "payloadRule": "EXACTLY_ONE_TAG_PAYLOAD_OR_KIND_ONLY_NO_ARBITRARY_JSON",
+      "sourceSHA256": "a83d177547ab1deffd760ad34692056a59408fcb8dc8e41e7b90db5e74244068",
+      "triStateValues": [
+        "TRUE",
+        "FALSE",
+        "UNKNOWN"
+      ],
+      "type": "ResponseValueV1"
+    },
+    "sourceCount": 9,
+    "workflowAndAdapter": {
+      "adapterBoundary": "PURE_LEGACY_SIGN_MAPPING_NO_NEUTRAL_KERNEL_SIGN_BRANCH",
+      "branchTruthValues": [
+        "TRUE",
+        "FALSE",
+        "UNKNOWN"
+      ],
+      "forbiddenIntegration": "NO_NETWORK_NO_PERSISTENCE_NO_REMOTE_PACKAGE_NO_TELEMETRY",
+      "repeatActivities": [
+        "ACTIVE",
+        "INACTIVE_BY_PATH",
+        "REACTIVATION_REVIEW_REQUIRED"
+      ],
+      "responseFieldValidation": "TYPE_RANGE_CARDINALITY_AND_REPEAT_BINDING_BEFORE_ACCEPTANCE",
+      "shippingAdapterSHA256": "e25bfe51aa05226d49c20ff7fc0ba19fcc2b4a622ba9a393096b7543d760cb56",
+      "workflowDefinitionSHA256": "3872f3c5226c4ff24f6df4f28cecfd9aafd65424247a2bac60a26f2f8b7b2624",
+      "workflowGrammarSHA256": "d70cfc575eecaf0be428859ba7a1c5cda9a337d5d07c308005495675abb49f3c",
+      "workflowGraphValidatorSHA256": "c6430ad4096cb2e182661bbfa8df66ed8a8583ce886fea3c5792979eb2fcea7d"
+    }
+  },
+  "strictSchemaCount": 6,
+  "testMethods": [
+    "testV9_13G01EveryClosedResponseKindRoundTripsCanonically",
+    "testV9_13A01UnitsDimensionsRangesPrecisionAndUnknownKindsFailClosed",
+    "testV9_13H01RepeatIdentitySurvivesReorderResumeAndRejectsCollisions",
+    "testV9_13I01InterruptedDormantContractPublicationExposesZeroOrCompleteRegistry",
+    "testV9_13R01LegacySignParityAndDormantRecoveryPreserveExactSemantics"
+  ],
+  "toolingPathCount": 15,
+  "toolingPaths": [
+    "Scripts/v23/p03_c03_contracts.py",
+    "Scripts/v23/generate_p03_c03_contracts.py",
+    "Scripts/v23/verify_p03_c03_contracts.py",
+    "Scripts/v23/response-value.schema.json",
+    "Scripts/v23/response-field-definition.schema.json",
+    "Scripts/v23/exact-decimal.schema.json",
+    "Scripts/v23/unit-definition.schema.json",
+    "Scripts/v23/exact-measurement.schema.json",
+    "Scripts/v23/typed-response-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P03C03ResponseValueContractV1.json",
+    "docs/design/v23/tooling/V23P03C03ExactMeasurementContractV1.json",
+    "docs/design/v23/tooling/V23P03C03RepeatResponseIdentityContractV1.json",
+    "docs/design/v23/tooling/V23P03C03LegacySignResponseMappingContractV1.json",
+    "docs/design/v23/tooling/V23P03C03TypedResponseEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C03-tooling-manifest.json"
+  ],
+  "uiSurfaceDelta": false
+}

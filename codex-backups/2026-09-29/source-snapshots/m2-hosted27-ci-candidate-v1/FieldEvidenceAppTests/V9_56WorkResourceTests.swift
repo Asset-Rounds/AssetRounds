@@ -1,0 +1,909 @@
+import XCTest
+import SwiftData
+@testable import FieldEvidenceApp
+
+final class V9_56WorkResourceTests: XCTestCase {
+    private let workspaceID = WorkspaceID(rawValue: UUID(uuidString: "49000000-0000-0000-0000-000000000001")!)
+    private let instant = Date(timeIntervalSince1970: 1_800_000_000)
+    private let digest = String(repeating: "a", count: 64)
+
+    @MainActor
+    func testCloneOrForkForwardsExactSnapshotArgumentsAndReceipt() async throws {
+        let container = try ModelContainer(for: ManualWorkResourceRecordRow.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let snapshot = try WorkResourceBackupSnapshotV1(workspaceID: workspaceID,
+            bundles: [WorkResourceAtomicBundleV1(entry: makeEntry())])
+        let target = WorkspaceID(rawValue: UUID())
+        let operationID = UUID()
+        let receipt = try WorkResourceRestoreReceiptV1(operationID: operationID,
+            sourceWorkspaceID: workspaceID, targetWorkspaceID: target,
+            snapshotSHA256: snapshot.snapshotSHA256, effectSHA256: String(repeating: "b", count: 64),
+            cloneOrFork: true, completedAt: instant)
+        let port = WorkResourceCloneProbe(receipt: receipt)
+        let adapter = WorkResourceLifecycleAdapterV1(modelContext: container.mainContext, port: port)
+        let result = try await adapter.cloneOrFork(snapshot, targetWorkspaceID: target, operationID: operationID)
+        XCTAssertEqual(result, receipt)
+        XCTAssertEqual(port.calls, [.init(snapshot: snapshot, target: target, operationID: operationID, cloneOrFork: true)])
+        XCTAssertFalse(container.mainContext.hasChanges)
+
+        port.shouldThrow = true
+        do {
+            _ = try await adapter.cloneOrFork(snapshot, targetWorkspaceID: target, operationID: operationID)
+            XCTFail("port failure must propagate")
+        } catch { XCTAssertEqual(error as? WorkResourceCloneProbe.Failure, .injected) }
+        XCTAssertEqual(port.calls.count, 2)
+        XCTAssertEqual(port.calls[0], port.calls[1])
+
+        let unavailable = WorkResourceLifecycleAdapterV1(modelContext: container.mainContext)
+        do {
+            _ = try await unavailable.cloneOrFork(snapshot, targetWorkspaceID: target, operationID: operationID)
+            XCTFail("missing lifecycle authority must fail")
+        } catch { XCTAssertEqual(error as? WorkResourcePersistenceFailureV1, .unavailable) }
+        let zero = WorkspaceID(rawValue: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
+        do {
+            _ = try await adapter.cloneOrFork(snapshot, targetWorkspaceID: zero, operationID: operationID)
+            XCTFail("invalid target must fail before invoking port")
+        } catch { XCTAssertEqual(error as? WorkResourcePersistenceFailureV1, .invalidValue) }
+        XCTAssertEqual(port.calls.count, 2)
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ManualWorkResourceRecordRow>()), 0)
+        XCTAssertFalse(container.mainContext.hasChanges)
+    }
+
+    func testG01ExactManualValuesAndFrozenPartReferenceAreCanonical() throws {
+        XCTAssertEqual(try ManualDurationV1(minutes: 1).minutes, 1)
+        XCTAssertEqual(try ManualDurationV1(minutes: 10_080).minutes, 10_080)
+        XCTAssertThrowsError(try ManualDurationV1(minutes: 0))
+        XCTAssertThrowsError(try ManualDurationV1(minutes: 10_081))
+
+        let quantity = try ExactDecimalQuantityV1(mantissa: 1_250, scale: 3)
+        XCTAssertEqual(quantity.mantissa, 1_250)
+        XCTAssertEqual(quantity.scale, 3)
+        XCTAssertThrowsError(try ExactDecimalQuantityV1(mantissa: 0, scale: 0))
+        XCTAssertThrowsError(try ExactDecimalQuantityV1(mantissa: 1, scale: 4))
+
+        XCTAssertEqual(try ExactMoneyAmountV1(mantissa: 12_34, currencyCode: "USD", minorUnitScale: 2).currencyCode, "USD")
+        XCTAssertEqual(try ExactMoneyAmountV1(mantissa: 12, currencyCode: "JPY", minorUnitScale: 0).minorUnitScale, 0)
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "USD", minorUnitScale: 3))
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "usd", minorUnitScale: 2))
+
+        let part = try LocalPartReferenceSnapshotV1(
+            partID: UUID(uuidString: "49000000-0000-0000-0000-000000000010")!,
+            partRevision: 7,
+            partSHA256: digest,
+            displayName: "Frozen conduit revision"
+        )
+        let line = try ManualMaterialLineV1(description: "Conduit", quantity: quantity, unit: "m", localPartReference: part)
+        XCTAssertEqual(line.localPartReference, part)
+        XCTAssertFalse(C49WorkResourceContractBoundaryV1.liveInventoryReference)
+        XCTAssertTrue(C49WorkResourceContractBoundaryV1.appendOnly)
+        XCTAssertEqual(C49WorkResourceContractBoundaryV1.soleWriter, "WorkspaceWriterV1")
+    }
+
+    func testA01BothSubjectsAndAppendOnlySuccessorStates() throws {
+        let initial = try makeEntry(kind: .workPacket)
+        try initial.validate()
+        let successor = try makeEntry(
+            kind: .workPacket,
+            disposition: .superseded,
+            expectedRevision: initial.revision,
+            revision: initial.revision + 1,
+            supersedes: initial
+        )
+        try successor.validateSuccessor(of: initial)
+        let voided = try makeEntry(
+            kind: .workPacket,
+            disposition: .voidedWithReason,
+            voidReason: "Entered against the wrong subject",
+            expectedRevision: initial.revision,
+            revision: initial.revision + 1,
+            supersedes: initial
+        )
+        try voided.validateSuccessor(of: initial)
+        let reversed = try makeEntry(
+            kind: .workPacket,
+            disposition: .reversed,
+            expectedRevision: initial.revision,
+            revision: initial.revision + 1,
+            supersedes: initial
+        )
+        try reversed.validateSuccessor(of: initial)
+        XCTAssertEqual(Set(WorkResourceDispositionV1.allCases), [.active, .superseded, .voidedWithReason, .reversed])
+        XCTAssertEqual(WorkResourceDispositionV1.active.rawValue, "ACTIVE")
+        XCTAssertEqual(WorkResourceDispositionV1.voidedWithReason.rawValue, "VOIDED_WITH_REASON")
+        XCTAssertEqual(Set(WorkResourceSubjectKindV1.allCases), [.workPacket, .correctiveWork])
+        XCTAssertNotEqual(initial.entrySHA256, successor.entrySHA256)
+    }
+
+    func testH01BoundsDuplicatesRevisionAndEmptyEntryFailClosed() throws {
+        let q = try ExactDecimalQuantityV1(mantissa: 1, scale: 0)
+        let id = UUID(uuidString: "49000000-0000-0000-0000-000000000020")!
+        let duplicate = try ManualMaterialLineV1(lineID: id, description: "Bolt", quantity: q)
+        XCTAssertThrowsError(try makeEntry(materials: [duplicate, duplicate]))
+        XCTAssertThrowsError(try makeEntry(duration: nil, materials: [], directCost: nil))
+        XCTAssertThrowsError(try makeEntry(expectedRevision: 1, revision: 3, supersedes: try makeEntry()))
+        XCTAssertThrowsError(try ManualMaterialLineV1(description: String(repeating: "x", count: 161), quantity: q))
+        XCTAssertThrowsError(try DirectCostEntryV1(amount: ExactMoneyAmountV1(mantissa: 1, currencyCode: "USD", minorUnitScale: 2), note: String(repeating: "x", count: 1025)))
+    }
+
+    func testR01SnapshotAndCloneRebindPreserveFrozenManualTruth() throws {
+        let source = try makeEntry(kind: .correctiveWork)
+        let snapshot = try WorkResourceSnapshotV1(entry: source)
+        XCTAssertEqual(snapshot.entry.entrySHA256, source.entrySHA256)
+        XCTAssertEqual(snapshot.snapshotSHA256.count, 64)
+
+        let target = WorkspaceID(rawValue: UUID(uuidString: "49000000-0000-0000-0000-000000000099")!)
+        let rebound = try source.rebound(
+            to: target,
+            mappedSubject: try subject(workspaceID: target, kind: .correctiveWork),
+            mappedActor: try actor(workspaceID: target),
+            mappedSupersedesEntrySHA256: nil,
+            mutationID: try MutationIDV1(rawValue: UUID(uuidString: "49000000-0000-0000-0000-000000000098")!)
+        )
+        XCTAssertEqual(rebound.workspaceID, target)
+        XCTAssertEqual(rebound.materials, source.materials)
+        XCTAssertEqual(rebound.directCost, source.directCost)
+        XCTAssertNotEqual(rebound.entrySHA256, source.entrySHA256)
+    }
+
+    @MainActor
+    func testV23P03C49I01EffectBeforeReceiptAndJournalInterruptionsRetryDeterministically() throws {
+        XCTAssertEqual(C49WorkResourceRecoveryBoundaryV1.commandKind, .applyWorkResource)
+        XCTAssertTrue(C49WorkResourceRecoveryBoundaryV1.effectBeforeReceiptRecoveryUsesCanonicalPostimage)
+        XCTAssertTrue(C49WorkResourceRecoveryBoundaryV1.divergentSameMutationIsQuarantined)
+        XCTAssertTrue(C49WorkResourceRecoveryBoundaryV1.noSecondCostLedger)
+
+        XCTAssertEqual(
+            MutationJournalFaultBoundaryV1.allCases,
+            [.afterEffectBeforeReceipt, .afterReceiptBeforeSave, .afterSaveBeforeReturn]
+        )
+        for boundary in MutationJournalFaultBoundaryV1.allCases {
+            let failOnce = MutationJournalFailureInjectionV1(failOnceAt: boundary)
+            XCTAssertThrowsError(try failOnce.reach(boundary)) { error in
+                XCTAssertEqual(error as? MutationJournalFailureV1, .injected(boundary))
+            }
+            XCTAssertNoThrow(try failOnce.reach(boundary), "retry must not inject the same interruption twice")
+        }
+    }
+
+    @MainActor
+    func testV23P03C49I01ReplaceRestoreAndCloneForkRecoveryChainIsExplicit() throws {
+        func id(_ slot: Int) -> UUID {
+            UUID(uuidString: String(format: "49000000-0000-4000-8000-%012x", slot))!
+        }
+        let source = RestoreSourceIdentityV1(
+            workspaceID: workspaceID.rawValue,
+            replicaID: id(900)
+        )
+        let oldPointer = RestorePointerIdentityV1(
+            generationID: id(901),
+            generationManifestSHA256: digest,
+            workspaceID: workspaceID.rawValue,
+            replicaID: id(902)
+        )
+        func identity(_ mode: BackupRestoreMode) throws -> RestoreIdentityV1 {
+            let slot: Int
+            switch mode {
+            case .emptyInstall: slot = 910
+            case .replaceExisting: slot = 920
+            case .clone: slot = 930
+            case .fork: slot = 940
+            }
+            return try RestoreIdentityDecisionV1.decide(RestoreIdentityDecisionInputV1(
+                mode: mode,
+                source: source,
+                oldPointer: oldPointer,
+                targetGenerationID: id(slot),
+                targetGenerationManifestSHA256: digest,
+                allocatedWorkspaceID: mode == .clone || mode == .fork ? id(slot + 1) : nil,
+                allocatedReplicaID: id(slot + 2)
+            ))
+        }
+        let emptyInstall = try identity(.emptyInstall)
+        let replaceExisting = try identity(.replaceExisting)
+        let clone = try identity(.clone)
+        let fork = try identity(.fork)
+        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(emptyInstall))
+        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(replaceExisting))
+        XCTAssertFalse(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(clone))
+        XCTAssertFalse(C49WorkResourceRestoreIdentityPolicyV1.preservesCanonicalBytes(fork))
+        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.requiresHistoricRebinding(clone))
+        XCTAssertTrue(C49WorkResourceRestoreIdentityPolicyV1.requiresHistoricRebinding(fork))
+        XCTAssertTrue(C49WorkResourceLifecycleBoundaryV1.backupRestoreCloneForkDeleteAndEraseAreExplicit)
+        XCTAssertTrue(C49WorkResourceStreamingArchiveBoundaryV1.totalsSearchDraftsAndLiveStockAreExcluded)
+
+        // Exercise the actual C49 restore projection with typed journal values.
+        // No database, photo producer, archive, or physical restore is needed.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("C49-terminal-order-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try BackupRestoreService(applicationSupportURL: root)
+        let site = try WorkspaceEntityIdentityV1(kind: .site, id: id(950))
+        let unrelatedSite = try WorkspaceEntityIdentityV1(kind: .site, id: id(951))
+        func imageDigest(_ value: String) -> String {
+            CanonicalJSONV1.sha256(Data(value.utf8))
+        }
+        func record(
+            step: UInt64, sequence: UInt64, entity: WorkspaceEntityIdentityV1,
+            before: UInt64, after: UInt64, imageSHA: String,
+            receiptWorkspace: WorkspaceID? = nil, replica: UUID? = nil,
+            inherited: [WorkspaceEntityRevisionV1] = []
+        ) throws -> MutationHistoryReceiptRecordV1 {
+            let owner = receiptWorkspace ?? workspaceID
+            let replicaID = replica ?? id(900)
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: owner, generationID: id(952), writerInstanceID: id(953),
+                workspaceRevision: step - 1,
+                entityRevisions: [.init(identity: entity, revision: before)])
+            let envelope = try MutationEnvelopeV1(
+                request: .init(mutationID: .init(rawValue: UUID()), expectedRevision: expected,
+                    command: .updateSiteTimeZone(.init(siteID: entity.id,
+                        timeZoneID: "America/Chicago", confirmedAt: instant))),
+                identity: .init(workspaceID: owner, replicaID: .init(rawValue: replicaID)))
+            let resulting = try WorkspaceExpectedRevisionV1(
+                workspaceID: owner, generationID: id(952), writerInstanceID: id(953),
+                workspaceRevision: step,
+                entityRevisions: inherited + [.init(identity: entity, revision: after)])
+            let receipt = try MutationReceiptV1(
+                identity: .init(workspaceID: owner, replicaID: .init(rawValue: replicaID),
+                    localSequence: sequence), envelope: envelope,
+                resultingRevision: .init(resulting),
+                postImages: [.site(id: entity.id, revision: after, semanticSHA256: imageSHA)],
+                committedAt: instant)
+            return .init(envelopeData: try envelope.canonicalData(),
+                receiptData: try receipt.canonicalData(), reversalBasisData: nil,
+                semanticReversalData: nil)
+        }
+        func history(
+            _ receipts: [MutationHistoryReceiptRecordV1], workspaceRevision: UInt64 = 12,
+            revisions: [MutationHistoryEntityRevisionV1]? = nil
+        ) -> MutationHistorySnapshotV1 {
+            .init(workspaceRevision: workspaceRevision, lastLocalSequence: workspaceRevision,
+                receipts: receipts, quarantines: [],
+                entityRevisions: revisions ?? [.init(identity: site, revision: 12,
+                    externalProjectionSHA256: nil)])
+        }
+        func project(_ input: MutationHistorySnapshotV1, using decision: RestoreIdentityV1) throws
+            -> MutationHistorySnapshotV1 {
+            let emptyStock = try PartsStockBackupSnapshotV1(workspaceID: workspaceID,
+                parts: [], locations: [], movements: [], uses: [], reversals: [],
+                returns: [], abandonments: [])
+            let records = V4BackupRecordsV1(assets: [], deletionLedger: .empty,
+                evidenceFiles: [], issues: [], mutationHistory: input, packets: [],
+                recordsSchemaVersion: C55PartsStockBackupEnrollmentV1.recordsSchemaVersion,
+                reports: [], sites: [], workflowRecords: [], partsStockSnapshot: emptyStock)
+            let result = try service.c55RebindingWorkResourcesForTesting(
+                in: records, sourceRecords: records, identity: decision,
+                partsStockOperationID: id(954))
+            return try XCTUnwrap(result.mutationHistory)
+        }
+        let chronological = try (1...12).map { value in
+            try record(step: UInt64(value), sequence: UInt64(value), entity: site,
+                before: UInt64(value - 1), after: UInt64(value),
+                imageSHA: imageDigest("site-\(value)"))
+        }
+        let keyed = try chronological.map { record in
+            (record, try MutationReceiptV1.decodeCanonical(from: record.receiptData).identity.stableKey)
+        }
+        let lexical = keyed.sorted { $0.1 < $1.1 }.map(\.0)
+        XCTAssertEqual(try lexical.map {
+            try MutationReceiptV1.decodeCanonical(from: $0.receiptData).identity.localSequence
+        }, [1, 10, 11, 12, 2, 3, 4, 5, 6, 7, 8, 9])
+        for decision in [clone, fork, replaceExisting] {
+            for receipts in [chronological, lexical, Array(chronological.reversed())] {
+                let input = history(receipts)
+                try MutationJournalStoreV1.validateImportedSnapshot(input)
+                let output = try project(input, using: decision)
+                XCTAssertEqual(output.receipts, input.receipts)
+                XCTAssertEqual(output.quarantines, input.quarantines)
+                XCTAssertEqual(output.entityRevisions, input.entityRevisions)
+                try MutationJournalStoreV1.validateImportedSnapshot(output)
+            }
+        }
+
+        // A later causal receipt may not regress an inherited, untouched row.
+        // Each receipt is individually valid; its own post-image still advances.
+        let regressing = try record(step: 12, sequence: 12, entity: unrelatedSite,
+            before: 0, after: 1, imageSHA: imageDigest("unrelated"),
+            inherited: [.init(identity: site, revision: 10)])
+        let regression = history(Array(chronological.prefix(11)) + [regressing], revisions: [
+            .init(identity: site, revision: 11, externalProjectionSHA256: nil),
+            .init(identity: unrelatedSite, revision: 1, externalProjectionSHA256: nil),
+        ])
+        try MutationJournalStoreV1.validateImportedSnapshot(regression)
+        XCTAssertThrowsError(try project(regression, using: clone)) {
+            XCTAssertEqual($0 as? BackupRestoreServiceError, .invalidPackage)
+        }
+
+        // Equal-revision conflicts within one workspace remain invalid even
+        // when a higher image is encountered first in serialized array order.
+        let lowerA = try record(step: 1, sequence: 1, entity: site,
+            before: 0, after: 1, imageSHA: imageDigest("lower-a"))
+        let lowerB = try record(step: 2, sequence: 2, entity: site,
+            before: 0, after: 1, imageSHA: imageDigest("lower-b"))
+        let higher = try record(step: 3, sequence: 3, entity: site,
+            before: 1, after: 2, imageSHA: imageDigest("higher"))
+        let conflict = history([higher, lowerA, lowerB], workspaceRevision: 3,
+            revisions: [.init(identity: site, revision: 2, externalProjectionSHA256: nil)])
+        try MutationJournalStoreV1.validateImportedSnapshot(conflict)
+        XCTAssertThrowsError(try project(conflict, using: clone)) {
+            XCTAssertEqual($0 as? BackupRestoreServiceError, .invalidPackage)
+        }
+
+        // A foreign original is not this destination's image authority. An
+        // already normalized projection survives differing foreign digests.
+        let foreign = try record(step: 1, sequence: 1, entity: site,
+            before: 11, after: 12, imageSHA: imageDigest("foreign-site-12"),
+            receiptWorkspace: .init(rawValue: id(960)), replica: id(961))
+        let normalized = MutationHistoryEntityRevisionV1(identity: site, revision: 12,
+            externalProjectionSHA256: imageDigest("authorized-normalized-site-12"))
+        for receipts in [lexical + [foreign], [foreign] + Array(chronological.reversed())] {
+            let input = history(receipts, revisions: [normalized])
+            try MutationJournalStoreV1.validateImportedSnapshot(input)
+            for decision in [clone, fork, replaceExisting] {
+                let output = try project(input, using: decision)
+                XCTAssertEqual(output.receipts, input.receipts)
+                XCTAssertEqual(output.entityRevisions, [normalized])
+            }
+        }
+
+        // Foreign original receipts cannot invent or advance a destination
+        // baseline when neither an exact row nor a target image authorizes it.
+        for revisions in [[], [MutationHistoryEntityRevisionV1(identity: site,
+            revision: 11, externalProjectionSHA256: imageDigest("site-11"))]] {
+            let unsupported = history(lexical, revisions: revisions)
+            for decision in [clone, fork] {
+                XCTAssertThrowsError(try project(unsupported, using: decision)) {
+                    XCTAssertEqual($0 as? BackupRestoreServiceError, .invalidPackage)
+                }
+            }
+        }
+    }
+
+    func testV23P03C49H01CustomerSafeProjectionNeverLeaksInternalDirectCost() throws {
+        let snapshot = try WorkResourceSnapshotV1(entry: makeEntry())
+        let defaultProjection = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: [snapshot],
+            audience: .customerSafe
+        )
+        XCTAssertFalse(defaultProjection.directCostPreview.optedIn)
+        XCTAssertFalse(defaultProjection.directCostPreview.included)
+        XCTAssertTrue(defaultProjection.directCostPreview.totalsByCurrency.isEmpty)
+        XCTAssertTrue(defaultProjection.directCostsAreInternalOnly)
+
+        let explicitPreview = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: [snapshot],
+            audience: .customerSafe,
+            includeDirectCostPreview: true
+        )
+        XCTAssertTrue(explicitPreview.directCostPreview.optedIn)
+        XCTAssertFalse(explicitPreview.directCostPreview.included, "internal-only source cost must remain absent")
+        XCTAssertTrue(explicitPreview.directCostPreview.totalsByCurrency.isEmpty)
+    }
+
+    func testV23P03C49H01CSVNeutralizesFormulaPrefixesAndCanonicalizesControls() {
+        for hostile in ["=2+2", "+SUM(A1:A2)", "-1", "@cmd"] {
+            XCTAssertEqual(C49FormulaSafeCSVV1.safeCell(hostile), "'" + hostile)
+        }
+        XCTAssertEqual(C49FormulaSafeCSVV1.safeCell("line1\r\nline2\rline3"), "line1\nline2\nline3")
+        XCTAssertEqual(
+            C49FormulaSafeCSVV1.encode(rows: [["=2+2", "tab\tvalue", "line1\rline2"]]),
+            "\"'=2+2\",\"tab\tvalue\",\"line1\nline2\"\n"
+        )
+    }
+
+    func testV23P03C49G01ExactIntegerAndMaterialCardinalityBoundaries() throws {
+        XCTAssertEqual(try ExactDecimalQuantityV1(mantissa: Int64.max, scale: 3).mantissa, Int64.max)
+        XCTAssertEqual(
+            try ExactMoneyAmountV1(mantissa: Int64.max, currencyCode: "USD", minorUnitScale: 2).mantissa,
+            Int64.max
+        )
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 0, currencyCode: "USD", minorUnitScale: 2))
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: -1, currencyCode: "USD", minorUnitScale: 2))
+
+        let fifty = try (0..<50).map { offset in
+            try ManualMaterialLineV1(
+                lineID: UUID(uuidString: String(format: "49000000-0000-0000-0000-%012d", offset + 100))!,
+                description: "Material \(offset)",
+                quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0)
+            )
+        }
+        XCTAssertEqual(try makeEntry(duration: nil, materials: fifty, directCost: nil).materials.count, 50)
+        XCTAssertThrowsError(try makeEntry(duration: nil, materials: fifty + [
+            ManualMaterialLineV1(
+                lineID: UUID(uuidString: "49000000-0000-0000-0000-000000000999")!,
+                description: "Too many",
+                quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0)
+            )
+        ], directCost: nil))
+    }
+
+    func testV23P03C49G01PinnedISO4217ListOneUniverseAndMinorUnitScales() throws {
+        for code in ["BHD", "KWD"] {
+            let amount = try ExactMoneyAmountV1(mantissa: 1, currencyCode: code, minorUnitScale: 3)
+            XCTAssertEqual(amount.minorUnitScale, 3)
+        }
+        for code in ["CLF", "UYW"] {
+            let amount = try ExactMoneyAmountV1(mantissa: 1, currencyCode: code, minorUnitScale: 4)
+            XCTAssertEqual(amount.minorUnitScale, 4)
+        }
+        XCTAssertEqual(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "JPY", minorUnitScale: 0).minorUnitScale, 0)
+        XCTAssertEqual(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "USD", minorUnitScale: 2).minorUnitScale, 2)
+
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "BHD", minorUnitScale: 2))
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "CLF", minorUnitScale: 3))
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "ZZZ", minorUnitScale: 2))
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "usd", minorUnitScale: 2))
+
+        XCTAssertEqual(
+            C49WorkResourceContractBoundaryV1.iso4217ListOneSourceURL,
+            "https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml"
+        )
+        XCTAssertEqual(C49WorkResourceContractBoundaryV1.iso4217ListOnePublished, "2026-01-01")
+        XCTAssertEqual(C49WorkResourceContractBoundaryV1.iso4217ListOneRawByteCount, 47_463)
+        XCTAssertEqual(
+            C49WorkResourceContractBoundaryV1.iso4217ListOneSHA256,
+            "838dfb991648cf36df939edd5fe3811737962b75a32252847d239cedd1e291c9"
+        )
+        XCTAssertEqual(C49WorkResourceContractBoundaryV1.iso4217ListOneNumericMinorUnitCodeCount, 165)
+    }
+
+    func testV23P03C49R01FrozenAndAbsentPartReferencesRoundTripRowsAndBackup() throws {
+        let frozen = try LocalPartReferenceSnapshotV1(
+            partID: UUID(uuidString: "49000000-0000-0000-0000-000000000070")!,
+            partRevision: 11,
+            partSHA256: digest,
+            displayName: "Frozen coupling"
+        )
+        let quantity = try ExactDecimalQuantityV1(mantissa: 2, scale: 0)
+        let referenced = try ManualMaterialLineV1(
+            lineID: UUID(uuidString: "49000000-0000-0000-0000-000000000071")!,
+            description: "Coupling",
+            quantity: quantity,
+            unit: "each",
+            localPartReference: frozen
+        )
+        let untracked = try ManualMaterialLineV1(
+            lineID: UUID(uuidString: "49000000-0000-0000-0000-000000000072")!,
+            description: "Untracked sealant",
+            quantity: quantity
+        )
+        let entry = try makeEntry(duration: nil, materials: [referenced, untracked], directCost: nil)
+
+        let rowValue = try ManualWorkResourceRecordRow(entry).value()
+        XCTAssertEqual(rowValue, entry)
+        XCTAssertEqual(rowValue.materials.first(where: { $0.lineID == referenced.lineID })?.localPartReference, frozen)
+        XCTAssertNil(rowValue.materials.first(where: { $0.lineID == untracked.lineID })?.localPartReference)
+
+        let transport = try V37BackupWorkResourceRecordV1(entry)
+        XCTAssertEqual(try transport.value(), entry)
+        let bundle = try WorkResourceAtomicBundleV1(entry: entry)
+        let backup = try WorkResourceBackupSnapshotV1(workspaceID: workspaceID, bundles: [bundle])
+        try backup.validate()
+        XCTAssertEqual(backup.entries, [entry])
+        let deterministicRetry = try WorkResourceBackupSnapshotV1(workspaceID: workspaceID, bundles: [bundle])
+        XCTAssertEqual(deterministicRetry, backup)
+
+        let target = WorkspaceID(rawValue: UUID(uuidString: "49000000-0000-0000-0000-000000000079")!)
+        let rebound = try entry.rebound(
+            to: target,
+            mappedSubject: try subject(workspaceID: target),
+            mappedActor: try actor(workspaceID: target),
+            mappedSupersedesEntrySHA256: nil,
+            mutationID: try MutationIDV1(rawValue: UUID(uuidString: "49000000-0000-0000-0000-000000000078")!)
+        )
+        XCTAssertEqual(rebound.materials.first(where: { $0.lineID == referenced.lineID })?.localPartReference, frozen)
+        XCTAssertNil(rebound.materials.first(where: { $0.lineID == untracked.lineID })?.localPartReference)
+        XCTAssertEqual(try V37BackupWorkResourceRecordV1(rebound).value(), rebound)
+
+        for cloneOrFork in [false, true] {
+            let receipt = try WorkResourceRestoreReceiptV1(
+                operationID: UUID(uuidString: cloneOrFork
+                    ? "49000000-0000-0000-0000-000000000081"
+                    : "49000000-0000-0000-0000-000000000080")!,
+                sourceWorkspaceID: workspaceID,
+                targetWorkspaceID: cloneOrFork ? target : workspaceID,
+                snapshotSHA256: backup.snapshotSHA256, effectSHA256: entry.entrySHA256,
+                cloneOrFork: cloneOrFork, completedAt: instant
+            )
+            XCTAssertEqual(receipt.cloneOrFork, cloneOrFork)
+            XCTAssertEqual(receipt.snapshotSHA256, backup.snapshotSHA256)
+        }
+    }
+
+    func testV23P03C49G01CanonicalProjectionSeparatesCurrenciesAndDetectsOverflow() throws {
+        let usd = try makeEntry(directCost: DirectCostEntryV1(
+            amount: ExactMoneyAmountV1(mantissa: 125, currencyCode: "USD", minorUnitScale: 2)
+        ))
+        let eur = try makeEntry(directCost: DirectCostEntryV1(
+            amount: ExactMoneyAmountV1(mantissa: 250, currencyCode: "EUR", minorUnitScale: 2)
+        ))
+        let projection = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: [WorkResourceSnapshotV1(entry: usd), WorkResourceSnapshotV1(entry: eur)]
+        )
+        XCTAssertEqual(projection.directCostPreview.totalsByCurrency.map(\.currencyCode), ["EUR", "USD"])
+        XCTAssertEqual(projection.directCostPreview.totalsByCurrency.map(\.mantissa), [250, 125])
+        try projection.validate()
+        let projectionBytes = try JSONEncoder().encode(projection)
+        let decodedProjection = try JSONDecoder().decode(
+            C49WorkResourceReportProjectionV1.self, from: projectionBytes
+        )
+        try decodedProjection.validate()
+        XCTAssertEqual(decodedProjection, projection)
+        var invalidProjection = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: projectionBytes) as? [String: Any]
+        )
+        invalidProjection["projectionSHA256"] = String(repeating: "0", count: 64)
+        let wrongDigestProjection = try JSONDecoder().decode(
+            C49WorkResourceReportProjectionV1.self,
+            from: JSONSerialization.data(withJSONObject: invalidProjection)
+        )
+        XCTAssertThrowsError(try wrongDigestProjection.validate()) {
+            XCTAssertEqual($0 as? C49WorkResourceProjectionFailureV1, .nonCanonical)
+        }
+
+        let maximum = try makeEntry(directCost: DirectCostEntryV1(
+            amount: ExactMoneyAmountV1(mantissa: Int64.max, currencyCode: "USD", minorUnitScale: 2)
+        ))
+        let one = try makeEntry(directCost: DirectCostEntryV1(
+            amount: ExactMoneyAmountV1(mantissa: 1, currencyCode: "USD", minorUnitScale: 2)
+        ))
+        XCTAssertThrowsError(try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: [WorkResourceSnapshotV1(entry: maximum), WorkResourceSnapshotV1(entry: one)]
+        )) { error in
+            XCTAssertEqual(error as? C49WorkResourceProjectionFailureV1, .arithmeticOverflow)
+        }
+        let maximumSnapshot = try WorkResourceSnapshotV1(entry: maximum)
+        let oneSnapshot = try WorkResourceSnapshotV1(entry: one)
+        let maximumTotals = try WorkResourceTotalsProjectionV1(snapshots: [maximumSnapshot])
+        XCTAssertEqual(maximumTotals.directCostByCurrency["USD"], Int64.max)
+        let maximumReport = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID, snapshots: [maximumSnapshot])
+        XCTAssertEqual(maximumReport.directCostPreview.totalsByCurrency.first?.mantissa, Int64.max)
+        XCTAssertThrowsError(try WorkResourceTotalsProjectionV1(snapshots: [maximumSnapshot, oneSnapshot])) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .arithmeticOverflow)
+        }
+
+        // Malformed snapshot identity must not be converted to arithmetic overflow.
+        var corruptSnapshot = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(maximumSnapshot)) as? [String: Any])
+        corruptSnapshot["snapshotSHA256"] = String(repeating: "0", count: 64)
+        let corrupt = try JSONDecoder().decode(WorkResourceSnapshotV1.self,
+            from: JSONSerialization.data(withJSONObject: corruptSnapshot))
+        XCTAssertThrowsError(try WorkResourceTotalsProjectionV1(snapshots: [corrupt])) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .invalidDigest)
+        }
+        XCTAssertThrowsError(try C49WorkResourceReportProjectionV1(workspaceID: workspaceID, snapshots: [corrupt])) {
+            XCTAssertEqual($0 as? C49WorkResourceProjectionFailureV1, .invalidSnapshot)
+        }
+        let firstSuccessor = try makeEntry(disposition: .superseded,
+            expectedRevision: usd.revision, revision: usd.revision + 1, supersedes: usd)
+        let competingSuccessor = try makeEntry(disposition: .superseded,
+            expectedRevision: usd.revision, revision: usd.revision + 1, supersedes: usd)
+        try firstSuccessor.validateSuccessor(of: usd)
+        try competingSuccessor.validateSuccessor(of: usd)
+        XCTAssertThrowsError(try C49WorkResourceReportProjectionV1(workspaceID: workspaceID,
+            snapshots: [WorkResourceSnapshotV1(entry: usd), WorkResourceSnapshotV1(entry: firstSuccessor),
+                        WorkResourceSnapshotV1(entry: competingSuccessor)])) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .invalidTransition)
+        }
+    }
+
+    func testV23P03C49G01MaterialTotalsUseExactDescriptionUnitAndNormalizeScale() throws {
+        let lines = try [
+            ManualMaterialLineV1(description: "Cable", quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0), unit: "m"),
+            ManualMaterialLineV1(description: "Cable", quantity: ExactDecimalQuantityV1(mantissa: 250, scale: 3), unit: "m"),
+            ManualMaterialLineV1(description: "Cable", quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0), unit: "ft"),
+            ManualMaterialLineV1(description: "cable", quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0), unit: "m")
+        ]
+        let totals = try WorkResourceTotalsProjectionV1(
+            snapshots: [WorkResourceSnapshotV1(entry: makeEntry(duration: nil, materials: lines, directCost: nil))]
+        )
+        XCTAssertEqual(totals.materialLineCount, 4)
+        XCTAssertEqual(totals.materialTotals.count, 3)
+        let meters = try XCTUnwrap(totals.materialTotals.first { $0.description == "Cable" && $0.unit == "m" })
+        XCTAssertEqual(meters.quantityMantissa, 1_250)
+        XCTAssertEqual(meters.quantityScale, 3)
+        XCTAssertNotNil(totals.materialTotals.first { $0.description == "Cable" && $0.unit == "ft" })
+        XCTAssertNotNil(totals.materialTotals.first { $0.description == "cable" && $0.unit == "m" })
+
+        let overflowing = try ManualMaterialLineV1(
+            description: "Overflow",
+            quantity: ExactDecimalQuantityV1(mantissa: Int64.max, scale: 0)
+        )
+        XCTAssertThrowsError(try WorkResourceTotalsProjectionV1(
+            snapshots: [WorkResourceSnapshotV1(entry: makeEntry(duration: nil, materials: [overflowing], directCost: nil))]
+        )) { error in
+            XCTAssertEqual(error as? WorkResourceContractFailureV1, .arithmeticOverflow)
+        }
+        let overflowSnapshot = try WorkResourceSnapshotV1(entry: makeEntry(
+            duration: nil, materials: [overflowing], directCost: nil))
+        XCTAssertThrowsError(try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID, snapshots: [overflowSnapshot])) {
+            XCTAssertEqual($0 as? C49WorkResourceProjectionFailureV1, .arithmeticOverflow)
+        }
+        let maximumLine = try ManualMaterialLineV1(description: "Sum overflow",
+            quantity: ExactDecimalQuantityV1(mantissa: Int64.max, scale: 3))
+        let anotherLine = try ManualMaterialLineV1(description: "Sum overflow",
+            quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 3))
+        let additionSnapshot = try WorkResourceSnapshotV1(entry: makeEntry(
+            duration: nil, materials: [maximumLine, anotherLine], directCost: nil))
+        XCTAssertThrowsError(try WorkResourceTotalsProjectionV1(snapshots: [additionSnapshot])) {
+            XCTAssertEqual($0 as? WorkResourceContractFailureV1, .arithmeticOverflow)
+        }
+    }
+
+    func testV23P03C49H01SearchAndDiagnosticExportsAreDerivedAndCostSafe() throws {
+        let material = try ManualMaterialLineV1(description: "Conduit privacy canary",
+            quantity: ExactDecimalQuantityV1(mantissa: 1_250, scale: 3), unit: "private-unit-canary")
+        let snapshot = try WorkResourceSnapshotV1(entry: makeEntry(
+            materials: [material], visibility: .customerSafe))
+        let report = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: [snapshot],
+            audience: .customerSafe
+        )
+        let search = try C49WorkResourceSearchBoundaryV1.projection(report)
+        XCTAssertEqual(search.workspaceID, workspaceID)
+        XCTAssertTrue(search.terms.contains(material.description))
+        XCTAssertFalse(search.terms.contains("USD"))
+        try search.validate()
+
+        let privateLine = try ManualMaterialLineV1(description: "Internal material canary",
+            quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0), unit: "m")
+        let privateReport = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: [WorkResourceSnapshotV1(entry: makeEntry(materials: [privateLine], visibility: .internalOnly))],
+            audience: .customerSafe)
+        XCTAssertEqual(privateReport.durationMinutes, 0)
+        XCTAssertTrue(privateReport.materials.isEmpty)
+        XCTAssertFalse(privateReport.directCostPreview.included)
+        XCTAssertTrue(privateReport.directCostPreview.totalsByCurrency.isEmpty)
+        let privateSearch = try C49WorkResourceSearchBoundaryV1.projection(privateReport)
+        XCTAssertFalse(privateSearch.terms.contains("Internal material canary"))
+        XCTAssertFalse(privateSearch.terms.contains("USD"))
+        try privateSearch.validate()
+
+        let diagnostic = try C49WorkResourceDiagnosticBoundaryV1.metadata(report)
+        XCTAssertFalse(diagnostic.directCostPreviewIncluded)
+        XCTAssertTrue(diagnostic.currencies.isEmpty)
+        XCTAssertFalse(diagnostic.rawStockClaims)
+        XCTAssertFalse(diagnostic.liveInventoryClaims)
+        let costPreview = try C49WorkResourceReportProjectionV1(workspaceID: workspaceID,
+            snapshots: [snapshot], audience: .customerSafe, includeDirectCostPreview: true)
+        XCTAssertEqual(costPreview.directCostPreview.totalsByCurrency.first?.mantissa, 2_500)
+        XCTAssertEqual(report.materialTotals.first?.description, material.description)
+        XCTAssertEqual(report.materialTotals.first?.unit, material.unit)
+        for source in [report, costPreview] {
+            let metadata = try C49WorkResourceDiagnosticBoundaryV1.metadata(source)
+            XCTAssertEqual(metadata.sourceRecordCount, 1)
+            XCTAssertEqual(metadata.materialTotalCount, 1)
+            XCTAssertEqual(metadata.projectionSHA256, source.projectionSHA256)
+            let bytes = try C49WorkResourceDiagnosticBoundaryV1.encode(source)
+            XCTAssertEqual(bytes, try C49WorkResourceDiagnosticBoundaryV1.encode(source))
+            let text = try XCTUnwrap(String(data: bytes, encoding: .utf8))
+            XCTAssertFalse(text.contains("Conduit"), "diagnostics carry counts and hashes, not source material text")
+            XCTAssertFalse(text.contains(material.description))
+            XCTAssertFalse(text.contains(try XCTUnwrap(material.unit)))
+            let fields = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+            XCTAssertEqual(Set(fields.keys), Set([
+                "projectionSHA256", "sourceRecordCount", "durationMinutes", "materialTotalCount",
+                "currencies", "audience", "directCostPreviewIncluded", "rawStockClaims", "liveInventoryClaims"
+            ]))
+            // Inspect numeric values, not hex digest substrings that may contain 2500.
+            XCTAssertFalse(fields.values.compactMap { $0 as? NSNumber }.contains { $0.int64Value == 2_500 })
+            XCTAssertEqual(fields["materialTotalCount"] as? Int, 1)
+            XCTAssertEqual(fields["projectionSHA256"] as? String, source.projectionSHA256)
+        }
+    }
+
+    func testV23P03C49CurrentHeadProjectionNeverDoubleCountsReferencedPredecessor() throws {
+        let predecessorLine = try ManualMaterialLineV1(
+            lineID: UUID(uuidString: "49000000-0000-0000-0000-000000000090")!,
+            description: "Cable",
+            quantity: ExactDecimalQuantityV1(mantissa: 1, scale: 0),
+            unit: "m"
+        )
+        let predecessor = try makeEntry(
+            duration: ManualDurationV1(minutes: 10),
+            materials: [predecessorLine],
+            directCost: DirectCostEntryV1(
+                amount: ExactMoneyAmountV1(mantissa: 100, currencyCode: "USD", minorUnitScale: 2)
+            )
+        )
+        let successorLine = try ManualMaterialLineV1(
+            lineID: UUID(uuidString: "49000000-0000-0000-0000-000000000091")!,
+            description: "Cable",
+            quantity: ExactDecimalQuantityV1(mantissa: 2, scale: 0),
+            unit: "m"
+        )
+        let successor = try makeEntry(
+            disposition: .superseded,
+            duration: ManualDurationV1(minutes: 20),
+            materials: [successorLine],
+            directCost: DirectCostEntryV1(
+                amount: ExactMoneyAmountV1(mantissa: 200, currencyCode: "USD", minorUnitScale: 2)
+            ),
+            expectedRevision: predecessor.revision,
+            revision: predecessor.revision + 1,
+            supersedes: predecessor
+        )
+        try successor.validateSuccessor(of: predecessor)
+        let replaced = try C49WorkResourceReportProjectionV1(
+            workspaceID: workspaceID,
+            snapshots: [WorkResourceSnapshotV1(entry: predecessor), WorkResourceSnapshotV1(entry: successor)]
+        )
+        XCTAssertEqual(replaced.sourceRecordIDs, [successor.entryID])
+        XCTAssertEqual(replaced.durationMinutes, 20)
+        XCTAssertEqual(replaced.materials.map(\.quantity.mantissa), [2_000])
+        XCTAssertEqual(replaced.directCostPreview.totalsByCurrency.map(\.mantissa), [200])
+
+        for terminalDisposition in [WorkResourceDispositionV1.voidedWithReason, .reversed] {
+            let terminal = try makeEntry(
+                disposition: terminalDisposition,
+                voidReason: terminalDisposition == .voidedWithReason ? "Recorded in error" : nil,
+                duration: predecessor.duration,
+                materials: predecessor.materials,
+                directCost: predecessor.directCost,
+                expectedRevision: predecessor.revision,
+                revision: predecessor.revision + 1,
+                supersedes: predecessor
+            )
+            try terminal.validateSuccessor(of: predecessor)
+            let projection = try C49WorkResourceReportProjectionV1(
+                workspaceID: workspaceID,
+                snapshots: [WorkResourceSnapshotV1(entry: predecessor), WorkResourceSnapshotV1(entry: terminal)]
+            )
+            XCTAssertTrue(projection.sourceRecordIDs.isEmpty)
+            XCTAssertEqual(projection.durationMinutes, 0)
+            XCTAssertTrue(projection.materials.isEmpty)
+            XCTAssertTrue(projection.directCostPreview.totalsByCurrency.isEmpty)
+        }
+    }
+
+    private func subject(workspaceID: WorkspaceID? = nil, kind: WorkResourceSubjectKindV1 = .workPacket) throws -> WorkResourceSubjectV1 {
+        try WorkResourceSubjectV1(
+            workspaceID: workspaceID ?? self.workspaceID,
+            kind: kind,
+            subjectID: "49000000-0000-0000-0000-000000000030",
+            subjectRevision: 1,
+            subjectSHA256: digest
+        )
+    }
+
+    private func actor(workspaceID: WorkspaceID? = nil) throws -> ActorSnapshotV1 {
+        let workspaceID = workspaceID ?? self.workspaceID
+        let reference = try LocalActorReferenceV1(
+            actorReferenceID: UUID(uuidString: "49000000-0000-0000-0000-000000000040")!,
+            workspaceID: workspaceID,
+            displayName: "Recorder"
+        )
+        return try ActorSnapshotV1(
+            snapshotID: UUID(uuidString: "49000000-0000-0000-0000-000000000041")!,
+            workspaceID: workspaceID,
+            actor: reference,
+            responsibility: .recordedBy,
+            displayNameAtTime: "Recorder",
+            capturedAt: instant
+        )
+    }
+
+    private func makeEntry(
+        kind: WorkResourceSubjectKindV1 = .workPacket,
+        disposition: WorkResourceDispositionV1 = .active,
+        voidReason: String? = nil,
+        duration: ManualDurationV1? = try? ManualDurationV1(minutes: 45),
+        materials: [ManualMaterialLineV1]? = nil,
+        directCost: DirectCostEntryV1? = try? DirectCostEntryV1(amount: ExactMoneyAmountV1(mantissa: 2_500, currencyCode: "USD", minorUnitScale: 2)),
+        visibility: WorkResourceVisibilityPolicyV1 = .internalOnly,
+        expectedRevision: UInt64 = 0,
+        revision: UInt64 = 1,
+        supersedes: WorkResourceEntryV1? = nil
+    ) throws -> WorkResourceEntryV1 {
+        let material = try ManualMaterialLineV1(
+            description: "Conduit",
+            quantity: ExactDecimalQuantityV1(mantissa: 1_250, scale: 3),
+            unit: "m"
+        )
+        return try WorkResourceEntryV1(
+            entryID: UUID(),
+            workspaceID: workspaceID,
+            subject: try subject(kind: kind),
+            actor: try actor(),
+            duration: duration,
+            materials: materials ?? [material],
+            directCost: directCost,
+            visibility: visibility,
+            disposition: disposition,
+            voidReason: voidReason,
+            recordedAt: instant,
+            expectedRevision: expectedRevision,
+            revision: revision,
+            supersedesEntryID: supersedes?.entryID,
+            supersedesEntrySHA256: supersedes?.entrySHA256,
+            mutationID: try MutationIDV1(rawValue: UUID())
+        )
+    }
+}
+
+@MainActor
+private final class WorkResourceCloneProbe: WorkResourceLifecyclePortV1 {
+    enum Failure: Error, Equatable { case injected, unexpectedCall }
+    struct Call: Equatable {
+        let snapshot: WorkResourceBackupSnapshotV1
+        let target: WorkspaceID
+        let operationID: UUID
+        let cloneOrFork: Bool
+    }
+    let receipt: WorkResourceRestoreReceiptV1
+    var shouldThrow = false
+    var calls: [Call] = []
+    init(receipt: WorkResourceRestoreReceiptV1) { self.receipt = receipt }
+    func restore(_ snapshot: WorkResourceBackupSnapshotV1, targetWorkspaceID: WorkspaceID,
+                 operationID: UUID, cloneOrFork: Bool) async throws -> WorkResourceRestoreReceiptV1 {
+        calls.append(.init(snapshot: snapshot, target: targetWorkspaceID, operationID: operationID, cloneOrFork: cloneOrFork))
+        if shouldThrow { throw Failure.injected }
+        return receipt
+    }
+    func append(_ entry: WorkResourceEntryV1) async throws -> WorkResourceMutationReceiptV1 { throw Failure.unexpectedCall }
+    func snapshotForBackup(workspaceID: WorkspaceID) async throws -> WorkResourceBackupSnapshotV1 { throw Failure.unexpectedCall }
+    func delete(workspaceID: WorkspaceID, subject: WorkResourceSubjectV1) async throws { throw Failure.unexpectedCall }
+    func erase(workspaceID: WorkspaceID) async throws { throw Failure.unexpectedCall }
+    func rebuildSearch(workspaceID: WorkspaceID) async throws { throw Failure.unexpectedCall }
+    func search(workspaceID: WorkspaceID, query: String) async throws -> [WorkResourceEntryV1] { throw Failure.unexpectedCall }
+    func report(workspaceID: WorkspaceID, profile: WorkResourceReportProfileV1) async throws -> WorkResourceTotalsProjectionV1 { throw Failure.unexpectedCall }
+}
+
+extension V9_56WorkResourceTests {
+    func testC50ReceivesOnlyCustomerSafeDerivedWorkResourceTotals() throws {
+        let approval = try C50AuthoritativePrivacyTestSupport.approval(
+            workspaceID: workspaceID
+        )
+        let safeEntry = try makeEntry(
+            duration: try ManualDurationV1(minutes: 45),
+            directCost: nil,
+            visibility: .customerSafe
+        )
+        let totals = try WorkResourceTotalsProjectionV1(
+            snapshots: [try WorkResourceSnapshotV1(entry: safeEntry)],
+            visibility: .customerSafe
+        )
+        let projection = try WorkResourceCoordinatorV1.c50AdapterProjection(
+            customerSafeTotals: totals,
+            privacyApproval: approval
+        )
+        XCTAssertEqual(projection.durationMinutes, 45)
+        XCTAssertEqual(projection.materialTotals.count, 1)
+        XCTAssertEqual(projection.privacyApproval, approval)
+        XCTAssertTrue(C50WorkResourceAdapterDelegationV1.directCostAndNotesAreExcluded)
+        XCTAssertTrue(C50WorkResourceAdapterDelegationV1.adapterOwnsNoCanonicalWriter)
+        XCTAssertTrue(C50WorkResourcePersistenceDelegationV1.adapterAddsNoPersistentProfileOrSessionRows)
+
+        let internalEntry = try makeEntry(
+            duration: try ManualDurationV1(minutes: 45),
+            materials: [],
+            directCost: try DirectCostEntryV1(
+                amount: try ExactMoneyAmountV1(
+                    mantissa: 100,
+                    currencyCode: "USD",
+                    minorUnitScale: 2
+                )
+            )
+        )
+        let internalTotals = try WorkResourceTotalsProjectionV1(
+            snapshots: [try WorkResourceSnapshotV1(entry: internalEntry)],
+            visibility: .internalFull
+        )
+        XCTAssertThrowsError(
+            try WorkResourceCoordinatorV1.c50AdapterProjection(
+                customerSafeTotals: internalTotals,
+                privacyApproval: approval
+            )
+        )
+    }
+
+}

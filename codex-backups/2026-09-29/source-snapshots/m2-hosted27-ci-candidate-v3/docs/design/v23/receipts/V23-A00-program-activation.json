@@ -1,0 +1,193 @@
+{
+  "schema": "ProgramActivationReceiptV2",
+  "schemaVersion": 2,
+  "canonicalization": "UTF8_JSON_TWO_SPACE_INDENT_LF_V1",
+  "package": {
+    "packageID": "ASSETROUNDS-EXPANSION-V23-20260825",
+    "manifestSchema": "V23PackageManifestV1",
+    "packageDigestAlgorithm": "V23PackageDigestV2",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "cardRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "lineageDigest": "8c5a573df6b9242096e53983da9c78cc4cb2246e6ce4b504f1e4d45d42173283",
+    "impactProjectionDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "cardRelationDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "contractFacetRegistryDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "selectorDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "v21DependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "cardCount": 146,
+    "directEdgeCount": 230
+  },
+  "activation": {
+    "result": "ACTIVATED",
+    "createdAt": "2026-08-25T13:31:38.420Z",
+    "executor": "CODEX",
+    "githubActor": "palatis3",
+    "ownerParallelStartAuthorization": {
+      "status": "AUTHORIZED_PRE_S10_6_EXECUTION",
+      "recordedAt": "2026-08-25T13:31:38.420Z",
+      "scope": "Begin V23 in the isolated branch and worktree while Phase 10 continues; never mutate, cancel, merge, or reuse the Phase 10 branch or worktree.",
+      "acceptanceConstraint": "V23-P00-C01 cannot emit accepted S10.6 baseline evidence or final card acceptance until exact accepted S10.6 is incorporated. Pre-acceptance work must remain disjoint from active Phase 10 ownership and is revalidated after incorporation."
+    },
+    "v21MetadataExcluded": true
+  },
+  "repository": {
+    "fullName": "Asset-Rounds/AssetRounds",
+    "repositoryID": 1331480630,
+    "repositoryNodeID": "R_kgDOT1zINg",
+    "visibility": "public",
+    "remoteURL": "https://github.com/Asset-Rounds/AssetRounds.git",
+    "defaultBranch": "main",
+    "fetchedOriginMain": {
+      "head": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+      "tree": "95b6520f4b36a671a1a541734699129d465ba5ea"
+    },
+    "activePhase10": {
+      "branch": "phase/s10-brand-refresh",
+      "observedHead": "728f76fa51186dd99f4359a529272c667fd1218f",
+      "observedTree": "6d5bbeb47bcbcbdb6fc83267906b36405fc59b21",
+      "mergeBaseWithOriginMain": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+      "acceptedS10_6Status": "ABSENT_ACTIVE_S10_4",
+      "acceptedS10_6ReceiptDigest": null,
+      "acceptedS10_6EvidenceDigest": null,
+      "ownershipDisposition": "RESERVED_UNTIL_ACCEPTED_S10_6"
+    }
+  },
+  "worktree": {
+    "resolvedPath": "C:\\AssetRounds-v23-expansion",
+    "programBranch": "phase/v23-expansion",
+    "baseHead": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "baseTree": "95b6520f4b36a671a1a541734699129d465ba5ea",
+    "installationHead": "85a223a9f4edbecac07dc597e67bc7f9fda5976d",
+    "installationTree": "5831ab5c378f46c876cd5d7ab4c65371b402bb7b",
+    "installationParent": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "installationCommitMessage": "V23-A00: install verified V23 authority",
+    "dirtyInventoryBeforeInstallation": {
+      "targetWorktreeExisted": false,
+      "trackedChanges": [],
+      "untrackedPaths": []
+    },
+    "dirtyInventoryAfterInstallation": {
+      "trackedChanges": [],
+      "untrackedPaths": []
+    },
+    "preservedUserWork": [
+      {
+        "worktree": "C:\\AssetRounds",
+        "path": "Temp/",
+        "classification": "PREEXISTING_UNTRACKED_USER_WORK",
+        "disposition": "PRESERVED_NOT_ENUMERATED_NOT_STAGED"
+      }
+    ]
+  },
+  "authorityFiles": [
+    {
+      "name": "EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+      "sourcePath": "C:\\Users\\palat\\OneDrive\\Desktop\\EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+      "installedPath": "docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+      "logicalSHA256": "779d91091164d33fc81a77deb689d631c7cca1bc55a80e3806ce7f874f5b3d48",
+      "sourceExactSHA256": "fb3cb3b55e60062e574444b57ddc075345053c396c9da1b2c5e5350f2aeae2a2",
+      "installedExactSHA256": "fb3cb3b55e60062e574444b57ddc075345053c396c9da1b2c5e5350f2aeae2a2",
+      "exactBytesMatch": true
+    },
+    {
+      "name": "EXPANSION_V23_FOUNDATION_PLAN.md",
+      "sourcePath": "C:\\Users\\palat\\OneDrive\\Desktop\\EXPANSION_V23_FOUNDATION_PLAN.md",
+      "installedPath": "docs/design/v23/EXPANSION_V23_FOUNDATION_PLAN.md",
+      "logicalSHA256": "4caf56670c6e211291a6a141e4c8d35762d1155c169c91668f044644f60811c6",
+      "sourceExactSHA256": "f7d4ac03f066d85771526c195152ab6e17c32c2a9dee98248c3bfa8813456980",
+      "installedExactSHA256": "f7d4ac03f066d85771526c195152ab6e17c32c2a9dee98248c3bfa8813456980",
+      "exactBytesMatch": true
+    },
+    {
+      "name": "EXPANSION_V23_HANDOFF.md",
+      "sourcePath": "C:\\Users\\palat\\OneDrive\\Desktop\\EXPANSION_V23_HANDOFF.md",
+      "installedPath": "docs/design/v23/EXPANSION_V23_HANDOFF.md",
+      "logicalSHA256": "ca3e563f072c1ce34207c41272e2755a8d8d474c40640a0612ab33a0deebeab9",
+      "sourceExactSHA256": "4efa25fd6b224179e4c855a45c5cfe9faee232eebb987498901c41ff7e12b950",
+      "installedExactSHA256": "4efa25fd6b224179e4c855a45c5cfe9faee232eebb987498901c41ff7e12b950",
+      "exactBytesMatch": true
+    },
+    {
+      "name": "NEXT_CODEX_SESSION_PROMPT.md",
+      "sourcePath": "C:\\Users\\palat\\OneDrive\\Desktop\\NEXT_CODEX_SESSION_PROMPT.md",
+      "installedPath": "docs/design/v23/NEXT_CODEX_SESSION_PROMPT.md",
+      "logicalSHA256": "355d511ef73319561b7455d64f7f98cda0a655768282fb8b88f662ef9e13d2f7",
+      "sourceExactSHA256": "d45412d274b6d416ff83c3f43c3305c76c10887afa7e9599eed1471f0b182f25",
+      "installedExactSHA256": "d45412d274b6d416ff83c3f43c3305c76c10887afa7e9599eed1471f0b182f25",
+      "exactBytesMatch": true
+    }
+  ],
+  "protectedCoordination": {
+    "externalRepository": {
+      "fullName": "Asset-Rounds/AssetRounds-v23-coordination",
+      "repositoryID": 1346169219,
+      "repositoryNodeID": "R_kgDOUDzpgw",
+      "visibility": "private",
+      "url": "https://github.com/Asset-Rounds/AssetRounds-v23-coordination",
+      "defaultBranch": "main",
+      "retention": "INDEFINITE_APPEND_ONLY_UNTIL_V23_FORMAL_CLOSE",
+      "writerLock": "EXPECTED_HEAD_SHA_COMPARE_AND_SWAP_NON_FORCE_ONLY"
+    },
+    "locators": {
+      "executionLedger": "github://Asset-Rounds/AssetRounds-v23-coordination/main/state/execution-ledger.jsonl",
+      "expectedMainIntegrationBase": "github://Asset-Rounds/AssetRounds-v23-coordination/main/state/expected-main-integration-base.json",
+      "acceptanceControllerAuthority": "github://Asset-Rounds/AssetRounds-v23-coordination/main/state/acceptance-controller-authority.json",
+      "hostedCapacityPolicyAuthority": "github://Asset-Rounds/AssetRounds-v23-coordination/main/state/hosted-capacity-policy-authority.json",
+      "workflowEnrollmentAuthority": "github://Asset-Rounds/AssetRounds-v23-coordination/main/state/workflow-enrollment-authority.json",
+      "queue": "github://Asset-Rounds/AssetRounds-v23-coordination/main/state/controller-queue.json",
+      "highWaterWitness": "github://Asset-Rounds/AssetRounds-v23-coordination/main/witness/controller-projection-high-water.json",
+      "signer": "github-environment://Asset-Rounds/AssetRounds/assetrounds-v23-coordination/secrets/V23_CONTROLLER_ED25519_PRIVATE_KEY"
+    },
+    "protectionProfiles": {
+      "state": "PRIVATE_REPOSITORY_EXPECTED_HEAD_CAS_APPEND_ONLY_V1",
+      "highWaterWitness": "PRIVATE_REPOSITORY_INDEPENDENT_PATH_EXPECTED_HEAD_CAS_SIGNED_V1",
+      "signer": "GITHUB_ENVIRONMENT_MAIN_ONLY_OWNER_REVIEW_PRIVATE_SECRET_V1"
+    }
+  },
+  "controllerTrustRoot": {
+    "algorithm": "Ed25519",
+    "keyID": "v23-551f4cb97dea402f",
+    "publicKeyOpenSSH": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPAczqDc+UCt9fhM2LOnd24PDoUToQ4cTExglmfh7BfA assetrounds-v23-controller",
+    "publicKeyRawBase64": "8BzOoNz5QK31+EzYs6d3bg8OhROhDhxMTGCWZ+HsF8A=",
+    "fingerprintSHA256": "SHA256:VR9MuX3qQC90DnKxDMwdpDxUKwyAHAQTQbEdJ75s780",
+    "domainSeparator": "ASSETROUNDS_V23_CONTROLLER_PROJECTION_V1",
+    "intendedCoordinationBranch": "coordination/v23-state",
+    "intendedProjectionPath": "coordination/v23-state/controller-projection.json",
+    "allowedControllerWorkflowPath": ".github/workflows/v23-controller.yml",
+    "protectedWorkflowRefPolicy": "ONLY_REFS_HEADS_MAIN_AFTER_EXACT_C04_WORKFLOW_ENROLLMENT",
+    "privateKeyDisposition": "GENERATED_WITH_PLATFORM_SECURE_RANDOMNESS; STORED_ONLY_IN_GITHUB_ENVIRONMENT_SECRET; EXCLUDED_FROM_REPOSITORIES_LOGS_ARTIFACTS_BACKUPS_DIAGNOSTICS_AND_APPLICATION_TARGETS; DESTROY_AFTER_V23_FORMAL_CLOSE_AND_RETENTION_REVIEW"
+  },
+  "githubEnvironment": {
+    "repository": "Asset-Rounds/AssetRounds",
+    "name": "assetrounds-v23-coordination",
+    "environmentID": 20564955908,
+    "environmentNodeID": "EN_kwDOT1zINs8AAAAEycRTBA",
+    "allowedDeploymentBranch": "main",
+    "requiredReviewer": "palatis3",
+    "preventSelfReview": false,
+    "secretName": "V23_CONTROLLER_ED25519_PRIVATE_KEY",
+    "secretCreatedAt": "2026-08-25T13:29:20Z",
+    "privateSecretValueIncluded": false
+  },
+  "observedToolchain": {
+    "authoringOS": "Microsoft Windows NT 10.0.26200.0",
+    "powershell": "7.6.4",
+    "git": "2.54.0.windows.1",
+    "githubCLI": "2.96.0",
+    "iosBuildHost": "NOT_RUN_AT_A00_WINDOWS_AUTHORING_ONLY"
+  },
+  "observedWorkflow": {
+    "authority": "OBSERVED_AT_A00",
+    "authorizing": false,
+    "path": ".github/workflows/ios-ci.yml",
+    "observedCommit": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "observedBlob": "bade6a6442bd77a6c15eaefa70726b1efc1b3c73"
+  },
+  "intendedAnchor": {
+    "applicationRepositoryPath": "docs/design/v23/receipts/V23-A00-program-activation.json",
+    "commitMessage": "V23-A00: anchor activation receipt",
+    "requiredParent": "85a223a9f4edbecac07dc597e67bc7f9fda5976d",
+    "receiptMustNotNameContainingCommit": true
+  }
+}

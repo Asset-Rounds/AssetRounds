@@ -1,0 +1,347 @@
+{
+  "schema": "V22P04C10EvidenceQualityCoachCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C10",
+  "ordinal": 98,
+  "corpusID": "v23-p04-c10-evidence-quality-coach-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "contracts": [
+    "EvidenceQualityRuleV1",
+    "EvidenceQualityRuleSetV1",
+    "EvidenceQualityEvidenceBindingV1",
+    "EvidenceQualityRuleInputV1",
+    "EvidenceQualityRuleFindingV1",
+    "EvidenceQualityAssessmentV1",
+    "EvidenceQualityWaiverV1",
+    "EvidenceQualityMutationCommandV1",
+    "EvidenceQualityMutationReceiptV1",
+    "EvidenceQualityProjectionV1",
+    "EvidenceQualityCoordinatorV1",
+    "EvidenceQualityLifecycleAdapterV1",
+    "EvidenceQualitySchemaV1"
+  ],
+  "evidenceIDs": [
+    "V23-P04-C10-G01",
+    "V23-P04-C10-A01",
+    "V23-P04-C10-H01",
+    "V23-P04-C10-I01",
+    "V23-P04-C10-R01"
+  ],
+  "selectors": [
+    {
+      "id": "G01",
+      "selector": "testV23P04C10G01ClearlyFramedCaptureProducesExactRuleIDsAndThresholdBoundaryResults",
+      "tier": "GOLDEN"
+    },
+    {
+      "id": "A01",
+      "selector": "testV23P04C10A01RetakeAcceptWithReasonWaiverBindsExactRevisionAndPreservesEvidence",
+      "tier": "ALTERNATE"
+    },
+    {
+      "id": "H01",
+      "selector": "testV23P04C10H01ChangedDuplicateCorruptEvidenceInvalidatesAssessmentAndWaiverWithoutAutoPass",
+      "tier": "HOSTILE"
+    },
+    {
+      "id": "I01",
+      "selector": "testV23P04C10I01InterruptedAssessmentOrRetakePreservesOriginalWithoutPartialWaiver",
+      "tier": "INTERRUPTION"
+    },
+    {
+      "id": "R01",
+      "selector": "testV23P04C10R01RebuiltAssessmentAndRestorePreserveExactFindingsAndWaiverProvenance",
+      "tier": "RECOVERY"
+    }
+  ],
+  "rules": [
+    {
+      "ruleID": "evidence.quality.blur",
+      "kind": "BLUR",
+      "ruleVersion": "1.0.0",
+      "comparator": "AT_LEAST",
+      "threshold": 250000,
+      "unit": "LAPLACIAN_VARIANCE_MILLIONTHS",
+      "severity": "CAUTION",
+      "explanationKey": "evidence.quality.explanation.blur",
+      "remedyKey": "evidence.quality.remedy.retake.blur",
+      "applicability": "INDIVIDUAL_CAPTURE"
+    },
+    {
+      "ruleID": "evidence.quality.darkness",
+      "kind": "DARKNESS",
+      "ruleVersion": "1.0.0",
+      "comparator": "AT_LEAST",
+      "threshold": 500000,
+      "unit": "NORMALIZED_LUMA_MILLIONTHS",
+      "severity": "CAUTION",
+      "explanationKey": "evidence.quality.explanation.darkness",
+      "remedyKey": "evidence.quality.remedy.retake.darkness",
+      "applicability": "INDIVIDUAL_CAPTURE"
+    },
+    {
+      "ruleID": "evidence.quality.duplicate",
+      "kind": "DUPLICATE",
+      "ruleVersion": "1.0.0",
+      "comparator": "AT_MOST",
+      "threshold": 4,
+      "unit": "PERCEPTUAL_HASH_DISTANCE_BITS",
+      "severity": "STRONG_CAUTION",
+      "explanationKey": "evidence.quality.explanation.duplicate",
+      "remedyKey": "evidence.quality.remedy.review-duplicate",
+      "applicability": "CAPTURE_PAIR"
+    },
+    {
+      "ruleID": "evidence.quality.framing_reference_sequence",
+      "kind": "FRAMING_REFERENCE_SEQUENCE",
+      "ruleVersion": "1.0.0",
+      "comparator": "AT_LEAST",
+      "threshold": 900000,
+      "unit": "REFERENCE_COVERAGE_MILLIONTHS",
+      "severity": "CAUTION",
+      "explanationKey": "evidence.quality.explanation.framing-reference-sequence",
+      "remedyKey": "evidence.quality.remedy.retake-framing",
+      "applicability": "REFERENCE_SEQUENCE"
+    },
+    {
+      "ruleID": "evidence.quality.required_count",
+      "kind": "REQUIRED_COUNT",
+      "ruleVersion": "1.0.0",
+      "comparator": "AT_LEAST",
+      "threshold": 2,
+      "unit": "EVIDENCE_COUNT",
+      "severity": "NOTICE",
+      "explanationKey": "evidence.quality.explanation.required-count",
+      "remedyKey": "evidence.quality.remedy.capture-required-count",
+      "applicability": "EVIDENCE_COLLECTION"
+    },
+    {
+      "ruleID": "evidence.quality.resolution",
+      "kind": "RESOLUTION",
+      "ruleVersion": "1.0.0",
+      "comparator": "AT_LEAST",
+      "threshold": 2000000,
+      "unit": "PIXEL_COUNT",
+      "severity": "STRONG_CAUTION",
+      "explanationKey": "evidence.quality.explanation.resolution",
+      "remedyKey": "evidence.quality.remedy.retake-resolution",
+      "applicability": "INDIVIDUAL_CAPTURE"
+    }
+  ],
+  "thresholdBoundaries": [
+    {
+      "ruleID": "evidence.quality.blur",
+      "ruleVersion": "1.0.0",
+      "threshold": 250000,
+      "atBoundary": 250000,
+      "justOutside": 249999,
+      "boundaryDisposition": "WITHIN_CONFIGURED_BOUNDARY",
+      "outsideDisposition": "ATTENTION_RECOMMENDED",
+      "remedyKey": "evidence.quality.remedy.retake.blur"
+    },
+    {
+      "ruleID": "evidence.quality.darkness",
+      "ruleVersion": "1.0.0",
+      "threshold": 500000,
+      "atBoundary": 500000,
+      "justOutside": 499999,
+      "boundaryDisposition": "WITHIN_CONFIGURED_BOUNDARY",
+      "outsideDisposition": "ATTENTION_RECOMMENDED",
+      "remedyKey": "evidence.quality.remedy.retake.darkness"
+    },
+    {
+      "ruleID": "evidence.quality.duplicate",
+      "ruleVersion": "1.0.0",
+      "threshold": 4,
+      "atBoundary": 4,
+      "justOutside": 5,
+      "boundaryDisposition": "WITHIN_CONFIGURED_BOUNDARY",
+      "outsideDisposition": "ATTENTION_RECOMMENDED",
+      "remedyKey": "evidence.quality.remedy.review-duplicate"
+    },
+    {
+      "ruleID": "evidence.quality.framing_reference_sequence",
+      "ruleVersion": "1.0.0",
+      "threshold": 900000,
+      "atBoundary": 900000,
+      "justOutside": 899999,
+      "boundaryDisposition": "WITHIN_CONFIGURED_BOUNDARY",
+      "outsideDisposition": "ATTENTION_RECOMMENDED",
+      "remedyKey": "evidence.quality.remedy.retake-framing"
+    },
+    {
+      "ruleID": "evidence.quality.required_count",
+      "ruleVersion": "1.0.0",
+      "threshold": 2,
+      "atBoundary": 2,
+      "justOutside": 1,
+      "boundaryDisposition": "WITHIN_CONFIGURED_BOUNDARY",
+      "outsideDisposition": "ATTENTION_RECOMMENDED",
+      "remedyKey": "evidence.quality.remedy.capture-required-count"
+    },
+    {
+      "ruleID": "evidence.quality.resolution",
+      "ruleVersion": "1.0.0",
+      "threshold": 2000000,
+      "atBoundary": 2000000,
+      "justOutside": 1999000,
+      "boundaryDisposition": "WITHIN_CONFIGURED_BOUNDARY",
+      "outsideDisposition": "ATTENTION_RECOMMENDED",
+      "remedyKey": "evidence.quality.remedy.retake-resolution"
+    }
+  ],
+  "captureNormalization": {
+    "orientationInputs": ["PORTRAIT_EXIF_6", "LANDSCAPE_EXIF_1"],
+    "canonicalOrientation": "UP",
+    "metadataInputs": ["EXIF_ORIENTATION", "COLOR_PROFILE_SRGB", "PIXEL_WIDTH", "PIXEL_HEIGHT"],
+    "metadataDoesNotChangeOriginalBytes": true,
+    "sameCanonicalBytesAcrossOrientationMetadata": true,
+    "originalBytesImmutable": true
+  },
+  "golden": {
+    "evidenceID": "C10-GOLDEN-EVIDENCE",
+    "evidenceRevision": 1,
+    "contentID": "c10-golden-original",
+    "orientation": "UP",
+    "metadataCanonicalized": true,
+    "ruleIDs": [
+      "evidence.quality.blur",
+      "evidence.quality.darkness",
+      "evidence.quality.duplicate",
+      "evidence.quality.framing_reference_sequence",
+      "evidence.quality.required_count",
+      "evidence.quality.resolution"
+    ],
+    "ruleVersions": ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0"],
+    "remedyKeys": [
+      "evidence.quality.remedy.retake.blur",
+      "evidence.quality.remedy.retake.darkness",
+      "evidence.quality.remedy.review-duplicate",
+      "evidence.quality.remedy.retake-framing",
+      "evidence.quality.remedy.capture-required-count",
+      "evidence.quality.remedy.retake-resolution"
+    ],
+    "allFindingsWithinBoundary": true,
+    "warningCount": 0,
+    "independentFromInspectionOutcome": true,
+    "advisoryOnly": true,
+    "changesRequirementComplianceSafetyOrInspectionOutcome": false
+  },
+  "alternate": {
+    "originalEvidenceRevision": 1,
+    "retakeEvidenceRevision": 2,
+    "retakeCreatesNewAssessment": true,
+    "acceptWithReasonRequiresWarning": true,
+    "waiverReason": "RETAKE_NOT_POSSIBLE",
+    "limitationRequired": true,
+    "selectedRuleIDs": ["evidence.quality.blur"],
+    "waiverBindsAssessmentRevision": true,
+    "waiverBindsEvidenceRevision": true,
+    "retakeThenAcceptWithReason": true,
+    "cancelPreservesOriginal": true,
+    "warningRemainsVisibleAfterWaiver": true,
+    "automaticPass": false
+  },
+  "hostileCases": [
+    "STALE_ASSESSMENT_AFTER_EVIDENCE_REVISION",
+    "STALE_WAIVER_AFTER_EVIDENCE_REVISION",
+    "CHANGED_DUPLICATE_CONTENT_DIGEST",
+    "DUPLICATE_SAME_BINDING",
+    "CORRUPT_CONTENT_DIGEST",
+    "CORRUPT_CANONICAL_BYTES",
+    "ADVERSARIAL_EMPTY_BYTES",
+    "CROSS_WORKSPACE",
+    "UNKNOWN_RULE",
+    "UNKNOWN_RULE_VERSION",
+    "METRIC_OVERFLOW",
+    "NON_CANONICAL_RULE_ORDER",
+    "NON_CANONICAL_JSON",
+    "NO_AUTOMATIC_PASS",
+    "NO_COMPLIANCE_JUDGMENT"
+  ],
+  "interruption": {
+    "assessmentCancellationRequested": true,
+    "retakeCancellationRequested": true,
+    "originalBytesImmutable": true,
+    "originalEvidenceRevisionPreserved": true,
+    "noPartialAssessment": true,
+    "noPartialWaiver": true,
+    "noHiddenReplacement": true,
+    "effectBeforeReceiptRecovery": true,
+    "pendingReceiptIsNotDurable": true,
+    "cancelResult": "CANCELLED"
+  },
+  "recovery": {
+    "migrationFromSchema": 47,
+    "migrationPreservesCanonicalData": true,
+    "dropDerivedState": true,
+    "rebuildFromOriginalBytes": true,
+    "rebuildFromExactRules": true,
+    "backupIncludesRulesAssessmentsWaiversReceipts": true,
+    "replaceRestore": true,
+    "delete": true,
+    "erase": true,
+    "export": true,
+    "report": true,
+    "search": true,
+    "replay": true,
+    "originalBytesPreserved": true,
+    "ruleVersionsPreserved": true,
+    "findingsPreserved": true,
+    "waiverProvenancePreserved": true,
+    "durableReceiptsPreserved": true,
+    "noSecondStore": true
+  },
+  "lifecycle": [
+    "MIGRATION",
+    "BACKUP",
+    "REPLACE_RESTORE",
+    "DELETE",
+    "ERASE",
+    "EXPORT",
+    "REPORT",
+    "SEARCH",
+    "REPLAY",
+    "ONE_CANONICAL_WRITER",
+    "EXPECTED_REVISION",
+    "MUTATION_ID",
+    "DURABLE_RECEIPT",
+    "EFFECT_BEFORE_RECEIPT",
+    "SEMANTIC_REVISION_BOUND_WAIVER",
+    "NO_AUTOMATIC_COMPLIANCE_JUDGMENT",
+    "NO_AUTO_PASS"
+  ],
+  "claims": {
+    "qualityOnly": true,
+    "advisoryOnly": true,
+    "noAutomaticPass": true,
+    "noAutomaticComplianceJudgment": true,
+    "noRequirementOutcomeMutation": true,
+    "noSafetyOutcomeMutation": true,
+    "noInspectionOutcomeMutation": true,
+    "noAIDiagnosis": true,
+    "noOpaqueConfidence": true,
+    "noTelemetry": true,
+    "noRemoteTransport": true,
+    "canonicalWriter": "WorkspaceWriterV1",
+    "persistentSchema": "EvidenceQualitySchemaV1",
+    "persistentModelCount": 4
+  },
+  "statusFlags": {
+    "activation": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "nativeAcceptance": false,
+    "hostedAcceptance": false,
+    "physicalEvidence": false,
+    "phase10PollingDuringParallelExecution": false,
+    "uiAcceptanceCredit": false
+  }
+}

@@ -1,0 +1,28 @@
+--- v3/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift
++++ v4/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift
+@@ -10183,6 +10183,7 @@
+     /// The same original diagnostics consume the actual private effect
+     /// receipt instead of requiring a new ordinary Scratch descriptor owner.
+     /// Source/Search/unrelated-tree and final named-absence checks are retained.
++    @MainActor
+     func afterOriginalScratchCleanup(
+         _ receipt: OriginalEraseScratchCleanupReceiptV1,
+         operation: EraseRouterOperationV1
+@@ -10315,6 +10316,7 @@
+         }
+     }
+ 
++    @MainActor
+     func requirePreparedTransition() throws {
+         try lock.withLock {
+             guard stage == .exchangePublished,
+@@ -10328,8 +10330,7 @@
+                 throw EraseAllServiceError.invalidAuthority
+             }
+             if let originalScratchCleanupReceipt {
+-                guard let operation,
+-                      originalScratchCleanupReceipt.operationID == operation.operationID else {
++                guard originalScratchCleanupReceipt.operationID == operation.operationID else {
+                     throw EraseAllServiceError.invalidAuthority
+                 }
+                 try originalScratchCleanupReceipt.requireCheckedSettlement()

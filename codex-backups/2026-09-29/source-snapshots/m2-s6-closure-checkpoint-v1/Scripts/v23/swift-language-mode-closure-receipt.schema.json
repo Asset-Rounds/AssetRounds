@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.invalid/v23/SwiftLanguageModeClosureReceiptV1.schema.json",
+  "title": "SwiftLanguageModeClosureReceiptV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "project",
+    "targetConfigurationMatrix",
+    "c07AllocatedClauseIDs",
+    "c07AllocatedClauseCount",
+    "prerequisiteBindings",
+    "unsafeBoundaryRatchet",
+    "platformAdapterReproof",
+    "requiredReproofFamilies",
+    "nativeCompilerDisposition",
+    "swift6DiagnosticCount",
+    "nativeCompileRan",
+    "nativeTestsRan",
+    "languageModeClosureSatisfied",
+    "staticPreparationStatus",
+    "provisionalDisposition",
+    "acceptanceCredit",
+    "releaseCredit",
+    "artifactDigest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "SwiftLanguageModeClosureReceiptV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "cardID": {
+      "const": "V23-P00-C12"
+    },
+    "authority": {
+      "const": {
+        "attemptID": 1,
+        "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+        "baseHead": "71aa71fe2c907d18a437f7461661e80344c66d6c",
+        "baseTree": "fc961a2217bb5b2a0044f3ff12edce0950ba9bf2",
+        "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+        "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+        "dossierDigest": "04ce1ab8d61a59434cc2bbf2410e885c4f6a15a49556874c12dfb1644895c5b5",
+        "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+        "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+        "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+        "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+        "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+        "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+        "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+        "bootstrapContextDigest": "e549afb029c183733eab5514345ad49cfda954fa9dc2842574faa9511fa69d81",
+        "bootstrapPathFenceDigest": "c23d8f566b104f8ebc4cf2192d5c06e447621f72871fb43811e59972a53d9b6d",
+        "hydratedSpecDigest": "5b175ba7d5b1a57b602fefb7317254d26d0b488d04653788f80e6bebe7c9cac1",
+        "hydratedPathFenceDigest": "6c931af2a42159eea196c467041c91b46c4cf1cdd2c2a32f2051ed69e7ee7194",
+        "provisionalPrerequisiteDigest": "cef1217f81665a3cb0cd22eb1d8d20f9b906f975465a07298132c01f6e2e7517",
+        "writerAuthority": {
+          "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+          "writerGeneration": 0
+        },
+        "ledgerDigest": "3c64f735a59ed5b83a5a3f25aa546fa369967e35db340fdb77b48836742a0f80",
+        "ledgerCASSequence": 35,
+        "phase10PollingDuringParallelExecution": false,
+        "acceptanceEnabled": false,
+        "hostedDispatchEnabled": false,
+        "adoptionEnabled": false,
+        "requiresAcceptedS10_6Reconciliation": true,
+        "releaseCredit": false
+      }
+    },
+    "project": {
+      "type": "object"
+    },
+    "targetConfigurationMatrix": {
+      "type": "array"
+    },
+    "c07AllocatedClauseIDs": {
+      "type": "array"
+    },
+    "c07AllocatedClauseCount": {
+      "type": "integer"
+    },
+    "prerequisiteBindings": {
+      "type": "object"
+    },
+    "unsafeBoundaryRatchet": {
+      "type": "object"
+    },
+    "platformAdapterReproof": {
+      "type": "object"
+    },
+    "requiredReproofFamilies": {
+      "type": "object"
+    },
+    "nativeCompilerDisposition": {
+      "type": "string"
+    },
+    "swift6DiagnosticCount": {
+      "type": "null"
+    },
+    "nativeCompileRan": {
+      "type": "boolean"
+    },
+    "nativeTestsRan": {
+      "type": "boolean"
+    },
+    "languageModeClosureSatisfied": {
+      "type": "boolean"
+    },
+    "staticPreparationStatus": {
+      "type": "string"
+    },
+    "provisionalDisposition": {
+      "type": "string"
+    },
+    "acceptanceCredit": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

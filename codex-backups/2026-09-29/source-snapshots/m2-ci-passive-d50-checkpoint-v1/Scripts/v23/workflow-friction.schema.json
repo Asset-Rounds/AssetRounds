@@ -1,0 +1,2201 @@
+{
+  "$id": "https://assetrounds.invalid/v23/V23P02C08SupportExportContractV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "5f4259dc9d46090203d59273f0c35b1ab1ee6a0d"
+        },
+        "appBaseTree": {
+          "const": "198e918442229b3a64dd854bc8f3ae9ee9922092"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C08"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "f4c82433da05626667d4ae8f47f3fa639eb59bdd529be0557e2f1db983e235e0"
+        },
+        "coordinationAuthorityHead": {
+          "const": "9a1219ffe4cf56855c47c44a85b7fb3f46b1c799"
+        },
+        "coordinationAuthorityTree": {
+          "const": "062078b5cc177851c1e297b4d493ddd93054f1ad"
+        },
+        "coordinationCASSequence": {
+          "const": 119
+        },
+        "coordinationLedgerDigest": {
+          "const": "8933be2a9f9f79faa2fe9736be7eb9762564145258685e34303dbb87d9d98"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C08-G01"
+            },
+            {
+              "const": "V23-P02-C08-A01"
+            },
+            {
+              "const": "V23-P02-C08-H01"
+            },
+            {
+              "const": "V23-P02-C08-I01"
+            },
+            {
+              "const": "V23-P02-C08-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C07"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "efc49f07fbae9a5d819e2baf4761092413d2fb870ab5e9e98ff489798268e05d"
+        },
+        "dossierLength": {
+          "const": 7086
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "6c21bb0bdee6ef786abb8c8eb22e0be8171ba09c93c35fe40c68b6451273fe7d"
+        },
+        "hydrationTransitionDigest": {
+          "const": "70e17d89ed8cda171a10839958d44fea9130d40dcee7f585fb8fac83230e4e12"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "53d746da0409703496b1f34ba921456717c914288c93e02550d7698d6f77d7f1"
+        },
+        "inheritedV21BlockLength": {
+          "const": 15097
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C09"
+            },
+            {
+              "const": "V23-P02-C10"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C08"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "762869613302e037463d122dcebf50ed34fa68bce4d211524f1198aed7d9acdf"
+        },
+        "registerOrdinal": {
+          "const": 28
+        },
+        "registerRowDigest": {
+          "const": "246a85c06cbc8174e3e096f26a3f7b87df76f51fb84491402913939ffb08cf1c"
+        },
+        "registerRowLength": {
+          "const": 316
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "System health, operational failures, workflow friction, protected scratch, MetricKit compatibility, and explicit support export"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "authorityReceiptDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "registerRowDigest",
+        "registerRowLength",
+        "dossierDigest",
+        "dossierLength",
+        "inheritedV21BlockDigest",
+        "inheritedV21BlockLength",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "backupBehaviorDelta": {
+      "const": true
+    },
+    "bootstrap": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalStoreOpenCount": {
+          "const": 0
+        },
+        "successRequiresDurableOperationalReceipt": {
+          "const": true
+        },
+        "usableUnderCorruptStore": {
+          "const": true
+        },
+        "usableUnderFailedMigration": {
+          "const": true
+        },
+        "usableUnderLowStorage": {
+          "const": true
+        },
+        "usableUnderProtectedDataDenial": {
+          "const": true
+        }
+      },
+      "required": [
+        "canonicalStoreOpenCount",
+        "usableUnderCorruptStore",
+        "usableUnderProtectedDataDenial",
+        "usableUnderFailedMigration",
+        "usableUnderLowStorage",
+        "successRequiresDurableOperationalReceipt"
+      ],
+      "type": "object"
+    },
+    "bundle": {
+      "additionalProperties": false,
+      "properties": {
+        "allowlist": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "appBuild"
+            },
+            {
+              "const": "appVersion"
+            },
+            {
+              "const": "archiveBuildUUIDs"
+            },
+            {
+              "const": "generatedAt"
+            },
+            {
+              "const": "healthClasses"
+            },
+            {
+              "const": "operationalCodeCounts"
+            },
+            {
+              "const": "schemaVersions"
+            }
+          ],
+          "type": "array"
+        },
+        "allowlistedDataIsDeviceOperationalOnly": {
+          "const": true
+        },
+        "bootstrapOnlyMembers": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "appBuild"
+            },
+            {
+              "const": "appVersion"
+            },
+            {
+              "const": "generatedAt"
+            },
+            {
+              "const": "operationalCodeCounts"
+            }
+          ],
+          "type": "array"
+        },
+        "containsCustomerContent": {
+          "const": false
+        },
+        "containsCustomerIdentifier": {
+          "const": false
+        },
+        "containsRawLogs": {
+          "const": false
+        },
+        "manifestType": {
+          "const": "SupportBundleManifestV1"
+        },
+        "maximumCanonicalBytes": {
+          "const": 524288
+        },
+        "maximumMemberCount": {
+          "const": 2
+        },
+        "permitsAutomaticUpload": {
+          "const": false
+        },
+        "schemaVersion": {
+          "const": 1
+        }
+      },
+      "required": [
+        "manifestType",
+        "schemaVersion",
+        "maximumCanonicalBytes",
+        "maximumMemberCount",
+        "allowlist",
+        "allowlistedDataIsDeviceOperationalOnly",
+        "containsCustomerContent",
+        "containsCustomerIdentifier",
+        "containsRawLogs",
+        "permitsAutomaticUpload",
+        "bootstrapOnlyMembers"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C08"
+    },
+    "deleteBehaviorDelta": {
+      "const": true
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C08-G01"
+        },
+        {
+          "const": "V23-P02-C08-A01"
+        },
+        {
+          "const": "V23-P02-C08-H01"
+        },
+        {
+          "const": "V23-P02-C08-I01"
+        },
+        {
+          "const": "V23-P02-C08-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "exportBehaviorDelta": {
+      "const": true
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "migrationBehaviorDelta": {
+      "const": true
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "owner": {
+      "const": "SupportBundleBuilderV1"
+    },
+    "persistentChangeMode": {
+      "const": "NEW_SCHEMA_VERSION"
+    },
+    "persistentSchema": {
+      "const": "DeviceOperationalSupportStoreSchemaV2"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "privacy": {
+      "additionalProperties": false,
+      "properties": {
+        "allowlistOnly": {
+          "const": true
+        },
+        "forbiddenBehaviors": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "const": "automaticUpload"
+            },
+            {
+              "const": "remoteTelemetry"
+            },
+            {
+              "const": "analytics"
+            },
+            {
+              "const": "sessionReplay"
+            },
+            {
+              "const": "includeEverything"
+            },
+            {
+              "const": "readBackOSLog"
+            }
+          ],
+          "type": "array"
+        },
+        "forbiddenFields": {
+          "items": false,
+          "maxItems": 12,
+          "minItems": 12,
+          "prefixItems": [
+            {
+              "const": "customerText"
+            },
+            {
+              "const": "customerMedia"
+            },
+            {
+              "const": "customerNote"
+            },
+            {
+              "const": "addresses"
+            },
+            {
+              "const": "preciseLocation"
+            },
+            {
+              "const": "stableEntityIdentifiers"
+            },
+            {
+              "const": "workspaceIdentifiers"
+            },
+            {
+              "const": "localPaths"
+            },
+            {
+              "const": "secrets"
+            },
+            {
+              "const": "credentials"
+            },
+            {
+              "const": "rawLogs"
+            },
+            {
+              "const": "rawMetricPayloads"
+            }
+          ],
+          "type": "array"
+        },
+        "noCustomerContent": {
+          "const": true
+        },
+        "noNetwork": {
+          "const": true
+        },
+        "noRawLogs": {
+          "const": true
+        },
+        "noSecrets": {
+          "const": true
+        }
+      },
+      "required": [
+        "allowlistOnly",
+        "forbiddenFields",
+        "forbiddenBehaviors",
+        "noNetwork",
+        "noCustomerContent",
+        "noSecrets",
+        "noRawLogs"
+      ],
+      "type": "object"
+    },
+    "prohibitedTokens": {
+      "items": false,
+      "maxItems": 18,
+      "minItems": 18,
+      "prefixItems": [
+        {
+          "const": "customerText"
+        },
+        {
+          "const": "customerMedia"
+        },
+        {
+          "const": "customerNote"
+        },
+        {
+          "const": "address"
+        },
+        {
+          "const": "preciseLocation"
+        },
+        {
+          "const": "entityID"
+        },
+        {
+          "const": "workspaceID"
+        },
+        {
+          "const": "localPath"
+        },
+        {
+          "const": "secret"
+        },
+        {
+          "const": "credential"
+        },
+        {
+          "const": "rawLog"
+        },
+        {
+          "const": "rawMetricPayload"
+        },
+        {
+          "const": "automaticUpload"
+        },
+        {
+          "const": "CloudKit"
+        },
+        {
+          "const": "CKRecord"
+        },
+        {
+          "const": "MetricManager"
+        },
+        {
+          "const": "sessionReplay"
+        },
+        {
+          "const": "analytics"
+        }
+      ],
+      "type": "array"
+    },
+    "provisional": {
+      "const": true
+    },
+    "redaction": {
+      "additionalProperties": false,
+      "properties": {
+        "rejectsAddress": {
+          "const": true
+        },
+        "rejectsCustomerText": {
+          "const": true
+        },
+        "rejectsEntityID": {
+          "const": true
+        },
+        "rejectsLocalPath": {
+          "const": true
+        },
+        "rejectsMedia": {
+          "const": true
+        },
+        "rejectsPreciseLocation": {
+          "const": true
+        },
+        "rejectsRawLog": {
+          "const": true
+        },
+        "rejectsSecret": {
+          "const": true
+        },
+        "rejectsSourceScratch": {
+          "const": true
+        }
+      },
+      "required": [
+        "rejectsCustomerText",
+        "rejectsMedia",
+        "rejectsAddress",
+        "rejectsPreciseLocation",
+        "rejectsEntityID",
+        "rejectsLocalPath",
+        "rejectsSecret",
+        "rejectsRawLog",
+        "rejectsSourceScratch"
+      ],
+      "type": "object"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "restoreBehaviorDelta": {
+      "const": true
+    },
+    "result": {
+      "additionalProperties": false,
+      "properties": {
+        "automaticUpload": {
+          "const": false
+        },
+        "cancelIsTerminal": {
+          "const": true
+        },
+        "expiryIsTerminal": {
+          "const": true
+        },
+        "failureIsTypedAndVisible": {
+          "const": true
+        },
+        "networkRequestCount": {
+          "const": 0
+        },
+        "noMailOrShareFallback": {
+          "const": "COPY_SUPPORT_ADDRESS_OR_SAVE_TO_FILES"
+        },
+        "previewRequired": {
+          "const": true
+        },
+        "shareCannotClaimRecall": {
+          "const": true
+        },
+        "shareIsExplicitExternalEffect": {
+          "const": true
+        },
+        "type": {
+          "const": "SupportExportResultV1"
+        },
+        "userInitiated": {
+          "const": true
+        }
+      },
+      "required": [
+        "type",
+        "userInitiated",
+        "previewRequired",
+        "cancelIsTerminal",
+        "shareIsExplicitExternalEffect",
+        "shareCannotClaimRecall",
+        "expiryIsTerminal",
+        "failureIsTypedAndVisible",
+        "networkRequestCount",
+        "automaticUpload",
+        "noMailOrShareFallback"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "V23P02C08SupportExportContractV1"
+    },
+    "schemaBehaviorDelta": {
+      "const": true
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "scratch": {
+      "additionalProperties": false,
+      "properties": {
+        "deleteAfterPreviewCancelShareExpiryFailure": {
+          "const": true
+        },
+        "leaseType": {
+          "const": "ScratchDataLeaseV1"
+        },
+        "maximumBytes": {
+          "const": 1048576
+        },
+        "maximumLifetimeSeconds": {
+          "const": 900
+        },
+        "protection": {
+          "const": "COMPLETE"
+        },
+        "purpose": {
+          "const": "SUPPORT_EXPORT"
+        },
+        "recovery": {
+          "additionalProperties": false,
+          "properties": {
+            "deletionTombstonePrefix": {
+              "const": ".deleting-"
+            },
+            "expiredLeasesDeleted": {
+              "const": true
+            },
+            "idempotentAcquireSameRequest": {
+              "const": true
+            },
+            "idempotentTerminalRelease": {
+              "const": true
+            },
+            "leaseCollisionFailsClosed": {
+              "const": true
+            },
+            "noAutomaticDeleteForSpace": {
+              "const": true
+            },
+            "relaunchRecovery": {
+              "const": true
+            },
+            "tombstoneCollisionPreservesOriginal": {
+              "const": true
+            },
+            "tombstoneIdentityVerified": {
+              "const": true
+            },
+            "unknownOrCorruptLeaseFailsClosed": {
+              "const": true
+            }
+          },
+          "required": [
+            "relaunchRecovery",
+            "expiredLeasesDeleted",
+            "leaseCollisionFailsClosed",
+            "idempotentAcquireSameRequest",
+            "idempotentTerminalRelease",
+            "deletionTombstonePrefix",
+            "tombstoneIdentityVerified",
+            "tombstoneCollisionPreservesOriginal",
+            "unknownOrCorruptLeaseFailsClosed",
+            "noAutomaticDeleteForSpace"
+          ],
+          "type": "object"
+        },
+        "sourcePurposesRejected": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "CAPTURE"
+            },
+            {
+              "const": "IMPORT"
+            },
+            {
+              "const": "SOURCE"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "purpose",
+        "maximumBytes",
+        "maximumLifetimeSeconds",
+        "leaseType",
+        "protection",
+        "sourcePurposesRejected",
+        "deleteAfterPreviewCancelShareExpiryFailure",
+        "recovery"
+      ],
+      "type": "object"
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 15,
+      "minItems": 15,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 15,
+              "minItems": 15,
+              "prefixItems": [
+                {
+                  "const": "DiagnosticsStore"
+                },
+                {
+                  "const": "DiagnosticsV1"
+                },
+                {
+                  "const": "operationalSupportSnapshot"
+                },
+                {
+                  "const": "DeviceOperationalSupportStoreV2"
+                },
+                {
+                  "const": "DeviceOperationalSupportEnvelopeV2"
+                },
+                {
+                  "const": "PinnedDiagnosticsAuthority"
+                },
+                {
+                  "const": "canonicalData"
+                },
+                {
+                  "const": "canonicalRecordData"
+                },
+                {
+                  "const": "persist"
+                },
+                {
+                  "const": "resetOperationalSupport"
+                },
+                {
+                  "const": "isExactlyZero"
+                },
+                {
+                  "const": "OperationalFailureBoundaryV1"
+                },
+                {
+                  "const": "OperationalFailureMapperV1"
+                },
+                {
+                  "const": "recordAndRethrowOperationalFailure"
+                },
+                {
+                  "const": "at boundary:"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "DiagnosticsStore"
+                },
+                {
+                  "const": "DiagnosticsV1"
+                },
+                {
+                  "const": "DeviceOperationalSupportStoreV2"
+                },
+                {
+                  "const": "DeviceOperationalSupportEnvelopeV2"
+                },
+                {
+                  "const": "PinnedDiagnosticsAuthority"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 9,
+              "minItems": 9,
+              "prefixItems": [
+                {
+                  "const": "DiagnosticExportV1"
+                },
+                {
+                  "const": "MetricKitSummaryV1"
+                },
+                {
+                  "const": "canonical"
+                },
+                {
+                  "const": "generatedAt"
+                },
+                {
+                  "const": "SupportBundleBuilderV1"
+                },
+                {
+                  "const": "SupportBundleBuilderFailureV1"
+                },
+                {
+                  "const": "alreadyFinished"
+                },
+                {
+                  "const": "finish("
+                },
+                {
+                  "const": "prepared"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "DiagnosticExportV1"
+                },
+                {
+                  "const": "MetricKitSummaryV1"
+                },
+                {
+                  "const": "SupportBundleBuilderV1"
+                },
+                {
+                  "const": "SupportBundleBuilderFailureV1"
+                },
+                {
+                  "const": "SupportExportResultV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "DiagnosticsLogger"
+                },
+                {
+                  "const": "DiagnosticsLogEvent"
+                },
+                {
+                  "const": "SUPPORT_EXPORT_FAILED"
+                },
+                {
+                  "const": "privacy"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "DiagnosticsLogger"
+                },
+                {
+                  "const": "DiagnosticsLogEvent"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 16,
+              "minItems": 16,
+              "prefixItems": [
+                {
+                  "const": "MetricKitDiagnosticsAdapter"
+                },
+                {
+                  "const": "MetricKitReportingSourceV1"
+                },
+                {
+                  "const": "MXMetricManager"
+                },
+                {
+                  "const": "MetricReportingSource"
+                },
+                {
+                  "const": "MetricReportingSourceContractV1"
+                },
+                {
+                  "const": "sourceCount"
+                },
+                {
+                  "const": "permitsSecondReportingSource"
+                },
+                {
+                  "const": "registrationLock"
+                },
+                {
+                  "const": "NSLock"
+                },
+                {
+                  "const": "desiredRegistration"
+                },
+                {
+                  "const": "appliedRegistration"
+                },
+                {
+                  "const": "isDrivingRegistration"
+                },
+                {
+                  "const": "requestRegistration"
+                },
+                {
+                  "const": "start()"
+                },
+                {
+                  "const": "stop()"
+                },
+                {
+                  "const": "shared"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "MetricKitDiagnosticsAdapter"
+                },
+                {
+                  "const": "MetricKitReportingSourceV1"
+                },
+                {
+                  "const": "MXMetricManagerSubscriber"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 6,
+              "minItems": 6,
+              "prefixItems": [
+                {
+                  "const": "StoragePreflightService"
+                },
+                {
+                  "const": "StoragePreflightError"
+                },
+                {
+                  "const": "insufficientCapacity"
+                },
+                {
+                  "const": "capacityUnavailable"
+                },
+                {
+                  "const": "requiredBytes"
+                },
+                {
+                  "const": "availableBytes"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "StoragePreflightService"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 12,
+              "minItems": 12,
+              "prefixItems": [
+                {
+                  "const": "OwnedStorageLedgerV1"
+                },
+                {
+                  "const": "snapshot"
+                },
+                {
+                  "const": "reserve"
+                },
+                {
+                  "const": "release"
+                },
+                {
+                  "const": "reconcile"
+                },
+                {
+                  "const": "reservationLimitExceeded"
+                },
+                {
+                  "const": "maximumActiveReservationCount"
+                },
+                {
+                  "const": "attemptCollision"
+                },
+                {
+                  "const": "adoptExistingFileIfIdentical"
+                },
+                {
+                  "const": "recoverScratchLeases"
+                },
+                {
+                  "const": "eraseScratchData"
+                },
+                {
+                  "const": "invalidLease"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "const": "OwnedStorageLedgerV1"
+                },
+                {
+                  "const": "OwnedStorageLedgerFailureV1"
+                },
+                {
+                  "const": "OwnedStorageSnapshotV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 13,
+              "minItems": 13,
+              "prefixItems": [
+                {
+                  "const": "DeviceLifecycleCoordinatorV1"
+                },
+                {
+                  "const": "DeviceLifecycleReducerV1"
+                },
+                {
+                  "const": "ProtectedDataLifecycleStateV1"
+                },
+                {
+                  "const": "SceneLifecycleStateV1"
+                },
+                {
+                  "const": "DeviceLifecycleEventV1"
+                },
+                {
+                  "const": "DeviceLifecycleActionV1"
+                },
+                {
+                  "const": "DeviceLifecycleTransitionV1"
+                },
+                {
+                  "const": "initiallyConservative"
+                },
+                {
+                  "const": "suspendForLifecycle"
+                },
+                {
+                  "const": "resumeAfterLifecycle"
+                },
+                {
+                  "const": "resetDeviceLocalState"
+                },
+                {
+                  "const": "recoverScratchLeases"
+                },
+                {
+                  "const": "pendingActions"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "DeviceLifecycleCoordinatorV1"
+                },
+                {
+                  "const": "DeviceLifecycleReducerV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 10,
+              "minItems": 10,
+              "prefixItems": [
+                {
+                  "const": "EraseAllService"
+                },
+                {
+                  "const": "EraseAllFailurePoint"
+                },
+                {
+                  "const": "EraseGenerationDrainProof"
+                },
+                {
+                  "const": "erase("
+                },
+                {
+                  "const": "completeCleanup"
+                },
+                {
+                  "const": "eraseScratchData"
+                },
+                {
+                  "const": "resetOperationalSupport"
+                },
+                {
+                  "const": "canonicalDiagnosticsZero"
+                },
+                {
+                  "const": "acceptDescriptorErasedZero"
+                },
+                {
+                  "const": "isExactlyZero"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "EraseAllService"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 15,
+              "minItems": 15,
+              "prefixItems": [
+                {
+                  "const": "CurrentSyncClassificationCatalogV1"
+                },
+                {
+                  "const": "CurrentSyncLifecycleRouteV1"
+                },
+                {
+                  "const": "CurrentReplayDispositionV1"
+                },
+                {
+                  "const": "diagnostic"
+                },
+                {
+                  "const": "diagnosticNames"
+                },
+                {
+                  "const": "diagnosticSubjects"
+                },
+                {
+                  "const": "lifecycleRoutes"
+                },
+                {
+                  "const": "lifecycleRoute"
+                },
+                {
+                  "const": "makeAdditionalRegistrations"
+                },
+                {
+                  "const": "validate"
+                },
+                {
+                  "const": "portableExport"
+                },
+                {
+                  "const": "semanticBackup"
+                },
+                {
+                  "const": "erase"
+                },
+                {
+                  "const": "replay"
+                },
+                {
+                  "const": "searchImplementationPresent"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "CurrentSyncClassificationCatalogV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 16,
+              "minItems": 16,
+              "prefixItems": [
+                {
+                  "const": "S6_6EraseRecoveryTests"
+                },
+                {
+                  "const": "testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState"
+                },
+                {
+                  "const": "testEveryInterruptionRecoversOldOrFullyErasedNew"
+                },
+                {
+                  "const": "testMalformedAuxiliaryTreeFailsBeforeAnyDeletion"
+                },
+                {
+                  "const": "testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree"
+                },
+                {
+                  "const": "EraseAllFailurePoint"
+                },
+                {
+                  "const": "EraseAllService"
+                },
+                {
+                  "const": "erase("
+                },
+                {
+                  "const": "cleanupDeferred"
+                },
+                {
+                  "const": "generationID"
+                },
+                {
+                  "const": "currentGenerationID"
+                },
+                {
+                  "const": "retiredGenerationIDs"
+                },
+                {
+                  "const": "canonicalOperationalSupportData"
+                },
+                {
+                  "const": "DeviceOperationalSupportSnapshotV2"
+                },
+                {
+                  "const": "injectedFailure"
+                },
+                {
+                  "const": "invalidAuthority"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "S6_6EraseRecoveryTests"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 22,
+              "minItems": 22,
+              "prefixItems": [
+                {
+                  "const": "V10_03ReplicationConflictRegistryTests"
+                },
+                {
+                  "const": "testV10_03G01CatalogCompletenessAndLifecycleRouting"
+                },
+                {
+                  "const": "testV10_03A01SixRuleMatrixAndPermutationIdentity"
+                },
+                {
+                  "const": "testV10_03H01UnknownLimitsPrivacyDependencyLeakAndCollisionRejection"
+                },
+                {
+                  "const": "testV10_03I01NamedInputsDeferredAndInterruptionBoundaries"
+                },
+                {
+                  "const": "testV10_03R01FrozenBasisRelaunchIdempotencyAndLateCompetitor"
+                },
+                {
+                  "const": "CurrentSyncClassificationCatalogV1"
+                },
+                {
+                  "const": "registrations"
+                },
+                {
+                  "const": "persistentModelSubjects"
+                },
+                {
+                  "const": "ownedFileClassSubjects"
+                },
+                {
+                  "const": "portableContentProjectionSubjects"
+                },
+                {
+                  "const": "derivedIndexProjectionSubjects"
+                },
+                {
+                  "const": "journalRecoverySubjects"
+                },
+                {
+                  "const": "diagnosticSubjects"
+                },
+                {
+                  "const": "lifecycleRoute"
+                },
+                {
+                  "const": "validate"
+                },
+                {
+                  "const": "searchImplementationPresent"
+                },
+                {
+                  "const": "keychainUsageDeclared"
+                },
+                {
+                  "const": "ConflictRuleV1"
+                },
+                {
+                  "const": "ReplicationPolicyV1"
+                },
+                {
+                  "const": "privateDeviceOnly"
+                },
+                {
+                  "const": "noncustomerDiagnostic"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "V10_03ReplicationConflictRegistryTests"
+                },
+                {
+                  "const": "CurrentSyncClassificationCatalogV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 9,
+              "minItems": 9,
+              "prefixItems": [
+                {
+                  "const": "testDiagnosticsCreatesExactZeroBytesAndReloadsEveryCounterAndBucket"
+                },
+                {
+                  "const": "testDiagnosticsCountersAndPurchaseBucketsSaturateAtInt64Max"
+                },
+                {
+                  "const": "testMalformedDiagnosticsResetOnlyDiagnosticsAndPreserveDomainSentinels"
+                },
+                {
+                  "const": "testDiagnosticsWriteFailureIsNonGatingAndDoesNotInventAnIncrement"
+                },
+                {
+                  "const": "DeviceOperationalSupportSnapshotV2"
+                },
+                {
+                  "const": "operationalSupportSnapshot"
+                },
+                {
+                  "const": "canonicalOperationalSupportData"
+                },
+                {
+                  "const": "canonicalDiagnosticsData"
+                },
+                {
+                  "const": "exactZeroDiagnosticsData"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "const": "S2PersistenceLedgerTests"
+                },
+                {
+                  "const": "DeviceOperationalSupportSnapshotV2"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 29,
+              "minItems": 29,
+              "prefixItems": [
+                {
+                  "const": "SystemHealthDiagnosticsV1"
+                },
+                {
+                  "const": "OperationalFailureV1"
+                },
+                {
+                  "const": "OperationalFailureRegistryV1"
+                },
+                {
+                  "const": "DeviceOperationalSupportStoreSchemaV2"
+                },
+                {
+                  "const": "OperationalFailureBoundaryV1"
+                },
+                {
+                  "const": "OperationalFailureMapperV1"
+                },
+                {
+                  "const": "maximumRecordBytes"
+                },
+                {
+                  "const": "maximumTotalBytes"
+                },
+                {
+                  "const": "maximumRecords"
+                },
+                {
+                  "const": "ScratchDataLeaseV1"
+                },
+                {
+                  "const": "SUPPORT_EXPORT"
+                },
+                {
+                  "const": "CAPTURE"
+                },
+                {
+                  "const": "IMPORT"
+                },
+                {
+                  "const": "SOURCE"
+                },
+                {
+                  "const": "bootstrapOnly"
+                },
+                {
+                  "const": "containsCustomerContent"
+                },
+                {
+                  "const": "permitsAutomaticUpload"
+                },
+                {
+                  "const": "COMPLETE"
+                },
+                {
+                  "const": "SupportExportTerminalTokenV1"
+                },
+                {
+                  "const": "terminalToken"
+                },
+                {
+                  "const": "beginTerminalDisposition"
+                },
+                {
+                  "const": "rollbackTerminalDisposition"
+                },
+                {
+                  "const": "commitTerminalDisposition"
+                },
+                {
+                  "const": "available"
+                },
+                {
+                  "const": "inProgress"
+                },
+                {
+                  "const": "retryable"
+                },
+                {
+                  "const": "finished"
+                },
+                {
+                  "const": "switch boundary"
+                },
+                {
+                  "const": "return .unknown"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 11,
+              "minItems": 11,
+              "prefixItems": [
+                {
+                  "const": "SystemHealthDiagnosticsV1"
+                },
+                {
+                  "const": "OperationalFailureV1"
+                },
+                {
+                  "const": "OperationalFailureRegistryV1"
+                },
+                {
+                  "const": "DeviceOperationalSupportStoreSchemaV2"
+                },
+                {
+                  "const": "OperationalFailureBoundaryV1"
+                },
+                {
+                  "const": "OperationalFailureMapperV1"
+                },
+                {
+                  "const": "ScratchDataLeaseV1"
+                },
+                {
+                  "const": "SupportBundleManifestV1"
+                },
+                {
+                  "const": "SupportExportResultV1"
+                },
+                {
+                  "const": "WorkflowFrictionProfileV1"
+                },
+                {
+                  "const": "LocalDiagnosticsPreferenceV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 23,
+              "minItems": 23,
+              "prefixItems": [
+                {
+                  "const": "testV9_12G01BoundedSystemHealthAndSingleMetricSource"
+                },
+                {
+                  "const": "testV9_12A01OperationalFailureRegistryAndDefaultOffFrictionAreClosed"
+                },
+                {
+                  "const": "testV9_12H01SupportExportRejectsCustomerDataAndSourceScratch"
+                },
+                {
+                  "const": "testV9_12I01StoreScratchAndSupportExportRecoverWithoutDuplicateEffects"
+                },
+                {
+                  "const": "testV9_12R01MigrationResetEraseAndBootstrapRemainDeviceLocal"
+                },
+                {
+                  "const": "XCTAssertEqual"
+                },
+                {
+                  "const": "XCTAssertFalse"
+                },
+                {
+                  "const": "XCTAssertThrowsError"
+                },
+                {
+                  "const": "canonicalOpenCount"
+                },
+                {
+                  "const": "networkRequestCount"
+                },
+                {
+                  "const": "SupportBundleBuilderV1"
+                },
+                {
+                  "const": "bootstrapOnly"
+                },
+                {
+                  "const": "eraseScratchData"
+                },
+                {
+                  "const": "DeviceOperationalSupportStoreSchemaV2"
+                },
+                {
+                  "const": "operationalSupportSnapshot"
+                },
+                {
+                  "const": "resetOperationalSupport"
+                },
+                {
+                  "const": ".complete"
+                },
+                {
+                  "const": "OperationalFailureBoundaryV1"
+                },
+                {
+                  "const": "OperationalFailureMapperV1"
+                },
+                {
+                  "const": "recordAndRethrowOperationalFailure"
+                },
+                {
+                  "const": "typedErrorMapping"
+                },
+                {
+                  "const": "provisionalKernelOnly"
+                },
+                {
+                  "const": "shippingBoundaryAdoption"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "Card28EvidenceTests"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "owner": {
+              "const": "V23-P02-C08"
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 15,
+              "minItems": 15,
+              "prefixItems": [
+                {
+                  "const": "schemaVersion"
+                },
+                {
+                  "const": "fixtureIdentity"
+                },
+                {
+                  "const": "clock"
+                },
+                {
+                  "const": "bounds"
+                },
+                {
+                  "const": "metricCompatibility"
+                },
+                {
+                  "const": "health"
+                },
+                {
+                  "const": "failureCodes"
+                },
+                {
+                  "const": "unknownFailure"
+                },
+                {
+                  "const": "typedErrorMapping"
+                },
+                {
+                  "const": "supportExport"
+                },
+                {
+                  "const": "storeCases"
+                },
+                {
+                  "const": "scratchIsolation"
+                },
+                {
+                  "const": "workflowFriction"
+                },
+                {
+                  "const": "logging"
+                },
+                {
+                  "const": "resetErase"
+                }
+              ],
+              "type": "array"
+            },
+            "symbols": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "V21P02C08SystemHealthOperationalDiagnosticsCorpusV1"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "path",
+            "owner",
+            "symbols",
+            "requiredTokens"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "terminalReplay": {
+      "additionalProperties": false,
+      "properties": {
+        "beginRequiresPrepared": {
+          "const": true
+        },
+        "changedDispositionRejected": {
+          "const": true
+        },
+        "cleanupFailureIsRetryable": {
+          "const": true
+        },
+        "concurrentClaimRejected": {
+          "const": true
+        },
+        "finishedClaimRejected": {
+          "const": true
+        },
+        "leaseReleasedExactlyOnceOnCommit": {
+          "const": true
+        },
+        "receiptPublishedOnlyAfterCleanup": {
+          "const": true
+        },
+        "sameDispositionRetryAfterCleanupFailure": {
+          "const": true
+        },
+        "stateMachine": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "AVAILABLE"
+            },
+            {
+              "const": "IN_PROGRESS"
+            },
+            {
+              "const": "RETRYABLE"
+            },
+            {
+              "const": "FINISHED"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "stateMachine",
+        "beginRequiresPrepared",
+        "sameDispositionRetryAfterCleanupFailure",
+        "changedDispositionRejected",
+        "concurrentClaimRejected",
+        "finishedClaimRejected",
+        "receiptPublishedOnlyAfterCleanup",
+        "cleanupFailureIsRetryable",
+        "leaseReleasedExactlyOnceOnCommit"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "persistentChangeMode",
+    "persistentSchema",
+    "schemaBehaviorDelta",
+    "migrationBehaviorDelta",
+    "backupBehaviorDelta",
+    "restoreBehaviorDelta",
+    "deleteBehaviorDelta",
+    "exportBehaviorDelta",
+    "prohibitedTokens",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "owner",
+    "bundle",
+    "result",
+    "terminalReplay",
+    "scratch",
+    "bootstrap",
+    "redaction",
+    "privacy",
+    "sourceBindings",
+    "artifactDigest"
+  ],
+  "title": "V23P02C08SupportExportContractV1",
+  "type": "object"
+}

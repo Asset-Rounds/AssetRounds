@@ -1,0 +1,130 @@
+--- v3/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift
++++ v4-draft/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift
+@@ -4088,7 +4088,7 @@
+         let after = try originalAuxiliaryRootFactAndNames()
+         guard after.0 == root.0, after.1 == root.1 else { throw EraseIntentStoreError.invalidAuthority }
+         try roster.requireBound(store: self, operation: operation, seal: roster.seal)
+-        return .init(leaves: leaves, eraseRoot: root.0, names: root.1)
++        return .init(leaves: leaves, names: root.1, eraseRoot: root.0)
+     }
+ 
+     private var hasOriginalCleanupPrimitiveScope: Bool {
+@@ -4153,6 +4153,7 @@
+                  Self.originalRetiredStageIdentityName, Self.originalRetiredCommitmentName,
+                  Self.rosterName, Self.auxiliaryRosterName].contains(name))),
+               coldActiveFD == nil, coldUncertainFDs.isEmpty,
++              !originalRecoveryCloseAttempted,
+               !coldCloseAttempted, !coldClosed, !coldEffectUncertain,
+               maximumBytes > 0 else { throw EraseIntentStoreError.invalidAuthority }
+         let descriptor = Darwin.openat(eraseDescriptor, name,
+@@ -4967,8 +4968,27 @@
+         try requireSchema2ColdCleanupEffect(permit)
+     }
+ 
++    /// Numeric access is distinct from the intentional completion fence:
++    /// final root removal/close may proceed after last-control loss, but no
++    /// route may inspect an attempted/closed/reused or uncertain descriptor.
++    private func requireSchema2TerminalNumericAccess() throws {
++        guard !originalRecoveryCloseAttempted, !coldCloseAttempted, !coldClosed,
++              coldCleanupControlAttempt == nil,
++              !coldEffectUncertain, coldActiveFD == nil, coldEnumerationFD == nil,
++              coldDirectoryStream == nil, !coldUncertainStreamClose,
++              coldUncertainFDs.isEmpty, originalRecoveryUncertainPolicyDescriptors.isEmpty,
++              originalAuxiliaryActiveFD == nil, originalAuxiliaryEnumerationFD == nil,
++              originalAuxiliaryDirectoryStream == nil, !originalAuxiliaryUncertainStreamClose,
++              originalAuxiliaryUncertainFDs.isEmpty, retirementUncertainReadDescriptors.isEmpty,
++              !originalAuxiliaryPublicationUncertain, !originalAuxiliaryPhaseUncertain,
++              !originalRetiredCommitmentUncertain, !originalRetiredStageIdentityUncertain else {
++            throw EraseIntentStoreError.invalidAuthority
++        }
++    }
++
+     @MainActor
+     private func requireSchema2ColdTerminalRoot(_ authority: EraseSchema2ColdTerminalAuthorityV1) throws {
++        try requireSchema2TerminalNumericAccess()
+         guard !coldCloseAttempted, !coldClosed, coldUncertainFDs.isEmpty,
+               !coldEffectUncertain, !coldCleanupTerminalRootRemoved else {
+             throw EraseIntentStoreError.invalidAuthority
+@@ -5428,6 +5448,9 @@
+               coldCleanupTerminalRetirement === retirement,
+               terminal.value.cleanupIntentBytes == (try EraseIntentCodecV1.encode(expected)),
+               !coldCleanupTerminalRootRemovalAttempted else { throw EraseIntentStoreError.invalidAuthority }
++        try requireSchema2TerminalNumericAccess()
++        try permit.requireHeld()
++        try retirement.requireNamespaceAbsent()
+         var root = stat()
+         guard Darwin.fstat(eraseDescriptor, &root) == 0,
+               root.st_mode & S_IFMT == S_IFDIR,
+@@ -5490,6 +5513,7 @@
+             try receipt.requireBound(store: self, expected: expected, retirement: retirement)
+             return receipt // memory only; neither numeric descriptor is used.
+         }
++        try requireSchema2TerminalNumericAccess()
+         guard borrowsColdObservation, !coldCloseAttempted, !coldClosed,
+               coldActiveFD == nil, coldEnumerationFD == nil, coldDirectoryStream == nil,
+               coldUncertainFDs.isEmpty, !coldUncertainStreamClose, !coldEffectUncertain else {
+@@ -5541,6 +5565,7 @@
+             try receipt.requireBound(store: self, expected: expected, retirement: retirement)
+             return receipt
+         }
++        try requireSchema2TerminalNumericAccess()
+         let subject = originalRetirement.binding.subject
+         guard applicationSupportURL.standardizedFileURL == subject.applicationSupportURL.standardizedFileURL,
+               Int64(applicationSupportIdentity.device) == subject.applicationSupportDevice,
+@@ -7173,9 +7198,15 @@
+     /// coordinator may transfer to target-writer installation.
+     func closeCheckedForOriginalRecovery() throws {
+         guard !borrowsColdObservation, let originalRecoveryCheckedIO,
+-              !originalRecoveryCloseAttempted else {
+-            throw EraseIntentStoreError.invalidAuthority
+-        }
++              !originalRecoveryCloseAttempted, !coldCleanupCompletionControlsRemoved,
++              !coldCleanupTerminalRemovalStarted, !coldCleanupTerminalRootRemovalAttempted,
++              !coldCleanupTerminalRootRemoved, !coldCloseAttempted, !coldClosed, !coldEffectUncertain,
++              coldCleanupPermit == nil, coldActiveFD == nil, coldEnumerationFD == nil,
++              coldDirectoryStream == nil, !coldUncertainStreamClose,
++              coldUncertainFDs.isEmpty else {
++            throw EraseIntentStoreError.invalidAuthority
++        }
++        try requireSchema2TerminalNumericAccess()
+         originalRecoveryCloseAttempted = true
+         var failed = false
+         if (try? originalRecoveryCheckedIO.requireSettled()) == nil
+@@ -8613,6 +8644,7 @@
+ private extension EraseIntentStore {
+     func coldRootFact() throws -> EraseColdControlLeafFactV1 {
+         guard (borrowsColdObservation || hasOriginalCleanupPrimitiveScope),
++              !originalRecoveryCloseAttempted, !coldEffectUncertain,
+               !coldCloseAttempted, !coldClosed,
+               coldActiveFD == nil, coldUncertainFDs.isEmpty else {
+             throw EraseIntentStoreError.invalidAuthority
+@@ -8805,7 +8837,8 @@
+         name: String, descriptor: Int32, expected: Identity
+     ) throws {
+         try requireSchema2ColdCleanupPrimitiveEffect()
+-        guard (borrowsColdObservation || hasOriginalCleanupPrimitiveScope), !coldCloseAttempted, !coldClosed,
++        guard !originalRecoveryCloseAttempted,
++              (borrowsColdObservation || hasOriginalCleanupPrimitiveScope), !coldCloseAttempted, !coldClosed,
+               !coldEffectUncertain, coldOwnTemporaryName == name,
+               coldActiveFD == descriptor, coldUncertainFDs.isEmpty,
+               coldEnumerationFD == nil, coldDirectoryStream == nil,
+@@ -9256,7 +9289,9 @@
+     }
+ 
+     private func coldNamesChecked() throws -> [String] {
+-        guard (borrowsColdObservation || hasOriginalCleanupPrimitiveScope), coldEnumerationFD == nil,
++        guard !originalRecoveryCloseAttempted, !coldCloseAttempted, !coldClosed,
++              !coldEffectUncertain,
++              (borrowsColdObservation || hasOriginalCleanupPrimitiveScope), coldEnumerationFD == nil,
+               coldDirectoryStream == nil, !coldUncertainStreamClose,
+               coldUncertainFDs.isEmpty else {
+             throw EraseIntentStoreError.invalidAuthority
+@@ -11354,7 +11389,7 @@
+             print("ORIGINAL_AUX_PHASE_V1 stage=roster-state-complete")
+         }
+ #endif
+-        let names = ([Self.intentName, Self.preparationName,
++        var names = ([Self.intentName, Self.preparationName,
+             Self.auxiliaryRosterName] +
+             (originalRetiredCommitmentReceipt == nil ? [] :
+                 [Self.originalRetiredCommitmentName]) +

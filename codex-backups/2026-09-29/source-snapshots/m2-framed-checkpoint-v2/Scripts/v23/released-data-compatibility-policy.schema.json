@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "released-data-compatibility-policy.schema.json",
+  "title": "ReleasedDataCompatibilityPolicyV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "dataManifest",
+    "skippedReleaseStoreMigrationRequired",
+    "immutableReleasedFixturesRequired",
+    "syntheticFixturesOnly",
+    "noCustomerData",
+    "noSecrets",
+    "appendBeforeFirstWriteRequired",
+    "firstPublicSealOwner"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "dataManifest": {
+      "allOf": [
+        { "$ref": "data-compatibility-manifest.schema.json" },
+        {
+          "type": "object",
+          "properties": {
+            "candidateHead": {
+              "const": "e576a3ca91d597fff41d0f23209bab009ff8de6b"
+            }
+          }
+        }
+      ]
+    },
+    "skippedReleaseStoreMigrationRequired": { "const": true },
+    "immutableReleasedFixturesRequired": { "const": true },
+    "syntheticFixturesOnly": { "const": true },
+    "noCustomerData": { "const": true },
+    "noSecrets": { "const": true },
+    "appendBeforeFirstWriteRequired": { "const": true },
+    "firstPublicSealOwner": { "const": "V23-P05-C01" }
+  }
+}

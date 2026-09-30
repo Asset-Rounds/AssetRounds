@@ -1,0 +1,11 @@
+{
+  "compactPhysicalResult": "genuine physical DATA only; missing private source/policy/semantic producer APIs",
+  "liveFunctionalFirstObserverSHA256": "ad95d26b481a864a3f5f6b45a5f2917d790f703af59cbb0f742e85c0d6d40d1b",
+  "observerDelta": "none from V5",
+  "onlyCandidatePaths": [
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+  ],
+  "parentBindingSHA256": "d84d3a09c9a5f49705f99cbaced03f0e5882cfc40cc1a0ceda908b8a6bc7c445",
+  "sourceInputs": 1206
+}

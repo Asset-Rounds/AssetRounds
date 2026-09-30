@@ -1,0 +1,9 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "fa437ebaf58613ee7d9d74abb46c5b405bfc2aec2b12bd1b62d32d6b5cc08ee1",
+  "afterSHA256": "fed6159d0a7b210aafe4182c441c5a97b0e228a71b2f77bdd425f8bd29cc3dcb",
+  "change": "Private boundary constructor enforces producer request/born source mutual exclusion; both actual issuer calls consume throwing constructor",
+  "semanticCompile": "due",
+  "runtime": "due"
+}

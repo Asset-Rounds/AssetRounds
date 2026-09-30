@@ -1,0 +1,140 @@
+/// Fixed DATA carried by the final compact capsule. These commitments describe
+/// the genuinely completed cut; decoding them issues no drain, EX, OS receipt
+/// or consumer-complete capability. Store owns the exact bounded V4 encoding.
+struct EraseSchema2ConsumerCompleteSubjectV4: Equatable, Sendable {
+    struct Fact: Equatable, Sendable {
+        let device: UInt64
+        let inode: UInt64
+        let mode: UInt64
+        let user: UInt64
+        let group: UInt64
+        let links: UInt64
+        let size: Int64
+        let modifiedSeconds: Int64
+        let modifiedNanoseconds: Int64
+        let changedSeconds: Int64
+        let changedNanoseconds: Int64
+        func validateData() throws {
+            guard size >= 0, (0..<1_000_000_000).contains(modifiedNanoseconds),
+                  (0..<1_000_000_000).contains(changedNanoseconds) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+    }
+    enum Root: UInt8, CaseIterable, Sendable {
+        case restore, commerce, diagnostics, search, exchange, localJobs
+        case operations, caches, temporary
+    }
+    enum RootOutcome: Equatable, Sendable {
+        case absent(Root)
+        case diagnosticsZero(root: Fact, envelopeSHA256: String)
+        var root: Root {
+            switch self { case .absent(let root): return root
+            case .diagnosticsZero: return .diagnostics }
+        }
+    }
+    let schemaVersion: UInt16
+    let eraseID: UUID
+    let targetGenerationID: UUID
+    let preparationSHA256: String
+    let originalRosterSHA256: String
+    let c16PlanSHA256: String
+    let sourcesLogicalSHA256: String
+    let pairAccountingLogicalSHA256: String
+    let finalProgressLogicalSHA256: String
+    let finalProgressRecordBindingSHA256: String
+    let cleanupCompleteIntentSHA256: String
+    let cleanupCompleteIntentFact: Fact
+    let targetPointerSHA256: String
+    let targetPointerFact: Fact
+    let preservedManifestSHA256: String
+    let preservedManifestFact: Fact
+    let targetGenerationDigestSHA256: String
+    let targetReplicaIdentitySHA256: String
+    let fullPrivateEmptyGraphSHA256: String
+    let supportAtCompletion: Fact
+    let dataAtCompletion: Fact
+    let generationsAtCompletion: Fact
+    let targetAtCompletion: Fact
+    let drainedCohortLineageSHA256: String
+    let semanticConsumersCompleteSHA256: String
+    let physicalConsumersCompleteSHA256: String
+    let notificationControlCheckedCloseSHA256: String
+    let selectedNotificationOriginLogicalSHA256: String
+    let selectedOwnedNotificationIDsSHA256: String
+    let preferencesBaselineSHA256: String
+    let ratingStateSHA256: String
+    let ratingRevision: UInt64
+    let ratingSuppressUntilReferenceSeconds: Double
+    let diagnosticsEnvelopeSHA256: String
+    let supportFeedbackEmptySHA256: String
+    let namespaceOutcomes: [RootOutcome]
+
+    /// Shape/bounds only. Every fact is an actually observed full eleven-field
+    /// value at consumer completion, never a predicted terminal leaf fact.
+    /// Later finite catalog deletion proves permitted parent changes afresh.
+    func validateData() throws {
+        let hashes = [preparationSHA256, originalRosterSHA256, c16PlanSHA256,
+            sourcesLogicalSHA256, pairAccountingLogicalSHA256,
+            finalProgressLogicalSHA256, finalProgressRecordBindingSHA256,
+            cleanupCompleteIntentSHA256, targetPointerSHA256,
+            preservedManifestSHA256, targetGenerationDigestSHA256,
+            targetReplicaIdentitySHA256, fullPrivateEmptyGraphSHA256,
+            drainedCohortLineageSHA256, semanticConsumersCompleteSHA256,
+            physicalConsumersCompleteSHA256, notificationControlCheckedCloseSHA256,
+            selectedNotificationOriginLogicalSHA256, selectedOwnedNotificationIDsSHA256,
+            preferencesBaselineSHA256, ratingStateSHA256, diagnosticsEnvelopeSHA256,
+            supportFeedbackEmptySHA256]
+        guard schemaVersion == 4, hashes.allSatisfy(StoreMigrationCanonicalJSONV1.isLowercaseSHA256),
+              ratingSuppressUntilReferenceSeconds.isFinite,
+              namespaceOutcomes.map(\.root) == Root.allCases else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        for fact in [cleanupCompleteIntentFact, targetPointerFact, preservedManifestFact,
+            supportAtCompletion, dataAtCompletion, generationsAtCompletion, targetAtCompletion] {
+            try fact.validateData()
+        }
+        for outcome in namespaceOutcomes {
+            switch outcome {
+            case .absent(let root):
+                guard root != .diagnostics else { throw EraseAllServiceError.invalidAuthority }
+            case .diagnosticsZero(let root, let sha):
+                try root.validateData()
+                guard sha == diagnosticsEnvelopeSHA256 else { throw EraseAllServiceError.invalidAuthority }
+            }
+        }
+    }
+}
+
+/// Lossless selected ID origin. Actual old canonical decoders derive the same
+/// IDs; this DATA value cannot prove that an absent source was originally absent.
+/// The genuine completion issuer supplies that positive immutable-P lineage.
+enum EraseSchema2TerminalNotificationOriginV4: Equatable, Sendable {
+    enum FreshSource: Equatable, Sendable {
+        case canonical(Data)
+        case originallyAbsent(originalRosterSHA256: String)
+    }
+    case priorDrain(canonicalBytes: Data)
+    case survivingProvenance(canonicalBytes: Data)
+    case fresh(mapping: FreshSource, control: FreshSource)
+
+    func validateByteBounds() throws {
+        func require(_ bytes: Data) throws {
+            guard bytes.count <= 1_048_576 else { throw EraseAllServiceError.invalidAuthority }
+        }
+        switch self {
+        case .priorDrain(let bytes), .survivingProvenance(let bytes): try require(bytes)
+        case .fresh(let mapping, let control):
+            for source in [mapping, control] {
+                switch source {
+                case .canonical(let bytes): try require(bytes)
+                case .originallyAbsent(let sha):
+                    guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha) else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                }
+            }
+        }
+        // No new ID count/length/NUL restriction or scalar truncation.
+    }
+}

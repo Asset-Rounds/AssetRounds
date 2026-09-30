@@ -1,0 +1,150 @@
+{
+  "schema": "V22P03C50IncumbentFileAdapterCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C50",
+  "corpusID": "v23-p03-c50-incumbent-file-adapter-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "evidenceIDs": [
+    "G01",
+    "A01",
+    "H01",
+    "I01",
+    "R01"
+  ],
+  "qualifiedEvidenceIDs": [
+    "V23-P03-C50-G01",
+    "V23-P03-C50-A01",
+    "V23-P03-C50-H01",
+    "V23-P03-C50-I01",
+    "V23-P03-C50-R01"
+  ],
+  "contracts": [
+    "IncumbentFileAdapterV1",
+    "ClosedIncumbentAdapterRegistryV1",
+    "IncumbentFileProfileReleaseV1",
+    "IncumbentSelectionReceiptV1",
+    "IncumbentExchangeScopeV1",
+    "IncumbentMappingPreviewV1",
+    "IncumbentFileExportManifestV1",
+    "IncumbentFileExchangeReceiptV1",
+    "IncumbentFileQuarantineReceiptV1",
+    "IncumbentExchangeRecoveryReceiptV1"
+  ],
+  "profile": {
+    "profileID": "c5000000-0000-4000-8000-000000000001",
+    "adapterID": "c5000000-0000-4000-8000-00000000000a",
+    "releaseID": "c5000000-0000-4000-8000-000000000002",
+    "revision": 1,
+    "providerDisplayToken": "C50-Fixture-Profile",
+    "uti": "public.comma-separated-values-text",
+    "filenameExtension": "csv",
+    "encoding": "UTF_8",
+    "delimiter": "COMMA",
+    "versionHeader": "Version",
+    "versionValue": "c50-v1",
+    "orderedHeaders": [
+      "Version",
+      "Asset ID",
+      "Note"
+    ],
+    "canonicalFields": [
+      "file.formatVersion",
+      "workResource.materialLineCount",
+      "workResource.materialTotals"
+    ],
+    "direction": "BIDIRECTIONAL_FILES",
+    "maximumByteCount": 4096,
+    "maximumRowCount": 10,
+    "maximumColumnCount": 3,
+    "maximumScalarCountPerCell": 128,
+    "stableKeyMeaning": "the local stable row field is an exact opaque key",
+    "targetWorkflow": "C50-Golden-Workflow",
+    "privateFieldClass": "CONTACT_REJECTED_BY_CLOSED_FIELD_SET",
+    "noProviderClaim": true
+  },
+  "golden": {
+    "inputUTF8": true,
+    "inputLineEndings": [
+      "LF",
+      "CRLF"
+    ],
+    "quotedCells": true,
+    "embeddedNewlines": true,
+    "nfcCanonicalization": true,
+    "rowCount": 1,
+    "allowedCanonicalFields": [
+      "file.formatVersion",
+      "workResource.materialLineCount",
+      "workResource.materialTotals"
+    ],
+    "omittedCanonicalFields": [],
+    "renderedOutputIsDeterministic": true,
+    "previewIsZeroWrite": true
+  },
+  "strictHostileCases": [
+    "UNKNOWN_VERSION",
+    "REORDERED_HEADERS",
+    "DUPLICATE_HEADERS",
+    "UTF8_INVALID_SEQUENCE",
+    "NFC_NONCANONICAL_TEXT",
+    "LF_INPUT",
+    "CRLF_INPUT",
+    "QUOTED_CELL",
+    "EMBEDDED_NEWLINE",
+    "CONTROL_SCALAR",
+    "FORMULA_PREFIX",
+    "DUPLICATE_MAPPING",
+    "STALE_SELECTION",
+    "OVERSIZE_BYTES",
+    "OVERSIZE_ROWS",
+    "OVERSIZE_SCALAR",
+    "PRIVATE_FIELD_WITHOUT_APPROVAL",
+    "TWO_CURRENT_PROFILES",
+    "DIVERGENT_SAME_OPERATION"
+  ],
+  "lifecycle": {
+    "disabledStatus": "DISABLED_NO_SELECTED_PROFILE",
+    "zeroOrOneProductionProfile": true,
+    "previewCanonicalWriteCount": 0,
+    "previewReceiptCount": 0,
+    "canonicalEffectBeforeReceipt": true,
+    "interruptionDisposition": "BEFORE_CANONICAL_EFFECT",
+    "retryDisposition": "EXACT_EFFECT_AND_RECEIPT_OR_NO_EFFECT",
+    "lostExportCallback": "EXTERNAL_AVAILABILITY_UNKNOWN",
+    "historicReadUsesExactReleasedBytes": true,
+    "newStartRequiresCurrentSelection": true,
+    "cloneForkCopySelection": false,
+    "eraseRemovesAppOwnedScratch": true,
+    "eraseRecallsExternalFiles": false
+  },
+  "privacy": {
+    "privateFieldsRequireExplicitApproval": true,
+    "diagnosticsContainCustomerRows": false,
+    "diagnosticsContainSourceBytes": false,
+    "accessibilityContainsPrivateValues": false,
+    "networkEndpoints": false,
+    "credentialsOrBookmarks": false,
+    "providerSDK": false
+  },
+  "accessibility": {
+    "statusLabel": "File exchange unavailable: no selected profile",
+    "previewLabel": "Preview only; no workspace changes",
+    "errorFocusRequired": true,
+    "dynamicTypeAndVoiceOver": true,
+    "rtlSafe": true
+  },
+  "recovery": [
+    "BEFORE_EFFECT_ZERO",
+    "EFFECT_BEFORE_RECEIPT_EXACTLY_ONE",
+    "AFTER_RECEIPT_IDEMPOTENT",
+    "LOST_CALLBACK_UNKNOWN_EXTERNAL_AVAILABILITY",
+    "DIVERGENT_SAME_OPERATION_QUARANTINED",
+    "HISTORIC_READ_EXPORT_PRESERVES_BYTES",
+    "CLONE_FORK_HISTORY_ONLY",
+    "ERASE_REMOVES_APP_OWNED_SCRATCH"
+  ]
+}

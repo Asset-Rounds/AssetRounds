@@ -1,0 +1,63 @@
+{
+  "$id": "https://assetrounds.invalid/v23/PackageReleaseBindingV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bindingID": {
+      "pattern": "^[a-z0-9._-]{1,128}$",
+      "type": "string"
+    },
+    "canonicalPackageBytes": {
+      "type": "string"
+    },
+    "canonicalWorkflowBytes": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "DRAFT",
+        "ACTIVE",
+        "COMPLETED",
+        "AMENDMENT",
+        "EXPORT"
+      ],
+      "type": "string"
+    },
+    "packageContentVersion": {
+      "const": 1
+    },
+    "packageID": {
+      "pattern": "^[a-z0-9._-]{1,128}$",
+      "type": "string"
+    },
+    "packageReleaseID": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "packageSHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "workflowSHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "bindingID",
+    "kind",
+    "packageReleaseID",
+    "packageID",
+    "packageContentVersion",
+    "packageSHA256",
+    "canonicalPackageBytes",
+    "workflowSHA256",
+    "canonicalWorkflowBytes"
+  ],
+  "title": "PackageReleaseBindingV1",
+  "type": "object"
+}

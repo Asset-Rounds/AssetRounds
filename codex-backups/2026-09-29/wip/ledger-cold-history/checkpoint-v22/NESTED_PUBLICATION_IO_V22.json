@@ -1,0 +1,15 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "b4bc9f51389341f7599a5b34a6dd254d6585ec0f7889a345590217dbcf991dd2",
+  "afterSHA256": "d8a6653232e000590c716ad7d79f85b2786029ef1b83ebab4fcd271e2982d3b8",
+  "nestedPublicationMetadataAndSyncCalls": 10,
+  "change": "Fresh borrowed binding before/after each nested publication metadata/sync call and rewinddir; explicit pre-open memory/fresh fence, retained owner still installed before any post-open callback.",
+  "unchanged": [
+    "No open/close wrapped across owner installation or close receipt",
+    "No predicate, publication stage or producer payload change",
+    "Ordinary path uses the same wrapper with ordinary no-op fence"
+  ],
+  "runtime": "due",
+  "semanticCompilation": "due"
+}

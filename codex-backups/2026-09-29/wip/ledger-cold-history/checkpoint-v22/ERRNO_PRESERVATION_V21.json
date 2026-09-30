@@ -1,0 +1,9 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "6bab181fcbaf627de84e71b812c2c7589a1cde6f7004dfb2accac0626b4b8ec9",
+  "afterSHA256": "b4bc9f51389341f7599a5b34a6dd254d6585ec0f7889a345590217dbcf991dd2",
+  "change": "Preserve incoming errno across before-IO proof and actual syscall errno across after-IO proof; prevents false readdir error without predicate change",
+  "staticCase": "directoryNames sets errno=0; actual proof may set errno; successful readdir preserves input errno; wrapper restores the exact input before IO",
+  "runtime": "due"
+}

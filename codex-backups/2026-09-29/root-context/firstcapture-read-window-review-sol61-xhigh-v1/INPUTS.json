@@ -1,0 +1,176 @@
+{
+  "schema": "ReadOnlyIndependentReviewInputsV1",
+  "createdAtUTC": "2026-09-30T01:36:26.768345+00:00",
+  "reviewer": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh",
+    "role": "independent-read-only-nonauthor"
+  },
+  "question": "exact closed FirstCapture read-only window proposal51dcc; authority/control/local proof and finite attempted-work direction",
+  "scope": {
+    "proposalOnly": true,
+    "sourceWrites": false,
+    "trackedRecordWrites": false,
+    "git": false,
+    "compiler": false,
+    "native": false,
+    "runtimeApproval": false,
+    "oldStrictScopeUnchanged": true,
+    "liveScratchDiagnosisSeparate": true
+  },
+  "inputs": [
+    {
+      "role": "repository-policy",
+      "path": "/Users/rentamac/Developer/AssetRounds/AGENTS.md",
+      "bytes": 23950,
+      "sha256": "794faa1aacc772cc598bb916225c44af6506bbf359b410ee462e0fe2102f7833",
+      "expectedSHA256": "794faa1aacc772cc598bb916225c44af6506bbf359b410ee462e0fe2102f7833",
+      "expectedMatched": true
+    },
+    {
+      "role": "active-brief-observed",
+      "path": "/Users/rentamac/Developer/AssetRounds/docs/design/v23/integration/ACTIVE_BRIEF.md",
+      "bytes": 7154,
+      "sha256": "920a5d01a32d6522b2b851eae731c420085b8d8816e741b1ce3ca61efe6d2fd8",
+      "expectedSHA256": null,
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-PROPOSAL.md",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/PROPOSAL.md",
+      "bytes": 8063,
+      "sha256": "51dccb719c9c49c624461b8017a5bfe7f8b99434b37a17446403ee32e25c797a",
+      "expectedSHA256": "51dccb719c9c49c624461b8017a5bfe7f8b99434b37a17446403ee32e25c797a",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-INPUTS.json",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/INPUTS.json",
+      "bytes": 2052,
+      "sha256": "85a3ca97320bb0492cbaaf8a3c3c43598bb90ae1bd6b8284db2cf529a83ff9a7",
+      "expectedSHA256": "85a3ca97320bb0492cbaaf8a3c3c43598bb90ae1bd6b8284db2cf529a83ff9a7",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-HANDOFF.md",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/HANDOFF.md",
+      "bytes": 668,
+      "sha256": "5a6443806eb47579199bf5e9388cf2e0b51c0249db267747a6f1d3ae52422ff8",
+      "expectedSHA256": "5a6443806eb47579199bf5e9388cf2e0b51c0249db267747a6f1d3ae52422ff8",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-manifest",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/MANIFEST.json",
+      "bytes": 257,
+      "sha256": "b6d173bbfc3888dfe3fcfc96b8ea5fd6db83e4e9847229fcda34bfad33c6a28e",
+      "expectedSHA256": "b6d173bbfc3888dfe3fcfc96b8ea5fd6db83e4e9847229fcda34bfad33c6a28e",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-bound-currentMigration",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-migration-firstcapture-successor-v2/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+      "bytes": 1359730,
+      "sha256": "d70942dd596ba5979dfb80c3212f794f881690462b7d407fea9519b91c80dd1e",
+      "expectedSHA256": "d70942dd596ba5979dfb80c3212f794f881690462b7d407fea9519b91c80dd1e",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-bound-oldProposal",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-migration-firstcapture-successor-v2/FIRST_CAPTURE_PROVIDER_WORK_PROPOSAL_V1.md",
+      "bytes": 5393,
+      "sha256": "48c5341beeafd25550c3d12520999c698666461ddc47d212216cec7ead8d32e1",
+      "expectedSHA256": "48c5341beeafd25550c3d12520999c698666461ddc47d212216cec7ead8d32e1",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-bound-independentReview",
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/firstcapture-provider-work-review-sol61-xhigh-v1/REVIEW.md",
+      "bytes": 12528,
+      "sha256": "3d8fc2924052523cbf44f94185018c63098150a82b342f7b9198877835ccf4da",
+      "expectedSHA256": "3d8fc2924052523cbf44f94185018c63098150a82b342f7b9198877835ccf4da",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-bound-independentInputs",
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/firstcapture-provider-work-review-sol61-xhigh-v1/INPUTS.json",
+      "bytes": 8215,
+      "sha256": "9f326b6f6fb891c8b273638cf30973d7f1777c268a744e7e91971d9fd70d92e2",
+      "expectedSHA256": "9f326b6f6fb891c8b273638cf30973d7f1777c268a744e7e91971d9fd70d92e2",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-bound-frozenPrePInterface",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/FIRST_CAPTURE_SCOPE_INTERFACE_V2.swift.fragment",
+      "bytes": 7164,
+      "sha256": "0d330bd56a10d7df5186a5176ab1acdcf9fc488f465494224b0e023c1138b156",
+      "expectedSHA256": "0d330bd56a10d7df5186a5176ab1acdcf9fc488f465494224b0e023c1138b156",
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-bound-pairAccountingReceipt",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-migration-firstcapture-successor-v2/ORIGINAL_PAIR_ACCOUNTING_RECEIPT_V2.swift.fragment",
+      "bytes": 3828,
+      "sha256": "d839241ed9f3b2fb45ba8ac85f156b1bc9df6a13a9d8160fa2d783ba21d8c727",
+      "expectedSHA256": "d839241ed9f3b2fb45ba8ac85f156b1bc9df6a13a9d8160fa2d783ba21d8c727",
+      "expectedMatched": true
+    },
+    {
+      "role": "governing-DATA-direction",
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-firstcapture-root-decision-v1/DECISION.md",
+      "bytes": 5250,
+      "sha256": "7cb3225bcfa525663c127757f6c2f4f1a91a818e9e836b6937ce69c1f036b141",
+      "expectedSHA256": "7cb3225bcfa525663c127757f6c2f4f1a91a818e9e836b6937ce69c1f036b141",
+      "expectedMatched": true
+    },
+    {
+      "role": "mandatory-corrected-constructor",
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-registry-terminal-authority-review-sol61-xhigh-v1/CONSTRUCTOR_ADDENDUM.md",
+      "bytes": 13838,
+      "sha256": "1819d9df874e0d56be603b36ea0553c11aeca605e3543ec0d66e67aba6a9db79",
+      "expectedSHA256": "1819d9df874e0d56be603b36ea0553c11aeca605e3543ec0d66e67aba6a9db79",
+      "expectedMatched": true
+    },
+    {
+      "role": "prior-bounded-source-Factory",
+      "path": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "bytes": 1920921,
+      "sha256": "f61127930a7ab69f217a8bb46cf09a2914de0cb482a430415fb723a80782dcd7",
+      "expectedSHA256": "f61127930a7ab69f217a8bb46cf09a2914de0cb482a430415fb723a80782dcd7",
+      "expectedMatched": true
+    },
+    {
+      "role": "prior-bounded-source-Observer",
+      "path": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+      "bytes": 155209,
+      "sha256": "520f88bff0b60ee9cdf2c3eb90b0cf5cf9727cecaaa47dd039f9de9cc765b8bd",
+      "expectedSHA256": "520f88bff0b60ee9cdf2c3eb90b0cf5cf9727cecaaa47dd039f9de9cc765b8bd",
+      "expectedMatched": true
+    },
+    {
+      "role": "prior-physical-v4-binding",
+      "path": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/BINDING.json",
+      "bytes": 3288,
+      "sha256": "8379e67b46905ac5f2c3eaaefb728dfd54c45af4fed4ff5c154d18d8aa5f50ce",
+      "expectedSHA256": "8379e67b46905ac5f2c3eaaefb728dfd54c45af4fed4ff5c154d18d8aa5f50ce",
+      "expectedMatched": true
+    },
+    {
+      "role": "prior-bounded-source-PFP",
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "bytes": 162714,
+      "sha256": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700",
+      "expectedSHA256": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700",
+      "expectedMatched": true
+    },
+    {
+      "role": "supplemental-mutable-Store-interface-only-NOT-approved",
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/V4_TYPES_AND_READ_APIS_WORKING.swift.fragment",
+      "bytes": 24510,
+      "sha256": "7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+      "expectedSHA256": "7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+      "expectedMatched": true
+    }
+  ],
+  "supplementalNote": "Current mutable Store fragment is observed interface-only, not bound by proposal51dc and not a getter implementation approval. Old3d8f Store fragment hash901f is historical, not current7028. Small observed snapshots retained only in this ignored packet."
+}

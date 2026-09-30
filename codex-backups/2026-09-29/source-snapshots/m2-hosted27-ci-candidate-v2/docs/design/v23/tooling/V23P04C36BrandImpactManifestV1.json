@@ -1,0 +1,32 @@
+{
+  "accountingOrInvoiceClaim": false,
+  "c33SemanticDependency": false,
+  "c34PunchReviewDependency": false,
+  "cardID": "V23-P04-C36",
+  "claimsSafeCompliantPermittedApproved": false,
+  "customerDataPresent": false,
+  "customerSecretsPresent": false,
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false
+  },
+  "installationDependency": false,
+  "manualEntryClaim": false,
+  "nativeOrHostedAdoption": false,
+  "ordinal": 121,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "BrandImpactManifestV1",
+  "stockAvailabilityClaim": false,
+  "uiAcceptanceCredit": false,
+  "uiAdoptionSkipped": true
+}

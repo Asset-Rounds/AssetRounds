@@ -1,0 +1,58 @@
+{
+  "actualAdapterConformanceImplementedHere": false,
+  "actualConsumerCompleteIssuerImplemented": false,
+  "actualModel": "gpt-6.1-sol",
+  "actualPrivateGenericIssuerImplemented": false,
+  "actualReasoningEffort": "xhigh",
+  "actualTerminalOwnerIssuerImplemented": false,
+  "compiled": false,
+  "completeFamily": false,
+  "externalCandidatesComposed": false,
+  "files": {
+    "AFTER_THREE_OWNED_SOURCE_MAP.json": "dbaa1a007e21dfc9a85a923aefa6326b253f1f746226fb1337e091e79a0aaaf9",
+    "BEFORE_SOURCE_MAP.json": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+    "BOOTSTRAP_FRESH_GENERIC_PROVIDER_V9.swift.fragment": "7df8b6dbf84e0898385649feb1c45f581d63b701950025847570f45c71a65c96",
+    "CASE_MATRIX.md": "bbf4c4a76bcb55c0d6351e3a11959a19dc1d910c8b6f06871d2ac06b4441d9de",
+    "HANDOFF.md": "1c141697d9201b0f2883d8fe76b634da3b9ef98bfd5a6cc5b3c040408861cca8",
+    "LIFECYCLE_FRESH_GENERIC_PROVIDER_V9.swift.fragment": "5dd13898d68f3116772a205b20f911bcd2196e4d7afd6e7aba78960c3820c2c0",
+    "PARSE_ONLY.json": "3d5af12cb9524e8a2761375ab65a1d0b4eff591c73b155d61afb520308b8b13f",
+    "PATCH.diff": "43de4cd588a1ba417b239e2ede28cd926563e63075e918702690cd03f25ff4e1",
+    "SEALED_GENERIC_OBSERVATION_V2.swift.fragment": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+    "TERMINAL_CONSUMER_RECEIPT_INTERFACE_V4.swift.fragment": "6e02ac3d80f01f2e4fe073db7269af70d887d63c0a197e7469645ddc93b3117e",
+    "TERMINAL_FIXED_SUBJECT_V4.swift.fragment": "600f50f9639f479e8b20144f112da4acdcc77bf55f62e529179bc5288f6d2dfc",
+    "TERMINAL_NOTIFICATION_ADAPTER_METHODS_V4.swift.fragment": "7f0c3802659b6bff81a1f0872c65c8063a061b81f093ee37e59241ec98e5f5e6",
+    "TERMINAL_NOTIFICATION_PORT_PROTOCOL_V4.swift.fragment": "e33e50624d252dd440235e2473fa691fc835ae6f9c32053c349f12c0c7522359",
+    "TERMINAL_REAL_OS_COMPONENT_V4.swift.fragment": "4871a3c2447cfb61293f5ba48d6ed534e983e9d263d7da0297c84b8e6dc441e3",
+    "TERMINAL_REAL_OS_SCOPE_V4.swift.fragment": "86825adf3c60794f2e16693552c35bb54c7359ec3fb37c32ed4ca5e10d5ca6d3",
+    "before/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "9dbf09c2999c11ea11e185ff35b1f43ec4033bd038a2e508f1d081ae058051f7",
+    "before/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "0093c7dd70cfa75857b68a7c4baa40e5910a480052a82b54928811b99991341b",
+    "before/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "0417555056e563669c7194b0829a6ae88c7cbe923c411fb76b6fa838927c4fc4",
+    "candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "af1eb47e65b154cc1e6d2c45454e12ae22e7113dfe7720b4204b420304a04d2c",
+    "candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "bf7a915bac949ec862b31ddd4d0de6b4ac45ffc94193200727e7b10e72e90ac2",
+    "candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "8f9d0724739c31673c20dd744393333d2747ef7c6bde667c4ce887dd252b5abd"
+  },
+  "fullBaselineInputCount": 1206,
+  "gitHead": "dbdb4649e3e405eb50a1d2b443c8d7c061831a1a",
+  "parentV8BindingSHA256": "3c5db2ac27abca6bd44adee2c13797f33fedf63ba9e8ff0af2b115b6113e14ae",
+  "parseOnly": true,
+  "runtime": false,
+  "schemaVersion": 1,
+  "sourceInputs": [
+    {
+      "beforeSHA256": "9dbf09c2999c11ea11e185ff35b1f43ec4033bd038a2e508f1d081ae058051f7",
+      "candidateSHA256": "af1eb47e65b154cc1e6d2c45454e12ae22e7113dfe7720b4204b420304a04d2c",
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+    },
+    {
+      "beforeSHA256": "0093c7dd70cfa75857b68a7c4baa40e5910a480052a82b54928811b99991341b",
+      "candidateSHA256": "bf7a915bac949ec862b31ddd4d0de6b4ac45ffc94193200727e7b10e72e90ac2",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+    },
+    {
+      "beforeSHA256": "0417555056e563669c7194b0829a6ae88c7cbe923c411fb76b6fa838927c4fc4",
+      "candidateSHA256": "8f9d0724739c31673c20dd744393333d2747ef7c6bde667c4ce887dd252b5abd",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+    }
+  ],
+  "trackedDriftCount": 0
+}

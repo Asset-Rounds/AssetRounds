@@ -1,0 +1,7 @@
+{
+  "before": "fd8ba87bd91fe9ed9097dd6fe5d03814cb8466b29f2ea85247eff9b0bb75a5fb",
+  "after": "b0b319b9ad47698e42d71acdfc8be3d442837f2d774be6c44735d93152054647",
+  "capturedGetterContract": "7da5496de5321bf772b7cac989df424d24fd584edbb343278899f0d254e95c37",
+  "freshRecordContract": "e2f4dc2b3267ba1b84733c309cb6cd0552aa1e8ce9a46b836844ba7b11a6a3c1",
+  "status": "working; syntax, actual callbacks, compilation/review/runtime due"
+}

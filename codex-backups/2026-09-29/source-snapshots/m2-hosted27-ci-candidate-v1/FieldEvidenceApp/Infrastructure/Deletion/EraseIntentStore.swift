@@ -1,0 +1,1809 @@
+import Darwin
+import Foundation
+
+enum C50IncumbentFileExchangeEraseIntentStoreBoundaryV1 {
+    static func clearSceneRouteState(using adapter: SceneNavigationStateAdapterV1) throws {
+        guard C34SceneNavigationCompatibilityBoundaryV1.validate() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try adapter.erase()
+    }
+    static let appOwnedScratchParticipatesInEraseInventory = true
+    static let appOwnedQuarantineParticipatesInEraseInventory = true
+    static let externalSourceAndExportURLsParticipate = false
+    static let securityBookmarksSurviveErase = false
+}
+
+enum SurveySessionEraseIntentEnrollmentV1{static let schemaVersion=25;static let removesAllFiveFamilies=true;static func validate()throws{guard schemaVersion==25,removesAllFiveFamilies else{throw EraseIntentStoreError.invalidAuthority};try SurveySessionDeletionLedgerPolicyV1.validate()}}
+
+enum C30EvidenceContextEraseIntentStorePolicyV1 {
+    static let durableRowNames: Set<String> = ["EvidenceContextRow", "PairedObservationLinkRow"]
+    static let workspaceEraseClearsRowsAndOwnedBytes = true
+    static let ordinaryDeletionPreservesRows = true
+    static let stagingOrProjectionIsNonPersistent = true
+
+    static func validate() throws {
+        guard durableRowNames.count == 2, workspaceEraseClearsRowsAndOwnedBytes,
+              ordinaryDeletionPreservesRows, stagingOrProjectionIsNonPersistent else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
+enum C49WorkResourceEraseIntentStoreBoundaryV1 {
+    static let existingEraseJournalCoversSchemaV37GenerationSwitch = true
+    static let noResourceSpecificRecoveryJournal = true
+}
+
+enum C31LightingEraseIntentStoreBoundaryV1 {
+    static let durableRowsAreWorkspaceScoped = true
+    static let eraseIsIdempotent = true
+    static let derivedStateIsNotEraseTruth = true
+
+    static func validate(
+        records: [V31BackupLightingRecordV1],
+        workspaceID: WorkspaceID
+    ) throws {
+        try C31LightingEraseIntentBoundaryV1.validate(
+            records: records,
+            workspaceID: workspaceID
+        )
+        guard durableRowsAreWorkspaceScoped,
+              eraseIsIdempotent,
+              derivedStateIsNotEraseTruth else {
+            throw LightingContractFailureV1.invalidValue
+        }
+    }
+}
+enum AssetLocatorEraseIntentEnrollmentV1 {
+    static let recordsSchemaVersion = 25
+    static let persistentSchemaVersion = 26
+    static let durableFamilyCount = 2
+    static let sourceSignatureIsActiveAfterCloneOrFork = false
+
+    static func validate() throws {
+        guard recordsSchemaVersion == 25,
+              persistentSchemaVersion == 26,
+              durableFamilyCount == 2,
+              !sourceSignatureIsActiveAfterCloneOrFork else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try AssetLocatorDeletionLedgerPolicyV1.validate()
+    }
+}
+
+enum FunctionalRelationshipEraseIntentStorePolicyV1 {
+    static func validate() throws {
+        guard FunctionalRelationshipEraseBoundaryV1.validate() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
+enum EvidenceAssuranceEraseIntentStorePolicyV1 {
+    static func validate() throws {
+        guard EvidenceAssuranceEraseBoundaryV1.immutableHistoryClearedOnlyByWorkspaceErase,
+              EvidenceAssuranceEraseBoundaryV1.ordinaryDeletionIsZeroWrite else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
+enum InspectionReviewEraseIntentStorePolicyV1 {
+    static func validate() throws {
+        guard InspectionReviewEraseBoundaryV1.immutableReviewAndCorrectiveActionHistoryClearedOnlyByWorkspaceErase,
+              InspectionReviewEraseBoundaryV1.ordinaryDeletionPreservesAcceptedFinalizedAndActionHistory else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
+enum WorkPacketEraseIntentStorePolicyV1{static func validate()throws{guard WorkPacketEraseBoundaryV1.immutableManifestClaimLeaseReleaseAndHandoffHistoryClearedOnlyByWorkspaceErase,WorkPacketEraseBoundaryV1.ordinaryDeletionPreservesReplayHistory else{throw EraseIntentStoreError.invalidAuthority}}}
+enum FieldDraftEraseIntentStorePolicyV1{static func validate()throws{guard FieldDraftEraseBoundaryV1.operationalStateClearedOnlyByWorkspaceErase,FieldDraftEraseBoundaryV1.ordinaryDeletionPreservesLiveAndRecoveryRequiredDrafts,FieldDraftEraseBoundaryV1.byteCleanupRequiresTerminalDiscardOrOrphanQuarantine else{throw EraseIntentStoreError.invalidAuthority}}}
+enum PackageEvolutionEraseIntentStorePolicyV1{static func validate()throws{guard PackageEvolutionEraseBoundaryV1.atomicFamilyCount==4,PackageEvolutionEraseBoundaryV1.ordinaryDeletionPreservesPromotedHistory,PackageEvolutionEraseBoundaryV1.workspaceEraseClearsEntireClosure else{throw EraseIntentStoreError.invalidAuthority}}}
+enum MeasurementIntegrityEraseIntentStorePolicyV1{static func validate()throws{guard MeasurementIntegrityEraseBoundaryV1.atomicFamilyCount==5,MeasurementIntegrityEraseBoundaryV1.ordinaryDeletionPreservesFrozenHistory,MeasurementIntegrityEraseBoundaryV1.workspaceEraseClearsEntireClosure else{throw EraseIntentStoreError.invalidAuthority}}}
+enum PrivacyTransformEraseIntentStorePolicyV1{static func validate()throws{guard PrivacyTransformEraseBoundaryV1.atomicFamilyCount==4,PrivacyTransformEraseBoundaryV1.ordinaryDeletionPreservesOriginalsDerivativesAndImmutableHistory,PrivacyTransformEraseBoundaryV1.workspaceEraseClearsEntireClosure,PrivacyTransformEraseBoundaryV1.escapedFilesCannotBeRecalled else{throw EraseIntentStoreError.invalidAuthority}}}
+enum ClientCapabilityEraseIntentStorePolicyV1{static func validate()throws{guard ClientCapabilityEraseBoundaryV1.atomicFamilyCount==4,ClientCapabilityEraseBoundaryV1.ordinaryDeletionPreservesReadableHistory,ClientCapabilityEraseBoundaryV1.workspaceEraseClearsEntireClosure,ClientCapabilityEraseBoundaryV1.escapedArchivesCannotBeRecalled else{throw EraseIntentStoreError.invalidAuthority}}}
+enum FieldReferenceEraseIntentStorePolicyV1{static func validate()throws{guard FieldReferenceEraseBoundaryV1.atomicFamilyCount==2,FieldReferenceEraseBoundaryV1.ordinaryDeletionRetainsBoundAndFinalizedReleaseBytes,FieldReferenceEraseBoundaryV1.unboundReleaseMayBeDiscarded,FieldReferenceEraseBoundaryV1.workspaceEraseClearsRowsAndOwnedBytes,FieldReferenceEraseBoundaryV1.readinessProjectionIsNonpersistent else{throw EraseIntentStoreError.invalidAuthority}}}
+enum AccessibleDocumentEraseIntentStorePolicyV1{static func validate()throws{guard AccessibleDocumentEraseBoundaryV1.atomicFamilyCount==1,AccessibleDocumentEraseBoundaryV1.semanticTreeIsDerived,AccessibleDocumentEraseBoundaryV1.workspaceEraseClearsReceiptsAndOwnedOutputs,AccessibleDocumentEraseBoundaryV1.escapedOutputsCannotBeRecalled else{throw EraseIntentStoreError.invalidAuthority}}}
+enum SurveyDefinitionEraseIntentStorePolicyV1{static func validate()throws{guard SurveyDefinitionEraseBoundaryV1.atomicFamilyCount==2,SurveyDefinitionEraseBoundaryV1.lifecycleEventsAreMutationHistoryOnly,SurveyDefinitionEraseBoundaryV1.workspaceEraseClearsIdentityAndReleaseRows,SurveyDefinitionEraseBoundaryV1.quarantinedImportsAreNoncanonical else{throw EraseIntentStoreError.invalidAuthority}}}
+enum ScheduleEraseIntentStorePolicyV1 {
+    static func validate() throws {
+        guard ScheduleEraseBoundaryV1.atomicFamilyCount == 4,
+              ScheduleEraseBoundaryV1.embeddedClosureComponentCount == 6,
+              ScheduleEraseBoundaryV1.lifecycleHistoryIsMutationJournalBacked,
+              ScheduleEraseBoundaryV1.ordinaryDeletionPreservesReleaseAndOccurrenceHistory,
+              ScheduleEraseBoundaryV1.workspaceEraseClearsEntireLifecycleClosure,
+              ScheduleEraseBoundaryV1.erasePublishesNoPartialCalendarOverrideOrBasisClosure,
+              ScheduleEraseBoundaryV1.dueAndReminderProjectionsAreNonpersistent,
+              !ScheduleEraseBoundaryV1.notificationStateIsTruth else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+enum PlanEraseIntentStorePolicyV1 {
+    static let persistentSchemaVersion = 28
+    static let recordsSchemaVersion = 27
+    static let durableModelCount = 4
+    static let durableFamilyCount = 4
+    static let derivedPreviewRebuilt = true
+    static let sourcePlanAutomaticallyActiveAfterCloneOrFork = false
+
+    static func validate() throws {
+        guard persistentSchemaVersion == PlanPersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlanPersistenceEnrollmentV1.recordsSchemaVersion,
+              durableModelCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              durableFamilyCount == PlanPersistenceEnrollmentV1.durableModelCount,
+              derivedPreviewRebuilt,
+              !sourcePlanAutomaticallyActiveAfterCloneOrFork else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try PlanDeletionLedgerPolicyV1.validate()
+    }
+}
+
+enum PlacementPoseEraseIntentStorePolicyV1 {
+    static let persistentSchemaVersion = 29
+    static let recordsSchemaVersion = 28
+    static let durableFamilyCount = 2
+    static let ordinaryDeletionPreservesHistory = true
+    static let workspaceEraseClearsRows = true
+    static let derivedProjectionsRebuilt = true
+
+    static func validate() throws {
+        guard persistentSchemaVersion == PlacementPosePersistenceEnrollmentV1.persistentSchemaVersion,
+              recordsSchemaVersion == PlacementPosePersistenceEnrollmentV1.recordsSchemaVersion,
+              durableFamilyCount == PlacementPosePersistenceEnrollmentV1.durableModelCount,
+              ordinaryDeletionPreservesHistory,
+              workspaceEraseClearsRows,
+              derivedProjectionsRebuilt else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try PlacementPoseDeletionLedgerPolicyV1.validate()
+    }
+}
+
+enum EraseIntentStoreError: Error, Equatable {
+    case retirementPolicyEffectUnavailable
+    case invalidAuthority
+    case invalidIntent
+    case invalidPreparation
+    case intentAlreadyExists
+    case intentMissing
+    case intentMismatch
+    case preparationAlreadyExists
+    case preparationMissing
+    case preparationMismatch
+    case writeFailed
+    case cleanupFailed
+}
+
+struct ErasePreparationV2: Equatable, Sendable {
+    let oldPointer: RestorePointerIdentityV1
+    let sourceLedger: DeletionLedgerProofV2
+    let targetGenerationID: UUID
+    let targetWorkspaceID: UUID
+    let targetReplicaID: UUID
+    let targetPointer: RestorePointerIdentityV1?
+
+    func binding(targetPointer: RestorePointerIdentityV1) -> ErasePreparationV2 {
+        ErasePreparationV2(
+            oldPointer: oldPointer,
+            sourceLedger: sourceLedger,
+            targetGenerationID: targetGenerationID,
+            targetWorkspaceID: targetWorkspaceID,
+            targetReplicaID: targetReplicaID,
+            targetPointer: targetPointer
+        )
+    }
+
+    func matches(_ intent: EraseIntentV1) -> Bool {
+        intent.schemaVersion == 2
+            && intent.oldPointer == oldPointer
+            && intent.sourceLedger == sourceLedger
+            && intent.newGenerationID == targetGenerationID
+            && intent.targetPointer == targetPointer
+            && targetPointer != nil
+            && intent.targetPointer?.workspaceID == targetWorkspaceID
+            && intent.targetPointer?.replicaID == targetReplicaID
+    }
+}
+
+private enum ErasePreparationCodecV2 {
+    private static let keys = Set([
+        "oldPointer",
+        "schemaVersion",
+        "sourceLedger",
+        "targetGenerationID",
+        "targetPointer",
+        "targetReplicaID",
+        "targetWorkspaceID",
+    ])
+    private static let pointerKeys = Set([
+        "generationID",
+        "generationManifestSHA256",
+        "knownReplicaIDs",
+        "replicaID",
+        "workspaceID",
+    ])
+    private static let ledgerKeys = Set([
+        "canonicalSHA256",
+        "entryCount",
+    ])
+
+    static func encode(_ value: ErasePreparationV2) throws -> Data {
+        guard valid(value) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return try CanonicalJSONV1.encode(.object([
+            "oldPointer": pointerJSON(value.oldPointer),
+            "schemaVersion": .integer(2),
+            "sourceLedger": .object([
+                "canonicalSHA256": .string(value.sourceLedger.canonicalSHA256),
+                "entryCount": .integer(value.sourceLedger.entryCount),
+            ]),
+            "targetGenerationID": .string(canonical(value.targetGenerationID)),
+            "targetPointer": value.targetPointer.map(pointerJSON) ?? .null,
+            "targetReplicaID": .string(canonical(value.targetReplicaID)),
+            "targetWorkspaceID": .string(canonical(value.targetWorkspaceID)),
+        ]))
+    }
+
+    static func decode(_ data: Data) throws -> ErasePreparationV2 {
+        guard let object = try JSONSerialization.jsonObject(
+            with: data,
+            options: [.fragmentsAllowed]
+        ) as? [String: Any],
+              Set(object.keys) == keys,
+              object.count == keys.count,
+              let schemaVersion = canonicalInt(object["schemaVersion"]),
+              schemaVersion == 2,
+              let oldPointer = decodePointer(object["oldPointer"]),
+              let sourceLedger = decodeLedger(object["sourceLedger"]),
+              let targetGenerationID = canonicalUUID(
+                  object["targetGenerationID"]
+              ),
+              let targetReplicaID = canonicalUUID(object["targetReplicaID"]),
+              let targetWorkspaceID = canonicalUUID(
+                  object["targetWorkspaceID"]
+              ) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let targetPointer: RestorePointerIdentityV1?
+        if object["targetPointer"] is NSNull {
+            targetPointer = nil
+        } else {
+            guard let value = decodePointer(object["targetPointer"]) else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            targetPointer = value
+        }
+        let value = ErasePreparationV2(
+            oldPointer: oldPointer,
+            sourceLedger: sourceLedger,
+            targetGenerationID: targetGenerationID,
+            targetWorkspaceID: targetWorkspaceID,
+            targetReplicaID: targetReplicaID,
+            targetPointer: targetPointer
+        )
+        guard try encode(value) == data else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return value
+    }
+
+    static func valid(_ value: ErasePreparationV2) -> Bool {
+        let unavailable = Set(
+            value.oldPointer.knownReplicaIDs + [
+                value.oldPointer.generationID,
+                value.oldPointer.workspaceID,
+                value.oldPointer.replicaID,
+            ]
+        )
+        guard validPointer(value.oldPointer),
+              (try? value.sourceLedger.validate()) != nil,
+              value.sourceLedger.entryCount
+                <= DeletionLedgerV2.maximumEntryCount,
+              value.targetGenerationID != zero,
+              value.targetWorkspaceID != zero,
+              value.targetReplicaID != zero,
+              value.targetGenerationID != value.targetWorkspaceID,
+              value.targetGenerationID != value.targetReplicaID,
+              value.targetWorkspaceID != value.targetReplicaID,
+              !unavailable.contains(value.targetGenerationID),
+              !unavailable.contains(value.targetWorkspaceID),
+              !unavailable.contains(value.targetReplicaID) else {
+            return false
+        }
+        guard let targetPointer = value.targetPointer else { return true }
+        return validPointer(targetPointer)
+            && targetPointer.generationID == value.targetGenerationID
+            && targetPointer.workspaceID == value.targetWorkspaceID
+            && targetPointer.replicaID == value.targetReplicaID
+            && targetPointer.knownReplicaIDs == [value.targetReplicaID]
+    }
+
+    private static func pointerJSON(
+        _ value: RestorePointerIdentityV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "generationID": .string(canonical(value.generationID)),
+            "generationManifestSHA256": .string(
+                value.generationManifestSHA256
+            ),
+            "knownReplicaIDs": .array(value.knownReplicaIDs.map {
+                .string(canonical($0))
+            }),
+            "replicaID": .string(canonical(value.replicaID)),
+            "workspaceID": .string(canonical(value.workspaceID)),
+        ])
+    }
+
+    private static func decodePointer(
+        _ raw: Any?
+    ) -> RestorePointerIdentityV1? {
+        guard let object = exactObject(raw, keys: pointerKeys),
+              let generationID = canonicalUUID(object["generationID"]),
+              let digest = object["generationManifestSHA256"] as? String,
+              let rawHistory = object["knownReplicaIDs"] as? [Any],
+              let history = canonicalUUIDs(rawHistory),
+              history == history.sorted(by: idOrder),
+              Set(history).count == history.count,
+              let replicaID = canonicalUUID(object["replicaID"]),
+              let workspaceID = canonicalUUID(object["workspaceID"]) else {
+            return nil
+        }
+        return RestorePointerIdentityV1(
+            generationID: generationID,
+            generationManifestSHA256: digest,
+            knownReplicaIDs: Set(history),
+            workspaceID: workspaceID,
+            replicaID: replicaID
+        )
+    }
+
+    private static func decodeLedger(_ raw: Any?) -> DeletionLedgerProofV2? {
+        guard let object = exactObject(raw, keys: ledgerKeys),
+              let entryCount = canonicalInt(object["entryCount"]),
+              entryCount >= 0,
+              let digest = object["canonicalSHA256"] as? String else {
+            return nil
+        }
+        return try? DeletionLedgerProofV2(
+            entryCount: entryCount,
+            canonicalSHA256: digest
+        )
+    }
+
+    private static func validPointer(_ value: RestorePointerIdentityV1) -> Bool {
+        value.generationID != zero
+            && value.workspaceID != zero
+            && value.replicaID != zero
+            && value.generationID != value.workspaceID
+            && value.generationID != value.replicaID
+            && value.workspaceID != value.replicaID
+            && !value.knownReplicaIDs.isEmpty
+            && value.knownReplicaIDs.count <= 64
+            && value.knownReplicaIDs == value.knownReplicaIDs.sorted(by: idOrder)
+            && Set(value.knownReplicaIDs).count == value.knownReplicaIDs.count
+            && value.knownReplicaIDs.contains(value.replicaID)
+            && validSHA256(value.generationManifestSHA256)
+    }
+
+    private static func exactObject(
+        _ raw: Any?,
+        keys: Set<String>
+    ) -> [String: Any]? {
+        guard let value = raw as? [String: Any],
+              Set(value.keys) == keys,
+              value.count == keys.count else {
+            return nil
+        }
+        return value
+    }
+
+    private static func canonicalInt(_ raw: Any?) -> Int? {
+        guard let number = raw as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue == Double(number.intValue) else {
+            return nil
+        }
+        return number.intValue
+    }
+
+    private static func canonicalUUIDs(_ values: [Any]) -> [UUID]? {
+        var result: [UUID] = []
+        for value in values {
+            guard let identifier = canonicalUUID(value) else { return nil }
+            result.append(identifier)
+        }
+        return result
+    }
+
+    private static func canonicalUUID(_ raw: Any?) -> UUID? {
+        guard let value = raw as? String,
+              value == value.lowercased(),
+              let identifier = UUID(uuidString: value),
+              canonical(identifier) == value else {
+            return nil
+        }
+        return identifier
+    }
+
+    private static func validSHA256(_ value: String) -> Bool {
+        value.count == 64
+            && value.unicodeScalars.allSatisfy {
+                (48...57).contains(Int($0.value))
+                    || (97...102).contains(Int($0.value))
+            }
+    }
+
+    private static func canonical(_ value: UUID) -> String {
+        value.uuidString.lowercased()
+    }
+
+    private static func idOrder(_ lhs: UUID, _ rhs: UUID) -> Bool {
+        canonical(lhs) < canonical(rhs)
+    }
+
+    private static let zero = UUID(
+        uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    )
+}
+
+/// Descriptor-pinned authority for the erase preparation and intent journals.
+/// Canonical leaves are never followed through symbolic links; replacement is
+/// an atomic exchange whose displaced bytes must equal the expected value.
+#if DEBUG
+struct ErasePostRetiredIntentSnapshotV1: Equatable {
+    let rootDigest: String
+}
+#endif
+
+final class EraseIntentStore {
+    private struct Identity: Equatable {
+        let device: dev_t
+        let inode: ino_t
+    }
+
+    private static let directoryName = "FieldEvidenceErase"
+    private static let intentName = "erase.json"
+    private static let nextName = ".erase.json.next"
+    private static let preparationName = "preparation.json"
+    private static let preparationNextName = ".preparation.json.next"
+
+    private let applicationSupportURL: URL
+    private let applicationSupportDescriptor: Int32
+    private let applicationSupportIdentity: Identity
+    private let eraseDescriptor: Int32
+    private let eraseIdentity: Identity
+#if DEBUG
+    private let postRetiredIO = EraseAbortCheckedSnapshotIOV1()
+#endif
+
+    /// Completed cleanup has removed the entire journal root. Observing that
+    /// postcondition must not initialize a new journal namespace.
+    static func completedCleanupRootIsAbsent(applicationSupportURL: URL) throws -> Bool {
+        let root = applicationSupportURL.standardizedFileURL
+        guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
+        let descriptor = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard descriptor >= 0 else { throw EraseIntentStoreError.invalidAuthority }
+        defer { _ = Darwin.close(descriptor) }
+        let expected = try directoryIdentity(descriptor)
+
+        func verifyRoot() throws {
+            let reopened = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard reopened >= 0 else { throw EraseIntentStoreError.invalidAuthority }
+            defer { _ = Darwin.close(reopened) }
+            guard try directoryIdentity(descriptor) == expected,
+                  try directoryIdentity(reopened) == expected else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+
+        try verifyRoot()
+        var info = stat()
+        let result = Darwin.fstatat(descriptor, directoryName, &info, AT_SYMLINK_NOFOLLOW)
+        let lookupError = errno
+        guard result == 0 || lookupError == ENOENT else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try verifyRoot()
+        // Every present entry, including an empty directory or dangling link,
+        // denies completed-cleanup admission. Never follow, repair or remove it.
+        return result != 0
+    }
+
+    init(
+        applicationSupportURL: URL,
+        fileManager: FileManager = .default,
+        expectedApplicationSupportIdentity: StoreApplicationSupportIdentity? = nil
+    ) throws {
+        try FunctionalRelationshipEraseIntentStorePolicyV1.validate()
+        try EvidenceAssuranceEraseIntentStorePolicyV1.validate()
+        try InspectionReviewEraseIntentStorePolicyV1.validate()
+        try WorkPacketEraseIntentStorePolicyV1.validate()
+        try FieldDraftEraseIntentStorePolicyV1.validate()
+        try PackageEvolutionEraseIntentStorePolicyV1.validate()
+        try ClientCapabilityEraseIntentStorePolicyV1.validate()
+        try PrivacyTransformEraseIntentStorePolicyV1.validate()
+        try MeasurementIntegrityEraseIntentStorePolicyV1.validate()
+        try FieldReferenceEraseIntentStorePolicyV1.validate()
+        try AccessibleDocumentEraseIntentStorePolicyV1.validate()
+        try SurveyDefinitionEraseIntentStorePolicyV1.validate()
+        try ScheduleEraseIntentStorePolicyV1.validate()
+        try PlanEraseIntentStorePolicyV1.validate()
+        try PlacementPoseEraseIntentStorePolicyV1.validate()
+        try SurveySessionEraseIntentEnrollmentV1.validate()
+        try C53AssetServiceReliabilityEraseIntentStorePolicyV1.validate()
+        let root = applicationSupportURL.standardizedFileURL
+        guard root.isFileURL else { throw EraseIntentStoreError.invalidAuthority }
+        if expectedApplicationSupportIdentity == nil {
+            try fileManager.createDirectory(
+                at: root,
+                withIntermediateDirectories: true
+            )
+        }
+        let appDescriptor = Darwin.open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        guard appDescriptor >= 0 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var ownsAppDescriptor = true
+        defer {
+            if ownsAppDescriptor { _ = Darwin.close(appDescriptor) }
+        }
+        let appIdentity = try Self.directoryIdentity(appDescriptor)
+        if let expectedApplicationSupportIdentity {
+            guard appIdentity.device == expectedApplicationSupportIdentity.device,
+                  appIdentity.inode == expectedApplicationSupportIdentity.inode else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+
+        var eraseDescriptor = Darwin.openat(
+            appDescriptor,
+            Self.directoryName,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        if eraseDescriptor < 0, errno == ENOENT {
+            guard Darwin.mkdirat(
+                appDescriptor,
+                Self.directoryName,
+                mode_t(0o700)
+            ) == 0 || errno == EEXIST else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            eraseDescriptor = Darwin.openat(
+                appDescriptor,
+                Self.directoryName,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+        }
+        guard eraseDescriptor >= 0 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var ownsEraseDescriptor = true
+        defer {
+            if ownsEraseDescriptor { _ = Darwin.close(eraseDescriptor) }
+        }
+        let eraseIdentity = try Self.directoryIdentity(eraseDescriptor)
+        do {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                relativePath: Self.directoryName,
+                within: root
+            ) {
+                guard try Self.directoryIdentity(appDescriptor) == appIdentity,
+                      try Self.directoryIdentity(eraseDescriptor) == eraseIdentity else {
+                    throw EraseIntentStoreError.invalidAuthority
+                }
+            }
+        } catch {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+
+        self.applicationSupportURL = root
+        self.applicationSupportDescriptor = appDescriptor
+        self.applicationSupportIdentity = appIdentity
+        self.eraseDescriptor = eraseDescriptor
+        self.eraseIdentity = eraseIdentity
+        ownsAppDescriptor = false
+        ownsEraseDescriptor = false
+    }
+
+    deinit {
+        _ = Darwin.close(eraseDescriptor)
+        _ = Darwin.close(applicationSupportDescriptor)
+    }
+
+    /// The fixed retirement edge must never run load's pending-file repairs
+    /// while the transferred registry exclusion is held.
+    struct RetirementObservation {
+        fileprivate let storeIdentity: ObjectIdentifier
+        fileprivate let device: dev_t
+        fileprivate let inode: ino_t
+        fileprivate let data: Data
+        let intent: EraseIntentV1
+    }
+
+    func captureRetirementObservation(expected: EraseIntentV1) throws
+        -> RetirementObservation {
+        guard expected.phase == .sessionActivated || expected.phase == .cleanupComplete,
+              EraseIntentCodecV1.valid(expected) else {
+            throw EraseIntentStoreError.invalidIntent
+        }
+        let leaf = try readRetirementCanonical()
+        guard try decode(leaf.data) == expected else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        return RetirementObservation(storeIdentity: ObjectIdentifier(self),
+            device: leaf.identity.device, inode: leaf.identity.inode,
+            data: leaf.data, intent: expected)
+    }
+
+    func requireRetirementObservation(_ observation: RetirementObservation) throws {
+        guard observation.storeIdentity == ObjectIdentifier(self) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let leaf = try readRetirementCanonical()
+        guard leaf.identity.device == observation.device,
+              leaf.identity.inode == observation.inode,
+              leaf.data == observation.data,
+              try decode(leaf.data) == observation.intent else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+    }
+
+#if DEBUG
+    /// Original held-root, nonrepairing intent/preparation observation at the
+    /// post-retirement fault. It reuses the genuine retirement observation and
+    /// checked descriptor reads, then binds the complete exact Erase root.
+    func postRetiredSnapshot(
+        observation: RetirementObservation
+    ) throws -> ErasePostRetiredIntentSnapshotV1 {
+        try requireRetirementObservation(observation)
+        try verifyAuthority()
+        let names = try postRetiredIO.names(in: eraseDescriptor)
+        guard names == [Self.intentName, Self.preparationName].sorted() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let digest = try postRetiredIO.postRetiredTree(
+            parent: applicationSupportDescriptor, name: Self.directoryName)
+        try requireRetirementObservation(observation)
+        guard try postRetiredIO.names(in: eraseDescriptor) == names,
+              try postRetiredIO.postRetiredTree(
+                  parent: applicationSupportDescriptor,
+                  name: Self.directoryName) == digest else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return ErasePostRetiredIntentSnapshotV1(rootDigest: digest)
+    }
+#endif
+
+    // An ambiguous close is retained as an unresolved actual descriptor;
+    // its integer is never retried or relabeled closed.
+    private var retirementUncertainReadDescriptors: [Int32] = []
+
+    private func readRetirementCanonical() throws -> (data: Data, identity: Identity) {
+        guard let value = try readRetirementLeaf(Self.intentName, kind: .journal) else {
+            throw EraseIntentStoreError.intentMissing
+        }
+        return value
+    }
+
+#if DEBUG
+    /// Admission to a test-host owner shutdown must observe the original
+    /// canonical intent without `load()` repairing either pending leaf. The
+    /// checked retirement reader retains an ambiguous descriptor close and
+    /// throws; this method never promotes or removes a journal entry.
+    func requireLiveOriginalColdShutdownIntent(
+        sameOperationAs expected: EraseIntentV1
+    ) throws {
+        _ = try readLiveOriginalColdShutdownIntent(sameOperationAs: expected)
+    }
+
+    /// Returns the exact canonical value from the retained original Store.
+    /// No fresh owner is opened and no pending leaf is repaired.
+    func readLiveOriginalColdShutdownIntent(
+        sameOperationAs expected: EraseIntentV1,
+        requiringPhase: EraseIntentPhaseV1? = nil
+    ) throws -> EraseIntentV1 {
+        guard EraseIntentCodecV1.valid(expected),
+              expected.phase != .cleanupComplete else {
+            throw EraseIntentStoreError.invalidIntent
+        }
+        func requireNoPendingPreparation() throws {
+            try verifyAuthority()
+            var pending = stat()
+            let result = Darwin.fstatat(
+                eraseDescriptor, Self.preparationNextName, &pending,
+                AT_SYMLINK_NOFOLLOW
+            )
+            let lookupError = errno
+            guard result != 0, lookupError == ENOENT else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try verifyAuthority()
+        }
+        try requireNoPendingPreparation()
+        let leaf = try readRetirementCanonical()
+        let current = try decode(leaf.data)
+        guard current.phase != .cleanupComplete,
+              requiringPhase.map({ current.phase == $0 }) ?? true,
+              sameOperation(current, expected) else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        try requireNoPendingPreparation()
+        return current
+    }
+#endif
+
+    private func readRetirementLeaf(_ name: String, kind: OwnedFileKindV1) throws
+        -> (data: Data, identity: Identity)? {
+        guard name == Self.intentName || name == Self.preparationName else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        guard retirementUncertainReadDescriptors.isEmpty else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try AssetLocatorEraseIntentEnrollmentV1.validate()
+        try verifyAuthority()
+        var pending = stat()
+        guard Darwin.fstatat(eraseDescriptor, Self.nextName, &pending,
+                             AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+            throw EraseIntentStoreError.invalidIntent
+        }
+        let descriptor = Darwin.openat(eraseDescriptor, name,
+                                       O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        if descriptor < 0, errno == ENOENT { return nil }
+        guard descriptor >= 0 else { throw EraseIntentStoreError.invalidAuthority }
+        var closeAttempted = false
+        do {
+        var before = stat()
+        guard Darwin.fstat(descriptor, &before) == 0,
+              (before.st_mode & S_IFMT) == S_IFREG, before.st_nlink == 1,
+              before.st_size >= 0, before.st_size <= 1_048_576 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let identity = Identity(device: before.st_dev, inode: before.st_ino)
+        try verifyLeaf(name, descriptor: descriptor, expected: identity)
+        let policy = try ProtectedFilePolicyV1.observeTemporalPolicy(kind,
+            at: applicationSupportURL.appendingPathComponent(Self.directoryName)
+                .appendingPathComponent(name))
+        guard policy.device == UInt64(before.st_dev),
+              policy.inode == UInt64(before.st_ino), policy.linkCount == 1 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        // Pending Simulator facts are not a protection receipt. The genuine
+        // one-shot effect owner is a separate composition dependency.
+        guard policy.state == .strictComplete else {
+            throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+        }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            }
+            if count > 0 {
+                guard data.count <= 1_048_576 - count else { throw EraseIntentStoreError.invalidAuthority }
+                data.append(contentsOf: buffer.prefix(count))
+            }
+            else if count == 0 { break }
+            else if errno != EINTR { throw EraseIntentStoreError.invalidAuthority }
+        }
+        var after = stat()
+        guard Darwin.fstat(descriptor, &after) == 0,
+              before.st_dev == after.st_dev, before.st_ino == after.st_ino,
+              before.st_size == after.st_size, data.count == Int(after.st_size),
+              after.st_nlink == 1,
+              Darwin.fstatat(eraseDescriptor, Self.nextName, &pending,
+                             AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try verifyLeaf(name, descriptor: descriptor, expected: identity)
+        try verifyAuthority()
+        closeAttempted = true
+        guard Darwin.close(descriptor) == 0 else {
+            retirementUncertainReadDescriptors.append(descriptor)
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return (data, identity)
+        } catch {
+            if !closeAttempted, Darwin.close(descriptor) != 0 {
+                retirementUncertainReadDescriptors.append(descriptor)
+            }
+            throw error
+        }
+    }
+
+    /// The retirement capability belongs to one physical support root. This
+    /// check opens no descriptors and grants no phase or deletion authority.
+    @MainActor
+    private func requireRetirementRoot(_ retirement: ErasedRegistryRetirementProofV1) throws {
+        let subject = retirement.binding.subject
+        guard applicationSupportURL.standardizedFileURL == subject.applicationSupportURL.standardizedFileURL,
+              Int64(applicationSupportIdentity.device) == subject.applicationSupportDevice,
+              UInt64(applicationSupportIdentity.inode) == subject.applicationSupportInode else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try Self.requireDirectory(applicationSupportDescriptor, identity: applicationSupportIdentity)
+        try Self.requireDirectory(eraseDescriptor, identity: eraseIdentity)
+        var namedSupport = stat(), namedErase = stat()
+        guard Darwin.lstat(applicationSupportURL.path, &namedSupport) == 0,
+              namedSupport.st_mode & S_IFMT == S_IFDIR,
+              namedSupport.st_dev == applicationSupportIdentity.device,
+              namedSupport.st_ino == applicationSupportIdentity.inode,
+              Darwin.fstatat(applicationSupportDescriptor, Self.directoryName,
+                &namedErase, AT_SYMLINK_NOFOLLOW) == 0,
+              namedErase.st_mode & S_IFMT == S_IFDIR,
+              namedErase.st_dev == eraseIdentity.device,
+              namedErase.st_ino == eraseIdentity.inode else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    @MainActor
+    func removePreparationAfterRegistryRetirement(expectedIntent: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1) throws {
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+        guard let value = try readRetirementLeaf(Self.preparationName, kind: .journal) else {
+            try retirement.requireAlreadyAbsentPreparation(expected: expectedIntent)
+            try requireRetirementRoot(retirement)
+            try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+            return
+        }
+        let preparation = try decodePreparation(value.data)
+        guard preparation.matches(expectedIntent), try encodePreparation(preparation) == value.data else {
+            throw EraseIntentStoreError.preparationMismatch
+        }
+        try removeRetirementExact(Self.preparationName, expected: value,
+            expectedIntent: expectedIntent, retirement: retirement)
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+    }
+
+    @MainActor
+    func removeAfterRegistryRetirement(expected: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1) throws {
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expected)
+        let value = try readRetirementCanonical()
+        guard try encode(expected) == value.data, try decode(value.data) == expected else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        try removeRetirementExact(Self.intentName, expected: value,
+            expectedIntent: expected, retirement: retirement)
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expected)
+    }
+
+    @MainActor
+    private func removeRetirementExact(_ name: String,
+        expected: (data: Data, identity: Identity), expectedIntent: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1) throws {
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+        guard let current = try readRetirementLeaf(name, kind: .journal),
+              current.identity == expected.identity, current.data == expected.data else {
+            throw EraseIntentStoreError.cleanupFailed
+        }
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+        guard Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
+              Darwin.fsync(eraseDescriptor) == 0,
+              try readRetirementLeaf(name, kind: .journal) == nil else {
+            throw EraseIntentStoreError.cleanupFailed
+        }
+        try requireRetirementRoot(retirement)
+        try retirement.requireCompletionControlRemoval(expected: expectedIntent)
+        try verifyAuthority()
+    }
+
+    func load() throws -> EraseIntentV1? {
+        try AssetLocatorEraseIntentEnrollmentV1.validate()
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.intentName)
+        try verifyExistingPolicy(.journalTemporary, name: Self.nextName)
+        let canonical = try readIfPresent(Self.intentName)
+        let pending = try readIfPresent(Self.nextName)
+
+        switch (canonical, pending) {
+        case (nil, nil):
+            return nil
+        case (nil, let pending?):
+            let value = try decode(pending.data)
+            guard value.phase == .emptyGenerationPrepared,
+                  Darwin.renameatx_np(
+                    eraseDescriptor,
+                    Self.nextName,
+                    eraseDescriptor,
+                    Self.intentName,
+                    UInt32(RENAME_EXCL)
+                  ) == 0,
+                  Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.invalidIntent
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.intentName,
+                failure: .invalidIntent,
+                expectedIdentity: pending.identity
+            )
+            guard let promoted = try readIfPresent(Self.intentName),
+                  promoted.identity == pending.identity,
+                  promoted.data == pending.data else {
+                throw EraseIntentStoreError.invalidIntent
+            }
+            try verifyAuthority()
+            return value
+        case (let canonical?, nil):
+            return try decode(canonical.data)
+        case (let canonical?, let pending?):
+            let current = try decode(canonical.data)
+            let next = try decode(pending.data)
+            guard sameOperation(current, next),
+                  next.phase == nextPhase(after: current.phase)
+                    || current.phase == nextPhase(after: next.phase) else {
+                throw EraseIntentStoreError.invalidIntent
+            }
+            try removeExact(Self.nextName, expected: pending)
+            return current
+        }
+    }
+
+    func loadPreparation() throws -> ErasePreparationV2? {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.preparationName)
+        try verifyExistingPolicy(
+            .journalTemporary,
+            name: Self.preparationNextName
+        )
+        let canonical = try readIfPresent(Self.preparationName)
+        let pending = try readIfPresent(Self.preparationNextName)
+
+        switch (canonical, pending) {
+        case (nil, nil):
+            return nil
+        case (nil, let pending?):
+            let value = try decodePreparation(pending.data)
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.preparationNextName,
+                eraseDescriptor,
+                Self.preparationName,
+                UInt32(RENAME_EXCL)
+            ) == 0,
+                  Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.preparationName,
+                failure: .invalidPreparation,
+                expectedIdentity: pending.identity
+            )
+            guard let promoted = try readIfPresent(Self.preparationName),
+                  promoted.identity == pending.identity,
+                  promoted.data == pending.data else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try verifyAuthority()
+            return value
+        case (let canonical?, nil):
+            return try decodePreparation(canonical.data)
+        case (let canonical?, let pending?):
+            let current = try decodePreparation(canonical.data)
+            let next = try decodePreparation(pending.data)
+            guard isPreparationTransition(current, next)
+                    || isPreparationTransition(next, current) else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            try removeExact(Self.preparationNextName, expected: pending)
+            return current
+        }
+    }
+
+    func createPreparation(_ value: ErasePreparationV2) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation { try createPreparationWithoutMigrationReservation(value) }
+    }
+
+    private func createPreparationWithoutMigrationReservation(_ value: ErasePreparationV2) throws {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.preparationName)
+        try verifyExistingPolicy(
+            .journalTemporary,
+            name: Self.preparationNextName
+        )
+        guard try readIfPresent(Self.preparationName) == nil,
+              try readIfPresent(Self.preparationNextName) == nil else {
+            throw EraseIntentStoreError.preparationAlreadyExists
+        }
+        let data = try encodePreparation(value)
+        let temporaryIdentity = try createLeaf(
+            Self.preparationNextName,
+            data: data
+        )
+        var published = false
+        do {
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.preparationNextName,
+                eraseDescriptor,
+                Self.preparationName,
+                UInt32(RENAME_EXCL)
+            ) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            published = true
+            guard Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.preparationName,
+                failure: .writeFailed,
+                expectedIdentity: temporaryIdentity
+            )
+            guard let written = try readIfPresent(Self.preparationName),
+                  written.identity == temporaryIdentity,
+                  written.data == data else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyAuthority()
+        } catch {
+            if published {
+                try? removeExact(
+                    Self.preparationName,
+                    expected: (data: data, identity: temporaryIdentity)
+                )
+            }
+            throw error
+        }
+    }
+
+    func replacePreparation(
+        expected: ErasePreparationV2,
+        with replacement: ErasePreparationV2
+    ) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation {
+            try replacePreparationWithoutMigrationReservation(expected: expected, with: replacement)
+        }
+    }
+
+    private func replacePreparationWithoutMigrationReservation(
+        expected: ErasePreparationV2, with replacement: ErasePreparationV2
+    ) throws {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.preparationName)
+        try verifyExistingPolicy(
+            .journalTemporary,
+            name: Self.preparationNextName
+        )
+        let expectedData = try encodePreparation(expected)
+        let replacementData = try encodePreparation(replacement)
+        guard isPreparationTransition(expected, replacement),
+              let current = try readIfPresent(Self.preparationName),
+              current.data == expectedData,
+              try readIfPresent(Self.preparationNextName) == nil else {
+            throw EraseIntentStoreError.preparationMismatch
+        }
+        let replacementIdentity = try createLeaf(
+            Self.preparationNextName,
+            data: replacementData
+        )
+        var swapped = false
+        do {
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.preparationNextName,
+                eraseDescriptor,
+                Self.preparationName,
+                UInt32(RENAME_SWAP)
+            ) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            swapped = true
+            guard Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.preparationName,
+                failure: .writeFailed,
+                expectedIdentity: replacementIdentity
+            )
+            try verifyPublishedPolicy(
+                .journalTemporary,
+                name: Self.preparationNextName,
+                failure: .writeFailed,
+                expectedIdentity: current.identity
+            )
+            guard let published = try readIfPresent(Self.preparationName),
+                  let displaced = try readIfPresent(Self.preparationNextName),
+                  published.identity == replacementIdentity,
+                  published.data == replacementData,
+                  displaced.identity == current.identity,
+                  displaced.data == expectedData else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try removeExact(Self.preparationNextName, expected: displaced)
+            swapped = false
+            try verifyAuthority()
+        } catch {
+            if swapped {
+                do {
+                    if let published = try readIfPresent(Self.preparationName),
+                       let displaced = try readIfPresent(Self.preparationNextName),
+                       published.identity == replacementIdentity,
+                       published.data == replacementData,
+                       displaced.identity == current.identity,
+                       displaced.data == expectedData {
+                        _ = Darwin.renameatx_np(
+                            eraseDescriptor,
+                            Self.preparationNextName,
+                            eraseDescriptor,
+                            Self.preparationName,
+                            UInt32(RENAME_SWAP)
+                        )
+                        _ = Darwin.fsync(eraseDescriptor)
+                    }
+                } catch {
+                    // Preserve uncertain state for recovery.
+                }
+            }
+            try? removeIfExact(
+                Self.preparationNextName,
+                expected: replacementIdentity
+            )
+            throw error
+        }
+    }
+
+    func removePreparation(expected: ErasePreparationV2) throws {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.preparationName)
+        let data = try encodePreparation(expected)
+        guard let current = try readIfPresent(Self.preparationName) else {
+            throw EraseIntentStoreError.preparationMissing
+        }
+        guard current.data == data else {
+            throw EraseIntentStoreError.preparationMismatch
+        }
+        try removeExact(Self.preparationName, expected: current)
+        try verifyAuthority()
+    }
+
+    func create(_ value: EraseIntentV1) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation { try createWithoutMigrationReservation(value) }
+    }
+
+    private func createWithoutMigrationReservation(_ value: EraseIntentV1) throws {
+        try AssetLocatorEraseIntentEnrollmentV1.validate()
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.intentName)
+        try verifyExistingPolicy(.journalTemporary, name: Self.nextName)
+        guard try readIfPresent(Self.intentName) == nil,
+              try readIfPresent(Self.nextName) == nil else {
+            throw EraseIntentStoreError.intentAlreadyExists
+        }
+        let data = try encode(value)
+        let temporaryIdentity = try createLeaf(Self.nextName, data: data)
+        var published = false
+        do {
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.nextName,
+                eraseDescriptor,
+                Self.intentName,
+                UInt32(RENAME_EXCL)
+            ) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            published = true
+            guard Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.intentName,
+                failure: .writeFailed,
+                expectedIdentity: temporaryIdentity
+            )
+            guard let publishedValue = try readIfPresent(Self.intentName),
+                  publishedValue.identity == temporaryIdentity,
+                  publishedValue.data == data else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyAuthority()
+        } catch {
+            if published {
+                try? removeExact(
+                    Self.intentName,
+                    expected: (data: data, identity: temporaryIdentity)
+                )
+            }
+            throw error
+        }
+    }
+
+    func replace(
+        expected: EraseIntentV1,
+        with replacement: EraseIntentV1
+    ) throws {
+        let registry = try GenerationLeaseRegistryV1(applicationSupportURL: applicationSupportURL)
+        try registry.withNoMigrationReservation {
+            try replaceWithoutMigrationReservation(expected: expected, with: replacement)
+        }
+    }
+
+    /// Fixed Erase completion boundary after the original registry namespace
+    /// has been retired. The actual support EX and exact operation proof take
+    /// the place of creating a new registry; canonical CAS remains unchanged.
+    @MainActor
+    func replaceAfterRegistryRetirement(
+        expected: EraseIntentV1,
+        with replacement: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1
+    ) throws {
+        try requireRetirementRoot(retirement)
+        try retirement.requireCleanupPhaseWrite(expected: expected, replacement: replacement)
+        try replaceWithoutMigrationReservation(expected: expected, with: replacement)
+        try requireRetirementRoot(retirement)
+        try retirement.requireCleanupPhaseWrite(expected: expected, replacement: replacement)
+    }
+
+    private func replaceWithoutMigrationReservation(
+        expected: EraseIntentV1, with replacement: EraseIntentV1
+    ) throws {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.intentName)
+        try verifyExistingPolicy(.journalTemporary, name: Self.nextName)
+        let expectedData = try encode(expected)
+        let replacementData = try encode(replacement)
+        guard sameOperation(expected, replacement),
+              replacement.phase == nextPhase(after: expected.phase),
+              let current = try readIfPresent(Self.intentName),
+              current.data == expectedData,
+              try readIfPresent(Self.nextName) == nil else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        let replacementIdentity = try createLeaf(
+            Self.nextName,
+            data: replacementData
+        )
+        var swapped = false
+        do {
+            guard Darwin.renameatx_np(
+                eraseDescriptor,
+                Self.nextName,
+                eraseDescriptor,
+                Self.intentName,
+                UInt32(RENAME_SWAP)
+            ) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            swapped = true
+            guard Darwin.fsync(eraseDescriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try verifyPublishedPolicy(
+                .journal,
+                name: Self.intentName,
+                failure: .writeFailed,
+                expectedIdentity: replacementIdentity
+            )
+            try verifyPublishedPolicy(
+                .journalTemporary,
+                name: Self.nextName,
+                failure: .writeFailed,
+                expectedIdentity: current.identity
+            )
+            guard
+                  let published = try readIfPresent(Self.intentName),
+                  let displaced = try readIfPresent(Self.nextName),
+                  published.identity == replacementIdentity,
+                  published.data == replacementData,
+                  displaced.identity == current.identity,
+                  displaced.data == expectedData else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            try removeExact(Self.nextName, expected: displaced)
+            swapped = false
+            try verifyAuthority()
+        } catch {
+            if swapped {
+                do {
+                    if let published = try readIfPresent(Self.intentName),
+                       let displaced = try readIfPresent(Self.nextName),
+                       published.identity == replacementIdentity,
+                       published.data == replacementData,
+                       displaced.identity == current.identity,
+                       displaced.data == expectedData {
+                        _ = Darwin.renameatx_np(
+                            eraseDescriptor,
+                            Self.nextName,
+                            eraseDescriptor,
+                            Self.intentName,
+                            UInt32(RENAME_SWAP)
+                        )
+                        _ = Darwin.fsync(eraseDescriptor)
+                    }
+                } catch {
+                    // Preserve the exact failure and leave uncertain state for recovery.
+                }
+            }
+            try? removeIfExact(
+                Self.nextName,
+                expected: replacementIdentity
+            )
+            throw error
+        }
+    }
+
+    func remove(expected: EraseIntentV1) throws {
+        try verifyAuthority()
+        try verifyExistingPolicy(.journal, name: Self.intentName)
+        let data = try encode(expected)
+        guard let current = try readIfPresent(Self.intentName) else {
+            throw EraseIntentStoreError.intentMissing
+        }
+        guard current.data == data else {
+            throw EraseIntentStoreError.intentMismatch
+        }
+        try removeExact(Self.intentName, expected: current)
+        try verifyAuthority()
+    }
+}
+
+private extension EraseIntentStore {
+    func policyRelativePath(_ name: String) -> String {
+        "\(Self.directoryName)/\(name)"
+    }
+
+    func verifyExistingPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String
+    ) throws {
+        do {
+            try verifyAuthority()
+            let descriptor = Darwin.openat(
+                eraseDescriptor,
+                name,
+                O_RDONLY | O_NOFOLLOW
+            )
+            if descriptor < 0, errno == ENOENT { return }
+            guard descriptor >= 0 else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            defer { _ = Darwin.close(descriptor) }
+            let expected = try Self.fileIdentity(descriptor)
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                relativePath: policyRelativePath(name),
+                within: applicationSupportURL
+            ) {
+                try self.verifyAuthority()
+                try self.verifyLeaf(
+                    name,
+                    descriptor: descriptor,
+                    expected: expected
+                )
+            }
+        } catch {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    func applyTemporaryPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String,
+        descriptor: Int32
+    ) throws {
+        do {
+            let expected = try Self.fileIdentity(descriptor)
+            try ProtectedFilePolicyV1.applyAndVerify(
+                kind,
+                relativePath: policyRelativePath(name),
+                within: applicationSupportURL
+            ) {
+                try self.verifyAuthority()
+                try self.verifyLeaf(
+                    name,
+                    descriptor: descriptor,
+                    expected: expected
+                )
+            }
+        } catch {
+            throw EraseIntentStoreError.writeFailed
+        }
+    }
+
+    private func verifyLeaf(
+        _ name: String,
+        descriptor: Int32,
+        expected: Identity
+    ) throws {
+        guard try Self.fileIdentity(descriptor) == expected else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var info = stat()
+        guard Darwin.fstatat(
+            eraseDescriptor,
+            name,
+            &info,
+            AT_SYMLINK_NOFOLLOW
+        ) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1,
+              Identity(device: info.st_dev, inode: info.st_ino) == expected else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    private func verifyPublishedPolicy(
+        _ kind: OwnedFileKindV1,
+        name: String,
+        failure: EraseIntentStoreError,
+        expectedIdentity: Identity
+    ) throws {
+        let descriptor = Darwin.openat(
+            eraseDescriptor,
+            name,
+            O_RDONLY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else { throw failure }
+        defer { _ = Darwin.close(descriptor) }
+        do {
+            try verifyAuthority()
+            try verifyLeaf(
+                name,
+                descriptor: descriptor,
+                expected: expectedIdentity
+            )
+            try ProtectedFilePolicyV1.verify(
+                kind,
+                at: applicationSupportURL
+                    .appendingPathComponent(Self.directoryName, isDirectory: true)
+                    .appendingPathComponent(name)
+            )
+            try verifyAuthority()
+            try verifyLeaf(
+                name,
+                descriptor: descriptor,
+                expected: expectedIdentity
+            )
+        } catch {
+            throw failure
+        }
+    }
+
+    func verifyAuthority() throws {
+        try Self.requireDirectory(
+            applicationSupportDescriptor,
+            identity: applicationSupportIdentity
+        )
+        try Self.requireDirectory(eraseDescriptor, identity: eraseIdentity)
+        let reopenedApp = Darwin.open(
+            applicationSupportURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard reopenedApp >= 0 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        defer { _ = Darwin.close(reopenedApp) }
+        guard try Self.directoryIdentity(reopenedApp) == applicationSupportIdentity else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let reopenedErase = Darwin.openat(
+            reopenedApp,
+            Self.directoryName,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard reopenedErase >= 0 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        defer { _ = Darwin.close(reopenedErase) }
+        guard try Self.directoryIdentity(reopenedErase) == eraseIdentity else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    func encode(_ value: EraseIntentV1) throws -> Data {
+        do { return try EraseIntentCodecV1.encode(value) }
+        catch { throw EraseIntentStoreError.invalidIntent }
+    }
+
+    func decode(_ data: Data) throws -> EraseIntentV1 {
+        do { return try EraseIntentCodecV1.decode(data) }
+        catch { throw EraseIntentStoreError.invalidIntent }
+    }
+
+    func encodePreparation(_ value: ErasePreparationV2) throws -> Data {
+        do { return try ErasePreparationCodecV2.encode(value) }
+        catch { throw EraseIntentStoreError.invalidPreparation }
+    }
+
+    func decodePreparation(_ data: Data) throws -> ErasePreparationV2 {
+        do { return try ErasePreparationCodecV2.decode(data) }
+        catch { throw EraseIntentStoreError.invalidPreparation }
+    }
+
+    func isPreparationTransition(
+        _ current: ErasePreparationV2,
+        _ next: ErasePreparationV2
+    ) -> Bool {
+        current.oldPointer == next.oldPointer
+            && current.sourceLedger == next.sourceLedger
+            && current.targetGenerationID == next.targetGenerationID
+            && current.targetWorkspaceID == next.targetWorkspaceID
+            && current.targetReplicaID == next.targetReplicaID
+            && current.targetPointer == nil
+            && next.targetPointer != nil
+    }
+
+    func sameOperation(_ lhs: EraseIntentV1, _ rhs: EraseIntentV1) -> Bool {
+        lhs.auxiliaryRoots == rhs.auxiliaryRoots
+            && lhs.eraseID == rhs.eraseID
+            && lhs.generationIDsToDelete == rhs.generationIDsToDelete
+            && lhs.newGenerationID == rhs.newGenerationID
+            && lhs.oldGenerationID == rhs.oldGenerationID
+            && lhs.oldPointer == rhs.oldPointer
+            && lhs.schemaVersion == rhs.schemaVersion
+            && lhs.sourceLedger == rhs.sourceLedger
+            && lhs.targetEmptyProof == rhs.targetEmptyProof
+            && lhs.targetPointer == rhs.targetPointer
+    }
+
+    func nextPhase(after phase: EraseIntentPhaseV1) -> EraseIntentPhaseV1? {
+        switch phase {
+        case .emptyGenerationPrepared: .pointerSwitched
+        case .pointerSwitched: .sessionActivated
+        case .sessionActivated: .cleanupComplete
+        case .cleanupComplete: nil
+        }
+    }
+
+    private func readIfPresent(
+        _ name: String
+    ) throws -> (data: Data, identity: Identity)? {
+        let descriptor = Darwin.openat(
+            eraseDescriptor,
+            name,
+            O_RDONLY | O_NOFOLLOW
+        )
+        if descriptor < 0, errno == ENOENT { return nil }
+        guard descriptor >= 0 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        defer { _ = Darwin.close(descriptor) }
+        var before = stat()
+        guard Darwin.fstat(descriptor, &before) == 0,
+              (before.st_mode & S_IFMT) == S_IFREG,
+              before.st_nlink == 1 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            }
+            if count > 0 {
+                data.append(contentsOf: buffer.prefix(count))
+            } else if count == 0 {
+                break
+            } else if errno != EINTR {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        var after = stat()
+        guard Darwin.fstat(descriptor, &after) == 0,
+              before.st_dev == after.st_dev,
+              before.st_ino == after.st_ino,
+              before.st_size == after.st_size,
+              data.count == Int(after.st_size) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return (
+            data,
+            Identity(device: after.st_dev, inode: after.st_ino)
+        )
+    }
+
+    private func createLeaf(_ name: String, data: Data) throws -> Identity {
+        let descriptor = Darwin.openat(
+            eraseDescriptor,
+            name,
+            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW,
+            mode_t(0o600)
+        )
+        guard descriptor >= 0 else {
+            throw EraseIntentStoreError.writeFailed
+        }
+        defer { _ = Darwin.close(descriptor) }
+        let expectedIdentity = try Self.fileIdentity(descriptor)
+        do {
+            try applyTemporaryPolicy(
+                .journalTemporary,
+                name: name,
+                descriptor: descriptor
+            )
+            try data.withUnsafeBytes { raw in
+                guard let base = raw.baseAddress else { return }
+                var offset = 0
+                while offset < raw.count {
+                    let count = Darwin.write(
+                        descriptor,
+                        base.advanced(by: offset),
+                        raw.count - offset
+                    )
+                    if count > 0 {
+                        offset += count
+                    } else if errno != EINTR {
+                        throw EraseIntentStoreError.writeFailed
+                    }
+                }
+            }
+            guard Darwin.fsync(descriptor) == 0 else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            guard let written = try readIfPresent(name),
+                  written.identity == expectedIdentity,
+                  written.data == data else {
+                throw EraseIntentStoreError.writeFailed
+            }
+            return written.identity
+        } catch {
+            try? removeIfExact(name, expected: expectedIdentity)
+            throw error
+        }
+    }
+
+    private func removeIfExact(_ name: String, expected: Identity) throws {
+        guard let current = try readIfPresent(name),
+              current.identity == expected,
+              Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
+              Darwin.fsync(eraseDescriptor) == 0,
+              case nil = try readIfPresent(name) else {
+            throw EraseIntentStoreError.cleanupFailed
+        }
+    }
+
+    private func removeExact(
+        _ name: String,
+        expected: (data: Data, identity: Identity)
+    ) throws {
+        guard let current = try readIfPresent(name),
+              current.identity == expected.identity,
+              current.data == expected.data,
+              Darwin.unlinkat(eraseDescriptor, name, 0) == 0,
+              Darwin.fsync(eraseDescriptor) == 0 else {
+            throw EraseIntentStoreError.cleanupFailed
+        }
+        guard case nil = try readIfPresent(name) else {
+            throw EraseIntentStoreError.cleanupFailed
+        }
+    }
+
+    private static func directoryIdentity(_ descriptor: Int32) throws -> Identity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFDIR else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return Identity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private static func fileIdentity(_ descriptor: Int32) throws -> Identity {
+        var info = stat()
+        guard Darwin.fstat(descriptor, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_nlink == 1 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return Identity(device: info.st_dev, inode: info.st_ino)
+    }
+
+    private static func requireDirectory(
+        _ descriptor: Int32,
+        identity: Identity
+    ) throws {
+        guard try directoryIdentity(descriptor) == identity else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}
+
+/// C32 keeps assistance candidates outside every durable and derived surface;
+/// only explicit acceptance may reach the existing canonical writer/receipt path.
+enum C32AssistanceCompatibility_Deletion_EraseIntentStore {
+    enum ProposalDispositionV1: Sendable {
+        case nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+    }
+
+    enum AcceptanceDispositionV1: Sendable {
+        case durableThroughExistingCanonicalWriter
+    }
+
+    static func disposition(
+        for proposal: AssistanceProposalV1
+    ) throws -> ProposalDispositionV1 {
+        try proposal.validate()
+        guard !AssistancePersistenceEnrollmentV1.proposalIsPersistent,
+              !AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent else {
+            throw AssistanceContractFailureV1.nonCanonicalData
+        }
+        switch proposal.verificationState {
+        case .unverified:
+            return .nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+        }
+    }
+
+    static func disposition(
+        for receipt: AssistanceAcceptanceReceiptV1
+    ) throws -> AcceptanceDispositionV1 {
+        try receipt.validate()
+        guard AssistancePersistenceEnrollmentV1.durableModelCount == 1 else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+        return .durableThroughExistingCanonicalWriter
+    }
+
+    static let capabilityScratchIsDiscardedOnTerminalReview = true
+    static let manualFallbackRemainsAvailable = true
+    static let interruptionNeverPromotesAProposal = true
+    static let createsParallelStoreOrWriter = false
+}
+
+enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Deletion_EraseIntentStore_swift {
+    static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
+    static func validate(clip: TemporalEvidenceClipV1,
+                         anchor: TimecodedEvidenceAnchorV1) throws {
+        try clip.validateIntrinsic()
+        try anchor.validate(clip: clip)
+        guard durableFamilyCount == 2 else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}
+
+enum C45AcceptedLabelEraseStoreBoundaryV1 { static let durableSnapshotCountParticipatesInEraseInventory=true }
+
+enum C46OperationalContactBoundary_42{static let assetOrSiteCascadeDeletesPartyContacts=false;static let workspaceEraseOwnsRows=true}
+enum C47ActivityContractEraseStoreBoundaryV2 { static let durableRowInventoryCount=5;static let releasedCompletedSnapshotUsesExistingFileInventory=true;static let conformanceReceiptsCreateNoRows=true }
+
+enum C48PortableExchangeEraseIntentStoreEnrollmentV2 {
+    static let rootName = PortableExchangeSessionStoreLayoutV2.directoryName
+    static let protectedFileKinds: Set<OwnedFileKindV1> = [
+        .portableExchangeSessionFile,
+        .portableExchangeJournalFile,
+        .portableExchangeQuarantineFile,
+    ]
+    static func validate() throws {
+        guard rootName == "PortableReviewExchangeV2",
+              protectedFileKinds.count == 3 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try PortableExchangeProtectedFilePolicyV2.validate()
+    }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-erase
+
+enum C53AssetServiceReliabilityEraseIntentStorePolicyV1 {
+    static let durableFamilies = AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies
+    static let ownsFilesystemPayload = false
+
+    static func validate() throws {
+        try AssetServiceReliabilityPersistenceEnrollmentV1.validate()
+        guard durableFamilies.count == 7,
+              !ownsFilesystemPayload,
+              C53AssetServiceReliabilityEraseIntentBoundaryV1.validate() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+}

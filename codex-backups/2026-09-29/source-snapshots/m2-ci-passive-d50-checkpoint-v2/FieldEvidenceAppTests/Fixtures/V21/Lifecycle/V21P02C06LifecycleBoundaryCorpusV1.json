@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "fixtureIdentity": "V21-P02-C06-LIFECYCLE-BOUNDARY-CORPUS-V1",
+  "lifecycleEvents": [
+    "protectedDataBecameUnavailable",
+    "protectedDataBecameAvailable",
+    "sceneBecameInactive",
+    "sceneEnteredBackground",
+    "sceneBecameActive"
+  ],
+  "durableBoundaries": [
+    "queuedBeforeClaim",
+    "runningAfterCheckpoint",
+    "awaitingPublicationEffectBeforeReceipt",
+    "terminalSucceeded"
+  ],
+  "storage": {
+    "canonicalMutationAllowanceBytes": 1048576,
+    "ownedFileBytes": [17, 31, 47],
+    "reservationBytes": [4096, 8192]
+  },
+  "timeCases": [
+    { "utc": "2026-01-15T17:00:00Z", "zone": "America/New_York", "offset": -18000, "dst": false },
+    { "utc": "2026-07-15T16:00:00Z", "zone": "America/New_York", "offset": -14400, "dst": true },
+    { "utc": "2026-03-08T06:59:59Z", "zone": "America/New_York", "offset": -18000, "dst": false },
+    { "utc": "2026-03-08T07:00:00Z", "zone": "America/New_York", "offset": -14400, "dst": true },
+    { "utc": "2026-11-01T05:00:00Z", "zone": "America/New_York", "offset": -14400, "dst": true },
+    { "utc": "2026-11-01T06:00:00Z", "zone": "America/New_York", "offset": -18000, "dst": false },
+    { "utc": "2026-07-15T16:00:00Z", "zone": "Pacific/Auckland", "offset": 43200, "dst": false }
+  ],
+  "wallClockJumpsSeconds": [-86400, 259200],
+  "monotonicElapsedNanoseconds": 250000000
+}

@@ -1,0 +1,71 @@
+{
+  "accuracyClaim": false,
+  "actualPlans": false,
+  "appBaseAuthority": {
+    "head": "24a86948fd0f213630a7066568fedec8e83cbc4d",
+    "tree": "bf9600d75be3a72a4ca07d4b0ed3efb43c63679b"
+  },
+  "calibrationClaim": false,
+  "canonicalWrites": 0,
+  "cardID": "V23-P06-C09",
+  "customerData": false,
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "expiryDays": 30,
+  "externalActions": "NONE",
+  "flags": {
+    "acceptanceCredit": false,
+    "adoptionCredit": false,
+    "hostedCIClaim": false,
+    "implementationCredit": false,
+    "mainCredit": false,
+    "mergeCredit": false,
+    "nativeCIClaim": false,
+    "phaseCredit": false,
+    "physicalCIClaim": false,
+    "releaseCredit": false,
+    "selectorCredit": false
+  },
+  "generatedFiles": [
+    {
+      "path": "Scripts/v23/spatial-registration-static-protocol.schema.json",
+      "sha256": "8ae569bed0664f69e3f499b225a8c16d78139348926b8b855bdc7f93416aaa36"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/P06/SpatialRegistration/V23P06C09SpatialRegistrationStaticCorpusV1.json",
+      "sha256": "781552ae4c26178f616e5cfb0092bbf371e3d5e3c0cd9866824f72a378a890fc"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C09SpatialRegistrationStaticPreparationContractV1.json",
+      "sha256": "ab0190363693a1eecd45f8e7305bf43c1aa32eb9b1117aeb2e128b7062c7fe23"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C09SpatialRegistrationStaticPreparationEvidenceReceiptV1.json",
+      "sha256": "70f5e9b940f24bfcd1b26f7865069f2f275f361c8e0e52239d0076eabd578057"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C09BrandImpactManifestV1.json",
+      "sha256": "eeb3ba5618c9694e3d7abdde545bc54703156aedac206f57d1c8fbcc49eb8be1"
+    }
+  ],
+  "geometryForkEnabled": false,
+  "manifest": "V23P06C09ToolingManifestV1",
+  "mapKitCoreLocationARKitLiDARBIMImportLocationSensorNetworkEnabled": false,
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
+  "pathFence": [
+    "Scripts/v23/p06_c09_contracts.py",
+    "Scripts/v23/generate_p06_c09_contracts.py",
+    "Scripts/v23/verify_p06_c09_contracts.py",
+    "Scripts/v23/spatial-registration-static-protocol.schema.json",
+    "FieldEvidenceAppTests/Fixtures/V23/P06/SpatialRegistration/V23P06C09SpatialRegistrationStaticCorpusV1.json",
+    "docs/design/v23/tooling/V23P06C09SpatialRegistrationStaticPreparationContractV1.json",
+    "docs/design/v23/tooling/V23P06C09SpatialRegistrationStaticPreparationEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P06C09BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P06-C09-tooling-manifest.json"
+  ],
+  "reconciliationRequired": true,
+  "schema": "V23P06C09StaticPreparationToolingV1",
+  "silentTransformEnabled": false,
+  "transformExecuted": false
+}

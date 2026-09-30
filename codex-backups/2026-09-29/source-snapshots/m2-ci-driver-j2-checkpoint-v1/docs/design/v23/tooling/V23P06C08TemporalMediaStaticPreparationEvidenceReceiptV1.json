@@ -1,0 +1,41 @@
+{
+  "appBaseAuthority": {
+    "head": "dda503c61cb64d9ed476c12dddbde79895605437",
+    "tree": "504d97c23639b370f992ad98d878cce1ed40676b"
+  },
+  "background": false,
+  "canonicalWrites": 0,
+  "capturedMedia": false,
+  "cardID": "V23-P06-C08",
+  "customerData": false,
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "expiryDays": 30,
+  "externalActions": "NONE",
+  "flags": {
+    "acceptanceCredit": false,
+    "adoptionCredit": false,
+    "hostedCIClaim": false,
+    "implementationCredit": false,
+    "mainCredit": false,
+    "mergeCredit": false,
+    "nativeCIClaim": false,
+    "phaseCredit": false,
+    "physicalCIClaim": false,
+    "releaseCredit": false,
+    "selectorCredit": false
+  },
+  "modelOutput": false,
+  "network": false,
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
+  "protocolSHA256": "80000bcafab1d0185f6989b2b97570cfc43cea7d51689047ca3f12315fa577ba",
+  "receipt": "TemporalMediaStaticPreparationEvidenceReceiptV1",
+  "reconciliationRequired": true,
+  "redaction": false,
+  "result": "PASS_STATIC_PROVISIONAL",
+  "schema": "V23P06C08StaticPreparationToolingV1",
+  "transcription": false,
+  "transformInvoked": false,
+  "uploadInvoked": false
+}

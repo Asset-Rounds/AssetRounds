@@ -1,0 +1,20 @@
+    /// Optional absence is authenticated for one fixed producer slot by the
+    /// Store's actual retained slot table and current record. A path/role
+    /// lookup, missing survivor or latest captured version cannot supply it.
+    func canonicalCapturedBornSource(slot: OriginalEraseC16BornProducerSlotV1)
+        throws -> (bytes: Data, fullFact: String)? {
+        guard slot.producerOrdinal >= 0,
+              EraseSchema2ColdCleanupGrammarV1.validPath(slot.path) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try EraseSchema2ColdCleanupGrammarV1.requireBirthRole(slot.role,
+            path: slot.path)
+        try requireObservationBinding()
+        let value = try capturedBornSource(slot)
+        if let value {
+            try sourceAdmission(slot.path, value.bytes, value.fullFact)
+        }
+        try requireObservationBinding()
+        return value
+    }
+

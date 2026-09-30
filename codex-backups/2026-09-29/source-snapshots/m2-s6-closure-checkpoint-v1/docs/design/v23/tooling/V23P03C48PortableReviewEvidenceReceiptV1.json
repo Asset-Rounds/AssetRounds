@@ -1,0 +1,116 @@
+{
+  "acceptanceState": "PENDING_NOT_ACCEPTING",
+  "adoptionState": "PENDING_NOT_ACCEPTING",
+  "artifact": "V23P03C48PortableReviewEvidenceReceiptV1",
+  "artifactDigest": "07accd88d229a80304f20ed944e46bfc17785c0dd89cc4b2e87af0eb9d732bc2",
+  "authority": {
+    "allowedPathCount": 139,
+    "appBaseHead": "ba45022b454f557dcd4d3a5bdaf1cd441022c027",
+    "appBaseTree": "1230fefc208a4ae79217f4a2008ebabf6e920b46",
+    "attemptID": 1,
+    "authorityCorrectionReceiptDigest": "4dfc9dba685fa60019e70ed624b8e60527687821cf064dc9eb7245d5cc2715c0",
+    "authorizedOverlapCount": 0,
+    "cardID": "V23-P03-C48",
+    "classification": "IMPLEMENT_NOW",
+    "contextDigest": "6bb2ef2e652995ac84afad1bf7c07cd5faf8bbe27aba0e3707bc9514c2aad235",
+    "coordinationCASSequence": 331,
+    "coordinationHead": "1857c11d7b1aed873d9ace8f88c1ff8d9222ec45",
+    "coordinationLedgerDigest": "4f510bb701e747ab57555e4af632f6b51bd2c4d6cb21e1f8fd5b2ddf35cdcba7",
+    "coordinationProjectionDigest": "10da3964262dfe56f050e1074810bee67144ac3123d05ce98675e0703d6a503c",
+    "coordinationTree": "eeee7ab38db3bf975160e3abb4e7344f22dfc879",
+    "directPrerequisiteCards": [
+      "V23-P03-C24"
+    ],
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "existingPathCount": 125,
+    "fenceDigest": "1abe6ceebd594bee60bdec5fd19b8758c18e585dc7dd35a5757e500b75673027",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 2,
+    "hydrationTransitionDigest": "da575439d9e84a2a455e9130253720e7780948633fefe4ae0156704757c00908",
+    "newPathCount": 14,
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "30697ca3fb54b086b1e526b55cd3d8aeb80b8198c68cf6a241524f271dfd070c",
+    "registerOrdinal": 78,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "title": "Integrity-bound cleartext portable review, bearer-capability lifecycle, out-of-band response recording, and immutable reconciliation",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P03-C48",
+  "deterministicEvidenceIDs": [
+    "V23-P03-C48-G01",
+    "V23-P03-C48-A01",
+    "V23-P03-C48-H01",
+    "V23-P03-C48-I01",
+    "V23-P03-C48-R01"
+  ],
+  "nativeEvidenceState": "PENDING_NOT_ACCEPTING",
+  "physicalEvidenceState": "REQUIRED_PENDING_OWNER",
+  "releaseState": "PENDING_NOT_ACCEPTING",
+  "requiredSemanticsDigest": "6a9c95bb1bdfe7f1fd5fe13eee2939e78cdb8ed8a2226493db91c9b701851b82",
+  "requiresAcceptedS10_6Reconciliation": true,
+  "result": "PASS_STATIC_PROVISIONAL",
+  "schemaVersion": 1,
+  "sourceArtifacts": [
+    {
+      "bytes": 44358,
+      "path": "FieldEvidenceApp/Domain/ReviewExchange/PortableReviewContractsV1.swift",
+      "sha256": "59d9faf312e63a7016e9decdb4b1b044217d5f5998e2a3950457b2bec9d3577b",
+      "state": "WORKTREE"
+    },
+    {
+      "bytes": 37439,
+      "path": "FieldEvidenceApp/Domain/Models/PortableReviewPersistenceModelsV1.swift",
+      "sha256": "2f1a986fb7ff4422ddb5ac6b32eb7033f7b1764c8fb861e9536c803caddb2d88",
+      "state": "WORKTREE"
+    },
+    {
+      "bytes": 6845,
+      "path": "FieldEvidenceApp/Application/ReviewExchange/PortableReviewCoordinatorV1.swift",
+      "sha256": "be9cdb1fcaf21768ccda391e3385f8526145fd50635a235e1f49b07a475a86af",
+      "state": "WORKTREE"
+    },
+    {
+      "bytes": 139953,
+      "path": "FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift",
+      "sha256": "71c1e011548771ae32069669766111546d6cf1dbb6b462387f528cea3121131e",
+      "state": "WORKTREE"
+    },
+    {
+      "bytes": 73527,
+      "path": "FieldEvidenceAppTests/V9_55PortableReviewTests.swift",
+      "sha256": "42dc973a139e8dad0c47be1b3f7695b2adc31950e3cb11496d541cb75a45f329",
+      "state": "WORKTREE"
+    },
+    {
+      "bytes": 10640,
+      "path": "FieldEvidenceAppTests/Fixtures/V22/ReviewExchange/V22P03C48PortableReviewCorpusV1.json",
+      "sha256": "bc43c1b7384cbbb4005fad8c9f54c10401575ac2cec9ed6d50f8b78115c7b27a",
+      "state": "WORKTREE"
+    }
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C48G01GoldenRequestResponseAndNormativeVectorUseTypedContracts",
+    "testV23P03C48A01OriginRecordedElsewhereKeepsUnverifiedHistorySeparateFromEligibility",
+    "testV23P03C48H01TamperReplayDivergenceHostileArchiveAndLeakageCanariesFailClosed",
+    "testV23P03C48I01PreviewIsZeroWriteAndEveryCrashBoundaryConvergesToZeroOrComplete",
+    "testV23P03C48R01RestoreCloneForkEraseAndReplayPreserveHistoricBytesAndInvalidateActiveCapability"
+  ],
+  "verificationMode": "STATIC_ONLY"
+}

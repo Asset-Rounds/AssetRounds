@@ -1,0 +1,243 @@
+import Foundation
+
+enum C34SurveySessionNavigationLifecycleBoundaryV1 {
+    static let restorationUsesReadProjection = true
+    static let restorationCommitsSession = false
+}
+
+enum SurveySessionScheduleLifecycleBoundaryV1 { static let occurrenceHistoryMayRewritePublication = false }
+
+enum C51SurveySessionScheduleLifecycleBoundaryV1 {
+    static let occurrenceHistoryMayRewritePublication = false
+    static let adapterWritesNoScheduleRows = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+}
+
+/// C26 lifecycle bridge. The journal is the idempotency authority and the
+/// existing workspace writer remains the sole mutation transaction boundary.
+@MainActor final class SurveySessionLifecycleAdapterV1: SurveySessionWritingV1, GuidedSurveyFlowSourceResolvingV1 {
+    private let writer: WorkspaceWriterV1
+    private let journalStore: MutationJournalStoreV1
+    private let flowSource: (any GuidedSurveyFlowSourceResolvingV1)?
+
+    init(
+        writer: WorkspaceWriterV1,
+        journalStore: MutationJournalStoreV1,
+        flowSource: (any GuidedSurveyFlowSourceResolvingV1)? = nil
+    ) {
+        self.writer = writer
+        self.journalStore = journalStore
+        self.flowSource = flowSource
+    }
+
+    func acceptedSurveySessionMutation(
+        _ mutation: SurveySessionMutationV1
+    ) throws -> SurveySessionMutationReceiptV1? {
+        try journalStore.validateSurveySessionReferences(mutation)
+        return try journalStore.acceptedSurveySessionMutation(mutation)
+    }
+
+    func applySurveySession(
+        _ mutation: SurveySessionMutationV1
+    ) throws -> SurveySessionMutationReceiptV1 {
+        try mutation.validate()
+        try journalStore.validateSurveySessionReferences(mutation)
+        if let accepted = try acceptedSurveySessionMutation(mutation) {
+            return accepted
+        }
+        let receipt = try writer.commitSurveySession(mutation)
+        return try SurveySessionMutationReceiptV1(
+            mutation: mutation,
+            mutationReceipt: receipt
+        )
+    }
+
+    /// Resolves the core C20 source only by its pinned identity/revision/SHA,
+    /// then proves every returned durable session effect is present in the
+    /// incumbent journal. This intentionally has no latest-session fallback.
+    func resolveExactFlow(
+        _ request: GuidedSurveyFlowRequestV1,
+        using sourceResolver: any GuidedSurveyFlowSourceResolvingV1
+    ) async throws -> GuidedSurveyFlowSourceV1 {
+        let source = try await sourceResolver.source(for: request)
+        try source.validate()
+        guard let sessionMutation = try journalStore.surveySessionMutation(
+            mutationID: source.session.mutationID
+        ), try journalStore.receipt(mutationID: source.session.mutationID) != nil,
+              sessionMutation.workspaceID == request.workspaceID else {
+            throw GuidedSurveyFlowFailureV1.missingExactSource
+        }
+        switch sessionMutation.payload {
+        case let .applySession(value, definition, publication):
+            guard value == source.session, definition == source.definition,
+                  publication == nil else { throw GuidedSurveyFlowFailureV1.staleSource }
+        case let .publish(value, publication, definition, _):
+            guard value == source.session, publication == source.publication,
+                  definition == source.definition else { throw GuidedSurveyFlowFailureV1.staleSource }
+        default:
+            throw GuidedSurveyFlowFailureV1.staleSource
+        }
+        for capture in source.captures {
+            guard let mutation = try journalStore.surveySessionMutation(
+                mutationID: capture.mutationID
+            ), try journalStore.receipt(mutationID: capture.mutationID) != nil,
+                  case let .captureFact(value, session, definition, _) = mutation.payload,
+                  mutation.workspaceID == request.workspaceID,
+                  value == capture, session.sessionID == source.session.sessionID,
+                  definition == source.definition else {
+                throw GuidedSurveyFlowFailureV1.missingExactSource
+            }
+        }
+        if let publication = source.publication {
+            guard let mutation = try journalStore.surveySessionMutation(
+                mutationID: publication.mutationID
+            ), try journalStore.receipt(mutationID: publication.mutationID) != nil,
+                  case let .publish(_, value, definition, _) = mutation.payload,
+                  value == publication, definition == source.definition else {
+                throw GuidedSurveyFlowFailureV1.missingExactSource
+            }
+        }
+        return source
+    }
+
+    /// Production composition supplies the core exact-source adapter here.
+    /// Absent composition fails closed; it never substitutes a current row.
+    func source(for request: GuidedSurveyFlowRequestV1) async throws -> GuidedSurveyFlowSourceV1 {
+        guard let flowSource else { throw GuidedSurveyFlowFailureV1.missingExactSource }
+        return try await resolveExactFlow(request, using: flowSource)
+    }
+
+    func openExactFlow(
+        _ request: GuidedSurveyFlowRequestV1,
+        using sourceResolver: any GuidedSurveyFlowSourceResolvingV1
+    ) async throws -> GuidedSurveyFlowV1 {
+        let source = try await resolveExactFlow(request, using: sourceResolver)
+        return try source.projection()
+    }
+
+    func openExactFlow(_ request: GuidedSurveyFlowRequestV1) async throws -> GuidedSurveyFlowV1 {
+        let source = try await source(for: request)
+        return try source.projection()
+    }
+}
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Workflow/SurveySessionLifecycleAdapterV1.swift", role: .survey)
+}
+
+enum C31LightingConsumerBoundary_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/survey-session-lifecycle-adapter"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}
+
+/// C32 keeps assistance candidates outside every durable and derived surface;
+/// only explicit acceptance may reach the existing canonical writer/receipt path.
+enum C32AssistanceCompatibility_Workflow_SurveySessionLifecycleAdapterV1 {
+    enum ProposalDispositionV1: Sendable {
+        case nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+    }
+
+    enum AcceptanceDispositionV1: Sendable {
+        case durableThroughExistingCanonicalWriter
+    }
+
+    static func disposition(
+        for proposal: AssistanceProposalV1
+    ) throws -> ProposalDispositionV1 {
+        try proposal.validate()
+        guard !AssistancePersistenceEnrollmentV1.proposalIsPersistent,
+              !AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent else {
+            throw AssistanceContractFailureV1.nonCanonicalData
+        }
+        switch proposal.verificationState {
+        case .unverified:
+            return .nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+        }
+    }
+
+    static func disposition(
+        for receipt: AssistanceAcceptanceReceiptV1
+    ) throws -> AcceptanceDispositionV1 {
+        try receipt.validate()
+        guard AssistancePersistenceEnrollmentV1.durableModelCount == 1 else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+        return .durableThroughExistingCanonicalWriter
+    }
+
+    static let capabilityScratchIsDiscardedOnTerminalReview = true
+    static let manualFallbackRemainsAvailable = true
+    static let interruptionNeverPromotesAProposal = true
+    static let createsParallelStoreOrWriter = false
+}
+
+enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1_swift {
+    static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
+    static func validate(clip: TemporalEvidenceClipV1,
+                         anchor: TimecodedEvidenceAnchorV1) throws {
+        try clip.validateIntrinsic()
+        try anchor.validate(clip: clip)
+        guard durableFamilyCount == 2 else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row135 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}
+enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noContactProjectionOrNetworkDelivery = true
+}
+
+// MARK: - C52 lifecycle and privacy boundary
+enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Workflow_SurveySessionLifecycleAdapterV1_swift {
+    static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let acceptedEventPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let duplicateProjectionPersistence: ServiceRequestPersistenceClassV1 = .nonpersistentDerived
+    static let rawCapabilityPersistence: ServiceRequestPersistenceClassV1 = .prohibitedPersistent
+    static let acceptedLifecycleEnrollment: ServiceRequestPersistenceEnrollmentV1.Type = ServiceRequestPersistenceEnrollmentV1.self
+    static let cloneOrForkInvalidatesActiveCapabilities: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities
+    static let duplicateProjectionIsRebuildable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.derivedProjectionIsRebuildable &&
+        !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityIsExcludedFromReportsAndDiagnostics: Bool =
+        !ServiceRequestLifecycleRegistrationBoundaryV1.rawCapabilityAppearsInReportsOrDiagnostics
+    static let sharedPortableFilesAreRecallable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
+    static let unverifiedAssertionsAreVerified: Bool = false
+    static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}

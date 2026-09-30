@@ -1,0 +1,20 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "sourceSHA256": "d8a6653232e000590c716ad7d79f85b2786029ef1b83ebab4fcd271e2982d3b8",
+  "kind": "syntax parse only; no module/typecheck/runtime",
+  "commands": [
+    "xcrun swiftc -frontend -parse -D DEBUG <isolated-candidate>",
+    "xcrun swiftc -frontend -parse <isolated-candidate>"
+  ],
+  "DEBUG": {
+    "exitCode": 0,
+    "log": "PARSE_WORKING_V22_DEBUG.log",
+    "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "nonDEBUG": {
+    "exitCode": 0,
+    "log": "PARSE_WORKING_V22_nonDEBUG.log",
+    "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

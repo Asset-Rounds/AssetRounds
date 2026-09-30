@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.invalid/v23/ProductionCompositionRootV1.schema.json",
+  "title": "ProductionCompositionRootV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "rootPath",
+    "rootType",
+    "factory",
+    "constructedSymbols",
+    "runtimePorts",
+    "rootDeclarationCount",
+    "installationStatus",
+    "singletonProhibited",
+    "serviceLocatorProhibited",
+    "acceptanceCredit",
+    "releaseCredit",
+    "artifactDigest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ProductionCompositionRootV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "cardID": {
+      "const": "V23-P00-C10"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptID",
+        "executionMode",
+        "baseHead",
+        "baseTree",
+        "candidateBinding",
+        "packageDigest",
+        "dossierDigest",
+        "canonicalRegisterDigest",
+        "directGraphDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "ownerOverrideReceiptDigest",
+        "frozenS10ReservationDigest",
+        "bootstrapContextDigest",
+        "bootstrapPathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "writerAuthority",
+        "ledgerDigest",
+        "ledgerCASSequence",
+        "phase10PollingDuringParallelExecution",
+        "acceptanceEnabled",
+        "hostedDispatchEnabled",
+        "adoptionEnabled",
+        "requiresAcceptedS10_6Reconciliation",
+        "releaseCredit"
+      ],
+      "properties": {
+        "attemptID": {
+          "const": 1
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "baseHead": {
+          "const": "50c18e716575313097d1e6981ef3d444eac01ad4"
+        },
+        "baseTree": {
+          "const": "307d5dfc0cc95f691185ad8366e3fb7e8dc448bf"
+        },
+        "candidateBinding": {
+          "const": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED"
+        },
+        "packageDigest": {
+          "const": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570"
+        },
+        "dossierDigest": {
+          "const": "ac176edb8c0857be5c4b0db315c6237e849ecbac09f9bba254af757ab59dcb68"
+        },
+        "canonicalRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "ownerOverrideReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "bootstrapContextDigest": {
+          "const": "bc54f8887a6006669a74085c0ab88186dbf41266d5c4ece97727f48ad7ae7ee5"
+        },
+        "bootstrapPathFenceDigest": {
+          "const": "f34d2e3ea8defd5ff7146a499b88e39c76b0a925c519bb524120a2542064d1cb"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "38c99ab22e9ee8193fb44e8ae9b66e1dc54ce9d7d54f348243c7d5ac41b824e8"
+        },
+        "writerAuthority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ownerID",
+            "writerGeneration"
+          ],
+          "properties": {
+            "ownerID": {
+              "const": "A00_BOOTSTRAP_CONTROLLER"
+            },
+            "writerGeneration": {
+              "const": 0
+            }
+          }
+        },
+        "ledgerDigest": {
+          "const": "3b628688db05bf9ba75673faed3bee8e71d4d82b9ac758b72f0d334025a37225"
+        },
+        "ledgerCASSequence": {
+          "const": 27
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "hostedDispatchEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        },
+        "releaseCredit": {
+          "const": false
+        }
+      }
+    },
+    "rootPath": {
+      "const": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift"
+    },
+    "rootType": {
+      "const": "ProductionCompositionRoot"
+    },
+    "factory": {
+      "const": "makeSignWorkflow"
+    },
+    "constructedSymbols": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "runtimePorts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "rootDeclarationCount": {
+      "const": 1
+    },
+    "installationStatus": {
+      "const": "ROOT_IMPLEMENTED_WIRING_DEFERRED_RESERVED_APP_AND_FEATURE_ROOTS"
+    },
+    "singletonProhibited": {
+      "const": true
+    },
+    "serviceLocatorProhibited": {
+      "const": true
+    },
+    "acceptanceCredit": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

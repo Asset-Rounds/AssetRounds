@@ -1,0 +1,11 @@
+{
+  "files": {
+    "COMPACT_INTERFACE_V1.md": "cb21d4ac069f7cd4ea14e3232bb3943b0ebffd3ba8c256690cc3d05efebf6628",
+    "HANDOFF.md": "4068a412ed8c097c9afc7422d18edad80b09d0183e10d67c4f82c4bae18648a7",
+    "INPUTS.json": "e34893d071d0bae593e68cf5a924b3410e48ecc6533d028ed930bc4136a749a6",
+    "inputs/BINDING.json": "79864b5a71795c93cd37c2cf8d32710add775a2550de64372c7d224241d5467c",
+    "inputs/COMPACT_PHYSICAL_DATA_V4.swift.fragment": "74688616f4d5eaaec95cb34d6a96d706d26823c1cea30241eeead63469cf105b",
+    "inputs/COMPACT_POLICY_TARGET_SCOPE_V11.swift.fragment": "d9a7b2a98a9945f106a54384aa66d566678ce51aac7898acf62406fcbbc2a1f5"
+  },
+  "scope": "Preserved immutable compact planning only; no implementation/authority/evidence transfer"
+}

@@ -1,0 +1,109 @@
+{
+  "$id": "https://assetrounds.invalid/v23/my-day-plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activeModelCount": {
+      "const": 142
+    },
+    "cardID": {
+      "const": "V23-P03-C57"
+    },
+    "contractRefs": {
+      "const": [
+        "MyDayKeyV1",
+        "MyDayPlanV1",
+        "MyDayCarryoverReceiptV1",
+        "MyDayReadinessProjectionV1",
+        "DirectPrerequisiteEvidenceSetV1",
+        "CardAcceptanceInclusionProofV1",
+        "CardAcceptanceInclusionProofRecoveryReceiptV1",
+        "CandidateAcceptanceCompatibilityReceiptV1"
+      ]
+    },
+    "durableFamilyCount": {
+      "const": 2
+    },
+    "estimateMinutes": {
+      "maximum": 720,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C57-G01",
+        "V23-P03-C57-A01",
+        "V23-P03-C57-H01",
+        "V23-P03-C57-I01",
+        "V23-P03-C57-R01"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "journeyRefs": {
+      "const": [
+        "FJ12"
+      ]
+    },
+    "maximumMembership": {
+      "const": 50
+    },
+    "nonpersistentTypes": {
+      "const": [
+        "MyDayReadinessProjectionV1",
+        "MyDaySourceFrontierV1"
+      ]
+    },
+    "persistentRowTypes": {
+      "const": [
+        "MyDayPlanRowV1",
+        "MyDayCarryoverReceiptRowV1"
+      ]
+    },
+    "persistentSchemaVersion": {
+      "const": 42
+    },
+    "provisional": {
+      "const": false
+    },
+    "recordsSchemaVersion": {
+      "const": 41
+    },
+    "schema": {
+      "const": "V22P03C57MyDayPlanCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P03C57G01GoldenPlanMembershipOrderEstimateAndReadiness",
+        "testV23P03C57A01MidnightDSTZoneCarryoverAndSourceReconciliation",
+        "testV23P03C57H01HostileIdentityBoundsFrontierAndReplay",
+        "testV23P03C57I01InterruptedMutationEffectBeforeReceiptAndRelaunch",
+        "testV23P03C57R01RestoreCloneForkEraseSearchAndReportClosure"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "contractRefs",
+    "journeyRefs",
+    "evidenceIDs",
+    "selectors",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "activeModelCount",
+    "durableFamilyCount",
+    "maximumMembership",
+    "persistentRowTypes",
+    "nonpersistentTypes",
+    "finalHashesSealed",
+    "provisional"
+  ],
+  "title": "MyDayPlanV1, bounded membership/order/estimate, carryover, readiness projection, and source-truth reconciliation",
+  "type": "object"
+}

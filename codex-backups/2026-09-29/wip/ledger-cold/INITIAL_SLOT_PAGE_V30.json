@@ -1,0 +1,19 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "8c5c436e7293d8550eafa05bdc8acea50abfc1748ab68b39f8acbf4ec7860041",
+  "afterSHA256": "28b3a1c907e98f5d8b276c19278d5241bcdb040ffbdb6c2473ddb16b83095bf8",
+  "change": [
+    "Read-only Initial output pages1...128",
+    "Exact producerOrdinal/role/path sequence shared with existing stream",
+    "Private warm stamp caches pure prefix computation only; decoded cold cursor replays exact prefix",
+    "Fresh actual Initial/source proof at every call/source boundary; no page writes or permission retained",
+    "Cumulative emitted count and explicit SHA-chain framing"
+  ],
+  "limitations": [
+    "Actual source-renew entry/required published-plan binding still needs central contract",
+    "Store contiguous checkpoint/table proof before publication and no-effects ordering due",
+    "Existing per-producer source arrays retain original model bounds (genuine H131), not an invented128 producer cap",
+    "Semantic compile/runtime, whole current capacity and generic directory lineage due"
+  ]
+}

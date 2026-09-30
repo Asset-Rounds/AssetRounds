@@ -1,0 +1,114 @@
+{
+  "$id": "https://schemas.assetrounds.local/v23/p03/c07/kernel-persistence-evidence/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P03-C07"
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C07-G01",
+        "V23-P03-C07-A01",
+        "V23-P03-C07-H01",
+        "V23-P03-C07-I01",
+        "V23-P03-C07-R01"
+      ]
+    },
+    "fixtureSHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "hostedDispatchEnabled": {
+      "const": false
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "receiptID": {
+      "const": "v23-p03-c07-static-receipt"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "result": {
+      "const": "PASS"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceArtifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_maximumUTF8Bytes": 512,
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "verificationMode": {
+      "const": "STATIC_ONLY"
+    }
+  },
+  "required": [
+    "acceptanceCredit",
+    "acceptanceEnabled",
+    "adoptionEnabled",
+    "cardID",
+    "evidenceIDs",
+    "fixtureSHA256",
+    "hostedDispatchEnabled",
+    "hostedDispatchRan",
+    "nativeCompileRan",
+    "receiptID",
+    "releaseCredit",
+    "releaseReady",
+    "requiresAcceptedS10_6Reconciliation",
+    "result",
+    "schemaVersion",
+    "sourceArtifacts",
+    "verificationMode"
+  ],
+  "title": "V23P03C07KernelPersistenceEvidenceReceiptV1",
+  "type": "object",
+  "x_assetrounds_cardID": "V23-P03-C07",
+  "x_assetrounds_staticOnly": true
+}

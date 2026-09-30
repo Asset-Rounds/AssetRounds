@@ -1,0 +1,289 @@
+{
+  "artifactDigest": "efcf5512ae3858118e584c36da684ee12f44d1fa1a71295b4337df50c503105b",
+  "authority": {
+    "appBaseHead": "dc59c04251eef2d6574a152b846c0cade2ab2caf",
+    "appBaseTree": "308c809d842a54bbfaf8fa3dfce6d5cd520ab54a",
+    "authorizedOverlapCount": 4810,
+    "contextDigest": "c5b5b2c95e6f0cd01e7b9a716f67b5a3af5506699d838adbea7ebb1227e7f6b5",
+    "contractProviderCards": [
+      "V23-P03-C32",
+      "V23-P03-C36"
+    ],
+    "coordinationCASSequence": 368,
+    "coordinationHead": "3226a4cf509a04ee62671f2f7f9db15141c7687a",
+    "coordinationLedgerDigest": "e95613ccc5c4874ef71dcf9e7f6190eff63aa764132742c77f3fb9e9762e8f86",
+    "coordinationProjectionDigest": "96fb3474975d3aab33f3f898ab620e88920564c1dc4bf39b9f42eb91532ee491",
+    "coordinationTree": "043ab79fdddf74b5e1b1929fdeb22951da40be7e",
+    "directPrerequisiteCards": [
+      "V23-P03-C32"
+    ],
+    "dossierByteCount": 7178,
+    "dossierSHA256": "9da5798bf145b7d987c46457aaa872662959bba0aed1011e7d09701e4a059305",
+    "expectedExistingPathCount": 226,
+    "expectedFencePathCount": 240,
+    "expectedNewPathCount": 14,
+    "hydrationTransitionDigest": "e1c6ec725371d7b8ea694f7675aba3d96dfb8ef02e8e42deda34beb7324fdf04",
+    "pathFenceDigest": "e20dc754e933f82200f12aa5db7cb13d9322e71d0cdabbf6fb0320b77d40d5d3",
+    "priorFenceCount": 85,
+    "priorOwnedPathCount": 1384,
+    "provisionalPrerequisiteDigest": "779fe8e8f0397e91b833d6f8dee95de2686bd6c5cad23f8cf5b08b86e8b92deb",
+    "registerOrdinal": 87,
+    "registerRowByteCount": 300,
+    "registerRowSHA256": "3edcf21659d666dcf32c1dada382c7e2744c94e205bd8973e49e96b2f1e498e0",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P03-C56",
+  "contractProviders": [
+    "V23-P03-C32",
+    "V23-P03-C36"
+  ],
+  "contractRefs": [
+    "VoiceStructuringGrammarReleaseV1",
+    "StructuredVoiceProposalV1",
+    "VoiceProposalReviewPlanV1",
+    "DirectPrerequisiteEvidenceSetV1",
+    "CardAcceptanceInclusionProofV1",
+    "CardAcceptanceInclusionProofRecoveryReceiptV1",
+    "CandidateAcceptanceCompatibilityReceiptV1"
+  ],
+  "directPrerequisites": [
+    "V23-P03-C32"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C56-G01",
+    "V23-P03-C56-A01",
+    "V23-P03-C56-H01",
+    "V23-P03-C56-I01",
+    "V23-P03-C56-R01"
+  ],
+  "finalHashesSealed": true,
+  "journeyRefs": [
+    "FJ14"
+  ],
+  "persistence": {
+    "acceptedFieldCheckpoint": "P03-C36_EXISTING_DRAFT_CHECKPOINT_AND_WRITER",
+    "backup": "PROPOSAL_EXCLUDED_ACCEPTED_DRAFT_USES_EXISTING_C36_LIFECYCLE",
+    "cloneFork": "PROPOSAL_INVALIDATED_DRAFT_AUTHORITY_REMAINS_C36",
+    "deleteErase": "SCRATCH_DELETED_PROPOSAL_DISCARDED",
+    "durableFamilies": [],
+    "durableFamilyCount": 0,
+    "importExport": "NO_PROPOSAL_EXPORT",
+    "journalReplay": "NO_PROPOSAL_JOURNAL_ROW",
+    "mode": "NONPERSISTENT_PROPOSAL_EXISTING_C36_DRAFT_ACCEPTANCE",
+    "newPersistentModelCount": 0,
+    "persistentSchemaVersionUnchanged": true,
+    "proposal": "NONPERSISTENT",
+    "recordsSchemaVersionUnchanged": true,
+    "report": "EXCLUDED",
+    "restore": "PROPOSAL_EXCLUDED_ACCEPTED_DRAFT_USES_EXISTING_C36_LIFECYCLE",
+    "retention": "NO_AUDIO_RETENTION",
+    "scratchAudio": "NONPERSISTENT_DELETE_ON_TERMINAL_DISPOSITION",
+    "search": "EXCLUDED"
+  },
+  "provisional": false,
+  "schema": "V23P03C56StructuredVoiceProposalContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "acceptedFieldUsesExistingC36DraftWriter": true,
+    "allowedProposalFields": [
+      "NOTE_TEXT",
+      "FINDING_TEXT",
+      "ALLOWED_ENUM",
+      "EXACT_NUMBER_AND_UNIT",
+      "DURATION",
+      "MATERIAL_DESCRIPTION_AND_QUANTITY"
+    ],
+    "ambiguityIsManualOnly": true,
+    "audioScratchOnlyAndDeleted": true,
+    "c36CheckpointCASCodecProof": {
+      "expectedBaseCanonicalRevision": true,
+      "expectedCheckpointSHA256": true,
+      "expectedDraftRevision": true,
+      "frontierReadBeforeEachReview": true,
+      "mutationID": true,
+      "overflowRejected": true,
+      "predecessorAndSuccessorReadBack": true,
+      "receiptValidated": true,
+      "registeredCodecRequired": true,
+      "singleExistingC36WriterBoundary": true
+    },
+    "c56OwnsCaptureUIRuntime": false,
+    "canonicalUnits": {
+      "closed": true,
+      "codes": [
+        "EACH",
+        "PERCENT",
+        "MILLIMETER",
+        "CENTIMETER",
+        "METER",
+        "INCH",
+        "FOOT",
+        "GRAM",
+        "KILOGRAM",
+        "OUNCE",
+        "POUND",
+        "MILLILITER",
+        "LITER",
+        "GALLON"
+      ],
+      "type": "VoiceStructuredUnitV1"
+    },
+    "captureUIRuntimeOwnership": "V23-P04-C45",
+    "closedGrammarRegistry": {
+      "callerGrammarInjectionPermitted": false,
+      "exactRegisteredReleaseTupleRequired": true,
+      "maximumGrammarReleases": 32,
+      "type": "VoiceStructuringGrammarRegistryV1"
+    },
+    "contractRefs": [
+      "VoiceStructuringGrammarReleaseV1",
+      "StructuredVoiceProposalV1",
+      "VoiceProposalReviewPlanV1",
+      "DirectPrerequisiteEvidenceSetV1",
+      "CardAcceptanceInclusionProofV1",
+      "CardAcceptanceInclusionProofRecoveryReceiptV1",
+      "CandidateAcceptanceCompatibilityReceiptV1"
+    ],
+    "deterministicAuthenticator": {
+      "proposalDigestCompare": true,
+      "protocol": "VoiceStructuredProposalAuthenticatingV1",
+      "rawTranscriptSourceDigestCompare": true,
+      "rebuildAndCanonicalCompare": true
+    },
+    "everyFieldUnverifiedUntilIndividuallyAcceptedOrEdited": true,
+    "forbiddenInferences": [
+      "DIAGNOSIS",
+      "COMPLIANCE",
+      "SEVERITY",
+      "IDENTITY",
+      "PLACEMENT",
+      "SCHEDULE",
+      "EXACT_STOCK_BINDING",
+      "STOCK_DECREMENT",
+      "CANONICAL_COMMAND",
+      "COMPLETION",
+      "FINALIZATION"
+    ],
+    "grammar": "VERSIONED_CLOSED_DETERMINISTIC_ON_DEVICE",
+    "journeyRefs": [
+      "FJ14"
+    ],
+    "lifecycleCoverage": [
+      "SCHEMA_VERSION",
+      "WRITER_QUERY",
+      "MIGRATION",
+      "BACKUP_REPLACE_RESTORE",
+      "CLONE_FORK",
+      "IMPORT_EXPORT",
+      "JOURNAL_REPLAY",
+      "SEARCH_REBUILD",
+      "REPORT_PROJECTION",
+      "DELETE_ERASE",
+      "RETENTION",
+      "COMPATIBILITY",
+      "DOWNGRADE_FORWARD_FIX",
+      "INTERRUPTION",
+      "IDEMPOTENT_RECEIPTS"
+    ],
+    "maximumProposalLifetimeSeconds": 1800,
+    "noCanonicalCommandOrAutomaticMutation": true,
+    "noCloudOrGenerativeFallback": true,
+    "nonpersistentLifecycle": {
+      "backupSearchReportJournalEnrollmentPermitted": false,
+      "canonicalWritePermitted": false,
+      "directAssistanceProposalPayloadPermitted": false,
+      "durableFamilyCount": 0,
+      "scratchDeletedAfterReviewExpiryOrCancellation": true
+    },
+    "p04C45OwnsCaptureUIRuntime": true,
+    "prohibitedP04C45Ownership": [
+      "capture",
+      "review UI",
+      "runtime route",
+      "surface enrollment"
+    ],
+    "qualityStates": [
+      "EXACT_EXPLICIT_GRAMMAR",
+      "AMBIGUOUS_REQUIRES_MANUAL_ENTRY",
+      "UNSUPPORTED"
+    ],
+    "rawSpanEncoding": "UTF8_START_LENGTH_BOUND_TO_TRANSCRIPT",
+    "resetReplayCleanup": {
+      "activeProposalCap": 128,
+      "fieldReplayDigestBound": true,
+      "generationRevocation": true,
+      "proposalReplayDigestBound": true,
+      "sequentialScratchCleanup": true,
+      "terminalReplayCap": 256,
+      "workspaceEraseReset": true
+    },
+    "selectors": [
+      "testV23P03C56G01DeterministicGrammarSpansAndTypedC36Acceptance",
+      "testV23P03C56A01AmbiguityLocaleAndManualFallbackUseExplicitReview",
+      "testV23P03C56H01HostileRegistrySpansValuesReplayAndGenerationFailClosed",
+      "testV23P03C56I01InterruptionAdmissionEraseAndNonpersistentLifecycleRemainClosed",
+      "testV23P03C56R01CanonicalRecoveryAndPersistenceClosureRemainDeterministic"
+    ],
+    "sourceSpansRequired": true,
+    "speechConfidenceIsInformationalOnly": true,
+    "targetFixedAtCapture": true,
+    "transcriptSourceDigest": "SHA256_RAW_UTF8_BOUND_TO_CONTEXT_SOURCE",
+    "unmatchedClauseTopology": {
+      "reasons": [
+        "NO_EXPLICIT_GRAMMAR_MATCH",
+        "MULTIPLE_EXPLICIT_GRAMMAR_MATCHES",
+        "VALUE_OUTSIDE_CLOSED_GRAMMAR",
+        "REJECTED_BY_FIELD_VALIDATION"
+      ],
+      "requiredForUnmatchedInput": true,
+      "sortedByUTF8SpanAndOccurrenceID": true,
+      "type": "VoiceUnmatchedClauseV1"
+    },
+    "unsupportedCapabilityManualFallback": true
+  },
+  "sourceProjection": {
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/VoiceStructuring/VoiceStructuringContractsV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceProposalReviewCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/VoiceStructuring/VoiceStructuringLifecycleAdapterV1.swift",
+      "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/StructuredVoice/V22P03C56StructuredVoiceProposalCorpusV1.json"
+    ],
+    "missingPaths": [],
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/VoiceStructuring/VoiceStructuringContractsV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceStructuringServiceV1.swift",
+      "FieldEvidenceApp/Application/VoiceStructuring/VoiceProposalReviewCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/VoiceStructuring/VoiceStructuringLifecycleAdapterV1.swift",
+      "FieldEvidenceAppTests/V9_64StructuredVoiceProposalTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/StructuredVoice/V22P03C56StructuredVoiceProposalCorpusV1.json"
+    ],
+    "selectors": [
+      "testV23P03C56G01DeterministicGrammarSpansAndTypedC36Acceptance",
+      "testV23P03C56A01AmbiguityLocaleAndManualFallbackUseExplicitReview",
+      "testV23P03C56H01HostileRegistrySpansValuesReplayAndGenerationFailClosed",
+      "testV23P03C56I01InterruptionAdmissionEraseAndNonpersistentLifecycleRemainClosed",
+      "testV23P03C56R01CanonicalRecoveryAndPersistenceClosureRemainDeterministic"
+    ],
+    "sourceSemanticsInspected": true
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "title": "On-device StructuredVoiceProposalV1, deterministic grammar, source spans, ambiguity, expiry, and explicit field acceptance"
+}

@@ -1,0 +1,9 @@
+/// The same actual Notification system adapter supplies distinct pending and
+/// delivered observations so the held terminal owner is revalidated between
+/// both OS awaits. There is deliberately no permissive combined default.
+@MainActor
+protocol NotificationTerminalSystemPortV4: NotificationSystemPortV1 {
+    func pendingObservations() async throws -> [NotificationSystemObservationV1]
+    func deliveredObservations() async throws -> [NotificationSystemObservationV1]
+}
+

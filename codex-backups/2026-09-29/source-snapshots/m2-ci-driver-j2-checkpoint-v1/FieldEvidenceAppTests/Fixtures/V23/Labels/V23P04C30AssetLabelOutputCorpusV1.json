@@ -1,0 +1,92 @@
+{
+  "authority": {
+    "allocationDigest": "9f66dad445adf0d9e942859dfa4af636009619c3f0a98083047157419de06ee4",
+    "appBaseHead": "8b97b33a0c83d639349d9c28806092fdeb79b95f",
+    "appBaseTree": "0c804ceb7b50a5b804b1380762408aedac644d2d",
+    "contextDigest": "c1ac4c3961fde5b1743f3703ee158720b9059b6af4538bf59d5df788e5327b02",
+    "coordinationHead": "1b902e448a0f38f7189e237e383f8567ffbf10c3",
+    "coordinationLedgerDigest": "9d2ae54e909cb739ed9e0b038b5b4e737b5a5de117345c65c7df6a7c3ec5a1da",
+    "coordinationProjectionDigest": "68adcff47cfa994183d8fb5fbe08e0f988d45ba4da5aa4fdb4eb61764b11cebe",
+    "coordinationTree": "fa2dbae64b7ad67d72c1b6a6a02bcbf040c7a673",
+    "fenceDigest": "72484e9d476b2c1cf858ebaecd1d08ef16e7e83e554f270991ac0d7351f68f3d",
+    "hydrationSequence": 514,
+    "prerequisiteDigest": "33e53e92d05fb20c88b4758b3d73c1afefc1e12dd053bc3038de8cb3f2ad38d7",
+    "transitionDigest": "1f30ded84d570f4000e6ffb30311bf03f70dda0fb9c095cdc7d09b5681a28023"
+  },
+  "cardID": "V23-P04-C30",
+  "claims": {
+    "deliveryCompleted": false,
+    "deployedOrAffixed": false,
+    "networkRequired": false,
+    "physicalPrintCompleted": false,
+    "physicalScanValidated": false
+  },
+  "evidenceRows": [
+    {"acceptanceCredit":false,"evidenceID":"V23-P04-C30-G01","expected":"DETERMINISTIC_PDF_CSV_TEXT_PREVIEW_REPRINT_SCAN_CLOSURE","status":"NOT_RUN"},
+    {"acceptanceCredit":false,"evidenceID":"V23-P04-C30-A01","expected":"MANUAL_OFFLINE_FORMULA_SAFE_FALLBACK","status":"NOT_RUN"},
+    {"acceptanceCredit":false,"evidenceID":"V23-P04-C30-H01","expected":"FAIL_CLOSED","status":"NOT_RUN"},
+    {"acceptanceCredit":false,"evidenceID":"V23-P04-C30-I01","expected":"NO_PARTIAL_ARTIFACT","status":"NOT_RUN"},
+    {"acceptanceCredit":false,"evidenceID":"V23-P04-C30-R01","expected":"EXACT_REEXPORT_OR_HISTORIC_EXPORT_ONLY","status":"NOT_RUN"}
+  ],
+  "hostileCases": [
+    {"caseID":"H01_STALE_ASSET_OR_BINDING_REVISION","expected":"REJECT_STALE"},
+    {"caseID":"H02_SHORT_CODE_COLLISION","expected":"REJECT_COLLISION"},
+    {"caseID":"H03_RETIRED_LOCATOR","expected":"REJECT_RETIRED"},
+    {"caseID":"H04_REPLACED_LOCATOR","expected":"REJECT_REPLACED_WITH_SUCCESSOR"},
+    {"caseID":"H05_FORMULA_UNSAFE_VENDOR_CSV","expected":"REJECT_UNSAFE_CSV"},
+    {"caseID":"H06_HISTORIC_EXPORT_DEPLOY_ATTEMPT","expected":"REJECT_HISTORIC_DEPLOY"},
+    {"caseID":"H07_IMPLICIT_GENERATION_START","expected":"REJECT_IMPLICIT_START"},
+    {"caseID":"H08_FALSE_PRINT_SCAN_OR_DELIVERY_CLAIM","expected":"REJECT_FALSE_COMPLETION"}
+  ],
+  "interruptionReceipts": [
+    {"acceptedArtifactSetCount":0,"boundary":"BEFORE_STAGING","partialArtifactCount":0,"recoveryAcceptedArtifactSetCount":1},
+    {"acceptedArtifactSetCount":0,"boundary":"AFTER_STAGING_BEFORE_PUBLICATION","partialArtifactCount":0,"recoveryAcceptedArtifactSetCount":1},
+    {"acceptedArtifactSetCount":1,"boundary":"AFTER_PUBLICATION_BEFORE_RETURN","partialArtifactCount":0,"recoveryAcceptedArtifactSetCount":1}
+  ],
+  "lifecycle": {
+    "activeModelCount": 168,
+    "newDurableFamilyCount": 0,
+    "newMigrationCount": 0,
+    "newWriterCount": 0,
+    "persistentSchema": "V53",
+    "repeatedRecoveryIdempotent": true
+  },
+  "outputContract": {
+    "artifactKinds": ["FORMULA_SAFE_CSV", "PDF", "STRUCTURED_TEXT"],
+    "explicitStartRequired": true,
+    "historicExportWarning": "DO_NOT_DEPLOY_RETIRED_OR_REPLACED_LABEL",
+    "reprintDispositions": ["ACTIVE_EXACT_REPRINT", "BLOCKED_MISSING_RELEASE", "HISTORIC_EXPORT_ONLY"],
+    "scanSources": ["CAMERA", "MANUAL", "SEARCH"]
+  },
+  "physicalEvidence": {
+    "acceptedS10_6": "PENDING",
+    "nativeRoute": "NOT_RUN",
+    "ownerPhysicalPrint": "REQUIRED_PENDING_OWNER",
+    "ownerPhysicalScan": "REQUIRED_PENDING_OWNER"
+  },
+  "prerequisites": [
+    {"acceptanceCredit":false,"candidateHead":"32533a14d2e72ee8ebc46b25473c80fc3f721424","candidateTree":"92fc18e03142c1eaae60a1f71deeb4fea2b71606","cardID":"V23-P03-C45","checkpointDigest":"74cd398465a41ab01f1364c25f3c0a658319bf29e2e04c35127e1edbd2c325a1","verificationReceiptDigest":"2b46489594341f4c70341acef33ce4fd907890920ae593d6bac039ef10224a65"},
+    {"acceptanceCredit":false,"candidateHead":"73d512ac1ff2832fa5c681078fb027604c7661cf","candidateTree":"c521dcfe1caf97b75b4a6d952f6c2ddea1daab2f","cardID":"V23-P04-C13","checkpointDigest":"8cad1c340e340be9b9f5e3db6e5396d3692f57bb0e38b9362a316e16deb24883","verificationReceiptDigest":"bc51a9ffa6e3141c0d4c2db3efe51ff3e9daa85adc2899ea3fb5c43ed38e4ac0"},
+    {"acceptanceCredit":false,"candidateHead":"d40d75d615d217b3da9cfc46c2078ee97b199b12","candidateTree":"7bf75da1a00976d6e1c2ffa9b02d0026fa20bb15","cardID":"V23-P04-C21","checkpointDigest":"1ad71ea58942fdb11ac2ded3df6d2c8b4ab341dbb1ad21c7ef018f9a67c8ed54","verificationReceiptDigest":"e78ce6edc4aa8c152a6100d263697e344c5cfc62a17491d384abf077c3dfbc35"}
+  ],
+  "schema": "V23P04C30AssetLabelOutputCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    "testV23P04C30G01DeterministicLabelSheetVendorCSVPreviewReprintAndScanClosure",
+    "testV23P04C30A01ManualShortCodeOfflineFallbackAndFormulaSafeVendorCSV",
+    "testV23P04C30H01StaleCollisionRetiredReplacedUnsafeCSVAndHistoricDeployFailClosed",
+    "testV23P04C30I01InterruptedGenerationAndRepeatedRecoveryLeaveNoPartialArtifact",
+    "testV23P04C30R01RetryReexportsExactAcceptedBytesAndPreservesHistoricExportOnlyWarning"
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "native": false,
+    "publication": false,
+    "release": false,
+    "releaseCredit": false,
+    "releaseReady": false
+  },
+  "syntheticOnly": true
+}

@@ -1,0 +1,28 @@
+// Required Lifecycle fields/initializer argument; actual issuer remains mandatory.
+private let c16CurrentRecordBinding: @MainActor (String, Int) throws
+    -> (recordBindingSHA256: String, logicalProgressSHA256: String,
+        progress: OriginalEraseC16ReferenceProgressV1)
+// fileprivate init MUST require same escaping closure, no default, and assign it.
+
+    /// The actual Store readback supplies both canonical record identity and
+    /// its current C16 stage/subsequence. An admitted initial DATA progress
+    /// value cannot prove a later uncaptured-birth or completed inspection.
+    /// Ledger validates this projection against the fixed plan on every use.
+    func requireC16CurrentRecordBinding(planSHA256: String, ordinal: Int) throws
+        -> (recordBindingSHA256: String, logicalProgressSHA256: String,
+            progress: OriginalEraseC16ReferenceProgressV1) {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(planSHA256),
+              ordinal >= 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        let current = try c16CurrentRecordBinding(planSHA256, ordinal)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(current.recordBindingSHA256),
+              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(current.logicalProgressSHA256),
+              try c16ObservationBinding(planSHA256, ordinal) == current.recordBindingSHA256 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireObservationBinding()
+        return current
+    }
+

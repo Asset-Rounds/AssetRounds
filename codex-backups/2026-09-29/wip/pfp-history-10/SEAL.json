@@ -1,0 +1,20 @@
+{
+  "files": {
+    "BINDING.json": "dd475285923cf635e6c9370e071d91142d1f322c55b66712c55a458166d8d6e4",
+    "CASE_MATRIX.md": "a196a120b3da19d971c1a05f8c06dcf986ffc2ef905e577ebec768c6d405efc9",
+    "HANDOFF.md": "2a835eb121ccb7eb0c75a7bc56e25d83ece597f4489e82d492bd85aa3bb17125",
+    "INPUTS.json": "64b501b037b02298c3d3ce8b9883193567fd78f640d40e31856319979f12b031",
+    "INTERFACE_V1.md": "cffdcf7b3a48beb86e9e56f7fcea07b1b04a9f99196b9cb9b3d3155d2898f00c",
+    "LIFECYCLE_PROOF.md": "5283478ce08a7ec96f7e117b0d391577360b960f1e1a3fa0ad4c2dd24bbcfda9",
+    "PARSE_RESULTS.json": "67138f36ec39023499090b415662dec1057360dfba967aa6812787d8a7a45976",
+    "ProtectedFilePolicy.diff": "50d6ee9f753c59a5c867758ba11badd506ed0640f6403a3c465c1eacf4260ce3",
+    "SOURCE_SAFETY_LEDGER.json": "86cbd19bb948265558bc3489470f55e1491968a7d518bb38b4a2d7711d54337e",
+    "TERMINAL_GATE_V1.swift.fragment": "1b32be8de0b2ac1df0428adb76649e745a6c687aa82cc10c21ba889a73078385",
+    "before/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+    "candidate/ProtectedFilePolicy.swift": "4f16a1a36615010e237ab11e913e8402f89764391cd8d54fd80bc35b1e6b8473",
+    "parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "schemaVersion": 1,
+  "scope": "Exact minimal terminal resource gate source/evidence only; preserve after seal."
+}

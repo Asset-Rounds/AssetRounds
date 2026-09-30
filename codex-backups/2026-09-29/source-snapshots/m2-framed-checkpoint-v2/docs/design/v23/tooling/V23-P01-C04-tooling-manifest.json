@@ -1,0 +1,130 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "artifactCount": 7,
+  "artifactDigest": "32455098a3b75d9c33f2675c300d1540550ae18a652ffa37e880963eb8ee95be",
+  "artifactSetDigest": "d7802aedee0f1a787ef73eea19de21bf5bb6b4019b506abdb84184931524752a",
+  "artifacts": [
+    {
+      "bytes": 19631,
+      "path": "Scripts/v23/p01_c04_contracts.py",
+      "sha256": "94df279f7ead53da83e7d4ce8e14d9d3dc1d80f0282b37aaed81f4d5b9fc277a"
+    },
+    {
+      "bytes": 1419,
+      "path": "Scripts/v23/generate_p01_c04_contracts.py",
+      "sha256": "af8b42874bde218a45e42ea83fc5c674e44f8f18aa0971545dcfcc7ce289116c"
+    },
+    {
+      "bytes": 7849,
+      "path": "Scripts/v23/verify_p01_c04_contracts.py",
+      "sha256": "f20398b33392e5b8ea46fab4a0b619e3629c00eda825970b785e48f759a2102f"
+    },
+    {
+      "bytes": 5656,
+      "path": "Scripts/v23/streaming-archive.schema.json",
+      "sha256": "4407f11189024da083d09068ca9c85d15799e132840e86cb318b76b18bd6fe53"
+    },
+    {
+      "bytes": 3026,
+      "path": "Scripts/v23/archive-corpus.schema.json",
+      "sha256": "0219bcda5118d8fd75329a83e273cbe53a3c25c2c2109929f54c1c278c2b250d"
+    },
+    {
+      "bytes": 12839,
+      "path": "docs/design/v23/tooling/V23P01C04StreamingArchiveContractV1.json",
+      "sha256": "06e7482ebefee6d8402c76b36382431c47e1ff65b96eddaa4b48c4a90e9547c3"
+    },
+    {
+      "bytes": 8346,
+      "path": "docs/design/v23/tooling/V23P01C04ArchiveCorpusManifestV1.json",
+      "sha256": "d8a8fd24227b2c6bd8a8071235cece31412a64b5616ab16db587d32310daa3e4"
+    }
+  ],
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "activeS10OverlapCount": 0,
+    "authorizedPriorFenceOverlap": {
+      "cardID": "V23-P01-C02",
+      "disposition": "DIRECT_INVALIDATION_AND_REPROOF",
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "pathFenceDigest": "516df34be4e6c68ff8a6d1737c8ced37e2eb1b5ebfd6110542a60b9579c36809"
+    },
+    "baseHead": "989d73460e4614e3bbea6c1dc20a9da0a1e5f660",
+    "baseTree": "8759c54dec2273b0e22a8caefb06cb0e0141657a",
+    "branch": "phase/v23-expansion",
+    "conformanceSubjectSet": "KernelConformanceSubjectSetV1",
+    "contextDigest": "b0a25f7dbfa1d1f6120f3fb7c5531b23189c26754c599cbf7e134d78755dbe29",
+    "coordinationAuthorityHead": "c7b9eaa18849af12b21ceddcaa14cd07596edc43",
+    "coordinationCASSequence": 66,
+    "coordinationLedgerDigest": "cf2376b9b9cc71f6fc15cbba80e8063dac9e8b3558ce95fbe074a567e0ffe045",
+    "coordinationLedgerSequence": 66,
+    "deterministicEvidenceIDs": [
+      "V23-P01-C04-G01",
+      "V23-P01-C04-A01",
+      "V23-P01-C04-H01",
+      "V23-P01-C04-I01",
+      "V23-P01-C04-R01"
+    ],
+    "directPrerequisite": {
+      "candidateHead": "989d73460e4614e3bbea6c1dc20a9da0a1e5f660",
+      "candidateTree": "8759c54dec2273b0e22a8caefb06cb0e0141657a",
+      "cardID": "V23-P01-C03",
+      "disposition": "CURRENT_CANDIDATE_COMPATIBLE_PROVISIONAL",
+      "migrationRecoveryContractDigest": "47b94e525443d748f01daf806dcfb4644533cb37cc98e0ce29f19e322333305e",
+      "persistentSchemaReleaseRegistryDigest": "e3223bf2f3b71095386ff5190d95d94aece9ead8ae9655ba8a0d6e843466733c",
+      "toolingManifestDigest": "3b921b3e300623df01d8dce1fbe219570afa6f48d50741834174fca877dda1d9"
+    },
+    "dossierDigest": "ec8ddc55bc2aec1cdeb41722004482ca345bd12b009032f3dadf29d297e56c5f",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationTransitionDigest": "0240584c291d45fbd15b750ca9070f02aed10b5f132f8c963498e081f2f3f0fe",
+    "inheritedV21BlockDigest": "3ff603dbc402208da26a1adb455028e82afb69de5e1d05874e6a8a58a8749414",
+    "invalidationConsumer": "V23-P01-C05",
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "pathFenceDigest": "5ca647e7d47e14b1f758d06092df208626bbd8c4eac6dec3a83de0521800b51f",
+    "provisionalPrerequisiteDigest": "96436edd25b1792b918b4869b28e4cd6786dc2d6628285f56efea694e5d7d7b6",
+    "registerRowDigest": "f7c40a2bf9ea670923489e8f0aec0d1dfae1cf9a9bcad2bf20d2ce4f5bad5556",
+    "reservationOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+  },
+  "cardID": "V23-P01-C04",
+  "fullCardFence": [
+    "FieldEvidenceApp/Domain/Backup/StreamingArchiveContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceAppTests/V9_04StreamingArchiveTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Archives/V21P01C04ArchiveCorpusV1.json",
+    "Scripts/v23/p01_c04_contracts.py",
+    "Scripts/v23/generate_p01_c04_contracts.py",
+    "Scripts/v23/verify_p01_c04_contracts.py",
+    "Scripts/v23/streaming-archive.schema.json",
+    "Scripts/v23/archive-corpus.schema.json",
+    "docs/design/v23/tooling/V23P01C04StreamingArchiveContractV1.json",
+    "docs/design/v23/tooling/V23P01C04ArchiveCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C04-tooling-manifest.json"
+  ],
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "pathFence": [
+    "Scripts/v23/p01_c04_contracts.py",
+    "Scripts/v23/generate_p01_c04_contracts.py",
+    "Scripts/v23/verify_p01_c04_contracts.py",
+    "Scripts/v23/streaming-archive.schema.json",
+    "Scripts/v23/archive-corpus.schema.json",
+    "docs/design/v23/tooling/V23P01C04StreamingArchiveContractV1.json",
+    "docs/design/v23/tooling/V23P01C04ArchiveCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C04-tooling-manifest.json"
+  ],
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C04ToolingManifestV1",
+  "schemaVersion": 1,
+  "sourceBindingComplete": true,
+  "sourceBindingCount": 7,
+  "toolingPathCount": 8
+}

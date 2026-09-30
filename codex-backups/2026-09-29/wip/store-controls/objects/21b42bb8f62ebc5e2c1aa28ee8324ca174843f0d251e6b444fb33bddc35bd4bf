@@ -1,0 +1,83 @@
+from pathlib import Path
+r=Path('.codex-temp/cold-control-continuation-successor-v1'); p=r/'candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift'; s=p.read_text()
+# Replace only new v2 data's authority type; historical incumbent APIs stay exact.
+a=s.index('final class EraseSchema2ColdTerminalStoreCloseReceiptV1'); b=s.index('private struct Schema2ColdOriginalAuxiliaryPolicyWitnessV1',a)
+s=s[:a]+s[a:b].replace('ErasedRegistryRetirementProofV1','EraseSchema2ColdTerminalAuthorityV1')+s[b:]
+s=s.replace('    private var coldCleanupPermit: EraseSchema2ColdControlPermitV1?','    private var coldCleanupPermit: EraseSchema2ColdControlPermitV1?\n    private var coldCleanupEffect: EraseSchema2ColdControlEffectV1?',1)
+s=s.replace('private var coldCleanupTerminalRetirement: ErasedRegistryRetirementProofV1?','private var coldCleanupTerminalRetirement: EraseSchema2ColdTerminalAuthorityV1?',1)
+# Retire v1 whole-order terminal routine; one exact ordinal is v2 authority.
+a=s.index('    @MainActor\n    func removeSchema2ColdCleanupControlsAfterCompletion('); b=s.index('    /// Completed cleanup has removed',a)
+v2=(r/'V2_APIS.swift.fragment').read_text().replace('ErasedRegistryRetirementProofV1','EraseSchema2ColdTerminalAuthorityV1')
+v2=v2.replace('try requireRetirementRoot(retirement)','try requireSchema2ColdTerminalRoot(retirement)')
+v2=v2.replace('        coldCleanupTerminalObservation = terminal\n        coldCleanupTerminalRetirement = retirement\n        coldCleanupTerminalRemovalStarted = true','        try retirement.requireTerminalControlRemoval(expected: expected,\n            terminalSHA256: StoreMigrationCanonicalJSONV1.sha256(terminal.bytes), ordinal: ordinal)\n        coldCleanupTerminalObservation = terminal\n        coldCleanupTerminalRetirement = retirement\n        coldCleanupTerminalRemovalStarted = true',1)
+v2=v2.replace('        coldCleanupTerminalRootRemovalAttempted = true','        try retirement.requireTerminalRootRemoval(expected: expected,\n            terminalSHA256: StoreMigrationCanonicalJSONV1.sha256(terminal.bytes))\n        coldCleanupTerminalRootRemovalAttempted = true',1)
+v2=v2.replace('        // The original first observer owns these two lent descriptors.','        try retirement.requireTerminalStoreClose(expected: expected,\n            terminalSHA256: StoreMigrationCanonicalJSONV1.sha256(terminal.bytes))\n        // The original first observer owns these two lent descriptors.',1)
+s=s[:a]+v2+'\n'+s[b:]
+# Closed fixed legacy names may be read only by the explicit terminal reader.
+s=s.replace('        guard EraseSchema2ColdCleanupGrammarV1.isControlName(name),\n              coldActiveFD', '''        guard (EraseSchema2ColdCleanupGrammarV1.isControlName(name) ||
+                (coldCleanupPermit != nil && [Self.intentName, Self.preparationName,
+                 Self.originalRetiredStageIdentityName, Self.originalRetiredCommitmentName,
+                 Self.rosterName, Self.auxiliaryRosterName].contains(name))),
+              coldActiveFD''',1)
+# Mandatory name-loss FD fence is memory-only and precedes descriptor access.
+s=s.replace('        guard !originalRecoveryCloseAttempted, !coldCloseAttempted, !coldClosed,','        guard !coldCleanupCompletionControlsRemoved,\n              !originalRecoveryCloseAttempted, !coldCloseAttempted, !coldClosed,',1)
+s=s.replace('    private func requireRetirementRoot(_ retirement: ErasedRegistryRetirementProofV1) throws {\n','    private func requireRetirementRoot(_ retirement: ErasedRegistryRetirementProofV1) throws {\n        guard !coldCleanupCompletionControlsRemoved, !coldCloseAttempted, !coldClosed else {\n            throw EraseIntentStoreError.invalidAuthority\n        }\n',1)
+s=s.replace('    private func verifyRetirementRootNoOpen() throws {\n','    private func verifyRetirementRootNoOpen() throws {\n        guard !coldCleanupCompletionControlsRemoved, !coldCloseAttempted, !coldClosed else {\n            throw EraseIntentStoreError.invalidAuthority\n        }\n',1)
+# No adoption of a same-name control appearing after the first observation.
+s=s.replace('            if let firstCanonical,\n               let retained = coldCleanupProjectedLeaves[name], firstCanonical != retained {','            if let firstCanonical, firstCanonical != coldCleanupProjectedLeaves[name] {',1)
+s=s.replace('            if let firstTemporary,\n               let retained = coldCleanupProjectedLeaves[next], firstTemporary != retained {','            if let firstTemporary, firstTemporary != coldCleanupProjectedLeaves[next] {',1)
+# Validate bootstrap independently on every indexed admission.
+needle='        let bytes = try sources.canonicalBytes()\n        _ = try requireSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.sourcesName,'
+s=s.replace(needle,'''        let declaration = EraseSchema2ColdCleanupSourcesV1(schemaVersion: sources.schemaVersion,
+            eraseID: sources.eraseID, preparationSHA256: sources.preparationSHA256,
+            originalPAuxiliaryRosterSHA256: sources.originalPAuxiliaryRosterSHA256,
+            targetPointerSHA256: sources.targetPointerSHA256,
+            c16PlanLeafName: sources.c16PlanLeafName, c16PlanSHA256: sources.c16PlanSHA256,
+            c16PlanFullFact: nil, sources: sources.sources.map {
+                .init(path: $0.path, fullFact: $0.fullFact, sha256: $0.sha256,
+                    byteCount: $0.byteCount, maximumByteCount: $0.maximumByteCount,
+                    leafName: $0.leafName, leafFullFact: nil)
+            })
+        let bootstrap = try EraseSchema2ColdCleanupTransferV1(schemaVersion: 1,
+            sources: declaration).canonicalBytes()
+        _ = try requireSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.transferName,
+            bytes: bootstrap, fullFact: nil,
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)
+        let bytes = try sources.canonicalBytes()
+        _ = try requireSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.sourcesName,''',1)
+# Public APIs bind commitments; private nested reproofs retain the outer effect.
+s=s.replace('    func loadSchema2ColdCleanupProgress(sources:', '    private func loadSchema2ColdCleanupProgressInternal(sources:',1)
+s=s.replace('try loadSchema2ColdCleanupProgress(sources:', 'try loadSchema2ColdCleanupProgressInternal(sources:')
+s=s.replace('        _ = try requireSchema2ColdCleanupSources(receipt, permit: permit)','        try requireSchema2CleanupSourceIndex(receipt.sources, indexFullFact: receipt.indexFullFact, permit: permit)',1)
+s=s.replace('        _ = try requireSchema2ColdSurvivingNotificationProvenance(result, permit: permit)','        _ = try requireSchema2CleanupLeaf(EraseSchema2ColdCleanupGrammarV1.notificationName,\n            bytes: result.bytes, fullFact: EraseSchema2ColdCleanupGrammarV1.fullFact(result.fact),\n            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)',1)
+# Internal outer-effect latch lives on Store, not on a raw lease or EX flag.
+s=s.replace('        try permit.requireHeld()\n        guard !coldCloseAttempted, !coldClosed, !coldEffectUncertain,','        try requireSchema2ColdCleanupEffect(permit)\n        guard !coldCloseAttempted, !coldClosed, !coldEffectUncertain,',1)
+# Every effect / readback call inside the new APIs consumes both the exact
+# outer effect and the lexical actual namespace proof. Historical code stays.
+a=s.index('    @MainActor\n    private func beginSchema2ColdCleanupControlScope('); b=s.index('    /// Completed cleanup has removed',a)
+block=s[a:b].replace('try permit.requireHeld()', 'try requireSchema2ColdCleanupEffect(permit)')
+# Avoid self recursion in the helper itself.
+block=block.replace('try requireSchema2ColdCleanupEffect(permit); try permit.requireEffect(effect)','try permit.requireHeld(); try permit.requireEffect(effect)')
+s=s[:a]+block+s[b:]
+# Explicit closed source table/name grammar even when index is not yet present.
+needle='        // No indexed-dependent effect is admitted until the complete index'
+s=s.replace(needle,'''        let transferNames = Set(sources.sources.map(\\.leafName) + [sources.c16PlanLeafName,
+            EraseSchema2ColdCleanupGrammarV1.transferName, EraseSchema2ColdCleanupGrammarV1.sourcesName])
+        let permittedExisting = Set(coldCleanupFirstLeaves.keys.filter {
+            $0 == EraseSchema2ColdCleanupGrammarV1.notificationName ||
+            $0 == EraseSchema2ColdCleanupGrammarV1.temporaryName(EraseSchema2ColdCleanupGrammarV1.notificationName)
+        })
+        guard try coldNamesChecked().filter(EraseSchema2ColdCleanupGrammarV1.isControlName)
+            .allSatisfy({ transferNames.contains(EraseSchema2ColdCleanupGrammarV1.canonicalName($0))
+                || permittedExisting.contains($0) }) else { throw EraseIntentStoreError.invalidAuthority }
+'''+needle,1)
+# Original and born versions may share a path. Preserve original row always.
+s=s.replace('              Set(births.map({ $0.source.path })).count == births.count','              Set(births.map({ "\\($0.source.path)|\\($0.targetIndex)|\\($0.source.sha256)" })).count == births.count',1)
+s=s.replace('                  !sources.sources.contains(where: { $0.path == birth.source.path }) else {','                  birth.source.byteCount <= birth.source.maximumByteCount else {',1)
+s=s.replace('            births: (births + [birth]).sorted { $0.source.path < $1.source.path },','            births: (births + [birth]).sorted {\n                "\\($0.source.path)|\\($0.targetIndex)|\\($0.source.sha256)"\n                    < "\\($1.source.path)|\\($1.targetIndex)|\\($1.source.sha256)"\n            },',1)
+s=s.replace('              EraseSchema2ColdCleanupGrammarV1.validFact(fullFact),\n              !sources.sources.contains(where: { $0.path == path }) else {','              EraseSchema2ColdCleanupGrammarV1.validFact(fullFact) else {',1)
+s=s.replace('        if let birth = expected.births.first(where: { $0.source.path == path }) {','        if let birth = expected.births.first(where: {\n            $0.source.path == path && $0.source.sha256 == sha\n                && $0.targetIndex == active\n        }) {',1)
+s=s.replace('        clearSchema2CleanupPublisherTransients()', '        clearSchema2CleanupPublisherTransients()')
+# Shared helper is part of Store-owned data contract.
+s=s.replace('private struct Schema2ColdOriginalAuxiliaryPolicyWitnessV1:',(r/'V2_EFFECTS.swift.fragment').read_text()+'\nprivate struct Schema2ColdOriginalAuxiliaryPolicyWitnessV1:',1)
+p.write_text(s)

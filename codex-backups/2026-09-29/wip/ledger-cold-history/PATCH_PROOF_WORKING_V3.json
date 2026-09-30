@@ -1,0 +1,22 @@
+{
+  "beforeSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+  "candidateSHA256": "ba74454fc4f0bed1c008ec857ad5d106f029763d0fd4444ebfd7a2c0360632dd",
+  "diffSHA256": "1fe46b535f72e3cdea213b036b9fec5fa98d5d4aa76f8f72755a4218de82efa2",
+  "proofs": [
+    {
+      "direction": "forward",
+      "exit": 0,
+      "actualSHA256": "ba74454fc4f0bed1c008ec857ad5d106f029763d0fd4444ebfd7a2c0360632dd",
+      "expectedSHA256": "ba74454fc4f0bed1c008ec857ad5d106f029763d0fd4444ebfd7a2c0360632dd",
+      "exact": true
+    },
+    {
+      "direction": "reverse",
+      "exit": 0,
+      "actualSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+      "expectedSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+      "exact": true
+    }
+  ],
+  "scope": "byte-exact isolated forward/reverse patch proof; not compilation/runtime/acceptance"
+}

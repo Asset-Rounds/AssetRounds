@@ -1,0 +1,789 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "artifactDigest": "6ee7601b67cd6dcec18f926bf97357f2eca1b6672ae7e2ee28a3ba24b0fc9e89",
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "activeS10OverlapCount": 0,
+    "authorityCorrectionReceiptDigest": "a8935b4a310b37db1794417d2c9c2538654e27cd43a4d3c02140b7e0aec79099",
+    "authorizedPriorFenceOverlapCount": 32,
+    "baseHead": "417aec8af085ac4e01d4b73c822ba99511a14611",
+    "baseTree": "147f18696ca118a577b000c85850b47ddad82bfc",
+    "branch": "phase/v23-expansion",
+    "conformanceSubjectSet": "KernelConformanceSubjectSetV1",
+    "contextDigest": "ef201489b04abbbbddec862efd462bdba4afcb4a43b50e57f2e1f285bde4f4ad",
+    "coordinationAuthorityHead": "438505bfbe87613ad3afa2309ff978d6a15f8f2a",
+    "coordinationCASSequence": 74,
+    "coordinationLedgerDigest": "201eb3d1d49742fc7412ca4d41d722162ca5451857f188c9ed31cb7999a7b4b0",
+    "coordinationLedgerSequence": 74,
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C06-G01",
+      "V23-P01-C06-A01",
+      "V23-P01-C06-H01",
+      "V23-P01-C06-I01",
+      "V23-P01-C06-R01"
+    ],
+    "directPrerequisite": "V23-P01-C05",
+    "dossierDigest": "41ab6dd6355216800cce04b50e2f9d2a28ee43e7dfe4609aa2063e7483a4b739",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationCorrectionReceiptDigest": "a8935b4a310b37db1794417d2c9c2538654e27cd43a4d3c02140b7e0aec79099",
+    "hydrationRevision": 2,
+    "hydrationTransitionDigest": "a11aeaf21b80f95eeb5a9c047effeccbad30b84c54f7c8260330e2b6bce3eca7",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "62e25505dd8d40524b6a5a2f8ef25116f78be7e7bc0c85b887ae5a0ca5cabef3",
+    "invalidationConsumer": "V23-P01-C07",
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "ownerParallelOverrideReason": "OWNER_AUTHORIZED_PRE_S10_6_ORDERED_IMPLEMENTATION_V4",
+    "pathFenceDigest": "914d1e54c267c4069f2f0c89920107012ebbf372301adccf9d79b7a50cf4819c",
+    "priorCoordinationLedgerDigest": "d285fc795036fc441a7ee796962232e04d6c7f4606576691b463e253467c7467",
+    "provisionalPrerequisiteDigest": "8bb9b15619b5d5029ce8947c9ff345fcbd15259699e26fff91863d81c1c3d8d3",
+    "registerRowDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "registeredKindPolicy": {
+      "coverageRequirement": "ALL_CURRENTLY_REGISTERED_KINDS",
+      "currentPersistentTagKindPresent": false,
+      "dormantTagEntityAuthorized": false,
+      "futureRegistrationRequirement": "ADD_DELETION_KIND_AND_REVOCATION_CONTRACT_WITH_REGISTRATION"
+    },
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "supersedesFenceDigest": "6d5cec5dd55f856160c824d8bec254ee35207d366b184a52fc84900a83e55cdd"
+  },
+  "cardID": "V23-P01-C06",
+  "deletionWinsModes": [
+    {
+      "destinationPrecondition": "NO_CANONICAL_WORKSPACE",
+      "emptySiteDisposition": "PRESERVE_IF_FINAL_ASSET_DELETED",
+      "existingDestinationDisposition": "NONE",
+      "incomingLiveDisposition": "REJECT_IF_CURRENT_LEDGER_TOMBSTONE",
+      "incomingTombstoneDisposition": "PRESERVE",
+      "ledgerOperation": "UNION_INCOMING_TOMBSTONES_DELETION_WINS",
+      "mode": "EMPTY_INSTALL",
+      "sourceReplicaDisposition": "PROVENANCE_ONLY_NEVER_ACTIVE"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_MATCHED_DESTINATION_AUTHORITY",
+      "emptySiteDisposition": "PRESERVE_IF_FINAL_ASSET_DELETED",
+      "existingDestinationDisposition": "REPLACE_CONTENT_ONLY",
+      "incomingLiveDisposition": "REJECT_IF_CURRENT_LEDGER_TOMBSTONE",
+      "incomingTombstoneDisposition": "PRESERVE",
+      "ledgerOperation": "UNION_CURRENT_AND_INCOMING_DELETION_WINS",
+      "mode": "REPLACE_EXISTING",
+      "sourceReplicaDisposition": "PROVENANCE_ONLY_NEVER_ACTIVE"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_CLONE_AUTHORIZATION",
+      "emptySiteDisposition": "PRESERVE_IF_FINAL_ASSET_DELETED",
+      "existingDestinationDisposition": "NEW_GENERATION_ONLY",
+      "incomingLiveDisposition": "MATERIALIZE_ONLY_WITHOUT_TOMBSTONE",
+      "incomingTombstoneDisposition": "PRESERVE",
+      "ledgerOperation": "COPY_INCOMING_TOMBSTONES_DELETION_WINS",
+      "mode": "CLONE",
+      "sourceReplicaDisposition": "PROVENANCE_ONLY_NEVER_ACTIVE"
+    },
+    {
+      "destinationPrecondition": "EXPLICIT_FORK_AUTHORIZATION_AND_LINEAGE",
+      "emptySiteDisposition": "PRESERVE_IF_FINAL_ASSET_DELETED",
+      "existingDestinationDisposition": "NEW_GENERATION_ONLY",
+      "incomingLiveDisposition": "MATERIALIZE_ONLY_WITHOUT_TOMBSTONE",
+      "incomingTombstoneDisposition": "PRESERVE",
+      "ledgerOperation": "COPY_INCOMING_TOMBSTONES_DELETION_WINS",
+      "mode": "FORK",
+      "sourceReplicaDisposition": "PROVENANCE_ONLY_NEVER_ACTIVE"
+    }
+  ],
+  "emptySitePolicy": {
+    "backupRestore": "PRESERVE_EMPTY_SITE",
+    "finalAssetDeletion": "PRESERVE_SITE",
+    "laterAssetCreation": "ALLOWED",
+    "siteDeletion": "EXPLICIT_PREVIEWED_COMMAND_ONLY",
+    "validAfterDeletion": true,
+    "verifiedErase": "MAY_REMOVE_SITE_CONTENT_AND_LEDGER"
+  },
+  "eraseProtocol": {
+    "clearsLedgerOnlyAfterComplete": true,
+    "completePredicate": "EMPTY_GENERATION_ACTIVE_AND_ORPHAN_CLEANUP_COMPLETE",
+    "interruption": "RETAIN_TOMBSTONES_AND_FORWARD_RECOVER",
+    "phases": [
+      "empty_generation_prepared",
+      "pointer_switched",
+      "session_activated",
+      "cleanup_complete"
+    ],
+    "preparation": {
+      "coreDiscardSeam": "MANIFEST_FIRST_THEN_TARGET_ROOT",
+      "ledgerClearPredicate": "VERIFIED_COMPLETE_ERASE_ONLY",
+      "markerWriteOrder": "DURABLE_MARKER_BEFORE_TARGET_GENERATION",
+      "noIntentOrphanRecovery": "RECONCILE_MARKER_THEN_DISCARD_OR_RETAIN_LEDGER",
+      "schema": "ErasePreparationV2",
+      "targetBinding": "MARKER_BINDS_TARGET_EMPTY_GENERATION"
+    }
+  },
+  "evidencePlan": {
+    "alternate": "DELETE_RECREATE_DISTINCT_IDENTITY",
+    "evidenceIDs": [
+      "V23-P01-C06-G01",
+      "V23-P01-C06-A01",
+      "V23-P01-C06-H01",
+      "V23-P01-C06-I01",
+      "V23-P01-C06-R01"
+    ],
+    "golden": "DELETE_THEN_RESTORE_EVERY_MODE",
+    "hostile": "OLD_ARCHIVE_AND_FAILURE_MATRIX",
+    "interruption": "PARTIAL_GRAPH_DELETION_AND_ERASE_PHASES",
+    "recovery": "DISABLE_PATH_RETAIN_TOMBSTONES_UNTIL_VERIFIED_ERASE"
+  },
+  "failureRecovery": [
+    {
+      "expectedOutcome": "REJECT_LIVE_WRITE_WHEN_LEDGER_TOMBSTONE_EXISTS",
+      "failure": "OLD_ARCHIVE_RESURRECTION"
+    },
+    {
+      "expectedOutcome": "FAIL_CLOSED_PRESERVE_LEDGER",
+      "failure": "REVOKED_KIND_RESOLUTION"
+    },
+    {
+      "expectedOutcome": "RETAIN_TOMBSTONES_AND_FORWARD_CLEANUP",
+      "failure": "PARTIAL_GRAPH_DELETION"
+    },
+    {
+      "expectedOutcome": "REJECT_AND_PRESERVE_LEDGER",
+      "failure": "LEDGER_CLEAR_OUTSIDE_VERIFIED_ERASE"
+    },
+    {
+      "expectedOutcome": "FAIL_CLOSED_PRESERVE_LEDGER",
+      "failure": "UNKNOWN_RECORD_KIND"
+    },
+    {
+      "expectedOutcome": "FAIL_CLOSED_PRESERVE_LEDGER",
+      "failure": "UNKNOWN_OWNERSHIP"
+    },
+    {
+      "expectedOutcome": "RELAUNCH_FORWARD_RECOVERY_UNTIL_COMPLETE",
+      "failure": "INTERRUPTED_ERASE"
+    },
+    {
+      "expectedOutcome": "REJECT_SEPARATE_AUTHORITIES",
+      "failure": "ORPHAN_CLEANUP_LEDGER_MUTATION"
+    },
+    {
+      "expectedOutcome": "PRESERVE_EMPTY_SITE",
+      "failure": "INFERRED_SITE_DELETION_AFTER_LAST_ASSET"
+    }
+  ],
+  "fullCardFence": [
+    "FieldEvidenceApp/Domain/Backup/DeletionLedgerV2.swift",
+    "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+    "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+    "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+    "FieldEvidenceApp/Domain/Models/WorkflowModels.swift",
+    "FieldEvidenceApp/Domain/Workflow/DeletionIntentV1.swift",
+    "FieldEvidenceApp/Domain/Workflow/EraseIntentV1.swift",
+    "FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/DeletionLedgerStore.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "FieldEvidenceAppTests/S6_1DeletionGraphTests.swift",
+    "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+    "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+    "FieldEvidenceAppTests/V9_06DeletionRightsTests.swift",
+    "FieldEvidenceAppTests/V9_06DeletionArchiveIntegrationTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Deletion/V21P01C06DeletionGraphV1.json",
+    "Scripts/v23/p01_c06_contracts.py",
+    "Scripts/v23/generate_p01_c06_contracts.py",
+    "Scripts/v23/verify_p01_c06_contracts.py",
+    "Scripts/v23/deletion-ledger.schema.json",
+    "Scripts/v23/deletion-graph-fixture.schema.json",
+    "docs/design/v23/tooling/V23P01C06DeletionRightsContractV1.json",
+    "docs/design/v23/tooling/V23P01C06DeletionGraphManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C06-tooling-manifest.json"
+  ],
+  "hostedDispatchRan": false,
+  "hostileChecks": [
+    "OLD_ARCHIVE_RESURRECTION",
+    "REVOKED_KIND_RESOLUTION",
+    "UNKNOWN_RECORD_KIND",
+    "UNKNOWN_OWNERSHIP",
+    "LEDGER_CLEAR_OUTSIDE_VERIFIED_ERASE",
+    "ORPHAN_CLEANUP_LEDGER_MUTATION",
+    "INFERRED_SITE_DELETION_AFTER_LAST_ASSET"
+  ],
+  "ledgerClearingPolicy": {
+    "ageMayClear": false,
+    "allowedPhases": [
+      "cleanup_complete"
+    ],
+    "authority": "VERIFIED_COMPLETE_ERASE_ONLY",
+    "interruptedErasePreservesLedger": true,
+    "ordinaryDeletionMayClear": false,
+    "orphanCleanupMayClear": false,
+    "sizeMayClear": false,
+    "versionMayClear": false
+  },
+  "lifecycle": {
+    "accountsOrAuth": false,
+    "backupCompatibilityRequired": true,
+    "deleteCompatibilityRequired": true,
+    "deviceLocalOnly": true,
+    "eraseCompatibilityRequired": true,
+    "exportCompatibilityRequired": true,
+    "journalReplay": "ERASE_INTENT_PHASE_BOUND",
+    "migrationRequired": true,
+    "remoteSync": false,
+    "restoreCompatibilityRequired": true,
+    "retention": "TOMBSTONES_UNTIL_VERIFIED_COMPLETE_ERASE",
+    "schemaDelta": true,
+    "searchRebuild": "RECONCILE_AFTER_DELETION_COMMIT",
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_ARTIFACT"
+  },
+  "nativeCompileRan": false,
+  "orphanCleanupPolicy": {
+    "authority": "SEPARATE_FROM_DELETION_LEDGER",
+    "mayMutateDeletionLedger": false,
+    "requiresOwnershipProof": true,
+    "retriesForwardOnly": true,
+    "service": "OrphanFileCleanupService"
+  },
+  "persistentSchema": {
+    "activeVersion": "V2_TOMBSTONES",
+    "downgradePolicy": "FORWARD_FIX_ONLY",
+    "migrationRequired": true,
+    "unknownRecordKindPolicy": "FAIL_CLOSED_PRESERVE_LEDGER"
+  },
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "registeredKindPolicy": {
+    "coverageRequirement": "ALL_CURRENTLY_REGISTERED_KINDS",
+    "currentPersistentTagKindPresent": false,
+    "dormantTagEntityAuthorized": false,
+    "futureRegistrationRequirement": "ADD_DELETION_KIND_AND_REVOCATION_CONTRACT_WITH_REGISTRATION"
+  },
+  "registeredKinds": [
+    {
+      "identityField": "siteID",
+      "kind": "site",
+      "persistentEntity": "Site",
+      "scope": "workspace"
+    },
+    {
+      "identityField": "assetID",
+      "kind": "asset",
+      "persistentEntity": "Asset",
+      "scope": "site"
+    },
+    {
+      "identityField": "recordID",
+      "kind": "workflowRecord",
+      "persistentEntity": "WorkflowRecord",
+      "scope": "asset"
+    },
+    {
+      "identityField": "evidenceFileID",
+      "kind": "evidenceFile",
+      "persistentEntity": "EvidenceFile",
+      "scope": "workflowRecord"
+    },
+    {
+      "identityField": "issueID",
+      "kind": "issue",
+      "persistentEntity": "Issue",
+      "scope": "asset"
+    },
+    {
+      "identityField": "packetID",
+      "kind": "packet",
+      "persistentEntity": "Packet",
+      "scope": "asset"
+    },
+    {
+      "identityField": "reportID",
+      "kind": "report",
+      "persistentEntity": "Report",
+      "scope": "packet"
+    }
+  ],
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C06DeletionRightsContractV1",
+  "schemaVersion": 1,
+  "semanticScope": {
+    "currentPersistentTagKindPresent": false,
+    "deletionRegistryCoverage": "ALL_CURRENTLY_REGISTERED_KINDS",
+    "dormantTagEntityAuthorized": false,
+    "emptySitePolicy": "PRESERVE_AFTER_FINAL_ASSET_DELETION",
+    "futurePersistentKindRegistration": "MUST_ADD_DELETION_KIND_AND_REVOCATION_CONTRACT",
+    "ledgerClearingAuthority": "VERIFIED_COMPLETE_ERASE_ONLY",
+    "orphanCleanup": "SEPARATE_AND_CANNOT_MUTATE_DELETION_LEDGER",
+    "tombstonePolicy": "DELETION_WINS_PRIVACY_MINIMAL_INDEFINITE_UNTIL_VERIFIED_COMPLETE_ERASE",
+    "unknownRecordKindPolicy": "FAIL_CLOSED_PRESERVE_LEDGER"
+  },
+  "sourceBindingComplete": true,
+  "sourceBindings": [
+    {
+      "bytes": 5110,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Backup/DeletionLedgerV2.swift",
+      "requiredSymbols": [
+        "DeletionLedgerV2",
+        "DeletionRecordKindV2",
+        "DeletionIdentityV2",
+        "DeletionLedgerEntryV2",
+        "union",
+        "canonicalData"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "f271c1c6e0fe1f1d8fead4214b1b833c4ca9e9b647434bf56b924bca9add434a",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 15094,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Backup/ReplacementRestoreRule.swift",
+      "requiredSymbols": [
+        "ReplacementRestoreRule",
+        "ReplacementRestorePlan",
+        "currentOnlyTombstones",
+        "incomingPackets",
+        "contentDeletedAt"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "50b1bdbb8b92b4f7d07206937674db37c6d0c700d78a66d4bd1272f1c37dd8e3",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 9476,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift",
+      "requiredSymbols": [
+        "RestoreIdentityV1",
+        "BackupRestoreMode",
+        "case .emptyInstall",
+        "case .replaceExisting",
+        "case .clone",
+        "case .fork"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "a18c9d24c6be9c5d65b3c9699a3af8bded5e93823c093cf300dc0632b80e7cfd",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 6374,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift",
+      "requiredSymbols": [
+        "V4BackupPacketDTO",
+        "contentDeletedAt",
+        "evaluationCounted"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "9da0a67ae9c138a55cfd15de0c7462938a956571434e74b9fd4d089b445cf410",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 9595,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Models/WorkflowModels.swift",
+      "requiredSymbols": [
+        "@Model",
+        "DeletionLedgerRow",
+        "WorkflowRecord",
+        "EvidenceFile",
+        "Issue",
+        "Packet",
+        "Report"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "90382c60e85c8c81b8e3c1fce86a701623a54273912e87c51bed6915de7d6ab3",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 10655,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Workflow/DeletionIntentV1.swift",
+      "requiredSymbols": [
+        "DeletionIntentV1",
+        "countedPacketTombstones",
+        "database_committed"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "63c4b891d898009177a6fbb23dea59c43919ddf58a99a1f2ba688196d226045a",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 16927,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Workflow/EraseIntentV1.swift",
+      "requiredSymbols": [
+        "EraseIntentV1",
+        "EraseIntentPhaseV1",
+        "empty_generation_prepared",
+        "cleanup_complete"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "8de25c6b1f4bc5ab1b910196fc9a2fb2e4935f3ff91b42db78e222b553525994",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 21890,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Workflow/WholeSignDeletionRule.swift",
+      "requiredSymbols": [
+        "WholeSignDeletionRule",
+        "siteIDToDelete",
+        "countedPacketTombstones"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "46b4143a61a4bcd0bde12a4dc53b98d797b79acd700ee0cf15bae1b14059e96f",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 2740,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift",
+      "requiredSymbols": [
+        "BackupCanonicalDecoderV1",
+        "decodeManifest",
+        "decodeRecords"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "5ea63149ff713508857d356a4461416fc534b559206fc96d4c59ea106510e49a",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 18554,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift",
+      "requiredSymbols": [
+        "BackupCanonicalEncoderV1",
+        "encodeManifest",
+        "encodeRecords"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "4637141e638b8ff29757e125064a2bbd906688dacbe5cee3d3dd1da5fa2b705b",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 80984,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "requiredSymbols": [
+        "BackupExportService",
+        "prepareStreaming",
+        "consumedEvaluationRootIDs"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "3d91f26888b9413993e1764a2e22078cde6674b4fc130a92565002321c133462",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 51050,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "requiredSymbols": [
+        "BackupImportService",
+        "stageAndValidate",
+        "stageAndValidateStreamingArchive",
+        "validateManifestBounds"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "678e1aa8abf4da627cf5d761a00838367b0a338c31ea60932a58ea7656d918bb",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 74035,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "requiredSymbols": [
+        "BackupPackageValidatorV1",
+        "ValidatedV4BackupPackageV1",
+        "contentDeletedAt"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "6546c5c0bee1a38d7a7802e153f77ce7c7a0625623663acf32b1fd422876c953",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 106881,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "requiredSymbols": [
+        "BackupRestoreService",
+        "func restore(",
+        "ReplacementRestoreRule",
+        "DeletionLedgerV2",
+        "reconcileAtStartup"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "ef723598c95ddeb700ce087c726da5a396b7d5a1b76e9f7221dc6ffc3f2bd294",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 2840,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/DeletionLedgerStore.swift",
+      "requiredSymbols": [
+        "DeletionLedgerStore",
+        "snapshot",
+        "stageUnion",
+        "requireContains"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "44663555f24e2b49efaf0782b2281a514482906d4026787ee24151bc70ff2f8c",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 19484,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift",
+      "requiredSymbols": [
+        "OrphanFileCleanupService",
+        "reconcile",
+        "referencedRelativePaths"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "fbc1fe98287a7d454b91769f7059d83f7450f8ef357622e266d453b0630c5efa",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 75606,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "requiredSymbols": [
+        "EraseAllService",
+        "ErasePreparationV2",
+        "completeCleanup",
+        "reconcileAtStartup",
+        "discardPreparation",
+        "DeletionLedgerStore",
+        "cleanupComplete"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "68850572d70fbe49cfb6c760be476b4cf5ddf13580251075195ea2b0aaf6454f",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 43359,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "requiredSymbols": [
+        "EraseIntentStore",
+        "ErasePreparationV2",
+        "EraseIntentCodecV1",
+        "createPreparation",
+        "loadPreparation",
+        "removePreparation",
+        "nextPhase"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "403b34a23fee7694d6350f74d882f7e9f72fe7efeb88d48670ed5d297338994f",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 79073,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+      "requiredSymbols": [
+        "WholeSignDeletionService",
+        "DeletionLedgerStore",
+        "stageUnion",
+        "databaseCommitted"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "8fca910c387d4493666f435644ebf0afaaadb3886d58f957825e5914ae83fa06",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 19523,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+      "requiredSymbols": [
+        "PersistentSchemaV3",
+        "DeletionLedgerRow",
+        "V3_TOMBSTONES"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "8543197d93c718781ae4f86ceaae8a7f424a434f6225572d9416f146f0906bb5",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 271007,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "requiredSymbols": [
+        "StoreGenerationFactory",
+        "backfillV3DeletionLedger",
+        "DeletionLedgerStore"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "e707db1ccf3497c1bccb65dcdec5ed0ada4e69156f9bd1b49f96be1a9ee6e4c7",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 28005,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift",
+      "requiredSymbols": [
+        "StoreMigrationPhaseV1",
+        "CurrentGenerationPointerV3",
+        "storeSchemaVersion"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "46a951c4c7928b588406dd60d27b986459e5f13c33eb9b8a740dd5e9034b6550",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 53909,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+      "requiredSymbols": [
+        "StoreMigrationJournalStoreV1",
+        "reconcileDeletionTombstones",
+        "StoreMigrationFailure"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "4535ebb9c4c6f290f0e78d0eab79423f41b1f7c6a292fe991b558ed6013ee682",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 930,
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "requiredSymbols": [
+        "StoreSessionCoordinator",
+        "workspaceID",
+        "replicaID"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "95875cc92498c77426450fabb40b4c0eeb9e295c8c65c1ca97e1f819fed0d397",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 38422,
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/S6_1DeletionGraphTests.swift",
+      "requiredSymbols": [
+        "S6_1DeletionGraphTests",
+        "test"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "fdbdfa379c2967090c201a189bce53974ab0298ddf495b81abc27b7a2b3cf6e6",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 23376,
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift",
+      "requiredSymbols": [
+        "V9_01VersionedSchemaIdentityTests",
+        "PersistentSchemaV3",
+        "DeletionLedgerRow"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "e607a9ee303d54ec9ea14b5b48f82477bd469316285a6a88b4f3e74da14f2c5e",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 37135,
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift",
+      "requiredSymbols": [
+        "V9_03MigrationRecoveryTests",
+        "StoreMigrationJournalStoreV1",
+        "StoreMigrationFailure",
+        "PersistentSchemaV1"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "ddca45150c47832703581fc3bc2736d5ebbf0e47827893e776ade12034911871",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 16331,
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/V9_06DeletionRightsTests.swift",
+      "requiredSymbols": [
+        "V9_06DeletionRightsTests",
+        "testV9_06G01",
+        "DeletionLedgerStore",
+        "DeletionLedgerEntryV2",
+        "BackupRestoreMode"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "b4f0947cf6db52bc3fcaa678582855c0dd40a8f6a10e268dc0ca603dcd391aad",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 17273,
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/V9_06DeletionArchiveIntegrationTests.swift",
+      "requiredSymbols": [
+        "V9_06DeletionArchiveIntegrationTests",
+        "testV9_06I01",
+        "OrphanFileCleanupService",
+        "EraseAllFailurePoint",
+        "DeletionLedgerStore"
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "c18f61e34c1a0f78272d5a6094b5f8b94eefa95a09ae60b9a1c6b8fdc28cac26",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 15753,
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Deletion/V21P01C06DeletionGraphV1.json",
+      "requiredSymbols": [
+        "V21P01C06DeletionGraphV1",
+        "\"registeredKinds\"",
+        "\"cases\""
+      ],
+      "role": "FENCED_PRODUCT_TEST_OR_FIXTURE_SOURCE",
+      "sha256": "5e8311f758184cd98eb7d6c0c4cd1db2d25427eb25cb166bca393b395ab80e3a",
+      "status": "BOUND"
+    }
+  ],
+  "tombstonePolicy": {
+    "containsAuditNarrative": false,
+    "containsPersonalContent": false,
+    "deletionWins": true,
+    "fields": [
+      "schemaVersion",
+      "identity",
+      "deletedAt"
+    ],
+    "forbiddenFields": [
+      "content",
+      "payload",
+      "title",
+      "label",
+      "address",
+      "note",
+      "notes",
+      "photo",
+      "snapshot",
+      "pdf",
+      "personalContent",
+      "auditNarrative",
+      "retentionReason",
+      "ownerName",
+      "body"
+    ],
+    "privacyMinimal": true,
+    "residency": "LEDGER_ONLY",
+    "retention": "INDEFINITE_UNTIL_VERIFIED_COMPLETE_ERASE"
+  }
+}

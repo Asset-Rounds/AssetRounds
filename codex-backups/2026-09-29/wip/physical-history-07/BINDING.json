@@ -1,0 +1,83 @@
+{
+  "afterFullSourceMapSHA256": "7dfbc626ac87b3e432179e7727a69fed867002344ef423a08e6d00850ffcb5d3",
+  "artifacts": {
+    "AFTER_SOURCE_MAP.json": "7dfbc626ac87b3e432179e7727a69fed867002344ef423a08e6d00850ffcb5d3",
+    "CANDIDATE.diff": "12b413ccc28776dcf5ecadccc1d0aaddbd572c73460fca7095bac82ff4f54c54",
+    "CASE_MATRIX.md": "58cb86678067f3e6ef8ca67cde77b1bd6402f1a5023e971c352531f1e4412460",
+    "COMPACT_PHYSICAL_DATA_V4.swift.fragment": "74688616f4d5eaaec95cb34d6a96d706d26823c1cea30241eeead63469cf105b",
+    "COMPACT_READ_INTERFACE_V4.md": "85a7ba4a06818f77db8d5d483aa2b2264eaa2b438dc35338339ffd473de50188",
+    "COMPACT_READ_WORK_PROOF.md": "228521a9388766473efec524ec203a4190758e134c6f1586783d74997ac93409",
+    "EraseSchema2ColdAuxiliaryFirstObservationV1.swift.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "HANDOFF.md": "d14c6757d77f58f8b65292e3abd67b2634a97b0044dc6c4418e80e915bcc8180",
+    "INPUT_BINDING.json": "ffe4d00df31dc116443e067a83bd611b823d362106375137d25bff10bd8ff73f",
+    "PARSE.json": "a6362882d10ae6194f9d886b748ba8473c8b5f0e33619e8e1c1a41ab261e87b0",
+    "SOURCE_ONLY_CHECKS.json": "fbfd8bf1c6ec6c63c737907c2aafbda8d3b9df4dd4f60e0e4fd57561b806b12d",
+    "SOURCE_SUCCESSION.json": "683104e2c87fe7494506225ada350622311f3468b3bd1547a84dec300c021bbf",
+    "SUCCESSOR.diff": "e91588872b237f27b8ba2132c1c368600a9005523eeb6fda0fe6dd03e69497d3",
+    "StoreGenerationFactory.swift.diff": "17a4815e546de07ec5a0f54234e7ddaafaa436a45377a1dc3257f9fd91c8a25b",
+    "WORKING_HANDOFF.md": "0ec5c0459d7c1b3a7f6c3377c2e5b6c6649e84f768a069b853af13b38c802d95",
+    "WORKING_PINS.json": "49e720b03155b7cc77cf6c5948113bc1bc063a0ce9eada9059385e5c9dc0ee11",
+    "add_compact_inspector.py": "31aab820ebbdf8a189b3909ef7e0b27f372662710af8ad8c1049c5a08aa115bb",
+    "add_compact_policy.py": "7b189027db816a2d08141a1438ca98708673efada0b4510a948986c37178f7c9",
+    "add_compact_work_receipt.py": "fde20a420892fc98bd4c4fb21aa8a7c758ddc1a342cba9d18dde9ee4d14bf78e",
+    "inputs/CompactTargetReadPermitV4.swift.fragment": "86825adf3c60794f2e16693552c35bb54c7359ec3fb37c32ed4ca5e10d5ca6d3",
+    "inputs/ConsumerCompleteSubjectV4.swift.fragment": "600f50f9639f479e8b20144f112da4acdcc77bf55f62e529179bc5288f6d2dfc",
+    "inputs/MINIMUM_TUPLE_AND_PRODUCER_CUTS.md": "cfd77fb328fe2dbf1fda0dc1e4d7a8624715731a5cf8d97c539e15ef14249b73",
+    "inputs/ROOT_A_DECISION.md": "349fbc7147135ee00e9ce63264c1705e9baf68b2c6e43ea8567b9d6ac62af9b7",
+    "inputs/SEMANTIC_PREREQUISITE_REVIEW.md": "b37729b0a05382f91b62f2876c5f4e1977a05a849ea71b7c01f8088bdde85100",
+    "seal_packet.py": "301568ce3c67e8037bca451002a2d62db5bb4c19d3a77a03ec337e96fc15176d"
+  },
+  "authorModel": "gpt-6.1-sol",
+  "beforeFullSourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "bytes": 179914,
+      "candidateSHA256": "f20c8083fbac1c76cbb1bcd8a75f4f34827c4105294c434a3f8294b9fb3abff3",
+      "immediateBeforeSHA256": "f20c8083fbac1c76cbb1bcd8a75f4f34827c4105294c434a3f8294b9fb3abff3",
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "bytes": 1952634,
+      "candidateSHA256": "8b2faac582c4aa1358f6e920b7ea76b6d297ac2a55b6ac1e77fb35a88886a2b8",
+      "immediateBeforeSHA256": "099b08f4e3ddbbd63a65b76df3a29aef8c0a5c019ea55ec91f0a1a1aedf33c89",
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e"
+    }
+  },
+  "head": "93159755395d697a5a9da02f41374120433c50f9",
+  "inputs": {
+    "CompactTargetReadPermitV4.swift.fragment": {
+      "sha256": "86825adf3c60794f2e16693552c35bb54c7359ec3fb37c32ed4ca5e10d5ca6d3",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_REAL_OS_SCOPE_V4.swift.fragment"
+    },
+    "ConsumerCompleteSubjectV4.swift.fragment": {
+      "sha256": "600f50f9639f479e8b20144f112da4acdcc77bf55f62e529179bc5288f6d2dfc",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_FIXED_SUBJECT_V4.swift.fragment"
+    },
+    "MINIMUM_TUPLE_AND_PRODUCER_CUTS.md": {
+      "sha256": "cfd77fb328fe2dbf1fda0dc1e4d7a8624715731a5cf8d97c539e15ef14249b73",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-prerequisite-review-sol61-xhigh-v1/MINIMUM_TUPLE_AND_PRODUCER_CUTS.md"
+    },
+    "ROOT_A_DECISION.md": {
+      "sha256": "349fbc7147135ee00e9ce63264c1705e9baf68b2c6e43ea8567b9d6ac62af9b7",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-root-direction-v1/DECISION.md"
+    },
+    "SEMANTIC_PREREQUISITE_REVIEW.md": {
+      "sha256": "b37729b0a05382f91b62f2876c5f4e1977a05a849ea71b7c01f8088bdde85100",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-prerequisite-review-sol61-xhigh-v1/REVIEW.md"
+    }
+  },
+  "openObligations": [
+    "Real private first-held compact EX/control/source origin issuer and per-provider complete work bounds",
+    "Compact PFP actual primitive kind/path/fact/close origin API",
+    "Actual compatible complete semantic graph/global Journal/context-to-image bridge, final-image seal and genuine Store transfer",
+    "Full genuine B effect resources/lifecycle for valid missing/changed/legacy semantic DATA",
+    "All V5 actual generic/C16/Registry/representation/central runtime obligations",
+    "Root semantic compiler/fullbuild/native independent review and required gates"
+  ],
+  "parentBindingSHA256": "d84d3a09c9a5f49705f99cbaced03f0e5882cfc40cc1a0ceda908b8a6bc7c445",
+  "reasoningEffort": "xhigh",
+  "schemaVersion": 6,
+  "sourceInputs": 1206,
+  "status": "sealed_source_only_PARTIAL_NONINSTALLABLE_compact_physical_DATA",
+  "trackedSourceDrift": {}
+}

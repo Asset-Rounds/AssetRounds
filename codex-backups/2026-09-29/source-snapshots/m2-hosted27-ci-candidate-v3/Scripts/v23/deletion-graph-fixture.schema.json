@@ -1,0 +1,1989 @@
+{
+  "$id": "urn:assetrounds:v23:p01:c06:deletion-graph-fixture:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "afterDelete": {
+      "additionalProperties": false,
+      "properties": {
+        "assetFileIDs": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array",
+          "uniqueItems": true
+        },
+        "emptySiteIDs": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "00000000-0000-4000-8000-000000000001"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        },
+        "ledgerEntries": {
+          "items": false,
+          "maxItems": 6,
+          "minItems": 6,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "deletedAt": {
+                  "const": "2026-01-02T03:04:05Z"
+                },
+                "identity": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "const": "00000000-0000-4000-8000-000000000002"
+                    },
+                    "kind": {
+                      "const": "asset"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "schemaVersion": {
+                  "const": 2
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "identity",
+                "deletedAt"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "deletedAt": {
+                  "const": "2026-01-02T03:04:05Z"
+                },
+                "identity": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "const": "00000000-0000-4000-8000-000000000005"
+                    },
+                    "kind": {
+                      "const": "evidenceFile"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "schemaVersion": {
+                  "const": 2
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "identity",
+                "deletedAt"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "deletedAt": {
+                  "const": "2026-01-02T03:04:05Z"
+                },
+                "identity": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "const": "00000000-0000-4000-8000-000000000006"
+                    },
+                    "kind": {
+                      "const": "issue"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "schemaVersion": {
+                  "const": 2
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "identity",
+                "deletedAt"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "deletedAt": {
+                  "const": "2026-01-02T03:04:05Z"
+                },
+                "identity": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "const": "00000000-0000-4000-8000-000000000003"
+                    },
+                    "kind": {
+                      "const": "packet"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "schemaVersion": {
+                  "const": 2
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "identity",
+                "deletedAt"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "deletedAt": {
+                  "const": "2026-01-02T03:04:05Z"
+                },
+                "identity": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "const": "00000000-0000-4000-8000-000000000007"
+                    },
+                    "kind": {
+                      "const": "report"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "schemaVersion": {
+                  "const": 2
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "identity",
+                "deletedAt"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "deletedAt": {
+                  "const": "2026-01-02T03:04:05Z"
+                },
+                "identity": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "const": "00000000-0000-4000-8000-000000000004"
+                    },
+                    "kind": {
+                      "const": "workflowRecord"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "schemaVersion": {
+                  "const": 2
+                }
+              },
+              "required": [
+                "schemaVersion",
+                "identity",
+                "deletedAt"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        },
+        "nodes": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000001"
+                },
+                "kind": {
+                  "const": "site"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000008"
+                },
+                "kind": {
+                  "const": "site"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000009"
+                },
+                "kind": {
+                  "const": "asset"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000008"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-00000000000a"
+                },
+                "kind": {
+                  "const": "packet"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000009"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "nodes",
+        "ledgerEntries",
+        "assetFileIDs",
+        "emptySiteIDs"
+      ],
+      "type": "object"
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedS10_6BaselineDigest": {
+          "type": "null"
+        },
+        "activeS10OverlapCount": {
+          "const": 0
+        },
+        "authorityCorrectionReceiptDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "authorizedPriorFenceOverlapCount": {
+          "const": 32
+        },
+        "baseHead": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "baseTree": {
+          "const": "147f18696ca118a577b000c85850b47ddad82bfc"
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "conformanceSubjectSet": {
+          "const": "KernelConformanceSubjectSetV1"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationAuthorityHead": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "coordinationCASSequence": {
+          "const": 74
+        },
+        "coordinationLedgerDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationLedgerSequence": {
+          "const": 74
+        },
+        "dependencyDispositionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P01-C06-G01"
+            },
+            {
+              "const": "V23-P01-C06-A01"
+            },
+            {
+              "const": "V23-P01-C06-H01"
+            },
+            {
+              "const": "V23-P01-C06-I01"
+            },
+            {
+              "const": "V23-P01-C06-R01"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        },
+        "directPrerequisite": {
+          "const": "V23-P01-C05"
+        },
+        "dossierDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "facetManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "frozenS10ReservationDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "hydrationCorrectionReceiptDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "hydrationRevision": {
+          "const": 2
+        },
+        "hydrationTransitionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "impactManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "invalidationConsumer": {
+          "const": "V23-P01-C07"
+        },
+        "lineage": {
+          "const": "REFINED_WITHOUT_LOSS"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "ownerParallelOverrideReason": {
+          "const": "OWNER_AUTHORIZED_PRE_S10_6_ORDERED_IMPLEMENTATION_V4"
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "priorCoordinationLedgerDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerRowDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registeredKindPolicy": {
+          "additionalProperties": false,
+          "properties": {
+            "coverageRequirement": {
+              "const": "ALL_CURRENTLY_REGISTERED_KINDS"
+            },
+            "currentPersistentTagKindPresent": {
+              "const": false
+            },
+            "dormantTagEntityAuthorized": {
+              "const": false
+            },
+            "futureRegistrationRequirement": {
+              "const": "ADD_DELETION_KIND_AND_REVOCATION_CONTRACT_WITH_REGISTRATION"
+            }
+          },
+          "required": [
+            "currentPersistentTagKindPresent",
+            "dormantTagEntityAuthorized",
+            "coverageRequirement",
+            "futureRegistrationRequirement"
+          ],
+          "type": "object"
+        },
+        "relationManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "selectorManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "supersedesFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch",
+        "baseHead",
+        "baseTree",
+        "coordinationAuthorityHead",
+        "coordinationCASSequence",
+        "coordinationLedgerSequence",
+        "coordinationLedgerDigest",
+        "priorCoordinationLedgerDigest",
+        "hydrationTransitionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "authorityCorrectionReceiptDigest",
+        "hydrationCorrectionReceiptDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "ownerParallelOverrideReason",
+        "lineage",
+        "directPrerequisite",
+        "invalidationConsumer",
+        "conformanceSubjectSet",
+        "activeS10OverlapCount",
+        "authorizedPriorFenceOverlapCount",
+        "deterministicEvidenceIDs",
+        "acceptedS10_6BaselineDigest",
+        "hydrationRevision",
+        "supersedesFenceDigest",
+        "registeredKindPolicy"
+      ],
+      "type": "object"
+    },
+    "beforeDelete": {
+      "additionalProperties": false,
+      "properties": {
+        "assetFileIDs": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "00000000-0000-4000-8000-000000000005"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        },
+        "nodes": {
+          "items": false,
+          "maxItems": 10,
+          "minItems": 10,
+          "prefixItems": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000001"
+                },
+                "kind": {
+                  "const": "site"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000002"
+                },
+                "kind": {
+                  "const": "asset"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000001"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000004"
+                },
+                "kind": {
+                  "const": "workflowRecord"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000002"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000005"
+                },
+                "kind": {
+                  "const": "evidenceFile"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000004"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000006"
+                },
+                "kind": {
+                  "const": "issue"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000002"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000003"
+                },
+                "kind": {
+                  "const": "packet"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000002"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000007"
+                },
+                "kind": {
+                  "const": "report"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000003"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000008"
+                },
+                "kind": {
+                  "const": "site"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-000000000009"
+                },
+                "kind": {
+                  "const": "asset"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000008"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "const": "00000000-0000-4000-8000-00000000000a"
+                },
+                "kind": {
+                  "const": "packet"
+                },
+                "parentID": {
+                  "const": "00000000-0000-4000-8000-000000000009"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "parentID"
+              ],
+              "type": "object"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "nodes",
+        "assetFileIDs"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P01-C06"
+    },
+    "cases": {
+      "items": false,
+      "maxItems": 14,
+      "minItems": 14,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-G01"
+            },
+            "expectedOutcome": {
+              "const": "TOMBSTONE_WINS_AND_EMPTY_SITE_SURVIVES"
+            },
+            "family": {
+              "const": "G01"
+            },
+            "id": {
+              "const": "DELETE_THEN_RESTORE_ALL_MODES"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "EMPTY_INSTALL"
+                },
+                {
+                  "const": "REPLACE_EXISTING"
+                },
+                {
+                  "const": "CLONE"
+                },
+                {
+                  "const": "FORK"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-G01"
+            },
+            "expectedOutcome": {
+              "const": "SITE_REMAINS_VALID_WITHOUT_ASSETS"
+            },
+            "family": {
+              "const": "G01"
+            },
+            "id": {
+              "const": "FINAL_ASSET_DELETE_PRESERVES_EMPTY_SITE"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "EMPTY_INSTALL"
+                },
+                {
+                  "const": "REPLACE_EXISTING"
+                },
+                {
+                  "const": "CLONE"
+                },
+                {
+                  "const": "FORK"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-A01"
+            },
+            "expectedOutcome": {
+              "const": "NEW_IDENTITY_MATERIALIZES_WHILE_OLD_TOMBSTONE_REMAINS"
+            },
+            "family": {
+              "const": "A01"
+            },
+            "id": {
+              "const": "DELETE_RECREATE_DISTINCT_IDENTITY"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "REPLACE_EXISTING"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-A01"
+            },
+            "expectedOutcome": {
+              "const": "FILES_CLEANED_BY_SEPARATE_SERVICE"
+            },
+            "family": {
+              "const": "A01"
+            },
+            "id": {
+              "const": "ORPHAN_CLEANUP_AFTER_GRAPH_DELETE"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-H01"
+            },
+            "expectedOutcome": {
+              "const": "REJECT_LIVE_RECORD_AGAINST_TOMBSTONE"
+            },
+            "family": {
+              "const": "H01"
+            },
+            "id": {
+              "const": "OLD_ARCHIVE_RESURRECTION"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-H01"
+            },
+            "expectedOutcome": {
+              "const": "FAIL_CLOSED_PRESERVE_LEDGER"
+            },
+            "family": {
+              "const": "H01"
+            },
+            "id": {
+              "const": "REVOKED_KIND_AND_UNKNOWN_KIND"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-H01"
+            },
+            "expectedOutcome": {
+              "const": "REJECT_UNVERIFIED_CLEAR"
+            },
+            "family": {
+              "const": "H01"
+            },
+            "id": {
+              "const": "NON_ERASE_LEDGER_CLEAR"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-I01"
+            },
+            "expectedOutcome": {
+              "const": "TOMBSTONES_RETAINED_AND_FORWARD_CLEANUP"
+            },
+            "family": {
+              "const": "I01"
+            },
+            "id": {
+              "const": "PARTIAL_GRAPH_DELETION"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-I01"
+            },
+            "expectedOutcome": {
+              "const": "RELAUNCH_FORWARD_RECOVERY"
+            },
+            "family": {
+              "const": "I01"
+            },
+            "id": {
+              "const": "INTERRUPTED_ERASE_EACH_PHASE"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-I01"
+            },
+            "expectedOutcome": {
+              "const": "DURABLE_MARKER_PRECEDES_TARGET_GENERATION"
+            },
+            "family": {
+              "const": "I01"
+            },
+            "id": {
+              "const": "ERASE_PREPARATION_MARKER_BEFORE_TARGET"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-I01"
+            },
+            "expectedOutcome": {
+              "const": "DISCARD_PREPARED_TARGET_ONLY_AFTER_MANIFEST_PROOF"
+            },
+            "family": {
+              "const": "I01"
+            },
+            "id": {
+              "const": "CORE_DISCARD_SEAM_MANIFEST_FIRST"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-R01"
+            },
+            "expectedOutcome": {
+              "const": "NO_LEDGER_CLEAR_UNTIL_VERIFIED_ERASE"
+            },
+            "family": {
+              "const": "R01"
+            },
+            "id": {
+              "const": "DISABLED_DELETE_PATH_RETAIN_TOMBSTONES"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-R01"
+            },
+            "expectedOutcome": {
+              "const": "EMPTY_GENERATION_AND_LEDGER_CLEAR"
+            },
+            "family": {
+              "const": "R01"
+            },
+            "id": {
+              "const": "VERIFIED_COMPLETE_ERASE_CLEARS_LEDGER"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P01-C06-R01"
+            },
+            "expectedOutcome": {
+              "const": "RECONCILE_PREPARATION_MARKER_WITHOUT_CLEARING_LEDGER"
+            },
+            "family": {
+              "const": "R01"
+            },
+            "id": {
+              "const": "NO_INTENT_ORPHAN_PREPARATION_RECOVERY"
+            },
+            "modes": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "const": "ALL"
+                }
+              ],
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "id",
+            "family",
+            "evidenceID",
+            "modes",
+            "expectedOutcome"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array",
+      "uniqueItems": true
+    },
+    "clock": {
+      "additionalProperties": false,
+      "properties": {
+        "recreateAt": {
+          "const": "2026-01-02T03:05:05Z"
+        },
+        "tombstoneAt": {
+          "const": "2026-01-02T03:04:05Z"
+        }
+      },
+      "required": [
+        "tombstoneAt",
+        "recreateAt"
+      ],
+      "type": "object"
+    },
+    "coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "allCurrentlyRegisteredKinds": {
+          "const": true
+        },
+        "allDeletionModes": {
+          "const": true
+        },
+        "deletionWins": {
+          "const": true
+        },
+        "emptySitePreserved": {
+          "const": true
+        },
+        "eraseOnlyClearing": {
+          "const": true
+        },
+        "erasePreparationMarkerRecovery": {
+          "const": true
+        },
+        "evidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P01-C06-G01"
+            },
+            {
+              "const": "V23-P01-C06-A01"
+            },
+            {
+              "const": "V23-P01-C06-H01"
+            },
+            {
+              "const": "V23-P01-C06-I01"
+            },
+            {
+              "const": "V23-P01-C06-R01"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        },
+        "families": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "G01"
+            },
+            {
+              "const": "A01"
+            },
+            {
+              "const": "H01"
+            },
+            {
+              "const": "I01"
+            },
+            {
+              "const": "R01"
+            }
+          ],
+          "type": "array",
+          "uniqueItems": true
+        },
+        "manifestFirstDiscard": {
+          "const": true
+        },
+        "noIntentOrphanRecovery": {
+          "const": true
+        },
+        "orphanCleanupSeparated": {
+          "const": true
+        },
+        "privacyMinimalTombstones": {
+          "const": true
+        },
+        "unknownKindFailClosed": {
+          "const": true
+        }
+      },
+      "required": [
+        "evidenceIDs",
+        "families",
+        "allDeletionModes",
+        "allCurrentlyRegisteredKinds",
+        "privacyMinimalTombstones",
+        "deletionWins",
+        "eraseOnlyClearing",
+        "emptySitePreserved",
+        "orphanCleanupSeparated",
+        "unknownKindFailClosed",
+        "erasePreparationMarkerRecovery",
+        "noIntentOrphanRecovery",
+        "manifestFirstDiscard"
+      ],
+      "type": "object"
+    },
+    "deletionModes": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "destinationPrecondition": {
+              "const": "NO_CANONICAL_WORKSPACE"
+            },
+            "emptySiteDisposition": {
+              "const": "PRESERVE_IF_FINAL_ASSET_DELETED"
+            },
+            "existingDestinationDisposition": {
+              "const": "NONE"
+            },
+            "incomingLiveDisposition": {
+              "const": "REJECT_IF_CURRENT_LEDGER_TOMBSTONE"
+            },
+            "incomingTombstoneDisposition": {
+              "const": "PRESERVE"
+            },
+            "ledgerOperation": {
+              "const": "UNION_INCOMING_TOMBSTONES_DELETION_WINS"
+            },
+            "mode": {
+              "const": "EMPTY_INSTALL"
+            },
+            "sourceReplicaDisposition": {
+              "const": "PROVENANCE_ONLY_NEVER_ACTIVE"
+            }
+          },
+          "required": [
+            "mode",
+            "destinationPrecondition",
+            "ledgerOperation",
+            "incomingLiveDisposition",
+            "incomingTombstoneDisposition",
+            "existingDestinationDisposition",
+            "emptySiteDisposition",
+            "sourceReplicaDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "destinationPrecondition": {
+              "const": "EXPLICIT_MATCHED_DESTINATION_AUTHORITY"
+            },
+            "emptySiteDisposition": {
+              "const": "PRESERVE_IF_FINAL_ASSET_DELETED"
+            },
+            "existingDestinationDisposition": {
+              "const": "REPLACE_CONTENT_ONLY"
+            },
+            "incomingLiveDisposition": {
+              "const": "REJECT_IF_CURRENT_LEDGER_TOMBSTONE"
+            },
+            "incomingTombstoneDisposition": {
+              "const": "PRESERVE"
+            },
+            "ledgerOperation": {
+              "const": "UNION_CURRENT_AND_INCOMING_DELETION_WINS"
+            },
+            "mode": {
+              "const": "REPLACE_EXISTING"
+            },
+            "sourceReplicaDisposition": {
+              "const": "PROVENANCE_ONLY_NEVER_ACTIVE"
+            }
+          },
+          "required": [
+            "mode",
+            "destinationPrecondition",
+            "ledgerOperation",
+            "incomingLiveDisposition",
+            "incomingTombstoneDisposition",
+            "existingDestinationDisposition",
+            "emptySiteDisposition",
+            "sourceReplicaDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "destinationPrecondition": {
+              "const": "EXPLICIT_CLONE_AUTHORIZATION"
+            },
+            "emptySiteDisposition": {
+              "const": "PRESERVE_IF_FINAL_ASSET_DELETED"
+            },
+            "existingDestinationDisposition": {
+              "const": "NEW_GENERATION_ONLY"
+            },
+            "incomingLiveDisposition": {
+              "const": "MATERIALIZE_ONLY_WITHOUT_TOMBSTONE"
+            },
+            "incomingTombstoneDisposition": {
+              "const": "PRESERVE"
+            },
+            "ledgerOperation": {
+              "const": "COPY_INCOMING_TOMBSTONES_DELETION_WINS"
+            },
+            "mode": {
+              "const": "CLONE"
+            },
+            "sourceReplicaDisposition": {
+              "const": "PROVENANCE_ONLY_NEVER_ACTIVE"
+            }
+          },
+          "required": [
+            "mode",
+            "destinationPrecondition",
+            "ledgerOperation",
+            "incomingLiveDisposition",
+            "incomingTombstoneDisposition",
+            "existingDestinationDisposition",
+            "emptySiteDisposition",
+            "sourceReplicaDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "destinationPrecondition": {
+              "const": "EXPLICIT_FORK_AUTHORIZATION_AND_LINEAGE"
+            },
+            "emptySiteDisposition": {
+              "const": "PRESERVE_IF_FINAL_ASSET_DELETED"
+            },
+            "existingDestinationDisposition": {
+              "const": "NEW_GENERATION_ONLY"
+            },
+            "incomingLiveDisposition": {
+              "const": "MATERIALIZE_ONLY_WITHOUT_TOMBSTONE"
+            },
+            "incomingTombstoneDisposition": {
+              "const": "PRESERVE"
+            },
+            "ledgerOperation": {
+              "const": "COPY_INCOMING_TOMBSTONES_DELETION_WINS"
+            },
+            "mode": {
+              "const": "FORK"
+            },
+            "sourceReplicaDisposition": {
+              "const": "PROVENANCE_ONLY_NEVER_ACTIVE"
+            }
+          },
+          "required": [
+            "mode",
+            "destinationPrecondition",
+            "ledgerOperation",
+            "incomingLiveDisposition",
+            "incomingTombstoneDisposition",
+            "existingDestinationDisposition",
+            "emptySiteDisposition",
+            "sourceReplicaDisposition"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array",
+      "uniqueItems": true
+    },
+    "erasePhases": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "const": "empty_generation_prepared"
+        },
+        {
+          "const": "pointer_switched"
+        },
+        {
+          "const": "session_activated"
+        },
+        {
+          "const": "cleanup_complete"
+        }
+      ],
+      "type": "array",
+      "uniqueItems": true
+    },
+    "erasePreparation": {
+      "additionalProperties": false,
+      "properties": {
+        "coreDiscardSeam": {
+          "const": "MANIFEST_FIRST_THEN_TARGET_ROOT"
+        },
+        "ledgerClearPredicate": {
+          "const": "VERIFIED_COMPLETE_ERASE_ONLY"
+        },
+        "markerWriteOrder": {
+          "const": "DURABLE_MARKER_BEFORE_TARGET_GENERATION"
+        },
+        "noIntentOrphanRecovery": {
+          "const": "RECONCILE_MARKER_THEN_DISCARD_OR_RETAIN_LEDGER"
+        },
+        "schema": {
+          "const": "ErasePreparationV2"
+        },
+        "targetBinding": {
+          "const": "MARKER_BINDS_TARGET_EMPTY_GENERATION"
+        }
+      },
+      "required": [
+        "schema",
+        "markerWriteOrder",
+        "targetBinding",
+        "noIntentOrphanRecovery",
+        "coreDiscardSeam",
+        "ledgerClearPredicate"
+      ],
+      "type": "object"
+    },
+    "fixtureID": {
+      "const": "V21P01C06DeletionGraphV1"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "recreated": {
+      "additionalProperties": false,
+      "properties": {
+        "newAssetID": {
+          "const": "00000000-0000-4000-8000-00000000000b"
+        },
+        "oldAssetID": {
+          "const": "00000000-0000-4000-8000-000000000002"
+        },
+        "oldTombstonePreserved": {
+          "const": true
+        }
+      },
+      "required": [
+        "oldAssetID",
+        "newAssetID",
+        "oldTombstonePreserved"
+      ],
+      "type": "object"
+    },
+    "registeredKindPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "coverageRequirement": {
+          "const": "ALL_CURRENTLY_REGISTERED_KINDS"
+        },
+        "currentPersistentTagKindPresent": {
+          "const": false
+        },
+        "dormantTagEntityAuthorized": {
+          "const": false
+        },
+        "futureRegistrationRequirement": {
+          "const": "ADD_DELETION_KIND_AND_REVOCATION_CONTRACT_WITH_REGISTRATION"
+        }
+      },
+      "required": [
+        "currentPersistentTagKindPresent",
+        "dormantTagEntityAuthorized",
+        "coverageRequirement",
+        "futureRegistrationRequirement"
+      ],
+      "type": "object"
+    },
+    "registeredKinds": {
+      "items": false,
+      "maxItems": 7,
+      "minItems": 7,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identityField": {
+              "const": "siteID"
+            },
+            "kind": {
+              "const": "site"
+            },
+            "persistentEntity": {
+              "const": "Site"
+            },
+            "scope": {
+              "const": "workspace"
+            }
+          },
+          "required": [
+            "kind",
+            "persistentEntity",
+            "identityField",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identityField": {
+              "const": "assetID"
+            },
+            "kind": {
+              "const": "asset"
+            },
+            "persistentEntity": {
+              "const": "Asset"
+            },
+            "scope": {
+              "const": "site"
+            }
+          },
+          "required": [
+            "kind",
+            "persistentEntity",
+            "identityField",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identityField": {
+              "const": "recordID"
+            },
+            "kind": {
+              "const": "workflowRecord"
+            },
+            "persistentEntity": {
+              "const": "WorkflowRecord"
+            },
+            "scope": {
+              "const": "asset"
+            }
+          },
+          "required": [
+            "kind",
+            "persistentEntity",
+            "identityField",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identityField": {
+              "const": "evidenceFileID"
+            },
+            "kind": {
+              "const": "evidenceFile"
+            },
+            "persistentEntity": {
+              "const": "EvidenceFile"
+            },
+            "scope": {
+              "const": "workflowRecord"
+            }
+          },
+          "required": [
+            "kind",
+            "persistentEntity",
+            "identityField",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identityField": {
+              "const": "issueID"
+            },
+            "kind": {
+              "const": "issue"
+            },
+            "persistentEntity": {
+              "const": "Issue"
+            },
+            "scope": {
+              "const": "asset"
+            }
+          },
+          "required": [
+            "kind",
+            "persistentEntity",
+            "identityField",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identityField": {
+              "const": "packetID"
+            },
+            "kind": {
+              "const": "packet"
+            },
+            "persistentEntity": {
+              "const": "Packet"
+            },
+            "scope": {
+              "const": "asset"
+            }
+          },
+          "required": [
+            "kind",
+            "persistentEntity",
+            "identityField",
+            "scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "identityField": {
+              "const": "reportID"
+            },
+            "kind": {
+              "const": "report"
+            },
+            "persistentEntity": {
+              "const": "Report"
+            },
+            "scope": {
+              "const": "packet"
+            }
+          },
+          "required": [
+            "kind",
+            "persistentEntity",
+            "identityField",
+            "scope"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array",
+      "uniqueItems": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "V21P01C06DeletionGraphV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "semanticScope": {
+      "additionalProperties": false,
+      "properties": {
+        "currentPersistentTagKindPresent": {
+          "const": false
+        },
+        "deletionRegistryCoverage": {
+          "const": "ALL_CURRENTLY_REGISTERED_KINDS"
+        },
+        "dormantTagEntityAuthorized": {
+          "const": false
+        },
+        "emptySitePolicy": {
+          "const": "PRESERVE_AFTER_FINAL_ASSET_DELETION"
+        },
+        "futurePersistentKindRegistration": {
+          "const": "MUST_ADD_DELETION_KIND_AND_REVOCATION_CONTRACT"
+        },
+        "ledgerClearingAuthority": {
+          "const": "VERIFIED_COMPLETE_ERASE_ONLY"
+        },
+        "orphanCleanup": {
+          "const": "SEPARATE_AND_CANNOT_MUTATE_DELETION_LEDGER"
+        },
+        "tombstonePolicy": {
+          "const": "DELETION_WINS_PRIVACY_MINIMAL_INDEFINITE_UNTIL_VERIFIED_COMPLETE_ERASE"
+        },
+        "unknownRecordKindPolicy": {
+          "const": "FAIL_CLOSED_PRESERVE_LEDGER"
+        }
+      },
+      "required": [
+        "tombstonePolicy",
+        "ledgerClearingAuthority",
+        "orphanCleanup",
+        "emptySitePolicy",
+        "unknownRecordKindPolicy",
+        "currentPersistentTagKindPresent",
+        "dormantTagEntityAuthorized",
+        "deletionRegistryCoverage",
+        "futurePersistentKindRegistration"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "fixtureID",
+    "authority",
+    "registeredKinds",
+    "registeredKindPolicy",
+    "semanticScope",
+    "deletionModes",
+    "erasePhases",
+    "erasePreparation",
+    "clock",
+    "beforeDelete",
+    "afterDelete",
+    "recreated",
+    "cases",
+    "coverage",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation",
+    "phase10PollingDuringParallelExecution",
+    "artifactDigest"
+  ],
+  "title": "V23P01C06DeletionGraphV1",
+  "type": "object"
+}

@@ -1,0 +1,109 @@
+// Live original-owner Scratch loan DATA/issuer interface V1.
+// Ledger owns these declarations and their fileprivate effect issuers.
+// Router owns the distinct private permit/admission/readback constructor.
+// No serialization, cold authority, ordinary policy waiver or V4 dependency.
+
+struct OriginalEraseScratchCleanupImageV1: Equatable {
+    struct Node: Equatable {
+        let path: String // Relative to this root; empty only for the root node.
+        let fullFact: String // Actual eleven-field held/named fact.
+        let contentSHA256: String?
+        let policy: TemporalPolicyObservationV1?
+        // nil only for the exact active O_EXCL temporary prior to its actual
+        // checked policy request; never for an existing or unassigned node.
+    }
+    struct Root: Equatable {
+        let fullFact: String
+        let digest: String
+        let nodes: [Node] // Complete canonical path order, including root.
+    }
+    let operationsFullFact: String
+    let operationsNames: [String]
+    let scratch: Root?
+    let ingress: Root?
+}
+
+@MainActor
+final class OriginalEraseScratchCleanupPrimitiveIntentV1 {
+    enum Root: String { case scratch = "ScratchDataV1", ingress = "ProtectedIngressReceiptsV1" }
+    enum Kind {
+        // All paths below are canonical Operations-relative paths. Only the
+        // fixed cleanup engine creates an intent; caller DATA cannot mint it.
+        case createTemporary(path: String, finalPath: String, bytes: Data,
+            sha256: String, mode: mode_t, exclusiveFinalRename: Bool)
+        case writeTemporary(path: String, offset: Int, requestedByteCount: Int)
+        case requestPolicy(path: String, kind: OwnedFileKindV1)
+        case linkPublication(temporaryPath: String, finalPath: String)
+        case renamePublication(sourcePath: String, finalPath: String, exclusive: Bool)
+        case renameLeaseDirectory(originalPath: String, tombstonePath: String)
+        case removeLeaf(path: String)
+        case removeDirectory(path: String)
+        case synchronize(path: String)
+        case lockOwnedDirectory(path: String)
+        case closeOwnedResource(path: String, resourceID: UUID)
+    }
+    let requestID: UUID
+    let attemptID: UUID
+    let operationID: UUID
+    let sequence: UInt64
+    let before: OriginalEraseScratchCleanupImageV1
+    let kind: Kind
+    fileprivate init(attemptID: UUID, operationID: UUID, sequence: UInt64,
+        before: OriginalEraseScratchCleanupImageV1, kind: Kind) {
+        requestID = UUID(); self.attemptID = attemptID
+        self.operationID = operationID; self.sequence = sequence
+        self.before = before; self.kind = kind
+    }
+}
+
+@MainActor
+final class OriginalEraseScratchCleanupPrimitiveOutcomeV1 {
+    let intent: OriginalEraseScratchCleanupPrimitiveIntentV1
+    let result: Int64 // Actual syscall count/result or checked policy success0.
+    let syscallErrno: Int32 // Saved immediately before any callback/close.
+    fileprivate init(intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        result: Int64, syscallErrno: Int32) {
+        self.intent = intent; self.result = result; self.syscallErrno = syscallErrno
+    }
+}
+
+// Required private Router/Registry permit contract (implemented in Router):
+// @MainActor final class OriginalEraseScratchCleanupEffectPermitV1
+//   func requireHeld() throws
+//   func requireInitialImage(_ image: OriginalEraseScratchCleanupImageV1) throws
+//   func retainAttempt(_ attempt: OriginalEraseScratchCleanupAttemptV1)
+//   func requireCanonicalSource(path: String, bytes: Data, fullFact: String) throws
+//   func willPerform(_ intent: OriginalEraseScratchCleanupPrimitiveIntentV1) throws
+//   func didPerform(_ outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1)
+//       throws -> OriginalEraseScratchCleanupPrimitiveReadbackV1
+//   func poisonOnUncertainCleanup()
+// Private constructor must bind actual original operation/StoreR/installed
+// writer+session, immutable P plus actual reader/source/Search/Notification/
+// Scratch-policy receipts, same held EX/activity and fresh lexical Registry G.
+// willPerform retains exact intent BEFORE syscall and independently compares
+// the whole original-derived current image. didPerform independently proves
+// exactly the closed delta and unchanged outside image, then privately issues
+// readback. Raw current trees or intent object identity alone are insufficient.
+
+// Required Router-private readback contract (actual issuer, no success default):
+// @MainActor final class OriginalEraseScratchCleanupPrimitiveReadbackV1
+//   let after: OriginalEraseScratchCleanupImageV1
+//   func requireBound(to outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1) throws
+// Exact intent/outcome object identity, operation/attempt/sequence and actual
+// per-effect whole image + current owner record are bound. This readback never
+// supplies a future inode/policy or approves another effect.
+
+// Ledger actual callable entry (implemented only after exact contract agreement):
+// @MainActor static func eraseForOriginalRetainedOwner(
+//   applicationSupportURL: URL, operationID: UUID, support: Int32,
+//   operations: Int32, initialImage: OriginalEraseScratchCleanupImageV1,
+//   retainedIO: EraseAbortCheckedSnapshotIOV1,
+//   permit: OriginalEraseScratchCleanupEffectPermitV1
+// ) throws -> OriginalEraseScratchCleanupReceiptV1
+// Present-only private borrowed pins; positive absence returns a checked no-root
+// receipt only after entire Scratch+ingress image proof. No repair constructor,
+// new SupportSH, await, V4 source/Progress or borrowed readonly permit.
+// Attempt retained before first IO; every source and primitive reproof is fresh.
+// Closed/uncertain memory latch survives all field clearing and blocks every
+// escaped old numeric-FD primitive/deinit. Every owned close drains once; an
+// uncertain slot is retained, poisoned and never inspected or retried.

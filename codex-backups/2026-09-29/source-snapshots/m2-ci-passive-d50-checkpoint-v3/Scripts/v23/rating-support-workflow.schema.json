@@ -1,0 +1,498 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "allocationDigest": {
+          "const": "c20e155a3a3b49232faa454a48a79900720f1d72a0a56c9b4e78bfafb369ed71"
+        },
+        "appBaseHead": {
+          "const": "98171901b302c63d667f59d6a9ac02413aaba762"
+        },
+        "appBaseTree": {
+          "const": "d4016d0e556d6f7f60926571348d919b0605009b"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorizedOverlapCount": {
+          "const": 4
+        },
+        "cardID": {
+          "const": "V23-P04-C39"
+        },
+        "contextDigest": {
+          "const": "49538d614820ea6356f0deccaf931bcaa8a849f8d2158e3d595b8b36faf2fa8f"
+        },
+        "coordinationHead": {
+          "const": "435f91c8c756b741c275d21cde7adece48761294"
+        },
+        "coordinationTree": {
+          "const": "26c6f9b72bee52b4722842f66beda130bbfb8513"
+        },
+        "existingPathCount": {
+          "const": 3
+        },
+        "existingPaths": {
+          "const": [
+            "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+            "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+            "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift"
+          ],
+          "type": "array"
+        },
+        "fencePathCount": {
+          "const": 18
+        },
+        "finalHashesSealed": {
+          "const": false
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "ledgerDigest": {
+          "const": "4c1f8c067a3da8471f06dcf8be8138a27d169576b2787a067affcfeb99eecf94"
+        },
+        "newPathCount": {
+          "const": 15
+        },
+        "newPaths": {
+          "const": [
+            "FieldEvidenceApp/Domain/Feedback/RatingEligibilityContractsV1.swift",
+            "FieldEvidenceApp/Application/Feedback/RatingEligibilityCoordinatorV1.swift",
+            "FieldEvidenceApp/Infrastructure/Feedback/RatingRequestAdapterV1.swift",
+            "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+            "FieldEvidenceAppTests/V9_102RatingEligibilityWorkflowTests.swift",
+            "FieldEvidenceAppTests/Fixtures/V23/Feedback/V23P04C39RatingSupportWorkflowCorpusV1.json",
+            "FieldEvidenceAppUITests/V23_P04_C39RatingSupportWorkflowUITests.swift",
+            "Scripts/v23/p04_c39_contracts.py",
+            "Scripts/v23/generate_p04_c39_contracts.py",
+            "Scripts/v23/verify_p04_c39_contracts.py",
+            "Scripts/v23/rating-support-workflow.schema.json",
+            "docs/design/v23/tooling/V23P04C39RatingSupportWorkflowContractV1.json",
+            "docs/design/v23/tooling/V23P04C39RatingSupportWorkflowEvidenceReceiptV1.json",
+            "docs/design/v23/tooling/V23P04C39BrandImpactManifestV1.json",
+            "docs/design/v23/tooling/V23-P04-C39-tooling-manifest.json"
+          ],
+          "type": "array"
+        },
+        "orderedPathFence": {
+          "const": [
+            "FieldEvidenceApp/Domain/Feedback/RatingEligibilityContractsV1.swift",
+            "FieldEvidenceApp/Application/Feedback/RatingEligibilityCoordinatorV1.swift",
+            "FieldEvidenceApp/Infrastructure/Feedback/RatingRequestAdapterV1.swift",
+            "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift",
+            "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+            "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+            "FieldEvidenceApp/Features/Settings/RatingSupportWorkflowView.swift",
+            "FieldEvidenceAppTests/V9_102RatingEligibilityWorkflowTests.swift",
+            "FieldEvidenceAppTests/Fixtures/V23/Feedback/V23P04C39RatingSupportWorkflowCorpusV1.json",
+            "FieldEvidenceAppUITests/V23_P04_C39RatingSupportWorkflowUITests.swift",
+            "Scripts/v23/p04_c39_contracts.py",
+            "Scripts/v23/generate_p04_c39_contracts.py",
+            "Scripts/v23/verify_p04_c39_contracts.py",
+            "Scripts/v23/rating-support-workflow.schema.json",
+            "docs/design/v23/tooling/V23P04C39RatingSupportWorkflowContractV1.json",
+            "docs/design/v23/tooling/V23P04C39RatingSupportWorkflowEvidenceReceiptV1.json",
+            "docs/design/v23/tooling/V23P04C39BrandImpactManifestV1.json",
+            "docs/design/v23/tooling/V23-P04-C39-tooling-manifest.json"
+          ],
+          "type": "array"
+        },
+        "pathFenceDigest": {
+          "const": "90bd582fba3ebae8f3a983ebc2ea95248970407a008e3f51f5b05c37c0a0c198"
+        },
+        "prerequisiteDigest": {
+          "const": "4bb1eceee8ff7df5c4b5c4776c483db7fa4d62400b566ac28d9cc6c5eaa44dc2"
+        },
+        "productTestUIFixturePathCount": {
+          "const": 7
+        },
+        "projectionDigest": {
+          "const": "26f5fc20257e10c09409cbfaab60c0c040eed7a551b827c9f21c0839e31b0ff7"
+        },
+        "registerOrdinal": {
+          "const": 124
+        },
+        "s10ReservationOverlapCount": {
+          "const": 0
+        },
+        "sequence": {
+          "const": 555
+        },
+        "sourcePins": {
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "title": {
+          "const": "Native App Store rating eligibility and always-visible support fallback from generic finalized-value receipts"
+        },
+        "toolingPathCount": {
+          "const": 8
+        },
+        "transitionDigest": {
+          "const": "b59610ff7facf995bdd7795591b9f427891efd7dfbb91cb4ea393c2522354b12"
+        },
+        "unauthorizedOverlapCount": {
+          "const": 0
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationHead",
+        "coordinationTree",
+        "sequence",
+        "allocationDigest",
+        "prerequisiteDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "transitionDigest",
+        "ledgerDigest",
+        "projectionDigest",
+        "fencePathCount",
+        "existingPathCount",
+        "newPathCount",
+        "productTestUIFixturePathCount",
+        "toolingPathCount",
+        "authorizedOverlapCount",
+        "unauthorizedOverlapCount",
+        "s10ReservationOverlapCount",
+        "frozenS10ReservationDigest",
+        "orderedPathFence",
+        "existingPaths",
+        "newPaths",
+        "sourcePins",
+        "finalHashesSealed"
+      ],
+      "type": "object"
+    },
+    "flags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "acceptanceCredit": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "adoptionEvidence": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "hostedAcceptance": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "nativeAcceptance": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalDevice": {
+          "const": false
+        },
+        "physicalEvidence": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        },
+        "releaseReadiness": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "physicalDevice",
+        "adoption",
+        "acceptance",
+        "release",
+        "nativeAcceptance",
+        "hostedAcceptance",
+        "physicalEvidence",
+        "adoptionEvidence",
+        "acceptanceCredit",
+        "releaseReadiness",
+        "phase10PollingDuringParallelExecution"
+      ],
+      "type": "object"
+    },
+    "independence": {
+      "additionalProperties": false,
+      "properties": {
+        "eraseAllServiceSoleOwner": {
+          "const": true
+        },
+        "newBackend": {
+          "const": false
+        },
+        "newContactWriter": {
+          "const": false
+        },
+        "newMarketing": {
+          "const": false
+        },
+        "newNetwork": {
+          "const": false
+        },
+        "newRenderer": {
+          "const": false
+        },
+        "newStore": {
+          "const": false
+        },
+        "newTelemetry": {
+          "const": false
+        },
+        "newWriter": {
+          "const": false
+        },
+        "optionalProviderOnly": {
+          "const": true
+        },
+        "persistedActivityIdentifiers": {
+          "const": false
+        },
+        "persistedCustomerIdentifiers": {
+          "const": false
+        },
+        "persistedReceiptIdentifiers": {
+          "const": false
+        },
+        "persistedSnapshotIdentifiers": {
+          "const": false
+        },
+        "persistedWorkspaceIdentifiers": {
+          "const": false
+        },
+        "preferencesAdapterSoleOwner": {
+          "const": true
+        },
+        "s6_6EraseRecoveryRegression": {
+          "const": true
+        },
+        "supportIndependent": {
+          "const": true
+        }
+      },
+      "required": [
+        "preferencesAdapterSoleOwner",
+        "eraseAllServiceSoleOwner",
+        "s6_6EraseRecoveryRegression",
+        "newStore",
+        "newWriter",
+        "newRenderer",
+        "newBackend",
+        "newTelemetry",
+        "newNetwork",
+        "newMarketing",
+        "newContactWriter",
+        "persistedCustomerIdentifiers",
+        "persistedWorkspaceIdentifiers",
+        "persistedActivityIdentifiers",
+        "persistedSnapshotIdentifiers",
+        "persistedReceiptIdentifiers",
+        "supportIndependent",
+        "optionalProviderOnly"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "backupExportSearchDiagnostics": {
+          "const": "EXCLUDED_DEVICE_LOCAL_PREFERENCE"
+        },
+        "canonicalPersistentSchema": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canonicalRows": {
+          "type": "array"
+        },
+        "canonicalWriteOwners": {
+          "type": "array"
+        },
+        "eraseDisposition": {
+          "const": "ERASED_COOLDOWN_365_DAYS"
+        },
+        "eraseOwner": {
+          "const": "EraseAllService"
+        },
+        "newDurableFamilyCount": {
+          "const": 0
+        },
+        "newMigrationCount": {
+          "const": 0
+        },
+        "newModelCount": {
+          "const": 0
+        },
+        "newSchemaCount": {
+          "const": 0
+        },
+        "newStoreCount": {
+          "const": 0
+        },
+        "newWriterCount": {
+          "const": 0
+        },
+        "persistence": {
+          "const": "PERSISTENT_OR_PRODUCT_DELTA"
+        },
+        "ratingAttemptLedger": {
+          "const": "DEVICE_LOCAL_NONWORKSPACE"
+        },
+        "resetDisposition": {
+          "const": "PRESERVE_LEDGER"
+        },
+        "solePreferenceOwner": {
+          "const": "PreferencesAdapterV1"
+        },
+        "status": {
+          "const": "IMPLEMENT_NOW"
+        }
+      },
+      "required": [
+        "status",
+        "persistence",
+        "ratingAttemptLedger",
+        "solePreferenceOwner",
+        "eraseOwner",
+        "canonicalPersistentSchema",
+        "canonicalRows",
+        "canonicalWriteOwners",
+        "newDurableFamilyCount",
+        "newModelCount",
+        "newSchemaCount",
+        "newMigrationCount",
+        "newStoreCount",
+        "newWriterCount",
+        "resetDisposition",
+        "eraseDisposition",
+        "backupExportSearchDiagnostics"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sourceRow": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "SOURCE_PRESENT",
+            "SOURCE_MISSING"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "cardID": {
+      "const": "V23-P04-C39"
+    },
+    "contract": {
+      "type": "string"
+    },
+    "finalHashesSealed": {
+      "const": false
+    },
+    "flags": {
+      "$ref": "#/$defs/flags"
+    },
+    "independence": {
+      "$ref": "#/$defs/independence"
+    },
+    "lifecycle": {
+      "$ref": "#/$defs/lifecycle"
+    },
+    "ordinal": {
+      "const": 124
+    },
+    "receipt": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "object"
+    },
+    "scenarioEvidenceIDs": {
+      "const": [
+        "V23-P04-C39-G01",
+        "V23-P04-C39-A01",
+        "V23-P04-C39-H01",
+        "V23-P04-C39-I01",
+        "V23-P04-C39-R01"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V23P04C39RatingSupportWorkflowToolingV1"
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "sourceRows": {
+      "items": {
+        "$ref": "#/$defs/sourceRow"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "ordinal",
+    "authority",
+    "sourceRows",
+    "sourceReady",
+    "flags",
+    "finalHashesSealed",
+    "lifecycle",
+    "independence"
+  ],
+  "title": "V23P04C39RatingSupportWorkflowToolingV1",
+  "type": "object"
+}

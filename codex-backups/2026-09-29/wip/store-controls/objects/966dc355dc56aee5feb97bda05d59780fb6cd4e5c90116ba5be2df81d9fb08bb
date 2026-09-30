@@ -1,0 +1,135 @@
+{
+  "allCheckedUInt64Bounds": true,
+  "canonicalPairUpper": 50000,
+  "capsuleBinaryUpperConservative": 2234368,
+  "copiedBornRawByteUpper": 3407939633152,
+  "exactBornSlotConservativeUpper": 13000131,
+  "fixedSubjectBinaryBytes": 1548,
+  "heapScope": "flat frontier/page/control/source/legacyPlan byte buffers only; old semantic models, actual one scalar String materialization, Swift object/array overhead and system-port returned arrays listed separately in CAPACITY_PROOF. No claim of actual measured peak.",
+  "maximumRawIDOriginBytes": 2097152,
+  "metadata": {
+    "bornProducerSlots": {
+      "leafUpper": 1248166292,
+      "logicalByteUpper": 1308637451906072,
+      "maximumRowBodyBytes": 100663397,
+      "maximumRows": 13000131,
+      "physicalByteUpperConservative": 1319102711857152,
+      "totalPageUpper": 1257994377,
+      "treeLevelUpper": 5
+    },
+    "capturedBirths": {
+      "leafUpper": 2282,
+      "logicalByteUpper": 2392024121,
+      "maximumRowBodyBytes": 176,
+      "maximumRows": 13000131,
+      "physicalByteUpperConservative": 2412773376,
+      "totalPageUpper": 2301,
+      "treeLevelUpper": 2
+    },
+    "currentProjection": {
+      "leafUpper": 86410985,
+      "logicalByteUpper": 90597424090424,
+      "maximumRowBodyBytes": 100663461,
+      "maximumRows": 900003,
+      "physicalByteUpperConservative": 91321940312064,
+      "totalPageUpper": 87091389,
+      "treeLevelUpper": 4
+    },
+    "mixedTargets": {
+      "leafUpper": 96012282,
+      "logicalByteUpper": 100663884653945,
+      "maximumRowBodyBytes": 100663474,
+      "maximumRows": 1000004,
+      "physicalByteUpperConservative": 101468902260736,
+      "totalPageUpper": 96768286,
+      "treeLevelUpper": 4
+    },
+    "originalPairs": {
+      "leafUpper": 9601203,
+      "logicalByteUpper": 10066361500017,
+      "maximumRowBodyBytes": 201327222,
+      "maximumRows": 50000,
+      "physicalByteUpperConservative": 10146866528256,
+      "totalPageUpper": 9676806,
+      "treeLevelUpper": 4
+    },
+    "originalSources": {
+      "leafUpper": 9601201,
+      "logicalByteUpper": 10066359100017,
+      "maximumRowBodyBytes": 100663583,
+      "maximumRows": 100000,
+      "physicalByteUpperConservative": 10146864431104,
+      "totalPageUpper": 9676804,
+      "treeLevelUpper": 4
+    },
+    "pairPredecessors": {
+      "leafUpper": 114455,
+      "logicalByteUpper": 120000000017,
+      "maximumRowBodyBytes": 16,
+      "maximumRows": 5000000000,
+      "physicalByteUpperConservative": 120961630208,
+      "totalPageUpper": 115358,
+      "treeLevelUpper": 3
+    },
+    "rawBlobCatalog": {
+      "leafUpper": 7051,
+      "logicalByteUpper": 7392073937,
+      "maximumRowBodyBytes": 552,
+      "maximumRows": 13200132,
+      "physicalByteUpperConservative": 7453278208,
+      "totalPageUpper": 7108,
+      "treeLevelUpper": 2
+    },
+    "registryDispositions": {
+      "leafUpper": 11,
+      "logicalByteUpper": 11200017,
+      "maximumRowBodyBytes": 104,
+      "maximumRows": 100000,
+      "physicalByteUpperConservative": 12582912,
+      "totalPageUpper": 12,
+      "treeLevelUpper": 1
+    },
+    "registryPrefixProjection": {
+      "leafUpper": 9601213,
+      "logicalByteUpper": 10066372100017,
+      "maximumRowBodyBytes": 100663713,
+      "maximumRows": 100000,
+      "physicalByteUpperConservative": 10146877014016,
+      "totalPageUpper": 9676816,
+      "treeLevelUpper": 4
+    },
+    "targetDependencies": {
+      "leafUpper": 454010460,
+      "logicalByteUpper": 476006358017833,
+      "maximumRowBodyBytes": 26,
+      "maximumRows": 14000187000524,
+      "physicalByteUpperConservative": 479813013864448,
+      "totalPageUpper": 457585348,
+      "treeLevelUpper": 5
+    }
+  },
+  "mixedTargetUpper": 1000004,
+  "oldPlanByteUpper": 100663296,
+  "originalAndPrefixRawByteUpper": 2147483648,
+  "originalCanonicalSourceUpper": 100000,
+  "pairPredecessorUpper": 5000000000,
+  "pendingRequestsAtOnce": 1,
+  "prefixCanonicalSourceUpper": 100000,
+  "projectionUpper": 900003,
+  "publicationControlEnvelope": 16777216,
+  "publicationFrontierByteUpper": 7802880,
+  "rootUTF8PrefixMaximum": 32,
+  "scalarJustification": "existing containing canonical96MiB + fixed root prefix; current path depth65*actual d_name capacity1024 from pinned Simulator SDK, so smaller. No new4KiB limit.",
+  "sourcePlusBornReferenceUpper": 14000131,
+  "sourceScalarEnvelopeBytes": 100663329,
+  "status": "WORKING ARITHMETIC SOURCE PROOF; no compiler/native/runtime/capacity execution",
+  "storeAdditionalSimultaneousByteBufferUpperConservative": 328929536,
+  "targetDependencyUpper": 14000187000524,
+  "terminalCatalog": {
+    "earlierPhysicalFileUpper": 1941794753,
+    "leafUpper": 968631,
+    "levelUpper": 3,
+    "logicalBytesUpper": 1015558655836,
+    "totalPageUpper": 976260
+  }
+}

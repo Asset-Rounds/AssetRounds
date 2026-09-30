@@ -1,0 +1,127 @@
+{
+  "schema": "V23P00C10ToolingManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C10",
+  "baseHead": "50c18e716575313097d1e6981ef3d444eac01ad4",
+  "baseTree": "307d5dfc0cc95f691185ad8366e3fb7e8dc448bf",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "50c18e716575313097d1e6981ef3d444eac01ad4",
+    "baseTree": "307d5dfc0cc95f691185ad8366e3fb7e8dc448bf",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "ac176edb8c0857be5c4b0db315c6237e849ecbac09f9bba254af757ab59dcb68",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "bc54f8887a6006669a74085c0ab88186dbf41266d5c4ece97727f48ad7ae7ee5",
+    "bootstrapPathFenceDigest": "f34d2e3ea8defd5ff7146a499b88e39c76b0a925c519bb524120a2542064d1cb",
+    "provisionalPrerequisiteDigest": "38c99ab22e9ee8193fb44e8ae9b66e1dc54ce9d7d54f348243c7d5ac41b824e8",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "3b628688db05bf9ba75673faed3bee8e71d4d82b9ac758b72f0d334025a37225",
+    "ledgerCASSequence": 27,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "fencedPathCount": 21,
+  "artifacts": [
+    {
+      "path": "FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift",
+      "sha256": "4c202abbd58850e6609c6fea3e30038524beaede1843908eeb3ecf9e5e54e80d"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+      "sha256": "fb6d52a91b110e19fef437bce7acf74c7fac7e9344068a95764c9f91d4df98b6"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+      "sha256": "1e7c00c10b20d09874f8c97c3fbf935be7762287ecfe165e732737e745fb8edc"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerContracts.swift",
+      "sha256": "991c41ebead962d518663031eb7b84f90d951f31594e30f76de649c13ffc5787"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift",
+      "sha256": "f54d8d26b2586d2549696eea59177a96ef37874fd9cda1a4ef0feb659daea71d"
+    },
+    {
+      "path": "Scripts/v23/c10_contracts.py",
+      "sha256": "ad6ae34daabc9d78b2b56f4da00733306d2c2237a5abe657924f16412611db1d"
+    },
+    {
+      "path": "Scripts/v23/generate_c10_contracts.py",
+      "sha256": "c4ec5d555361efb90167930c5b2f80084cb504fc2407f2ab37180f6f30316a6b"
+    },
+    {
+      "path": "Scripts/v23/verify_c10_contracts.py",
+      "sha256": "d620923f5238bd0031cdc1a16b20b81e49b14f0a047d7bd9289ca3f1e9b0419f"
+    },
+    {
+      "path": "Scripts/v23/production-composition-root.schema.json",
+      "sha256": "af4db64842b5a128899d85bb9239f570a929412ab090399d00ebf1ada0710f0f"
+    },
+    {
+      "path": "Scripts/v23/dependency-port-registry.schema.json",
+      "sha256": "90c5df8665329d223b12a5668e2f6e7ab76476b7ee42004733fd9037f60a0ef7"
+    },
+    {
+      "path": "Scripts/v23/architecture-fitness-receipt.schema.json",
+      "sha256": "4f09bef0ec8f39618f9629f5a12c0b2f67ca7da85c26c2e3eafb8223de746f8f"
+    },
+    {
+      "path": "Scripts/v23/architecture-boundary-manifest.schema.json",
+      "sha256": "f605ea5900d5586d1d27389f39d63c54af673326ea77b01a38e6f640802a939a"
+    },
+    {
+      "path": "Scripts/v23/architecture-debt-ledger.schema.json",
+      "sha256": "32b74feb94b52ee7adecefd22b1c8b615eb3f25381f37c90560ce9cc40594d4b"
+    },
+    {
+      "path": "Scripts/v23/coordinator-decomposition-receipt.schema.json",
+      "sha256": "e590b06b0422a813f60ec61eca32cc96f025756f7885977578af5e37b34b1ce0"
+    },
+    {
+      "path": "docs/design/v23/tooling/ProductionCompositionRootV1.json",
+      "sha256": "c9a298b494b7263ed8b7a5ef56bebb51292eaf93392b772d222a21e5b7926773"
+    },
+    {
+      "path": "docs/design/v23/tooling/DependencyPortRegistryV1.json",
+      "sha256": "268c97fe581740739d830f92088b03bb2fb274acfd309aed4be3c41b2d08360f"
+    },
+    {
+      "path": "docs/design/v23/tooling/ArchitectureFitnessReceiptV1.json",
+      "sha256": "74594f62f92170d5a6253858dee5b45cd75c4b9c7d398f1770215c44540b7bcd"
+    },
+    {
+      "path": "docs/design/v23/tooling/ArchitectureBoundaryManifestV1.json",
+      "sha256": "1a5025ae9e4d547f9145ae4c87836e3ee1538c5aa426a5022eef9b3caad07024"
+    },
+    {
+      "path": "docs/design/v23/tooling/ArchitectureDebtLedgerV1.json",
+      "sha256": "4efec8b70b28ac755ecb3523780a1ea9105b8cdbc58916c1ad42e83d58af3d65"
+    },
+    {
+      "path": "docs/design/v23/tooling/CoordinatorDecompositionReceiptV1.json",
+      "sha256": "f65522468d27df87d9d93b0327162c7edd5f118247d64846c0c6584400b5431e"
+    }
+  ],
+  "c07AllocationDigest": "a3974f7989a5efe5674af12e5d73710be06a87ac5c609a8dd504ee00c38d4a0a",
+  "c07OwnedClauseCount": 12,
+  "provisionalDisposition": "COMPOSITION_ROOT_PORTS_AND_STRUCTURAL_DECOMPOSITION_IMPLEMENTED; ROOT_WIRING_NATIVE_COMPILE_GOLDEN_PARITY_AND_FULL_BOUNDARY_CLOSURE_DEFERRED",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "0c7c42baef7b53407f4d67dc18d0187e6929b670f6bdc4906d8be0029d291497"
+}

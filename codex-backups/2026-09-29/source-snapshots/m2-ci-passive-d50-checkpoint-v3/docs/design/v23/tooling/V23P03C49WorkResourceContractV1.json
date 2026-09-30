@@ -1,0 +1,113 @@
+{
+  "aggregation": {
+    "currenciesRemainSeparate": true,
+    "materialKey": [
+      "exactDescription",
+      "exactUnit"
+    ]
+  },
+  "appendOnlyTruth": "MANUAL_DURATION_MATERIAL_QUANTITY_AND_DIRECT_COST_WITH_SOURCE_PROVENANCE",
+  "artifactDigest": "7cd27602ef788a12341ef36f8e57971c9d64fa399fac2daae158ff8b983d3cfe",
+  "authority": {
+    "appBaseHead": "f968cab80d2f1b66b633c15d84f7ab50ad85d8b0",
+    "appBaseTree": "84c61b4b40e6c3a97de36e9fdcb8d8fba922cd78",
+    "contextDigest": "b20b0d9c7a25dc79aa0b0f270ea32afcf3c2d45cc45313ca8513434bc4684976",
+    "coordinationCASSequence": 335,
+    "coordinationHead": "4de3a951a7b96ae9dbb118ac24e951f304db1cf1",
+    "coordinationLedgerDigest": "227365f2c84f602ec0db663ec6068d669f43b8adf6a5bd0ce136a0b948a7d2d4",
+    "coordinationProjectionDigest": "7d47a11ecb9d3fc2deeaff07b41f65204b795c8980dadab2934bdd823e3d4f54",
+    "coordinationTree": "bf06d7f59f0116674c58465ae249c560128798d5",
+    "directPrerequisites": [
+      "V23-P03-C25"
+    ],
+    "hydrationTransitionDigest": "2706b785d36ebb30733793fd1460fd6030c0dc3907f66095138a3b8a50c5876b",
+    "pathFenceDigest": "1f98c92b714a1e4dbecc689efa070f53bbd679fbbc681e5f37da49bdda53d431",
+    "provisionalPrerequisiteDigest": "f564bd037fc70b4a28b0a9fec08f782d7757d3ba719bafc462e19964badbcccf"
+  },
+  "cardID": "V23-P03-C49",
+  "constructorInvariantsBeyondJSONSchema": [
+    "workspaceID equals subject.workspaceID, actor.workspaceID, and actor.actor.workspaceID",
+    "actor.actor.displayName equals actor.displayNameAtTime and both actor digests validate",
+    "revision equals expectedRevision plus one without UInt64 overflow",
+    "material lineID values are unique and stored in canonical lineID order",
+    "entrySHA256 equals the canonical constructor-basis digest",
+    "successor predecessor ID and SHA bind the exact prior entry; clone/fork supplies the mapped predecessor SHA",
+    "recordedAt and capturedAt decode as finite canonical millisecond dates",
+    "all UUID values are nonzero and all hashes are lowercase SHA-256"
+  ],
+  "downgradeDisposition": "FORWARD_FIX_PRESERVE_APPEND_ONLY_WORK_RESOURCE_ROWS_AND_CANONICAL_RECEIPTS",
+  "iso4217ListOne": {
+    "concreteScalePins": {
+      "BHD": 3,
+      "CLF": 4,
+      "KWD": 3,
+      "UYW": 4
+    },
+    "nonNumericMinorUnitDisposition": "N.A. EXCLUDED",
+    "numericMinorUnitCodeCount": 165,
+    "published": "2026-01-01",
+    "rawByteCount": 47463,
+    "rawSHA256": "838dfb991648cf36df939edd5fe3811737962b75a32252847d239cedd1e291c9",
+    "registryDigest": "d1d429783375a1177f44f4ed661849fef44ae43a7d8a19d877c69701889b79fe"
+  },
+  "lifecycleCoverage": [
+    "MIGRATION",
+    "BACKUP",
+    "REPLACE_RESTORE",
+    "CLONE_FORK",
+    "JOURNAL_REPLAY",
+    "SEARCH_REBUILD",
+    "DELETE_ERASE",
+    "REPORT_EXPORT",
+    "COMPATIBILITY",
+    "FORWARD_FIX"
+  ],
+  "optionalStockReference": "LOCAL_PART_REFERENCE_SNAPSHOT_ONLY",
+  "privacy": {
+    "csv": "FORMULA_AND_CONTROL_NEUTRAL",
+    "default": "INTERNAL_ONLY",
+    "externalRelease": "EXPLICIT_PROFILE_AND_PREVIEW"
+  },
+  "schema": "V23P03C49WorkResourceContractV1",
+  "schemaVersion": 1,
+  "states": [
+    "ACTIVE",
+    "SUPERSEDED",
+    "VOIDED_WITH_REASON",
+    "REVERSED"
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "subjects": [
+    "WORK_PACKET",
+    "CORRECTIVE_WORK"
+  ],
+  "title": "Append-only manual duration, material, quantity, and direct-cost truth with optional stock references",
+  "unsupportedClaims": [
+    "inventory",
+    "timer",
+    "payroll",
+    "accounting",
+    "tax",
+    "markup",
+    "estimate",
+    "invoice",
+    "currency conversion",
+    "second writer",
+    "ledger",
+    "renderer"
+  ]
+}

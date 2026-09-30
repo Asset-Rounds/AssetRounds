@@ -1,0 +1,1943 @@
+import Foundation
+import SwiftData
+
+enum CurrentFilesystemBackupDispositionV1: String, Equatable, Sendable {
+    case included = "INCLUDED"
+    case excluded = "EXCLUDED"
+    case notApplicable = "NOT_APPLICABLE"
+}
+
+enum CurrentRebuildDispositionV1: String, Equatable, Sendable {
+    case rebuildFromCanonicalDependencies = "REBUILD_FROM_CANONICAL_DEPENDENCIES"
+    case unavailableAtThisHead = "UNAVAILABLE_AT_THIS_HEAD"
+    case notApplicable = "NOT_APPLICABLE"
+}
+
+enum CurrentReplayDispositionV1: String, Equatable, Sendable {
+    case immutableMutationHistory = "IMMUTABLE_MUTATION_HISTORY"
+    case recoveryStateMachine = "RECOVERY_STATE_MACHINE"
+    case notApplicable = "NOT_APPLICABLE"
+}
+
+struct CurrentSyncLifecycleRouteV1: Equatable, Sendable {
+    let subject: SyncSubjectIdentityV1
+    let filesystemBackup: CurrentFilesystemBackupDispositionV1
+    let semanticBackup: ReplicationBackupDispositionV1
+    let portableExport: ReplicationExportDispositionV1
+    let deletion: ReplicationDeleteDispositionV1
+    let erase: ReplicationEraseDispositionV1
+    let rebuild: CurrentRebuildDispositionV1
+    let replay: CurrentReplayDispositionV1
+}
+
+enum CurrentRepresentationAuthorityV1: String, Equatable, Sendable {
+    case canonicalRow = "CANONICAL_ROW"
+    case derivedPersistedRow = "DERIVED_PERSISTED_ROW"
+    case localRecoveryRow = "LOCAL_RECOVERY_ROW"
+    case portableProjection = "PORTABLE_PROJECTION"
+    case persistedDeviceStore = "PERSISTED_DEVICE_STORE"
+    case nonpersistentView = "NONPERSISTENT_VIEW"
+}
+
+struct CurrentRepresentationRuleV1: Equatable, Sendable {
+    let source: SyncSubjectIdentityV1
+    let representation: SyncSubjectIdentityV1
+    let sourceAuthority: CurrentRepresentationAuthorityV1
+    let representationAuthority: CurrentRepresentationAuthorityV1
+}
+
+enum CurrentSyncClassificationCatalogFailureV1: Error, Equatable {
+    case invalidInventory
+    case invalidBaseline
+    case invalidLifecycleRoute
+    case unexpectedSearchImplementation
+    case unexpectedSecretOrKeychain
+}
+
+/// Repository-derived current-kind catalog for the C03 domain registry.
+///
+/// `SyncClassificationRegistryV1` remains the closed domain baseline. This
+/// adapter proves that baseline is an exact subset of every kind shipped by
+/// the current repository and adds infrastructure-only lifecycle routes that
+/// do not belong in the transport-neutral domain contract.
+struct CurrentSyncClassificationCatalogV1: Sendable {
+    /// Preserve the public error while retaining its static origin in native diagnostics.
+    private static func invalidInventoryFailure(line: UInt = #line) -> CurrentSyncClassificationCatalogFailureV1 {
+        #if DEBUG
+        print("V23_CURRENT_CATALOG_INVALID_INVENTORY line=\(line)")
+        #endif
+        return .invalidInventory
+    }
+
+    static let persistentModelNames = [
+        "Asset", "DeletionLedgerRow", "EntityMutationRevisionRow", "EvidenceFile",
+        "Issue", "MutationQuarantineRow", "MutationReceiptRow", "ObservationAndTimeRow", "Packet",
+        "PersistentSchemaReleaseMarker", "Report", "Site", "WorkflowRecord",
+        "WorkspaceMutationStateRow",
+    ]
+
+    /// Frozen V5 public baseline remains available to sealed Kernel V4 and
+    /// prior tooling. Runtime V6 consumers use this additive inventory.
+    static let v6PersistentModelNames = [
+        "AssetCompositionEdgeRow", "AssetCompositionEventRow",
+        "AssetPlacementEventRow", "LocationHierarchyEventRow",
+        "LocationMigrationReceiptRow", "LocationNodeRow",
+    ]
+    static let v7PersistentModelNames = ["SavedSmartView"]
+    static let v8PersistentModelNames = ["RequirementAssuranceRow"]
+    static let v9PersistentModelNames = [
+        "ActorSnapshotRow", "QualificationSnapshotRow", "ServicePartyRow",
+        "SignoffSnapshotRow", "SitePartyRoleEventRow",
+    ]
+    static let v10PersistentModelNames = [
+        "AssetKindBindingEventRow", "AssetLifecycleEventRow",
+        "AssetProductIdentityRow", "AssetSuccessorLinkRow",
+        "AssetWorkflowCapabilityBindingEventRow", "WorkSubjectScopeSnapshotRow",
+    ]
+    static let v11PersistentModelNames = [
+        "ApplicabilityContextSnapshotRow", "AssessmentScopeSnapshotRow",
+        "AuthoritySourceReleaseRow", "DerivedFactEvaluatorDescriptorRow",
+        "DerivedFactProvenanceRow", "FindingClassificationBindingRow",
+        "MeasurementProtocolReleaseRow", "RequirementBasisBindingRow",
+        "SeverityScaleReleaseRow",
+    ]
+    static let v12PersistentModelNames = [
+        "AssetFunctionalRelationshipEventRow", "FunctionalRelationshipTypeDescriptorRow",
+    ]
+    static let v13PersistentModelNames=["AssuranceManifestRow","AttestationRow","ClaimEvidenceLinkRow","EvidenceVisibilityRow"]
+    static let v14PersistentModelNames=["ChangeRequestRow","CorrectiveActionEventRow","CorrectiveActionPolicyRow","InspectionReviewTransitionRow","ReviewDispositionRow"]
+    static let v15PersistentModelNames=["WorkHandoffRow","WorkItemClaimRow","WorkLeaseRow","WorkPacketManifestRow","WorkReleaseRow"]
+    static let v16PersistentModelNames=["AttachmentStagingItemRow","DraftCommitReceiptRow","DraftCommitSagaRow","DraftContentReservationRow","DraftDiscardReceiptRow","FieldDraftCheckpointRow"]
+    static let v17PersistentModelNames=["ActivePackageRegistryPointerRow","PackagePromotionReceiptRow","PackageSandboxRunRow","PromotedPackageReleaseRow"]
+    static let v18PersistentModelNames=["CalibrationStatusSnapshotRow","InstrumentReferenceRow","MeasurementCaptureRow","MeasurementQualityAssessmentRow","MeasurementSeriesRow"]
+    static let v19PersistentModelNames=["PrivacyRegionRow","PrivacyReviewReceiptRow","PrivacyTransformManifestRow","PrivacyTransformPolicyRow"]
+    static let v20PersistentModelNames=["ClientCapabilityAdmissionDecisionRow","ClientCapabilityProfileRow","PackageLifecycleDispositionRow","PackageLifecyclePolicyRow"]
+    static let v21PersistentModelNames=["RecoverabilityVerificationReceiptRow"]
+    static let v22PersistentModelNames=["FieldReferenceBindingRow","FieldReferenceReleaseRow"]
+    static let v23PersistentModelNames=["AccessibleDocumentAssessmentReceiptRow"]
+    static let v24PersistentModelNames=["SurveyDefinitionIdentityRow","SurveyDefinitionReleaseRow"]
+    static let v25PersistentModelNames=["FactCaptureRow","ProvisionalSubjectRow","SubjectPromotionReceiptRow","SurveyPublicationSnapshotRow","SurveySessionRow"]
+    static let v26PersistentModelNames=["AssetLocatorRow","LocatorBindingReceiptRow"]
+    static let v27PersistentModelNames=["OccurrenceHistoryEventRow","ScheduleDefinitionReleaseRow"]
+    static let v38PersistentModelNames=["ExceptionCalendarReleaseRow","ScheduleOverrideEventRow"]
+    static let v28PersistentModelNames=["PlanDocumentRow","PlanPlacementRow","PlanRevisionRow","RebaseReceiptRow"]
+    static let v29PersistentModelNames=["AssetPoseEventRow","SpatialAnchorObservationRow"]
+    static let v30PersistentModelNames=["EvidenceContextRow","PairedObservationLinkRow"]
+    static let v31PersistentModelNames=["LightingSystemRow","LightingObservationRow","LightingIssueRow","MeasurementPlanRow","LightingClaimStateRow"]
+    static let v32PersistentModelNames=["AssistanceAcceptanceReceiptRow"]
+    static let v33PersistentModelNames=["TemporalEvidenceClipRow","TimecodedEvidenceAnchorRow"]
+    static let v34PersistentModelNames=["AcceptedLabelGenerationSnapshotRow"]
+    static let v35PersistentModelNames=["ServiceContactPointRow","SystemHandoffIntentRow"]
+    static let v36PersistentModelNames=["ActivitySessionEnvelopeRow","ActivityStateTransitionRow","InstallationTaskResultRow","InstallationAsBuiltSnapshotRow","PunchReviewBasisSnapshotRow"]
+    static let v37PersistentModelNames=["ManualWorkResourceRecordRow"]
+    static let v39PersistentModelNames=["ServiceRequestDispositionEventRow","ServiceRequestRecordRow","ServiceRequestWorkLinkEventRow"]
+    static let v40PersistentModelNames=["AssetServiceIncidentRow","ServiceImpactSegmentRow","ServiceCauseAssertionRow","ServiceRemedyAssertionRow","ServiceRepairIntervalRow","ServiceRestorationAssertionRow","QualifiedServiceExposureRow"]
+    static let v41PersistentModelNames=["LocalPartDefinitionRowV1","StockStorageLocationRowV1","StockMovementEventRowV1","StockUseReceiptRowV1","StockUseReversalReceiptRowV1","StockReturnReceiptRowV1","AbandonUnverifiedStockRowV1"]
+    static let v42PersistentModelNames=["MyDayCarryoverReceiptRowV1","MyDayPlanRowV1"]
+    static let v43PersistentModelNames=["EvidenceAssociationEventRowV1","EvidenceSequenceRevisionRowV1"]
+    static let v44PersistentModelNames=["ShopReportProfileRowV1"]
+    static let v45PersistentModelNames=["RoundSessionRevisionRowV1"]
+    static let v46PersistentModelNames=["BulkCommitReceiptRowV1","BulkSessionRowV1","ImportMappingProfileRowV1"]
+    /// Evidence-quality facts are revision-bound canonical history. A waiver
+    /// never replaces its assessment or immutable evidence revision.
+    static let v47PersistentModelNames=["EvidenceQualityAssessmentRowV1","EvidenceQualityMutationReceiptRowV1","EvidenceQualityRuleSetRowV1","EvidenceQualityWaiverRowV1"]
+    /// Offline inbox/promotion/snippet rows are canonical history; completion
+    /// remains owned by their explicitly promoted destination.
+    static let v48PersistentModelNames=["CaptureInboxItemRowV1","CapturePromotionRowV1","FastSurveyInboxMutationReceiptRowV1","SnippetInsertionHistoryRowV1","SnippetRowV1"]
+    static let v49PersistentModelNames=["ExceptionQueueAcknowledgementRowV1","ReinspectionExceptionMutationReceiptRowV1","ReinspectionPlanRowV1","UnchangedAttestationRowV1"]
+    static let v50PersistentModelNames=["EntityAliasLinkRowV1","EntityConsolidationReceiptRowV1","EntityIdentityResolutionMutationReceiptRowV1"]
+    static let v51PersistentModelNames=["PracticeWorkspaceProvenanceRowV1"]
+    static let v52PersistentModelNames=["LightingDayInventoryWorkflowRowV1"]
+    static let v53PersistentModelNames=["LightingNightWorkflowRowV1"]
+    static let activePersistentModelNames =
+        (persistentModelNames + v6PersistentModelNames + v7PersistentModelNames
+            + v8PersistentModelNames + v9PersistentModelNames + v10PersistentModelNames
+            + v11PersistentModelNames + v12PersistentModelNames + v13PersistentModelNames + v14PersistentModelNames + v15PersistentModelNames + v16PersistentModelNames + v17PersistentModelNames + v18PersistentModelNames + v19PersistentModelNames + v20PersistentModelNames + v21PersistentModelNames + v22PersistentModelNames + v23PersistentModelNames + v24PersistentModelNames + v25PersistentModelNames + v26PersistentModelNames + v27PersistentModelNames + v28PersistentModelNames + v29PersistentModelNames + v30PersistentModelNames + v31PersistentModelNames + v32PersistentModelNames + v33PersistentModelNames + v34PersistentModelNames + v35PersistentModelNames + v36PersistentModelNames + v37PersistentModelNames + v38PersistentModelNames + v39PersistentModelNames + v40PersistentModelNames + v41PersistentModelNames + v42PersistentModelNames + v43PersistentModelNames + v44PersistentModelNames + v45PersistentModelNames + v46PersistentModelNames + v47PersistentModelNames + v48PersistentModelNames + v49PersistentModelNames + v50PersistentModelNames + v51PersistentModelNames + v52PersistentModelNames + v53PersistentModelNames).sorted()
+
+    static let ownedFileClassNames = [
+        "cache", "commerceEntitlementCache", "database", "databaseSHM", "databaseWAL",
+        "diagnostics", "durableDirectory", "generationLeaseControl",
+        "generationLeaseControlTemporary", "generationLeaseDirectory",
+        "generationLeaseOwnerLock", "generationPointer", "generationPointerTemporary",
+        "journal", "journalTemporary", "mediaOriginal", "mediaThumbnail", "reportPDF",
+        "portableExchangeDirectory", "portableExchangeJournalFile",
+        "portableExchangeQuarantineFile", "portableExchangeSessionFile",
+        "reportSnapshot", "restoreStaging", "scratch", "stagingDirectory", "stagingFile",
+        "temporaryFile", "searchIndex", "fieldDraftStagingFile", "sceneNavigation",
+    ].sorted()
+
+    static let additionalOwnedFileClassNames = [
+        "fieldDraftStagingFile", "portableExchangeDirectory",
+        "portableExchangeJournalFile", "portableExchangeQuarantineFile",
+        "portableExchangeSessionFile", "sceneNavigation",
+    ]
+
+    static let portableContentProjectionNames = [
+        "DeletionLedgerV2",
+        "MutationHistorySnapshotV1",
+        "ObservationBasisV1",
+        "ReportSnapshotV1",
+        "StreamingArchiveIndexV1",
+        "TemporalContextV1",
+        "V4BackupAssetDTO",
+        "V4BackupEvidenceFileDTO",
+        "V4BackupIssueDTO",
+        "V4BackupManifestV1",
+        "V4BackupPacketDTO",
+        "V4BackupRecordsV1",
+        "V4BackupReportDTO",
+        "V4BackupSiteDTO",
+        "V4BackupWorkflowRecordDTO",
+        "V5BackupLocationRecordV1",
+        "SavedSmartViewDescriptorV1",
+        "RequirementAssuranceSnapshotV1",
+        "RequirementEvaluationV1",
+        "CompletionDecisionV1",
+        "IntegrityFindingV1",
+        "ServicePartyReferenceV1",
+        "SitePartyRoleEventV1",
+        "ActorSnapshotV1",
+        "QualificationSnapshotV1",
+        "SignoffSnapshotV1",
+        "AssetSemanticCatalogReleaseV1",
+        "AssetKindDefinitionV1",
+        "AssetKindBindingEventV1",
+        "AssetWorkflowCapabilityBindingEventV1",
+        "AssetProductIdentityV1",
+        "AssetLifecycleEventV1",
+        "AssetSuccessorLinkV1",
+        "WorkSubjectScopeSnapshotV1",
+        "AuthoritySourceReleaseV1", "RequirementBasisBindingV1",
+        "ApplicabilityContextSnapshotV1", "AssessmentScopeSnapshotV1",
+        "SeverityScaleReleaseV1", "FindingClassificationBindingV1",
+        "MeasurementProtocolReleaseV1", "DerivedFactEvaluatorDescriptorV1",
+        "DerivedFactProvenanceV1",
+        "FunctionalRelationshipTypeDescriptorV1",
+        "AssetFunctionalRelationshipEventV1",
+        "CurrentFunctionalRelationshipProjectionV1",
+        "FunctionalRelationshipDispositionPreviewV1",
+        "CompletedFunctionalRelationshipSnapshotV1",
+        "EvidenceVisibilityV1","ClaimEvidenceLinkV1","AssuranceProjectionPreviewV1","AssuranceManifestV1","AttestationV1",
+        "InspectionReviewTransitionV1","ReviewDispositionV1","ChangeRequestV1","CorrectiveActionPolicyV1","CorrectiveActionEventV1","InspectionReviewProjectionV1","CorrectiveActionProjectionV1",
+        "WorkPacketManifestV1","WorkItemClaimV1","WorkLeaseV1","WorkReleaseV1","WorkHandoffV1","WorkPacketProjectionV1",
+        "FieldDraftCheckpointV1","AttachmentStagingItemV1","DraftCommitSagaV1","DraftContentReservationV1","DraftCommitReceiptV1","DraftDiscardReceiptV1","DraftRecoveryProjectionV1",
+        "PromotedPackageReleaseV1","PackageSandboxRunV1","PackagePromotionReceiptV1","ActivePackageRegistryPointerV1","PackageEvolutionLifecycleClosureV1","PackageSemanticDiffV1","DraftUpgradePlanV1",
+        "InstrumentReferenceV1","CalibrationStatusSnapshotV1","MeasurementCaptureV1","MeasurementSeriesV1","MeasurementQualityAssessmentV1",
+        "PrivacyTransformPolicyV1","PrivacyRegionV1","PrivacyTransformManifestV1","PrivacyReviewReceiptV1","PrivacyProjectionV1","PrivacyTransformLifecycleClosureV1",
+        "ClientCapabilityProfileV1","ClientCapabilityAdmissionDecisionV1","PackageLifecyclePolicyV1","PackageLifecycleDispositionV1","ClientCapabilityAdmissionEvaluatorV1","ClientCapabilityLifecycleClosureV1",
+        "RecoverabilityVerificationReceiptV1",
+        "FieldReferenceReleaseV1","FieldReferenceBindingV1",
+        "AccessibleDocumentAssessmentReceiptV1",
+        "SurveyDefinitionIdentityV1","SurveyDefinitionReleaseV1",
+        "SurveySessionV1","FactCaptureV1","ProvisionalSubjectV1","SubjectPromotionReceiptV1","SurveyPublicationSnapshotV1","SurveySessionLifecycleClosureV1",
+        "AssetLocatorV1","LocatorBindingReceiptV1","AssetLocatorLifecycleClosureV1",
+        "ScheduleDefinitionReleaseV1","OccurrenceHistoryEventV1",
+        "AssistanceAcceptanceReceiptV1",
+        "TemporalEvidenceClipV1","TimecodedEvidenceAnchorV1",
+    ]
+
+    static let derivedIndexNames = [
+        "ReportHistoryIndexValue",
+        "SearchIndexProjectionV1",
+        "reportHistoryChronology",
+    ]
+
+    /// C17's provider-neutral event projection, registry, cache, checkpoint,
+    /// and conformance consumer are disposable derived state.  They are
+    /// intentionally classified as projections here so the source of truth
+    /// remains accepted mutation receipts and journal history.
+    static let c17IntegrationProjectionNames = [
+        "IntegrationConformanceConsumerV1",
+        "IntegrationContractRegistryV1",
+        "IntegrationEventProjectionV1",
+        "IntegrationEventV1",
+        "IntegrationProjectionCheckpointStoreV1",
+        "ProjectionCheckpointV1",
+    ]
+
+    static let derivedProjectionNames = [
+        "EntityMutationRevisionSemanticV1",
+        "MutationQuarantineSemanticV1",
+        "MutationReceiptSemanticV1",
+        "ObservationAndTimeMigrationReceiptV1",
+        "ObservationAndTimeSemanticV1",
+        "StoreSemanticEnvelopeV3",
+        "StoreSemanticEnvelopeV4",
+        "StoreSemanticEnvelopeV5",
+        "StoreSemanticEnvelopeV6",
+        "StoreSemanticEnvelopeV7",
+        "StoreSemanticEnvelopeV8",
+        "StoreSemanticEnvelopeV9",
+        "StoreSemanticEnvelopeV10",
+        "StoreSemanticEnvelopeV11",
+        "StoreSemanticEnvelopeV12",
+        "StoreSemanticEnvelopeV13",
+        "StoreSemanticEnvelopeV14",
+        "StoreSemanticEnvelopeV15",
+        "StoreSemanticEnvelopeV16",
+        "StoreSemanticEnvelopeV17",
+        "StoreSemanticEnvelopeV18",
+        "StoreSemanticEnvelopeV19",
+        "StoreSemanticEnvelopeV20",
+        "StoreSemanticEnvelopeV21",
+        "RecoverabilityVerificationStagingV1",
+        "RecoverabilityFreshnessProjectionV1",
+        "RecoverabilityVerificationLifecycleV1",
+        "StoreSemanticEnvelopeV22","FieldReferenceOfflineReadinessV1","FieldReferencePackLifecycleV1",
+        "StoreSemanticEnvelopeV23","AccessibleDocumentSemanticTreeV1","AccessibleDocumentLifecycleV1",
+        "StoreSemanticEnvelopeV24","SurveyDefinitionSemanticDiffV1","SurveyDefinitionAdoptionPreviewV1","SurveyTemplateQuarantineAssessmentV1",
+        "StoreSemanticEnvelopeV25",
+        "StoreSemanticEnvelopeV26","LocatorBindingPreviewV1","LocatorResolutionV1",
+        "StoreSemanticEnvelopeV27","ExceptionCalendarReleaseV1","ScheduleOverrideEventV1","OccurrenceGenerationPlanV1","DueQueueProjectionV1","ReminderProjectionV1",
+        "StoreSemanticEnvelopeV28","PlanDocumentV1","PlanRevisionV1","SpatialReferenceFrameV1","PlanPlacementV1","RebasePreviewV1","RebaseReceiptV1",
+        "StoreSemanticEnvelopeV29","PoseAxisDescriptorRegistryV1","AssetPoseCurrentTipV1","CompletedPlacementPoseSnapshotV1",
+        "StoreSemanticEnvelopeV30","EvidenceContextV1","PairedObservationLinkV1","StoreSemanticEnvelopeV31","LightingTopologyV1","LightingDuePreviewV1","StoreSemanticEnvelopeV32","StoreSemanticEnvelopeV33","StoreSemanticEnvelopeV34","StoreSemanticEnvelopeV35","StoreSemanticEnvelopeV36","StoreSemanticEnvelopeV37","StoreSemanticEnvelopeV38","StoreSemanticEnvelopeV39","StoreSemanticEnvelopeV40","StoreSemanticEnvelopeV41","StoreSemanticEnvelopeV42","StoreSemanticEnvelopeV43","StoreSemanticEnvelopeV44","StoreSemanticEnvelopeV45","StoreSemanticEnvelopeV46","StoreSemanticEnvelopeV47","StoreSemanticEnvelopeV48","StoreSemanticEnvelopeV49","StoreSemanticEnvelopeV50","StoreSemanticEnvelopeV51","StoreSemanticEnvelopeV52","StoreSemanticEnvelopeV53","MyDayReadinessProjectionV1",
+        "WorkspaceMutationStateSemanticV1",
+        "entityMutationRevision",
+        "workspaceMutationState",
+    ] + c17IntegrationProjectionNames
+
+    /// Proposals are workspace-scoped scratch only. They are declared so the
+    /// lifecycle catalog can prove their absence from schema, backup, export,
+    /// search, sync, journal history, diagnostics, and durable rejection data.
+    static let ephemeralProjectionNames = ["AssistanceProposalV1", "AssistanceCapabilityScratchV1", "TemporalEvidenceCaptureScratchV1"]
+
+    static let journalRecoveryNames = [
+        "CurrentGenerationPointerV2",
+        "CurrentGenerationPointerV3",
+        "DeletionIntentV1",
+        "EraseIntentV1",
+        "ErasePreparationV2",
+        "FinalizationIntentV1",
+        "MutationEnvelopeV1",
+        "MutationHistoryQuarantineRecordV1",
+        "MutationReceiptV1",
+        "SurveyDefinitionLifecycleEventV1",
+        "TemporalEvidenceDerivativeV1",
+        "TemporalEvidenceRetentionEventV1",
+        "PreparedMigrationEnvelopeV1",
+        "RestoreIntentV1",
+        "ReversalBasisV1",
+        "SemanticReversalReceiptV1",
+        "StoreGenerationManifestV1",
+        "StoreMigrationJournalV1",
+        "deletionIntent",
+        "eraseIntent",
+        "finalizationIntent",
+        "mutationReceipt",
+        "restoreIntent",
+        "storeMigration",
+    ]
+
+    static let diagnosticNames = [
+        "DiagnosticExportV1",
+        "DiagnosticsLogEvent",
+        "DiagnosticsV1",
+        "DeviceOperationalSupportSnapshotV2",
+        "DeviceOperationalSupportStoreV1",
+        "DeviceOperationalSupportStoreV2",
+        "LaunchTimeMillisecondsV1",
+        "MetricKitSummaryV1",
+        "OperationalFailureV1",
+        "PurchaseResultHistogram",
+        "ScratchDataLeaseStoreV1",
+        "SystemHealthDiagnosticsV1",
+        "diagnosticCounters",
+    ]
+
+    static let declaredSearchImplementationPresent = true
+
+    /// The accepted portable-secret inventory is explicitly empty and the
+    /// application has no Keychain-backed secret at this head.
+    static let secretNames: [String] = []
+    static let declaredKeychainUsage = false
+
+    /// Canonical mutation rows and their portable snapshot are distinct
+    /// representations. Export never promotes the projection into row truth.
+    static var mutationHistoryRepresentationRules: [CurrentRepresentationRuleV1] {
+        get throws {
+            let projection = try subject(
+                category: .projection,
+                name: "MutationHistorySnapshotV1"
+            )
+            return try [
+                ("EntityMutationRevisionRow", CurrentRepresentationAuthorityV1.derivedPersistedRow),
+                ("MutationQuarantineRow", CurrentRepresentationAuthorityV1.localRecoveryRow),
+                ("MutationReceiptRow", CurrentRepresentationAuthorityV1.canonicalRow),
+                ("WorkspaceMutationStateRow", CurrentRepresentationAuthorityV1.derivedPersistedRow),
+            ].map { name, authority in
+                CurrentRepresentationRuleV1(
+                    source: try subject(category: .persistentModel, name: name),
+                    representation: projection,
+                    sourceAuthority: authority,
+                    representationAuthority: .portableProjection
+                )
+            }
+        }
+    }
+
+    /// The V1 name is a legacy schema/interface declaration. V2 is the sole
+    /// persisted operational-support store kind; bounded snapshots, failures,
+    /// exports, counters, and summaries are nonpersistent views.
+    static var diagnosticRepresentationRules: [CurrentRepresentationRuleV1] {
+        get throws {
+            let store = try subject(
+                category: .diagnostic,
+                name: "DeviceOperationalSupportStoreV2"
+            )
+            return try diagnosticNames
+                .filter { $0 != "DeviceOperationalSupportStoreV2"
+                          && $0 != "ScratchDataLeaseStoreV1" }
+                .map {
+                    CurrentRepresentationRuleV1(
+                        source: store,
+                        representation: try subject(category: .diagnostic, name: $0),
+                        sourceAuthority: .persistedDeviceStore,
+                        representationAuthority: .nonpersistentView
+                    )
+                }
+        }
+    }
+
+    let registrations: [SyncClassificationRegistrationV1]
+    let lifecycleRoutes: [CurrentSyncLifecycleRouteV1]
+    let persistentModelSubjects: [SyncSubjectIdentityV1]
+    let ownedFileClassSubjects: [SyncSubjectIdentityV1]
+    let portableContentProjectionSubjects: [SyncSubjectIdentityV1]
+    let derivedIndexProjectionSubjects: [SyncSubjectIdentityV1]
+    let journalRecoverySubjects: [SyncSubjectIdentityV1]
+    let diagnosticSubjects: [SyncSubjectIdentityV1]
+    let secretSubjects: [SyncSubjectIdentityV1]
+    let searchImplementationPresent: Bool
+    let keychainUsageDeclared: Bool
+
+    static var current: CurrentSyncClassificationCatalogV1 {
+        get throws {
+            guard C50IncumbentFileExchangeSyncBoundaryV1.validate(),
+                  C16WorkspaceExperienceSyncClassificationBoundaryV1.validate(),
+                  C17LightingDayInventorySyncClassificationBoundaryV1.validate(),
+                  C18LightingNightWorkflowSyncClassificationBoundaryV1.validate() else {
+                throw Self.invalidInventoryFailure()
+            }
+            let baseline = try SyncClassificationRegistryV1.registrations.map(Self.currentBaselineRegistration)
+            let additions = try makeAdditionalRegistrations()
+            let registrations = (baseline + additions).sorted {
+                $0.subject.canonicalKey < $1.subject.canonicalKey
+            }
+            let routes = try registrations.map(makeLifecycleRoute).sorted {
+                $0.subject.canonicalKey < $1.subject.canonicalKey
+            }
+            let persistentSubjects = try subjects(
+                category: .persistentModel,
+                names: activePersistentModelNames
+            )
+            let ownedFileSubjects = try subjects(
+                category: .ownedFileClass,
+                names: ownedFileClassNames
+            )
+            let portableSubjects = try subjects(
+                category: .projection,
+                names: portableContentProjectionNames
+            )
+            let derivedSubjects = try subjects(
+                category: .index,
+                names: derivedIndexNames
+            ) + (try subjects(
+                category: .projection,
+                names: derivedProjectionNames
+            )) + (try subjects(
+                category: .projection,
+                names: ephemeralProjectionNames
+            ))
+            let journalSubjects = try subjects(
+                category: .journal,
+                names: journalRecoveryNames
+            )
+            let diagnostics = try subjects(
+                category: .diagnostic,
+                names: diagnosticNames
+            )
+            let secrets = try subjects(category: .secret, names: secretNames)
+            return try CurrentSyncClassificationCatalogV1(
+                registrations: registrations,
+                lifecycleRoutes: routes,
+                persistentModelSubjects: persistentSubjects,
+                ownedFileClassSubjects: ownedFileSubjects,
+                portableContentProjectionSubjects: portableSubjects,
+                derivedIndexProjectionSubjects: derivedSubjects,
+                journalRecoverySubjects: journalSubjects,
+                diagnosticSubjects: diagnostics,
+                secretSubjects: secrets,
+                searchImplementationPresent: Self.declaredSearchImplementationPresent,
+                keychainUsageDeclared: Self.declaredKeychainUsage
+            )
+        }
+    }
+
+    init(
+        registrations: [SyncClassificationRegistrationV1],
+        lifecycleRoutes: [CurrentSyncLifecycleRouteV1],
+        persistentModelSubjects: [SyncSubjectIdentityV1],
+        ownedFileClassSubjects: [SyncSubjectIdentityV1],
+        portableContentProjectionSubjects: [SyncSubjectIdentityV1],
+        derivedIndexProjectionSubjects: [SyncSubjectIdentityV1],
+        journalRecoverySubjects: [SyncSubjectIdentityV1],
+        diagnosticSubjects: [SyncSubjectIdentityV1],
+        secretSubjects: [SyncSubjectIdentityV1],
+        searchImplementationPresent: Bool,
+        keychainUsageDeclared: Bool
+    ) throws {
+        self.registrations = registrations
+        self.lifecycleRoutes = lifecycleRoutes
+        self.persistentModelSubjects = persistentModelSubjects
+        self.ownedFileClassSubjects = ownedFileClassSubjects
+        self.portableContentProjectionSubjects = portableContentProjectionSubjects
+        self.derivedIndexProjectionSubjects = derivedIndexProjectionSubjects
+        self.journalRecoverySubjects = journalRecoverySubjects
+        self.diagnosticSubjects = diagnosticSubjects
+        self.secretSubjects = secretSubjects
+        self.searchImplementationPresent = searchImplementationPresent
+        self.keychainUsageDeclared = keychainUsageDeclared
+        try validate()
+    }
+
+    func registration(
+        for subject: SyncSubjectIdentityV1
+    ) throws -> SyncClassificationRegistrationV1 {
+        let matches = registrations.filter { $0.subject == subject }
+        guard matches.count == 1, let value = matches.first else {
+            throw Self.invalidInventoryFailure()
+        }
+        return value
+    }
+
+    func lifecycleRoute(
+        for subject: SyncSubjectIdentityV1
+    ) throws -> CurrentSyncLifecycleRouteV1 {
+        let matches = lifecycleRoutes.filter { $0.subject == subject }
+        guard matches.count == 1, let value = matches.first else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+        }
+        return value
+    }
+
+    func validate() throws {
+        guard C08ImportBulkSyncClassificationBoundaryV1.validate() else {
+            throw Self.invalidInventoryFailure()
+        }
+        guard C34SceneNavigationSyncBoundaryV1.validate() else {
+            throw Self.invalidInventoryFailure()
+        }
+        guard C50IncumbentFileExchangeSyncBoundaryV1.validate() else {
+            throw Self.invalidInventoryFailure()
+        }
+        guard C52ServiceRequestSyncClassificationBoundaryV1.validate() else {
+            throw Self.invalidInventoryFailure()
+        }
+        guard C53AssetServiceReliabilitySyncClassificationBoundaryV1.validate() else {
+            throw Self.invalidInventoryFailure()
+        }
+        try SyncClassificationRegistryV1.validate()
+        // The baseline registry's ceiling applies to its baseline inventory,
+        // not this exact, category-closed current adapter. The declarations
+        // below are the authoritative cardinality and membership guard.
+        guard !registrations.isEmpty else {
+            throw Self.invalidInventoryFailure()
+        }
+        let registrationKeys = registrations.map(\.subject.canonicalKey)
+        guard registrationKeys == registrationKeys.sorted(),
+              Set(registrationKeys).count == registrationKeys.count else {
+            throw Self.invalidInventoryFailure()
+        }
+        try registrations.forEach { try $0.validate() }
+
+        let bySubject = Dictionary(
+            uniqueKeysWithValues: registrations.map { ($0.subject, $0) }
+        )
+        for baseline in try SyncClassificationRegistryV1.registrations {
+            guard bySubject[baseline.subject] == (try Self.currentBaselineRegistration(baseline)) else {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidBaseline
+            }
+        }
+
+        try Self.validatePersistentModels()
+        try Self.validateOwnedFileClasses()
+        try requireExactCategory(
+            persistentModelSubjects,
+            category: .persistentModel,
+            expectedNames: Self.activePersistentModelNames
+        )
+        try requireExactCategory(
+            ownedFileClassSubjects,
+            category: .ownedFileClass,
+            expectedNames: Self.ownedFileClassNames
+        )
+        try requireExactCategory(
+            portableContentProjectionSubjects,
+            category: .projection,
+            expectedNames: Self.portableContentProjectionNames
+        )
+        let expectedDerived = try Self.subjects(
+            category: .index,
+            names: Self.derivedIndexNames
+        ) + (try Self.subjects(
+            category: .projection,
+            names: Self.derivedProjectionNames
+        )) + (try Self.subjects(
+            category: .projection,
+            names: Self.ephemeralProjectionNames
+        ))
+        guard Set(derivedIndexProjectionSubjects) == Set(expectedDerived),
+              derivedIndexProjectionSubjects.count == expectedDerived.count else {
+            throw Self.invalidInventoryFailure()
+        }
+        try requireExactCategory(
+            journalRecoverySubjects,
+            category: .journal,
+            expectedNames: Self.journalRecoveryNames
+        )
+        try requireExactCategory(
+            diagnosticSubjects,
+            category: .diagnostic,
+            expectedNames: Self.diagnosticNames
+        )
+        guard secretSubjects.isEmpty,
+              SyncClassificationRegistryV1.declaredSecretSubjects.isEmpty,
+              !keychainUsageDeclared else {
+            throw CurrentSyncClassificationCatalogFailureV1.unexpectedSecretOrKeychain
+        }
+        guard searchImplementationPresent else {
+            throw CurrentSyncClassificationCatalogFailureV1.unexpectedSearchImplementation
+        }
+
+        let declaredSubjects = Set(
+            persistentModelSubjects
+            + ownedFileClassSubjects
+            + portableContentProjectionSubjects
+            + derivedIndexProjectionSubjects
+            + journalRecoverySubjects
+            + diagnosticSubjects
+            + secretSubjects
+        )
+        guard declaredSubjects == Set(registrations.map(\.subject)),
+              lifecycleRoutes.map(\.subject.canonicalKey) == registrationKeys else {
+            throw Self.invalidInventoryFailure()
+        }
+        try lifecycleRoutes.forEach { route in
+            let policy = try registration(for: route.subject).replicationPolicy
+            guard route.semanticBackup == policy.backup,
+                  route.portableExport == policy.export,
+                  route.deletion == policy.deletion,
+                  route.erase == policy.erase else {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+            }
+            if route.subject.category == .ownedFileClass {
+                guard let kind = OwnedFileKindV1(rawValue: route.subject.stableName),
+                      route.filesystemBackup == (
+                        ProtectedFilePolicyV1.isExcludedFromBackup(for: kind)
+                            ? .excluded : .included
+                      ) else {
+                    throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+                }
+            } else if route.filesystemBackup != .notApplicable {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+            }
+        }
+
+        let mutationRules = try Self.mutationHistoryRepresentationRules
+        guard mutationRules.count == 4,
+              Set(mutationRules.map(\.source)).count == mutationRules.count,
+              mutationRules.allSatisfy({ rule in
+                  rule.sourceAuthority == .canonicalRow
+                      || rule.sourceAuthority == .derivedPersistedRow
+                      || rule.sourceAuthority == .localRecoveryRow
+              }),
+              mutationRules.allSatisfy({
+                  $0.representationAuthority == .portableProjection
+              }) else {
+            throw Self.invalidInventoryFailure()
+        }
+        let diagnosticRules = try Self.diagnosticRepresentationRules
+        let diagnosticViewNames = Set(diagnosticRules.map { $0.representation.stableName })
+        guard diagnosticViewNames == Set(Self.diagnosticNames).subtracting([
+            "DeviceOperationalSupportStoreV2", "ScratchDataLeaseStoreV1",
+        ]) else {
+            throw Self.invalidInventoryFailure()
+        }
+        let supportStore = try Self.subject(
+            category: .diagnostic,
+            name: "DeviceOperationalSupportStoreV2"
+        )
+        let scratchStore = try Self.subject(
+            category: .diagnostic,
+            name: "ScratchDataLeaseStoreV1"
+        )
+        guard try registration(for: supportStore).replicationPolicy.persistence == .ownedFile,
+              try registration(for: scratchStore).replicationPolicy.persistence == .ownedFile,
+              try diagnosticRules.allSatisfy({ rule in
+                  try registration(for: rule.representation)
+                      .replicationPolicy.persistence == .nonpersistent
+              }) else {
+            throw Self.invalidInventoryFailure()
+        }
+
+        // These two assertions prevent filesystem-backup eligibility from
+        // being confused with portable semantic backup/export eligibility.
+        let database = try Self.subject(category: .ownedFileClass, name: "database")
+        let databaseRoute = try lifecycleRoute(for: database)
+        guard databaseRoute.filesystemBackup == .included,
+              databaseRoute.semanticBackup == .exclude,
+              databaseRoute.portableExport == .exclude else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+        }
+        let records = try Self.subject(category: .projection, name: "V4BackupRecordsV1")
+        let recordsRoute = try lifecycleRoute(for: records)
+        guard recordsRoute.filesystemBackup == .notApplicable,
+              recordsRoute.semanticBackup == .includeCanonical,
+              recordsRoute.portableExport == .portableCanonical else {
+            throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+        }
+
+        // Card 28 support state is device-operational, never workspace truth.
+        // Its concrete store/projections and scratch-lease adapter must remain
+        // local-device authorities and ineligible for Cloud transport, backup,
+        // or portable export. The generic owned scratch/diagnostics file kinds
+        // are independently required to stay excluded from transport and
+        // filesystem backup.
+        for name in Self.diagnosticNames {
+            let subject = try Self.subject(category: .diagnostic, name: name)
+            let registration = try registration(for: subject)
+            let route = try lifecycleRoute(for: subject)
+            guard registration.classification == .privateDeviceOnly,
+                  registration.replicationPolicy.authority == .localDevice,
+                  registration.replicationPolicy.transport == .excluded,
+                  registration.replicationPolicy.bootstrap == .destinationLocal,
+                  route.filesystemBackup == .notApplicable,
+                  route.semanticBackup == .exclude,
+                  route.portableExport == .exclude else {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+            }
+        }
+        for name in ["diagnostics", "scratch"] {
+            let subject = try Self.subject(category: .ownedFileClass, name: name)
+            let registration = try registration(for: subject)
+            let route = try lifecycleRoute(for: subject)
+            guard registration.replicationPolicy.transport == .excluded,
+                  route.filesystemBackup == .excluded,
+                  route.semanticBackup == .exclude,
+                  route.portableExport == .exclude else {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+            }
+        }
+    }
+
+    static func validatePersistentModels() throws {
+        try validatePersistentModelsImplementation()
+    }
+}
+
+private extension CurrentSyncClassificationCatalogV1 {
+    enum AdditionalProfile {
+        case portableProjection
+        case immutableContent
+        case replicatedContent
+        case derivedProjection
+        case replicatedMutationHistory
+        case deviceLocalCanonicalHistory
+        case recoveryJournal
+        case privateNavigationFile
+        case privateDiagnostic
+        case ephemeralWorkspaceScratch
+    }
+
+    struct AdditionalSpec {
+        let category: SyncSubjectCategoryV1
+        let name: String
+        let profile: AdditionalProfile
+        let dependencies: [SyncSubjectIdentityV1]
+    }
+
+    static func makeAdditionalRegistrations() throws -> [SyncClassificationRegistrationV1] {
+        let baselineKeys = Set(
+            try SyncClassificationRegistryV1.registrations.map(\.subject.canonicalKey)
+        )
+        var specs: [AdditionalSpec] = []
+
+        for name in additionalOwnedFileClassNames {
+            specs.append(AdditionalSpec(
+                category: .ownedFileClass, name: name,
+                profile: name == "sceneNavigation" ? .privateNavigationFile : .recoveryJournal,
+                dependencies: []
+            ))
+        }
+
+        specs.append(AdditionalSpec(
+            category: .persistentModel,
+            name: "ObservationAndTimeRow",
+            profile: .replicatedContent,
+            dependencies: [
+                try subject(category: .persistentModel, name: "WorkflowRecord")
+            ]
+        ))
+        for name in v6PersistentModelNames {
+            let mutable = ["LocationNodeRow", "AssetCompositionEdgeRow"].contains(name)
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: mutable ? .replicatedContent : .replicatedMutationHistory,
+                dependencies: try locationPersistentDependencies(for: name)
+            ))
+        }
+        for name in v7PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedContent,
+                dependencies: []
+            ))
+        }
+        for name in v8PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedContent,
+                dependencies: [try subject(category: .persistentModel, name: "WorkflowRecord")]
+            ))
+        }
+        for name in v9PersistentModelNames {
+            let mutable = name == "ServicePartyRow"
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: mutable ? .replicatedContent : .replicatedMutationHistory,
+                dependencies: try partyPersistentDependencies(for: name)
+            ))
+        }
+        for name in v10PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedMutationHistory,
+                dependencies: try assetSemanticPersistentDependencies(for: name)
+            ))
+        }
+        for name in v11PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedMutationHistory,
+                dependencies: try authorityCriterionPersistentDependencies(for: name)
+            ))
+        }
+        for name in v12PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel, name: name,
+                profile: .replicatedMutationHistory,
+                dependencies: try functionalRelationshipPersistentDependencies(for: name)
+            ))
+        }
+        for name in v13PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:try evidenceAssurancePersistentDependencies(for:name)))}
+        for name in v14PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v15PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v16PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v17PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v18PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v19PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v20PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v21PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v22PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v23PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[]))}
+        for name in v24PersistentModelNames {
+            let isIdentity=name=="SurveyDefinitionIdentityRow"
+            let dependencies=isIdentity
+                ? (try subjects(category:.persistentModel,names:["SurveyDefinitionReleaseRow"]))
+                    + [try subject(category:.journal,name:"SurveyDefinitionLifecycleEventV1")]
+                : []
+            specs.append(AdditionalSpec(
+                category:.persistentModel,
+                name:name,
+                profile:isIdentity ? .replicatedContent:.replicatedMutationHistory,
+                dependencies:dependencies
+            ))
+        }
+        for name in v25PersistentModelNames{let dependencies:[SyncSubjectIdentityV1];switch name{case "FactCaptureRow","SurveyPublicationSnapshotRow":dependencies=[try subject(category:.persistentModel,name:"SurveySessionRow")];case "SubjectPromotionReceiptRow":dependencies=[try subject(category:.persistentModel,name:"ProvisionalSubjectRow")];default:dependencies=[]};specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v26PersistentModelNames{let dependencies=name=="LocatorBindingReceiptRow" ? [try subject(category:.persistentModel,name:"AssetLocatorRow")]:[];specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v27PersistentModelNames{let dependencies=name=="OccurrenceHistoryEventRow" ? [try subject(category:.persistentModel,name:"ScheduleDefinitionReleaseRow")]:[];specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v38PersistentModelNames{let dependencies: [SyncSubjectIdentityV1];switch name{case "ScheduleOverrideEventRow":dependencies=[try subject(category:.persistentModel,name:"ScheduleDefinitionReleaseRow")];case "ExceptionCalendarReleaseRow":dependencies=[];default:throw CurrentSyncClassificationCatalogFailureV1.invalidBaseline};specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v28PersistentModelNames{let dependencies:[SyncSubjectIdentityV1];switch name{case "PlanRevisionRow":dependencies=[try subject(category:.persistentModel,name:"PlanDocumentRow"),try subject(category:.persistentModel,name:"FieldReferenceReleaseRow")];case "PlanPlacementRow":dependencies=[try subject(category:.persistentModel,name:"PlanRevisionRow"),try subject(category:.persistentModel,name:"LocatorBindingReceiptRow")];case "RebaseReceiptRow":dependencies=[try subject(category:.persistentModel,name:"PlanRevisionRow"),try subject(category:.persistentModel,name:"PlanPlacementRow")];default:dependencies=[]};specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v29PersistentModelNames{let dependencies:[SyncSubjectIdentityV1]=name=="SpatialAnchorObservationRow" ? [try subject(category:.persistentModel,name:"PlanRevisionRow")]:[];specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v30PersistentModelNames{let dependencies:[SyncSubjectIdentityV1]=name=="PairedObservationLinkRow" ? [try subject(category:.persistentModel,name:"EvidenceContextRow")]:[];specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v31PersistentModelNames{let dependencies:[SyncSubjectIdentityV1]=name=="LightingSystemRow" ? []:[try subject(category:.persistentModel,name:"LightingSystemRow")];specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:dependencies))}
+        for name in v32PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v33PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v34PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v35PersistentModelNames {
+            let dependencies = name == "ServiceContactPointRow"
+                ? [try subject(category:.persistentModel,name:"ServicePartyRow")]
+                : [try subject(category:.persistentModel,name:"MutationReceiptRow")]
+            specs.append(AdditionalSpec(
+                category:.persistentModel,
+                name:name,
+                profile:.replicatedMutationHistory,
+                dependencies:dependencies
+            ))
+        }
+        for name in v36PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedMutationHistory,
+                dependencies: [try subject(category: .persistentModel, name: "MutationReceiptRow")]
+            ))
+        }
+        for name in v37PersistentModelNames {
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedMutationHistory,
+                dependencies: [try subject(category: .persistentModel, name: "MutationReceiptRow")]
+            ))
+        }
+        for name in v39PersistentModelNames {
+            let dependencies = name == "ServiceRequestRecordRow"
+                ? [try subject(category: .persistentModel, name: "MutationReceiptRow")]
+                : [try subject(category: .persistentModel, name: "ServiceRequestRecordRow"),
+                   try subject(category: .persistentModel, name: "MutationReceiptRow")]
+            specs.append(AdditionalSpec(
+                category: .persistentModel,
+                name: name,
+                profile: .replicatedMutationHistory,
+                dependencies: dependencies
+            ))
+        }
+        for name in v40PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v41PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v42PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v43PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v44PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.deviceLocalCanonicalHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v45PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.deviceLocalCanonicalHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v46PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.deviceLocalCanonicalHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v47PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v48PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v49PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v50PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v51PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v52PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+        for name in v53PersistentModelNames{specs.append(AdditionalSpec(category:.persistentModel,name:name,profile:.replicatedMutationHistory,dependencies:[try subject(category:.persistentModel,name:"MutationReceiptRow")]))}
+
+        for name in portableContentProjectionNames {
+            let profile: AdditionalProfile = name == "ReportSnapshotV1"
+                ? .immutableContent : .portableProjection
+            specs.append(AdditionalSpec(
+                category: .projection,
+                name: name,
+                profile: profile,
+                dependencies: try projectionDependencies(for: name)
+            ))
+        }
+        for name in derivedIndexNames {
+            specs.append(AdditionalSpec(
+                category: .index,
+                name: name,
+                profile: .derivedProjection,
+                dependencies: try contentModelSubjects()
+            ))
+        }
+        for name in derivedProjectionNames {
+            specs.append(AdditionalSpec(
+                category: .projection,
+                name: name,
+                profile: .derivedProjection,
+                dependencies: try semanticDependencies(for: name)
+            ))
+        }
+        for name in ephemeralProjectionNames {
+            specs.append(AdditionalSpec(
+                category: .projection,
+                name: name,
+                profile: .ephemeralWorkspaceScratch,
+                dependencies: []
+            ))
+        }
+        let replicatedHistory = Set([
+            "MutationEnvelopeV1", "MutationHistoryQuarantineRecordV1",
+            "MutationReceiptV1", "ReversalBasisV1", "SemanticReversalReceiptV1",
+            "SurveyDefinitionLifecycleEventV1",
+        ])
+        for name in journalRecoveryNames {
+            specs.append(AdditionalSpec(
+                category: .journal,
+                name: name,
+                profile: replicatedHistory.contains(name)
+                    ? .replicatedMutationHistory : .recoveryJournal,
+                dependencies: name == "SurveyDefinitionLifecycleEventV1"
+                    ? [try subject(category:.persistentModel,name:"MutationReceiptRow")]
+                    : []
+            ))
+        }
+        for name in diagnosticNames {
+            // DiagnosticExportV1 is the bounded in-app preparation, not the
+            // user-directed external Files/share effect. It remains device
+            // local and is never a sync or portable-semantic-export subject.
+            specs.append(AdditionalSpec(
+                category: .diagnostic,
+                name: name,
+                profile: .privateDiagnostic,
+                dependencies: []
+            ))
+        }
+
+        return try specs.compactMap { spec in
+            let subject = try subject(category: spec.category, name: spec.name)
+            guard !baselineKeys.contains(subject.canonicalKey) else { return nil }
+            return try registration(
+                subject: subject,
+                profile: spec.profile,
+                dependencies: spec.dependencies
+            )
+        }.sorted { $0.subject.canonicalKey < $1.subject.canonicalKey }
+    }
+
+    /// Preserve the historical registry while binding its counter alias to
+    /// the current store-backed, nonpersistent diagnostic representation.
+    static func currentBaselineRegistration(_ baseline: SyncClassificationRegistrationV1) throws -> SyncClassificationRegistrationV1 {
+        guard baseline.subject == (try subject(category: .diagnostic, name: "diagnosticCounters")) else {
+            return baseline
+        }
+        let policy = baseline.replicationPolicy
+        let current = try ReplicationPolicyV1(policyID: policy.policyID, policyVersion: policy.policyVersion,
+            authority: policy.authority, persistence: .nonpersistent, transport: policy.transport,
+            bootstrap: policy.bootstrap, privacy: policy.privacy, retention: policy.retention,
+            codec: policy.codec, sizeLimit: policy.sizeLimit, dependencies: policy.dependencies,
+            backup: policy.backup, export: policy.export, deletion: policy.deletion, erase: policy.erase)
+        return try SyncClassificationRegistrationV1(subject: baseline.subject,
+            classification: baseline.classification, replicationPolicy: current, conflictPolicy: baseline.conflictPolicy)
+    }
+
+    static func registration(
+        subject: SyncSubjectIdentityV1,
+        profile: AdditionalProfile,
+        dependencies: [SyncSubjectIdentityV1]
+    ) throws -> SyncClassificationRegistrationV1 {
+        let classification: SyncClassificationV1
+        let authority: ReplicationAuthorityV1
+        let persistence: ReplicationPersistenceV1
+        let transport: ReplicationTransportV1
+        let bootstrap: ReplicationBootstrapV1
+        let privacy: ReplicationPrivacyV1
+        let retention: ReplicationRetentionV1
+        let backup: ReplicationBackupDispositionV1
+        let export: ReplicationExportDispositionV1
+        let deletion: ReplicationDeleteDispositionV1
+        let erase: ReplicationEraseDispositionV1
+        let rule: ConflictRuleV1
+        let maximumBytes: Int64
+
+        switch profile {
+        case .portableProjection:
+            classification = .derivedRebuildable
+            authority = .derivedFromCanonicalInputs
+            persistence = .nonpersistent
+            transport = .excluded
+            bootstrap = .rebuildFromDependencies
+            privacy = .workspaceData
+            retention = .rebuildable
+            backup = .includeCanonical
+            export = .portableCanonical
+            deletion = .rebuild
+            erase = .rebuildAfterErase
+            rule = .derivedRebuild
+            maximumBytes = 1_073_741_824
+        case .immutableContent:
+            classification = .contentBlob
+            authority = .immutableContentWriter
+            persistence = .ownedFile
+            transport = .futureBoundedBlobEligible
+            bootstrap = .immutableHistory
+            privacy = .workspaceContentBlob
+            retention = .immutableHistoryUntilErase
+            backup = .includeImmutableHistory
+            export = .portableImmutableHistory
+            deletion = .canonicalDelete
+            erase = .clearWithWorkspace
+            rule = .immutableVersion
+            maximumBytes = 134_217_728
+        case .replicatedContent:
+            classification = .replicated
+            authority = .workspaceWriter
+            persistence = .swiftDataRecord
+            transport = .futureAcceptedMutationEligible
+            bootstrap = .canonicalSnapshot
+            privacy = .workspaceData
+            retention = .untilCanonicalDeleteOrErase
+            backup = .includeCanonical
+            export = .portableCanonical
+            deletion = .canonicalDelete
+            erase = .clearWithWorkspace
+            rule = .exactRevisionManual
+            maximumBytes = 16_777_216
+        case .derivedProjection:
+            classification = .derivedRebuildable
+            authority = .derivedFromCanonicalInputs
+            persistence = .nonpersistent
+            transport = .excluded
+            bootstrap = .rebuildFromDependencies
+            privacy = .workspaceData
+            retention = .rebuildable
+            backup = .rebuildAfterRestore
+            export = .exclude
+            deletion = .rebuild
+            erase = .rebuildAfterErase
+            rule = .derivedRebuild
+            maximumBytes = 16_777_216
+        case .replicatedMutationHistory:
+            classification = .replicated
+            authority = .workspaceWriter
+            persistence = .swiftDataRecord
+            transport = .futureAcceptedMutationEligible
+            bootstrap = .immutableHistory
+            privacy = .workspaceData
+            retention = .immutableHistoryUntilErase
+            backup = .includeImmutableHistory
+            export = .portableImmutableHistory
+            deletion = .localAuthority
+            erase = .clearWithWorkspace
+            rule = .stableIDAppendUnion
+            maximumBytes = 16_777_216
+        case .deviceLocalCanonicalHistory:
+            classification = .localOnly
+            authority = .workspaceWriter
+            persistence = .swiftDataRecord
+            transport = .excluded
+            bootstrap = .canonicalSnapshot
+            privacy = .privateDeviceData
+            retention = .immutableHistoryUntilErase
+            backup = .includeImmutableHistory
+            export = .portableImmutableHistory
+            deletion = .localAuthority
+            erase = .clearWithWorkspace
+            rule = .localOnly
+            maximumBytes = 16_777_216
+        case .recoveryJournal:
+            classification = .localOnly
+            authority = .localDevice
+            persistence = .ownedFile
+            transport = .excluded
+            bootstrap = .destinationLocal
+            privacy = .workspaceData
+            retention = .operationScoped
+            backup = .exclude
+            export = .exclude
+            deletion = .operationCleanup
+            erase = .clearWithWorkspace
+            rule = .localOnly
+            maximumBytes = 16_777_216
+        case .privateNavigationFile:
+            classification = .privateDeviceOnly
+            authority = .localDevice
+            persistence = .ownedFile
+            transport = .excluded
+            bootstrap = .destinationLocal
+            privacy = .privateDeviceData
+            retention = .localDeviceRetained
+            backup = .exclude
+            export = .exclude
+            deletion = .localAuthority
+            erase = .clearWithWorkspace
+            rule = .localOnly
+            maximumBytes = Int64(SceneNavigationSnapshotV1.maximumEncodedByteCount)
+        case .privateDiagnostic:
+            classification = .privateDeviceOnly
+            authority = .localDevice
+            persistence = [
+                "DeviceOperationalSupportStoreV2",
+                "ScratchDataLeaseStoreV1",
+            ].contains(subject.stableName) ? .ownedFile : .nonpersistent
+            transport = .excluded
+            bootstrap = .destinationLocal
+            privacy = .noncustomerDiagnostic
+            retention = .localDeviceRetained
+            backup = .exclude
+            export = .exclude
+            deletion = .localAuthority
+            erase = .localAuthority
+            rule = .localOnly
+            maximumBytes = 4_194_304
+        case .ephemeralWorkspaceScratch:
+            classification = .localOnly
+            authority = .localDevice
+            persistence = .nonpersistent
+            transport = .excluded
+            bootstrap = .destinationLocal
+            privacy = .workspaceData
+            retention = .operationScoped
+            backup = .exclude
+            export = .exclude
+            deletion = .operationCleanup
+            erase = .clearWithWorkspace
+            rule = .localOnly
+            maximumBytes = 1_048_576
+        }
+
+        let sortedDependencies = dependencies.sorted { $0.canonicalKey < $1.canonicalKey }
+        let policy = try ReplicationPolicyV1(
+            policyID: "current." + subject.canonicalKey.replacingOccurrences(of: ":", with: "."),
+            authority: authority,
+            persistence: persistence,
+            transport: transport,
+            bootstrap: bootstrap,
+            privacy: privacy,
+            retention: retention,
+            codec: try ReplicationCodecV1(
+                codecID: "current." + subject.stableName,
+                readableVersions: [1],
+                currentWriteVersion: 1
+            ),
+            sizeLimit: .boundedBytes(maximumBytes),
+            dependencies: sortedDependencies,
+            backup: backup,
+            export: export,
+            deletion: deletion,
+            erase: erase
+        )
+        return try SyncClassificationRegistrationV1(
+            subject: subject,
+            classification: classification,
+            replicationPolicy: policy,
+            conflictPolicy: try ConflictPolicyV1(
+                policyID: "current." + subject.canonicalKey.replacingOccurrences(of: ":", with: "."),
+                rule: rule
+            )
+        )
+    }
+
+    static func makeLifecycleRoute(
+        _ registration: SyncClassificationRegistrationV1
+    ) throws -> CurrentSyncLifecycleRouteV1 {
+        let filesystemBackup: CurrentFilesystemBackupDispositionV1
+        if registration.subject.category == .ownedFileClass {
+            guard let kind = OwnedFileKindV1(rawValue: registration.subject.stableName) else {
+                throw CurrentSyncClassificationCatalogFailureV1.invalidLifecycleRoute
+            }
+            filesystemBackup = ProtectedFilePolicyV1.isExcludedFromBackup(for: kind)
+                ? .excluded : .included
+        } else {
+            filesystemBackup = .notApplicable
+        }
+
+        let rebuild: CurrentRebuildDispositionV1
+        switch registration.classification {
+        case .derivedRebuildable:
+            rebuild = .rebuildFromCanonicalDependencies
+        default:
+            rebuild = .notApplicable
+        }
+
+        let replay: CurrentReplayDispositionV1
+        if registration.subject.category == .journal {
+            switch registration.classification {
+            case .replicated:
+                replay = .immutableMutationHistory
+            default:
+                replay = .recoveryStateMachine
+            }
+        } else if registration.subject.category == .persistentModel,
+                  registration.subject.stableName == "MutationReceiptRow" {
+            replay = .immutableMutationHistory
+        } else {
+            replay = .notApplicable
+        }
+
+        return CurrentSyncLifecycleRouteV1(
+            subject: registration.subject,
+            filesystemBackup: filesystemBackup,
+            semanticBackup: registration.replicationPolicy.backup,
+            portableExport: registration.replicationPolicy.export,
+            deletion: registration.replicationPolicy.deletion,
+            erase: registration.replicationPolicy.erase,
+            rebuild: rebuild,
+            replay: replay
+        )
+    }
+
+    static func projectionDependencies(
+        for name: String
+    ) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "DeletionLedgerV2":
+            return [try subject(category: .persistentModel, name: "DeletionLedgerRow")]
+        case "MutationHistorySnapshotV1":
+            return try subjects(category: .persistentModel, names: [
+                "EntityMutationRevisionRow", "MutationQuarantineRow",
+                "MutationReceiptRow", "WorkspaceMutationStateRow",
+            ])
+        case "ObservationBasisV1", "TemporalContextV1":
+            return [try subject(category: .persistentModel, name: "ObservationAndTimeRow")]
+        case "ReportSnapshotV1":
+            return try contentModelSubjects()
+        case "StreamingArchiveIndexV1":
+            return [try subject(category: .projection, name: "V4BackupManifestV1")]
+        case "V4BackupAssetDTO":
+            return [try subject(category: .persistentModel, name: "Asset")]
+        case "V4BackupEvidenceFileDTO":
+            return [try subject(category: .persistentModel, name: "EvidenceFile")]
+        case "V4BackupIssueDTO":
+            return [try subject(category: .persistentModel, name: "Issue")]
+        case "V4BackupPacketDTO":
+            return [try subject(category: .persistentModel, name: "Packet")]
+        case "V4BackupReportDTO":
+            return [try subject(category: .persistentModel, name: "Report")]
+        case "V4BackupSiteDTO":
+            return [try subject(category: .persistentModel, name: "Site")]
+        case "V4BackupWorkflowRecordDTO":
+            return try subjects(category: .persistentModel, names: [
+                "ObservationAndTimeRow", "WorkflowRecord",
+            ])
+        case "V4BackupRecordsV1", "V4BackupManifestV1":
+            return try contentModelSubjects()
+        case "V5BackupLocationRecordV1":
+            return try subjects(category: .persistentModel, names: v6PersistentModelNames)
+        case "SavedSmartViewDescriptorV1":
+            return [try subject(category: .persistentModel, name: "SavedSmartView")]
+        case "RequirementAssuranceSnapshotV1", "RequirementEvaluationV1",
+             "CompletionDecisionV1", "IntegrityFindingV1":
+            return [try subject(category: .persistentModel, name: "RequirementAssuranceRow")]
+        case "ServicePartyReferenceV1":
+            return [try subject(category: .persistentModel, name: "ServicePartyRow")]
+        case "SitePartyRoleEventV1":
+            return [try subject(category: .persistentModel, name: "SitePartyRoleEventRow")]
+        case "ActorSnapshotV1":
+            return [try subject(category: .persistentModel, name: "ActorSnapshotRow")]
+        case "QualificationSnapshotV1":
+            return [try subject(category: .persistentModel, name: "QualificationSnapshotRow")]
+        case "SignoffSnapshotV1":
+            return [try subject(category: .persistentModel, name: "SignoffSnapshotRow")]
+        case "AssetSemanticCatalogReleaseV1", "AssetKindDefinitionV1":
+            return []
+        case "AssetKindBindingEventV1":
+            return [try subject(category: .persistentModel, name: "AssetKindBindingEventRow")]
+        case "AssetWorkflowCapabilityBindingEventV1":
+            return [try subject(category: .persistentModel, name: "AssetWorkflowCapabilityBindingEventRow")]
+        case "AssetProductIdentityV1":
+            return [try subject(category: .persistentModel, name: "AssetProductIdentityRow")]
+        case "AssetLifecycleEventV1":
+            return [try subject(category: .persistentModel, name: "AssetLifecycleEventRow")]
+        case "AssetSuccessorLinkV1":
+            return [try subject(category: .persistentModel, name: "AssetSuccessorLinkRow")]
+        case "WorkSubjectScopeSnapshotV1":
+            return [try subject(category: .persistentModel, name: "WorkSubjectScopeSnapshotRow")]
+        case "AuthoritySourceReleaseV1": return [try subject(category: .persistentModel, name: "AuthoritySourceReleaseRow")]
+        case "RequirementBasisBindingV1": return [try subject(category: .persistentModel, name: "RequirementBasisBindingRow")]
+        case "ApplicabilityContextSnapshotV1": return [try subject(category: .persistentModel, name: "ApplicabilityContextSnapshotRow")]
+        case "AssessmentScopeSnapshotV1": return [try subject(category: .persistentModel, name: "AssessmentScopeSnapshotRow")]
+        case "SeverityScaleReleaseV1": return [try subject(category: .persistentModel, name: "SeverityScaleReleaseRow")]
+        case "FindingClassificationBindingV1": return [try subject(category: .persistentModel, name: "FindingClassificationBindingRow")]
+        case "MeasurementProtocolReleaseV1": return [try subject(category: .persistentModel, name: "MeasurementProtocolReleaseRow")]
+        case "DerivedFactEvaluatorDescriptorV1": return [try subject(category: .persistentModel, name: "DerivedFactEvaluatorDescriptorRow")]
+        case "DerivedFactProvenanceV1": return [try subject(category: .persistentModel, name: "DerivedFactProvenanceRow")]
+        case "FunctionalRelationshipTypeDescriptorV1": return [try subject(category: .persistentModel, name: "FunctionalRelationshipTypeDescriptorRow")]
+        case "AssetFunctionalRelationshipEventV1": return [try subject(category: .persistentModel, name: "AssetFunctionalRelationshipEventRow")]
+        case "CurrentFunctionalRelationshipProjectionV1", "FunctionalRelationshipDispositionPreviewV1":
+            return try subjects(category: .persistentModel, names: ["FunctionalRelationshipTypeDescriptorRow", "AssetFunctionalRelationshipEventRow"])
+        case "CompletedFunctionalRelationshipSnapshotV1":
+            return try subjects(category: .persistentModel, names: ["FunctionalRelationshipTypeDescriptorRow", "AssetFunctionalRelationshipEventRow"])
+        case "EvidenceVisibilityV1":return[try subject(category:.persistentModel,name:"EvidenceVisibilityRow")]
+        case "ClaimEvidenceLinkV1":return[try subject(category:.persistentModel,name:"ClaimEvidenceLinkRow")]
+        case "AssuranceManifestV1":return[try subject(category:.persistentModel,name:"AssuranceManifestRow")]
+        case "AttestationV1":return[try subject(category:.persistentModel,name:"AttestationRow")]
+        case "AssuranceProjectionPreviewV1":return try subjects(category:.persistentModel,names:["ClaimEvidenceLinkRow","EvidenceVisibilityRow"])
+        case "InspectionReviewTransitionV1":return[try subject(category:.persistentModel,name:"InspectionReviewTransitionRow")]
+        case "ReviewDispositionV1":return[try subject(category:.persistentModel,name:"ReviewDispositionRow")]
+        case "ChangeRequestV1":return[try subject(category:.persistentModel,name:"ChangeRequestRow")]
+        case "CorrectiveActionPolicyV1":return[try subject(category:.persistentModel,name:"CorrectiveActionPolicyRow")]
+        case "CorrectiveActionEventV1":return[try subject(category:.persistentModel,name:"CorrectiveActionEventRow")]
+        case "InspectionReviewProjectionV1":return try subjects(category:.persistentModel,names:["InspectionReviewTransitionRow","ReviewDispositionRow","ChangeRequestRow"])
+        case "CorrectiveActionProjectionV1":return try subjects(category:.persistentModel,names:["CorrectiveActionPolicyRow","CorrectiveActionEventRow"])
+        case "WorkPacketManifestV1":return[try subject(category:.persistentModel,name:"WorkPacketManifestRow")]
+        case "WorkItemClaimV1":return[try subject(category:.persistentModel,name:"WorkItemClaimRow")]
+        case "WorkLeaseV1":return[try subject(category:.persistentModel,name:"WorkLeaseRow")]
+        case "WorkReleaseV1":return[try subject(category:.persistentModel,name:"WorkReleaseRow")]
+        case "WorkHandoffV1":return[try subject(category:.persistentModel,name:"WorkHandoffRow")]
+        case "WorkPacketProjectionV1":return try subjects(category:.persistentModel,names:v15PersistentModelNames)
+        case "FieldDraftCheckpointV1":return[try subject(category:.persistentModel,name:"FieldDraftCheckpointRow")]
+        case "AttachmentStagingItemV1":return[try subject(category:.persistentModel,name:"AttachmentStagingItemRow")]
+        case "DraftCommitSagaV1":return[try subject(category:.persistentModel,name:"DraftCommitSagaRow")]
+        case "DraftContentReservationV1":return[try subject(category:.persistentModel,name:"DraftContentReservationRow")]
+        case "DraftCommitReceiptV1":return[try subject(category:.persistentModel,name:"DraftCommitReceiptRow")]
+        case "DraftDiscardReceiptV1":return[try subject(category:.persistentModel,name:"DraftDiscardReceiptRow")]
+        case "DraftRecoveryProjectionV1":return try subjects(category:.persistentModel,names:v16PersistentModelNames)
+        case "PromotedPackageReleaseV1":return[try subject(category:.persistentModel,name:"PromotedPackageReleaseRow")]
+        case "PackageSandboxRunV1":return[try subject(category:.persistentModel,name:"PackageSandboxRunRow")]
+        case "PackagePromotionReceiptV1":return[try subject(category:.persistentModel,name:"PackagePromotionReceiptRow")]
+        case "ActivePackageRegistryPointerV1":return[try subject(category:.persistentModel,name:"ActivePackageRegistryPointerRow")]
+        case "PackageEvolutionLifecycleClosureV1":return try subjects(category:.persistentModel,names:v17PersistentModelNames)
+        case "InstrumentReferenceV1":return[try subject(category:.persistentModel,name:"InstrumentReferenceRow")]
+        case "CalibrationStatusSnapshotV1":return[try subject(category:.persistentModel,name:"CalibrationStatusSnapshotRow")]
+        case "MeasurementCaptureV1":return[try subject(category:.persistentModel,name:"MeasurementCaptureRow")]
+        case "MeasurementSeriesV1":return[try subject(category:.persistentModel,name:"MeasurementSeriesRow")]
+        case "MeasurementQualityAssessmentV1":return[try subject(category:.persistentModel,name:"MeasurementQualityAssessmentRow")]
+        case "PrivacyTransformPolicyV1":return[try subject(category:.persistentModel,name:"PrivacyTransformPolicyRow")]
+        case "PrivacyRegionV1":return[try subject(category:.persistentModel,name:"PrivacyRegionRow")]
+        case "PrivacyTransformManifestV1":return[try subject(category:.persistentModel,name:"PrivacyTransformManifestRow")]
+        case "PrivacyReviewReceiptV1":return[try subject(category:.persistentModel,name:"PrivacyReviewReceiptRow")]
+        case "PrivacyProjectionV1":return try subjects(category:.persistentModel,names:v19PersistentModelNames)
+        case "PrivacyTransformLifecycleClosureV1":return try subjects(category:.persistentModel,names:v19PersistentModelNames)
+        case "ClientCapabilityProfileV1":return[try subject(category:.persistentModel,name:"ClientCapabilityProfileRow")]
+        case "ClientCapabilityAdmissionDecisionV1":return[try subject(category:.persistentModel,name:"ClientCapabilityAdmissionDecisionRow")]
+        case "PackageLifecyclePolicyV1":return[try subject(category:.persistentModel,name:"PackageLifecyclePolicyRow")]
+        case "PackageLifecycleDispositionV1":return[try subject(category:.persistentModel,name:"PackageLifecycleDispositionRow")]
+        case "ClientCapabilityAdmissionEvaluatorV1","ClientCapabilityLifecycleClosureV1":return try subjects(category:.persistentModel,names:v20PersistentModelNames)
+        case "RecoverabilityVerificationReceiptV1":return[try subject(category:.persistentModel,name:"RecoverabilityVerificationReceiptRow")]
+        case "FieldReferenceReleaseV1":return[try subject(category:.persistentModel,name:"FieldReferenceReleaseRow")]
+        case "FieldReferenceBindingV1":return[try subject(category:.persistentModel,name:"FieldReferenceBindingRow")]
+        case "AccessibleDocumentAssessmentReceiptV1":return[try subject(category:.persistentModel,name:"AccessibleDocumentAssessmentReceiptRow")]
+        case "SurveyDefinitionIdentityV1":return[try subject(category:.persistentModel,name:"SurveyDefinitionIdentityRow")]
+        case "SurveyDefinitionReleaseV1":return[try subject(category:.persistentModel,name:"SurveyDefinitionReleaseRow")]
+        case "SurveySessionV1":return[try subject(category:.persistentModel,name:"SurveySessionRow")]
+        case "FactCaptureV1":return[try subject(category:.persistentModel,name:"FactCaptureRow")]
+        case "ProvisionalSubjectV1":return[try subject(category:.persistentModel,name:"ProvisionalSubjectRow")]
+        case "SubjectPromotionReceiptV1":return[try subject(category:.persistentModel,name:"SubjectPromotionReceiptRow")]
+        case "SurveyPublicationSnapshotV1":return[try subject(category:.persistentModel,name:"SurveyPublicationSnapshotRow")]
+        case "SurveySessionLifecycleClosureV1":return try subjects(category:.persistentModel,names:v25PersistentModelNames)
+        case "AssetLocatorV1":return[try subject(category:.persistentModel,name:"AssetLocatorRow")]
+        case "LocatorBindingReceiptV1":return[try subject(category:.persistentModel,name:"LocatorBindingReceiptRow")]
+        case "AssetLocatorLifecycleClosureV1":return try subjects(category:.persistentModel,names:v26PersistentModelNames)
+        case "ScheduleDefinitionReleaseV1":return[try subject(category:.persistentModel,name:"ScheduleDefinitionReleaseRow")]
+        case "OccurrenceHistoryEventV1":return[try subject(category:.persistentModel,name:"OccurrenceHistoryEventRow"),try subject(category:.persistentModel,name:"ScheduleDefinitionReleaseRow")]
+        case "AssistanceAcceptanceReceiptV1":return[try subject(category:.persistentModel,name:"AssistanceAcceptanceReceiptRow")]
+        case "TemporalEvidenceClipV1":
+            return [try subject(category: .persistentModel, name: "TemporalEvidenceClipRow")]
+        case "TimecodedEvidenceAnchorV1":
+            return try subjects(category: .persistentModel,
+                names: ["TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow"])
+        case "OccurrenceGenerationPlanV1","DueQueueProjectionV1","ReminderProjectionV1":return try subjects(category:.persistentModel,names:v27PersistentModelNames)
+        case "PackageSemanticDiffV1","DraftUpgradePlanV1":return []
+        default:
+            throw Self.invalidInventoryFailure()
+        }
+    }
+
+    static func semanticDependencies(
+        for name: String
+    ) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "EntityMutationRevisionSemanticV1", "entityMutationRevision":
+            return [try subject(category: .persistentModel, name: "EntityMutationRevisionRow")]
+        case "MutationQuarantineSemanticV1":
+            return [try subject(category: .persistentModel, name: "MutationQuarantineRow")]
+        case "MutationReceiptSemanticV1":
+            return [try subject(category: .persistentModel, name: "MutationReceiptRow")]
+        case "WorkspaceMutationStateSemanticV1", "workspaceMutationState":
+            return [try subject(category: .persistentModel, name: "WorkspaceMutationStateRow")]
+        case "ObservationAndTimeMigrationReceiptV1", "ObservationAndTimeSemanticV1":
+            return [
+                try subject(category: .persistentModel, name: "WorkflowRecord"),
+                try subject(category: .persistentModel, name: "ObservationAndTimeRow"),
+            ]
+        case let name where name.hasPrefix("StoreSemanticEnvelopeV"):
+            return try historicalEnvelopeDependencies(for: name)
+        case "ExceptionCalendarReleaseV1":
+            return [try subject(category: .persistentModel, name: "ExceptionCalendarReleaseRow")]
+        case "ScheduleOverrideEventV1":
+            return [try subject(category: .persistentModel, name: "ScheduleOverrideEventRow")]
+        case "OccurrenceGenerationPlanV1", "DueQueueProjectionV1", "ReminderProjectionV1":
+            return try subjects(category: .persistentModel,
+                names: v27PersistentModelNames + v38PersistentModelNames)
+        case "MyDayReadinessProjectionV1":return try subjects(category:.persistentModel,names:["MyDayPlanRowV1","WorkPacketManifestRow","ActivitySessionEnvelopeRow","OccurrenceHistoryEventRow","ScheduleDefinitionReleaseRow"])
+        case "RecoverabilityFreshnessProjectionV1":
+            return [try subject(category: .persistentModel, name: "RecoverabilityVerificationReceiptRow")]
+        case "RecoverabilityVerificationStagingV1", "RecoverabilityVerificationLifecycleV1":
+            // Staging is temporary archive-derived capability state; lifecycle
+            // is a static disposition descriptor, not a canonical row reader.
+            return []
+        case "PlanDocumentV1","PlanRevisionV1","SpatialReferenceFrameV1","PlanPlacementV1","RebasePreviewV1","RebaseReceiptV1":return try subjects(category:.persistentModel,names:v28PersistentModelNames)
+        case "PoseAxisDescriptorRegistryV1","AssetPoseCurrentTipV1","CompletedPlacementPoseSnapshotV1":return try subjects(category:.persistentModel,names:v29PersistentModelNames)
+        case "EvidenceContextV1","PairedObservationLinkV1":return try subjects(category:.persistentModel,names:v30PersistentModelNames)
+        case "LightingTopologyV1","LightingDuePreviewV1":return try subjects(category:.persistentModel,names:v31PersistentModelNames)
+        case "LocatorBindingPreviewV1","LocatorResolutionV1":return try subjects(category:.persistentModel,names:v26PersistentModelNames)
+        case "AccessibleDocumentSemanticTreeV1","AccessibleDocumentLifecycleV1":return try subjects(category:.persistentModel,names:v23PersistentModelNames)
+        case "SurveyDefinitionSemanticDiffV1":return[try subject(category:.persistentModel,name:"SurveyDefinitionReleaseRow")]
+        case "SurveyDefinitionAdoptionPreviewV1":return try subjects(category:.persistentModel,names:v24PersistentModelNames)
+        case "SurveyTemplateQuarantineAssessmentV1":return[]
+        case "FieldReferenceOfflineReadinessV1","FieldReferencePackLifecycleV1":return try subjects(category:.persistentModel,names:v22PersistentModelNames)
+        case "IntegrationConformanceConsumerV1", "IntegrationContractRegistryV1",
+             "IntegrationEventProjectionV1", "IntegrationEventV1",
+             "IntegrationProjectionCheckpointStoreV1", "ProjectionCheckpointV1":
+            return [try subject(category: .journal, name: "MutationReceiptV1")]
+        default:
+            throw Self.invalidInventoryFailure()
+        }
+    }
+
+    // Large envelopes retain their actual nested base instead of flattening
+    // every historical model into a policy whose direct-edge bound is 64.
+    static func historicalEnvelopeDependencies(for name: String) throws -> [SyncSubjectIdentityV1] {
+        let names = try historicalEnvelopeModelNames(for: name)
+        if names.count <= ReplicationPolicyV1.maximumDependencyCount {
+            return try subjects(category: .persistentModel, names: names)
+        }
+        guard let version = Int(name.dropFirst("StoreSemanticEnvelopeV".count)), version > 3 else {
+            throw Self.invalidInventoryFailure()
+        }
+        let predecessor = "StoreSemanticEnvelopeV" + String(version - 1)
+        let predecessorNames = Set(try historicalEnvelopeModelNames(for: predecessor))
+        let currentNames = Set(names)
+        guard predecessorNames.isSubset(of: currentNames) else {
+            throw Self.invalidInventoryFailure()
+        }
+        let additions = try subjects(category: .persistentModel,
+            names: currentNames.subtracting(predecessorNames).sorted())
+        let dependencies = [try subject(category: .projection, name: predecessor)] + additions
+        guard dependencies.count <= ReplicationPolicyV1.maximumDependencyCount else {
+            throw Self.invalidInventoryFailure()
+        }
+        return dependencies
+    }
+
+    // Historical envelopes depend on their own frozen schema. Building these
+    // lists by subtracting a few later rows from the current schema silently
+    // admits new model families every time the current schema grows.
+    static func historicalEnvelopeModelNames(for name: String) throws -> [String] {
+        let models: [any PersistentModel.Type]
+        switch name {
+        case "StoreSemanticEnvelopeV3": models = PersistentSchemaV3.models
+        case "StoreSemanticEnvelopeV4": models = PersistentSchemaV4.models
+        case "StoreSemanticEnvelopeV5": models = PersistentSchemaV5.models
+        case "StoreSemanticEnvelopeV6": models = PersistentSchemaV6.models
+        case "StoreSemanticEnvelopeV7": models = PersistentSchemaV7.models
+        case "StoreSemanticEnvelopeV8": models = PersistentSchemaV8.models
+        case "StoreSemanticEnvelopeV9": models = PersistentSchemaV9.models
+        case "StoreSemanticEnvelopeV10": models = PersistentSchemaV10.models
+        case "StoreSemanticEnvelopeV11": models = PersistentSchemaV11.models
+        case "StoreSemanticEnvelopeV12": models = PersistentSchemaV12.models
+        case "StoreSemanticEnvelopeV13": models = PersistentSchemaV13.models
+        case "StoreSemanticEnvelopeV14": models = PersistentSchemaV14.models
+        case "StoreSemanticEnvelopeV15": models = PersistentSchemaV15.models
+        case "StoreSemanticEnvelopeV16": models = PersistentSchemaV16.models
+        case "StoreSemanticEnvelopeV17": models = PersistentSchemaV17.models
+        case "StoreSemanticEnvelopeV18": models = PersistentSchemaV18.models
+        case "StoreSemanticEnvelopeV19": models = PersistentSchemaV19.models
+        case "StoreSemanticEnvelopeV20": models = PersistentSchemaV20.models
+        case "StoreSemanticEnvelopeV21": models = PersistentSchemaV21.models
+        case "StoreSemanticEnvelopeV22": models = PersistentSchemaV22.models
+        case "StoreSemanticEnvelopeV23": models = PersistentSchemaV23.models
+        case "StoreSemanticEnvelopeV24": models = PersistentSchemaV24.models
+        case "StoreSemanticEnvelopeV25": models = PersistentSchemaV25.models
+        case "StoreSemanticEnvelopeV26": models = PersistentSchemaV26.models
+        case "StoreSemanticEnvelopeV27": models = PersistentSchemaV27.models
+        case "StoreSemanticEnvelopeV28": models = PersistentSchemaV28.models
+        case "StoreSemanticEnvelopeV29": models = PersistentSchemaV29.models
+        case "StoreSemanticEnvelopeV30": models = PersistentSchemaV30.models
+        case "StoreSemanticEnvelopeV31": models = PersistentSchemaV31.models
+        case "StoreSemanticEnvelopeV32": models = PersistentSchemaV32.models
+        case "StoreSemanticEnvelopeV33": models = PersistentSchemaV33.models
+        case "StoreSemanticEnvelopeV34": models = PersistentSchemaV34.models
+        case "StoreSemanticEnvelopeV35": models = PersistentSchemaV35.models
+        case "StoreSemanticEnvelopeV36": models = PersistentSchemaV36.models
+        case "StoreSemanticEnvelopeV37": models = PersistentSchemaV37.models
+        case "StoreSemanticEnvelopeV38": models = PersistentSchemaV38.models
+        case "StoreSemanticEnvelopeV39": models = PersistentSchemaV39.models
+        case "StoreSemanticEnvelopeV40": models = PersistentSchemaV40.models
+        case "StoreSemanticEnvelopeV41": models = PersistentSchemaV41.models
+        case "StoreSemanticEnvelopeV42": models = PersistentSchemaV42.models
+        case "StoreSemanticEnvelopeV43": models = PersistentSchemaV43.models
+        case "StoreSemanticEnvelopeV44": models = PersistentSchemaV44.models
+        case "StoreSemanticEnvelopeV45": models = PersistentSchemaV45.models
+        case "StoreSemanticEnvelopeV46": models = PersistentSchemaV46.models
+        case "StoreSemanticEnvelopeV47": models = PersistentSchemaV47.models
+        case "StoreSemanticEnvelopeV48": models = PersistentSchemaV48.models
+        case "StoreSemanticEnvelopeV49": models = PersistentSchemaV49.models
+        case "StoreSemanticEnvelopeV50": models = PersistentSchemaV50.models
+        case "StoreSemanticEnvelopeV51": models = PersistentSchemaV51.models
+        case "StoreSemanticEnvelopeV52": models = PersistentSchemaV52.models
+        case "StoreSemanticEnvelopeV53": models = PersistentSchemaV53.models
+        default: throw Self.invalidInventoryFailure()
+        }
+        return models.map {
+            String(describing: $0).split(separator: ".").last.map(String.init) ?? ""
+        }.sorted()
+    }
+
+    static func contentModelSubjects() throws -> [SyncSubjectIdentityV1] {
+        try subjects(category: .persistentModel, names: [
+            "Asset", "EvidenceFile", "Issue", "ObservationAndTimeRow", "Packet",
+            "Report", "Site", "WorkflowRecord",
+        ])
+    }
+
+    static func locationPersistentDependencies(
+        for name: String
+    ) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "LocationNodeRow":
+            return [try subject(category: .persistentModel, name: "Site")]
+        case "LocationHierarchyEventRow":
+            return try subjects(category: .persistentModel, names: ["LocationNodeRow", "Site"])
+        case "AssetPlacementEventRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "LocationNodeRow", "Site"])
+        case "AssetCompositionEdgeRow", "AssetCompositionEventRow":
+            return [try subject(category: .persistentModel, name: "Asset")]
+        case "LocationMigrationReceiptRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "AssetPlacementEventRow", "Site"])
+        default:
+            throw Self.invalidInventoryFailure()
+        }
+    }
+
+    static func partyPersistentDependencies(for name: String) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "ServicePartyRow": return []
+        case "SitePartyRoleEventRow":
+            return try subjects(category: .persistentModel, names: ["ServicePartyRow", "Site"])
+        case "ActorSnapshotRow":
+            return [try subject(category: .persistentModel, name: "ServicePartyRow")]
+        case "QualificationSnapshotRow": return []
+        case "SignoffSnapshotRow":
+            return try subjects(category: .persistentModel, names: ["ActorSnapshotRow", "QualificationSnapshotRow", "ServicePartyRow"])
+        default: throw Self.invalidInventoryFailure()
+        }
+    }
+
+    static func assetSemanticPersistentDependencies(for name: String) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "AssetKindBindingEventRow", "AssetProductIdentityRow":
+            return [try subject(category: .persistentModel, name: "Asset")]
+        case "AssetWorkflowCapabilityBindingEventRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "AssetKindBindingEventRow"])
+        case "AssetLifecycleEventRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "AssetKindBindingEventRow", "AssetSuccessorLinkRow"])
+        case "AssetSuccessorLinkRow":
+            return [try subject(category: .persistentModel, name: "Asset")]
+        case "WorkSubjectScopeSnapshotRow":
+            return try subjects(category: .persistentModel, names: ["Asset", "LocationNodeRow", "Site"])
+        default:
+            throw Self.invalidInventoryFailure()
+        }
+    }
+
+    static func authorityCriterionPersistentDependencies(for name: String) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "AuthoritySourceReleaseRow", "AssessmentScopeSnapshotRow",
+             "SeverityScaleReleaseRow", "MeasurementProtocolReleaseRow",
+             "DerivedFactEvaluatorDescriptorRow":
+            return []
+        case "RequirementBasisBindingRow":
+            return [try subject(category: .persistentModel, name: "AuthoritySourceReleaseRow")]
+        case "ApplicabilityContextSnapshotRow":
+            return [try subject(category: .persistentModel, name: "RequirementBasisBindingRow")]
+        case "FindingClassificationBindingRow":
+            return [try subject(category: .persistentModel, name: "SeverityScaleReleaseRow")]
+        case "DerivedFactProvenanceRow":
+            return try subjects(category: .persistentModel, names: [
+                "DerivedFactEvaluatorDescriptorRow", "MeasurementProtocolReleaseRow",
+            ])
+        default: throw Self.invalidInventoryFailure()
+        }
+    }
+
+    static func functionalRelationshipPersistentDependencies(for name: String) throws -> [SyncSubjectIdentityV1] {
+        switch name {
+        case "FunctionalRelationshipTypeDescriptorRow": return []
+        case "AssetFunctionalRelationshipEventRow":
+            return try subjects(category: .persistentModel, names: [
+                "Asset", "FunctionalRelationshipTypeDescriptorRow",
+                "AssetKindBindingEventRow", "AssetWorkflowCapabilityBindingEventRow",
+            ])
+        default: throw Self.invalidInventoryFailure()
+        }
+    }
+    static func evidenceAssurancePersistentDependencies(for name:String)throws->[SyncSubjectIdentityV1]{switch name{case "EvidenceVisibilityRow":return[];case "ClaimEvidenceLinkRow":return[try subject(category:.persistentModel,name:"EvidenceVisibilityRow")];case "AssuranceManifestRow":return try subjects(category:.persistentModel,names:["ClaimEvidenceLinkRow","EvidenceVisibilityRow"]);case "AttestationRow":return[try subject(category:.persistentModel,name:"AssuranceManifestRow")];default:throw Self.invalidInventoryFailure()}}
+
+    static func validatePersistentModelsImplementation() throws {
+        let frozenV5: [any PersistentModel.Type] = [
+            Site.self,
+            Asset.self,
+            WorkflowRecord.self,
+            EvidenceFile.self,
+            Issue.self,
+            Packet.self,
+            Report.self,
+            PersistentSchemaReleaseMarker.self,
+            DeletionLedgerRow.self,
+            MutationReceiptRow.self,
+            MutationQuarantineRow.self,
+            WorkspaceMutationStateRow.self,
+            EntityMutationRevisionRow.self,
+            ObservationAndTimeRow.self,
+        ]
+        let expected = frozenV5 + [
+            LocationNodeRow.self,
+            LocationHierarchyEventRow.self,
+            AssetPlacementEventRow.self,
+            AssetCompositionEdgeRow.self,
+            AssetCompositionEventRow.self,
+            LocationMigrationReceiptRow.self,
+            SavedSmartViewRowV1.self,
+            RequirementAssuranceRow.self,
+            ServicePartyRow.self,
+            SitePartyRoleEventRow.self,
+            ActorSnapshotRow.self,
+            QualificationSnapshotRow.self,
+            SignoffSnapshotRow.self,
+            AssetKindBindingEventRow.self,
+            AssetWorkflowCapabilityBindingEventRow.self,
+            AssetProductIdentityRow.self,
+            AssetLifecycleEventRow.self,
+            AssetSuccessorLinkRow.self,
+            WorkSubjectScopeSnapshotRow.self,
+            AuthoritySourceReleaseRow.self,
+            RequirementBasisBindingRow.self,
+            ApplicabilityContextSnapshotRow.self,
+            AssessmentScopeSnapshotRow.self,
+            SeverityScaleReleaseRow.self,
+            FindingClassificationBindingRow.self,
+            MeasurementProtocolReleaseRow.self,
+            DerivedFactEvaluatorDescriptorRow.self,
+            DerivedFactProvenanceRow.self,
+            FunctionalRelationshipTypeDescriptorRow.self,
+            AssetFunctionalRelationshipEventRow.self,
+            EvidenceVisibilityRow.self,ClaimEvidenceLinkRow.self,AssuranceManifestRow.self,AttestationRow.self,
+            InspectionReviewTransitionRow.self,ReviewDispositionRow.self,ChangeRequestRow.self,CorrectiveActionPolicyRow.self,CorrectiveActionEventRow.self,
+            WorkPacketManifestRow.self,WorkItemClaimRow.self,WorkLeaseRow.self,WorkReleaseRow.self,WorkHandoffRow.self,
+            FieldDraftCheckpointRow.self,AttachmentStagingItemRow.self,DraftCommitSagaRow.self,DraftContentReservationRow.self,DraftCommitReceiptRow.self,DraftDiscardReceiptRow.self,
+            PromotedPackageReleaseRow.self,PackageSandboxRunRow.self,PackagePromotionReceiptRow.self,ActivePackageRegistryPointerRow.self,
+            InstrumentReferenceRow.self,CalibrationStatusSnapshotRow.self,MeasurementCaptureRow.self,MeasurementSeriesRow.self,MeasurementQualityAssessmentRow.self,
+            PrivacyTransformPolicyRow.self,PrivacyRegionRow.self,PrivacyTransformManifestRow.self,PrivacyReviewReceiptRow.self,
+            ClientCapabilityProfileRow.self,ClientCapabilityAdmissionDecisionRow.self,PackageLifecyclePolicyRow.self,PackageLifecycleDispositionRow.self,
+            RecoverabilityVerificationReceiptRow.self,
+            FieldReferenceReleaseRow.self,FieldReferenceBindingRow.self,
+            AccessibleDocumentAssessmentReceiptRow.self,
+            SurveyDefinitionIdentityRow.self,SurveyDefinitionReleaseRow.self,
+            SurveySessionRow.self,FactCaptureRow.self,ProvisionalSubjectRow.self,SubjectPromotionReceiptRow.self,SurveyPublicationSnapshotRow.self,
+            AssetLocatorRow.self,LocatorBindingReceiptRow.self,
+            ScheduleDefinitionReleaseRow.self,OccurrenceHistoryEventRow.self,ExceptionCalendarReleaseRow.self,ScheduleOverrideEventRow.self,
+            PlanDocumentRow.self,PlanRevisionRow.self,PlanPlacementRow.self,RebaseReceiptRow.self,
+            AssetPoseEventRow.self,SpatialAnchorObservationRow.self,
+            EvidenceContextRow.self,PairedObservationLinkRow.self,
+            LightingSystemRow.self,LightingObservationRow.self,LightingIssueRow.self,MeasurementPlanRow.self,LightingClaimStateRow.self,
+            AssistanceAcceptanceReceiptRow.self,
+            TemporalEvidenceClipRow.self,TimecodedEvidenceAnchorRow.self,
+            AcceptedLabelGenerationSnapshotRow.self,
+            ServiceContactPointRow.self,SystemHandoffIntentRow.self,
+            ActivitySessionEnvelopeRow.self,ActivityStateTransitionRow.self,
+            InstallationTaskResultRow.self,InstallationAsBuiltSnapshotRow.self,
+            PunchReviewBasisSnapshotRow.self,
+            ManualWorkResourceRecordRow.self,
+            ServiceRequestRecordRow.self,ServiceRequestDispositionEventRow.self,ServiceRequestWorkLinkEventRow.self,
+            AssetServiceIncidentRow.self,ServiceImpactSegmentRow.self,ServiceCauseAssertionRow.self,ServiceRemedyAssertionRow.self,ServiceRepairIntervalRow.self,ServiceRestorationAssertionRow.self,QualifiedServiceExposureRow.self,
+            LocalPartDefinitionRowV1.self,StockStorageLocationRowV1.self,StockMovementEventRowV1.self,StockUseReceiptRowV1.self,StockUseReversalReceiptRowV1.self,StockReturnReceiptRowV1.self,AbandonUnverifiedStockRowV1.self,
+            MyDayPlanRowV1.self,MyDayCarryoverReceiptRowV1.self,
+            EvidenceAssociationEventRowV1.self,EvidenceSequenceRevisionRowV1.self,
+            ShopReportProfileRowV1.self,
+            RoundSessionRevisionRowV1.self,
+            ImportMappingProfileRowV1.self,BulkSessionRowV1.self,BulkCommitReceiptRowV1.self,
+            EvidenceQualityAssessmentRowV1.self,EvidenceQualityRuleSetRowV1.self,EvidenceQualityWaiverRowV1.self,EvidenceQualityMutationReceiptRowV1.self,
+            CaptureInboxItemRowV1.self,CapturePromotionRowV1.self,SnippetRowV1.self,SnippetInsertionHistoryRowV1.self,FastSurveyInboxMutationReceiptRowV1.self,
+            ReinspectionPlanRowV1.self,UnchangedAttestationRowV1.self,ExceptionQueueAcknowledgementRowV1.self,ReinspectionExceptionMutationReceiptRowV1.self,
+            EntityAliasLinkRowV1.self,EntityConsolidationReceiptRowV1.self,EntityIdentityResolutionMutationReceiptRowV1.self,
+            PracticeWorkspaceProvenanceRowV1.self,
+            LightingDayInventoryWorkflowRowV1.self,LightingNightWorkflowRowV1.self,
+        ]
+        let expectedV52 = expected.filter {
+            ObjectIdentifier($0) != ObjectIdentifier(LightingNightWorkflowRowV1.self)
+        }
+        let runtimeNames = PersistentSchemaV53.models.map { modelType in
+            String(describing: modelType)
+                .split(separator: ".")
+                .last
+                .map(String.init) ?? ""
+        }.sorted()
+        let frozenNames = PersistentSchemaV5.models.map { modelType in
+            String(describing: modelType).split(separator: ".").last.map(String.init) ?? ""
+        }.sorted()
+        guard PersistentSchemaV5.models.count == frozenV5.count,
+              Set(PersistentSchemaV5.models.map { ObjectIdentifier($0) })
+                == Set(frozenV5.map { ObjectIdentifier($0) }),
+              frozenNames == persistentModelNames,
+              PersistentSchemaV52.models.count == 167,
+              PersistentSchemaV52.models.count == expectedV52.count,
+              Set(PersistentSchemaV52.models.map { ObjectIdentifier($0) })
+                == Set(expectedV52.map { ObjectIdentifier($0) }),
+              PersistentSchemaV53.models.count == expected.count,
+              Set(PersistentSchemaV53.models.map { ObjectIdentifier($0) })
+                == Set(expected.map { ObjectIdentifier($0) }),
+              runtimeNames.count == Set(runtimeNames).count,
+              runtimeNames.allSatisfy(ReplicationContractValidationV1.validToken),
+              runtimeNames == activePersistentModelNames,
+              Set(persistentModelNames)
+                == Set(SyncClassificationRegistryV1.persistentModelNames + ["ObservationAndTimeRow"]) else {
+            throw Self.invalidInventoryFailure()
+        }
+    }
+
+    static func validateOwnedFileClasses() throws {
+        let observed = OwnedFileKindV1.allCases.map(\.rawValue).sorted()
+        guard observed == ownedFileClassNames,
+              Set(ownedFileClassNames).count == ownedFileClassNames.count,
+              Set(additionalOwnedFileClassNames).isDisjoint(
+                with: Set(SyncClassificationRegistryV1.ownedFileClassNames)),
+              ownedFileClassNames == (SyncClassificationRegistryV1.ownedFileClassNames
+                + additionalOwnedFileClassNames).sorted() else {
+            throw Self.invalidInventoryFailure()
+        }
+    }
+
+    func requireExactCategory(
+        _ subjects: [SyncSubjectIdentityV1],
+        category: SyncSubjectCategoryV1,
+        expectedNames: [String]
+    ) throws {
+        guard subjects.allSatisfy({ $0.category == category }),
+              subjects.map(\.stableName).sorted() == expectedNames.sorted(),
+              Set(subjects).count == subjects.count else {
+            throw Self.invalidInventoryFailure()
+        }
+    }
+
+    static func subjects(
+        category: SyncSubjectCategoryV1,
+        names: [String]
+    ) throws -> [SyncSubjectIdentityV1] {
+        try names.map { try subject(category: category, name: $0) }
+            .sorted { $0.canonicalKey < $1.canonicalKey }
+    }
+
+    static func subject(
+        category: SyncSubjectCategoryV1,
+        name: String
+    ) throws -> SyncSubjectIdentityV1 {
+        try SyncSubjectIdentityV1(category: category, stableName: name)
+    }
+}
+
+enum C45AcceptedLabelSyncBoundaryV1 { static let acceptedSnapshotIsDeviceLocalDurable=true;static let projectionBytesAreSynced=false }
+
+enum C46OperationalContactBoundary_17{static let persistentFamilies=OperationalContactPersistenceEnrollmentV1.persistentFamilies;static let platformOutcomesPersistent=false}
+enum C47ActivityContractSyncBoundaryV2 { static let canonicalFamiliesAreDeviceLocalDurable=true;static let completedSnapshotUsesExistingReportSyncClassification=true;static let conformanceReceiptsAndNoPlanAreNotSynced=true }
+enum C48PortableExchangeSyncBoundaryV2 {
+    static let sessionStoreIsNonpersistent = true
+    static let canonicalAcceptedResponseOwner = "C14"
+    static let rawCapabilityExcludedFromSyncSearchReport = true
+    static let reviewAndServiceNamespacesIndependent = true
+}
+enum C49WorkResourceSyncBoundaryV1 {
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let durableRows = ["ManualWorkResourceRecordRow"]
+    static let durableModelCount = 1
+    static let directCostIsEmbedded = true
+    static let localPartReferenceIsEmbeddedSnapshot = true
+    static let localPartReferenceIsLiveInventory = false
+}
+
+enum C50IncumbentFileExchangeSyncBoundaryV1 {
+    static let persistentSchemaVersion = 37
+    static let recordsSchemaVersion = 36
+    static let persistentModelCountAdded = 0
+    static let syncSubjectCountAdded = 0
+    static let integrationEventCountAdded = 0
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let migrationDisposition = "NOT_APPLICABLE"
+    static let syncDisposition = "NOT_APPLICABLE"
+    static let searchDisposition = "NOT_APPLICABLE"
+    static let canonicalImportedEffectsUseExistingSyncOwner = true
+    static let rawInputAndQuarantineAreExcluded = true
+
+    static func validate() -> Bool {
+        persistentSchemaVersion == 37
+            && recordsSchemaVersion == 36
+            && persistentModelCountAdded == 0
+            && syncSubjectCountAdded == 0
+            && integrationEventCountAdded == 0
+            && profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && migrationDisposition == "NOT_APPLICABLE"
+            && syncDisposition == "NOT_APPLICABLE"
+            && searchDisposition == "NOT_APPLICABLE"
+            && canonicalImportedEffectsUseExistingSyncOwner
+            && rawInputAndQuarantineAreExcluded
+            && C50IncumbentFileExchangePersistenceBoundaryV1.validate()
+    }
+}
+
+enum C34SceneNavigationSyncBoundaryV1 {
+    static let filesystemBackup = CurrentFilesystemBackupDispositionV1.excluded
+    static let semanticBackup = ReplicationBackupDispositionV1.exclude
+    static let portableExport = ReplicationExportDispositionV1.exclude
+    static let journalParticipation = false
+    static let customerExportParticipation = false
+
+    static func validate() -> Bool {
+        C34SceneNavigationDeviceLifecycleBoundaryV1.validate()
+            && filesystemBackup == .excluded
+            && semanticBackup == .exclude
+            && portableExport == .exclude
+            && !journalParticipation
+            && !customerExportParticipation
+    }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-sync
+enum C52ServiceRequestSyncClassificationBoundaryV1 {
+    static let localOnlyCanonicalKinds = ["ServiceRequestRecordV1", "ServiceRequestDispositionEventV1", "ServiceRequestWorkLinkEventV1"]
+    static let integrationEventKinds = ["SERVICE_REQUEST_RECORD", "SERVICE_REQUEST_DISPOSITION", "SERVICE_REQUEST_WORK_LINK"]
+    static let duplicateProjectionIsCanonicalSyncTruth = false
+    static let rawCapabilityIsSyncable = false
+    static let unsanitizedMediaIsSyncable = false
+
+    static func validate() -> Bool {
+        Set(localOnlyCanonicalKinds) == Set(["ServiceRequestRecordV1", "ServiceRequestDispositionEventV1", "ServiceRequestWorkLinkEventV1"])
+            && integrationEventKinds.count == 3
+            && !duplicateProjectionIsCanonicalSyncTruth
+            && !rawCapabilityIsSyncable
+            && !unsanitizedMediaIsSyncable
+            && CurrentSyncClassificationCatalogV1.v39PersistentModelNames.count == 3
+    }
+}
+enum C53AssetServiceReliabilitySyncClassificationBoundaryV1{static let localOnlyCanonicalKinds=AssetServiceReliabilityPersistenceEnrollmentV1.durableModels.map{String(describing:$0)};static let integrationEventKinds=["ASSET_SERVICE_INCIDENT","SERVICE_IMPACT_SEGMENT","SERVICE_CAUSE_ASSERTION","SERVICE_REMEDY_ASSERTION","SERVICE_REPAIR_INTERVAL","SERVICE_RESTORATION_ASSERTION","QUALIFIED_SERVICE_EXPOSURE"];static let reliabilityProjectionIsCanonicalSyncState=false;static func validate()->Bool{Set(localOnlyCanonicalKinds)==Set(CurrentSyncClassificationCatalogV1.v40PersistentModelNames)&&integrationEventKinds.count==7 && !reliabilityProjectionIsCanonicalSyncState}}
+enum C08ImportBulkSyncClassificationBoundaryV1 { static func validate() -> Bool { CurrentSyncClassificationCatalogV1.v46PersistentModelNames.count == 3 && Set(CurrentSyncClassificationCatalogV1.v46PersistentModelNames) == Set(["ImportMappingProfileRowV1", "BulkSessionRowV1", "BulkCommitReceiptRowV1"]) } }
+enum C17LightingDayInventorySyncClassificationBoundaryV1 {
+    static func validate() -> Bool {
+        CurrentSyncClassificationCatalogV1.v52PersistentModelNames
+            == ["LightingDayInventoryWorkflowRowV1"]
+            && PersistentSchemaV52.models.count == 167
+            && Set(CurrentSyncClassificationCatalogV1.v52PersistentModelNames)
+                .isSubset(of: Set(CurrentSyncClassificationCatalogV1.activePersistentModelNames))
+            && LightingDayInventoryPersistenceEnrollmentV1.usesGenericMutationReceiptOnly
+            && !LightingDayInventoryPersistenceEnrollmentV1.offlineReadinessManifestIsPersistent
+    }
+}
+
+enum C18LightingNightWorkflowSyncClassificationBoundaryV1 {
+    static func validate() -> Bool {
+        CurrentSyncClassificationCatalogV1.v53PersistentModelNames == ["LightingNightWorkflowRowV1"]
+            && CurrentSyncClassificationCatalogV1.activePersistentModelNames.count == 168
+            && LightingNightWorkflowPersistenceEnrollmentV1.usesGenericMutationReceiptOnly
+            && !LightingNightWorkflowPersistenceEnrollmentV1.offlineReadinessManifestIsPersistent
+    }
+}
+enum C55PartsStockSyncClassificationBoundaryV1{static let durableRows=CurrentSyncClassificationCatalogV1.v41PersistentModelNames;static let canonicalSyncStateIsLocalOnly=true;static let balanceProjectionIsDerived=true}
+
+enum C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1 {
+    static let envelopeSession = "NONPERSISTENT"
+    static let passphrase = "MEMORY_ONLY"
+    static let derivedKey = "MEMORY_ONLY"
+    static let scratch = "APP_OWNED_PROTECTED_BACKUP_EXCLUDED"
+    static let syncDisposition = "NOT_APPLICABLE"
+    static let storeEnrollmentCount = 0
+    static let writerEnrollmentCount = 0
+    static let persistentModelCountAdded = 0
+    static let integrationEventCountAdded = 0
+    static let canonicalInnerPayloadKeepsExistingOwner = true
+
+    static func validate() -> Bool {
+        envelopeSession == "NONPERSISTENT"
+            && passphrase == "MEMORY_ONLY"
+            && derivedKey == "MEMORY_ONLY"
+            && scratch == "APP_OWNED_PROTECTED_BACKUP_EXCLUDED"
+            && syncDisposition == "NOT_APPLICABLE"
+            && storeEnrollmentCount == 0
+            && writerEnrollmentCount == 0
+            && persistentModelCountAdded == 0
+            && integrationEventCountAdded == 0
+            && canonicalInnerPayloadKeepsExistingOwner
+    }
+}

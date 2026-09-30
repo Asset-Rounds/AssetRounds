@@ -1,0 +1,6 @@
+{
+  "failure": "ValueError: substring not found",
+  "failedMarker": "    private func settleOriginalEraseFirstPPartial(",
+  "candidateNotWritten": true,
+  "sourceSHA256": "8df86b79cde46a8ae0e4abc60599759b21eafb66ddd1951bef9472f103a34587"
+}

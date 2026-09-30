@@ -1,0 +1,65 @@
+    /// Exact pending session payload, authenticated before a partial syscall.
+    /// The complete fixed slot table proves optional absence. A current temp,
+    /// dynamic date or surviving final never supplies replacement bytes.
+    func canonicalProducerRequest(slot: OriginalEraseC16BornProducerSlotV1) throws
+        -> (temporaryPath: String, bytes: Data, sha256: String)? {
+        do {
+            guard slot.producerOrdinal >= 0,
+                  EraseSchema2ColdCleanupGrammarV1.validPath(slot.path) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try EraseSchema2ColdCleanupGrammarV1.requireBirthRole(slot.role, path: slot.path)
+            try requireObservationBinding()
+            let value = try producerRequest(slot)
+            if let value {
+                guard EraseSchema2ColdCleanupGrammarV1.validPath(value.temporaryPath),
+                      StoreMigrationCanonicalJSONV1.isLowercaseSHA256(value.sha256),
+                      try CompatibilityCanonicalV1.sha256(value.bytes) == value.sha256 else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            try requireObservationBinding()
+            return value
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+
+@MainActor
+final class OriginalEraseC16BoundaryReceiptV1 {
+    private let observation: OriginalEraseC16BoundaryObservationV1
+    private let requireActualReadback: @MainActor () throws -> Void
+    let progressSHA256: String
+    let recordStage: OriginalScratchLifecycleRecordV1.Stage
+    let producerRequestCommitmentSHA256: String?
+    private var consumed = false
+
+    fileprivate init(observation: OriginalEraseC16BoundaryObservationV1,
+        progressSHA256: String,
+        recordStage: OriginalScratchLifecycleRecordV1.Stage,
+        producerRequestCommitmentSHA256: String?,
+        requireActualReadback: @escaping @MainActor () throws -> Void) throws {
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(progressSHA256),
+              observation.bornSource == nil || recordStage == .preparingCaptured,
+              (observation.producerRequest == nil) == (producerRequestCommitmentSHA256 == nil),
+              producerRequestCommitmentSHA256.map(StoreMigrationCanonicalJSONV1.isLowercaseSHA256) ?? true,
+              observation.producerRequest == nil || recordStage == .preparing || recordStage == .preparingCaptured else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        self.observation = observation
+        self.progressSHA256 = progressSHA256
+        self.recordStage = recordStage
+        self.producerRequestCommitmentSHA256 = producerRequestCommitmentSHA256
+        self.requireActualReadback = requireActualReadback
+    }
+
+    func requireBound(to expected: OriginalEraseC16BoundaryObservationV1) throws {
+        guard !consumed, observation === expected,
+              observation.bornSource == nil || recordStage == .preparingCaptured,
+              (expected.producerRequest == nil) == (producerRequestCommitmentSHA256 == nil) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireActualReadback()
+        consumed = true
+    }
+}
+

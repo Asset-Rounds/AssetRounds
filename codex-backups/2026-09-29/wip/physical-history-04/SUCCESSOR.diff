@@ -1,0 +1,810 @@
+--- a/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
++++ b/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
+@@ -61,6 +61,9 @@
+     private var ingressControlURL: URL?
+     private var notificationControlURL: URL?
+     private var initialC16Scope: OriginalEraseC16InitialObservationScopeV1?
++    private var firstCaptureC16Scope: OriginalEraseC16FirstCaptureObservationScopeV1?
++    private var firstCaptureOperationID: UUID?
++    private var firstCaptureSupportURL: URL?
+     private var initialSupportURL: URL?
+ 
+     /// Borrowed descriptors must not be closed or retained here. The caller
+@@ -97,13 +100,47 @@
+     /// controls. This never relaxes the ordinary capture/walker predicates.
+     func captureFirstWithInitialC16Scope(support: Int32, caches: Int32, temporary: Int32,
+         applicationSupportURL: URL, scope: OriginalEraseC16InitialObservationScopeV1) throws -> Snapshot {
+-        guard !attempted else { throw EraseAllServiceError.invalidAuthority }
++        guard !attempted, firstCaptureC16Scope == nil else { throw EraseAllServiceError.invalidAuthority }
+         try scope.requireCurrentBinding()
+         initialC16Scope = scope; initialSupportURL = applicationSupportURL.standardizedFileURL
+         defer { initialC16Scope = nil; initialSupportURL = nil }
+         let value = try captureFirst(support: support, caches: caches, temporary: temporary,
+             applicationSupportURL: applicationSupportURL)
+         try scope.requireCurrentBinding(); return value
++    }
++
++    /// Distinct data origin before the auxiliary P exists. Migration's
++    /// genuine first-capture owner supplies the complete producer-role scope
++    /// under its real EX/G/phase; no immutable-P or proposed plan is asserted.
++    func captureFirstWithFirstCaptureScope(support: Int32, caches: Int32, temporary: Int32,
++        applicationSupportURL: URL, scope: OriginalEraseC16FirstCaptureObservationScopeV1) throws -> Snapshot {
++        guard !attempted else { throw EraseAllServiceError.invalidAuthority }
++        return try withFirstCaptureScope(scope: scope, applicationSupportURL: applicationSupportURL) {
++            try captureFirst(support: support, caches: caches, temporary: temporary,
++                applicationSupportURL: applicationSupportURL)
++        }
++    }
++
++    /// Re-enter only a genuine fresh first-owner/G callback. The synchronous
++    /// body may reprove the retained first image; this helper never captures,
++    /// refreshes or changes it and never holds a G scope across an await.
++    func withFirstCaptureScope<Value>(scope: OriginalEraseC16FirstCaptureObservationScopeV1,
++        applicationSupportURL: URL, _ body: @MainActor () throws -> Value) throws -> Value {
++        guard firstCaptureC16Scope == nil, initialC16Scope == nil, applicationSupportURL.isFileURL,
++              firstCaptureOperationID == nil || firstCaptureOperationID == scope.operationID,
++              firstCaptureSupportURL == nil || firstCaptureSupportURL == applicationSupportURL.standardizedFileURL else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        try scope.requireCurrentBinding()
++        if firstCaptureOperationID == nil {
++            firstCaptureOperationID = scope.operationID
++            firstCaptureSupportURL = applicationSupportURL.standardizedFileURL
++        }
++        firstCaptureC16Scope = scope; initialSupportURL = applicationSupportURL.standardizedFileURL
++        defer { firstCaptureC16Scope = nil; initialSupportURL = nil }
++        let value = try body()
++        try scope.requireCurrentBinding(); try io.requireSettled()
++        return value
+     }
+ 
+     /// Returns the first complete data image. It does not reobserve, refresh,
+@@ -1257,6 +1294,18 @@
+                 throw EraseAllServiceError.invalidAuthority
+             }
+             let names = try io.names(in: directory)
++            let scopedTree: EraseAbortCheckedSnapshotIOV1.Schema2ColdCurrentTreeV1?
++            if (initialC16Scope != nil || firstCaptureC16Scope != nil), let supportURL = initialSupportURL {
++                let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope
++                scopedTree = try io.schema2ColdCurrentOwnedTree(parent: parent, name: "FieldEvidenceOperations",
++                    rootURL: supportURL.appendingPathComponent("FieldEvidenceOperations", isDirectory: true),
++                    expectedUser: held.st_uid, expectedGroup: held.st_gid,
++                    initialScope: initialScope, firstCaptureScope: captureScope, operationsRelativePrefix: "",
++                    requireBinding: { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding() },
++                    poison: { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation() })
++                guard case .present(_, let expectedDigest) = operations,
++                      scopedTree?.rootFact == rootFact, scopedTree?.digest == expectedDigest else { throw EraseAllServiceError.invalidAuthority }
++            } else { scopedTree = nil }
+             var children: [String: OperationsChild] = [:]
+             var controlNodes: [ControlNode]?
+             var notificationNodes: [ControlNode]?
+@@ -1269,7 +1318,7 @@
+                 }
+                 if initial.st_mode & S_IFMT == S_IFDIR {
+                     guard case .present(let fact, let digest) =
+-                            try tree(parent: directory, name: name) else {
++                            try tree(parent: directory, name: name, operationsChild: true) else {
+                         throw EraseAllServiceError.invalidAuthority
+                     }
+                     children[name] = .directory(rootFact: fact, digest: digest)
+@@ -1297,6 +1346,13 @@
+                         notificationStableDigest = captured.1
+                     }
+                 } else if initial.st_mode & S_IFMT == S_IFREG {
++                    if let scopedTree {
++                        guard let node = scopedTree.nodes.first(where: { $0.path == name }),
++                              node.fullFact == Self.fullFact(initial), node.names == nil,
++                              node.policy != nil, let sha = node.sha256 else { throw EraseAllServiceError.invalidAuthority }
++                        children[name] = .regular(fact: node.fullFact, digest: sha)
++                        continue
++                    }
+                     guard initial.st_nlink == 1, initial.st_size >= 0,
+                           initial.st_size <= 1_073_741_824 else {
+                         throw EraseAllServiceError.invalidAuthority
+@@ -1375,14 +1431,16 @@
+         notificationControl: Bool,
+         expectedRootFact: String,
+         expectedTreeDigest: String) throws -> ([ControlNode], String?) {
+-        if !notificationControl, let scope = initialC16Scope {
++        if !notificationControl, initialC16Scope != nil || firstCaptureC16Scope != nil {
++            let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope
++            func bound() throws { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding() }
++            func poison() { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation() }
+             var parent = stat()
+             guard Darwin.fstat(operations, &parent) == 0 else { throw EraseAllServiceError.invalidAuthority }
+             let one = try io.schema2ColdCurrentOwnedTree(parent: operations, name: name,
+                 rootURL: rootURL, expectedUser: parent.st_uid, expectedGroup: parent.st_gid,
+-                initialScope: scope, operationsRelativePrefix: name,
+-                requireBinding: { try scope.requireCurrentBinding() },
+-                poison: { scope.poisonOnUncertainObservation() })
++                initialScope: initialScope, firstCaptureScope: captureScope, operationsRelativePrefix: name,
++                requireBinding: bound, poison: poison)
+             guard one.rootFact == expectedRootFact, one.digest == expectedTreeDigest else {
+                 throw EraseAllServiceError.invalidAuthority
+             }
+@@ -1394,9 +1452,8 @@
+             }
+             let two = try io.schema2ColdCurrentOwnedTree(parent: operations, name: name,
+                 rootURL: rootURL, expectedUser: parent.st_uid, expectedGroup: parent.st_gid,
+-                initialScope: scope, operationsRelativePrefix: name,
+-                requireBinding: { try scope.requireCurrentBinding() },
+-                poison: { scope.poisonOnUncertainObservation() })
++                initialScope: initialScope, firstCaptureScope: captureScope, operationsRelativePrefix: name,
++                requireBinding: bound, poison: poison)
+             guard one == two else { throw EraseAllServiceError.invalidAuthority }
+             return (values, nil)
+         }
+@@ -1538,7 +1595,7 @@
+         return (values, stableDigest)
+     }
+ 
+-    private func tree(parent: Int32, name: String) throws -> Tree {
++    private func tree(parent: Int32, name: String, operationsChild: Bool = false) throws -> Tree {
+         var before = stat()
+         let status = Darwin.fstatat(parent, name, &before, AT_SYMLINK_NOFOLLOW)
+         if status != 0 {
+@@ -1548,8 +1605,12 @@
+         guard before.st_mode & S_IFMT == S_IFDIR else {
+             throw EraseAllServiceError.invalidAuthority
+         }
+-        if let scope = initialC16Scope, let supportURL = initialSupportURL,
+-           name == "FieldEvidenceOperations" || name == "ScratchDataV1" || name == "ProtectedIngressReceiptsV1" {
++        if let supportURL = initialSupportURL,
++           (initialC16Scope != nil || firstCaptureC16Scope != nil),
++           name == "FieldEvidenceOperations" || operationsChild {
++            let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope
++            func bound() throws { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding() }
++            func poison() { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation() }
+             let rootURL: URL
+             let rolePrefix: String
+             if name == "FieldEvidenceOperations" {
+@@ -1561,8 +1622,8 @@
+             let parentFact = try directoryFact(parent)
+             let value = try io.schema2ColdCurrentOwnedTree(parent: parent, name: name, rootURL: rootURL,
+                 expectedUser: parentFact.st_uid, expectedGroup: parentFact.st_gid,
+-                initialScope: scope, operationsRelativePrefix: rolePrefix,
+-                requireBinding: { try scope.requireCurrentBinding() }, poison: { scope.poisonOnUncertainObservation() })
++                initialScope: initialScope, firstCaptureScope: captureScope, operationsRelativePrefix: rolePrefix,
++                requireBinding: bound, poison: poison)
+             guard value.rootFact == Self.fullFact(before) else { throw EraseAllServiceError.invalidAuthority }
+             return .present(rootFact: value.rootFact, digest: value.digest)
+         }
+@@ -1666,8 +1727,7 @@
+         guard applicationSupportURL.isFileURL, cachesURL.isFileURL, temporaryURL.isFileURL,
+               originalP.canonicalBytes == (try StoreMigrationCanonicalJSONV1.encode(originalP.record)),
+               originalP.canonicalSHA256 == StoreMigrationCanonicalJSONV1.sha256(originalP.canonicalBytes),
+-              planSHA256 == (try CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(c16Plan))),
+-              fixedTargets.count <= 100_000 else { throw EraseAllServiceError.invalidAuthority }
++              planSHA256 == (try CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(c16Plan))) else { throw EraseAllServiceError.invalidAuthority }
+         let c16 = fixedTargets.filter { $0.kind == .c16 }
+         guard c16.count == c16Plan.steps.count,
+               c16.map(\.ordinal) == Array(c16Plan.steps.indices),
+@@ -1701,6 +1761,186 @@
+         self.cachesURL = cachesURL.standardizedFileURL; self.temporaryURL = temporaryURL.standardizedFileURL
+     }
+ 
++    /// These are the immutable roster's nine domains, in its wire order.
++    /// The three named parents are projection roles, never additional trees.
++    static let recordedRootKeys = [
++        "support/FieldEvidenceRestore", "support/FieldEvidenceCommerce",
++        "support/FieldEvidenceDiagnostics", "support/LocalSearchIndexV1",
++        "support/PortableReviewExchangeV2", "support/local-jobs-v1",
++        "support/FieldEvidenceOperations", "caches/FieldEvidenceApp",
++        "temporary/FieldEvidenceApp"
++    ]
++    struct RecordedRootCensusV1: Codable, Equatable {
++        let key: String
++        let originalNodeCount: Int
++        let originalRegularBytes: Int64
++        let genericTargetCount: Int
++    }
++    private static func relativePath(_ path: String, root: String) throws -> String {
++        guard path == root || path.hasPrefix(root + "/") else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        let relative = path == root ? "" : String(path.dropFirst(root.count + 1))
++        if !relative.isEmpty {
++            let parts = relative.split(separator: "/", omittingEmptySubsequences: false)
++            guard parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.contains("\0") }) else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++        }
++        return relative
++    }
++    private static func requireOriginalRootCensus(_ originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1) throws -> [(Int, Int64)] {
++        guard originalP.canonicalBytes == (try StoreMigrationCanonicalJSONV1.encode(originalP.record)),
++              originalP.canonicalSHA256 == StoreMigrationCanonicalJSONV1.sha256(originalP.canonicalBytes),
++              originalP.record.trees.map(\.key) == recordedRootKeys else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        return try originalP.record.trees.map { tree in
++            if tree.state == "absent" {
++                guard tree.rootFact == nil, tree.digest == nil, tree.nodes == nil, tree.deletionOrder == nil else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                return (0, 0)
++            }
++            guard tree.state == "present", let nodes = tree.nodes, !nodes.isEmpty,
++                  nodes.count < 100_000, nodes.first?.path == "", nodes.first?.kind == "directory",
++                  let rootFact = tree.rootFact, let digest = tree.digest,
++                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(digest),
++                  nodes.map(\.path) == nodes.map(\.path).sorted(by: { $0.utf8.lexicographicallyPrecedes($1.utf8) }),
++                  Set(nodes.map(\.path)).count == nodes.count,
++                  let order = tree.deletionOrder, Set(order) == Set(nodes.map(\.path)), order.count == nodes.count,
++                  try nine(rootFact) == nodes[0].fact else { throw EraseAllServiceError.invalidAuthority }
++            let byPath = Dictionary(uniqueKeysWithValues: nodes.map { ($0.path, $0) })
++            var directChildren: [String: [String]] = [:]
++            for node in nodes where !node.path.isEmpty {
++                let qualified = tree.key + "/" + node.path
++                let relative = try relativePath(qualified, root: tree.key)
++                let parts = relative.split(separator: "/").map(String.init)
++                guard let child = parts.last else { throw EraseAllServiceError.invalidAuthority }
++                directChildren[parts.dropLast().joined(separator: "/"), default: []].append(child)
++            }
++            var bytes: Int64 = 0
++            for node in nodes {
++                let qualified = node.path.isEmpty ? tree.key : tree.key + "/" + node.path
++                let relative = try relativePath(qualified, root: tree.key)
++                let parts = relative.isEmpty ? [] : relative.split(separator: "/").map(String.init)
++                let f = try fields(node.fact, count: 9)
++                guard let mode = UInt32(f[2]), parts.count <= (node.kind == "directory" ? 64 : 65),
++                      relative.isEmpty || byPath[parts.dropLast().joined(separator: "/")]?.kind == "directory" else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                if node.kind == "directory" {
++                    guard mode & UInt32(S_IFMT) == UInt32(S_IFDIR), node.sha256 == nil,
++                          let members = node.members, members == members.sorted(),
++                          Set(members).count == members.count else { throw EraseAllServiceError.invalidAuthority }
++                    guard members == (directChildren[relative] ?? []).sorted() else { throw EraseAllServiceError.invalidAuthority }
++                } else {
++                    guard node.kind == "file", mode & UInt32(S_IFMT) == UInt32(S_IFREG),
++                          node.members == nil, let sha = node.sha256,
++                          StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha),
++                          let size = Int64(f[4]), size <= 1_073_741_824, bytes <= 1_073_741_824 - size else {
++                        throw EraseAllServiceError.invalidAuthority
++                    }
++                    bytes += size
++                }
++            }
++            let expectedOrder = nodes.map(\.path).sorted { lhs, rhs in
++                let left = lhs.isEmpty ? 0 : lhs.split(separator: "/").count
++                let right = rhs.isEmpty ? 0 : rhs.split(separator: "/").count
++                return left == right ? lhs.utf8.lexicographicallyPrecedes(rhs.utf8) : left > right
++            }
++            guard order == expectedOrder else { throw EraseAllServiceError.invalidAuthority }
++            return (nodes.count, bytes)
++        }
++    }
++    /// Pure source data for losslessly segmented controls. The logical mixed
++    /// stream is C16's independently bounded steps plus these exact counts;
++    /// no global node limit narrows the nine admitted original trees.
++    static func fixedRootCensus(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        c16Plan: OriginalEraseC16PlanV1, targetGenerationID: UUID) throws -> [RecordedRootCensusV1] {
++        let original = try requireOriginalRootCensus(originalP)
++        let generic = try fixedNonC16Targets(originalP: originalP, c16Plan: c16Plan, targetGenerationID: targetGenerationID)
++        return recordedRootKeys.enumerated().map { index, key in
++            RecordedRootCensusV1(key: key, originalNodeCount: original[index].0,
++                originalRegularBytes: original[index].1,
++                genericTargetCount: generic.filter { $0.path == key || $0.path.hasPrefix(key + "/") }.count)
++        }
++    }
++    /// This is a grammar/bounds check of actual data, never an EX, source,
++    /// policy, OS, birth or current-progress receipt. Those remain mandatory
++    /// in the enclosing retained scope and physical permit at every IO.
++    static func requireRecordedProjectionCensus(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        projection: [Progress.Projection]) throws {
++        _ = try requireOriginalRootCensus(originalP)
++        try requireCurrentProjectionBounds(originalP: originalP, projection: projection)
++    }
++    private static func requireCurrentProjectionBounds(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        projection: [Progress.Projection]) throws {
++        // The retained owner's initializer already validates its immutable P.
++        // Rechecking this actual image never caches a scope/permit decision.
++        guard projection.map(\.path) == projection.map(\.path).sorted(),
++              Set(projection.map(\.path)).count == projection.count else { throw EraseAllServiceError.invalidAuthority }
++        let parents = ["support", "caches", "temporary"]
++        let byPath = Dictionary(uniqueKeysWithValues: projection.map { ($0.path, $0) })
++        for (index, parent) in parents.enumerated() {
++            guard let node = byPath[parent], node.sha256 == nil else { throw EraseAllServiceError.invalidAuthority }
++            let f = try fields(node.fullFact)
++            let expected: (Int64, UInt64, UInt32, UInt32, UInt32)
++            switch index {
++            case 0: expected = (originalP.record.supportDevice, originalP.record.supportInode, originalP.record.supportMode, originalP.record.supportUser, originalP.record.supportGroup)
++            case 1: expected = (originalP.record.cachesDevice, originalP.record.cachesInode, originalP.record.cachesMode, originalP.record.cachesUser, originalP.record.cachesGroup)
++            default: expected = (originalP.record.temporaryDevice, originalP.record.temporaryInode, originalP.record.temporaryMode, originalP.record.temporaryUser, originalP.record.temporaryGroup)
++            }
++            guard Int64(f[0]) == expected.0, UInt64(f[1]) == expected.1, UInt32(f[2]) == expected.2,
++                  UInt32(f[3]) == expected.3, UInt32(f[4]) == expected.4,
++                  expected.2 & UInt32(S_IFMT) == UInt32(S_IFDIR) else { throw EraseAllServiceError.invalidAuthority }
++        }
++        guard projection.allSatisfy({ item in parents.contains(item.path)
++            || recordedRootKeys.contains(where: { item.path == $0 || item.path.hasPrefix($0 + "/") }) }) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        for root in recordedRootKeys {
++            let nodes = projection.filter { $0.path == root || $0.path.hasPrefix(root + "/") }
++            guard nodes.count <= 100_000 else { throw EraseAllServiceError.invalidAuthority }
++            if nodes.isEmpty { continue }
++            guard let rootNode = byPath[root], rootNode.sha256 == nil,
++                  let parent = byPath[String(root.split(separator: "/").first!) ] else { throw EraseAllServiceError.invalidAuthority }
++            let parentFields = try fields(parent.fullFact)
++            var bytes: Int64 = 0
++            for node in nodes {
++                let relative = try relativePath(node.path, root: root)
++                let parts = relative.isEmpty ? [] : relative.split(separator: "/").map(String.init)
++                let f = try fields(node.fullFact)
++                guard let mode = UInt32(f[2]), f[0] == parentFields[0], f[3] == parentFields[3], f[4] == parentFields[4] else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                let directory = mode & UInt32(S_IFMT) == UInt32(S_IFDIR)
++                guard parts.count <= (directory ? 64 : 65), mode & 0o7777 == (directory ? 0o700 : 0o600) else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                if !relative.isEmpty {
++                    let parentPath = parts.count == 1 ? root : root + "/" + parts.dropLast().joined(separator: "/")
++                    guard let enclosing = byPath[parentPath] else { throw EraseAllServiceError.invalidAuthority }
++                    let enclosingFields = try fields(enclosing.fullFact)
++                    guard let enclosingMode = UInt32(enclosingFields[2]),
++                          enclosingMode & UInt32(S_IFMT) == UInt32(S_IFDIR) else {
++                        throw EraseAllServiceError.invalidAuthority
++                    }
++                }
++                if directory {
++                    guard node.sha256 == nil else { throw EraseAllServiceError.invalidAuthority }
++                } else {
++                    guard mode & UInt32(S_IFMT) == UInt32(S_IFREG), let sha = node.sha256,
++                          StoreMigrationCanonicalJSONV1.isLowercaseSHA256(sha),
++                          let size = Int64(f[6]), size <= 1_073_741_824, bytes <= 1_073_741_824 - size else {
++                        throw EraseAllServiceError.invalidAuthority
++                    }
++                    bytes += size
++                }
++            }
++        }
++    }
++
+     /// Construct once from the immutable original record and canonical plan.
+     /// No surviving Q/R name is enumerated to mint another target. Prospective
+     /// Search/Notification leaves are fixed owner-produced names; their actual
+@@ -1718,6 +1958,7 @@
+                 semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(bytes),
+                 dependencyPaths: [], allowedBirthPaths: []))
+         }
++        _ = try requireOriginalRootCensus(originalP)
+         let operationsKey = "support/FieldEvidenceOperations"
+         guard let operations = originalP.record.trees.first(where: { $0.key == operationsKey }) else {
+             throw EraseAllServiceError.invalidAuthority
+@@ -1762,7 +2003,7 @@
+             try add(.auxiliaryNode, operationsKey + "/" + AppLockNotificationControlStoreV1.rootName, source: nil)
+         }
+         try add(.auxiliaryRoot, operationsKey, source: operationsNodes[""])
+-        guard result.count <= 100_000, Set(result.map(\.path)).count == result.count else {
++        guard Set(result.map(\.path)).count == result.count else {
+             throw EraseAllServiceError.invalidAuthority
+         }
+         return result
+@@ -1863,8 +2104,10 @@
+                 originalP.record.cachesMode, originalP.record.cachesUser, originalP.record.cachesGroup),
+             ("temporary", temporary, temporaryURL, originalP.record.temporaryDevice, originalP.record.temporaryInode,
+                 originalP.record.temporaryMode, originalP.record.temporaryUser, originalP.record.temporaryGroup)]
++        func poison() { self.uncertain = true; permit.poisonOnUncertainEffect() }
+         var parentFacts: [String: String] = [:]
+         for (key, fd, _, dev, ino, mode, user, group) in parents {
++            try bound()
+             var held = stat()
+             guard Darwin.fstat(fd, &held) == 0, Int64(held.st_dev) == dev,
+                   UInt64(held.st_ino) == ino, UInt32(held.st_mode) == mode,
+@@ -1875,7 +2118,7 @@
+             parentFacts[key] = Self.fact(held)
+             values.append(.init(path: key, fullFact: Self.fact(held), sha256: nil))
+         }
+-        let supportNames = try io.names(in: support)
++        let supportNames = try io.schema2ColdNames(in: support, requireBinding: bound, poison: poison)
+         let assigned = Set(originalP.record.trees.filter { $0.key.hasPrefix("support/") }
+             .map { String($0.key.dropFirst("support/".count)) }).union(["FieldEvidenceData", "FieldEvidenceErase"])
+         guard Set(supportNames).isSubset(of: assigned), Set(supportNames).isSuperset(of: ["FieldEvidenceData", "FieldEvidenceErase"]) else {
+@@ -1886,9 +2129,13 @@
+             guard parts.count == 2, let parent = parents.first(where: { $0.0 == parts[0] }) else {
+                 throw EraseAllServiceError.invalidAuthority
+             }
++            try bound()
+             var named = stat()
+-            if Darwin.fstatat(parent.1, parts[1], &named, AT_SYMLINK_NOFOLLOW) != 0 {
+-                guard errno == ENOENT else { throw EraseAllServiceError.invalidAuthority }
++            let status = Darwin.fstatat(parent.1, parts[1], &named, AT_SYMLINK_NOFOLLOW)
++            let namedError = errno
++            try bound()
++            if status != 0 {
++                guard namedError == ENOENT else { throw EraseAllServiceError.invalidAuthority }
+                 continue
+             }
+             let isOperations = tree.key == "support/FieldEvidenceOperations"
+@@ -1906,8 +2153,9 @@
+                 values.append(.init(path: path, fullFact: node.fullFact, sha256: node.sha256))
+             }
+         }
+-        guard try io.names(in: support) == supportNames else { throw EraseAllServiceError.invalidAuthority }
++        guard try io.schema2ColdNames(in: support, requireBinding: bound, poison: poison) == supportNames else { throw EraseAllServiceError.invalidAuthority }
+         for (key, fd, _, _, _, _, _, _) in parents {
++            try bound()
+             var held = stat()
+             guard Darwin.fstat(fd, &held) == 0,
+                   Self.fact(held) == parentFacts[key] else { throw EraseAllServiceError.invalidAuthority }
+@@ -1918,6 +2166,7 @@
+         // Data/Erase descendants are the actual generation/Store owners'
+         // independent typed domains. Parent identities and closed child names
+         // are checked here; no self-containing Store leaf digest is invented.
++        try Self.requireCurrentProjectionBounds(originalP: originalP, projection: projection)
+         try permit.requireExternalBranches(projection)
+         return Image(projection: projection, nodes: nodes, supportNames: supportNames)
+     }
+@@ -2183,9 +2432,10 @@
+ 
+     private func withTargetParent<Value>(path: String, image: Image,
+         support: Int32, caches: Int32, temporary: Int32,
+-        requireBinding: () throws -> Void, _ body: (Int32,String) throws -> Value) throws -> Value {
++        requireBinding: @MainActor () throws -> Void, poison: @MainActor () -> Void,
++        _ body: @MainActor (Int32,String) throws -> Value) throws -> Value {
+         let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+-        guard parts.count >= 2, parts.count <= 66,
++        guard parts.count >= 2, parts.count <= 67,
+               parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.utf8.contains(0) }) else {
+             throw EraseAllServiceError.invalidAuthority
+         }
+@@ -2197,12 +2447,15 @@
+             if index == parts.count - 1 { return try body(fd, parts[index]) }
+             let prefix = parts.prefix(index + 1).joined(separator: "/")
+             guard let expected = image.nodes[prefix], expected.names != nil else { throw EraseAllServiceError.invalidAuthority }
+-            return try io.withOpen(parent: fd, name: parts[index], flags: O_RDONLY | O_DIRECTORY | O_NONBLOCK) { child in
++            return try io.schema2ColdWithOpen(parent: fd, name: parts[index], flags: O_RDONLY | O_DIRECTORY | O_NONBLOCK,
++                requireBinding: requireBinding, poison: poison) { child in
+                 var held = stat(), named = stat()
+-                guard Darwin.fstat(child, &held) == 0,
+-                      Darwin.fstatat(fd, parts[index], &named, AT_SYMLINK_NOFOLLOW) == 0,
++                try requireBinding()
++                guard Darwin.fstat(child, &held) == 0 else { throw EraseAllServiceError.invalidAuthority }
++                try requireBinding()
++                guard Darwin.fstatat(fd, parts[index], &named, AT_SYMLINK_NOFOLLOW) == 0,
+                       Self.fact(held) == expected.fullFact, Self.fact(named) == expected.fullFact,
+-                      try io.names(in: child) == expected.names else { throw EraseAllServiceError.invalidAuthority }
++                      try io.schema2ColdNames(in: child, requireBinding: requireBinding, poison: poison) == expected.names else { throw EraseAllServiceError.invalidAuthority }
+                 let value = try descend(child, index + 1)
+                 try requireBinding()
+                 return value
+@@ -2222,6 +2475,8 @@
+               index == progress.completedPrefixCount, targets[index].kind != .c16,
+               progress.stage == .preparing || progress.stage == .preparingCaptured,
+               !attemptedTargetIndices.contains(index) else { throw EraseAllServiceError.invalidAuthority }
++        func bound() throws { try self.requireBinding(permit, progress: progress); try c16Scope?.requireCurrentBinding() }
++        func poison() { self.uncertain = true; permit.poisonOnUncertainEffect(); c16Scope?.poisonOnUncertainObservation() }
+         let target = targets[index]
+         let before = try scan(support: support, caches: caches, temporary: temporary,
+             c16Scope: c16Scope, permit: permit, progress: progress)
+@@ -2246,33 +2501,41 @@
+                 }
+             }
+             try withTargetParent(path: physicalPath, image: before, support: support, caches: caches, temporary: temporary,
+-                requireBinding: { try self.requireBinding(permit, progress: progress) }) { parent, name in
++                requireBinding: bound, poison: poison) { parent, name in
+                 try requireBinding(permit, progress: progress)
+                 if let node = before.nodes[target.path] {
+                     let directory = node.names != nil
+                     guard !directory || node.names == [] else { throw EraseAllServiceError.invalidAuthority }
+-                    try io.withOpen(parent: parent, name: name,
+-                        flags: O_RDONLY | O_NONBLOCK | (directory ? O_DIRECTORY : 0)) { fd in
++                    try io.schema2ColdWithOpen(parent: parent, name: name,
++                        flags: O_RDONLY | O_NONBLOCK | (directory ? O_DIRECTORY : 0), requireBinding: bound, poison: poison) { fd in
+                         var held = stat(), named = stat()
+-                        guard Darwin.fstat(fd, &held) == 0,
+-                              Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
++                        try bound()
++                        guard Darwin.fstat(fd, &held) == 0 else { throw EraseAllServiceError.invalidAuthority }
++                        try bound()
++                        guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                               Self.fact(held) == node.fullFact, Self.fact(named) == node.fullFact,
+                               directory ? held.st_mode & S_IFMT == S_IFDIR : held.st_mode & S_IFMT == S_IFREG && held.st_nlink == 1,
+-                              !directory || (try io.names(in: fd)).isEmpty else { throw EraseAllServiceError.invalidAuthority }
++                              !directory || (try io.schema2ColdNames(in: fd, requireBinding: bound, poison: poison)).isEmpty else { throw EraseAllServiceError.invalidAuthority }
+                         try requireBinding(permit, progress: progress)
+                         guard Darwin.unlinkat(parent, name, directory ? AT_REMOVEDIR : 0) == 0 else {
+                             throw EraseAllServiceError.cleanupFailed
+                         }
+                         effect = .unlinked
+-                        guard Darwin.fsync(parent) == 0,
+-                              Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0,
++                        try bound()
++                        guard Darwin.fsync(parent) == 0 else { throw EraseAllServiceError.cleanupFailed }
++                        try bound()
++                        guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0,
+                               errno == ENOENT else { throw EraseAllServiceError.cleanupFailed }
+                         try requireBinding(permit, progress: progress)
+                     }
+                 } else {
+                     var named = stat()
++                    try bound()
+                     guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0,
+-                          errno == ENOENT, Darwin.fsync(parent) == 0 else { throw EraseAllServiceError.cleanupFailed }
++                          errno == ENOENT else { throw EraseAllServiceError.cleanupFailed }
++                    try bound()
++                    guard Darwin.fsync(parent) == 0 else { throw EraseAllServiceError.cleanupFailed }
++                    try bound()
+                     if originalNodes()[target.path] != nil { effect = .resumedPreparingAbsence }
+                 }
+                 try requireBinding(permit, progress: progress)
+--- a/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift
++++ b/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift
+@@ -1592,6 +1592,88 @@
+     /// Nonmutating, checked-close walk of an exact owner-held directory tree.
+     /// Every transient descriptor remains here on an ambiguous close. This is
+     /// intentionally independent of the generation-only path classifier.
++    /// The cold witness uses fresh retained-owner binding around every
++    /// descriptor and directory-entry boundary. Ordinary helpers are unchanged.
++    @MainActor
++    func schema2ColdWithOpen<Value>(parent: Int32, name: String, flags: Int32,
++        requireBinding: @MainActor () throws -> Void, poison: @MainActor () -> Void,
++        _ body: @MainActor (Int32) throws -> Value) throws -> Value {
++        try requireSettled(); try requireBinding()
++        guard flags & ~(O_DIRECTORY | O_NONBLOCK) == O_RDONLY,
++              !name.isEmpty, name != ".", name != "..", !name.contains("/"), !name.utf8.contains(0) else { throw StoreGenerationFailure.dataPointerInvalid }
++        let descriptor = Darwin.openat(parent, name, flags | O_NOFOLLOW | O_CLOEXEC)
++        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
++        var closeAttempted = false
++        do {
++            try requireBinding()
++            let value = try body(descriptor)
++            try requireBinding()
++            closeAttempted = true
++            guard Darwin.close(descriptor) == 0 else {
++                uncertainDescriptors.append(descriptor); poison()
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++            try requireBinding(); try requireSettled()
++            return value
++        } catch {
++            // Cleanup of a definitely owned FD remains checked even when the
++            // admission token has already revoked. Never retry ambiguous close.
++            if !closeAttempted {
++                closeAttempted = true
++                if Darwin.close(descriptor) != 0 { uncertainDescriptors.append(descriptor); poison() }
++            }
++            throw error
++        }
++    }
++    @MainActor
++    func schema2ColdNames(in parent: Int32, requireBinding: @MainActor () throws -> Void,
++        poison: @MainActor () -> Void) throws -> [String] {
++        try requireSettled(); try requireBinding()
++        let descriptor = Darwin.openat(parent, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
++        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
++        var directory: UnsafeMutablePointer<DIR>?
++        var closeAttempted = false
++        do {
++            try requireBinding()
++            guard let opened = Darwin.fdopendir(descriptor) else { throw StoreGenerationFailure.dataPointerInvalid }
++            directory = opened
++            try requireBinding()
++            var values: [String] = []
++            while true {
++                try requireBinding()
++                errno = 0
++                let entry = Darwin.readdir(opened)
++                let entryError = errno
++                try requireBinding()
++                guard let entry else {
++                    guard entryError == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
++                    break
++                }
++                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry),
++                      !name.utf8.contains(0), !name.contains("/") else { throw StoreGenerationFailure.dataPointerInvalid }
++                if name != "." && name != ".." { values.append(name) }
++            }
++            try requireBinding()
++            closeAttempted = true
++            guard Darwin.closedir(opened) == 0 else {
++                uncertainDirectories.append(opened); poison()
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++            try requireBinding(); try requireSettled()
++            return values.sorted()
++        } catch {
++            if !closeAttempted {
++                closeAttempted = true
++                if let directory {
++                    if Darwin.closedir(directory) != 0 { uncertainDirectories.append(directory); poison() }
++                } else if Darwin.close(descriptor) != 0 {
++                    uncertainDescriptors.append(descriptor); poison()
++                }
++            }
++            throw error
++        }
++    }
++
+     /// Whole current tree data for the cold fixed C16 projection. Ordinary
+     /// paths keep strict one-link predicates. Only the actual engine's private
+     /// role scope may describe a pair or unpublished zero/prefix; those remain
+@@ -1604,6 +1686,13 @@
+             let sha256: String?
+             let policy: TemporalPolicyObservationV1?
+             let publicationRole: OriginalEraseC16CurrentPathRoleV1
++            let firstCaptureRole: OriginalEraseC16FirstCapturePathRoleV1?
++            init(path: String, fullFact: String, names: [String]?, sha256: String?,
++                policy: TemporalPolicyObservationV1?, publicationRole: OriginalEraseC16CurrentPathRoleV1,
++                firstCaptureRole: OriginalEraseC16FirstCapturePathRoleV1? = nil) {
++                self.path = path; self.fullFact = fullFact; self.names = names; self.sha256 = sha256
++                self.policy = policy; self.publicationRole = publicationRole; self.firstCaptureRole = firstCaptureRole
++            }
+         }
+         let rootFact: String
+         let digest: String
+@@ -1622,12 +1711,18 @@
+         guard Darwin.fstat(parent, &parentFact) == 0 else {
+             throw StoreGenerationFailure.dataPointerInvalid
+         }
+-        return try schema2ColdCurrentOwnedTree(parent: parent, name: name,
++        let value = try schema2ColdCurrentOwnedTree(parent: parent, name: name,
+             rootURL: operationsURL.appendingPathComponent(name, isDirectory: true),
+             expectedUser: parentFact.st_uid, expectedGroup: parentFact.st_gid,
+             scope: scope, operationsRelativePrefix: name,
+             requireBinding: { try scope.requireCurrentBinding() },
+             poison: { scope.poisonOnUncertainObservation() })
++        return .init(rootFact: value.rootFact, digest: value.digest,
++            nodes: value.nodes.map { node in
++                .init(path: node.path.isEmpty ? name : name + "/" + node.path,
++                    fullFact: node.fullFact, names: node.names, sha256: node.sha256,
++                    policy: node.policy, publicationRole: node.publicationRole, firstCaptureRole: node.firstCaptureRole)
++            })
+     }
+ 
+     /// Complete data image of one fixed, private auxiliary tree. This adds no
+@@ -1640,6 +1735,7 @@
+         rootURL: URL, expectedUser: uid_t, expectedGroup: gid_t,
+         scope: OriginalEraseC16CurrentObservationScopeV1? = nil,
+         initialScope: OriginalEraseC16InitialObservationScopeV1? = nil,
++        firstCaptureScope: OriginalEraseC16FirstCaptureObservationScopeV1? = nil,
+         operationsRelativePrefix: String? = nil,
+         requireBinding: @MainActor () throws -> Void,
+         poison: @MainActor () -> Void
+@@ -1649,8 +1745,8 @@
+               !name.isEmpty, name != ".", name != "..",
+               !name.contains("/"), !name.utf8.contains(0),
+               expectedUser == Darwin.geteuid(),
+-              scope == nil || initialScope == nil,
+-              ((scope == nil && initialScope == nil) == (operationsRelativePrefix == nil)) else {
++              [scope != nil, initialScope != nil, firstCaptureScope != nil].filter({ $0 }).count <= 1,
++              ((scope == nil && initialScope == nil && firstCaptureScope == nil) == (operationsRelativePrefix == nil)) else {
+             throw StoreGenerationFailure.dataPointerInvalid
+         }
+         var parentFact = stat()
+@@ -1675,13 +1771,34 @@
+              String(f.st_ctimespec.tv_nsec)].joined(separator: "|")
+         }
+         func encoded(_ x: String) -> String { x.utf8.map { String(format: "%02x", $0) }.joined() }
+-        func bound() throws { try requireSettled(); try requireBinding(); try scope?.requireCurrentBinding(); try initialScope?.requireCurrentBinding() }
+-        func retain(_ fd: Int32) { retainUncertainDescriptor(fd); scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); poison() }
++        func bound() throws { try requireSettled(); try requireBinding(); try scope?.requireCurrentBinding(); try initialScope?.requireCurrentBinding(); try firstCaptureScope?.requireCurrentBinding() }
++        func retain(_ fd: Int32) { retainUncertainDescriptor(fd); scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); firstCaptureScope?.poisonOnUncertainObservation(); poison() }
++        func scopedDigest(_ fd: Int32, _ before: stat) throws -> String {
++            var digest = SHA256(), bytes: off_t = 0
++            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
++            while true {
++                try bound()
++                let count = buffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, $0.count) }
++                let readError = errno
++                try bound()
++                if count > 0 {
++                    guard off_t(count) <= before.st_size - bytes else { throw StoreGenerationFailure.dataPointerInvalid }
++                    bytes += off_t(count)
++                    buffer.withUnsafeBytes { raw in
++                        digest.update(bufferPointer: UnsafeRawBufferPointer(start: raw.baseAddress, count: count))
++                    }
++                } else if count == 0 { break }
++                else if readError != EINTR { throw StoreGenerationFailure.dataPointerInvalid }
++            }
++            guard bytes == before.st_size else { throw StoreGenerationFailure.dataPointerInvalid }
++            return digest.finalize().map { String(format: "%02x", $0) }.joined()
++        }
+         func named(_ parent: Int32, _ name: String, _ fd: Int32, _ before: stat) throws {
+             try bound()
+             var held = stat(), path = stat()
+-            guard Darwin.fstat(fd, &held) == 0,
+-                  Darwin.fstatat(parent, name, &path, AT_SYMLINK_NOFOLLOW) == 0,
++            guard Darwin.fstat(fd, &held) == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
++            try bound()
++            guard Darwin.fstatat(parent, name, &path, AT_SYMLINK_NOFOLLOW) == 0,
+                   fullFact(held) == fullFact(before), fullFact(path) == fullFact(before) else {
+                 throw StoreGenerationFailure.dataPointerInvalid
+             }
+@@ -1712,16 +1829,17 @@
+             let directory = before.st_mode & S_IFMT == S_IFDIR
+             guard depth <= (directory ? 64 : 65),
+                   directory || before.st_mode & S_IFMT == S_IFREG,
+-                  before.st_mode & 0o777 == (directory ? 0o700 : 0o600),
++                  before.st_mode & 0o7777 == (directory ? 0o700 : 0o600),
+                   directory ? before.st_nlink > 0 : before.st_nlink == 1 || before.st_nlink == 2 else {
+                 throw StoreGenerationFailure.dataPointerInvalid
+             }
+             let url = path.isEmpty ? rootURL : rootURL.appendingPathComponent(path, isDirectory: directory)
+-            try withOpen(parent: parent, name: leaf,
+-                flags: O_RDONLY | O_NONBLOCK | (directory ? O_DIRECTORY : 0)) { fd in
++            try schema2ColdWithOpen(parent: parent, name: leaf,
++                flags: O_RDONLY | O_NONBLOCK | (directory ? O_DIRECTORY : 0),
++                requireBinding: bound, poison: poison) { fd in
+                 try named(parent, leaf, fd, before)
+                 if directory {
+-                    let namesBefore = try names(in: fd)
++                    let namesBefore = try schema2ColdNames(in: fd, requireBinding: bound, poison: poison)
+                     let observedPolicy = try policy(url, before)
+                     if path.isEmpty { rootFact = fullFact(before) }
+                     nodes.append(.init(path: path, fullFact: fullFact(before), names: namesBefore,
+@@ -1732,22 +1850,46 @@
+                               !child.utf8.contains(0) else { throw StoreGenerationFailure.dataPointerInvalid }
+                         try walk(fd, child, path.isEmpty ? child : path + "/" + child, depth + 1)
+                     }
+-                    guard try names(in: fd) == namesBefore else { throw StoreGenerationFailure.dataPointerInvalid }
++                    guard try schema2ColdNames(in: fd, requireBinding: bound, poison: poison) == namesBefore else { throw StoreGenerationFailure.dataPointerInvalid }
+                 } else {
+                     guard before.st_size >= 0, before.st_size <= 1_073_741_824,
+                           totalBytes <= 1_073_741_824 - Int64(before.st_size) else {
+                         throw StoreGenerationFailure.dataPointerInvalid
+                     }
+                     totalBytes += Int64(before.st_size) // Each recorded alias consumes its own tree allowance.
+-                    let sha = try digestFile(fd, before: before)
++                    let sha = try scopedDigest(fd, before)
+                     try named(parent, leaf, fd, before)
+                     let rolePath = operationsRelativePrefix.map { path.isEmpty ? $0 : ($0.isEmpty ? path : $0 + "/" + path) }
+                     let role: OriginalEraseC16CurrentPathRoleV1
+                     if let rolePath, let scope { role = try scope.roleFor(path: rolePath, fullFact: fullFact(before), sha256: sha) }
+                     else if let rolePath, let initialScope { role = try initialScope.roleFor(path: rolePath, fullFact: fullFact(before), sha256: sha) }
+                     else { role = .ordinary }
++                    let captureRole: OriginalEraseC16FirstCapturePathRoleV1?
++                    if let rolePath, let firstCaptureScope {
++                        captureRole = try firstCaptureScope.roleFor(path: rolePath, fullFact: fullFact(before), sha256: sha)
++                    } else { captureRole = nil }
+                     let observedPolicy: TemporalPolicyObservationV1?
+-                    switch role {
++                    if let captureRole {
++                        switch captureRole {
++                        case .ordinary:
++                            guard before.st_nlink == 1 else { throw StoreGenerationFailure.dataPointerInvalid }
++                            observedPolicy = try policy(url, before)
++                        case .firstCapturePair(let pair):
++                            guard let firstCaptureScope, scope == nil, initialScope == nil, before.st_nlink == 2,
++                                  url == pair.finalURL || url == pair.partialURL,
++                                  pair.captureToken == firstCaptureScope.captureToken,
++                                  pair.expectedSHA256 == sha, pair.expectedByteCount == Int64(before.st_size) else {
++                                throw StoreGenerationFailure.dataPointerInvalid
++                            }
++                            let values = try ProtectedFilePolicyV1.observeEraseC16FirstCaptureTemporalPairWithCheckedClose(
++                                finalURL: pair.finalURL, partialURL: pair.partialURL, scope: firstCaptureScope,
++                                retainUncertainDescriptor: retain)
++                            guard values.count == 2, values.allSatisfy({
++                                $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
++                            }) else { throw StoreGenerationFailure.dataPointerInvalid }
++                            observedPolicy = values[0]
++                        }
++                    } else { switch role {
+                     case .ordinary:
+                         guard before.st_nlink == 1 else { throw StoreGenerationFailure.dataPointerInvalid }
+                         observedPolicy = try policy(url, before)
+@@ -1805,10 +1947,10 @@
+                         guard Darwin.fstatat(parent, prefix.finalURL.lastPathComponent, &final,
+                             AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else { throw StoreGenerationFailure.dataPointerInvalid }
+                         observedPolicy = nil
+-                    }
++                    } }
+                     try bound()
+                     nodes.append(.init(path: path, fullFact: fullFact(before), names: nil,
+-                        sha256: sha, policy: observedPolicy, publicationRole: role))
++                        sha256: sha, policy: observedPolicy, publicationRole: role, firstCaptureRole: captureRole))
+                     tokens.append("F|\(encoded(path))|\(nine(before))|\(sha)")
+                 }
+                 try named(parent, leaf, fd, before)
+@@ -1822,7 +1964,7 @@
+                 digest: SHA256.hash(data: Data(tokens.joined(separator: "\n").utf8)).map { String(format: "%02x", $0) }.joined(),
+                 nodes: nodes.sorted { $0.path < $1.path })
+         } catch {
+-            if (try? requireSettled()) == nil { scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); poison() }
++            if (try? requireSettled()) == nil { scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); firstCaptureScope?.poisonOnUncertainObservation(); poison() }
+             throw error
+         }
+     }

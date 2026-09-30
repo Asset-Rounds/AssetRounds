@@ -1,0 +1,108 @@
+{
+  "authority": {
+    "allocationDigest": "c2b40625385e2923f0077accc1424a8fa20fd89dd0727b9393e866ff1c756501",
+    "appBaseHead": "2ebaf4312ce970bed13afc703a9af3e7e2ffdd4f",
+    "appBaseTree": "ddcd18643b91de47a8b32b693444229bf9565d03",
+    "cardID": "V23-P04-C33",
+    "contextDigest": "faac1486c077f7d013d12d93e0125a02ff9625624a41d8832dc140b6a033bc5f",
+    "coordinationHead": "f5cccd98d1285ca456621c72ad7e037a5f736ac6",
+    "coordinationTree": "f3d9af1af3f07a1e0a38220a04bf5d9f9545d554",
+    "existingPathCount": 2,
+    "fencePathCount": 15,
+    "finalHashesSealed": false,
+    "ledgerDigest": "93dc564de45b930540127511049d6a164765033cc30a2b313d1f8ea6fb159f4e",
+    "newPathCount": 13,
+    "pathFenceDigest": "47eb449f074d28480283ae6fb73565ce56194709c018a892767d3efae0213157",
+    "prerequisiteDigest": "bf3a0578d544bd99ace8c9eef9be93a21486e8c34120a4e875f930e3020312d0",
+    "projectionDigest": "711a4c1a639809d3ed840d61458520ccef8adc23b27797498c0d81e88fa99d5f",
+    "sequence": 529,
+    "transitionDigest": "f019f89bf7d6e8070f3c441515e7bae64f17f15544fc203ee845df8680de811b"
+  },
+  "cardID": "V23-P04-C33",
+  "contract": "InstallationWorkflowContractV1",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false
+  },
+  "lifecycle": {
+    "durableFamily": "NONE",
+    "newDurableFamilyCount": 0,
+    "newKernelCount": 0,
+    "newRendererCount": 0,
+    "newWriterCount": 0,
+    "persistentSchemaVersion": 36,
+    "recordsSchemaVersion": 35
+  },
+  "ordinal": 118,
+  "requirements": {
+    "asBuiltAndVariationEvidenceRequired": true,
+    "canonicalCoordinator": "InstallationWorkflowCoordinatorV1",
+    "closeoutStages": [
+      "recordFieldComplete",
+      "submitForReview",
+      "finalizeRecordedCloseout"
+    ],
+    "contextBasisBindingRequired": true,
+    "exactUnreceiptedEffectRecovery": true,
+    "explicitStartRequired": true,
+    "finalizedHistoryImmutable": true,
+    "manualFallbackAvailable": true,
+    "orderedExecution": true,
+    "providerConsumerCapabilityReceiptsRequired": true,
+    "recordAsBuiltDoesNotCloseout": true,
+    "reportReadyOnlyWhenFinalizedAndAccepted": true,
+    "reportRebuildDeterministic": true,
+    "retryIsIdempotent": true,
+    "scanFallbackWorkspaceBound": true,
+    "variationRequiresExactSuccessorBasis": true
+  },
+  "schema": "V23P04C33InstallationWorkflowToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Application/Activities/ActivityContractCoordinatorV2.swift",
+      "sha256": "ff8a7aa81c0926fe58de75cd5e07e77e0b13724de841e718f3deb986f7f6338b",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Activities/ActivityContractFamiliesV2.swift",
+      "sha256": "8226c4e3659009968c0ac8d598cd7e12d491c26ea7c84936dac84faa61f5ae68",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/Activities/InstallationWorkflowCoordinatorV1.swift",
+      "sha256": "7e3b49d68f7a7981486c2a208dc8e32570f220349401d493aaf17dfc479e1fca",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Activities/InstallationWorkflowView.swift",
+      "sha256": "b3c898bbdb8fa3df3f5f9a89a717d2310311f486aa5b650b0fa5c48074e26748",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_96InstallationWorkflowTests.swift",
+      "sha256": "44c268cb21250b9f103da57bb2e327649b8bcd40f55b5f48a21b9e490f60b1a6",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/Activities/V23P04C33InstallationWorkflowCorpusV1.json",
+      "sha256": "f455336e43169b36f115b293c677890dc7b16b4a18e59c71cc7892747b5dbbe9",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C33InstallationWorkflowUITests.swift",
+      "sha256": "22c83a84a5aa2d9a9ced6a8cbb9b25e8fd1f90dff1ca254e4f3ceed95dbf5498",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

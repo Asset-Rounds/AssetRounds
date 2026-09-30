@@ -1,0 +1,29 @@
+    /// A Registry observer calls this only inside its actual checked G.
+    /// It checks the genuine transferred cold ownership and real completed
+    /// handle-close sets without entering a second Registry or Manifest read.
+    /// The enclosing boundary independently repeats the complete drain and
+    /// physical census before and after acquiring this observation interval.
+    func requireSchema2ColdCleanupHeldGOwnership(
+        binding expectedBinding: EraseRetirementBindingV1,
+        registry expectedRegistry: GenerationLeaseRegistryV1,
+        activity expectedActivity: GenerationTemporalActivityHandleV1,
+        drain expectedDrain: EraseSessionDrainWitnessV1
+    ) throws {
+        guard case .absentAtColdAdmission = writer,
+              binding == expectedBinding, registry === expectedRegistry,
+              activity === expectedActivity, drain === expectedDrain,
+              !released, !coldFailureClosing, retirementStarted, writerClosed,
+              drain.binding == binding, drain.isActuallyDrained,
+              drain.capturedAllocations.allSatisfy({
+                  closedAllocationIDs.contains(ObjectIdentifier($0))
+              }),
+              drain.capturedReaders.allSatisfy({
+                  closedReaderIDs.contains(ObjectIdentifier($0))
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // This reads only the held/named Support inode and the existing EX
+        // lifetime. It neither enumerates tokens nor reacquires G or EX.
+        try physicalRoot.requireEraseSupport(binding.subject)
+    }
+

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "sealed_source_candidate_only_coupled_compile_native_review_gates_due",
+  "authorModel": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "head": "93159755395d697a5a9da02f41374120433c50f9",
+  "beforeFullSourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "afterFullSourceMapSHA256": "5e7440b37518a18f4e320ec2b904ee5deeb1ea53b1e14b2c3ac02e6afe9ba780",
+  "sourceInputs": 1206,
+  "frozenInputBindingSHA256": "eaa6b26f558bdff78085658b78643f6c22965eab097d554b4411041cab846be6",
+  "authorBaselineSHA256": "0ba7c0da6265b84267c4165487bc37a6852937263e8ea336691770219fc316a7",
+  "trackedSourceDrift": {},
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee",
+      "immediateInputSHA256": "ad95d26b481a864a3f5f6b45a5f2917d790f703af59cbb0f742e85c0d6d40d1b",
+      "candidateSHA256": "7d0bb919941188537463d464be823e1f5e613505e519c004d916f58d3f744434",
+      "immediateInputPath": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-absence-successor-v2/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+      "bytes": 131462
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e",
+      "immediateInputSHA256": "5fb1a27fd6e3211ac71c7b82e28ac9c39ee2fe9b62ce635fc6b3c72ff2743193",
+      "candidateSHA256": "117e111caeda31673ce4b4b7b9e930e6d55e297b79408f71ef079d0cec594618",
+      "immediateInputPath": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v1/inputs/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+      "bytes": 1886955
+    }
+  },
+  "artifacts": {
+    "CANDIDATE.diff": "25fe012e0e96adc8aa0691b4a329514e54094123ffbb22dd521c4fed3c702159",
+    "ADDITIVE_INPUT.diff": "8faf028ac82180d5fddf925009286ba3ecddc9c0690158cf06c0e44f283ccccd",
+    "AFTER_SOURCE_MAP.json": "5e7440b37518a18f4e320ec2b904ee5deeb1ea53b1e14b2c3ac02e6afe9ba780",
+    "PARSE.json": "21fdef4279c112f655bee505f112061c54b98d2fe42ae4d17dabba9bb43fafbe",
+    "INTERFACES.md": "0ea6f210ae5e29397a748fa65e8b8e43e8665c153eb00d787ef90a52d997c37c",
+    "CASE_MATRIX.md": "6c4d4ded77612725490e51dcc86b56e20f588355fb836c0e8bccd41a133ca1d3",
+    "HANDOFF.md": "ed0e4418f4964d2b51a29a342657f49e738b65a34f7b5f23ca77fee00892b3a7"
+  },
+  "openObligations": [
+    "cross-module authentic issuers/complete grammar/source and terminal authority integration",
+    "original roster exact typed pair capture/decode",
+    "complete multiroot metadata/target/projection value bounds",
+    "real sameheld EX/G/drain/retirement and borrowed root closures",
+    "root actual compilation/native/independent consequential review/all gates"
+  ]
+}

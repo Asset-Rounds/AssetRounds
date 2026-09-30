@@ -1,0 +1,52 @@
+    /// Pure association checks at the real outside-G accounting finish.
+    /// The checked publication/accounting readers remain independent. This
+    /// guard verifies the actual existing EX/activity/source writer and first
+    /// captured cohort without pretending the earlier G callback is active.
+    func requireOriginalEraseFirstCaptureAccountingFinishOwner(
+        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        publication: EraseIntentStore.OriginalAuxiliaryRosterPublicationReceiptV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        store: EraseIntentStore, intent: EraseIntentV1,
+        preparation: ErasePreparationV2
+    ) throws {
+        guard let router, !detached, !detaching,
+              !originalFirstCaptureObservationUncertain,
+              originalAuxiliaryFirstCaptureOwner === owner,
+              originalAuxiliaryFirstObserver === observer,
+              originalAuxiliaryStore === store,
+              originalAuxiliaryFirstIntent == intent,
+              originalAuxiliaryFirstPreparation == preparation,
+              originalAuxiliaryProjectedIntent == intent,
+              let admission = originalAuxiliaryRosterAdmission,
+              admission.receipt === publication,
+              admission.seal === originalAuxiliaryRosterSeal,
+              originalAuxiliaryFirstPhysicalRoster?.canonicalBytes == publication.canonicalBytes,
+              let firstCohort = originalFirstCaptureLeaseCensus,
+              let publishedCohort = originalAuxiliaryFirstLeaseCensus,
+              firstCohort.count == publishedCohort.count,
+              firstCohort.allSatisfy({ publishedCohort.contains($0) }),
+              preparationCoordinator === coordinator,
+              preparationRegistry === exclusion.registry,
+              originalExclusion === exclusion,
+              let source = preparationSourceWriter,
+              source.token == exclusion.retainedWriter,
+              preparationServiceFrame, preparationWriterPhase == .absent,
+              preparationFailureWitness == nil,
+              preparationWriterAllocation == nil, preparationTargetWriter == nil,
+              originalTargetReaderAllocation == nil, originalWriterTransition == nil,
+              transferredExclusion == nil,
+              intent.schemaVersion == 2, intent.phase == .emptyGenerationPrepared,
+              preparation.matches(intent) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireLiveEraseRecovery(self, coordinator: coordinator)
+        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
+            registry: exclusion.registry, coordinator: coordinator, writer: source.token)
+        guard exclusion.matchesOriginalEraseAuxiliaryPhase(registry: exclusion.registry,
+                activity: activity, writer: source.token) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+

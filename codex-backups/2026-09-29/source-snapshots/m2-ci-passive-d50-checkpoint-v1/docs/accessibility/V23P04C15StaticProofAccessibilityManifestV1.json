@@ -1,0 +1,43 @@
+{
+  "acceptanceCredit": false,
+  "accessibilityCoverage": {
+    "altDescriptions": true,
+    "contrastAndNonColorCues": true,
+    "headings": true,
+    "largerTextAndZoom": true,
+    "reduceMotion": true,
+    "rtlAndLocalization": true,
+    "semanticReadingOrder": true,
+    "voiceControl": true,
+    "voiceOver": true
+  },
+  "adoptionEnabled": false,
+  "approvals": {
+    "accessibilityReview": "DEFERRED",
+    "brandApproval": "DEFERRED",
+    "legalOrCertificationClaims": "DISABLED",
+    "publicationApproval": "DEFERRED"
+  },
+  "artifactKinds": [
+    "ACCESSIBILITY",
+    "HOME",
+    "PRIVACY",
+    "SAMPLE_REPORT",
+    "SUPPORT",
+    "USE_CASE"
+  ],
+  "cardID": "V23-P04-C15",
+  "containsRealCustomerData": false,
+  "containsStableJoinKeys": false,
+  "hiddenClaims": false,
+  "networkProviderAnalyticsAttributionOrSessionReplay": false,
+  "optionalApprovalsEnabled": false,
+  "publicationEligible": false,
+  "publish": false,
+  "releaseCredit": false,
+  "sampleAndPracticeWatermarksRequired": true,
+  "schema": "V23P04C15StaticProofAccessibilityManifestV1",
+  "schemaVersion": 1,
+  "status": "NONCANDIDATE_STATIC_PROOF_ONLY",
+  "upload": false
+}

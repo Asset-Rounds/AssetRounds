@@ -1,0 +1,27 @@
+{
+  "effort": "xhigh",
+  "externalActualImplementations": [
+    "Ledger static engine + all nested primitives/checked own close",
+    "FirstObserver ImageOwner/scoped complete delta scanner",
+    "Migration actual held G scope/wrapper",
+    "PFP distinct exact live pair observer + policy effect setter"
+  ],
+  "files": {
+    "PARSE.json": "316d0f0ebd8329f86fb9735a276f9d720eae3d96c013829a3ad1f7fec3167cf3",
+    "ROUTER_ACTUAL_CALLER_HOOKS_V1.swift.fragment": "5f7ae445d614e2cfb23fd9505f488784cff919ac22096bcba463d0db391155aa",
+    "ROUTER_ADMISSION_PERMIT_READBACK_V1.swift.fragment": "fcaffac5564182996691a48b2bbaddb9514eff4f7230be97f623edbb33b9bbac",
+    "candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "7137c417bfcfa07000d7ae3d4feb748a07327d8f231f0045d3fe0fc00334c884",
+    "candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "017d94e4d15d1c4291aaa9c9f51fb6f2c7b62a2983ec3ebe397af26ffa4e818e",
+    "candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "026d1499fa31acdbeb42d9c2ab82454fda600f25847e469b9a331bd00583921c"
+  },
+  "full1206SourceMapSHA256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+  "fullScopeGaps": [
+    "Legacy strict original P does not provide generic preexisting pair capture lineage",
+    "Complete original/cold C16/durable controls/Registry finite prefix/terminal work remains separate and incomplete"
+  ],
+  "model": "gpt-6.1-sol",
+  "noTypecheckBuildNative": true,
+  "parentHead": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "schemaVersion": 1,
+  "status": "SOURCE_ONLY_COUPLING_CHECKPOINT_NOT_INSTALLABLE"
+}

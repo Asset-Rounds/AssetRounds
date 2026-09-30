@@ -1,0 +1,12 @@
+{
+  "model": "gpt-6.1-sol",
+  "effort": "xhigh",
+  "files": {
+    "LEDGER_PENDING_REQUEST_SHAPE_V10.swift.fragment": "be527834e2ff704575672a61006ab37f46babe0ec577359d8970283f8cce4617",
+    "STORE_PENDING_REQUEST_API_V10.swift.fragment": "1e97e77cd523b96088a8679ec4083463b8d5b0cdb1684689dc3ea9523d06fd1c",
+    "ROUTER_PENDING_GETTER_AND_RECEIPT_V10.swift.fragment": "9ecad48670b7ffcd038642f5d7575d3129bd33e747926be5ea28389faa667a03",
+    "ORDER.md": "68ae75caa33ec7f06c33fbf43aa20af05d9631588072f6872b1d4d764d257071"
+  },
+  "sourceOnly": true,
+  "installable": false
+}

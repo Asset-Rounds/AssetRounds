@@ -1,0 +1,3646 @@
+import Foundation
+
+enum C52ServiceRequestCheckRunnerCoordinatorBoundaryV1 {
+    static let submitsOrDispatchesServiceRequests = false
+    static let automaticallyAcceptsDuplicateCandidates = false
+    static let automaticallyConvertsRequestToWork = false
+}
+
+enum CheckRunnerScheduleCoordinatorBoundaryV1 { static let checkRunnerMayAutoStartOccurrence = false }
+
+enum C51CheckRunnerScheduleCoordinatorBoundaryV1 {
+    static let checkRunnerMayAutoStartOccurrence = false
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let coordinatorOwnsNoOccurrenceWriter = true
+
+    static func validate(_ metadata: C51CheckRunnerScheduleMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
+extension CheckRunnerCoordinator {
+    /// Produces capture context only. The existing explicit draft/start path
+    /// remains the sole authority to start work.
+    func prepareResolvedAssetLocator(
+        resolution: LocatorResolutionV1,
+        locator: AssetLocatorV1,
+        receipt: LocatorBindingReceiptV1
+    ) throws -> CheckRunnerAssetLocatorContextV1 {
+        try CheckRunnerAssetLocatorContextV1(
+            resolution: resolution, locator: locator, receipt: receipt
+        )
+    }
+}
+
+extension CheckRunnerCoordinator {
+    /// Resolution/preview only. The caller must invoke the existing explicit
+    /// Start action before any render job is enqueued or workspace mutation made.
+    func prepareAssetLabelPreview(
+        plan: AssetLabelGenerationPlanV1,
+        input: CheckRunnerAssetLabelInputV1
+    ) throws -> CheckRunnerAssetLabelPreviewV1 {
+        try CheckRunnerAssetLabelPreviewV1(plan: plan, input: input)
+    }
+}
+import SwiftData
+
+@MainActor
+final class CheckRunnerCoordinatorFailureInjection {
+    private var failurePoint: CheckRunnerCoordinatorFailurePoint?
+
+    init(failOnceAt failurePoint: CheckRunnerCoordinatorFailurePoint) {
+        self.failurePoint = failurePoint
+    }
+
+    func removeFailure() {
+        failurePoint = nil
+    }
+
+    fileprivate func consume(_ point: CheckRunnerCoordinatorFailurePoint) -> Bool {
+        guard failurePoint == point else { return false }
+        failurePoint = nil
+        return true
+    }
+}
+
+extension CheckRunnerCoordinator {
+    func validateSurveyResume(_ context:CheckRunnerSurveySessionContextV1)throws{try context.validate();guard [.draft,.paused,.reviewRequired,.amended].contains(context.session.state)else{throw CheckRunnerCoordinatorError.workPacketStaleRevision}}
+    func validateSurveyPublication(_ publication:SurveyPublicationSnapshotV1,context:CheckRunnerSurveySessionContextV1)throws{try context.validate();try publication.validate(session:context.session,definition:context.definition,captures:context.captures)}
+}
+
+@MainActor
+final class CheckRunnerCoordinator {
+    private enum MutationRoute {
+        case live(
+            WorkspacePackageLifecycleDependenciesV1,
+            WorkspacePackageLifecycleProfileV1
+        )
+        case expiringCompatibility(
+            WorkspaceWriterAdapterV1,
+            any ApplicationFileAuthorityV1,
+            CheckRunnerCompatibilityPostureV1
+        )
+    }
+
+    private let modelContext: ModelContext
+    private let mutationRoute: MutationRoute
+    private let clock: any ApplicationClock
+    private let idSource: any ApplicationIDSource
+    private let signPack: SignPack
+    private let diagnosticsStore: DiagnosticsStore?
+    private let storagePreflight: StoragePreflightService
+    private let evidenceStoreFailureInjection: EvidenceBundleStoreFailureInjection?
+    private let evidenceSaveFailureInjection: CheckRunnerCoordinatorFailureInjection?
+    private let finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection?
+    private let finalizationServiceFailureInjection: FinalizationServiceFailureInjection?
+    private let draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)?
+    private let requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1?
+    private let offMainWorker = DeterministicOffMainWorkerV1()
+    private var captureGenerationRootURL: URL?
+    private var evidenceBundleStore: EvidenceBundleStore?
+    private var reportDeliveryCoordinator: ReportDeliveryCoordinator?
+    private var finalizationAttempt: FinalizationAttempt?
+    private var pendingRecheckRequest: (assetID: UUID, issueID: UUID)?
+
+    private var liveLifecycle: (
+        dependencies: WorkspacePackageLifecycleDependenciesV1,
+        profile: WorkspacePackageLifecycleProfileV1
+    )? {
+        guard case let .live(dependencies, profile) = mutationRoute else { return nil }
+        return (dependencies, profile)
+    }
+
+    private var fileAuthority: any ApplicationFileAuthorityV1 {
+        switch mutationRoute {
+        case let .live(dependencies, _): dependencies.fileAuthority
+        case let .expiringCompatibility(_, authority, _): authority
+        }
+    }
+
+    private struct FinalizationAttempt {
+        let assetID: UUID
+        let draftID: UUID?
+        let selection: CheckOutcomeSelection
+        let completedAt: Date
+        let snapshotCreatedAt: Date
+        let sourceApp: SourceAppSnapshotV1
+        let identifiers: FinalizationIdentifiers
+    }
+
+    init(
+        modelContext: ModelContext,
+        signPack: SignPack,
+        clock: any ApplicationClock = SystemApplicationClock(),
+        idSource: any ApplicationIDSource = SystemApplicationIDSource(),
+        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
+        diagnosticsStore: DiagnosticsStore? = nil,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        evidenceStoreFailureInjection: EvidenceBundleStoreFailureInjection? = nil,
+        evidenceSaveFailureInjection: CheckRunnerCoordinatorFailureInjection? = nil,
+        finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
+        injectsLowStorageFailureOnceForUITest: Bool = false,
+        requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1? = nil,
+        draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil,
+        compatibilityPosture: CheckRunnerCompatibilityPostureV1 = .frozenS10CallersOnly
+    ) {
+        self.modelContext = modelContext
+        self.mutationRoute = .expiringCompatibility(
+            WorkspaceWriterAdapterV1(modelContext: modelContext),
+            fileAuthority,
+            compatibilityPosture
+        )
+        self.clock = clock
+        self.idSource = idSource
+        self.signPack = signPack
+        self.diagnosticsStore = diagnosticsStore
+        self.evidenceStoreFailureInjection = evidenceStoreFailureInjection
+        self.evidenceSaveFailureInjection = evidenceSaveFailureInjection
+        self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
+        self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
+        self.draftAccessState = draftAccessState
+        self.requirementEvaluatorRegistry = requirementEvaluatorRegistry
+        if injectsLowStorageFailureOnceForUITest {
+            var shouldFail = true
+            self.storagePreflight = StoragePreflightService { _ in
+                if shouldFail {
+                    shouldFail = false
+                    return 0
+                }
+                return StoragePreflightService.evidenceAcceptanceRequiredBytes
+            }
+        } else {
+            self.storagePreflight = storagePreflight
+        }
+    }
+
+    init(
+        modelContext: ModelContext,
+        packageLifecycleDependencies: WorkspacePackageLifecycleDependenciesV1,
+        packageLifecycleProfile: WorkspacePackageLifecycleProfileV1,
+        diagnosticsStore: DiagnosticsStore? = nil,
+        storagePreflight: StoragePreflightService = StoragePreflightService(),
+        evidenceStoreFailureInjection: EvidenceBundleStoreFailureInjection? = nil,
+        evidenceSaveFailureInjection: CheckRunnerCoordinatorFailureInjection? = nil,
+        finalizationStoreFailureInjection: FinalizationIntentStoreFailureInjection? = nil,
+        finalizationServiceFailureInjection: FinalizationServiceFailureInjection? = nil,
+        injectsLowStorageFailureOnceForUITest: Bool = false,
+        requirementEvaluatorRegistry: RequirementEvaluatorRegistryV1? = nil,
+        draftAccessState: (@MainActor () -> DraftAccessNormalizedStateV1)? = nil
+    ) throws {
+        guard try packageLifecycleDependencies.profileRegistry.resolve(
+            packageLifecycleProfile.release
+        ) == packageLifecycleProfile else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        self.modelContext = modelContext
+        self.mutationRoute = .live(
+            packageLifecycleDependencies,
+            packageLifecycleProfile
+        )
+        self.clock = packageLifecycleDependencies.clock
+        self.idSource = packageLifecycleDependencies.idSource
+        self.signPack = packageLifecycleProfile.package
+        self.diagnosticsStore = diagnosticsStore
+        self.evidenceStoreFailureInjection = evidenceStoreFailureInjection
+        self.evidenceSaveFailureInjection = evidenceSaveFailureInjection
+        self.finalizationStoreFailureInjection = finalizationStoreFailureInjection
+        self.finalizationServiceFailureInjection = finalizationServiceFailureInjection
+        self.draftAccessState = draftAccessState
+        self.requirementEvaluatorRegistry = requirementEvaluatorRegistry
+        if injectsLowStorageFailureOnceForUITest {
+            var shouldFail = true
+            self.storagePreflight = StoragePreflightService { _ in
+                if shouldFail {
+                    shouldFail = false
+                    return 0
+                }
+                return StoragePreflightService.evidenceAcceptanceRequiredBytes
+            }
+        } else {
+            self.storagePreflight = storagePreflight
+        }
+    }
+
+    var signPackIssueLabels: [SignPack.RegistryEntry] {
+        signPack.issueLabels
+    }
+
+    var couldNotVerifyReasons: [SignPack.RegistryEntry] {
+        validCouldNotVerifyRegistry() ? signPack.couldNotVerifyReasons.entries : []
+    }
+
+    /// Exposes the canonical C25 release gate to the check-runner boundary.
+    /// Draft and retired releases remain readable elsewhere, but cannot be
+    /// selected for newly started work.
+    func surveyDefinitionStartBinding(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws -> CheckRunnerSurveyDefinitionStartBindingV1 {
+        try CheckRunnerSurveyDefinitionStartBindingV1(
+            release: release,
+            lifecycleState: lifecycleState
+        )
+    }
+
+    func currentRequirementAssuranceDecision(
+        workflowRecordID: UUID
+    ) -> RequirementAssuranceGatePreflightV1 {
+        do {
+            guard let snapshot = try currentRequirementAssuranceSnapshot(
+                workflowRecordID: workflowRecordID
+            ) else {
+                return .failed(.noAcceptedRevision, priorAcceptedSnapshot: nil)
+            }
+            return .evaluated(snapshot, priorAcceptedSnapshot: nil)
+        } catch {
+            return .failed(requirementAssuranceFailure(for: error), priorAcceptedSnapshot: nil)
+        }
+    }
+
+    /// Deterministically evaluates a candidate without changing canonical data.
+    /// Reserved S10 UI/finalization callers may consume this receipt only after
+    /// their separate reconciliation; this method does not claim reachability.
+    func evaluateRequirementAssurance(
+        workflowRecordID: UUID,
+        inputs: [RequirementEvaluationInputV1],
+        integrity: RequirementIntegrityInputV1
+    ) -> RequirementAssuranceGatePreflightV1 {
+        let prior: RequirementAssuranceSnapshotV1?
+        do {
+            prior = try currentRequirementAssuranceSnapshot(workflowRecordID: workflowRecordID)
+        } catch {
+            return .failed(requirementAssuranceFailure(for: error), priorAcceptedSnapshot: nil)
+        }
+        guard !Task.isCancelled else {
+            return .failed(.cancelled, priorAcceptedSnapshot: prior)
+        }
+        guard let registry = requirementEvaluatorRegistry,
+              let lifecycle = liveLifecycle else {
+            return .failed(.notConfigured, priorAcceptedSnapshot: prior)
+        }
+        do {
+            let snapshot = try RequirementEvaluationEngineV1.makeSnapshot(
+                workflowRecordID: workflowRecordID,
+                workspaceID: lifecycle.dependencies.workspaceID.rawValue,
+                inputs: inputs,
+                registry: registry,
+                integrity: integrity
+            )
+            let expectedRevision = prior?.evaluatedRevision ?? 0
+            guard snapshot.evaluatedRevision == expectedRevision + 1 else {
+                return .failed(.staleRevision, priorAcceptedSnapshot: prior)
+            }
+            return .evaluated(snapshot, priorAcceptedSnapshot: prior)
+        } catch {
+            return .failed(requirementAssuranceFailure(for: error), priorAcceptedSnapshot: prior)
+        }
+    }
+
+    /// Evaluates and publishes through the sole workspace writer command. The
+    /// accepted row is reread and compared before a permitting receipt returns.
+    func rebuildRequirementAssurance(
+        workflowRecordID: UUID,
+        inputs: [RequirementEvaluationInputV1],
+        integrity: RequirementIntegrityInputV1
+    ) -> RequirementAssuranceGatePreflightV1 {
+        let evaluated = evaluateRequirementAssurance(
+            workflowRecordID: workflowRecordID,
+            inputs: inputs,
+            integrity: integrity
+        )
+        guard evaluated.failure == nil,
+              let snapshot = evaluated.candidateSnapshot,
+              let lifecycle = liveLifecycle else {
+            return evaluated
+        }
+        guard !Task.isCancelled else {
+            return .failed(.cancelled, priorAcceptedSnapshot: evaluated.priorAcceptedSnapshot)
+        }
+        do {
+            let mutationID = try lifecycle.dependencies.writer.makeMutationID()
+            let mutation = try RequirementAssuranceMutationV1(
+                snapshot: snapshot,
+                expectedEvaluatedRevision: evaluated.priorAcceptedSnapshot?.evaluatedRevision ?? 0,
+                mutationID: mutationID.rawValue
+            )
+            _ = try lifecycle.dependencies.writer.execute(
+                .applyRequirementAssurance(mutation),
+                mutationID: mutationID
+            )
+            guard let accepted = try currentRequirementAssuranceSnapshot(
+                workflowRecordID: workflowRecordID
+            ), accepted == snapshot else {
+                return .failed(
+                    .persistenceUnavailable,
+                    priorAcceptedSnapshot: evaluated.priorAcceptedSnapshot
+                )
+            }
+            return .evaluated(accepted, priorAcceptedSnapshot: evaluated.priorAcceptedSnapshot)
+        } catch {
+            return .failed(
+                requirementAssuranceFailure(for: error),
+                priorAcceptedSnapshot: evaluated.priorAcceptedSnapshot
+            )
+        }
+    }
+
+    func signPackOutcomeDisplay(key: String) -> String? {
+        CheckRunnerOutcomeResolverV1.signPackOutcomeDisplay(signPack: signPack, key: key)
+    }
+
+    func reviewThumbnailData(for evidence: ReviewEvidence) throws -> Data {
+        guard let generationRootURL = captureGenerationRootURL else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+        let root = generationRootURL.standardizedFileURL
+        let candidate = root
+            .appendingPathComponent(evidence.thumbnailRelativePath)
+            .standardizedFileURL
+        guard candidate.path.hasPrefix(root.path + "/"),
+              !evidence.thumbnailRelativePath.hasPrefix("/"),
+              !evidence.thumbnailRelativePath.contains("..") else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        do {
+            return try Data(contentsOf: candidate, options: .mappedIfSafe)
+        } catch {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+    }
+
+    /// Provisional job-kernel route. Existing synchronous UI callers remain
+    /// source-compatible until the S10.6 shipping-route reconciliation.
+    func reviewThumbnailDataOffMain(for evidence: ReviewEvidence) async throws -> Data {
+        guard let generationRootURL = captureGenerationRootURL else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+        let root = generationRootURL.standardizedFileURL
+        let relativePath = evidence.thumbnailRelativePath
+        return try await offMainWorker.run {
+            try Task.checkCancellation()
+            let candidate = root.appendingPathComponent(relativePath).standardizedFileURL
+            guard candidate.path.hasPrefix(root.path + "/"),
+                  !relativePath.hasPrefix("/"), !relativePath.contains("..") else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            return try Data(contentsOf: candidate, options: .mappedIfSafe)
+        }
+    }
+
+    func configureCapture(generationRootURL: URL) {
+        let standardizedURL = generationRootURL.standardizedFileURL
+        guard liveLifecycle.map({
+            $0.dependencies.generationRootURL == standardizedURL
+        }) ?? true else { return }
+        guard captureGenerationRootURL != standardizedURL else { return }
+        captureGenerationRootURL = standardizedURL
+        reportDeliveryCoordinator = nil
+        evidenceBundleStore = EvidenceBundleStore(
+            generationRootURL: standardizedURL,
+            failureInjection: evidenceStoreFailureInjection
+        )
+    }
+
+    func prepareReview(
+        assetID: UUID,
+        selection: CheckOutcomeSelection
+    ) throws -> FinalizationReview {
+        let outcome = try resolvedOutcome(selection)
+        let preparation = try prepareCapture(
+            assetID: assetID,
+            allowsIncompleteReview: outcome.couldNotVerify != nil
+        )
+        guard outcome.couldNotVerify != nil || preparation.step == .outcome else {
+            throw CheckRunnerCoordinatorError.reviewUnavailable
+        }
+        let draftID = preparation.draftID
+        let draftDescriptor = FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == draftID }
+        )
+        guard let draft = try modelContext.fetch(draftDescriptor).first,
+              let localDate = draft.localDate,
+              let localTime = draft.localTime,
+              let timeZoneID = draft.timeZoneID,
+              let afterDarkCopy = draft.afterDarkAcknowledgementCopy,
+              let safePositionCopy = draft.safePositionAcknowledgementCopy else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let evidenceDescriptor = FetchDescriptor<EvidenceFile>(
+            predicate: #Predicate { $0.recordID == draftID }
+        )
+        let evidence = try modelContext.fetch(evidenceDescriptor)
+        let purposes = try requiredEvidencePurposes(for: draft)
+        guard purposes.count == 2 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let firstRows = evidence.filter { $0.purposeKey == purposes[0].key }
+        let secondRows = evidence.filter { $0.purposeKey == purposes[1].key }
+        guard evidence.count == firstRows.count + secondRows.count,
+              firstRows.count <= 1,
+              secondRows.count <= 1,
+              outcome.couldNotVerify != nil || (firstRows.count == 1 && secondRows.count == 1) else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let first = firstRows.first
+        let second = secondRows.first
+        return FinalizationReview(
+            draftID: draftID,
+            outcomeKey: outcome.key,
+            outcomeDisplay: outcome.display,
+            issueLabelDisplay: outcome.issueLabel?.display,
+            wideEvidence: first.map { reviewEvidence($0, purposeDisplay: purposes[0].display) },
+            closeEvidence: second.map { reviewEvidence($0, purposeDisplay: purposes[1].display) },
+            couldNotVerifyReasonDisplay: outcome.couldNotVerify?.display,
+            note: outcome.note,
+            missingPurposeDisplays: [
+                first == nil ? purposes[0].display : nil,
+                second == nil ? purposes[1].display : nil,
+            ].compactMap { $0 },
+            localDate: localDate,
+            localTime: localTime,
+            timeZoneID: timeZoneID,
+            afterDarkAcknowledgementCopy: afterDarkCopy,
+            safePositionAcknowledgementCopy: safePositionCopy
+        )
+    }
+
+    func valueReceiptDidPresent() async {
+        guard let diagnosticsStore else { return }
+        let counters = await diagnosticsStore.snapshot()
+        guard counters.onboardingCompleted == 0 else { return }
+        await diagnosticsStore.increment(.onboardingCompleted)
+    }
+
+    func finalize(
+        assetID: UUID,
+        selection: CheckOutcomeSelection,
+        completedAt: Date,
+        snapshotCreatedAt: Date,
+        sourceApp: SourceAppSnapshotV1,
+        identifiers suppliedIdentifiers: FinalizationIdentifiers? = nil
+    ) async throws -> FinalizationResult {
+        guard let generationRootURL = captureGenerationRootURL else {
+            throw CheckRunnerCoordinatorError.finalizationNotConfigured
+        }
+        let outcome = try resolvedOutcome(selection)
+        let currentDraft = try existingDraft(assetID: assetID)
+        let currentDraftID = currentDraft?.id
+        let suppliedMutationRecord: WorkflowRecord?
+        if let suppliedIdentifiers {
+            let matches = try modelContext.fetch(FetchDescriptor<WorkflowRecord>()).filter {
+                $0.finalizationMutationID == suppliedIdentifiers.mutationID
+            }
+            guard matches.count <= 1 else {
+                throw CheckRunnerCoordinatorError.finalizationFailed
+            }
+            suppliedMutationRecord = matches.first
+        } else {
+            suppliedMutationRecord = nil
+        }
+        let isRecheck = currentDraft?.stage == WorkflowStage.recheck.rawValue
+            || finalizationAttempt?.selection.isRecheck == true
+            || suppliedMutationRecord?.stage == WorkflowStage.recheck.rawValue
+        let existingIssueID = currentDraft?.issueID
+            ?? finalizationAttempt?.identifiers.issueID
+            ?? suppliedMutationRecord?.issueID
+        let activeAttempt: FinalizationAttempt
+        if let suppliedIdentifiers {
+            guard isRecheck
+                    ? (suppliedIdentifiers.issueID == existingIssueID
+                        && (outcome.issueLabel != nil)
+                            == (suppliedIdentifiers.newIssueID != nil))
+                    : ((outcome.issueLabel != nil)
+                        == (suppliedIdentifiers.issueID != nil)
+                        && suppliedIdentifiers.newIssueID == nil) else {
+                throw CheckRunnerCoordinatorError.issueLabelInvalid
+            }
+            activeAttempt = FinalizationAttempt(
+                assetID: assetID,
+                draftID: currentDraftID,
+                selection: outcome.selection,
+                completedAt: completedAt,
+                snapshotCreatedAt: snapshotCreatedAt,
+                sourceApp: sourceApp,
+                identifiers: suppliedIdentifiers
+            )
+        } else if let attempt = finalizationAttempt,
+                  attempt.assetID == assetID,
+                  attempt.selection == outcome.selection,
+                  attempt.sourceApp == sourceApp,
+                  currentDraftID == nil || attempt.draftID == currentDraftID {
+            activeAttempt = attempt
+        } else {
+            activeAttempt = FinalizationAttempt(
+                assetID: assetID,
+                draftID: currentDraftID,
+                selection: outcome.selection,
+                completedAt: completedAt,
+                snapshotCreatedAt: snapshotCreatedAt,
+                sourceApp: sourceApp,
+                identifiers: FinalizationIdentifiers(
+                    mutationID: idSource.makeID(),
+                    packetID: idSource.makeID(),
+                    stableRootID: idSource.makeID(),
+                    reportID: idSource.makeID(),
+                    issueID: isRecheck
+                        ? existingIssueID
+                        : outcome.issueLabel == nil ? nil : idSource.makeID(),
+                    newIssueID: isRecheck && outcome.issueLabel != nil
+                        ? idSource.makeID()
+                        : nil
+                )
+            )
+        }
+        finalizationAttempt = activeAttempt
+        let identifiers = activeAttempt.identifiers
+        let asset = try requiredAsset(id: assetID)
+        let site = try requiredSite(id: asset.siteID)
+        let mutationID = identifiers.mutationID
+        let mutationRecords = try modelContext.fetch(
+            FetchDescriptor<WorkflowRecord>(
+                predicate: #Predicate { $0.finalizationMutationID == mutationID }
+            )
+        )
+        guard mutationRecords.count <= 1 else {
+            throw CheckRunnerCoordinatorError.finalizationFailed
+        }
+        let draft: WorkflowRecord
+        if let completed = mutationRecords.first {
+            guard completed.assetID == assetID else {
+                throw CheckRunnerCoordinatorError.finalizationFailed
+            }
+            draft = completed
+        } else {
+            _ = try prepareReview(assetID: assetID, selection: selection)
+            guard let existing = try existingDraft(assetID: assetID) else {
+                throw CheckRunnerCoordinatorError.captureDraftRequired
+            }
+            draft = existing
+        }
+        let draftID = draft.id
+        let evidenceDescriptor = FetchDescriptor<EvidenceFile>(
+            predicate: #Predicate { $0.recordID == draftID }
+        )
+        let evidence = try modelContext.fetch(evidenceDescriptor)
+        let outcomeResult: FinalizationServiceOutcome
+#if DEBUG
+        var finalizationPhase = "input"
+#endif
+        do {
+            let input = FinalizationServiceInput(
+                draft: draft,
+                asset: asset,
+                site: site,
+                evidence: evidence,
+                outcomeKey: outcome.key,
+                outcomeDisplay: outcome.display,
+                issueLabel: outcome.issueLabel,
+                couldNotVerify: outcome.couldNotVerify,
+                note: outcome.note,
+                completedAt: activeAttempt.completedAt,
+                snapshotCreatedAt: activeAttempt.snapshotCreatedAt,
+                sourceApp: activeAttempt.sourceApp,
+                identifiers: identifiers
+            )
+            if let lifecycle = liveLifecycle {
+#if DEBUG
+                finalizationPhase = "adapter-create"
+#endif
+                let adapter = try PackFinalizationAdapterV1(
+                    dependencies: lifecycle.dependencies,
+                    profile: lifecycle.profile,
+                    legacyModelContext: modelContext,
+                    intentStoreFailureInjection: finalizationStoreFailureInjection,
+                    failureInjection: finalizationServiceFailureInjection
+                )
+#if DEBUG
+                finalizationPhase = "binding-create"
+#endif
+                let binding = try PackFinalizationBindingV1(
+                    workspaceID: lifecycle.dependencies.workspaceID,
+                    generationID: lifecycle.dependencies.generationID,
+                    packageRelease: lifecycle.profile.release,
+                    mutationID: MutationIDV1(rawValue: identifiers.mutationID),
+                    durableReceiptIdentity: nil,
+                    preservesReservedLegacyRawWriteDebt: false
+                )
+#if DEBUG
+                finalizationPhase = "adapter-finalize"
+#endif
+                outcomeResult = try await adapter.finalize(input, binding: binding).finalization
+            } else {
+#if DEBUG
+                finalizationPhase = "legacy-service-create"
+#endif
+                let service = try FinalizationService(
+                    modelContext: modelContext,
+                    signPack: signPack,
+                    generationRootURL: generationRootURL,
+                    intentStoreFailureInjection: finalizationStoreFailureInjection,
+                    failureInjection: finalizationServiceFailureInjection
+                )
+#if DEBUG
+                finalizationPhase = "legacy-service-finalize"
+#endif
+                outcomeResult = try await service.finalize(input)
+            }
+        } catch {
+#if DEBUG
+            FileHandle.standardError.write(Data((
+                "CheckRunner finalize failure phase=\(finalizationPhase) "
+                    + "type=\(String(reflecting: type(of: error))) error=\(error)\n"
+            ).utf8))
+#endif
+            throw CheckRunnerCoordinatorError.finalizationFailed
+        }
+        let result = outcomeResult.result
+
+        let reportID = result.reportID
+        let reportDescriptor = FetchDescriptor<Report>(
+            predicate: #Predicate { $0.id == reportID }
+        )
+        guard try modelContext.fetch(reportDescriptor).count == 1 else {
+            throw CheckRunnerCoordinatorError.finalizationFailed
+        }
+        if outcomeResult.createdAuthority {
+            await diagnosticsStore?.increment(.reportSaved)
+            if draft.stage == WorkflowStage.recheck.rawValue {
+                await diagnosticsStore?.increment(.recheckCompleted)
+            }
+        }
+        finalizationAttempt = nil
+        return result
+    }
+
+    func makeReportDeliveryCoordinator() throws -> ReportDeliveryCoordinator {
+        if let reportDeliveryCoordinator { return reportDeliveryCoordinator }
+        guard let generationRootURL = captureGenerationRootURL else {
+            throw CheckRunnerCoordinatorError.finalizationNotConfigured
+        }
+        let coordinator: ReportDeliveryCoordinator
+        if let liveLifecycle {
+            guard liveLifecycle.dependencies.generationRootURL.standardizedFileURL
+                    == generationRootURL.standardizedFileURL else {
+                throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+            }
+            coordinator = try ReportDeliveryCoordinator(
+                modelContext: modelContext,
+                lifecycleDependencies: liveLifecycle.dependencies,
+                lifecycleProfile: liveLifecycle.profile,
+                diagnosticsStore: diagnosticsStore
+            )
+        } else {
+            coordinator = try ReportDeliveryCoordinator(
+                modelContext: modelContext,
+                generationRootURL: generationRootURL,
+                diagnosticsStore: diagnosticsStore,
+                signPack: signPack
+            )
+        }
+        reportDeliveryCoordinator = coordinator
+        return coordinator
+    }
+
+    func prepareReportDelivery(
+        result: FinalizationResult
+    ) throws -> ReportDeliveryPreparation {
+        try makeReportDeliveryCoordinator().prepareFinalizedReport(id: result.reportID)
+    }
+
+    func prepareCapture(
+        assetID: UUID,
+        allowsIncompleteReview: Bool = false
+    ) throws -> CapturePreparation {
+        guard let draft = try existingDraft(assetID: assetID) else {
+            throw CheckRunnerCoordinatorError.captureDraftRequired
+        }
+        let isCheck = draft.stage == WorkflowStage.check.rawValue
+            && draft.issueID == nil
+            && draft.parentRecordID == nil
+        let isRecheck = draft.stage == WorkflowStage.recheck.rawValue
+            && draft.issueID != nil
+            && draft.parentRecordID != nil
+        guard draft.revisionKind == WorkflowRevisionKind.original.rawValue,
+              isCheck || isRecheck,
+              draft.state == WorkflowState.draft.rawValue,
+              draft.packetID == nil,
+              draft.recordRevisionRootID == draft.id,
+              draft.revisesRecordID == nil,
+              draft.evidenceSourceRecordID == nil,
+              draft.completedAt == nil,
+              draft.outcomeKey == nil,
+              draft.packID == signPack.packID,
+              draft.packSchemaVersion == signPack.schemaVersion,
+              draft.packContentVersion == signPack.contentVersion,
+              draft.finalizationMutationID == nil,
+              let stepValue = draft.draftStepKey,
+              let step = WorkflowDraftStep(rawValue: stepValue),
+              step == .wide || step == .close || step == .outcome else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+
+        let draftID = draft.id
+        let descriptor = FetchDescriptor<EvidenceFile>(
+            predicate: #Predicate { $0.recordID == draftID }
+        )
+        let evidence = try modelContext.fetch(descriptor)
+        let purposes = try requiredEvidencePurposes(for: draft)
+        guard purposes.count == 2 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let first = evidence.filter { $0.purposeKey == purposes[0].key }
+        let second = evidence.filter { $0.purposeKey == purposes[1].key }
+        guard evidence.count == first.count + second.count,
+              first.count <= 1,
+              second.count <= 1 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+
+        let purpose: SignPack.EvidencePurpose?
+        switch step {
+        case .wide:
+            guard first.isEmpty, second.isEmpty else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            purpose = purposes[0]
+        case .close:
+            guard first.count == 1, second.isEmpty else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            purpose = purposes[1]
+        case .outcome:
+            guard allowsIncompleteReview
+                ? (second.isEmpty || first.count == 1)
+                : (first.count == 1 && second.count == 1) else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            purpose = nil
+        case .review:
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        return CapturePreparation(
+            draftID: draft.id,
+            step: step,
+            purpose: purpose
+        )
+    }
+
+    func importCandidate(assetID: UUID, sourceData: Data, createdAt: Date) async throws -> CaptureCandidate {
+        switch mutationRoute {
+        case let .live(dependencies, _):
+            guard let owner = StoreSessionCoordinator.temporalOwner(for: dependencies.writer) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return try await owner.withTemporalProducer {
+                try await importCandidateWhileOwned(assetID: assetID, sourceData: sourceData,
+                    createdAt: createdAt, sessionLifetime: .current(try owner.retainTemporalProducerResource()))
+            }
+        case .expiringCompatibility:
+            return try await importCandidateWhileOwned(assetID: assetID, sourceData: sourceData,
+                createdAt: createdAt, sessionLifetime: .frozenCompatibility)
+        }
+    }
+
+    private func importCandidateWhileOwned(
+        assetID: UUID,
+        sourceData: Data,
+        createdAt: Date,
+        sessionLifetime: CaptureCandidateProducerLifetimeV1.SessionLifetime
+    ) async throws -> CaptureCandidate {
+        let preparation = try prepareCapture(assetID: assetID)
+        guard let purpose = preparation.purpose else {
+            throw CheckRunnerCoordinatorError.captureUnavailable
+        }
+        guard let generationRootURL = captureGenerationRootURL,
+              let evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+
+        let producerLifetime = try CaptureCandidateProducerLifetimeV1(
+            generationRootURL: generationRootURL, session: sessionLifetime)
+        do {
+            try storagePreflight.checkEvidenceAcceptance(
+                onVolumeContaining: generationRootURL
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.storageUnavailable
+        }
+
+        let normalized: NormalizedMediaV1
+        do {
+            normalized = try MediaNormalizerV1().normalize(sourceData)
+        } catch {
+            throw CheckRunnerCoordinatorError.mediaImportFailed
+        }
+
+        let evidenceID = idSource.makeID()
+        let staged: StagedEvidenceBundle
+        do {
+            staged = try await evidenceBundleStore.stage(
+                evidenceID: evidenceID,
+                normalized: normalized
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.mediaImportFailed
+        }
+        return CaptureCandidate(
+            id: evidenceID,
+            recordID: preparation.draftID,
+            purposeKey: purpose.key,
+            createdAt: createdAt,
+            previewJPEG: normalized.originalJPEG,
+            stagedBundle: staged,
+            producerLifetime: producerLifetime
+        )
+    }
+
+    func retake(candidate: CaptureCandidate) async throws {
+        switch mutationRoute {
+        case let .live(dependencies, _):
+            guard let owner = StoreSessionCoordinator.temporalOwner(for: dependencies.writer) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try await candidate.producerLifetime.withCurrentProducer(for: owner) {
+                try await retakeWhileOwned(candidate: candidate)
+            }
+        case .expiringCompatibility:
+            try await retakeWhileOwned(candidate: candidate)
+        }
+        candidate.producerLifetime.finish()
+    }
+
+    private func retakeWhileOwned(candidate: CaptureCandidate) async throws {
+        guard let evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+        let recordID = candidate.recordID
+        let descriptor = FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }
+        )
+        guard let draft = try modelContext.fetch(descriptor).first else {
+            throw CheckRunnerCoordinatorError.captureDraftRequired
+        }
+        let preparation = try prepareCapture(assetID: draft.assetID)
+        guard preparation.draftID == candidate.recordID,
+              preparation.purpose?.key == candidate.purposeKey,
+              candidate.stagedBundle.evidenceID == candidate.id else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        do {
+            try await evidenceBundleStore.discardStaging(
+                evidenceID: candidate.id
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.mediaImportFailed
+        }
+    }
+
+    @discardableResult
+    func accept(candidate: CaptureCandidate, assetID: UUID) async throws -> EvidenceFile {
+        let result: EvidenceFile
+        switch mutationRoute {
+        case let .live(dependencies, _):
+            guard let owner = StoreSessionCoordinator.temporalOwner(for: dependencies.writer) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            // The model never leaves MainActor. Only Void crosses the generic
+            // lifetime wrapper; preserve the exact returned incumbent model.
+            var accepted: EvidenceFile?
+            try await candidate.producerLifetime.withCurrentProducer(for: owner) {
+                accepted = try await acceptWhileOwned(candidate: candidate, assetID: assetID)
+            }
+            guard let accepted else { throw CheckRunnerCoordinatorError.saveFailed }
+            result = accepted
+        case .expiringCompatibility:
+            result = try await acceptWhileOwned(candidate: candidate, assetID: assetID)
+        }
+        candidate.producerLifetime.finish()
+        return result
+    }
+
+    private func acceptWhileOwned(
+        candidate: CaptureCandidate,
+        assetID: UUID
+    ) async throws -> EvidenceFile {
+        if let replay = try await replayedEvidence(
+            candidate: candidate,
+            assetID: assetID
+        ) {
+            return replay
+        }
+        let preparation = try prepareCapture(assetID: assetID)
+        guard preparation.draftID == candidate.recordID,
+              preparation.purpose?.key == candidate.purposeKey,
+              candidate.stagedBundle.evidenceID == candidate.id,
+              let evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+
+        let promoted: PromotedEvidenceBundle
+        do {
+            promoted = try await evidenceBundleStore.promote(
+                candidate.stagedBundle
+            )
+        } catch {
+            throw CheckRunnerCoordinatorError.mediaImportFailed
+        }
+
+        var draftMutation: (draft: WorkflowRecord, priorStepKey: String?)?
+        do {
+            let currentPreparation = try prepareCapture(assetID: assetID)
+            guard currentPreparation == preparation else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            let draftID = currentPreparation.draftID
+            let descriptor = FetchDescriptor<WorkflowRecord>(
+                predicate: #Predicate { $0.id == draftID }
+            )
+            guard let draft = try modelContext.fetch(descriptor).first else {
+                throw CheckRunnerCoordinatorError.captureDraftRequired
+            }
+            draftMutation = (draft, draft.draftStepKey)
+            let evidence = EvidenceFile(
+                id: candidate.id,
+                recordID: candidate.recordID,
+                purposeKey: candidate.purposeKey,
+                relativePath: promoted.originalRelativePath,
+                mimeType: "image/jpeg",
+                byteCount: promoted.originalByteCount,
+                sha256: promoted.originalSHA256,
+                createdAt: candidate.createdAt,
+                thumbnailRelativePath: promoted.thumbnailRelativePath,
+                thumbnailByteCount: promoted.thumbnailByteCount,
+                thumbnailSHA256: promoted.thumbnailSHA256
+            )
+            let nextDraftStepKey = preparation.step == .wide
+                ? WorkflowDraftStep.close.rawValue
+                : WorkflowDraftStep.outcome.rawValue
+            if evidenceSaveFailureInjection?.consume(.evidenceModelSave) == true {
+                throw CheckRunnerCoordinatorError.saveFailed
+            }
+            try executeWorkspaceMutation(
+                .acceptCheckEvidence(CheckEvidenceMutationV1(
+                    evidenceID: candidate.id,
+                    draftID: candidate.recordID,
+                    purposeKey: candidate.purposeKey,
+                    relativePath: promoted.originalRelativePath,
+                    mimeType: "image/jpeg",
+                    byteCount: promoted.originalByteCount,
+                    sha256: promoted.originalSHA256,
+                    thumbnailRelativePath: promoted.thumbnailRelativePath,
+                    thumbnailByteCount: promoted.thumbnailByteCount,
+                    thumbnailSHA256: promoted.thumbnailSHA256,
+                    nextDraftStepKey: nextDraftStepKey,
+                    createdAt: candidate.createdAt
+                )),
+                mutationID: try MutationIDV1(rawValue: candidate.id),
+                occurredAt: candidate.createdAt
+            )
+            let evidenceID = candidate.id
+            let persisted = try modelContext.fetch(FetchDescriptor<EvidenceFile>(
+                predicate: #Predicate { $0.id == evidenceID }
+            ))
+            guard persisted.count == 1, let accepted = persisted.first else {
+                throw CheckRunnerCoordinatorError.saveFailed
+            }
+            return accepted
+        } catch {
+            let saveError = error
+            modelContext.rollback()
+            if let draftMutation {
+                draftMutation.draft.draftStepKey = draftMutation.priorStepKey
+            }
+            do {
+                try await evidenceBundleStore.removePromotedBundleIfOwned(promoted)
+            } catch {
+                throw CheckRunnerCoordinatorError.cleanupFailed
+            }
+            if let failure = saveError as? CheckRunnerCoordinatorError {
+                throw failure
+            }
+            throw CheckRunnerCoordinatorError.saveFailed
+        }
+    }
+
+    private func replayedEvidence(
+        candidate: CaptureCandidate,
+        assetID: UUID
+    ) async throws -> EvidenceFile? {
+        guard let evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.captureNotConfigured
+        }
+        let evidenceID = candidate.id
+        let matches = try modelContext.fetch(
+            FetchDescriptor<EvidenceFile>(
+                predicate: #Predicate { $0.id == evidenceID }
+            )
+        )
+        guard matches.count <= 1 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        guard let evidence = matches.first else { return nil }
+
+        let recordID = candidate.recordID
+        let records = try modelContext.fetch(
+            FetchDescriptor<WorkflowRecord>(
+                predicate: #Predicate { $0.id == recordID }
+            )
+        )
+        let recordEvidence = try modelContext.fetch(
+            FetchDescriptor<EvidenceFile>(
+                predicate: #Predicate { $0.recordID == recordID }
+            )
+        )
+        guard let record = records.first else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let purposes = try requiredEvidencePurposes(for: record)
+        let expectedStep: WorkflowDraftStep
+        if purposes.indices.contains(0), candidate.purposeKey == purposes[0].key {
+            expectedStep = .close
+        } else if purposes.indices.contains(1), candidate.purposeKey == purposes[1].key {
+            expectedStep = .outcome
+        } else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let staged = candidate.stagedBundle
+        let canonicalID = candidate.id.uuidString.lowercased()
+        guard records.count == 1,
+              let draft = records.first,
+              draft.assetID == assetID,
+              draft.state == WorkflowState.draft.rawValue,
+              draft.draftStepKey == expectedStep.rawValue,
+              evidence.recordID == candidate.recordID,
+              evidence.purposeKey == candidate.purposeKey,
+              evidence.createdAt == candidate.createdAt,
+              evidence.mimeType == MediaContractV1.durableMIMEType,
+              evidence.relativePath == staged.originalRelativePath,
+              evidence.thumbnailRelativePath == staged.thumbnailRelativePath,
+              evidence.byteCount == staged.originalByteCount,
+              evidence.thumbnailByteCount == staged.thumbnailByteCount,
+              evidence.sha256 == staged.originalSHA256,
+              evidence.thumbnailSHA256 == staged.thumbnailSHA256,
+              staged.evidenceID == candidate.id,
+              staged.stagingDirectoryRelativePath
+                == ".staging/evidence/\(canonicalID)",
+              staged.originalRelativePath
+                == "evidence/\(canonicalID)/original.jpg",
+              staged.thumbnailRelativePath
+                == "evidence/\(canonicalID)/thumbnail.jpg",
+              recordEvidence.filter({
+                  $0.purposeKey == candidate.purposeKey
+              }).count == 1 else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        let promoted = PromotedEvidenceBundle(
+            evidenceID: staged.evidenceID,
+            originalRelativePath: staged.originalRelativePath,
+            thumbnailRelativePath: staged.thumbnailRelativePath,
+            originalByteCount: staged.originalByteCount,
+            thumbnailByteCount: staged.thumbnailByteCount,
+            originalSHA256: staged.originalSHA256,
+            thumbnailSHA256: staged.thumbnailSHA256
+        )
+        do {
+            guard try await evidenceBundleStore.verifyPromoted(promoted) == promoted else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+        } catch let error as CheckRunnerCoordinatorError {
+            throw error
+        } catch {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+        return evidence
+    }
+
+    func prepare(assetID: UUID) throws -> CheckRunnerPreparation {
+        let draft = try existingDraft(assetID: assetID)
+        if draft != nil {
+            pendingRecheckRequest = nil
+        }
+        let asset = try requiredAsset(id: assetID)
+        let site = try requiredSite(id: asset.siteID)
+        return CheckRunnerPreparation(
+            confirmedTimeZoneID: site.timeZoneID,
+            existingDraftID: draft?.id
+        )
+    }
+
+    func existingDraft(assetID: UUID) throws -> WorkflowRecord? {
+        let descriptor = FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.assetID == assetID }
+        )
+        let drafts = try modelContext.fetch(descriptor).filter {
+            $0.state == WorkflowState.draft.rawValue
+        }
+        guard drafts.count <= 1 else {
+            throw CheckRunnerCoordinatorError.multipleActiveDrafts
+        }
+        return drafts.first
+    }
+
+    func beginCheck(
+        assetID: UUID,
+        timeZoneID: String?,
+        isTimeZoneConfirmed: Bool,
+        afterDarkAccepted: Bool,
+        safePositionAccepted: Bool,
+        observedAt: Date
+    ) throws -> WorkflowRecord {
+        let requestedStage: WorkflowStage
+        let issueID: UUID?
+        if let request = pendingRecheckRequest {
+            guard request.assetID == assetID else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            requestedStage = .recheck
+            issueID = request.issueID
+        } else {
+            requestedStage = .check
+            issueID = nil
+        }
+        let draft = try beginOrResumeDraft(
+            BeginDraftSubmission(
+                assetID: assetID,
+                requestedStage: requestedStage,
+                issueID: issueID,
+                observedAtUTC: observedAt,
+                confirmedTimeZoneID: isTimeZoneConfirmed ? timeZoneID : nil,
+                afterDarkAccepted: afterDarkAccepted,
+                safePositionAccepted: safePositionAccepted
+            )
+        )
+        pendingRecheckRequest = nil
+        return draft
+    }
+
+    func accessDecision(
+        assetID: UUID,
+        requestedStage: WorkflowStage,
+        issueID: UUID?
+    ) throws -> DraftAccessDecisionV1 {
+        guard !modelContext.hasChanges else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        guard let requestedEntry = draftAccessEntry(for: requestedStage) else {
+            return .blockInvalidRequest
+        }
+        let gateCheckedAt = clock.now()
+        if let draft = try existingDraft(assetID: assetID) {
+            guard draftAccessEntry(for: draft) == requestedEntry,
+                  draft.issueID == issueID,
+                  let proof = validatedDraftProof(
+                    draft,
+                    entry: requestedEntry,
+                    gateCheckedAt: gateCheckedAt
+                  ) else {
+                return .blockInvalidRequest
+            }
+            if let draftAccessState {
+                return try evaluateDraftAccess(
+                    state: draftAccessState(),
+                    entry: requestedEntry,
+                    existingDraft: proof
+                )
+            }
+            return .continueExisting
+        }
+
+        _ = try requiredAsset(id: assetID)
+        _ = try validatedParentRecordID(
+            assetID: assetID,
+            requestedStage: requestedStage,
+            issueID: issueID
+        )
+        guard let draftAccessState else { return .allow }
+        return try evaluateDraftAccess(
+            state: draftAccessState(),
+            entry: requestedEntry,
+            existingDraft: nil
+        )
+    }
+
+    func requestRecheck(assetID: UUID, issueID: UUID) throws {
+        let decision = try accessDecision(
+            assetID: assetID,
+            requestedStage: .recheck,
+            issueID: issueID
+        )
+        if decision == .continueExisting {
+            pendingRecheckRequest = nil
+            return
+        }
+        guard decision == .allow else {
+            throw CheckRunnerCoordinatorError.accessDenied(decision)
+        }
+        pendingRecheckRequest = (assetID, issueID)
+    }
+
+    func clearPendingRecheckRequest() {
+        pendingRecheckRequest = nil
+    }
+
+    func activeDraftStage(assetID: UUID) -> WorkflowStage? {
+        guard let draft = try? existingDraft(assetID: assetID) else { return nil }
+        return WorkflowStage(rawValue: draft.stage)
+    }
+
+    func issueStatus(assetID: UUID, issueID: UUID) throws -> IssueStatus {
+        guard !modelContext.hasChanges else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        let issues = try modelContext.fetch(FetchDescriptor<Issue>()).filter {
+            $0.id == issueID
+        }
+        guard issues.count == 1,
+              issues[0].schemaVersion == 1,
+              issues[0].assetID == assetID,
+              let status = IssueStatus(rawValue: issues[0].status) else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        return status
+    }
+
+    /// Captures an explicit check/recheck request before a future parent draft
+    /// exists. The source value is not a saved checkpoint or an access token.
+    func captureFrozenBeginSource(
+        read: ProductionRepetitiveCaptureReadV2,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        itemID: UUID,
+        publishedRelease: InspectionPackageReleaseV1,
+        requestedEntry: CheckRunnerRequestedEntryV1
+    ) throws -> CheckRunnerRoundItemSourceV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        try progress.validateForPublication(read)
+        let source = try CheckRunnerRoundItemSourceV1(
+            read: read, itemID: itemID, publishedRelease: publishedRelease,
+            signPack: signPack, requestedEntry: requestedEntry
+        )
+        try validateFrozenBeginAdmission(source, dependencies: dependencies)
+        try progress.validateForPublication(read)
+        return source
+    }
+
+    /// Supplies this coordinator's private shipping package to the existing
+    /// historical ENTRY validator. This is a read acknowledgement only.
+    func validateHistoricalCheckRunnerSource(
+        _ source: CheckRunnerRoundItemSourceV1,
+        read: ProductionRepetitiveCaptureReadV2,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1
+    ) throws {
+        _ = try frozenBeginDependencies(progress: progress)
+        try progress.validateHistoricalCheckRunnerSource(source, read: read,
+            publishedRelease: publishedRelease, signPack: signPack)
+        _ = try frozenBeginDependencies(progress: progress)
+    }
+
+    /// One freshly authenticated historical ENTRY observation. No supplied read
+    /// is trusted, and this acknowledgement grants no later effect permission.
+    func validateFreshHistoricalCheckRunnerSource(
+        _ source: CheckRunnerRoundItemSourceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1
+    ) throws {
+        try progress.validateFreshHistoricalCheckRunnerSource(source, coordinator: self,
+            publishedRelease: publishedRelease, signPack: signPack)
+    }
+
+    /// The fixed fresh observation calls this before/after its value checks.
+    /// Keep this dependency-only and nonrecursive: it returns no authority.
+    func validateHistoricalCheckRunnerDependencies(
+        progress: ProductionRepetitiveCaptureProgressServiceV2
+    ) throws {
+        _ = try frozenBeginDependencies(progress: progress)
+    }
+
+    /// Returns the already configured sole media owner, bound to this exact
+    /// live writer/generation. The application still owns every effect permit.
+    func checkRunnerPhotoMediaOwner(progress: ProductionRepetitiveCaptureProgressServiceV2) throws
+        -> CheckRunnerPhotoMediaOwnerV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        guard captureGenerationRootURL == dependencies.generationRootURL, let store = evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return .init(store: store, generationRootURL: dependencies.generationRootURL,
+            rootIdentity: try ReportPDFAnchoredFile.rootIdentity(at: dependencies.generationRootURL))
+    }
+
+    /// Reuses the configured physical owner for the receipt-backed committed
+    /// photo. The application closes the historical source/target read again
+    /// after this actor boundary before it publishes the returned facts.
+    func readCheckRunnerPhotoMedia(
+        target: CheckRunnerPhotoCurrentTargetEvidenceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2
+    ) async throws -> CheckRunnerPhotoMediaReadbackV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let revision = try dependencies.writer.currentRevision()
+        guard target.parent.checkpoint.workspaceID == dependencies.workspaceID,
+              captureGenerationRootURL == dependencies.generationRootURL,
+              let store = evidenceBundleStore else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        let child = target.parent.child
+        let payload = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(
+            child.reconstruction.draftCommit.checkpoint)
+        guard case let .preparedCommit(pair, attempt) = payload.phase else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        let reference = try ContentReferenceV1(
+            workspaceID: child.reservation.locator.workspaceID,
+            contentID: pair.raw.inspection.rawContentID,
+            byteLength: pair.raw.inspection.sourceByteCount,
+            mediaType: pair.raw.inspection.sourceMediaType,
+            digests: .init([pair.raw.inspection.sourceSHA256]),
+            byteRole: .immutableOriginal,
+            createdAt: CheckRunnerPhotoRawReadyV1.formatOriginalRecordedAt(attempt.promotionAt))
+        if let recorded = child.stage.contentReference {
+            guard recorded == reference else { throw FieldDraftFailureV1.digestMismatch }
+        }
+        let root = dependencies.generationRootURL
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: root)
+        try Task.checkCancellation()
+        let media = try await store.readCheckRunnerPhotoMedia(raw: pair.raw,
+            pair: pair.normalizedPair, reference: reference,
+            expectedGenerationRootIdentity: (rootIdentity.device, rootIdentity.inode))
+        try Task.checkCancellation()
+        let closing = try frozenBeginDependencies(progress: progress)
+        guard closing.writer === dependencies.writer,
+              closing.generationID == dependencies.generationID,
+              closing.generationRootURL == root,
+              captureGenerationRootURL == root, evidenceBundleStore === store,
+              try closing.writer.currentRevision() == revision,
+              try ReportPDFAnchoredFile.rootIdentity(at: root) == rootIdentity else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        return media
+    }
+
+    /// No identifiers or times are allocated here. The parent service freezes
+    /// those only after current source, outcome, target and media checks pass.
+    func prepareParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws
+        -> (outcome: CheckRunnerOutcomeSnapshotV1, workflowRevision: UInt64) {
+        let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+            progress: progress, publishedRelease: publishedRelease)
+        guard parentCheckpoint.state == .active, current.parent.finalization == nil else {
+            throw FieldDraftFailureV1.invalidTransition
+        }
+        return (current.outcome, current.workflowRevision)
+    }
+
+    func reconstructParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> CheckRunnerDraftCommitReconstructionV1 {
+        let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+            progress: progress, publishedRelease: publishedRelease)
+        guard let finalization = current.parent.finalization else { throw FieldDraftFailureV1.invalidTransition }
+        let reconstructed = try CheckRunnerItemDraftCodecV1.reconstructFinalizationCommit(
+            from: finalization.reconstruction.checkpoint, signPack: signPack,
+            activeLifecycleProfile: { current.profile })
+        guard reconstructed == finalization.reconstruction else { throw FieldDraftFailureV1.digestMismatch }
+        return reconstructed
+    }
+
+    func readParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil) throws
+        -> ReviewedFinalizationCommitV1? {
+        try withParentFinalizationAuthorization(liveOperation) {
+            let current = try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+                progress: progress, publishedRelease: publishedRelease)
+            let target = try parentFinalizationTarget(current, authorizing: liveOperation)
+            let read = try target.adapter.readCommittedFinalization(target.input, binding: target.binding,
+                expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision)
+            guard read?.receipt == current.parent.finalization?.target?.receipt else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            return read
+        }
+    }
+
+    /// Uses only the incumbent package-bound finalizer. A saved effect is
+    /// recovered through its real readback; it is never replaced by a receipt
+    /// constructed from the frozen parent values.
+    func commitParentFinalization(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess? = nil,
+        revalidate: @MainActor () throws -> Void) async throws -> MutationReceiptV1 {
+        try Task.checkCancellation(); try revalidate()
+        let current = try withParentFinalizationAuthorization(liveOperation) {
+            try parentFinalizationContext(parentCheckpoint: parentCheckpoint,
+                progress: progress, publishedRelease: publishedRelease)
+        }
+        let target = try parentFinalizationTarget(current, authorizing: liveOperation)
+        let existing = try withParentFinalizationAuthorization(liveOperation) {
+            try target.adapter.readCommittedFinalization(target.input, binding: target.binding,
+                expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision)
+        }
+        if let read = existing {
+            guard read.receipt == current.parent.finalization?.target?.receipt else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            try revalidate()
+            return read.receipt
+        }
+        guard current.parent.finalization?.target == nil,
+              current.workflowRevision == target.attempt.expectedWorkflowRecordRevision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        var failure: Error?
+        var returnedIdentity: MutationReceiptIdentityV1?
+        do {
+            returnedIdentity = try await target.adapter.finalize(target.input, binding: target.binding,
+                expectedWorkflowRecordRevision: target.attempt.expectedWorkflowRecordRevision).durableReceiptIdentity
+        } catch { failure = error }
+        try Task.checkCancellation(); try revalidate()
+        if let read = try readParentFinalization(parentCheckpoint: parentCheckpoint,
+            progress: progress, publishedRelease: publishedRelease, authorizing: liveOperation) {
+            guard returnedIdentity == nil || returnedIdentity == read.receipt.identity else {
+                throw FieldDraftFailureV1.digestMismatch
+            }
+            return read.receipt
+        }
+        if let failure { throw failure }
+        throw FieldDraftFailureV1.missingReceipt
+    }
+
+    private func withParentFinalizationAuthorization<T>(
+        _ operation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?,
+        _ body: () throws -> T) throws -> T {
+        if let operation { return try operation.withAuthorization(body) }
+        return try body()
+    }
+
+    private struct ParentFinalizationContext {
+        let parent: CheckRunnerItemParentEvidenceV1
+        let dependencies: WorkspacePackageLifecycleDependenciesV1
+        let profile: WorkspacePackageLifecycleProfileV1
+        let asset: Asset
+        let site: Site
+        let record: WorkflowRecord
+        let evidence: [EvidenceFile]
+        let outcome: CheckRunnerOutcomeSnapshotV1
+        let workflowRevision: UInt64
+    }
+
+    private func parentFinalizationContext(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> ParentFinalizationContext {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        guard let lifecycle = liveLifecycle,
+              let parent = try dependencies.writer.checkRunnerItemParentEvidence(
+                workspaceID: dependencies.workspaceID, draftID: parentCheckpoint.draftID),
+              parent.checkpoint == parentCheckpoint else { throw FieldDraftFailureV1.staleDraftRevision }
+        let payload = try CheckRunnerItemDraftCodecV1.validateCheckpoint(parentCheckpoint)
+        guard case let .bound(begin, _, _) = payload.field.begin else { throw FieldDraftFailureV1.missingReceipt }
+        let sourceRead = try progress.read(sourceDraftID: payload.source.sourceCheckpoint.draftID)
+        try validateHistoricalCheckRunnerSource(payload.source, read: sourceRead,
+            progress: progress, publishedRelease: publishedRelease)
+        if parent.finalization?.target == nil {
+            try payload.source.validate(read: sourceRead, publishedRelease: publishedRelease, signPack: signPack)
+        }
+        try validateFrozenBeginContext(payload.source, dependencies: dependencies)
+        let outcome = try CheckRunnerOutcomeSnapshotV1.prepare(editor: payload.field.outcome,
+            stage: payload.source.requestedEntry.stage, signPack: signPack,
+            activeLifecycleProfile: { lifecycle.profile })
+        if let finalization = parent.finalization {
+            try finalization.validatePreparedOutcome(profile: lifecycle.profile)
+            guard outcome == finalization.attempt.normalizedOutcome else { throw FieldDraftFailureV1.digestMismatch }
+        }
+        let recordID = begin.recordCommand.recordID
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }))
+        guard records.count == 1, let record = records.first else { throw FieldDraftFailureV1.missingReceipt }
+        let asset = try requiredAsset(id: payload.source.assetID)
+        let site = try requiredSite(id: asset.siteID)
+        let evidence = try modelContext.fetch(FetchDescriptor<EvidenceFile>(
+            predicate: #Predicate { $0.recordID == recordID }))
+        let slots = [payload.field.wideContext, payload.field.closeDetail].compactMap { $0 }
+        guard slots.allSatisfy({ if case .committed = $0 { return true }; return false }),
+              Set(evidence.map(\.id)) == Set(slots.compactMap(\.evidenceID)),
+              evidence.count == slots.count else { throw FieldDraftFailureV1.missingContent }
+        let revision = try dependencies.writer.currentRevision()
+        let identity = try WorkspaceEntityIdentityV1(kind: .workflowRecord, id: recordID)
+        let revisions = revision.entityRevisions.filter { $0.identity == identity }
+        guard revisions.count == 1, let workflowRevision = revisions.first?.revision,
+              workflowRevision > 0 else { throw FieldDraftFailureV1.staleDraftRevision }
+        for slot in slots {
+            guard let photo = try dependencies.writer.checkRunnerPhotoCurrentTargetEvidence(
+                workspaceID: dependencies.workspaceID, parentDraftID: parentCheckpoint.draftID,
+                childDraftID: slot.childDraftID), photo.parent.checkpoint == parentCheckpoint,
+                  photo.parent.slot == slot, photo.workflow.id == recordID,
+                  photo.workflowPostImage.revision == workflowRevision,
+                  photo.finalization == parent.finalization?.target else { throw FieldDraftFailureV1.digestMismatch }
+        }
+        if parent.finalization?.target == nil {
+            if slots.isEmpty { try requireInitialBeginRecord(record, command: begin.recordCommand) }
+            try validateInitialBeginAccess(begin, workflow: parent.workflow)
+            let review = try prepareReview(assetID: asset.id, selection: outcome.selection)
+            guard review.draftID == recordID else { throw FieldDraftFailureV1.staleDraftRevision }
+        } else {
+            guard record.state == WorkflowState.completed.rawValue,
+                  record.finalizationMutationID == parent.finalization?.attempt.identifiers.mutationID,
+                  let entry = draftAccessEntry(for: payload.source.requestedEntry.stage) else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            if let draftAccessState {
+                let proof = RepositoryValidatedDraftV1(draftID: recordID, assetID: payload.source.assetID,
+                    issueID: begin.recordCommand.issueID, entry: entry,
+                    createdAt: parent.workflow.receipt.committedAt, gateCheckedAt: clock.now())
+                let decision = try evaluateDraftAccess(state: draftAccessState(), entry: entry, existingDraft: proof)
+                guard decision == .allow || decision == .continueExisting else {
+                    throw CheckRunnerCoordinatorError.accessDenied(decision)
+                }
+            }
+        }
+        guard try dependencies.writer.currentRevision() == revision else { throw FieldDraftFailureV1.staleDraftRevision }
+        _ = try frozenBeginDependencies(progress: progress)
+        return .init(parent: parent, dependencies: dependencies, profile: lifecycle.profile,
+            asset: asset, site: site, record: record, evidence: evidence,
+            outcome: outcome, workflowRevision: workflowRevision)
+    }
+
+    private func parentFinalizationTarget(_ current: ParentFinalizationContext,
+        authorizing liveOperation: AppAccessPresentationV1.CheckRunnerItemOperationAccess?) throws
+        -> (adapter: PackFinalizationAdapterV1, input: FinalizationServiceInput,
+            binding: PackFinalizationBindingV1, attempt: CheckRunnerFinalizationAttemptInputsV1) {
+        guard let finalization = current.parent.finalization else { throw FieldDraftFailureV1.invalidTransition }
+        let attempt = finalization.attempt
+        let outcome = try attempt.normalizedOutcome.resolve(
+            stage: finalization.editing.parent.source.requestedEntry.stage, signPack: signPack,
+            activeLifecycleProfile: { current.profile })
+        let input = FinalizationServiceInput(draft: current.record, asset: current.asset, site: current.site,
+            evidence: current.evidence, outcomeKey: outcome.key, outcomeDisplay: outcome.display,
+            issueLabel: outcome.issueLabel, couldNotVerify: outcome.couldNotVerify, note: outcome.note,
+            completedAt: attempt.completedAt, snapshotCreatedAt: attempt.snapshotCreatedAt,
+            sourceApp: attempt.sourceApp, identifiers: attempt.identifiers.finalizationIdentifiers)
+        let adapter = try PackFinalizationAdapterV1(dependencies: current.dependencies,
+            profile: current.profile, legacyModelContext: modelContext,
+            intentStoreFailureInjection: finalizationStoreFailureInjection,
+            failureInjection: finalizationServiceFailureInjection, authorizing: liveOperation)
+        let binding = try PackFinalizationBindingV1(workspaceID: current.dependencies.workspaceID,
+            generationID: current.dependencies.generationID, packageRelease: current.profile.release,
+            mutationID: .init(rawValue: attempt.identifiers.mutationID),
+            durableReceiptIdentity: finalization.target?.receipt.identity,
+            preservesReservedLegacyRawWriteDebt: false)
+        return (adapter, input, binding, attempt)
+    }
+
+    /// Produces source inputs only. The eventual parent owner must retain this
+    /// exact value before any effect; this method does not perform retry/resume.
+    func prepareFrozenBegin(
+        source: CheckRunnerRoundItemSourceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1,
+        submission: BeginDraftSubmission
+    ) throws -> CheckRunnerFrozenBeginAttemptV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let read = try progress.read(sourceDraftID: source.sourceCheckpoint.draftID)
+        try progress.validateForPublication(read)
+        try source.validate(read: read, publishedRelease: publishedRelease, signPack: signPack)
+        try validateFrozenBeginAdmission(source, dependencies: dependencies)
+        guard submission.assetID == source.assetID,
+              submission.requestedStage == source.requestedEntry.stage,
+              submission.issueID == source.requestedEntry.issueID else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        guard submission.afterDarkAccepted, submission.safePositionAccepted else {
+            throw CheckRunnerCoordinatorError.acknowledgementsRequired
+        }
+        guard let observedAt = submission.observedAtUTC,
+              observedAt.timeIntervalSince1970.isFinite else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        let asset = try requiredAsset(id: source.assetID)
+        let parentID = try validatedParentRecordID(
+            assetID: source.assetID, requestedStage: source.requestedEntry.stage,
+            issueID: source.requestedEntry.issueID
+        )
+        let snapshots = try acknowledgementSnapshots(for: asset)
+        let resolution = try resolvedTimeZone(
+            asset: asset, proposedTimeZoneID: submission.confirmedTimeZoneID
+        )
+        let timeContext: FrozenTimeContext
+        do {
+            timeContext = try TimeContextRule.freeze(
+                observedAtUTC: observedAt, confirmedTimeZoneID: resolution.timeZoneID
+            )
+        } catch TimeContextRuleError.invalidTimeZoneID {
+            throw CheckRunnerCoordinatorError.invalidTimeZoneID
+        }
+        let sampled = clock.now().timeIntervalSince1970
+        guard sampled.isFinite, sampled >= 0, (sampled * 1_000).isFinite else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        let committedAt = Date(timeIntervalSince1970: floor(sampled * 1_000) / 1_000)
+        let command = try prepareDraftCommand(
+            asset: asset, requestedStage: source.requestedEntry.stage,
+            issueID: source.requestedEntry.issueID, parentRecordID: parentID,
+            timeContext: timeContext, acknowledgementSnapshots: snapshots, startedAt: observedAt
+        )
+        let recordID = command.recordID
+        guard try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == recordID }
+        )).isEmpty else { throw CheckRunnerCoordinatorError.invalidLineage }
+        let mutationID = try MutationIDV1(rawValue: recordID)
+        let timeZoneID: MutationIDV1?
+        if resolution.requiresSave {
+            timeZoneID = try MutationIDV1(rawValue: idSource.makeID())
+        } else {
+            timeZoneID = nil
+        }
+        let current = try dependencies.writer.currentRevision()
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        let targets = try workspaceTargets(.createCheckDraft(command)).sorted { $0.stableKey < $1.stableKey }
+        let expected = targets.map {
+            WorkspaceEntityRevisionV1(identity: $0, revision: known[$0, default: 0])
+        }
+        let timeZone = try timeZoneID.map { id in
+            try CheckRunnerBeginTimeZoneAttemptV1(
+                command: .init(siteID: resolution.site.id, timeZoneID: resolution.timeZoneID,
+                               confirmedAt: observedAt),
+                mutationID: id,
+                expectedSiteRevision: known[try WorkspaceEntityIdentityV1(kind: .site, id: resolution.site.id), default: 0],
+                committedAt: committedAt
+            )
+        }
+        let attempt = try CheckRunnerFrozenBeginAttemptV1(
+            source: source, sourceWorkspaceID: current.workspaceID,
+            recordCommand: command, recordMutationID: mutationID,
+            recordExpectedEntityRevisions: expected, recordCommittedAt: committedAt,
+            timeZone: timeZone, siteID: resolution.site.id, resolvedSiteTimeZoneID: resolution.timeZoneID
+        )
+        try progress.validateForPublication(read)
+        _ = try frozenBeginDependencies(progress: progress)
+        return attempt
+    }
+
+    /// Initial durable recovery only. Both original reads and the authenticated
+    /// PREPARED checkpoint are checked before either target effect is attempted.
+    func resumeFrozenBegin(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> CheckRunnerBeginStateV1 {
+        let first = try initialBeginEvidence(parentCheckpoint, progress: progress, publishedRelease: publishedRelease)
+        guard case .prepared = first.payload.field.begin else { throw FieldDraftFailureV1.invalidValue }
+        let writer = try frozenBeginDependencies(progress: progress).writer
+        if first.attempt.timeZone != nil, first.timeZone == nil {
+            _ = try writer.commitFrozenCheckRunnerTimeZone(first.attempt)
+        }
+        let afterZone = try initialBeginEvidence(parentCheckpoint, progress: progress, publishedRelease: publishedRelease)
+        if afterZone.workflow == nil {
+            _ = try writer.commitFrozenCheckRunnerDraft(afterZone.attempt)
+        }
+        let saved = try initialBeginEvidence(parentCheckpoint, progress: progress, publishedRelease: publishedRelease)
+        guard let workflow = saved.workflow else { throw FieldDraftFailureV1.missingReceipt }
+        let bound = CheckRunnerBeginStateV1.bound(attempt: saved.attempt,
+            workflowReceiptReference: try .init(evidence: workflow),
+            timeZoneReceiptReference: try saved.timeZone.map { try CheckRunnerBeginReceiptReferenceV1(evidence: $0) })
+        try bound.validate()
+        return bound
+    }
+
+    /// A pending photo effect requires the original still-current Round ENTRY,
+    /// published package, existing-draft access and actual capture step. The
+    /// journal separately authenticates the pending parent/child and target.
+    func validatePendingPhotoPublication(_ value: CheckRunnerPhotoRawStageEvidenceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        try value.initialPayload.validate(parent: CheckRunnerItemDraftCodecV1.validateCheckpoint(
+            value.parentCheckpoint), parentDraftID: value.parentCheckpoint.draftID)
+        try validatePhotoPreparation(parentCheckpoint: value.parentCheckpoint,
+            photo: value.initialPayload, workflowEvidence: value.workflow, timeZoneEvidence: value.timeZone,
+            progress: progress, publishedRelease: publishedRelease)
+    }
+
+    /// Once this child's original target exists, recovery authenticates that
+    /// receipt and historical ENTRY instead of requiring the old capture step.
+    func validatePhotoContinuation(_ value: CheckRunnerPhotoContinuationEvidenceV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        if value.target == nil {
+            try validatePhotoPreparation(parentCheckpoint: value.parentCheckpoint, photo: value.payload,
+                workflowEvidence: value.workflow, timeZoneEvidence: value.timeZone,
+                progress: progress, publishedRelease: publishedRelease)
+            return
+        }
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            value.parentCheckpoint, writer: dependencies.writer, context: modelContext)
+        try validateHistoricalPhotoContinuationValues(value, parent: parent, progress: progress,
+            publishedRelease: publishedRelease)
+    }
+
+    private func validateHistoricalPhotoContinuationValues(_ value: CheckRunnerPhotoContinuationEvidenceV1,
+        parent: CheckRunnerItemDraftPayloadV1, progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        guard case let .bound(attempt, workflow, zone) = parent.field.begin else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        try value.payload.validate(parent: parent, parentDraftID: value.parentCheckpoint.draftID)
+        try workflow.validate(evidence: value.workflow)
+        guard (zone == nil) == (value.timeZone == nil) else { throw FieldDraftFailureV1.missingReceipt }
+        if let zone, let timeZone = value.timeZone { try zone.validate(evidence: timeZone) }
+        let read = try progress.read(sourceDraftID: parent.source.sourceCheckpoint.draftID)
+        try validateHistoricalCheckRunnerSource(parent.source, read: read, progress: progress,
+                                                publishedRelease: publishedRelease)
+        try validateInitialBeginAccess(attempt, workflow: value.workflow)
+    }
+
+    func validatePhotoPreparation(parentCheckpoint: FieldDraftCheckpointV1,
+        photo: CheckRunnerPhotoDraftPayloadV1, workflowEvidence: CheckRunnerBeginCommittedEvidenceV1,
+        timeZoneEvidence: CheckRunnerBeginCommittedEvidenceV1?,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            parentCheckpoint, writer: dependencies.writer, context: modelContext)
+        try validatePhotoPreparationValues(parentCheckpoint: parentCheckpoint, parent: parent, photo: photo,
+            workflowEvidence: workflowEvidence, timeZoneEvidence: timeZoneEvidence,
+            progress: progress, publishedRelease: publishedRelease, dependencies: dependencies)
+    }
+
+    private func validatePhotoPreparationValues(parentCheckpoint: FieldDraftCheckpointV1,
+        parent: CheckRunnerItemDraftPayloadV1, photo: CheckRunnerPhotoDraftPayloadV1,
+        workflowEvidence: CheckRunnerBeginCommittedEvidenceV1, timeZoneEvidence: CheckRunnerBeginCommittedEvidenceV1?,
+        progress: ProductionRepetitiveCaptureProgressServiceV2, publishedRelease: InspectionPackageReleaseV1,
+        dependencies: WorkspacePackageLifecycleDependenciesV1) throws {
+        guard case let .bound(attempt, workflow, zone) = parent.field.begin else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        try photo.validate()
+        guard photo.parentDraftID == parentCheckpoint.draftID,
+              photo.sourceBinding == parent.source, photo.recordID == attempt.recordCommand.recordID,
+              attempt.recordCommand.startedAt <= photo.phase.intent.evidenceCreatedAt else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+        let read = try progress.read(sourceDraftID: photo.sourceBinding.sourceCheckpoint.draftID)
+        try progress.validateForPublication(read)
+        try photo.sourceBinding.validate(read: read, publishedRelease: publishedRelease, signPack: signPack)
+        try validateFrozenBeginContext(photo.sourceBinding, dependencies: dependencies)
+        try workflow.validate(evidence: workflowEvidence)
+        guard (zone == nil) == (timeZoneEvidence == nil) else { throw FieldDraftFailureV1.missingReceipt }
+        if let zone, let original = timeZoneEvidence { try zone.validate(evidence: original) }
+        try validateInitialBeginAccess(attempt, workflow: workflowEvidence)
+        let preparation = try prepareCapture(assetID: photo.assetID)
+        guard preparation.draftID == photo.recordID, preparation.step == photo.captureStep,
+              preparation.purpose?.key == photo.purposeKey else {
+            throw CheckRunnerCoordinatorError.invalidCaptureState
+        }
+    }
+
+    /// Fixed synchronous consumer: obtains its own current journal observation.
+    /// No caller-supplied authenticated payload or effect authority is accepted.
+    func readValidatedPhotoContinuation(workspaceID: WorkspaceID, parentDraftID: UUID, childDraftID: UUID,
+        expectedWriter: WorkspaceWriterV1, expectedSource: CheckRunnerRoundItemSourceV1?,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws -> CheckRunnerPhotoContinuationEvidenceV1 {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        guard dependencies.writer === expectedWriter else { throw ScanToWorkFailureV1.authorityMismatch }
+        try dependencies.writer.validateFieldDraftReadContext(modelContext)
+        let before = try dependencies.writer.currentRevision()
+        let evidence: CheckRunnerPhotoContinuationEvidenceV1
+        switch try dependencies.writer.currentPhotoContinuationInReadScope(workspaceID: workspaceID,
+            parentDraftID: parentDraftID, childDraftID: childDraftID, modelContext: modelContext) {
+        case .absent:
+            throw FieldDraftFailureV1.missingReceipt
+        case .unsupported:
+            // Preserve complete standalone authentication for noncanonical and
+            // prepared-finalization reads. A failed supported read never lands here.
+            guard let saved = try dependencies.writer.checkRunnerPhotoContinuationEvidence(
+                workspaceID: workspaceID, parentDraftID: parentDraftID, childDraftID: childDraftID) else {
+                throw FieldDraftFailureV1.missingReceipt
+            }
+            let id = parentDraftID
+            let rows = try modelContext.fetch(FetchDescriptor<FieldDraftCheckpointRow>(
+                predicate: #Predicate { $0.draftID == id }))
+            guard rows.count == 1, let row = rows.first else { throw FieldDraftFailureV1.missingReceipt }
+            let checkpoint = try row.value()
+            let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+                checkpoint, writer: dependencies.writer, context: modelContext)
+            if let expectedSource, parent.source != expectedSource { throw ScanToWorkFailureV1.authorityMismatch }
+            guard checkpoint == saved.parentCheckpoint else { throw FieldDraftFailureV1.staleDraftRevision }
+            try validatePhotoContinuation(saved, progress: progress, publishedRelease: publishedRelease)
+            evidence = saved
+        case let .observed(saved, parent):
+            if let expectedSource, parent.source != expectedSource { throw ScanToWorkFailureV1.authorityMismatch }
+            if saved.target == nil {
+                try validatePhotoPreparationValues(parentCheckpoint: saved.parentCheckpoint, parent: parent,
+                    photo: saved.payload, workflowEvidence: saved.workflow, timeZoneEvidence: saved.timeZone,
+                    progress: progress, publishedRelease: publishedRelease, dependencies: dependencies)
+            } else {
+                try validateHistoricalPhotoContinuationValues(saved, parent: parent, progress: progress,
+                    publishedRelease: publishedRelease)
+            }
+            evidence = saved
+        }
+        try dependencies.writer.validateFieldDraftReadContext(modelContext)
+        guard try dependencies.writer.currentRevision() == before else { throw FieldDraftFailureV1.staleDraftRevision }
+        return evidence
+    }
+
+    /// Acknowledges a saved initial BOUND checkpoint. Later child/finalizer
+    /// state is deliberately reserved for the complete bound-chain reader.
+    func validateInitialBoundBegin(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        let saved = try initialBeginEvidence(parentCheckpoint, progress: progress, publishedRelease: publishedRelease)
+        guard case let .bound(_, workflow, zone) = saved.payload.field.begin,
+              let original = saved.workflow else { throw FieldDraftFailureV1.missingReceipt }
+        try workflow.validate(evidence: original)
+        if let zone, let originalZone = saved.timeZone { try zone.validate(evidence: originalZone) }
+    }
+
+    /// Field saving requires the current ENTRY and original draft access, but
+    /// incomplete outcome text is not a finalization request. Later photo
+    /// states reuse their authenticated history instead of initial-empty rules.
+    func validateFieldEditing(parentCheckpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let writer = dependencies.writer
+        let revision = try writer.currentRevision()
+        let parent = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            parentCheckpoint, writer: writer, context: modelContext)
+        guard parentCheckpoint.state == .active, parent.phase == .editing else {
+            throw FieldDraftFailureV1.invalidTransition
+        }
+        let read = try progress.read(sourceDraftID: parent.source.sourceCheckpoint.draftID)
+        try progress.validateForPublication(read)
+        try parent.source.validate(read: read, publishedRelease: publishedRelease, signPack: signPack)
+        try validateFrozenBeginContext(parent.source, dependencies: dependencies)
+        switch parent.field.begin {
+        case .notBegun:
+            try validateFrozenBeginAdmission(parent.source, dependencies: dependencies)
+        case .prepared:
+            throw FieldDraftFailureV1.invalidTransition
+        case let .bound(attempt, workflowReference, zoneReference):
+            let slots = [parent.field.wideContext, parent.field.closeDetail].compactMap { $0 }
+            if slots.isEmpty {
+                try validateInitialBoundBegin(parentCheckpoint: parentCheckpoint, progress: progress,
+                                              publishedRelease: publishedRelease)
+            } else {
+                guard let workflow = try writer.checkRunnerBeginEvidence(workspaceID: dependencies.workspaceID,
+                    mutationID: attempt.recordMutationID) else { throw FieldDraftFailureV1.missingReceipt }
+                try requireOriginalBegin(workflow, command: .createCheckDraft(attempt.recordCommand),
+                    workspaceID: dependencies.workspaceID, mutationID: attempt.recordMutationID,
+                    revisions: attempt.recordExpectedEntityRevisions, committedAt: attempt.recordCommittedAt)
+                try workflowReference.validate(evidence: workflow)
+                if let zone = attempt.timeZone {
+                    guard let zoneReference,
+                          let original = try writer.checkRunnerBeginEvidence(workspaceID: dependencies.workspaceID,
+                            mutationID: zone.mutationID) else { throw FieldDraftFailureV1.missingReceipt }
+                    try requireOriginalBegin(original, command: .updateSiteTimeZone(zone.command),
+                        workspaceID: dependencies.workspaceID, mutationID: zone.mutationID,
+                        revisions: [.init(identity: try .init(kind: .site, id: zone.command.siteID),
+                                          revision: zone.expectedSiteRevision)], committedAt: zone.committedAt)
+                    try zoneReference.validate(evidence: original)
+                } else if zoneReference != nil { throw FieldDraftFailureV1.digestMismatch }
+                try validateInitialBeginAccess(attempt, workflow: workflow)
+                for slot in slots {
+                    switch slot {
+                    case .committed:
+                        guard let target = try writer.checkRunnerPhotoCurrentTargetEvidence(
+                            workspaceID: dependencies.workspaceID, parentDraftID: parentCheckpoint.draftID,
+                            childDraftID: slot.childDraftID),
+                              target.parent.checkpoint == parentCheckpoint, target.parent.slot == slot,
+                              target.finalization == nil else { throw FieldDraftFailureV1.missingReceipt }
+                    case .pending:
+                        let childID = slot.childDraftID
+                        var descriptor = FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate {
+                            $0.draftID == childID
+                        })
+                        descriptor.fetchLimit = 2
+                        let rows = try modelContext.fetch(descriptor)
+                        guard rows.count == 1, let row = rows.first else {
+                            throw FieldDraftFailureV1.missingReceipt
+                        }
+                        let checkpoint = try row.value()
+                        guard checkpoint.state == .active else { throw FieldDraftFailureV1.invalidTransition }
+                        let photo = try CheckRunnerPhotoDraftCodecV1.validateCheckpoint(checkpoint)
+                        try photo.validate(parent: parent, parentDraftID: parentCheckpoint.draftID)
+                        switch photo.phase {
+                        case .awaitingRawStage, .rawReady:
+                            guard let pending = try writer.checkRunnerPhotoRawStageEvidence(
+                                workspaceID: dependencies.workspaceID, parentDraftID: parentCheckpoint.draftID,
+                                childDraftID: childID), pending.parentCheckpoint == parentCheckpoint,
+                                  pending.currentCheckpoint == checkpoint else {
+                                throw FieldDraftFailureV1.missingReceipt
+                            }
+                            try validatePendingPhotoPublication(pending, progress: progress,
+                                                                publishedRelease: publishedRelease)
+                        case .pairReady:
+                            guard let continuation = try writer.checkRunnerPhotoContinuationEvidence(
+                                workspaceID: dependencies.workspaceID, parentDraftID: parentCheckpoint.draftID,
+                                childDraftID: childID), continuation.parentCheckpoint == parentCheckpoint,
+                                  continuation.checkpoint == checkpoint else {
+                                throw FieldDraftFailureV1.missingReceipt
+                            }
+                            try validatePhotoContinuation(continuation, progress: progress,
+                                                          publishedRelease: publishedRelease)
+                        case .preparedCommit:
+                            throw FieldDraftFailureV1.invalidTransition
+                        }
+                    }
+                }
+            }
+        }
+        try progress.validateForPublication(read)
+        let closing = try frozenBeginDependencies(progress: progress)
+        guard closing.writer === writer, try writer.currentRevision() == revision else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        _ = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            parentCheckpoint, writer: writer, context: modelContext)
+    }
+
+    private func initialBeginEvidence(_ checkpoint: FieldDraftCheckpointV1,
+        progress: ProductionRepetitiveCaptureProgressServiceV2,
+        publishedRelease: InspectionPackageReleaseV1) throws
+        -> (payload: CheckRunnerItemDraftPayloadV1, attempt: CheckRunnerFrozenBeginAttemptV1,
+            workflow: CheckRunnerBeginCommittedEvidenceV1?, timeZone: CheckRunnerBeginCommittedEvidenceV1?) {
+        let dependencies = try frozenBeginDependencies(progress: progress)
+        let payload = try ProductionCheckRunnerItemDraftServiceV1.authenticateCurrent(
+            checkpoint, writer: dependencies.writer, context: modelContext)
+        guard checkpoint.state == .active, payload.phase == .editing,
+              payload.field.wideContext == nil, payload.field.closeDetail == nil,
+              let attempt = payload.field.begin.attempt else { throw FieldDraftFailureV1.invalidValue }
+        let read = try progress.read(sourceDraftID: attempt.source.sourceCheckpoint.draftID)
+        try progress.validateForPublication(read)
+        try attempt.source.validate(read: read, publishedRelease: publishedRelease, signPack: signPack)
+        try validateFrozenBeginContext(attempt.source, dependencies: dependencies)
+        let asset = try requiredAsset(id: attempt.source.assetID)
+        let command = attempt.recordCommand
+        guard payload.field.preflight.afterDarkAccepted, payload.field.preflight.safePositionAccepted,
+              let observedAt = command.observedAtUTC, let offset = command.utcOffsetMinutes,
+              let localDate = command.localDate, let localTime = command.localTime,
+              try validatedParentRecordID(assetID: asset.id, requestedStage: attempt.source.requestedEntry.stage,
+                                          issueID: command.issueID) == command.parentRecordID else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        if attempt.timeZone != nil {
+            guard payload.field.preflight.submittedTimeZoneID?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    == attempt.resolvedSiteTimeZoneID else { throw CheckRunnerCoordinatorError.invalidTimeZoneID }
+        }
+        // Reuse frozen civil fields. Recovery must not rerun the time-zone
+        // database or sample another command ID while checking today's package.
+        let expectedCommand = try prepareDraftCommand(asset: asset,
+            requestedStage: attempt.source.requestedEntry.stage, issueID: command.issueID,
+            parentRecordID: command.parentRecordID,
+            timeContext: .init(observedAtUTC: observedAt, timeZoneID: attempt.resolvedSiteTimeZoneID,
+                               utcOffsetMinutes: offset, localDate: localDate, localTime: localTime),
+            acknowledgementSnapshots: acknowledgementSnapshots(for: asset), startedAt: command.startedAt,
+            recordID: command.recordID)
+        guard try FieldDraftCanonicalCodecV1.encode(expectedCommand) == FieldDraftCanonicalCodecV1.encode(command) else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+        let writer = dependencies.writer
+        let workflow = try writer.checkRunnerBeginEvidence(workspaceID: attempt.sourceWorkspaceID,
+                                                           mutationID: attempt.recordMutationID)
+        if let workflow {
+            try requireOriginalBegin(workflow, command: .createCheckDraft(command), workspaceID: attempt.sourceWorkspaceID,
+                mutationID: attempt.recordMutationID, revisions: attempt.recordExpectedEntityRevisions,
+                committedAt: attempt.recordCommittedAt)
+        }
+        let zoneEvidence = try attempt.timeZone.flatMap {
+            try writer.checkRunnerBeginEvidence(workspaceID: attempt.sourceWorkspaceID, mutationID: $0.mutationID)
+        }
+        if let zone = attempt.timeZone, let zoneEvidence {
+            try requireOriginalBegin(zoneEvidence, command: .updateSiteTimeZone(zone.command),
+                workspaceID: attempt.sourceWorkspaceID, mutationID: zone.mutationID,
+                revisions: [.init(identity: try .init(kind: .site, id: zone.command.siteID), revision: zone.expectedSiteRevision)],
+                committedAt: zone.committedAt)
+        }
+        guard workflow == nil || attempt.timeZone == nil || zoneEvidence != nil else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        let current = try writer.currentRevision()
+        let known = Dictionary(uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) })
+        let site = try requiredSite(id: attempt.siteID)
+        let siteIdentity = try WorkspaceEntityIdentityV1(kind: .site, id: site.id)
+        if let zone = attempt.timeZone {
+            if zoneEvidence == nil {
+                guard site.timeZoneID == nil, known[siteIdentity, default: 0] == zone.expectedSiteRevision else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(siteIdentity)
+                }
+            } else {
+                guard site.timeZoneID == zone.command.timeZoneID, site.updatedAt == zone.command.confirmedAt,
+                      known[siteIdentity, default: 0] == zone.expectedSiteRevision + 1 else {
+                    throw WorkspaceMutationFailureV1.staleEntityRevision(siteIdentity)
+                }
+            }
+        } else if site.timeZoneID != attempt.resolvedSiteTimeZoneID {
+            throw WorkspaceMutationFailureV1.staleEntityRevision(siteIdentity)
+        }
+        let recordID = command.recordID
+        let records = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(predicate: #Predicate { $0.id == recordID }))
+        if workflow == nil {
+            guard records.isEmpty, attempt.recordExpectedEntityRevisions.allSatisfy({ known[$0.identity, default: 0] == $0.revision }) else {
+                throw WorkspaceMutationFailureV1.staleWorkspaceRevision
+            }
+        } else {
+            guard records.count == 1, let record = records.first,
+                  known[try .init(kind: .workflowRecord, id: recordID), default: 0] == 1 else {
+                throw FieldDraftFailureV1.staleDraftRevision
+            }
+            try requireInitialBeginRecord(record, command: command)
+        }
+        try validateInitialBeginAccess(attempt, workflow: workflow)
+        return (payload, attempt, workflow, zoneEvidence)
+    }
+
+    private func validateInitialBeginAccess(_ attempt: CheckRunnerFrozenBeginAttemptV1,
+                                            workflow: CheckRunnerBeginCommittedEvidenceV1?) throws {
+        guard let workflow else {
+            let decision = try accessDecision(assetID: attempt.source.assetID,
+                requestedStage: attempt.source.requestedEntry.stage, issueID: attempt.recordCommand.issueID)
+            guard decision == .allow else { throw CheckRunnerCoordinatorError.accessDenied(decision) }
+            return
+        }
+        guard try existingDraft(assetID: attempt.source.assetID)?.id == attempt.recordCommand.recordID,
+              let entry = draftAccessEntry(for: attempt.source.requestedEntry.stage) else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        guard let draftAccessState else { return }
+        // The original receipt proves when this exact draft was created.
+        // startedAt carries the user's observation instant, which may be later.
+        let proof = RepositoryValidatedDraftV1(draftID: attempt.recordCommand.recordID,
+            assetID: attempt.source.assetID, issueID: attempt.recordCommand.issueID, entry: entry,
+            createdAt: workflow.receipt.committedAt, gateCheckedAt: clock.now())
+        let decision = try evaluateDraftAccess(state: draftAccessState(), entry: entry, existingDraft: proof)
+        guard decision == .allow || decision == .continueExisting else {
+            throw CheckRunnerCoordinatorError.accessDenied(decision)
+        }
+    }
+
+    private func requireOriginalBegin(_ original: CheckRunnerBeginCommittedEvidenceV1,
+        command: WorkspaceCommandV1, workspaceID: WorkspaceID, mutationID: MutationIDV1,
+        revisions: [WorkspaceEntityRevisionV1], committedAt: Date) throws {
+        guard original.envelope.workspaceID == workspaceID, original.envelope.mutationID == mutationID,
+              original.envelope.commandBodySHA256 == (try WorkspaceMutationCanonicalV1.sha256(command)),
+              original.envelope.expectedRevision.entityRevisions == revisions,
+              original.receipt.committedAt == committedAt else { throw FieldDraftFailureV1.digestMismatch }
+    }
+
+    private func requireInitialBeginRecord(_ record: WorkflowRecord, command: CheckDraftMutationV1) throws {
+        let id = record.id
+        guard record.schemaVersion == 1, record.revisionKind == WorkflowRevisionKind.original.rawValue,
+              record.recordRevisionRootID == id, record.revisesRecordID == nil, record.evidenceSourceRecordID == nil,
+              record.state == WorkflowState.draft.rawValue, record.packetID == nil, record.completedAt == nil,
+              record.outcomeKey == nil, record.couldNotVerifyKey == nil, record.couldNotVerifyDisplaySnapshot == nil,
+              record.couldNotVerifyRegistryVersion == nil, record.workPerformedLocalDate == nil,
+              record.workDescription == nil, record.note == nil, record.finalizationMutationID == nil,
+              try modelContext.fetch(FetchDescriptor<EvidenceFile>(predicate: #Predicate { $0.recordID == id })).isEmpty else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        let actual = CheckDraftMutationV1(recordID: record.id, assetID: record.assetID, issueID: record.issueID,
+            parentRecordID: record.parentRecordID, stage: record.stage, draftStepKey: record.draftStepKey,
+            startedAt: record.startedAt, observedAtUTC: record.observedAtUTC, timeZoneID: record.timeZoneID,
+            utcOffsetMinutes: record.utcOffsetMinutes, localDate: record.localDate, localTime: record.localTime,
+            afterDarkAcknowledgementKey: record.afterDarkAcknowledgementKey,
+            afterDarkAcknowledgementCopy: record.afterDarkAcknowledgementCopy,
+            afterDarkAcknowledgementVersion: record.afterDarkAcknowledgementVersion,
+            afterDarkAcknowledgementAccepted: record.afterDarkAcknowledgementAccepted,
+            safePositionAcknowledgementKey: record.safePositionAcknowledgementKey,
+            safePositionAcknowledgementCopy: record.safePositionAcknowledgementCopy,
+            safePositionAcknowledgementVersion: record.safePositionAcknowledgementVersion,
+            safePositionAcknowledgementAccepted: record.safePositionAcknowledgementAccepted,
+            packID: record.packID, packSchemaVersion: record.packSchemaVersion, packContentVersion: record.packContentVersion,
+            pdfTemplateID: record.pdfTemplateID, pdfTemplateVersion: record.pdfTemplateVersion,
+            observationBasis: command.observationBasis, temporalContext: command.temporalContext)
+        guard try FieldDraftCanonicalCodecV1.encode(actual) == FieldDraftCanonicalCodecV1.encode(command) else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+        let observations = try modelContext.fetch(FetchDescriptor<ObservationAndTimeRow>(predicate: #Predicate { $0.recordID == id }))
+        let basis = try command.observationBasis ?? ObservationAndTimeLegacyMigrationV1.observationBasis(
+            couldNotVerifyKey: nil, displaySnapshot: nil, registryVersion: nil)
+        let temporal = try command.temporalContext ?? ObservationAndTimeLegacyMigrationV1.temporalContext(
+            observedAtUTC: command.observedAtUTC, recordedAtUTC: command.startedAt, timeZoneID: command.timeZoneID,
+            utcOffsetMinutes: command.utcOffsetMinutes, localDate: command.localDate, localTime: command.localTime)
+        guard observations.count == 1, let basis, let temporal,
+              observations[0].schemaVersion == ObservationAndTimeRow.currentSchemaVersion,
+              observations[0].observationBasisV1Data == (try ObservationAndTimeCodecV1.encode(basis)),
+              observations[0].temporalContextV1Data == (try ObservationAndTimeCodecV1.encode(temporal)) else {
+            throw FieldDraftFailureV1.digestMismatch
+        }
+    }
+
+    private func frozenBeginDependencies(
+        progress: ProductionRepetitiveCaptureProgressServiceV2
+    ) throws -> WorkspacePackageLifecycleDependenciesV1 {
+        guard let liveLifecycle else { throw CheckRunnerCoordinatorError.packageLifecycleMismatch }
+        let dependencies = liveLifecycle.dependencies
+        try progress.validateCheckRunnerOwner(writer: dependencies.writer, modelContext: modelContext)
+        let current = try dependencies.writer.currentRevision()
+        guard current.workspaceID == dependencies.workspaceID,
+              current.generationID == dependencies.generationID,
+              try dependencies.profileRegistry.resolve(liveLifecycle.profile.release) == liveLifecycle.profile else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        return dependencies
+    }
+
+    private func validateFrozenBeginAdmission(
+        _ source: CheckRunnerRoundItemSourceV1,
+        dependencies: WorkspacePackageLifecycleDependenciesV1
+    ) throws {
+        try validateFrozenBeginContext(source, dependencies: dependencies)
+        let decision = try accessDecision(assetID: source.assetID,
+            requestedStage: source.requestedEntry.stage, issueID: source.requestedEntry.issueID)
+        guard decision == .allow else { throw CheckRunnerCoordinatorError.accessDenied(decision) }
+    }
+
+    private func validateFrozenBeginContext(
+        _ source: CheckRunnerRoundItemSourceV1,
+        dependencies: WorkspacePackageLifecycleDependenciesV1
+    ) throws {
+        try source.validate()
+        let asset = try requiredAsset(id: source.assetID)
+        guard source.roundAtEntry.workspaceID == dependencies.workspaceID,
+              asset.siteID == source.originalItem.selection.siteID,
+              asset.packID == source.legacyPackageIdentity.packageID,
+              asset.packSchemaVersion == source.legacyPackageIdentity.schemaVersion,
+              asset.packContentVersion == source.legacyPackageIdentity.contentVersion,
+              source.legacyPackageIdentity.matches(signPack) else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        _ = try requiredSite(id: asset.siteID)
+    }
+
+    func beginOrResumeDraft(
+        assetID: UUID,
+        requestedStage: WorkflowStage,
+        issueID: UUID?
+    ) throws -> WorkflowRecord {
+        let decision = try accessDecision(
+            assetID: assetID,
+            requestedStage: requestedStage,
+            issueID: issueID
+        )
+        if let draft = try existingDraft(assetID: assetID) {
+            guard decision == .continueExisting else {
+                throw CheckRunnerCoordinatorError.accessDenied(decision)
+            }
+            return draft
+        }
+
+        guard decision == .allow else {
+            throw CheckRunnerCoordinatorError.accessDenied(decision)
+        }
+
+        let asset = try requiredAsset(id: assetID)
+        let parentRecordID = try validatedParentRecordID(
+            assetID: assetID,
+            requestedStage: requestedStage,
+            issueID: issueID
+        )
+
+        guard requestedStage == .work else {
+            throw CheckRunnerCoordinatorError.acknowledgementsRequired
+        }
+
+        return try createDraft(
+            asset: asset,
+            requestedStage: requestedStage,
+            issueID: issueID,
+            parentRecordID: parentRecordID,
+            timeContext: nil,
+            acknowledgementSnapshots: nil,
+            startedAt: clock.now()
+        )
+    }
+
+    func beginOrResumeDraft(
+        _ submission: BeginDraftSubmission
+    ) throws -> WorkflowRecord {
+        let decision = try accessDecision(
+            assetID: submission.assetID,
+            requestedStage: submission.requestedStage,
+            issueID: submission.issueID
+        )
+        if let draft = try existingDraft(assetID: submission.assetID) {
+            guard decision == .continueExisting else {
+                throw CheckRunnerCoordinatorError.accessDenied(decision)
+            }
+            return draft
+        }
+
+
+        guard decision == .allow else {
+            throw CheckRunnerCoordinatorError.accessDenied(decision)
+        }
+
+        let asset = try requiredAsset(id: submission.assetID)
+        let parentRecordID = try validatedParentRecordID(
+            assetID: submission.assetID,
+            requestedStage: submission.requestedStage,
+            issueID: submission.issueID
+        )
+
+        switch submission.requestedStage {
+        case .work:
+            return try createDraft(
+                asset: asset,
+                requestedStage: .work,
+                issueID: submission.issueID,
+                parentRecordID: parentRecordID,
+                timeContext: nil,
+                acknowledgementSnapshots: nil,
+                startedAt: submission.observedAtUTC ?? clock.now()
+            )
+
+        case .check, .recheck:
+            guard submission.afterDarkAccepted,
+                  submission.safePositionAccepted else {
+                throw CheckRunnerCoordinatorError.acknowledgementsRequired
+            }
+            guard let observedAtUTC = submission.observedAtUTC else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+
+            let acknowledgementSnapshots = try acknowledgementSnapshots(for: asset)
+            let timeZoneResolution = try resolvedTimeZone(
+                asset: asset,
+                proposedTimeZoneID: submission.confirmedTimeZoneID
+            )
+            let timeContext: FrozenTimeContext
+            do {
+                timeContext = try TimeContextRule.freeze(
+                    observedAtUTC: observedAtUTC,
+                    confirmedTimeZoneID: timeZoneResolution.timeZoneID
+                )
+            } catch TimeContextRuleError.invalidTimeZoneID {
+                throw CheckRunnerCoordinatorError.invalidTimeZoneID
+            }
+            try persistConfirmedTimeZoneIfNeeded(
+                timeZoneResolution,
+                confirmedAt: observedAtUTC
+            )
+
+            return try createDraft(
+                asset: asset,
+                requestedStage: submission.requestedStage,
+                issueID: submission.issueID,
+                parentRecordID: parentRecordID,
+                timeContext: timeContext,
+                acknowledgementSnapshots: acknowledgementSnapshots,
+                startedAt: observedAtUTC
+            )
+        }
+    }
+
+    private func evaluateDraftAccess(
+        state: DraftAccessNormalizedStateV1,
+        entry: DraftAccessEntryV1,
+        existingDraft: RepositoryValidatedDraftV1?
+    ) throws -> DraftAccessDecisionV1 {
+        let assets = try modelContext.fetch(FetchDescriptor<Asset>())
+        let packets = try modelContext.fetch(FetchDescriptor<Packet>())
+        guard Set(assets.map(\.id)).count == assets.count,
+              assets.allSatisfy({
+                $0.schemaVersion == 1
+                    && $0.updatedAt >= $0.createdAt
+                    && !$0.label.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty
+              }),
+              Set(packets.map(\.id)).count == packets.count,
+              Set(packets.map(\.stableRootID)).count == packets.count,
+              packets.allSatisfy({ packet in
+                guard packet.schemaVersion == 1 else { return false }
+                if packet.currentRecordID == nil {
+                    return packet.contentDeletedAt.map {
+                        $0 >= packet.createdAt
+                    } ?? false
+                }
+                return packet.contentDeletedAt == nil
+              }) else {
+            return .blockInvalidRequest
+        }
+        return DraftAccessPolicy.evaluate(
+            DraftAccessPolicyInputV1(
+                accessState: state,
+                liveAssetCount: assets.count,
+                countedStableRootIDs: Set(
+                    packets.lazy
+                        .filter(\.evaluationCounted)
+                        .map(\.stableRootID)
+                ),
+                requestedEntry: entry,
+                existingDraft: existingDraft
+            )
+        )
+    }
+
+    private func draftAccessEntry(
+        for stage: WorkflowStage
+    ) -> DraftAccessEntryV1? {
+        switch stage {
+        case .check: return .check
+        case .work: return .work
+        case .recheck: return .recheck
+        }
+    }
+
+    private func draftAccessEntry(
+        for draft: WorkflowRecord
+    ) -> DraftAccessEntryV1? {
+        guard let stage = WorkflowStage(rawValue: draft.stage) else {
+            return nil
+        }
+        return draftAccessEntry(for: stage)
+    }
+
+    private func validatedDraftProof(
+        _ draft: WorkflowRecord,
+        entry: DraftAccessEntryV1,
+        gateCheckedAt: Date
+    ) -> RepositoryValidatedDraftV1? {
+        guard draft.schemaVersion == 1,
+              draft.state == WorkflowState.draft.rawValue,
+              draft.revisionKind == WorkflowRevisionKind.original.rawValue,
+              draft.recordRevisionRootID == draft.id,
+              draft.packetID == nil,
+              draft.revisesRecordID == nil,
+              draft.evidenceSourceRecordID == nil,
+              draft.completedAt == nil,
+              draft.outcomeKey == nil,
+              draft.finalizationMutationID == nil,
+              draft.startedAt < gateCheckedAt,
+              let asset = try? requiredAsset(id: draft.assetID),
+              asset.packID == draft.packID,
+              asset.packSchemaVersion == draft.packSchemaVersion,
+              asset.packContentVersion == draft.packContentVersion else {
+            return nil
+        }
+
+        switch entry {
+        case .check:
+            guard draft.stage == WorkflowStage.check.rawValue,
+                  draft.issueID == nil,
+                  draft.parentRecordID == nil else {
+                return nil
+            }
+        case .work, .recheck:
+            guard draft.stage == entry.rawValue,
+                  let issueID = draft.issueID,
+                  let requestedStage = WorkflowStage(rawValue: draft.stage),
+                  let expectedParent = try? validatedParentRecordID(
+                    assetID: draft.assetID,
+                    requestedStage: requestedStage,
+                    issueID: issueID
+                  ),
+                  draft.parentRecordID == expectedParent else {
+                return nil
+            }
+            let issues = (try? modelContext.fetch(FetchDescriptor<Issue>()))?
+                .filter { $0.id == issueID } ?? []
+            guard issues.count == 1,
+                  issues[0].schemaVersion == 1,
+                  issues[0].assetID == draft.assetID,
+                  issues[0].updatedAt <= draft.startedAt else {
+                return nil
+            }
+        case .createSign:
+            return nil
+        }
+
+        return RepositoryValidatedDraftV1(
+            draftID: draft.id,
+            assetID: draft.assetID,
+            issueID: draft.issueID,
+            entry: entry,
+            createdAt: draft.startedAt,
+            gateCheckedAt: gateCheckedAt
+        )
+    }
+
+    private func requiredAsset(id: UUID) throws -> Asset {
+        let descriptor = FetchDescriptor<Asset>(
+            predicate: #Predicate { $0.id == id }
+        )
+        let assets = try modelContext.fetch(descriptor)
+        guard assets.count == 1, let asset = assets.first else {
+            throw CheckRunnerCoordinatorError.assetNotFound
+        }
+        return asset
+    }
+
+    private func requiredSite(id: UUID) throws -> Site {
+        let descriptor = FetchDescriptor<Site>(
+            predicate: #Predicate { $0.id == id }
+        )
+        let sites = try modelContext.fetch(descriptor)
+        guard sites.count == 1, let site = sites.first else {
+            throw CheckRunnerCoordinatorError.siteNotFound
+        }
+        return site
+    }
+
+    private func resolvedTimeZone(
+        asset: Asset,
+        proposedTimeZoneID: String?
+    ) throws -> TimeZoneResolution {
+        let site = try requiredSite(id: asset.siteID)
+
+        if let storedTimeZoneID = site.timeZoneID {
+            guard TimeZone.knownTimeZoneIdentifiers.contains(storedTimeZoneID),
+                  TimeZone(identifier: storedTimeZoneID) != nil else {
+                throw CheckRunnerCoordinatorError.invalidTimeZoneID
+            }
+            return TimeZoneResolution(
+                site: site,
+                timeZoneID: storedTimeZoneID,
+                requiresSave: false
+            )
+        }
+
+        guard let proposedTimeZoneID else {
+            throw CheckRunnerCoordinatorError.timeZoneConfirmationRequired
+        }
+        let normalizedTimeZoneID = proposedTimeZoneID.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard TimeZone.knownTimeZoneIdentifiers.contains(normalizedTimeZoneID),
+              TimeZone(identifier: normalizedTimeZoneID) != nil else {
+            throw CheckRunnerCoordinatorError.invalidTimeZoneID
+        }
+
+        return TimeZoneResolution(
+            site: site,
+            timeZoneID: normalizedTimeZoneID,
+            requiresSave: true
+        )
+    }
+
+    private func persistConfirmedTimeZoneIfNeeded(
+        _ resolution: TimeZoneResolution,
+        confirmedAt: Date
+    ) throws {
+        guard resolution.requiresSave else { return }
+
+        do {
+            try executeWorkspaceMutation(
+                .updateSiteTimeZone(SiteTimeZoneMutationV1(
+                    siteID: resolution.site.id,
+                    timeZoneID: resolution.timeZoneID,
+                    confirmedAt: confirmedAt
+                )),
+                mutationID: nil,
+                occurredAt: confirmedAt
+            )
+        } catch {
+            modelContext.rollback()
+            throw CheckRunnerCoordinatorError.saveFailed
+        }
+
+        let siteID = resolution.site.id
+        let descriptor = FetchDescriptor<Site>(
+            predicate: #Predicate { $0.id == siteID }
+        )
+        guard let persistedSite = try? modelContext.fetch(descriptor),
+              persistedSite.count == 1,
+              persistedSite.first?.timeZoneID == resolution.timeZoneID else {
+            throw CheckRunnerCoordinatorError.saveFailed
+        }
+    }
+
+    private func executeWorkspaceMutation(
+        _ command: WorkspaceCommandV1,
+        mutationID suppliedMutationID: MutationIDV1?,
+        occurredAt: Date
+    ) throws {
+        let mutationID: MutationIDV1
+        switch mutationRoute {
+        case let .live(dependencies, _):
+            mutationID = try suppliedMutationID ?? dependencies.writer.makeMutationID()
+        case .expiringCompatibility:
+            mutationID = try suppliedMutationID ?? MutationIDV1(rawValue: idSource.makeID())
+        }
+        if case let .live(dependencies, _) = mutationRoute {
+            let workspaceWriter = dependencies.writer
+            let current = try workspaceWriter.currentRevision()
+            let targets = try workspaceTargets(command)
+            let known = Dictionary(
+                uniqueKeysWithValues: current.entityRevisions.map { ($0.identity, $0.revision) }
+            )
+            let scoped = try WorkspaceRevisionV1(
+                workspaceID: current.workspaceID,
+                generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID,
+                revision: current.revision,
+                entityRevisions: targets.map {
+                    WorkspaceEntityRevisionV1(identity: $0, revision: known[$0, default: 0])
+                }
+            )
+            _ = try workspaceWriter.execute(WorkspaceMutationRequestV1(
+                mutationID: mutationID,
+                expectedRevision: WorkspaceExpectedRevisionV1(snapshot: scoped),
+                command: command
+            ))
+        } else if case let .expiringCompatibility(mutationAdapter, _, _) = mutationRoute {
+            let temporaryPath = try fileAuthority.temporaryRelativePath(
+                mutationID: mutationID,
+                component: command.kind.rawValue
+            )
+            _ = try mutationAdapter.apply(
+                command,
+                occurredAt: occurredAt,
+                temporaryRelativePath: temporaryPath
+            )
+        } else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+    }
+
+    private func workspaceTargets(
+        _ command: WorkspaceCommandV1
+    ) throws -> [WorkspaceEntityIdentityV1] {
+        switch command {
+        case let .createFirstSign(value):
+            return try [
+                WorkspaceEntityIdentityV1(kind: .site, id: value.siteID),
+                WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID),
+            ]
+        case let .createCheckDraft(value):
+            var dependencies = try [
+                WorkspaceEntityIdentityV1(kind: .workflowRecord, id: value.recordID),
+                WorkspaceEntityIdentityV1(kind: .asset, id: value.assetID),
+            ]
+            if let issueID = value.issueID {
+                dependencies.append(try WorkspaceEntityIdentityV1(kind: .issue, id: issueID))
+            }
+            if let parentRecordID = value.parentRecordID {
+                dependencies.append(try WorkspaceEntityIdentityV1(
+                    kind: .workflowRecord,
+                    id: parentRecordID
+                ))
+            }
+            return dependencies
+        case let .acceptCheckEvidence(value):
+            return try [
+                WorkspaceEntityIdentityV1(kind: .workflowRecord, id: value.draftID),
+                WorkspaceEntityIdentityV1(kind: .evidenceFile, id: value.evidenceID),
+            ]
+        case let .updateSiteTimeZone(value):
+            return [try WorkspaceEntityIdentityV1(kind: .site, id: value.siteID)]
+        case let .archiveEntities(value):
+            return value.identities
+        default:
+            throw WorkspaceMutationFailureV1.unsupportedCommand
+        }
+    }
+
+    private func validatedParentRecordID(
+        assetID: UUID,
+        requestedStage: WorkflowStage,
+        issueID: UUID?
+    ) throws -> UUID? {
+        switch requestedStage {
+        case .check:
+            guard issueID == nil else {
+                throw CheckRunnerCoordinatorError.issueNotAllowed
+            }
+            return nil
+
+        case .work, .recheck:
+            guard let issueID else {
+                throw CheckRunnerCoordinatorError.issueRequired
+            }
+            let issue = try requiredIssue(id: issueID)
+            guard issue.assetID == assetID else {
+                throw CheckRunnerCoordinatorError.issueAssetMismatch
+            }
+
+            let requiredStatus: IssueStatus = requestedStage == .work
+                ? .open
+                : .recheckDue
+            guard issue.status == requiredStatus.rawValue else {
+                throw CheckRunnerCoordinatorError.issueStateMismatch
+            }
+            return try latestCompletedSubstantiveRecordID(
+                assetID: assetID,
+                issue: issue
+            )
+        }
+    }
+
+    private func requiredIssue(id: UUID) throws -> Issue {
+        let descriptor = FetchDescriptor<Issue>(
+            predicate: #Predicate { $0.id == id }
+        )
+        let issues = try modelContext.fetch(descriptor)
+        guard issues.count == 1, let issue = issues.first else {
+            throw CheckRunnerCoordinatorError.issueNotFound
+        }
+        return issue
+    }
+
+    private func latestCompletedSubstantiveRecordID(
+        assetID: UUID,
+        issue: Issue
+    ) throws -> UUID {
+        let descriptor = FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.assetID == assetID }
+        )
+        let records = try modelContext.fetch(descriptor).filter {
+            $0.state == WorkflowState.completed.rawValue
+                && $0.revisionKind == WorkflowRevisionKind.original.rawValue
+        }
+
+        guard !records.isEmpty else {
+            throw CheckRunnerCoordinatorError.parentRecordMissing
+        }
+        let recordsByID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+        guard recordsByID.count == records.count,
+              let openingRecord = recordsByID[issue.openedByRecordID],
+              openingRecord.completedAt != nil,
+              openingRecord.finalizationMutationID != nil else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+
+        let opensOrdinaryIssue = try openingRecord.parentRecordID == nil
+            && openingRecord.stage == WorkflowStage.check.rawValue
+            && openingRecord.outcomeKey == (try packageOutcome(for: .findingObserved).key)
+            && openingRecord.issueID == issue.id
+        let opensDifferentIssue: Bool
+        if let originalIssueID = openingRecord.issueID,
+           originalIssueID != issue.id,
+           openingRecord.stage == WorkflowStage.recheck.rawValue,
+           openingRecord.outcomeKey == (try packageOutcome(for: .originalResolvedDifferentFinding).key) {
+            let originalIssue = try requiredIssue(id: originalIssueID)
+            guard originalIssue.assetID == assetID,
+                  originalIssue.status == IssueStatus.resolved.rawValue,
+                  originalIssue.resolvedByRecordID == openingRecord.id else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            opensDifferentIssue = try ordinaryIssueChainTerminal(
+                assetID: assetID,
+                issue: originalIssue,
+                records: records,
+                recordsByID: recordsByID
+            ).id == openingRecord.id
+        } else {
+            opensDifferentIssue = false
+        }
+        guard opensOrdinaryIssue || opensDifferentIssue else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+
+        if opensOrdinaryIssue {
+            return try ordinaryIssueChainTerminal(
+                assetID: assetID,
+                issue: issue,
+                records: records,
+                recordsByID: recordsByID
+            ).id
+        }
+
+        let issueRecords = records.filter { $0.issueID == issue.id }
+        var visitedIssueRecords: Set<UUID> = []
+        var current = openingRecord
+        while true {
+            let children = issueRecords.filter { $0.parentRecordID == current.id }
+            guard children.count <= 1 else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            guard let child = children.first else {
+                break
+            }
+            guard visitedIssueRecords.insert(child.id).inserted,
+                  child.issueID == issue.id,
+                  child.assetID == assetID,
+                  child.completedAt != nil,
+                  child.finalizationMutationID != nil,
+                  try ((child.stage == WorkflowStage.work.rawValue
+                    && child.outcomeKey == (try packageOutcome(for: .workRecorded).key))
+                    || (child.stage == WorkflowStage.recheck.rawValue
+                    && Set(try recheckOutcomeKeys()).contains(child.outcomeKey ?? ""))) else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            current = child
+        }
+
+        guard visitedIssueRecords.count == issueRecords.count else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        return current.id
+    }
+
+    private func ordinaryIssueChainTerminal(
+        assetID: UUID,
+        issue: Issue,
+        records: [WorkflowRecord],
+        recordsByID: [UUID: WorkflowRecord]
+    ) throws -> WorkflowRecord {
+        guard let openingRecord = recordsByID[issue.openedByRecordID],
+              openingRecord.assetID == assetID,
+              openingRecord.issueID == issue.id,
+              openingRecord.parentRecordID == nil,
+              openingRecord.stage == WorkflowStage.check.rawValue,
+              openingRecord.outcomeKey == (try packageOutcome(for: .findingObserved).key),
+              openingRecord.completedAt != nil,
+              openingRecord.finalizationMutationID != nil else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+
+        let issueRecords = records.filter { $0.issueID == issue.id }
+        var visited: Set<UUID> = [openingRecord.id]
+        var current = openingRecord
+        while true {
+            let children = issueRecords.filter { $0.parentRecordID == current.id }
+            guard children.count <= 1 else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            guard let child = children.first else { break }
+            guard visited.insert(child.id).inserted,
+                  child.assetID == assetID,
+                  child.completedAt != nil,
+                  child.finalizationMutationID != nil,
+                  try ((child.stage == WorkflowStage.work.rawValue
+                    && child.outcomeKey == (try packageOutcome(for: .workRecorded).key))
+                    || (child.stage == WorkflowStage.recheck.rawValue
+                    && Set(try recheckOutcomeKeys()).contains(child.outcomeKey ?? ""))) else {
+                throw CheckRunnerCoordinatorError.invalidLineage
+            }
+            current = child
+        }
+
+        guard visited.count == issueRecords.count else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        return current
+    }
+
+    private func acknowledgementSnapshots(for asset: Asset) throws -> (
+        afterDark: SignPack.Acknowledgement,
+        safePosition: SignPack.Acknowledgement
+    ) {
+        guard let profile = try? activeLifecycleProfile(),
+              profile.release.matches(signPack),
+              profile.release.packageID == asset.packID,
+              profile.release.schemaVersion == asset.packSchemaVersion,
+              profile.release.contentVersion == asset.packContentVersion,
+              profile.requiredAcknowledgementKeys.count == 2 else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+        let acknowledgements = try profile.requiredAcknowledgementKeys.map { key in
+            let matches = signPack.acknowledgements.filter { $0.key == key }
+            guard matches.count == 1 else { throw CheckRunnerCoordinatorError.invalidLineage }
+            return matches[0]
+        }
+        return (
+            afterDark: acknowledgements[0],
+            safePosition: acknowledgements[1]
+        )
+    }
+
+    private func requiredEvidencePurposes(
+        for draft: WorkflowRecord
+    ) throws -> [SignPack.EvidencePurpose] {
+        let profile = try activeLifecycleProfile()
+        _ = try profile.stage(draft.stage)
+        return try profile.evidencePurposeKeys(for: .captureRequired).map { key in
+            let matches = signPack.evidencePurposes.filter { $0.key == key }
+            guard matches.count == 1 else {
+                throw CheckRunnerCoordinatorError.invalidCaptureState
+            }
+            return matches[0]
+        }
+    }
+
+    private func resolvedOutcome(
+        _ selection: CheckOutcomeSelection
+    ) throws -> CheckRunnerResolvedOutcomeV1 {
+        try CheckRunnerOutcomeResolverV1.resolve(
+            selection, signPack: signPack,
+            activeLifecycleProfile: { try self.activeLifecycleProfile() }
+        )
+    }
+
+    private func packageOutcome(
+        for role: WorkspacePackageOutcomeRoleV1
+    ) throws -> WorkspacePackageOutcomeProfileV1 {
+        try CheckRunnerOutcomeResolverV1.packageOutcome(
+            for: role, activeLifecycleProfile: { try self.activeLifecycleProfile() }
+        )
+    }
+
+    private func activeLifecycleProfile() throws -> WorkspacePackageLifecycleProfileV1 {
+        switch mutationRoute {
+        case let .live(_, profile): return profile
+        case .expiringCompatibility:
+            return try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+                package: signPack
+            )
+        }
+    }
+
+    private func recheckOutcomeKeys() throws -> [String] {
+        try [
+            WorkspacePackageOutcomeRoleV1.resolved,
+            .findingStillPresent,
+            .originalResolvedDifferentFinding,
+            .couldNotVerify,
+        ].map { try packageOutcome(for: $0).key }
+    }
+
+    private func validCouldNotVerifyRegistry() -> Bool {
+        CheckRunnerOutcomeResolverV1.validCouldNotVerifyRegistry(
+            signPack: signPack,
+            activeLifecycleProfile: { try self.activeLifecycleProfile() }
+        )
+    }
+
+    private func reviewEvidence(
+        _ evidence: EvidenceFile,
+        purposeDisplay: String
+    ) -> ReviewEvidence {
+        ReviewEvidence(
+            id: evidence.id,
+            purposeKey: evidence.purposeKey,
+            purposeDisplay: purposeDisplay,
+            thumbnailRelativePath: evidence.thumbnailRelativePath
+        )
+    }
+
+    private func prepareDraftCommand(
+        asset: Asset,
+        requestedStage: WorkflowStage,
+        issueID: UUID?,
+        parentRecordID: UUID?,
+        timeContext: FrozenTimeContext?,
+        acknowledgementSnapshots: (
+            afterDark: SignPack.Acknowledgement,
+            safePosition: SignPack.Acknowledgement
+        )?,
+        startedAt: Date,
+        recordID: UUID? = nil
+    ) throws -> CheckDraftMutationV1 {
+        let pdfTemplate = try activeLifecycleProfile().pdfTemplate
+        guard signPack.packID == asset.packID,
+              signPack.schemaVersion == asset.packSchemaVersion,
+              signPack.contentVersion == asset.packContentVersion else {
+            throw CheckRunnerCoordinatorError.invalidLineage
+        }
+
+        let id = recordID ?? idSource.makeID()
+        return CheckDraftMutationV1(
+            recordID: id,
+            assetID: asset.id,
+            issueID: issueID,
+            parentRecordID: parentRecordID,
+            stage: requestedStage.rawValue,
+            draftStepKey: requestedStage == .work
+                ? nil
+                : WorkflowDraftStep.wide.rawValue,
+            startedAt: startedAt,
+            observedAtUTC: timeContext?.observedAtUTC,
+            timeZoneID: timeContext?.timeZoneID,
+            utcOffsetMinutes: timeContext?.utcOffsetMinutes,
+            localDate: timeContext?.localDate,
+            localTime: timeContext?.localTime,
+            afterDarkAcknowledgementKey: acknowledgementSnapshots?.afterDark.key,
+            afterDarkAcknowledgementCopy: acknowledgementSnapshots?.afterDark.copy,
+            afterDarkAcknowledgementVersion: acknowledgementSnapshots?.afterDark.version,
+            afterDarkAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
+            safePositionAcknowledgementKey: acknowledgementSnapshots?.safePosition.key,
+            safePositionAcknowledgementCopy: acknowledgementSnapshots?.safePosition.copy,
+            safePositionAcknowledgementVersion: acknowledgementSnapshots?.safePosition.version,
+            safePositionAcknowledgementAccepted: acknowledgementSnapshots == nil ? nil : true,
+            packID: asset.packID,
+            packSchemaVersion: asset.packSchemaVersion,
+            packContentVersion: asset.packContentVersion,
+            pdfTemplateID: pdfTemplate.id,
+            pdfTemplateVersion: pdfTemplate.version
+        )
+    }
+
+    private func createDraft(
+        asset: Asset,
+        requestedStage: WorkflowStage,
+        issueID: UUID?,
+        parentRecordID: UUID?,
+        timeContext: FrozenTimeContext?,
+        acknowledgementSnapshots: (
+            afterDark: SignPack.Acknowledgement,
+            safePosition: SignPack.Acknowledgement
+        )?,
+        startedAt: Date
+    ) throws -> WorkflowRecord {
+        let command = try prepareDraftCommand(
+            asset: asset,
+            requestedStage: requestedStage,
+            issueID: issueID,
+            parentRecordID: parentRecordID,
+            timeContext: timeContext,
+            acknowledgementSnapshots: acknowledgementSnapshots,
+            startedAt: startedAt
+        )
+        let id = command.recordID
+        do {
+            try executeWorkspaceMutation(
+                .createCheckDraft(command),
+                mutationID: try MutationIDV1(rawValue: id),
+                occurredAt: startedAt
+            )
+        } catch {
+            modelContext.rollback()
+            throw CheckRunnerCoordinatorError.saveFailed
+        }
+        let persisted = try modelContext.fetch(FetchDescriptor<WorkflowRecord>(
+            predicate: #Predicate { $0.id == id }
+        ))
+        guard persisted.count == 1, let accepted = persisted.first else {
+            throw CheckRunnerCoordinatorError.saveFailed
+        }
+        return accepted
+    }
+
+    private func currentRequirementAssuranceSnapshot(
+        workflowRecordID: UUID
+    ) throws -> RequirementAssuranceSnapshotV1? {
+        var descriptor = FetchDescriptor<RequirementAssuranceRow>(
+            predicate: #Predicate { $0.workflowRecordID == workflowRecordID }
+        )
+        descriptor.fetchLimit = 2
+        let rows = try modelContext.fetch(descriptor)
+        guard rows.count <= 1 else {
+            throw RequirementAssuranceFailureV1.duplicateIdentity
+        }
+        return try rows.first?.snapshot()
+    }
+
+    private func requirementAssuranceFailure(
+        for error: Error
+    ) -> RequirementAssuranceGateFailureV1 {
+        if error is CancellationError { return .cancelled }
+        if ProtectedFilePolicyV1.isProtectedDataUnavailable(error) {
+            return .protectedDataUnavailable
+        }
+        if let failure = error as? RequirementAssuranceFailureV1 {
+            switch failure {
+            case .staleRevision:
+                return .staleRevision
+            case .unknownRequirementType:
+                return .unknownRequirementType
+            case .missingEvaluator:
+                return .missingEvaluator
+            case .invalidValue, .incompatibleVersion, .duplicateIdentity,
+                 .invalidEvidence, .invalidWaiver, .nonCanonicalOrder,
+                 .digestMismatch, .revisionOverflow:
+                return .invalidCanonicalState
+            }
+        }
+        if let failure = error as? WorkspaceMutationFailureV1 {
+            switch failure {
+            case .writerInvalidated, .wrongWriterInstance, .wrongWorkspace,
+                 .wrongGeneration, .staleWorkspaceRevision, .staleEntityRevision:
+                return .staleRevision
+            case .storageAdmissionFailed, .mutationIDQuarantined, .idempotencyCapacityReached,
+                 .revisionOverflow, .unsupportedCommand, .invalidCommand,
+                 .invalidEnvelope, .invalidReceipt, .invalidReversal,
+                 .receiptHistoryCorrupt, .sequenceCollision, .persistenceFailed:
+                return .persistenceUnavailable
+            }
+        }
+        return .persistenceUnavailable
+    }
+}
+
+private extension CheckOutcomeSelection {
+    var isRecheck: Bool {
+        switch self {
+        case .resolved, .issueStillVisible, .originalResolvedDifferentIssue: true
+        default: false
+        }
+    }
+}
+
+private struct TimeZoneResolution {
+    let site: Site
+    let timeZoneID: String
+    let requiresSave: Bool
+}
+
+extension CheckRunnerCoordinator {
+    nonisolated static func inspectionReviewCandidate(
+        subject: InspectionReviewSubjectReferenceV1
+    ) throws -> CheckRunnerInspectionReviewCandidateV1 {
+        try .init(subject: subject)
+    }
+}
+
+// MARK: - C19 measurement capture boundary
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Performs the C19 fixed-point/reference checks at the existing runner
+    /// boundary. No draft, workflow, or persistence mutation occurs here.
+    func validateMeasurementCapture(
+        _ context: CheckRunnerMeasurementCaptureContextV1
+    ) throws {
+        try context.validate()
+    }
+
+    /// Runs the one canonical C19 quality evaluator after the read-only check
+    /// boundary has passed. Quality remains review evidence and never an
+    /// automatic workflow/compliance outcome.
+    func evaluateMeasurementQuality(
+        _ context: CheckRunnerMeasurementCaptureContextV1,
+        assessmentID: UUID,
+        policyVersion: String,
+        policySHA256: String,
+        evidence: [ContentReferenceV1] = [],
+        assessedAt: Date,
+        mutationID: MutationIDV1
+    ) throws -> MeasurementQualityAssessmentV1 {
+        try context.validate()
+        return try MeasurementQualityEvaluatorV1.assessCapture(
+            assessmentID: assessmentID,
+            capture: context.capture,
+            calibration: context.calibration,
+            requiresUncertainty: context.protocolRelease.requiresUncertainty,
+            policyVersion: policyVersion,
+            policySHA256: policySHA256,
+            evidence: evidence,
+            assessedAt: assessedAt,
+            mutationID: mutationID
+        )
+    }
+}
+
+// MARK: - C36 durable draft attachment bridge
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Builds the device-local staging adapter with the same application
+    /// support root used by the other persistence writers.  When capture is
+    /// configured, the existing C05 EvidenceBundleStore is injected as the
+    /// sole immutable-content writer; no legacy EvidenceID is allocated here.
+    func makeDraftAttachmentStagingAdapter(
+        applicationSupportURL: URL,
+        workspaceID: WorkspaceID,
+        scratchStore: (any ScratchDataLeasePortV1)? = nil,
+        storageLedger: OwnedStorageLedgerV1? = nil,
+        immutableContentWriter: (any DraftImmutableContentWriterV1)? = nil
+    ) throws -> DraftAttachmentStagingAdapterV1 {
+        let writer: (any DraftImmutableContentWriterV1)?
+        if let immutableContentWriter {
+            writer = immutableContentWriter
+        } else if let evidenceBundleStore {
+            writer = evidenceBundleStore
+        } else {
+            writer = nil
+        }
+        return try DraftAttachmentStagingAdapterV1(
+            applicationSupportURL: applicationSupportURL,
+            workspaceID: workspaceID,
+            scratchStore: scratchStore,
+            storageLedger: storageLedger,
+            immutableContentWriter: writer,
+            clock: { [clock] in clock.now() }
+        )
+    }
+
+    /// Stages one capture after the existing entitlement/access provider has
+    /// been consulted.  A missing provider fails closed so callers cannot
+    /// accidentally bypass the legacy check/work entitlement gate.
+    func stageDraftAttachment(
+        data: Data,
+        draftID: UUID,
+        workspaceID: WorkspaceID,
+        attachmentKind: DraftAttachmentKindV1,
+        adapter: DraftAttachmentStagingAdapterV1,
+        stageID: UUID = UUID(),
+        mutationID: MutationIDV1? = nil,
+        mediaType: String? = nil,
+        createdAt: Date? = nil,
+        durableReceiptReadBack: Bool = false
+    ) async throws -> CheckRunnerDraftCaptureCandidateV1 {
+        guard let draftAccessState else {
+            throw CheckRunnerDraftBridgeFailureV1.accessRequired
+        }
+        let item = try await adapter.stage(
+            data: data,
+            draftID: draftID,
+            workspaceID: workspaceID,
+            attachmentKind: attachmentKind,
+            stageID: stageID,
+            mutationID: mutationID,
+            mediaType: mediaType,
+            createdAt: createdAt
+        )
+        return try CheckRunnerDraftBridgeV1.captureCandidate(
+            item: item,
+            durableReceiptReadBack: durableReceiptReadBack,
+            accessState: draftAccessState()
+        )
+    }
+
+    /// Converts a committed draft reservation into a legacy media boundary
+    /// without manufacturing the legacy EvidenceID.  The actual legacy
+    /// finalization route remains responsible for any post-commit ID mapping.
+    nonisolated static func draftMediaBoundary(
+        reservation: DraftContentReservationV1
+    ) throws -> DraftMediaPromotionBoundaryV1 {
+        try reservation.validate()
+        return .committed(
+            contentID: reservation.locator.contentID,
+            locatorID: reservation.locator.locatorID
+        )
+    }
+}
+
+// MARK: - C15 WorkPacket read-only check context
+
+// MARK: - C33 bounded temporal evidence review
+
+extension CheckRunnerCoordinator {
+    /// Adopts an already-staged item for review. It starts no device capture and
+    /// performs no canonical temporal-evidence write.
+    nonisolated static func temporalEvidenceReviewCandidate(
+        staged draft: CheckRunnerDraftCaptureCandidateV1,
+        facts: TemporalEvidenceMediaFactsV1,
+        profile: TemporalEvidenceLimitProfileV1,
+        accessibleDescription: String,
+        admissionReceipt: TemporalEvidenceIncrementalBudgetReceiptV1,
+        manualTranscript: String? = nil
+    ) throws -> CheckRunnerTemporalEvidenceReviewCandidateV1 {
+        try CheckRunnerTemporalEvidenceReviewCandidateV1(
+            draft: draft, facts: facts, profile: profile,
+            accessibleDescription: accessibleDescription,
+            manualTranscript: manualTranscript,
+            admissionReceipt: admissionReceipt
+        )
+    }
+
+    static let c33StartsMicrophoneOrVideoCapture = false
+    static let c33AutomaticTranscriptionEnabled = false
+    static let c33ManualFileImportFallbackPreserved = true
+}
+
+// MARK: - C15 WorkPacket read-only check context
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Resolves the immutable packet/item context used by a check without
+    /// claiming, leasing, or otherwise mutating packet state.
+    func workPacketContext(
+        from snapshot: CompletedWorkPacketSnapshotV1,
+        itemID: String
+    ) throws -> CheckRunnerWorkPacketContextV1 {
+        let context = try CheckRunnerWorkPacketContextV1(
+            snapshot: snapshot,
+            itemID: itemID
+        )
+        guard snapshot.items.contains(where: { $0.itemID == itemID }) else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+        return context
+    }
+
+    /// Returns collision metadata for review. The result intentionally
+    /// contains no actor, claim, lease, evidence, or result content.
+    func workPacketCollisionReview(
+        from snapshot: CompletedWorkPacketSnapshotV1,
+        itemID: String
+    ) throws -> CheckRunnerWorkPacketCollisionReviewV1 {
+        try snapshot.validate()
+        guard let item = snapshot.items.first(where: { $0.itemID == itemID }) else {
+            throw CheckRunnerCoordinatorError.workPacketUnavailable
+        }
+        return try CheckRunnerWorkPacketCollisionReviewV1(
+            packetID: snapshot.manifest.packetID,
+            item: item
+        )
+    }
+
+    /// Revalidates a previously resolved context against the latest immutable
+    /// snapshot before a check begins. A changed revision/digest is stale;
+    /// an explicitly conflicted item requires collision review.
+    func validateWorkPacketReadyForCheck(
+        _ context: CheckRunnerWorkPacketContextV1,
+        currentSnapshot: CompletedWorkPacketSnapshotV1
+    ) throws {
+        try context.validate()
+        try currentSnapshot.validate()
+        let current = try CheckRunnerWorkPacketContextV1(
+            snapshot: currentSnapshot,
+            itemID: context.itemID
+        )
+        guard current.workspaceID == context.workspaceID,
+              current.packetID == context.packetID,
+              current.manifestID == context.manifestID,
+              current.manifestSHA256 == context.manifestSHA256,
+              current.expectedRevision == context.expectedRevision,
+              current.itemSHA256 == context.itemSHA256 else {
+            throw CheckRunnerCoordinatorError.workPacketStaleRevision
+        }
+        guard current.currentState != .conflicted else {
+            throw CheckRunnerCoordinatorError.workPacketCollisionReviewRequired
+        }
+    }
+}
+
+// MARK: - C20 reviewed-derivative check boundary
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Evaluates the canonical C20 projection at the existing check boundary.
+    /// This is deliberately read-only: a projection decision cannot complete
+    /// a check, change a workflow outcome, or imply privacy/compliance.
+    func validatePrivacyProjection(
+        _ context: CheckRunnerPrivacyTransformContextV1
+    ) throws -> PrivacyProjectionDecisionV1 {
+        try context.projectionDecision()
+    }
+
+    /// Resolves the exact derivative only after the shared C20 gate has
+    /// admitted policy, audience, source revision/digest, review, freshness,
+    /// and metadata sanitation.
+    func reviewedDerivativeReference(
+        _ context: CheckRunnerPrivacyTransformContextV1
+    ) throws -> ContentReferenceV1 {
+        try context.reviewedDerivative()
+    }
+}
+
+// MARK: - C23 field-reference check boundary
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Resolves the completed packet and its exact C23 release/binding
+    /// projections without claiming or mutating any work-packet state.
+    func fieldReferenceContext(
+        from snapshot: CompletedWorkPacketSnapshotV1,
+        itemID: String,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1]
+    ) throws -> CheckRunnerFieldReferenceContextV1 {
+        try CheckRunnerFieldReferenceContextV1(
+            snapshot: snapshot,
+            itemID: itemID,
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness
+        )
+    }
+
+    /// Re-proves the packet and binding digests against the latest completed
+    /// snapshot before a check consumes an offline reference.
+    func validateFieldReferenceContext(
+        _ context: CheckRunnerFieldReferenceContextV1,
+        currentSnapshot: CompletedWorkPacketSnapshotV1,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1]
+    ) throws {
+        try context.validate()
+        let current = try CheckRunnerFieldReferenceContextV1(
+            snapshot: currentSnapshot,
+            itemID: context.packet.itemID,
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness
+        )
+        guard current.packet == context.packet,
+              current.fieldReferences == context.fieldReferences else {
+            throw CheckRunnerCoordinatorError.workPacketStaleRevision
+        }
+    }
+}
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Features_CheckRunner_CheckRunnerCoordinator {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordinator_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Features_CheckRunner_CheckRunnerCoordinator {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift", role: .checkRunner)
+}
+
+enum C31LightingConsumerBoundary_Features_CheckRunner_CheckRunnerCoordinator {
+    static let registrationID = "C31_LIGHTING_CONSUMER/check-runner-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}
+
+// MARK: - C32 assistance review and acceptance
+
+@MainActor
+extension CheckRunnerCoordinator {
+    /// Presents an explicitly unverified proposal. This does not complete a
+    /// check or write a fact; the shared lifecycle owns only memory/scratch.
+    func presentAssistance(
+        _ context: CheckRunnerAssistanceReviewContextV1,
+        using assistance: AssistanceCoordinatorV1
+    ) async throws {
+        try context.validate()
+        try await assistance.present(context.proposal, context: context.evaluation)
+    }
+
+    func reviewAssistance(
+        _ context: CheckRunnerAssistanceReviewContextV1,
+        using assistance: AssistanceCoordinatorV1
+    ) async throws -> AssistanceReviewDecisionV1 {
+        try context.validate()
+        return try await assistance.review(
+            proposalID: context.proposal.proposalID,
+            context: context.evaluation
+        )
+    }
+
+    /// Acceptance remains a normal expected-revision writer operation. The
+    /// runner re-reviews immediately before delegation and never applies the
+    /// proposed ResponseValue directly to model state.
+    func acceptReviewedAssistance(
+        _ context: CheckRunnerAssistanceReviewContextV1,
+        targetMutation: AssistanceCanonicalTargetMutationV1,
+        expectedRevision: WorkspaceExpectedRevisionV1,
+        mutationID: MutationIDV1,
+        acceptedBy: ActorSnapshotV1,
+        acceptedAt: Date,
+        using assistance: AssistanceCoordinatorV1
+    ) async throws -> AssistanceAcceptanceReceiptV1 {
+        try context.validate()
+        switch try await reviewAssistance(context, using: assistance) {
+        case let .ready(current):
+            guard current == context.proposal else {
+                throw AssistanceContractFailureV1.staleTarget
+            }
+        case let .expired(disposition):
+            throw AssistanceContractFailureV1.expired(disposition.reason)
+        }
+        return try await assistance.accept(
+            proposalID: context.proposal.proposalID,
+            targetMutation: targetMutation,
+            expectedRevision: expectedRevision,
+            mutationID: mutationID,
+            acceptedBy: acceptedBy,
+            acceptedAt: acceptedAt,
+            context: context.evaluation
+        )
+    }
+
+    /// Manual entry is always sourced from the independent user-authored
+    /// value, never copied from a rejected or expired proposal.
+    func manualAssistanceFallback(
+        _ context: CheckRunnerAssistanceReviewContextV1
+    ) throws -> ResponseValueV1 {
+        try context.useManualValue()
+    }
+
+    /// Constructs C32 only on the canonical live package lifecycle. The
+    /// compatibility adapter has no journal-owned receipt or authoritative
+    /// revision projection and therefore fails closed.
+    func makeAssistanceRuntime(
+        scratchLeases: any CapabilityScratchLeasePortV1
+    ) throws -> CheckRunnerAssistanceRuntimeV1 {
+        guard case let .live(dependencies, _) = mutationRoute else {
+            throw CheckRunnerCoordinatorError.packageLifecycleMismatch
+        }
+        let scratch = AssistanceCapabilityScratchLifecycleAdapterV1(
+            leases: scratchLeases
+        )
+        let reader = CheckRunnerAssistanceAuthoritativeStateReaderV1(
+            modelContext: modelContext,
+            dependencies: dependencies,
+            scratchSource: scratch
+        )
+        let currentState = AssistanceTrustedSnapshotAuthorityV1(reader: reader)
+        let lifecycle = AssistanceLifecycleAdapterV1(
+            writer: dependencies.writer,
+            scratch: scratch,
+            currentState: currentState
+        )
+        return CheckRunnerAssistanceRuntimeV1(
+            coordinator: AssistanceCoordinatorV1(lifecycle: lifecycle),
+            scratch: scratch
+        )
+    }
+}
+
+/// Keeps the sole scratch binding adapter reachable by a future authorized
+/// proposal producer while the coordinator owns the same adapter for terminal
+/// cleanup. C32 itself adds no capture/runtime provider.
+@MainActor
+struct CheckRunnerAssistanceRuntimeV1 {
+    let coordinator: AssistanceCoordinatorV1
+    let scratch: AssistanceCapabilityScratchLifecycleAdapterV1
+}
+
+/// Live, read-only C32 authority. It composes the existing workspace writer,
+/// released feature-policy loader, exact C26 session release rows, package
+/// promotion rows, scratch binding authority, and application clock. It never
+/// captures OCR, speech, location, or other device observations.
+@MainActor
+private final class CheckRunnerAssistanceAuthoritativeStateReaderV1:
+    AssistanceAuthoritativeStateReadingV1 {
+    private let modelContext: ModelContext
+    private let dependencies: WorkspacePackageLifecycleDependenciesV1
+    private let scratchSource: any AssistanceCurrentSourceReadingV1
+    private let policyLoader: FeaturePolicyLoaderV1
+
+    init(
+        modelContext: ModelContext,
+        dependencies: WorkspacePackageLifecycleDependenciesV1,
+        scratchSource: any AssistanceCurrentSourceReadingV1,
+        policyLoader: FeaturePolicyLoaderV1 = FeaturePolicyLoaderV1(
+            provider: BundleFeaturePolicyDataProviderV1()
+        )
+    ) {
+        self.modelContext = modelContext
+        self.dependencies = dependencies
+        self.scratchSource = scratchSource
+        self.policyLoader = policyLoader
+    }
+
+    func readCurrentAssistanceState(
+        proposalID: UUID,
+        capability: AssistanceCapabilityReferenceV1,
+        target: AssistanceTargetV1,
+        source: AssistanceSourceReferenceV1
+    ) async throws -> AssistanceAuthoritativeStateV1 {
+        try capability.validate()
+        try target.validate()
+        try source.validate()
+        guard target.workspaceID == dependencies.workspaceID,
+              target.entity.kind == .surveySession else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+
+        let workspaceRevision = try dependencies.writer.currentRevision()
+        let currentTargetRows = workspaceRevision.entityRevisions.filter {
+            $0.identity == target.entity
+        }
+        guard workspaceRevision.workspaceID == dependencies.workspaceID,
+              workspaceRevision.generationID == dependencies.generationID,
+              currentTargetRows.count == 1 else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+
+        let binding = try AssistanceFeaturePolicyBindingV1.binding(for: capability)
+        let resolution = try binding.featureID.map {
+            try policyLoader.resolve(featureID: $0)
+        }
+        let policy = try binding.makePolicy(
+            capability: capability,
+            resolution: resolution
+        )
+
+        let sessionID = target.entity.id
+        let sessionRows = try modelContext.fetch(FetchDescriptor<SurveySessionRow>(
+            predicate: #Predicate { $0.sessionID == sessionID }
+        ))
+        guard sessionRows.count == 1, let sessionRow = sessionRows.first else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+        let session = try sessionRow.value()
+        guard session.workspaceID == dependencies.workspaceID,
+              session.sessionID == sessionID,
+              session.revision == currentTargetRows[0].revision else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+
+        let definitionReleaseID = session.authority.definitionRelease.releaseID
+        let definitionRows = try modelContext.fetch(
+            FetchDescriptor<SurveyDefinitionReleaseRow>(
+                predicate: #Predicate { $0.releaseID == definitionReleaseID }
+            )
+        )
+        let promoted = try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+            .map { try $0.value() }
+            .filter {
+                $0.workspaceID == dependencies.workspaceID
+                    && $0.packageRelease.packageReleaseID
+                        == session.authority.packageRelease.packageReleaseID
+            }
+        guard definitionRows.count == 1,
+              let definitionRow = definitionRows.first,
+              promoted.count == 1,
+              let packageRelease = promoted.first?.packageRelease else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+        let definition = try definitionRow.value(
+            pinnedBy: session.authority,
+            packageRelease: packageRelease
+        )
+        guard definition.releaseSHA256
+                == session.authority.definitionRelease.releaseSHA256 else {
+            throw AssistanceContractFailureV1.staleTarget
+        }
+
+        let currentSource: AssistanceSourceReferenceV1?
+        if source.kind == .leasedScratch {
+            currentSource = try scratchSource.currentSource(
+                proposalID: proposalID,
+                expected: source
+            )
+        } else {
+            // C32 ships no immutable/deterministic/device source provider.
+            currentSource = nil
+        }
+        return try AssistanceAuthoritativeStateV1(
+            workspaceRevision: workspaceRevision,
+            policy: policy,
+            packageReleaseSHA256: packageRelease.packageSHA256,
+            definitionReleaseSHA256: definition.releaseSHA256,
+            currentSource: currentSource,
+            evaluatedAt: dependencies.clock.now()
+        )
+    }
+}
+enum C46OperationalContactConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordinator_swift {
+    static let c47IntegrationRole = "EXPLICIT_START_NO_P04_ROUTE"
+    static let c47SharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let c47InstallationReceipt = InstallationActivityContractReceiptV1.self
+    static let c47PunchReceipt = PunchActivityContractReceiptV1.self
+    static let c47NoPlanFallback = NoPlanFallbackV1.self
+    static let c47UsesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let c47CreatesSecondRouteOrInspectionAlias = false
+    static func c47ValidateExplicitStart(_ candidate: ActivityContractReviewCandidateV2) throws {
+        try candidate.envelope.kind.requireKnownForMutation()
+        guard candidate.mayStart else { throw ActivityContractFailureV2.invalidTransition }
+    }
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noSecondWriterOrAutomaticHandoff = true
+}
+
+extension CheckRunnerCoordinator {
+    static func activityContractReviewCandidate(
+        envelope: ActivitySessionEnvelopeV2,
+        noPlanFallback: NoPlanFallbackV1?
+    ) throws -> ActivityContractReviewCandidateV2 {
+        try ActivityContractCloseoutSettingsPolicyV2.validateCanonicalPresentation(envelope)
+        return try ActivityContractReviewCandidateV2(
+            envelope: envelope, noPlanFallback: noPlanFallback
+        )
+    }
+
+    static func restoreActivityRoute(
+        from canonicalData: Data,
+        querying query: any ActivityContractCurrentStateQueryingV2
+    ) async throws -> ActivityRouteV2 {
+        let route = try ActivityRouteCanonicalRegistryV2.decode(canonicalData)
+        guard let current = try await query.currentActivityContract(
+            workspaceID: route.workspaceID, activityID: route.activityID
+        ), let envelope = current.envelope,
+              envelope.workspaceID == route.workspaceID,
+              envelope.activityID == route.activityID,
+              envelope.kind == route.kind else {
+            throw ActivityContractCoordinatorFailureV2.targetMissing
+        }
+        return route
+    }
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Features_CheckRunner_CheckRunnerCoordinator_swift {
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingInfrastructureOnly = true
+    static let createsSecondWriterRendererStoreRouteOrInspectionAlias = false
+}
+
+enum C34RouteAdoptionBoundary_CheckRunnerCoordinatorV1 {
+    static let canonicalRegistryType = RouteRegistryV1.self
+    static let resolutionResultType = RouteResolutionResultV1.self
+    static let startsAutomaticWork = false
+}
+
+enum C53SharedCheckRunnerCoordinatorBoundaryV1 {
+    static let writerReceiptType: ServiceReliabilityWriterReceiptV1.Type = ServiceReliabilityWriterReceiptV1.self
+    static let checkRunnerMayPrepareEvidenceForExplicitReview = true
+    static let checkRunnerMayNotWriteIncidentOrExposureRecords = true
+    static let checkRunnerMayNotStartAutomaticWork = true
+    static let checkRunnerMayNotAnnounceVerifiedReliability = true
+    static let sourceContractNames = C53SharedServiceReliabilitySemanticBoundaryV1.contractNames
+}

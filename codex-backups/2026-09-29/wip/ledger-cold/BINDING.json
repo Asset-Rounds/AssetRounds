@@ -1,0 +1,57 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "status": "immutable future-only NONINSTALLABLE checkpoint",
+  "beforeSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+  "candidateSHA256": "818673231202c56f545c3d87019997d53bffee0ea52916611a75ea090fe88fe5",
+  "trackedLedgerSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+  "diffSHA256": "c94e5ef872c3adeecee60812ec47e38e120b15ffb29a7a32bdf26291383cf728",
+  "interfaceSHA256": "19cb4a18680cf8c876054a901a33f29d7f30f44edee5e57d283c91e6452dca93",
+  "patchProof": [
+    {
+      "direction": "forward",
+      "exitCode": 0,
+      "expectedSHA256": "818673231202c56f545c3d87019997d53bffee0ea52916611a75ea090fe88fe5",
+      "actualSHA256": "818673231202c56f545c3d87019997d53bffee0ea52916611a75ea090fe88fe5",
+      "exact": true
+    },
+    {
+      "direction": "reverse",
+      "exitCode": 0,
+      "expectedSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+      "actualSHA256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+      "exact": true
+    }
+  ],
+  "syntaxOnly": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh",
+    "sourceSHA256": "818673231202c56f545c3d87019997d53bffee0ea52916611a75ea090fe88fe5",
+    "kind": "isolated syntax parse only; no module/typecheck/runtime",
+    "DEBUG": {
+      "exitCode": 0,
+      "seconds": 0.08444595336914062,
+      "log": "PARSE_WORKING_V31_DEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "nonDEBUG": {
+      "exitCode": 0,
+      "seconds": 0.04330921173095703,
+      "log": "PARSE_WORKING_V31_nonDEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "requiredPublishedPlanContractSHA256": "d27e7e334e97714b9a20a1c52c07a7bbf36f38f58814dbfceeba7bcbc1f65874",
+  "priorCheckpointV28BindingSHA256": "dd898d2da2dd1868d7d1b9471fc35beda98b10ea0db313138117f95d4006f5a7",
+  "caseMatrixSHA256": "d9df9eda9c406e7eb78954608833120dac98abe3284e42b45d6f5bda966300dd",
+  "limitations": [
+    "NONINSTALLABLE future-only checkpoint; all V28 coupled actual issuer/source/progress/generic directory/current-capacity/Registry terminal obligations remain due.",
+    "Actual V11 published Plan callback/private permit issuer and Store V4 bounded source/page/checkpoint publication are not implemented by Ledger.",
+    "No Store publication may occur within read-only Initial visitor/page. Old scope must exit/revoke and a genuinely new source-cut permit must be issued after each actual publication.",
+    "Private warm cursor stamp stores pure computation only; no authorization/source/control/Store disk-prefix check is cached.",
+    "Existing one-producer source materialization retains old genuine bounds; this is not a capacity approval for current images or total durable representation.",
+    "DEBUG/nonDEBUG syntax parses0 only; no semantic compile/module/native/independent review/acceptance/gate claim.",
+    "V28 main-class FD census is historical lexical evidence, not updated V31 whole-program proof; all historical files/failure records preserved.",
+    "Separate root-prioritized live b4eef Scratch effect loan has not been authored or imported here."
+  ]
+}

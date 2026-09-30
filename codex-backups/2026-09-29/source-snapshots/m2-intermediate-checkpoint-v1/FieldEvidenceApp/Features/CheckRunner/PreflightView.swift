@@ -1,0 +1,473 @@
+import Foundation
+import SwiftUI
+
+enum PreflightBeginOperationFailureV1: Error, Equatable {
+    case routeValidationDenied
+}
+
+@MainActor
+struct PreflightBeginOperationV1 {
+    static func begin(
+        coordinator: CheckRunnerCoordinator,
+        snapshot: FirstSignSnapshot,
+        timeZoneID: String?,
+        isTimeZoneConfirmed: Bool,
+        afterDarkAccepted: Bool,
+        safePositionAccepted: Bool,
+        observedAt: Date,
+        beforeBeginRouteValidation: (() throws -> Void)?
+    ) throws -> WorkflowRecord {
+        do {
+            try beforeBeginRouteValidation?()
+        } catch {
+            throw PreflightBeginOperationFailureV1.routeValidationDenied
+        }
+        return try coordinator.beginCheck(
+            assetID: snapshot.assetID,
+            timeZoneID: timeZoneID,
+            isTimeZoneConfirmed: isTimeZoneConfirmed,
+            afterDarkAccepted: afterDarkAccepted,
+            safePositionAccepted: safePositionAccepted,
+            observedAt: observedAt
+        )
+    }
+}
+
+@MainActor
+struct CheckRunnerDurablePreflightActionsV1 {
+    let values: @MainActor () -> CheckRunnerEditablePreflightV1
+    let update: @MainActor (CheckRunnerEditablePreflightV1) throws -> Void
+    let begin: @MainActor () async throws -> Void
+    let leave: @MainActor () async throws -> Void
+}
+
+@MainActor
+struct PreflightView: View {
+    nonisolated static let screenAccessibilityIdentifier = "s3.preflight.screen"
+    nonisolated static let timeZoneAccessibilityIdentifier = "s3.preflight.time-zone"
+    nonisolated static let timeZoneConfirmationAccessibilityIdentifier = "s3.preflight.time-zone-confirmed"
+    nonisolated static let afterDarkAccessibilityIdentifier = "s3.preflight.after-dark"
+    nonisolated static let safePositionAccessibilityIdentifier = "s3.preflight.safe-position"
+    nonisolated static let beginAccessibilityIdentifier = "s3.preflight.begin"
+    nonisolated static let cancelAccessibilityIdentifier = "s3.preflight.cancel"
+
+    let snapshot: FirstSignSnapshot
+    let pack: SignPack
+    private enum Backend {
+        case standalone(CheckRunnerCoordinator, URL, cannotComplete: () -> Void, cancel: () -> Void)
+        case durable(CheckRunnerDurablePreflightActionsV1)
+    }
+    private let backend: Backend
+    let usesImportedCaptureFixturesForUITest: Bool
+    let cameraAdapter: CameraAdapter
+    let beforeBeginRouteValidation: (() throws -> Void)?
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    @State private var standaloneEditable: CheckRunnerEditablePreflightV1
+    private var editable: CheckRunnerEditablePreflightV1 {
+        get {
+            if case let .durable(actions) = backend { return actions.values() }
+            return standaloneEditable
+        }
+        nonmutating set {
+            if case let .durable(actions) = backend {
+                do { try actions.update(newValue) }
+                catch { errorMessage = "Your changes could not be saved. Try again." }
+            } else {
+                standaloneEditable = newValue
+            }
+        }
+    }
+    private var editableBinding: Binding<CheckRunnerEditablePreflightV1> {
+        Binding(get: { editable }, set: { editable = $0 })
+    }
+
+    private var timeZoneID: String { editable.timeZoneID }
+    private var isTimeZoneConfirmed: Bool { editable.isTimeZoneConfirmed }
+    private var confirmedTimeZoneID: String? { editable.confirmedTimeZoneID }
+    private var afterDarkAccepted: Bool { editable.afterDarkAccepted }
+    private var safePositionAccepted: Bool { editable.safePositionAccepted }
+    @State private var didCheckForDraft = false
+    @State private var isCheckingForDraft = true
+    @State private var didFailDraftCheck = false
+    @State private var hasDraft = false
+    @State private var isBeginning = false
+    @State private var errorMessage: String?
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case timeZone
+    }
+
+    init(
+        snapshot: FirstSignSnapshot,
+        pack: SignPack,
+        coordinator: CheckRunnerCoordinator,
+        generationRootURL: URL,
+        usesImportedCaptureFixturesForUITest: Bool = false,
+        cameraAdapter: CameraAdapter = .live,
+        beforeBeginRouteValidation: (() throws -> Void)? = nil,
+        cannotComplete: @escaping () -> Void,
+        cancel: @escaping () -> Void
+    ) {
+        self.snapshot = snapshot
+        self.pack = pack
+        self.backend = .standalone(coordinator, generationRootURL, cannotComplete: cannotComplete, cancel: cancel)
+        self.usesImportedCaptureFixturesForUITest =
+            usesImportedCaptureFixturesForUITest
+        self.cameraAdapter = cameraAdapter
+        self.beforeBeginRouteValidation = beforeBeginRouteValidation
+        _standaloneEditable = State(initialValue: .init(
+            timeZoneID: snapshot.timeZoneID ?? "",
+            isTimeZoneConfirmed: snapshot.timeZoneID != nil,
+            confirmedTimeZoneID: snapshot.timeZoneID
+        ))
+    }
+
+    /// The live parent owns navigation after Begin. This backend never calls
+    /// the standalone coordinator or implicitly enters its capture route.
+    init(snapshot: FirstSignSnapshot, pack: SignPack, durable: CheckRunnerDurablePreflightActionsV1) {
+        self.snapshot = snapshot
+        self.pack = pack
+        self.backend = .durable(durable)
+        self.usesImportedCaptureFixturesForUITest = false
+        self.cameraAdapter = .live
+        self.beforeBeginRouteValidation = nil
+        _standaloneEditable = State(initialValue: .init())
+    }
+
+    var body: some View {
+        Group {
+            if !isCheckingForDraft, !didFailDraftCheck, hasDraft,
+               case let .standalone(coordinator, _, cannotComplete, _) = backend {
+                CaptureStepView(
+                    assetID: snapshot.assetID,
+                    coordinator: coordinator,
+                    usesImportedCaptureFixturesForUITest:
+                        usesImportedCaptureFixturesForUITest,
+                    cameraAdapter: cameraAdapter,
+                    cannotComplete: cannotComplete
+                )
+            } else {
+                ScrollView {
+                    Group {
+                        if isCheckingForDraft {
+                            ProgressView("Checking for an active check")
+                                .frame(
+                                    maxWidth: .infinity,
+                                    minHeight: DesignTokens.Target.minimumInteractiveHeight
+                                )
+                        } else if didFailDraftCheck {
+                            loadFailure
+                        } else {
+                            preflight
+                                .disabled(isBeginning)
+                                #if DEBUG
+                                .background {
+                                    NativeScreenObservationAnchorV1(identifier: Self.screenAccessibilityIdentifier)
+                                        .frame(width: 0, height: 0)
+                                        .allowsHitTesting(false)
+                                }
+                                #endif
+                        }
+                    }
+                    .padding(DesignTokens.Spacing.space16)
+                }
+                .accessibilityIdentifier(Self.screenAccessibilityIdentifier)
+            }
+        }
+        .navigationTitle(
+            !isCheckingForDraft && !didFailDraftCheck && hasDraft
+                ? "Capture"
+                : "Ready for night check"
+        )
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DesignTokens.SemanticColors.workBackground)
+        .task {
+            guard !didCheckForDraft else { return }
+            didCheckForDraft = true
+            guard case let .standalone(coordinator, generationRootURL, _, _) = backend else {
+                isCheckingForDraft = false
+                return
+            }
+            coordinator.configureCapture(generationRootURL: generationRootURL)
+
+            do {
+                let preparation = try coordinator.prepare(assetID: snapshot.assetID)
+                editable.confirmedTimeZoneID = preparation.confirmedTimeZoneID
+                hasDraft = preparation.existingDraftID != nil
+            } catch {
+                didFailDraftCheck = true
+            }
+            isCheckingForDraft = false
+
+            if confirmedTimeZoneID == nil, !hasDraft {
+                await Task.yield()
+                focusedField = .timeZone
+            }
+        }
+    }
+
+    private var preflight: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space16) {
+            AssetRoundsEvidenceCard {
+                Label("Ready for night check", systemImage: "info.circle.fill")
+                    .font(DesignTokens.Typography.secondaryBody.weight(.semibold))
+                    .foregroundStyle(DesignTokens.SemanticColors.brandHeading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Information: Ready for night check")
+
+                Text(snapshot.signLabel)
+                    .font(DesignTokens.Typography.screenTitle)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+
+                if confirmedTimeZoneID == nil {
+                    timeZoneConfirmation
+                } else if let confirmedTimeZoneID {
+                    detailRow(title: "Confirmed time zone", value: confirmedTimeZoneID)
+                }
+            }
+            .padding(
+                .bottom,
+                dynamicTypeSize == .accessibility5 && confirmedTimeZoneID == nil
+                    ? DesignTokens.Spacing.space32 + DesignTokens.Spacing.space32
+                    : 0
+            )
+
+            AssetRoundsEvidenceCard {
+                Text("Before you begin")
+                    .font(DesignTokens.Typography.sectionHeading)
+                    .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                    .accessibilityAddTraits(.isHeader)
+
+                ForEach(pack.acknowledgements) { acknowledgement in
+                    Toggle(
+                        acknowledgement.copy,
+                        isOn: acknowledgementBinding(for: acknowledgement.key)
+                    )
+                    .frame(
+                        minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                        maxWidth: .infinity,
+                        minHeight: DesignTokens.Target.minimumInteractiveHeight,
+                        alignment: .leading
+                    )
+                    .contentShape(.interaction, Rectangle())
+                    .contentShape(.accessibility, Rectangle())
+                    .accessibilityIdentifier(
+                        acknowledgement.key == "after_dark"
+                            ? Self.afterDarkAccessibilityIdentifier
+                            : Self.safePositionAccessibilityIdentifier
+                    )
+                }
+            }
+
+            if let errorMessage {
+                AssetRoundsEvidenceCard {
+                    AssetRoundsStateLabel(
+                        kind: .error,
+                        text: Text("Check not started")
+                    )
+                    .accessibilityLabel("Blocked: Check not started")
+                    .accessibilityValue(Text(verbatim: String()))
+
+                    Text(errorMessage)
+                        .font(DesignTokens.Typography.primaryBody)
+                        .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            AssetRoundsPrimaryAction("Begin check", action: begin)
+            .disabled(!canBegin || isBeginning)
+            .accessibilityHint(canBegin ? "Creates or resumes this sign's check" : beginDisabledHint)
+            .accessibilityIdentifier(Self.beginAccessibilityIdentifier)
+            .accessibilityHidden(focusedField == .timeZone)
+
+            AssetRoundsSecondaryAction("Cancel — no check started", action: cancel)
+                .disabled(isBeginning)
+                .accessibilityIdentifier(Self.cancelAccessibilityIdentifier)
+                .accessibilityHidden(focusedField == .timeZone)
+        }
+    }
+
+    private var timeZoneConfirmation: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
+            Text("Site time zone")
+                .font(DesignTokens.Typography.fieldLabel)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+
+            TextField("IANA time zone, for example America/New_York", text: editableBinding.timeZoneID)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textContentType(.none)
+                .submitLabel(.done)
+                .focused($focusedField, equals: .timeZone)
+                .onSubmit {
+                    focusedField = nil
+                }
+                .padding(.horizontal, DesignTokens.Spacing.space8)
+                .frame(minHeight: DesignTokens.Target.minimumInteractiveHeight)
+                .background(DesignTokens.SemanticColors.elevatedSurface)
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.standard))
+                .overlay {
+                    RoundedRectangle(cornerRadius: DesignTokens.Radius.standard)
+                        .stroke(DesignTokens.SemanticColors.separator, lineWidth: DesignTokens.Stroke.standard)
+                }
+                .accessibilityLabel("IANA time zone")
+                .accessibilityHint("Enter a time zone such as America slash New York")
+                .accessibilityIdentifier(Self.timeZoneAccessibilityIdentifier)
+                .onChange(of: timeZoneID) { _, _ in
+                    errorMessage = nil
+                    editable.isTimeZoneConfirmed = false
+                }
+
+            Toggle(isOn: editableBinding.isTimeZoneConfirmed) {
+                Text("I confirm this is the site's time zone.")
+            }
+                .frame(
+                    minWidth: DesignTokens.Target.minimumInteractiveWidth,
+                    maxWidth: .infinity,
+                    minHeight: DesignTokens.Target.minimumInteractiveHeight,
+                    alignment: .leading
+                )
+                .contentShape(.interaction, Rectangle())
+                .contentShape(.accessibility, Rectangle())
+                .disabled(!hasValidEnteredTimeZone)
+                .accessibilityHint(
+                    hasValidEnteredTimeZone
+                        ? "Confirms the entered time zone for this site"
+                        : "Enter a valid IANA time zone first"
+                )
+                .accessibilityIdentifier(Self.timeZoneConfirmationAccessibilityIdentifier)
+                .onChange(of: isTimeZoneConfirmed) { _, isConfirmed in
+                    if isConfirmed {
+                        focusedField = nil
+                    }
+                }
+        }
+    }
+
+    private var loadFailure: some View {
+        AssetRoundsEvidenceCard {
+            AssetRoundsStateLabel(
+                kind: .error,
+                text: Text("Active check unavailable")
+            )
+            .accessibilityLabel("Blocked: Active check unavailable")
+            .accessibilityValue(Text(verbatim: String()))
+
+            Text("The active check could not be opened.")
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var normalizedTimeZoneID: String {
+        timeZoneID.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var hasValidEnteredTimeZone: Bool {
+        TimeZone.knownTimeZoneIdentifiers.contains(normalizedTimeZoneID)
+    }
+
+    private var hasValidConfirmedTimeZone: Bool {
+        confirmedTimeZoneID != nil || (hasValidEnteredTimeZone && isTimeZoneConfirmed)
+    }
+
+    private var canBegin: Bool {
+        hasValidConfirmedTimeZone && afterDarkAccepted && safePositionAccepted
+    }
+
+    private var beginDisabledHint: String {
+        if !hasValidConfirmedTimeZone {
+            return "Confirm a valid site time zone before beginning"
+        }
+        return "Accept both acknowledgements before beginning"
+    }
+
+    private func begin() {
+        guard canBegin, !isBeginning else { return }
+        if case let .durable(actions) = backend {
+            performDurableAction(actions.begin)
+            return
+        }
+        guard case let .standalone(coordinator, _, _, _) = backend else { return }
+        isBeginning = true
+        errorMessage = nil
+        focusedField = nil
+
+        do {
+            _ = try PreflightBeginOperationV1.begin(
+                coordinator: coordinator,
+                snapshot: snapshot,
+                timeZoneID: confirmedTimeZoneID ?? normalizedTimeZoneID,
+                isTimeZoneConfirmed: confirmedTimeZoneID != nil || isTimeZoneConfirmed,
+                afterDarkAccepted: afterDarkAccepted,
+                safePositionAccepted: safePositionAccepted,
+                observedAt: Date(),
+                beforeBeginRouteValidation: beforeBeginRouteValidation
+            )
+            hasDraft = true
+        } catch PreflightBeginOperationFailureV1.routeValidationDenied {
+            errorMessage = "The check could not be started. Try again."
+        } catch {
+            errorMessage = "The check could not be started. Try again."
+            if let preparation = try? coordinator.prepare(assetID: snapshot.assetID) {
+                editable.confirmedTimeZoneID = preparation.confirmedTimeZoneID
+                hasDraft = preparation.existingDraftID != nil
+            }
+        }
+
+        isBeginning = false
+    }
+
+    private func cancel() {
+        guard !isBeginning else { return }
+        switch backend {
+        case let .standalone(_, _, _, cancel): cancel()
+        case let .durable(actions): performDurableAction(actions.leave)
+        }
+    }
+
+    private func performDurableAction(_ action: @escaping @MainActor () async throws -> Void) {
+        isBeginning = true
+        errorMessage = nil
+        focusedField = nil
+        Task { @MainActor in
+            defer { isBeginning = false }
+            do { try await action() }
+            catch { errorMessage = "Your changes could not be saved. Try again." }
+        }
+    }
+
+    private func acknowledgementBinding(for key: String) -> Binding<Bool> {
+        switch key {
+        case "after_dark":
+            editableBinding.afterDarkAccepted
+        case "safe_authorized_position":
+            editableBinding.safePositionAccepted
+        default:
+            .constant(false)
+        }
+    }
+
+    private func detailRow(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.space8) {
+            Text(title)
+                .font(DesignTokens.Typography.supportingCaption.weight(.semibold))
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+
+            Text(value)
+                .font(DesignTokens.Typography.primaryBody)
+                .foregroundStyle(DesignTokens.SemanticColors.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}

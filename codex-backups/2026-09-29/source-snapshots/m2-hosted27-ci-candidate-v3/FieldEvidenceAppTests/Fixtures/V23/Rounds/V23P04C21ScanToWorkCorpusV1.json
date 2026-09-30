@@ -1,0 +1,114 @@
+{
+  "schema": "V23P04C21ScanToWorkCorpusV1",
+  "schemaVersion": 1,
+  "sourceLocale": "en",
+  "selectors": [
+    "V23-P04-C21-G01",
+    "V23-P04-C21-A01",
+    "V23-P04-C21-H01",
+    "V23-P04-C21-I01",
+    "V23-P04-C21-R01"
+  ],
+  "closedResolverOutcomes": [
+    { "outcome": "READY", "mayStartAfterExplicitAction": true, "manualFallback": true },
+    { "outcome": "DUPLICATE_IN_SELECTION", "mayStartAfterExplicitAction": false, "manualFallback": true },
+    { "outcome": "ALREADY_IN_ROUND", "mayStartAfterExplicitAction": false, "manualFallback": true },
+    { "outcome": "AMBIGUOUS", "mayStartAfterExplicitAction": false, "manualFallback": true },
+    { "outcome": "FOREIGN", "mayStartAfterExplicitAction": false, "manualFallback": true },
+    { "outcome": "RETIRED_OR_REPLACED", "mayStartAfterExplicitAction": false, "manualFallback": true },
+    { "outcome": "NOT_FOUND", "mayStartAfterExplicitAction": false, "manualFallback": true },
+    { "outcome": "NOT_OFFLINE_READY", "mayStartAfterExplicitAction": false, "manualFallback": true },
+    { "outcome": "STALE", "mayStartAfterExplicitAction": false, "manualFallback": true }
+  ],
+  "entryEquivalence": {
+    "sources": ["SCAN", "MANUAL", "SEARCH"],
+    "sameWorkspaceID": true,
+    "sameAssetRevision": true,
+    "sameWorkItemOrder": true,
+    "sameQualifiedPoseContext": true,
+    "sameEditorAnchor": true,
+    "poseMutationCount": 0
+  },
+  "previewBoundary": {
+    "canonicalMutationCountBeforeExplicitStart": 0,
+    "sessionCreationCountBeforeExplicitStart": 0,
+    "occurrenceLinkCountBeforeExplicitStart": 0,
+    "scanIsAuthorization": false,
+    "arbitraryURLExecutionAllowed": false
+  },
+  "fallbackScenarios": [
+    { "id": "PERMISSION_DENIED", "manual": true, "search": true, "cameraRequired": false },
+    { "id": "CAMERA_UNAVAILABLE", "manual": true, "search": true, "cameraRequired": false },
+    { "id": "DAMAGED_CODE", "manual": true, "search": true, "cameraRequired": false },
+    { "id": "AMBIGUOUS_CODE", "manual": true, "search": true, "cameraRequired": false },
+    { "id": "FOREIGN_CODE", "manual": true, "search": true, "cameraRequired": false },
+    { "id": "REVOKED_CODE", "manual": true, "search": true, "cameraRequired": false },
+    { "id": "RETIRED_OR_REPLACED", "manual": true, "search": true, "cameraRequired": false },
+    { "id": "STALE_PREVIEW", "manual": true, "search": true, "cameraRequired": false }
+  ],
+  "startRejections": [
+    "ASSET_CHANGED_AFTER_PREVIEW",
+    "PACKET_INCOMPLETE",
+    "TWO_MATCHING_WORK_ITEMS",
+    "STALE_PREVIEW",
+    "NOT_OFFLINE_READY"
+  ],
+  "nextActions": [
+    { "action": "COMPLETE_AND_NEXT", "persistsDispositionBeforeNavigation": true, "persistsNextItemBeforeNavigation": true, "persistsResumePointBeforeNavigation": true },
+    { "action": "DEFER_AND_NEXT", "persistsDispositionBeforeNavigation": true, "persistsNextItemBeforeNavigation": true, "persistsResumePointBeforeNavigation": true },
+    { "action": "KEEP_OPEN_AND_NEXT", "persistsDispositionBeforeNavigation": true, "persistsNextItemBeforeNavigation": true, "persistsResumePointBeforeNavigation": true }
+  ],
+  "interruptionBoundaries": [
+    "BEFORE_DISPOSITION_COMMIT",
+    "AFTER_DISPOSITION_BEFORE_NEXT_ITEM",
+    "AFTER_NEXT_ITEM_BEFORE_RESUME_ROUTE",
+    "AFTER_RESUME_ROUTE_BEFORE_NAVIGATION"
+  ],
+  "batchBoundaries": [
+    { "label": "ONE", "count": 1 },
+    { "label": "TWO", "count": 2 },
+    { "label": "HUNDRED", "count": 100 },
+    { "label": "ACCEPTED_MAXIMUM", "count": 200 }
+  ],
+  "batchRules": {
+    "explicitReviewBeforeMutation": true,
+    "readyItemsOnly": true,
+    "idempotentAdd": true,
+    "duplicateCreatesSecondItem": false,
+    "oneFailureLosesPriorItems": false,
+    "oneFailureCompletesRound": false
+  },
+  "sameSetup": {
+    "allowed": ["DISPLAY_CONFIGURATION"],
+    "forbidden": [
+      "ANSWERS",
+      "NOTES",
+      "FINDINGS",
+      "EVIDENCE",
+      "POSE",
+      "TIMESTAMPS",
+      "STATUS",
+      "COMPLETION"
+    ]
+  },
+  "poseParity": {
+    "qualifiedPosePreserved": true,
+    "notObservedPreserved": true,
+    "sameC37EditorAnchor": true,
+    "scanPayloadMayInferDirection": false,
+    "previewTextMayInferDirection": false,
+    "screenRotationMayInferDirection": false,
+    "poseMutationCount": 0
+  },
+  "accessibility": {
+    "voiceOver": true,
+    "voiceControl": true,
+    "dynamicTypeAX5": true,
+    "rightToLeft": true,
+    "reduceMotion": true,
+    "nonColorState": true,
+    "errorFocus": true,
+    "manualFallbackAnnounced": true,
+    "sourceOrderIsReadingOrder": true
+  }
+}

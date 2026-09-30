@@ -1,0 +1,346 @@
+{
+  "artifact": "V23P03C48PortableReviewContractV1",
+  "artifactDigest": "a73bde2670efab4bdebe575af5469ddf49e5ff1b604ef17498c5e11b77d5a3e8",
+  "authority": {
+    "allowedPathCount": 139,
+    "appBaseHead": "ba45022b454f557dcd4d3a5bdaf1cd441022c027",
+    "appBaseTree": "1230fefc208a4ae79217f4a2008ebabf6e920b46",
+    "attemptID": 1,
+    "authorityCorrectionReceiptDigest": "4dfc9dba685fa60019e70ed624b8e60527687821cf064dc9eb7245d5cc2715c0",
+    "authorizedOverlapCount": 0,
+    "cardID": "V23-P03-C48",
+    "classification": "IMPLEMENT_NOW",
+    "contextDigest": "6bb2ef2e652995ac84afad1bf7c07cd5faf8bbe27aba0e3707bc9514c2aad235",
+    "coordinationCASSequence": 331,
+    "coordinationHead": "1857c11d7b1aed873d9ace8f88c1ff8d9222ec45",
+    "coordinationLedgerDigest": "4f510bb701e747ab57555e4af632f6b51bd2c4d6cb21e1f8fd5b2ddf35cdcba7",
+    "coordinationProjectionDigest": "10da3964262dfe56f050e1074810bee67144ac3123d05ce98675e0703d6a503c",
+    "coordinationTree": "eeee7ab38db3bf975160e3abb4e7344f22dfc879",
+    "directPrerequisiteCards": [
+      "V23-P03-C24"
+    ],
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "existingPathCount": 125,
+    "fenceDigest": "1abe6ceebd594bee60bdec5fd19b8758c18e585dc7dd35a5757e500b75673027",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 2,
+    "hydrationTransitionDigest": "da575439d9e84a2a455e9130253720e7780948633fefe4ae0156704757c00908",
+    "newPathCount": 14,
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "30697ca3fb54b086b1e526b55cd3d8aeb80b8198c68cf6a241524f271dfd070c",
+    "registerOrdinal": 78,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "title": "Integrity-bound cleartext portable review, bearer-capability lifecycle, out-of-band response recording, and immutable reconciliation",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P03-C48",
+  "evidenceIDs": [
+    "V23-P03-C48-G01",
+    "V23-P03-C48-A01",
+    "V23-P03-C48-H01",
+    "V23-P03-C48-I01",
+    "V23-P03-C48-R01"
+  ],
+  "requiredSemantics": {
+    "acquisition": {
+      "fabricatesCapabilityProof": false,
+      "fabricatesResponseFile": false,
+      "forbiddenTrustClaims": [
+        "Customer approved",
+        "verified customer",
+        "authenticated response",
+        "secure response",
+        "signed",
+        "tamperproof",
+        "delivered",
+        "legal signature",
+        "nonrepudiation"
+      ],
+      "kinds": [
+        "PORTABLE_FILE",
+        "ORIGIN_RECORDED_ELSEWHERE"
+      ],
+      "originRecordedElsewhereSource": "ORIGIN_USER_ASSERTION_UNVERIFIED",
+      "requiresExistingExportedRequest": true,
+      "trustClaims": [
+        "Response recorded",
+        "Not verified by AssetRounds",
+        "Response proof verified for this request"
+      ]
+    },
+    "archiveBackupRestoreCloneForkEraseSearchReportExcludeSecrets": true,
+    "canonicalAcceptedResponseOwner": "EXISTING_C14_INSPECTION_REVIEW_CANONICAL_WRITER_AND_RECEIPTS",
+    "compatibility": {
+      "historicBytesMigratedInPlace": false,
+      "historicReaderRequired": true,
+      "releasedV1BytesPreserved": true,
+      "successorRequestGetsNewCapability": true,
+      "successorRequestGetsNewDigest": true,
+      "successorRequestGetsNewID": true
+    },
+    "contractNames": [
+      "PortableReviewProtocolReleaseV1",
+      "BearerResponseCapabilityV1",
+      "ReviewCapabilityProofV1",
+      "ReviewResponseAcquisitionKindV1",
+      "OriginRecordedReviewResponseV1",
+      "ReviewRequestManifestV1",
+      "ReviewSubjectSnapshotBindingV1",
+      "ReviewRequestPurposeV1",
+      "ReviewRequestFileEntryV1",
+      "ReviewResponseEnvelopeV1",
+      "ReviewResponseBodyV1",
+      "ReviewResponseItemV1",
+      "ResponseAuthorAssertionV1",
+      "RecipientReviewRequestEventV1",
+      "ReviewRequestExportReceiptV1",
+      "ExternalReviewResponseRecordV1",
+      "ExternalReviewImportPlanV1",
+      "ExternalReviewImportDecisionV1",
+      "ExternalReviewImportReceiptV1",
+      "ReviewRequestStateProjectionV1",
+      "ReviewExchangeBudgetV1",
+      "PortableExchangeSessionStoreV2"
+    ],
+    "import": {
+      "acceptAndApply": {
+        "automaticFinalization": false,
+        "invokesExistingReviewTruth": true,
+        "promotesExactResponseBytes": true,
+        "rechecksCurrentRevision": true,
+        "recordsDecisionReceipt": true,
+        "recordsExternalResponse": true,
+        "recordsSelfAssertedActorSnapshot": true,
+        "updatesProjectionAtomically": true
+      },
+      "conflictsPreserved": true,
+      "decisions": [
+        "ACCEPT_AND_APPLY",
+        "RECORD_AS_HISTORY_ONLY",
+        "DISCARD_UNIMPORTED",
+        "KEEP_QUARANTINED"
+      ],
+      "dispositions": [
+        "EXACT_PENDING_DECISION",
+        "DUPLICATE_ALREADY_APPLIED",
+        "STALE_LOCAL_REVISION",
+        "SUPERSEDED_REQUEST",
+        "UNKNOWN_REQUEST",
+        "REQUEST_DIGEST_MISMATCH",
+        "CAPABILITY_PROOF_INVALID",
+        "UNSUPPORTED_PROTOCOL",
+        "ITEM_MAPPING_FAILED",
+        "POLICY_BLOCKED",
+        "DIVERGENT_SAME_RESPONSE_ID"
+      ],
+      "divergentSameResponseIDQuarantined": true,
+      "noOverwriteOnDivergence": true,
+      "preview": {
+        "canonicalWriteCount": 0,
+        "projectionChanges": 0,
+        "quarantineIsCanonical": false,
+        "receiptCount": 0,
+        "repeatable": true,
+        "zeroWrite": true
+      },
+      "sameResponseIDExactReplayIdempotent": true,
+      "staleResponseDisposition": "RECORD_AS_HISTORY_ONLY"
+    },
+    "interruption": {
+      "boundaries": [
+        "REQUEST_RENDER",
+        "REQUEST_SEAL",
+        "REQUEST_SHARE",
+        "RESPONSE_SEAL",
+        "QUARANTINE_VALIDATION",
+        "PREVIEW",
+        "CONTENT_PROMOTION",
+        "CANONICAL_EFFECT",
+        "RECEIPT"
+      ],
+      "disposition": "ZERO_OR_COMPLETE",
+      "retryDisposition": "EXACT_EFFECT_AND_RECEIPT_OR_NO_EFFECT"
+    },
+    "lifecycle": {
+      "accessibilitySpeechIncludesSecrets": false,
+      "capabilityStates": [
+        "ISSUED_NOT_EXPORTED",
+        "EXPORTED_ACCEPTING",
+        "RESPONSE_PENDING_DECISION",
+        "HISTORY_ONLY_TERMINAL",
+        "HISTORY_ONLY_SUPERSEDED",
+        "HISTORY_ONLY_CLONED_OR_FORKED",
+        "UNAVAILABLE_CORRUPT_OR_MISSING",
+        "ERASE_PENDING",
+        "ERASED"
+      ],
+      "diagnosticsIncludeSecrets": false,
+      "eraseCannotRecallSharedFiles": true,
+      "eraseRemoves": [
+        "local mappings",
+        "capability secrets",
+        "quarantine scratch",
+        "exchange sessions"
+      ],
+      "exactBytesImmutableAfterAcceptance": true,
+      "historicReadExport": true,
+      "namespaceQuotasIndependent": true,
+      "namespaces": [
+        "REVIEW",
+        "SERVICE_REQUEST"
+      ],
+      "restoreModes": [
+        "REPLACE_PRESERVES_OPEN_CAPABILITY",
+        "CLONE_HISTORY_ONLY_INVALIDATES_ACTIVE_CAPABILITY",
+        "FORK_HISTORY_ONLY_INVALIDATES_ACTIVE_CAPABILITY",
+        "OLDER_RESTORE_REQUIRES_RECONCILIATION"
+      ],
+      "searchIncludesSecrets": false
+    },
+    "noSecondArchiveParserWriterPersistenceStoreNetworkAccountLegalDeliveryOrUIClaim": true,
+    "normativeVector": {
+      "canonicalResponseBodyDigestHex": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+      "capabilityHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "expectedHMACHex": "fb0b14df9c1bdbf6f19222ab40954b07a5c847eca3c5095a3cc379ff6fa5501d",
+      "innerRequestPackageDigestHex": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+      "requestManifestDigestHex": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+      "requestPublicID": "review-request-00000000-0000-0000-0000-000000000001",
+      "transcriptByteCount": 236,
+      "transcriptHex": "4173736574526f756e64732e5265766965774361706162696c69747950726f6f662e56310000000020202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000000337265766965772d726571756573742d30303030303030302d303030302d303030302d303030302d30303030303030303030303100000020404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f00000020606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f00000020808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+      "transcriptSHA256": "5ab5c377885c524b13b17985b5782c34937ada353916c7861a7da97a23c0f0e6",
+      "vectorID": "RV1-001"
+    },
+    "protocol": {
+      "capabilityByteCount": 32,
+      "constantTimeVerification": true,
+      "digestEncoding": "RAW_32_BYTES",
+      "hmacAlgorithm": "HMAC-SHA256-CRYPTOKIT",
+      "lengthPrefix": "UInt32BE",
+      "proofCarriesCapability": false,
+      "proofValidButStaleCanBeHistoryOnly": true,
+      "proofValidityIndependentOfApplicationEligibility": true,
+      "releaseDigestHex": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "releaseID": "portable-review-v1",
+      "requestIDEncoding": "CANONICAL_ASCII_NO_NUL",
+      "transcriptDomainASCII": "AssetRounds.ReviewCapabilityProof.V1",
+      "transcriptDomainNULTerminated": true
+    },
+    "requestArchive": {
+      "customerSafeReportRevision": 7,
+      "excludedFromExchange": [
+        "WorkspaceID",
+        "ReplicaID",
+        "filesystem identity",
+        "local sequence",
+        "PartyID",
+        "internal stable keys",
+        "raw originals",
+        "internal notes",
+        "contacts",
+        "diagnostics",
+        "local paths",
+        "scripts",
+        "forms",
+        "macros"
+      ],
+      "fileExtension": ".arreviewrequest",
+      "itemPublicIDs": [
+        "review-item-00000000-0000-0000-0000-000000000001",
+        "review-item-00000000-0000-0000-0000-000000000002"
+      ],
+      "members": [
+        "manifest.json",
+        "review-request.json",
+        "response-capability.bin",
+        "report/report.pdf",
+        "report/report.txt"
+      ],
+      "optionalMemberPrefix": "media/",
+      "projectionStates": [
+        "OPEN_UNEXPORTED",
+        "EXPORTED_AWAITING_RESPONSE",
+        "ACKNOWLEDGED_AWAITING_DECISION",
+        "APPROVAL_RESPONSE_RECORDED",
+        "CHANGES_RESPONSE_RECORDED",
+        "SUPERSEDED",
+        "CLOSED_WITHOUT_RESPONSE"
+      ],
+      "requestPublicID": "review-request-00000000-0000-0000-0000-000000000001",
+      "uti": "com.assetrounds.review-request"
+    },
+    "responseArchive": {
+      "attachmentsAllowed": false,
+      "authorAssertion": {
+        "disclosureRelease": "portable-review-disclosure-v1",
+        "displayName": "External reviewer",
+        "identityVerified": false,
+        "organization": "Example organization",
+        "responseTimeInformational": true,
+        "source": "SELF_ENTERED_IN_RESPONDER"
+      },
+      "canonicalDocumentCount": 1,
+      "dispositions": [
+        {
+          "kind": "ACKNOWLEDGED",
+          "projectionAfter": "ACKNOWLEDGED_AWAITING_DECISION",
+          "requiresChangeItems": false,
+          "terminal": false
+        },
+        {
+          "forbidsChangeItems": true,
+          "kind": "APPROVED",
+          "projectionAfter": "APPROVAL_RESPONSE_RECORDED",
+          "requiresChangeItems": false,
+          "terminal": true
+        },
+        {
+          "kind": "CHANGES_REQUESTED",
+          "projectionAfter": "CHANGES_RESPONSE_RECORDED",
+          "requiresChangeItems": true,
+          "terminal": true
+        }
+      ],
+      "executableContentAllowed": false,
+      "fileExtension": ".arreviewresponse",
+      "requestPublicID": "review-request-00000000-0000-0000-0000-000000000001",
+      "responseItemPublicIDs": [
+        "review-item-00000000-0000-0000-0000-000000000001",
+        "review-item-00000000-0000-0000-0000-000000000002"
+      ],
+      "responsePublicID": "review-response-00000000-0000-0000-0000-000000000002",
+      "textOnly": true,
+      "uti": "com.assetrounds.review-response"
+    },
+    "soleSessionOwner": "PortableExchangeSessionStoreV2",
+    "twoPlaneRecoveryIsZeroOrComplete": true,
+    "unsupportedClaimsFailClosed": true
+  },
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schemaVersion": 1,
+  "status": "PASS_STATIC_PROVISIONAL",
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C48G01GoldenRequestResponseAndNormativeVectorUseTypedContracts",
+    "testV23P03C48A01OriginRecordedElsewhereKeepsUnverifiedHistorySeparateFromEligibility",
+    "testV23P03C48H01TamperReplayDivergenceHostileArchiveAndLeakageCanariesFailClosed",
+    "testV23P03C48I01PreviewIsZeroWriteAndEveryCrashBoundaryConvergesToZeroOrComplete",
+    "testV23P03C48R01RestoreCloneForkEraseAndReplayPreserveHistoricBytesAndInvalidateActiveCapability"
+  ],
+  "verificationMode": "STATIC_ONLY"
+}

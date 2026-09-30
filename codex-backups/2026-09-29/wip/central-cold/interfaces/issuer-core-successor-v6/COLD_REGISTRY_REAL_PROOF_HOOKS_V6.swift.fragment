@@ -1,0 +1,38 @@
+    /// The genuine incumbent cold proof remains the sole retirement owner.
+    /// This narrow inside-G admission cannot reconstruct a drain from progress
+    /// or grant a fresh terminal origin. Registry itself proves its exact
+    /// still-named bytes, policy and empty cohort around the synchronous body.
+    func requireSchema2ColdCleanupHeldGObservation(
+        binding expectedBinding: EraseRetirementBindingV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        drain expectedDrain: EraseSessionDrainWitnessV1
+    ) throws {
+        guard binding == expectedBinding, drain === expectedDrain,
+              frozenIntent.schemaVersion == 2,
+              frozenIntent.phase == .sessionActivated,
+              phase == .ready || phase == .readyWithOriginalManifest
+                || phase == .manifestPreserved || phase == .removingNamespace else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try exclusion.requireSchema2ColdCleanupHeldGOwnership(
+            binding: binding, registry: registry, activity: activity,
+            drain: expectedDrain)
+    }
+
+    /// Full admission is repeated outside an already-held G. The inside-G
+    /// counterpart above deliberately cannot recurse through this actual
+    /// source/Manifest/drain and Registry census.
+    func requireSchema2ColdCleanupRegistryBoundary(
+        binding expectedBinding: EraseRetirementBindingV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        drain expectedDrain: EraseSessionDrainWitnessV1
+    ) throws {
+        try requireSchema2ColdCleanupHeldGObservation(binding: expectedBinding,
+            registry: registry, activity: activity, drain: expectedDrain)
+        try exclusion.requireNoLeasesAfterDrain(proof: expectedDrain)
+        try requireSchema2ColdCleanupHeldGObservation(binding: expectedBinding,
+            registry: registry, activity: activity, drain: expectedDrain)
+    }
+

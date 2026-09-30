@@ -1,0 +1,31 @@
+{
+  "CI": false,
+  "PFPdiffBytes": 0,
+  "actualIssuer": false,
+  "allHistoricalPacketsExact": true,
+  "author": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh"
+  },
+  "baseline": {
+    "head": "dbdb4649e3e405eb50a1d2b443c8d7c061831a1a",
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/BASELINE.json",
+    "sha256": "30c40dcbf0661d0b3065c8dfc4dd86d197b545662ba58a842f5b9652650eedb7",
+    "sourceCount": 1206,
+    "sourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+    "sourceMismatches": []
+  },
+  "baselineMismatches": [],
+  "baselineSourceRecheckedExact": 1206,
+  "candidateBeforeIdenticalSHA256": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+  "compiler": false,
+  "gate": false,
+  "native": false,
+  "pairDataShapeByteIdenticalV8V9": true,
+  "parseEvidence": "Reuse actual fb302 DEBUG/nonDEBUG parse0 under identical source SHA; copied exact empty logs, no new semantic compile/runtime claim.",
+  "pinnedScopeCorrection": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+  "priorFB302SealExact": true,
+  "priorSixPFPCandidatesPreserved": true,
+  "schemaVersion": 1,
+  "scope": "Only ignored PFP dependency successor packet; no source change or primary/tracked/Products/verification/tests/CI/docs/S10/Release/Git writes or commands by author."
+}

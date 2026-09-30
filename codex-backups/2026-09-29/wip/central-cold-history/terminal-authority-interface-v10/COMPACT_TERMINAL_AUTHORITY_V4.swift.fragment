@@ -1,0 +1,153 @@
+/// One declared compact control effect. These fields come from the actual
+/// retained Store capsule/catalog readback, never a reduced old Intent.
+enum EraseSchema2CompactTerminalEffectV4: Equatable {
+    case control(ordinal: UInt64, path: String, sha256: String, fullFact: String)
+    case lastCapsule(ordinal: UInt64)
+    case eraseRoot(fullFact: String)
+    case checkedStoreClose(rootFullFact: String)
+}
+
+/// Exact readback commitments are DATA, not terminal permission. Store supplies
+/// its own capsule SHA/full11 externally after publication/first-held read.
+struct EraseSchema2CompactTerminalBindingV4: Equatable {
+    let capsuleSHA256: String
+    let capsuleFullFact: String
+    let catalogCommitmentSHA256: String
+    let catalogCutSHA256: String
+}
+
+/// Router's private one-effect issuer consumes an actual Service OS receipt
+/// and the genuine incumbent or first-held terminal owner. Store may consume
+/// this class but cannot construct it. The required current-cut proof must
+/// positively admit the exact before/after one-effect prefix under the same
+/// held EX; it never re-enters named Registry G after critical-name loss.
+@MainActor
+final class EraseSchema2CompactTerminalAuthorityV4 {
+    let operationID: UUID
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    let binding: EraseSchema2CompactTerminalBindingV4
+    let effect: EraseSchema2CompactTerminalEffectV4
+    private let readback: EraseSchema2TerminalNotificationReadbackReceiptV4
+    private let originalRetirement: ErasedRegistryRetirementProofV1?
+    private let requireActualCut: @MainActor () throws -> Void
+    private let requireLastLeafRemoval: @MainActor (EraseSchema2CompactTerminalLastLeafReceiptV4) throws -> Void
+    private let requireRootRemoval: @MainActor (EraseSchema2CompactTerminalRootRemovalReceiptV4) throws -> Void
+    private let retainUncertainty: @MainActor () -> Void
+    private var active = true
+    private var uncertain = false
+
+    fileprivate init(operationID: UUID, subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4,
+        effect: EraseSchema2CompactTerminalEffectV4,
+        systemPermit: EraseSchema2TerminalSystemPermitV4,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4,
+        originalRetirement: ErasedRegistryRetirementProofV1?,
+        requireActualCut: @escaping @MainActor () throws -> Void,
+        requireLastLeafRemoval: @escaping @MainActor (EraseSchema2CompactTerminalLastLeafReceiptV4) throws -> Void,
+        requireRootRemoval: @escaping @MainActor (EraseSchema2CompactTerminalRootRemovalReceiptV4) throws -> Void,
+        retainUncertainty: @escaping @MainActor () -> Void) throws {
+        do {
+            try subject.validateData()
+            guard operationID == systemPermit.operationID, subject == systemPermit.subject,
+                  [binding.capsuleSHA256, binding.catalogCommitmentSHA256, binding.catalogCutSHA256]
+                    .allSatisfy(StoreMigrationCanonicalJSONV1.isLowercaseSHA256),
+                  binding.capsuleFullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+                  originalRetirement.map({ $0.binding.operationID == operationID
+                    && $0.binding.subject.eraseID == subject.eraseID
+                    && $0.binding.subject.newGenerationID == subject.targetGenerationID }) ?? true else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireActualCut()
+            try readback.requireBound(permit: systemPermit)
+            try requireActualCut()
+            // The genuine completed OS attempt is consumed once, before the
+            // first namespace syscall. Its immutable identity is retained;
+            // after effect the actual finite cut proof owns revalidation.
+            try readback.consume(permit: systemPermit)
+        } catch {
+            systemPermit.poisonOnUncertainSystemAttempt()
+            retainUncertainty()
+            throw error
+        }
+        self.operationID = operationID; self.subject = subject; self.binding = binding
+        self.effect = effect; self.readback = readback; self.originalRetirement = originalRetirement
+        self.requireActualCut = requireActualCut
+        self.requireLastLeafRemoval = requireLastLeafRemoval; self.requireRootRemoval = requireRootRemoval
+        self.retainUncertainty = retainUncertainty
+    }
+
+    private func requireCurrent(subject expected: EraseSchema2ConsumerCompleteSubjectV4,
+        binding expectedBinding: EraseSchema2CompactTerminalBindingV4,
+        readback expectedReadback: EraseSchema2TerminalNotificationReadbackReceiptV4) throws {
+        do {
+            guard active, !uncertain, subject == expected, binding == expectedBinding,
+                  readback === expectedReadback else { throw EraseAllServiceError.invalidAuthority }
+            try requireActualCut()
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+    func requireControlRemoval(subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4, ordinal: UInt64,
+        path: String, sha256: String, fullFact: String,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4) throws {
+        do {
+            try requireCurrent(subject: subject, binding: binding, readback: readback)
+            guard effect == .control(ordinal: ordinal, path: path, sha256: sha256, fullFact: fullFact) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireCurrent(subject: subject, binding: binding, readback: readback)
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+    func requireLastCapsuleRemoval(subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4, ordinal: UInt64,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4) throws {
+        do {
+            try requireCurrent(subject: subject, binding: binding, readback: readback)
+            guard effect == .lastCapsule(ordinal: ordinal) else { throw EraseAllServiceError.invalidAuthority }
+            try requireCurrent(subject: subject, binding: binding, readback: readback)
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+    func requireEraseRootRemoval(subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4, rootFullFact: String,
+        lastLeaf: EraseSchema2CompactTerminalLastLeafReceiptV4,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4) throws {
+        do {
+            try requireCurrent(subject: subject, binding: binding, readback: readback)
+            guard effect == .eraseRoot(fullFact: rootFullFact) else { throw EraseAllServiceError.invalidAuthority }
+            try requireLastLeafRemoval(lastLeaf)
+            try requireCurrent(subject: subject, binding: binding, readback: readback)
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+    func requireCheckedStoreClose(subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4, rootFullFact: String,
+        rootRemoval: EraseSchema2CompactTerminalRootRemovalReceiptV4,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4) throws {
+        do {
+            try requireCurrent(subject: subject, binding: binding, readback: readback)
+            guard effect == .checkedStoreClose(rootFullFact: rootFullFact) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireRootRemoval(rootRemoval)
+            try requireCurrent(subject: subject, binding: binding, readback: readback)
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+    /// Incumbent Store close accepts only its real wrapped old proof object.
+    /// A fresh compact authority has no such proof and rejects this method.
+    func requireOriginalRetirement(_ proof: ErasedRegistryRetirementProofV1) throws {
+        do {
+            guard active, !uncertain, originalRetirement === proof else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireActualCut()
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+    func poisonOnUncertainEffect() {
+        if !uncertain { uncertain = true; retainUncertainty() }
+    }
+    fileprivate func revoke() { active = false }
+}
+

@@ -1,0 +1,164 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "activeS10ReservationPathCount": 86,
+  "adoptionEnabled": false,
+  "artifactDigest": "e673e495c80882d2e204064b4e814c9aff6993bc0fb234cde2371c7115d42694",
+  "artifactSetDigest": "1a01c15d7b3969950018a124112e931dc7a58672517633c00d25de822128a9b1",
+  "artifacts": [
+    {
+      "bytes": 41966,
+      "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+      "sha256": "76e939a5c137f1a86b7cd34a32f6ee7f8d965d5dbd91a8f49e39ede4e62ec6c0"
+    },
+    {
+      "bytes": 97547,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "sha256": "6106a4012cb3e8a7397eda6605f8a314e08ddaddb8a9904c988e5bc444ee284b"
+    },
+    {
+      "bytes": 77023,
+      "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+      "sha256": "9c3a721bc7d0e778f078addc7b2c8ac5b217c4b76382a9c0a13b0d2d3abaaa8a"
+    },
+    {
+      "bytes": 68969,
+      "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+      "sha256": "8e46143c470c994b4745039ccd15920dcae195eab1044561a0bec20bf4c7f047"
+    },
+    {
+      "bytes": 35105,
+      "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+      "sha256": "55f9ce98556bf94680c5e586dea7420e48c5551db17079b06c5b51838d61169a"
+    },
+    {
+      "bytes": 10169,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/ChangeJournal/V21P03C11ChangeJournalCheckpointReplayCorpusV1.json",
+      "sha256": "dba67aa58504e6f86397a09c37dffc0e941f9d3e297af788c3c7fc3ab6770dc7"
+    },
+    {
+      "bytes": 36353,
+      "path": "Scripts/v23/p03_c11_contracts.py",
+      "sha256": "8644997556afba6327fe912b7ec3d6adb8d7928dafaf59a7ec17dc1ab9e0dc6f"
+    },
+    {
+      "bytes": 2079,
+      "path": "Scripts/v23/generate_p03_c11_contracts.py",
+      "sha256": "f94916184f4ba98b6c53cc8448dbd794579e0038a99d17bb84b6e6cec976a906"
+    },
+    {
+      "bytes": 31054,
+      "path": "Scripts/v23/verify_p03_c11_contracts.py",
+      "sha256": "04931ea6d0737338703e15a5bdcbd2f1cb3676e9f5513df71e1a27bedb4fcf7e"
+    },
+    {
+      "bytes": 25809,
+      "path": "Scripts/v23/change-journal-checkpoint-replay.schema.json",
+      "sha256": "b553d948beb1480b85aded6b6abbebaf608302d4280b8928f4582cf0b87b0c6a"
+    },
+    {
+      "bytes": 20116,
+      "path": "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayContractV1.json",
+      "sha256": "db34651179dc7f8023347efa3e07d5dd6774aa5c02073b3cea87f78b68d59dfe"
+    },
+    {
+      "bytes": 5626,
+      "path": "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayEvidenceReceiptV1.json",
+      "sha256": "dc44c8f2a5f343d2444f4a0b699de2d859e85e1302cac8f1e55b5f137f30d1f7"
+    }
+  ],
+  "authority": {
+    "acceptanceCredit": false,
+    "acceptanceEnabled": false,
+    "adoptionEnabled": false,
+    "appBaseHead": "716f3d049c443725fdf4ce4572e7aecb241a39d8",
+    "appBaseTree": "d8a94fd319db84e804b755ea770ffd96804b3cc4",
+    "attemptID": 1,
+    "backupBehaviorDelta": true,
+    "cardID": "V23-P03-C11",
+    "contextDigest": "c7f893ea349af7bf9ece0f55d2c3c6031339c33441b096eeafa44e718c1b0987",
+    "coordinationCASSequence": 167,
+    "coordinationLedgerDigest": "fd8af3b70448dde967df5de8863f9b585cb92e606cd29a063a92ca5480ad521f",
+    "deleteBehaviorDelta": true,
+    "dossierDigest": "9db3cd172ee34cb66eca678983ab545591aff1a045d98588e7688800ae945426",
+    "downgradeDisposition": "CONTENT_ROLLBACK_ONLY",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "exportBehaviorDelta": true,
+    "fenceDigest": "c5a789b3ecc2e550050309673115ac8190239af5efcc63bacec0ea20262aa9d1",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hostedDispatchEnabled": false,
+    "inheritedV21BlockDigest": "4c46417e297587999b92472bd41a0e4912bf71025e723faafea189ec2b6406dc",
+    "migrationBehaviorDelta": false,
+    "nativeCompileRan": false,
+    "persistentChangeMode": "CONTENT_ONLY",
+    "persistentContractSchema": "NOT_APPLICABLE",
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidenceComplete": false,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "provisionalPrerequisiteDigest": "3bc4ace9cd38872122e28a23621891297e6d4c3a9e01f2d30be4bd47856e4d2c",
+    "registerRowDigest": "53dea30dc0ea14eefa15c411a42421e8df4fcd8c411f66f4c67be5826a105118",
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "releaseCredit": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "restoreBehaviorDelta": true,
+    "schemaBehaviorDelta": false,
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    }
+  },
+  "cardID": "V23-P03-C11",
+  "evidenceIDs": [
+    "V23-P03-C11-G01",
+    "V23-P03-C11-A01",
+    "V23-P03-C11-H01",
+    "V23-P03-C11-I01",
+    "V23-P03-C11-R01"
+  ],
+  "existingPaths": [
+    "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift"
+  ],
+  "generatedArtifactCount": 4,
+  "hostedDispatchEnabled": false,
+  "manifestInputCount": 12,
+  "nativeCompileRan": false,
+  "newPaths": [
+    "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+    "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/ChangeJournal/V21P03C11ChangeJournalCheckpointReplayCorpusV1.json",
+    "Scripts/v23/p03_c11_contracts.py",
+    "Scripts/v23/generate_p03_c11_contracts.py",
+    "Scripts/v23/verify_p03_c11_contracts.py",
+    "Scripts/v23/change-journal-checkpoint-replay.schema.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayContractV1.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C11-tooling-manifest.json"
+  ],
+  "pathFence": [
+    "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+    "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/ChangeJournal/V21P03C11ChangeJournalCheckpointReplayCorpusV1.json",
+    "Scripts/v23/p03_c11_contracts.py",
+    "Scripts/v23/generate_p03_c11_contracts.py",
+    "Scripts/v23/verify_p03_c11_contracts.py",
+    "Scripts/v23/change-journal-checkpoint-replay.schema.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayContractV1.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C11-tooling-manifest.json"
+  ],
+  "pathFenceCount": 13,
+  "phase10PollingDuringParallelExecution": false,
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "s10FenceOverlapPaths": [],
+  "schema": "V23P03C11ToolingManifestV1",
+  "schemaVersion": 1,
+  "sourcePathCount": 6,
+  "toolPathCount": 7,
+  "verificationMode": "STATIC_ONLY"
+}

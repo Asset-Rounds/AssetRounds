@@ -1,0 +1,38 @@
+{
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "bytes": 155209,
+      "candidateSHA256": "520f88bff0b60ee9cdf2c3eb90b0cf5cf9727cecaaa47dd039f9de9cc765b8bd",
+      "immediateBeforeSHA256": "be12586882e2f15fa22df6448cc17a5a50a90c5958b06ac8369ee4a023822ae0",
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "bytes": 1920921,
+      "candidateSHA256": "f61127930a7ab69f217a8bb46cf09a2914de0cb482a430415fb723a80782dcd7",
+      "immediateBeforeSHA256": "e8c5f1e3b9a07460c2f16ca492f126f9e56c60fac1ba0cf76ceb48ac9b7b6883",
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e"
+    }
+  },
+  "externalDependencies": {
+    "firstCaptureScopeV2": {
+      "authenticIssuerOrRuntimeClaim": false,
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/FIRST_CAPTURE_SCOPE_INTERFACE_V2.swift.fragment",
+      "sha256": "0d330bd56a10d7df5186a5176ab1acdcf9fc488f465494224b0e023c1138b156"
+    },
+    "genericAliasPFP": {
+      "authenticIssuerOrRuntimeClaim": false,
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "sha256": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700"
+    },
+    "rootPairDecision": {
+      "authenticIssuerOrRuntimeClaim": false,
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-firstcapture-root-decision-v1/DECISION.md",
+      "sha256": "7cb3225bcfa525663c127757f6c2f4f1a91a818e9e836b6937ce69c1f036b141"
+    }
+  },
+  "immediateParentBindingSHA256": "21d824dbb1b63be350cffc9ae22320d7589193f3f754507bd953ad3a6c1fd287",
+  "physicalFrozenInputBindingSHA256": "eaa6b26f558bdff78085658b78643f6c22965eab097d554b4411041cab846be6",
+  "publishedFullMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "publishedHead": "93159755395d697a5a9da02f41374120433c50f9",
+  "sourceOnly": true
+}

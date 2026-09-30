@@ -1,0 +1,81 @@
+{
+  "schema": "OwnerParallelImplementationOverrideV3",
+  "schemaVersion": 3,
+  "overrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-003",
+  "supersedesOverrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-002",
+  "supersedesPath": "docs/design/v23/authority/OwnerParallelImplementationOverrideV2.json",
+  "supersededAuthoritySHA256": "eecda92282594bd25afab2c89d29172214053229b859295d1c11c654d4217bd0",
+  "program": "AssetRounds V23",
+  "programBranch": "phase/v23-expansion",
+  "ownerAuthorizationBasis": {
+    "standingDirection": "WORK_V23_IN_ITS_ENTIRETY_WHILE_PHASE10_FINISHES",
+    "phase10Restriction": "LEAVE_PHASE10_ALONE_UNTIL_OWNER_REPORTS_ACCEPTED_S10_6",
+    "approvalPosture": "ALL_IN_SCOPE_APPROVALS_GRANTED",
+    "scopeEffect": "REFRESH_EXPIRED_PHASE10_BINDINGS_WITHOUT_CHANGING_V23_PRODUCT_SEMANTICS_OR_PHASE10"
+  },
+  "authorityRoots": {
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "cardRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directEdgeCount": 230,
+    "cardCount": 146,
+    "originMainHead": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "originMainTree": "95b6520f4b36a671a1a541734699129d465ba5ea",
+    "a00AnchorHead": "d6b5e88622c5356770c6e9aa3a619afc771b759d",
+    "a00AnchorTree": "facca4fd13fc1c13accef1aae8a007cde642caa9"
+  },
+  "activePhase10": {
+    "branch": "phase/s10-brand-refresh",
+    "previousObservedHead": "728f76fa51186dd99f4359a529272c667fd1218f",
+    "observedHead": "a8dcd01259317b0120a49041bc1bdb6e22fd423c",
+    "observedTree": "e6028eb972bb6f2aa31578e3e76c0e5defb2713b",
+    "mergeBaseWithOriginMain": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "reservationPath": "docs/design/v23/foundation/ActiveS10OwnershipReservationV1.json",
+    "reservationContentDigest": "3736e3eddb65155960780b77daed0df854bb72ce450106885c08ad78666c1f71",
+    "reservedPathCount": 86,
+    "reservedPathSetChanged": false,
+    "v23C04OverlapCount": 0,
+    "statusAtRefresh": "ACTIVE_NOT_ACCEPTED"
+  },
+  "continuation": {
+    "inheritsV2AuthorityPrecedenceAmendments": true,
+    "inheritsV2AutomaticProvisionalExecution": true,
+    "inheritsV2NonautonomousExecutionRules": true,
+    "inheritsV2PathAndConcurrencyRules": true,
+    "inheritsV2ProvisionalNoCreditRules": true,
+    "canonicalRegisterOrGraphChanged": false,
+    "productSemanticsChanged": false,
+    "officialAcceptanceEnabled": false,
+    "releaseCredit": false,
+    "remotePhase10MutationAuthorized": false,
+    "remoteMainMutationAuthorized": false
+  },
+  "movementDisposition": {
+    "newAdmissionsFrozenBeforeRefresh": true,
+    "remoteMovementInspectedReadOnly": true,
+    "reservationReprovedExact": true,
+    "overlappingWorkDisposition": "NONE_FOUND",
+    "nonoverlappingWorkDisposition": "REHYDRATE_AND_REVERIFY_BEFORE_CONTINUING",
+    "invalidatedC04AttemptID": 1,
+    "requiredC04SuccessorAttemptID": 2
+  },
+  "expiryAndInvalidation": [
+    "PACKAGE_DIGEST_CHANGE",
+    "REGISTER_OR_DIRECT_GRAPH_DIGEST_CHANGE",
+    "ANCHOR_HEAD_OR_TREE_CHANGE",
+    "ORIGIN_MAIN_HEAD_OR_TREE_CHANGE",
+    "ACTIVE_S10_HEAD_OR_TREE_CHANGE",
+    "ACTIVE_S10_RESERVATION_DIGEST_CHANGE",
+    "WRITER_AUTHORITY_CHANGE",
+    "OWNER_REVOCATION_OR_OVERRIDE_CHANGE",
+    "REMOTE_V23_BRANCH_MOVEMENT",
+    "UNOWNED_DIRTY_WORKTREE_OVERLAP",
+    "PATH_OVERLAP_DISCOVERED",
+    "PROVISIONAL_PREDECESSOR_SUPERSESSION",
+    "CANDIDATE_TOOLCHAIN_OR_TEST_FIXTURE_CHANGE",
+    "ACCEPTED_S10_6_RECONCILIATION_START"
+  ],
+  "s10_6ReconciliationTrigger": "OWNER_REPORTS_S10_6_ACCEPTED",
+  "effectiveAt": "2026-08-25T14:31:40.736Z",
+  "contentDigest": "4f35cc7efad98685c44279a6c3d420e54682879ab07b0128347b326bbcc636d0"
+}

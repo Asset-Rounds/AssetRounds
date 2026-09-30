@@ -1,0 +1,55 @@
+    // A Router-issued observation is renewed from the actual retained source
+    // and Store cut. It is never preserved as authority across a capture CAS,
+    // ordinal advance or parent rename. Nil retains ordinary strict predicates.
+    private var originalEraseGenericScopeProvider:
+        (@MainActor () throws -> OriginalEraseSealedGenericObservationScopeV1?)?
+    private enum OriginalEraseBorrowedLifetimeV1 { case ordinary, active, closed, uncertain }
+    private var originalEraseBorrowedLifetime: OriginalEraseBorrowedLifetimeV1 = .ordinary
+
+    private func requireScratchDescriptorAccess() throws {
+        switch originalEraseBorrowedLifetime {
+        case .ordinary: return
+        case .active:
+            guard originalEraseBorrowedExclusiveCheck != nil else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            try originalEraseRequireFreshGenericBinding()
+        case .closed, .uncertain: throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+    }
+
+    // The legacy ordinary store remains nonisolated. Borrowed calls originate
+    // only in the MainActor body/engine. Check the permanent memory latch before
+    // entering the actor bridge, and never inspect a descriptor as a guard.
+    private func originalEraseRequireFreshGenericBinding() throws {
+        guard originalEraseBorrowedLifetime == .active,
+              Thread.isMainThread,
+              let provider = originalEraseGenericScopeProvider,
+              let operationID = originalEraseOperationID else {
+            originalEraseBorrowedLifetime = .uncertain
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        do {
+            try MainActor.assumeIsolated {
+                if let scope = try provider() {
+                    guard scope.operationID == operationID else {
+                        scope.poisonOnUncertainObservation()
+                        throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                    }
+                    try scope.requireCurrentBinding()
+                }
+            }
+        } catch {
+            originalEraseBorrowedLifetime = .uncertain
+            MainActor.assumeIsolated {
+                originalEraseColdPermit?.poisonOnUncertainEffect()
+                originalEraseC16BootstrapPermit?.poisonOnUncertainEffect()
+            }
+            throw error
+        }
+    }
+
+
+// Required input on BOTH borrowed entries; no default:
+// genericObservationScope: @escaping @MainActor () throws
+//     -> OriginalEraseSealedGenericObservationScopeV1?

@@ -1,0 +1,173 @@
+{
+  "$id": "https://assetrounds.invalid/v23/offline-readiness-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bindings": {
+      "const": [
+        "ROUND_SESSION_REVISION",
+        "PACKAGE_VERSION_AND_HASH",
+        "ASSET_SET",
+        "GUIDANCE_REFERENCE_IDS",
+        "CONTENT_REFERENCE_HASHES",
+        "STORAGE_BUDGET",
+        "PROTECTION_STATE"
+      ]
+    },
+    "cardID": {
+      "const": "V23-P04-C06"
+    },
+    "coldLaunchRebuild": {
+      "const": "DETERMINISTIC_INVALIDATION_AND_REBUILD"
+    },
+    "derivedOnly": {
+      "const": true
+    },
+    "downgradePolicy": {
+      "const": "DROP_AND_REBUILD"
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P04-C06-G01",
+        "V23-P04-C06-A01",
+        "V23-P04-C06-H01",
+        "V23-P04-C06-I01",
+        "V23-P04-C06-R01"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "manifestIsCanonical": {
+      "const": false
+    },
+    "ordinal": {
+      "const": 94
+    },
+    "provisional": {
+      "const": false
+    },
+    "reason": {
+      "enum": [
+        "PACKAGE_MISMATCH",
+        "SELECTED_ASSET_MISMATCH",
+        "GUIDANCE_REFERENCE_MISMATCH",
+        "FIELD_REFERENCE_UNAVAILABLE",
+        "MISSING_MANDATORY_CONTENT",
+        "MISSING_OPTIONAL_CONTENT",
+        "CORRUPT_MANDATORY_CONTENT",
+        "CORRUPT_OPTIONAL_CONTENT",
+        "PARTIAL_MANDATORY_CONTENT",
+        "PARTIAL_OPTIONAL_CONTENT",
+        "WRONG_WORKSPACE_CONTENT",
+        "PROTECTED_DATA_UNAVAILABLE",
+        "STORAGE_UNCHECKABLE",
+        "INSUFFICIENT_STORAGE",
+        "STORAGE_ARITHMETIC_OVERFLOW",
+        "CLOCK_UNCHECKABLE",
+        "CLOCK_OR_TIME_ZONE_CHANGED",
+        "SOURCE_BINDING_DRIFT"
+      ]
+    },
+    "reasons": {
+      "items": {
+        "enum": [
+          "PACKAGE_MISMATCH",
+          "SELECTED_ASSET_MISMATCH",
+          "GUIDANCE_REFERENCE_MISMATCH",
+          "FIELD_REFERENCE_UNAVAILABLE",
+          "MISSING_MANDATORY_CONTENT",
+          "MISSING_OPTIONAL_CONTENT",
+          "CORRUPT_MANDATORY_CONTENT",
+          "CORRUPT_OPTIONAL_CONTENT",
+          "PARTIAL_MANDATORY_CONTENT",
+          "PARTIAL_OPTIONAL_CONTENT",
+          "WRONG_WORKSPACE_CONTENT",
+          "PROTECTED_DATA_UNAVAILABLE",
+          "STORAGE_UNCHECKABLE",
+          "INSUFFICIENT_STORAGE",
+          "STORAGE_ARITHMETIC_OVERFLOW",
+          "CLOCK_UNCHECKABLE",
+          "CLOCK_OR_TIME_ZONE_CHANGED",
+          "SOURCE_BINDING_DRIFT"
+        ]
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "requirements": {
+      "const": [
+        "PACKAGE",
+        "GUIDANCE",
+        "REFERENCE",
+        "ASSET",
+        "STORAGE",
+        "PROTECTED_DATA",
+        "CLOCK"
+      ]
+    },
+    "schema": {
+      "const": "OFFLINE_READINESS_V1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P04C06G01ReadyManifestDeterministicRepeatAndRevisionInvalidation",
+        "testV23P04C06A01ColdLaunchRebootForceQuitReconstructsAndWarnsOnlyForOptionalContent",
+        "testV23P04C06H01MandatoryOptionalAndHostileReadinessMatrixFailsClosed",
+        "testV23P04C06I01CancellationTerminationBoundariesRejectPartialAndSourceDriftStales",
+        "testV23P04C06R01DerivedViewDropAndRebuildPreservesSessionAndCanonicalData"
+      ]
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "READY",
+        "BLOCKED",
+        "WARNING",
+        "STALE"
+      ]
+    },
+    "statusFlags": {
+      "const": {
+        "acceptance": false,
+        "activation": false,
+        "adoption": false,
+        "hosted": false,
+        "hostedAcceptance": false,
+        "native": false,
+        "nativeAcceptance": false,
+        "phase10PollingDuringParallelExecution": false,
+        "physicalEvidence": false,
+        "release": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "ordinal",
+    "status",
+    "reason",
+    "reasons",
+    "requirements",
+    "bindings",
+    "sourceReady",
+    "derivedOnly",
+    "manifestIsCanonical",
+    "coldLaunchRebuild",
+    "downgradePolicy",
+    "statusFlags",
+    "selectors",
+    "evidenceIDs",
+    "finalHashesSealed",
+    "provisional"
+  ],
+  "title": "OfflineReadinessManifestV1 and cold-launch field preflight",
+  "type": "object"
+}

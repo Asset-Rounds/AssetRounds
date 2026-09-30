@@ -1,0 +1,501 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "allocationDigest": {
+          "const": "34fc7000066a50cdd9ae9e0cbd0341a2b01f1346e24083642a38c6f554db1c06"
+        },
+        "appBaseHead": {
+          "const": "4971e4e4ac939000d87b23dce1df6e6c2a83fa84"
+        },
+        "appBaseTree": {
+          "const": "e62505274cb1d188e741bd186d8dc947e34905e5"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorizedOverlapCount": {
+          "const": 2
+        },
+        "cardID": {
+          "const": "V23-P04-C38"
+        },
+        "contextDigest": {
+          "const": "d7fdce209aa17f2d231fd8f41713dd24adcf106f8724c80a2fa256faa2dd2cd2"
+        },
+        "coordinationHead": {
+          "const": "2e18e556cf726d03510cbf8a1222ce9b70482b32"
+        },
+        "coordinationTree": {
+          "const": "dfdfff71d0e2055568c3ca56628c8d6ff2ceccbc"
+        },
+        "correctionReceiptDigest": {
+          "const": "f9cb0d0251123711d1944c5c82960cfefed08465012f883186218d6a665a9a60"
+        },
+        "existingPathCount": {
+          "const": 1
+        },
+        "existingPaths": {
+          "const": [
+            "FieldEvidenceApp/Application/Workflow/ScheduleCoordinatorV1.swift"
+          ],
+          "type": "array"
+        },
+        "fencePathCount": {
+          "const": 14
+        },
+        "finalHashesSealed": {
+          "const": false
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationRevision": {
+          "const": 2
+        },
+        "ledgerDigest": {
+          "const": "07fad0d9f974035d400e82a144b282a0ab6c48eada40895afb162fcc07f41f60"
+        },
+        "newPathCount": {
+          "const": 13
+        },
+        "newPaths": {
+          "const": [
+            "FieldEvidenceApp/Application/Scheduling/AdvancedRecurrenceWorkflowCoordinatorV1.swift",
+            "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+            "FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests.swift",
+            "FieldEvidenceAppTests/Fixtures/V23/Scheduling/V23P04C38AdvancedRecurrenceWorkflowCorpusV1.json",
+            "FieldEvidenceAppUITests/V23_P04_C38AdvancedRecurrenceWorkflowUITests.swift",
+            "Scripts/v23/p04_c38_contracts.py",
+            "Scripts/v23/generate_p04_c38_contracts.py",
+            "Scripts/v23/verify_p04_c38_contracts.py",
+            "Scripts/v23/advanced-recurrence-workflow.schema.json",
+            "docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowContractV1.json",
+            "docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowEvidenceReceiptV1.json",
+            "docs/design/v23/tooling/V23P04C38BrandImpactManifestV1.json",
+            "docs/design/v23/tooling/V23-P04-C38-tooling-manifest.json"
+          ],
+          "type": "array"
+        },
+        "orderedPathFence": {
+          "const": [
+            "FieldEvidenceApp/Application/Scheduling/AdvancedRecurrenceWorkflowCoordinatorV1.swift",
+            "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+            "FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests.swift",
+            "FieldEvidenceAppTests/Fixtures/V23/Scheduling/V23P04C38AdvancedRecurrenceWorkflowCorpusV1.json",
+            "FieldEvidenceAppUITests/V23_P04_C38AdvancedRecurrenceWorkflowUITests.swift",
+            "Scripts/v23/p04_c38_contracts.py",
+            "Scripts/v23/generate_p04_c38_contracts.py",
+            "Scripts/v23/verify_p04_c38_contracts.py",
+            "Scripts/v23/advanced-recurrence-workflow.schema.json",
+            "docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowContractV1.json",
+            "docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowEvidenceReceiptV1.json",
+            "docs/design/v23/tooling/V23P04C38BrandImpactManifestV1.json",
+            "docs/design/v23/tooling/V23-P04-C38-tooling-manifest.json",
+            "FieldEvidenceApp/Application/Workflow/ScheduleCoordinatorV1.swift"
+          ],
+          "type": "array"
+        },
+        "pathFenceDigest": {
+          "const": "d7eddeea643a5de6bb25f51add5cecd365b5afe7d760bf2ad197e42c21d9defc"
+        },
+        "prerequisiteDigest": {
+          "const": "6a89590421106d8fb21c731b0d202b35355fd96aefd263b380611f4ae16b200c"
+        },
+        "productTestUIFixturePathCount": {
+          "const": 5
+        },
+        "projectionDigest": {
+          "const": "c4b82396a94e66ad3489ffc89b6cc87495e9ae4838c8c242455146dd75e30702"
+        },
+        "registerOrdinal": {
+          "const": 123
+        },
+        "s10ReservationOverlapCount": {
+          "const": 0
+        },
+        "sequence": {
+          "const": 551
+        },
+        "sourcePins": {
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "title": {
+          "const": "Advanced recurrence/exception-calendar authoring, due projection, reminders, history, and DST recovery"
+        },
+        "toolingPathCount": {
+          "const": 8
+        },
+        "transitionDigest": {
+          "const": "4afbce4d55c224159548c7c90f3aa2a103293d10ba64151d0553bb2d98ae5721"
+        },
+        "unauthorizedOverlapCount": {
+          "const": 0
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationHead",
+        "coordinationTree",
+        "sequence",
+        "allocationDigest",
+        "prerequisiteDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "transitionDigest",
+        "ledgerDigest",
+        "projectionDigest",
+        "fencePathCount",
+        "existingPathCount",
+        "newPathCount",
+        "productTestUIFixturePathCount",
+        "toolingPathCount",
+        "authorizedOverlapCount",
+        "unauthorizedOverlapCount",
+        "s10ReservationOverlapCount",
+        "frozenS10ReservationDigest",
+        "orderedPathFence",
+        "existingPaths",
+        "newPaths",
+        "hydrationRevision",
+        "correctionReceiptDigest",
+        "sourcePins",
+        "finalHashesSealed"
+      ],
+      "type": "object"
+    },
+    "flags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "acceptanceCredit": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "adoptionEvidence": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "hostedAcceptance": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "nativeAcceptance": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalDevice": {
+          "const": false
+        },
+        "physicalEvidence": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        },
+        "releaseReadiness": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "physicalDevice",
+        "adoption",
+        "acceptance",
+        "release",
+        "nativeAcceptance",
+        "hostedAcceptance",
+        "physicalEvidence",
+        "adoptionEvidence",
+        "acceptanceCredit",
+        "releaseReadiness",
+        "phase10PollingDuringParallelExecution"
+      ],
+      "type": "object"
+    },
+    "independence": {
+      "additionalProperties": false,
+      "properties": {
+        "backgroundExecution": {
+          "const": false
+        },
+        "calendarIntegration": {
+          "const": false
+        },
+        "canonicalPersistentSchema": {
+          "const": "V53"
+        },
+        "cron": {
+          "const": false
+        },
+        "dueReminderOwner": {
+          "const": "V23-P04-C22"
+        },
+        "holidayDatabase": {
+          "const": false
+        },
+        "newDurableFamily": {
+          "const": false
+        },
+        "newMigration": {
+          "const": false
+        },
+        "newModel": {
+          "const": false
+        },
+        "newSchema": {
+          "const": false
+        },
+        "newStore": {
+          "const": false
+        },
+        "newWriter": {
+          "const": false
+        },
+        "reinspectionOwner": {
+          "const": "V23-P04-C12"
+        },
+        "rrule": {
+          "const": false
+        },
+        "scheduleExceptionOwner": {
+          "const": "V23-P03-C51"
+        },
+        "secondRecurrenceEngine": {
+          "const": false
+        },
+        "server": {
+          "const": false
+        },
+        "totalModelCount": {
+          "const": 168
+        }
+      },
+      "required": [
+        "scheduleExceptionOwner",
+        "reinspectionOwner",
+        "dueReminderOwner",
+        "canonicalPersistentSchema",
+        "totalModelCount",
+        "newDurableFamily",
+        "newModel",
+        "newSchema",
+        "newMigration",
+        "newStore",
+        "newWriter",
+        "secondRecurrenceEngine",
+        "cron",
+        "rrule",
+        "server",
+        "calendarIntegration",
+        "backgroundExecution",
+        "holidayDatabase"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalPersistentSchema": {
+          "const": "V53"
+        },
+        "canonicalRows": {
+          "const": [
+            "ScheduleDefinitionReleaseRow",
+            "OccurrenceHistoryEventRow",
+            "ExceptionCalendarReleaseRow",
+            "ScheduleOverrideEventRow"
+          ]
+        },
+        "canonicalWriteOwners": {
+          "const": [
+            "ScheduleMutationV1",
+            "ScheduleCoordinatorV1",
+            "WorkspaceWriterV1"
+          ]
+        },
+        "derivedOnly": {
+          "const": [
+            "OccurrenceDueQueueStateV1",
+            "LocalReminderReconciliationV1",
+            "DueQueueProjectionV1",
+            "ReminderProjectionV1"
+          ]
+        },
+        "newDurableFamilyCount": {
+          "const": 0
+        },
+        "newMigrationCount": {
+          "const": 0
+        },
+        "newModelCount": {
+          "const": 0
+        },
+        "newSchemaCount": {
+          "const": 0
+        },
+        "newStoreCount": {
+          "const": 0
+        },
+        "newWriterCount": {
+          "const": 0
+        },
+        "persistence": {
+          "const": "PERSISTENT_OR_PRODUCT_DELTA"
+        },
+        "readOnlyOwners": {
+          "const": [
+            "V23-P03-C51",
+            "V23-P04-C12",
+            "V23-P04-C22"
+          ]
+        },
+        "status": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "totalModelCount": {
+          "const": 168
+        }
+      },
+      "required": [
+        "status",
+        "persistence",
+        "canonicalPersistentSchema",
+        "totalModelCount",
+        "canonicalRows",
+        "canonicalWriteOwners",
+        "derivedOnly",
+        "readOnlyOwners",
+        "newDurableFamilyCount",
+        "newModelCount",
+        "newSchemaCount",
+        "newMigrationCount",
+        "newStoreCount",
+        "newWriterCount"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sourceRow": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "SOURCE_PRESENT",
+            "SOURCE_MISSING"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "cardID": {
+      "const": "V23-P04-C38"
+    },
+    "contract": {
+      "type": "string"
+    },
+    "finalHashesSealed": {
+      "const": false
+    },
+    "flags": {
+      "$ref": "#/$defs/flags"
+    },
+    "independence": {
+      "$ref": "#/$defs/independence"
+    },
+    "lifecycle": {
+      "$ref": "#/$defs/lifecycle"
+    },
+    "ordinal": {
+      "const": 123
+    },
+    "receipt": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "object"
+    },
+    "scenarioEvidenceIDs": {
+      "const": [
+        "V23-P04-C38-G01",
+        "V23-P04-C38-A01",
+        "V23-P04-C38-H01",
+        "V23-P04-C38-I01",
+        "V23-P04-C38-R01"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V23P04C38AdvancedRecurrenceWorkflowToolingV1"
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "sourceRows": {
+      "items": {
+        "$ref": "#/$defs/sourceRow"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "ordinal",
+    "authority",
+    "sourceRows",
+    "sourceReady",
+    "flags",
+    "finalHashesSealed",
+    "lifecycle",
+    "independence"
+  ],
+  "title": "V23P04C38AdvancedRecurrenceWorkflowToolingV1",
+  "type": "object"
+}

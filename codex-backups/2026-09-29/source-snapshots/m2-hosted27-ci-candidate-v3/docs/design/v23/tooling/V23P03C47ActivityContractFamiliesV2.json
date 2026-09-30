@@ -1,0 +1,104 @@
+{
+  "artifactDigest": "05caff6ee10d61ba78ce7b0f102ccd484e3e477688b104689d1ae46fa06293fd",
+  "authority": {
+    "allowedPathCount": 134,
+    "appBaseHead": "1277773b210cb9abc83564897e799951ca82b911",
+    "appBaseTree": "cc6484cad20d5cbaf5b575a8dd0bc31533bb77a7",
+    "attemptID": 1,
+    "authorizedOverlapCount": 2521,
+    "cardID": "V23-P03-C47",
+    "classification": "IMPLEMENT_NOW",
+    "contextDigest": "8605e88d350858e6aea3362aa379e3bdb3a1d4956b694045d3e78b726e922be4",
+    "coordinationCASSequence": 326,
+    "coordinationHead": "050ebc4848dcf3d146508613e30293a2047192bd",
+    "coordinationLedgerDigest": "58ff2d4b22a3a3900ef8f22dd4f49e16dbee39f1390abde8ff40fa200d3a024c",
+    "coordinationProjectionDigest": "10b70b91b31980e639a4a25a769758bdd9d17619bc3b8862ac4f88ad6ed6a3ec",
+    "coordinationTree": "11fbe750fd9c267b5d99ef5fe9473d617d8671c9",
+    "directPrerequisiteCards": [
+      "V23-P03-C25"
+    ],
+    "existingPathCount": 120,
+    "fenceDigest": "3f4132bbfa489157b19ab52e68d800e34ea0ed7781b9e27d870e6f929db7b59b",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "5ddc09535ad5e7faec88ea4e48c399f35fc88f105d2497ba07f66be927b37f6b",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C48",
+    "nextRegisterOrdinal": 78,
+    "planningStatus": "NOT_STARTED",
+    "prerequisiteDigest": "c1f51f31dc12bb02b3d4ec626273b425a564582bc411d6f1810c854c95392266",
+    "registerOrdinal": 77,
+    "s10ReservationOverlapCount": 0,
+    "title": "Shared activity envelope with independent installation and standalone punch contracts, readiness, variation, and closeout truth",
+    "unauthorizedOverlapCount": 0
+  },
+  "persistence": {
+    "durableFamilies": [
+      "ActivitySessionEnvelopeV2",
+      "ActivityStateTransitionV2",
+      "CompletedActivitySnapshotV2",
+      "InstallationTaskResultV1",
+      "InstallationAsBuiltSnapshotV1",
+      "PunchReviewBasisSnapshotV1"
+    ],
+    "newDurableRowClasses": [
+      "ActivitySessionEnvelopeV2",
+      "ActivityStateTransitionV2",
+      "InstallationTaskResultV1",
+      "InstallationAsBuiltSnapshotV1",
+      "PunchReviewBasisSnapshotV1"
+    ],
+    "persistentSchemaVersion": 36,
+    "recordsSchemaVersion": 35,
+    "releasedDurableCompatibilityReferences": {
+      "CompletedActivitySnapshotV2": {
+        "member": "completedSnapshotReference",
+        "parallelRowForbidden": true,
+        "referenceType": "CompletedActivitySnapshotV2CompatibilityReferenceV1"
+      }
+    }
+  },
+  "requiredSemantics": {
+    "completedActivitySnapshotUsesReleasedCompatibilityReference": {
+      "member": "completedSnapshotReference",
+      "parallelRowForbidden": true,
+      "referenceType": "CompletedActivitySnapshotV2CompatibilityReferenceV1"
+    },
+    "contractNames": [
+      "SharedActivityEnvelopeReceiptV1",
+      "InstallationActivityContractReceiptV1",
+      "PunchActivityContractReceiptV1",
+      "NoPlanFallbackV1"
+    ],
+    "fiveNewDurableRowClasses": [
+      "ActivitySessionEnvelopeV2",
+      "ActivityStateTransitionV2",
+      "InstallationTaskResultV1",
+      "InstallationAsBuiltSnapshotV1",
+      "PunchReviewBasisSnapshotV1"
+    ],
+    "fiveSelectors": [
+      "testV23P03C47G01SharedEnvelopeInstallationAndPunchAcceptAsThreeIsolatedReceipts",
+      "testV23P03C47A01NoPlanFallbackReadinessDeferredUnableAndCancellationRemainExact",
+      "testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed",
+      "testV23P03C47I01ThreeReceiptWriterInterruptionRecoversWithoutCrossFamilyMutation",
+      "testV23P03C47R01BackupRestoreReplayDeleteEraseSearchReportAndForwardFixRemainExact"
+    ],
+    "lifecycleCoversMigrationBackupRestoreCloneForkDeleteEraseSearchReplayReportRetentionAndForwardFix": true,
+    "noPlanFallbackIsExplicitAndNoninventing": true,
+    "noSecondWriterRendererStoreStatusDatabaseOrApprovalClaim": true,
+    "readinessVariationDeferredUnableAndCloseoutTruthRemainTyped": true,
+    "sharedEnvelopeInstallationAndPunchUseThreeIndependentConformanceReceipts": true,
+    "sixSemanticDurableFamilies": [
+      "ActivitySessionEnvelopeV2",
+      "ActivityStateTransitionV2",
+      "CompletedActivitySnapshotV2",
+      "InstallationTaskResultV1",
+      "InstallationAsBuiltSnapshotV1",
+      "PunchReviewBasisSnapshotV1"
+    ],
+    "threeConformanceReceiptsAndNoPlanFallbackAreNonpersistent": true,
+    "threeReceiptWriterRecoveryCannotCrossFamilyMutation": true
+  },
+  "schema": "V23P03C47ActivityContractFamiliesV2",
+  "schemaVersion": 2
+}

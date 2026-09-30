@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "templateID": "4B7E6B53-8022-4DF8-A275-C35128E22908",
+  "release": 1,
+  "titleKey": "workspace.starter.practice.title",
+  "workspaceKind": "PRACTICE",
+  "packageReleaseIDs": [
+    "shipping.illuminated-sign.v1"
+  ],
+  "roots": [
+    "TODAY",
+    "WORK",
+    "ASSETS",
+    "REPORTS"
+  ],
+  "searchScopes": [
+    "ALL",
+    "ASSETS",
+    "LOCATIONS",
+    "WORK",
+    "REPORTS"
+  ],
+  "syntheticOnly": true,
+  "offlineCapable": true,
+  "requiresPermission": false,
+  "practiceWatermark": "PRACTICE — NOT FOR FIELD USE",
+  "templateSHA256": "2b4ca21173e0bfddcb8381e3717c5b2733ce9d3987843002437b24888f09fe3c"
+}

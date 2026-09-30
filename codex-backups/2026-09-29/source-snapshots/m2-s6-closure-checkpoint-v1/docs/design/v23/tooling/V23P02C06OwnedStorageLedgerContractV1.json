@@ -1,0 +1,258 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "accounting": {
+    "attemptIDType": "OwnedStorageAttemptIDV1",
+    "byteType": "Int64_NONNEGATIVE",
+    "deviceChangesRejected": true,
+    "hardLinksRejected": true,
+    "maximumActiveReservationCount": 10000,
+    "maximumDirectoryDepth": 64,
+    "maximumScannedEntryCount": 100000,
+    "overflowFailsClosed": true,
+    "regularFilesOnly": true,
+    "reservationType": "OwnedStorageReservationV1",
+    "snapshotType": "OwnedStorageSnapshotV1",
+    "symlinksRejected": true,
+    "volumeIdentityType": "OwnedStorageVolumeIdentityV1"
+  },
+  "admission": {
+    "attemptCollisionFailsClosed": true,
+    "attemptReservationIsIdempotent": true,
+    "capacityUnavailableFailure": "capacityUnavailable",
+    "insufficientCapacityFailure": "insufficientCapacity",
+    "methods": [
+      "reserve",
+      "release"
+    ],
+    "port": "WorkspaceStorageAdmissionPortV1",
+    "preflightBeforeCanonicalMutation": true,
+    "releaseIsIdempotent": true,
+    "reservationsAreProcessLocal": true,
+    "writerFailure": "storageAdmissionFailed"
+  },
+  "adoptionEnabled": false,
+  "artifactDigest": "6187a13fa6967e41bb1ed9daf0988d4eef208e2f1854d690fdac1f22c1404713",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "0272a8ffc24af98343fdfbc0b51e5063bd3e1134",
+    "appBaseTree": "d603f733609dd5d8214ff59bca0b172bb4c770d2",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C06",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "862112f0903b8f78834332ef9f089dd91907a8a39b32748ee055c749dd660f86",
+    "coordinationAuthorityHead": "9cf025a2b8a99d2aed2822824b245fa84916f0b8",
+    "coordinationAuthorityTree": "6dea1d96e3d1fe9cf6656682b6e6b62b2e3ac6bb",
+    "coordinationCASSequence": 104,
+    "coordinationLedgerDigest": "f867bd6467c7287683fbf86a9049dd8609e0c70fa24d2d8b68e1b03f7b87b492",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C06-G01",
+      "V23-P02-C06-A01",
+      "V23-P02-C06-H01",
+      "V23-P02-C06-I01",
+      "V23-P02-C06-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C05"
+    ],
+    "dossierDigest": "74cb5ad75992718658327f60b44ab752e2aa4bda09119ddeaf06c7ec1353f443",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "6c10ad0d12d106c1e3ed09ed731afb143a914acc1595772a3088ad18a09b4d44",
+    "hydrationTransitionDigest": "dbbb09e0cadda8c20dfc64e3dd79e64862b531714538028952f1bf0f416b1c8c",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "0a7f64772e37775628a9721a280be83c7c0cb389d234672b4f4d7f39861cf7d5",
+    "invalidationConsumers": [
+      "V23-P02-C07"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C06",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "b90723f324e2126e5fe04878e5016adb6c07e18b9972684415c692203d953f5a",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "ca153b318446a7aead005e8f4c510a1c384b093c622efc8d0fb444d003d8e1b0",
+    "registerOrdinal": 26,
+    "registerRowDigest": "ce7cb0a63873f41df355e4ec13c2869c98e70438cb42f2a029e2fed7bf6605ea",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Protected-data lifecycle, storage pressure, and device-time semantics"
+  },
+  "backupRestore": {
+    "ledgerIncludedInUserBackup": false,
+    "ledgerIncludedInUserExport": false,
+    "reservationsNeverBecomeCanonical": true,
+    "restoreRebuildsFromCanonicalTruth": true
+  },
+  "cardID": "V23-P02-C06",
+  "destructiveOperations": {
+    "ambiguousPublication": "FAIL_CLOSED_RETAIN_ROW",
+    "automaticDataDeletion": false,
+    "eraseAll": "CANONICAL_ERASE_OWNER_RECONCILES_THEN_REMOVES_OPERATIONAL_ROWS",
+    "workspaceDelete": "CANONICAL_OWNER_RECONCILES_THEN_REMOVES_OPERATIONAL_ROWS"
+  },
+  "evidenceIDs": [
+    "V23-P02-C06-G01",
+    "V23-P02-C06-A01",
+    "V23-P02-C06-H01",
+    "V23-P02-C06-I01",
+    "V23-P02-C06-R01"
+  ],
+  "failureKinds": [
+    "invalidRoot",
+    "duplicateRoot",
+    "volumeMismatch",
+    "accountingOverflow",
+    "entryLimitExceeded",
+    "reservationLimitExceeded",
+    "depthLimitExceeded",
+    "unsupportedEntry",
+    "capacityUnavailable",
+    "insufficientCapacity",
+    "attemptCollision"
+  ],
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": false,
+  "nativeCompileRan": false,
+  "owner": "OwnedStorageLedgerV1",
+  "persistentChangeMode": "CONTENT_ONLY",
+  "persistentContractSchema": "PROTECTED_DATA_STORAGE_PRESSURE_AND_DEVICE_TIME_SEMANTICS_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "prohibitedTokens": [
+    "accountID",
+    "authenticatedUserID",
+    "backgroundDaemon",
+    "CloudKit",
+    "CKRecord",
+    "inbox",
+    "outbox",
+    "providerID",
+    "remoteProvider",
+    "serverCursor",
+    "serverRevision",
+    "tenantID",
+    "vectorClock",
+    "accessToken",
+    "serviceCredential",
+    "secretMaterial"
+  ],
+  "provisional": true,
+  "reconciliation": {
+    "adoptsOnlySuppliedActiveReservations": true,
+    "method": "reconcile",
+    "noAutomaticUserDataDeletion": true,
+    "noDeletionForSpace": true,
+    "noPersistentReservationStore": true,
+    "rechecksVolumeIdentity": true,
+    "relaunchRebuildsLedger": true,
+    "scansActualOwnedBytes": true,
+    "unknownOrCorruptEntry": "FAIL_CLOSED"
+  },
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "rootIdentity": {
+    "closedSet": true,
+    "duplicateRootDisposition": "FAIL_CLOSED",
+    "fileURLsOnly": true,
+    "lastPathComponentMustMatchKind": true,
+    "parentDirectory": "applicationSupportURL",
+    "sameVolumeRequired": true
+  },
+  "rootKinds": [
+    "FieldEvidenceData",
+    "FieldEvidenceRestore",
+    "FieldEvidenceOperations",
+    "FieldEvidenceErase",
+    "FieldEvidenceDiagnostics",
+    "FieldEvidenceCommerce",
+    "local-jobs-v1"
+  ],
+  "schema": "OwnedStorageLedgerContractV1",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "sourceBindings": [
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+      "requiredTokens": [
+        "OwnedStorageAttemptIDV1",
+        "OwnedStorageVolumeIdentityV1",
+        "OwnedStorageReservationV1",
+        "WorkspaceStorageAdmissionPortV1",
+        "storageAdmissionFailed"
+      ],
+      "symbols": [
+        "OwnedStorageAttemptIDV1",
+        "OwnedStorageVolumeIdentityV1",
+        "OwnedStorageReservationV1",
+        "WorkspaceStorageAdmissionPortV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+      "requiredTokens": [
+        "storageAdmissionFailed",
+        "WorkspaceStorageAdmissionPortV1",
+        "reserve",
+        "release"
+      ],
+      "symbols": [
+        "WorkspaceWriterV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "requiredTokens": [
+        "StoragePreflightService",
+        "capacityUnavailable",
+        "insufficientCapacity"
+      ],
+      "symbols": [
+        "StoragePreflightService"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "requiredTokens": [
+        "OwnedStorageRootKindV1",
+        "OwnedStorageRootV1",
+        "OwnedStorageSnapshotV1",
+        "OwnedStorageLedgerFailureV1",
+        "OwnedStorageLedgerV1",
+        "snapshot",
+        "reserve",
+        "release",
+        "reconcile",
+        "reservationLimitExceeded",
+        "maximumScannedEntryCount",
+        "maximumDirectoryDepth",
+        "maximumActiveReservationCount",
+        "O_NOFOLLOW",
+        "AT_SYMLINK_NOFOLLOW",
+        "Storage pressure never authorizes deletion"
+      ],
+      "symbols": [
+        "OwnedStorageRootKindV1",
+        "OwnedStorageRootV1",
+        "OwnedStorageSnapshotV1",
+        "OwnedStorageLedgerFailureV1",
+        "OwnedStorageLedgerV1"
+      ]
+    }
+  ]
+}

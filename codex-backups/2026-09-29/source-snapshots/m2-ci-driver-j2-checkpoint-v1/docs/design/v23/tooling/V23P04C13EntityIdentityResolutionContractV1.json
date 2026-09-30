@@ -1,0 +1,138 @@
+{
+  "authority": {
+    "appBaseHead": "fc2c9393c7b0c9856150fdeffbd454a7f3daa931",
+    "appBaseTree": "3a5521488c6b2735bdf96cc1f86a9ff41da73434",
+    "cardID": "V23-P04-C13",
+    "contextDigest": "d86ff8eb9d17b094648e57d56c26fa7631a5e4a07ce3b78f7a065b55fde61b08",
+    "coordinationHead": "1fc0e521f2fef034bfb863f4401f12e7f4c856dd",
+    "coordinationTree": "28c575468545635890e816e450a96c43f75b8686",
+    "existingPathCount": 56,
+    "fencePathCount": 72,
+    "finalHashesSealed": true,
+    "ledgerDigestPrefix": "165049cb",
+    "newPathCount": 16,
+    "pathFenceDigest": "0a1f52808e0aa3ca2d6bdcae9253a3ca89d774323d655eaeefb153cefd3933d8",
+    "prerequisiteDigest": "a63940691eed64772a867af18f49b34f4abe9464f7ea8b7364af52eb142598f3",
+    "projectionDigestPrefix": "e4a40201",
+    "s10OverlapCount": 0,
+    "sequence": 438,
+    "transitionDigestPrefix": "8a4a0079"
+  },
+  "cardID": "V23-P04-C13",
+  "provisional": true,
+  "schema": "V23P04C13EntityIdentityResolutionContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "actionCount": 5,
+    "durableFamilies": [
+      "EntityAliasLinkRowV1",
+      "EntityConsolidationReceiptRowV1_WITH_SUCCESSOR_REVERSALS",
+      "EntityIdentityResolutionMutationReceiptRowV1"
+    ],
+    "lifecycleCoverage": [
+      "MIGRATION",
+      "BACKUP",
+      "REPLACE_RESTORE",
+      "DELETE",
+      "ERASE",
+      "EXPORT",
+      "REPORT",
+      "SEARCH",
+      "REBUILD",
+      "JOURNAL",
+      "REPLAY"
+    ],
+    "oneCanonicalWriter": true,
+    "persistentSchema": "V50",
+    "previewNonpersistent": true,
+    "statusFlags": {
+      "acceptance": false,
+      "activation": false,
+      "adoption": false,
+      "hosted": false,
+      "hostedAcceptance": false,
+      "native": false,
+      "nativeAcceptance": false,
+      "phase10PollingDuringParallelExecution": false,
+      "physicalEvidence": false,
+      "release": false
+    }
+  },
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 56,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C13G01PreviewAliasAndConsolidationPlansPreserveCanonicalEvidenceAndHistory",
+      "testV23P04C13A01ExplicitSingleWriterAliasAndSuccessorReversalReceiptsUseExactRevision",
+      "testV23P04C13H01CrossWorkspaceReuseStalePlanHistoryRewriteAndAutomaticMutationFailClosed",
+      "testV23P04C13I01InterruptedEffectBeforeReceiptRecoveryNeverDuplicatesIdentityConsolidation",
+      "testV23P04C13R01RestoreReplayRebuildsAliasesConsolidationReceiptsAndEvidenceOnlyRelationships"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "FieldEvidenceApp/Domain/Identity/EntityIdentityResolutionContractsV1.swift",
+        "sha256": "cedd9a61a106b327291a54e00465b06909a8813dc4ee4a138a965e46d31d1048",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Models/EntityIdentityResolutionPersistenceModelsV1.swift",
+        "sha256": "7a9b5908193e7125279a0da718c2b9be79ab3d29efdc4e6f11efe34e7a9dfe3e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/Identity/EntityIdentityResolutionCoordinatorV1.swift",
+        "sha256": "e94caf3486ba245700a1496ff6f9e06b24ecdb41c0131c4b5486987ae2f9c723",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/ImportExport/EntityIdentityResolutionLifecycleAdapterV1.swift",
+        "sha256": "3d33b479173d30c56245f48fa46db2637b388ff27eb4e5220944979932fce4bf",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Features/AssetImport/EntityIdentityResolutionView.swift",
+        "sha256": "d83d4e9523d975a7162e5939ce9ab06bcb6bd16513fc2d90d3178b24002b3500",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_77EntityIdentityResolutionTests.swift",
+        "sha256": "3698ea09a1af179c52bae8016cedbd5f4201f0fcf4b95037591b123657415856",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C13EntityIdentityResolutionUITests.swift",
+        "sha256": "bb92253291c2436728b74b63e2fdc6b3b8e8e33fd0f043f45b42087e10a34417",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V23/IdentityResolution/V23P04C13EntityIdentityResolutionCorpusV1.json",
+        "sha256": "9a113519c79096a0f9eb1e5a1e2ccb6657b1a52694e2a9b0aefd282cfbe6e5fa",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C13G01PreviewAliasAndConsolidationPlansPreserveCanonicalEvidenceAndHistory",
+    "testV23P04C13A01ExplicitSingleWriterAliasAndSuccessorReversalReceiptsUseExactRevision",
+    "testV23P04C13H01CrossWorkspaceReuseStalePlanHistoryRewriteAndAutomaticMutationFailClosed",
+    "testV23P04C13I01InterruptedEffectBeforeReceiptRecoveryNeverDuplicatesIdentityConsolidation",
+    "testV23P04C13R01RestoreReplayRebuildsAliasesConsolidationReceiptsAndEvidenceOnlyRelationships"
+  ]
+}

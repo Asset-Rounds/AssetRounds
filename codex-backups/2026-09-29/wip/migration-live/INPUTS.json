@@ -1,0 +1,66 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "parentHead": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "rootAssignedFullSourceMapSHA256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+  "trackedBaselineInputs": {
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift": {
+      "sha256": "9d72ab06ba72763445d32cf57bd0cbaae3ef68a2b629bb88242d34a4e8970f81",
+      "bytes": 1235745
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift": {
+      "sha256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+      "bytes": 89099
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift": {
+      "sha256": "9cd43f0c73c1a9840edcd1e82c73e0b71535b3226f2ac818da4217cd5a49727c",
+      "bytes": 109793
+    },
+    "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift": {
+      "sha256": "b4eef0e28bff89de4512ed9d240ea01184a872c501c5b6b062ee1dcd69eb09c0",
+      "bytes": 568274
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": {
+      "sha256": "1112d37ba1a07553f6c499515ff8c73c2d0bc2a20a9eb64cd8542b044f57b6d5",
+      "bytes": 856659
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": {
+      "sha256": "0417555056e563669c7194b0829a6ae88c7cbe923c411fb76b6fa838927c4fc4",
+      "bytes": 347467
+    },
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": {
+      "sha256": "8890e38d76c8d1e9c8450df2d85d18f7b7660e6ede40f4118dcee49386eed338",
+      "bytes": 635711
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "sha256": "ad95d26b481a864a3f5f6b45a5f2917d790f703af59cbb0f742e85c0d6d40d1b",
+      "bytes": 79387
+    }
+  },
+  "centralFrozenCheckpoint": {
+    "path": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/interface-checkpoint-v1",
+    "bindingSHA256": "9f15b0f899ca21797bbbfbd688f31ae3afedcda2295986108fbe786c511500fc",
+    "files": {
+      "PARSE.json": "316d0f0ebd8329f86fb9735a276f9d720eae3d96c013829a3ad1f7fec3167cf3",
+      "ROUTER_ACTUAL_CALLER_HOOKS_V1.swift.fragment": "5f7ae445d614e2cfb23fd9505f488784cff919ac22096bcba463d0db391155aa",
+      "ROUTER_ADMISSION_PERMIT_READBACK_V1.swift.fragment": "fcaffac5564182996691a48b2bbaddb9514eff4f7230be97f623edbb33b9bbac",
+      "candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "7137c417bfcfa07000d7ae3d4feb748a07327d8f231f0045d3fe0fc00334c884",
+      "candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "017d94e4d15d1c4291aaa9c9f51fb6f2c7b62a2983ec3ebe397af26ffa4e818e",
+      "candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "026d1499fa31acdbeb42d9c2ab82454fda600f25847e469b9a331bd00583921c"
+    },
+    "status": "SOURCE_ONLY_COUPLING_CHECKPOINT_NOT_INSTALLABLE"
+  },
+  "ledgerProposal": {
+    "path": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-effect-loan-v1/LIVE_SCRATCH_EFFECT_INTERFACE_V1.swift.fragment",
+    "sha256": "b12ecefbe43d5a83c99bc38b2046fc053ed7b7e8ddaa8c248cfe43e8084e56e2"
+  },
+  "ledgerFoundationSnapshot": {
+    "originalPath": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-effect-loan-v1/LIVE_LEDGER_FOUNDATION_WORKING_V2.swift.fragment",
+    "capturedSHA256": "732434de82669a2381abc045810870c64368da82f9541ec418bb51cea1a0e884",
+    "status": "UNSEALED_WORKING_SOURCE_SNAPSHOT_NOT_AN_ENGINE_OR_PERMISSION_PRODUCER_APPROVAL"
+  },
+  "inverseDeltaSHA256": "9d72ab06ba72763445d32cf57bd0cbaae3ef68a2b629bb88242d34a4e8970f81",
+  "inverseRestoresExactBaseline": true,
+  "allOtherTrackedMigrationBytesPreserved": true,
+  "noPrimaryOrTrackedEdits": true
+}

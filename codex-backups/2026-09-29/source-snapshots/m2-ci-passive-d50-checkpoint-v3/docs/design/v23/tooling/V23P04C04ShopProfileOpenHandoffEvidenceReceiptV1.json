@@ -1,0 +1,146 @@
+{
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "28fef012477d81688330314332e3d82f59f993dfbcdd177a84f6ad4551369302",
+  "authority": {
+    "appBaseHead": "f3cb7ef2c1cc55e6306bb8073aebdf7d243dfa21",
+    "appBaseTree": "26684b3fe7ee2e1a6af5c472dd13c1b2ffcae9de",
+    "authorizedOverlapCount": 6224,
+    "cardID": "V23-P04-C04",
+    "contextDigest": "09d54679c2fe07482b840e273578c4dca61baf6a712fac9eeb188c1194fa2ba4",
+    "coordinationHead": "c38ed75094359ec7911819c9a7f70c3bb7d93a1f",
+    "coordinationLedgerDigest": "2ad178fb846cefbd6f68b2d355ffc9e6713389d047dfdd16f866701098e0c01a",
+    "coordinationProjectionDigest": "9e43772eb70bb16ade49b97b86be757323eb5e1b6341124049f99cb81eda4afd",
+    "coordinationSequence": 402,
+    "coordinationTree": "9c3756d7b017e25d06f901749526b128ce34ab24",
+    "existingPathCount": 318,
+    "fencePathCount": 333,
+    "finalHashesSealed": true,
+    "hydrationTransitionDigest": "cf496c588c0a043446fe31a92822436a1f2dcf8397807c637f40e9138f5107d7",
+    "newPathCount": 15,
+    "pathFenceDigest": "010964bbec129d28573349d4631f5b54caa4b8b4f1e7b239763e532da612bf42",
+    "prerequisiteDigest": "bd4a15519b591cd3d1d60ef44e70323deab2c3d433342eda9da9d31da8af7836",
+    "registerOrdinal": 92,
+    "s10ReservationOverlapCount": 0,
+    "sourcePins": {
+      "dossierSHA256": "5253a8ff89b283378208887d1110bdd5edb94c2634a4ab2122d0f6c016a6efc3",
+      "dossierUTF8Length": 7457,
+      "inheritedV21BlockSHA256": "ef4f0f9c22be6821a85a21dbcf10c62d5c185ba31fffc9178ad083d8f8ddac12",
+      "inheritedV21BlockUTF8Length": 9340,
+      "registerRowSHA256": "7d3d6d52a321934e3cc492201cd422374ba5b18b89540b743ead160f11021672",
+      "registerRowUTF8Length": 243,
+      "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+      "registerSectionUTF8Length": 44217
+    },
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C04",
+  "cases": [
+    {
+      "evidenceID": "V23-P04-C04-G01",
+      "selectorSuffix": "G01"
+    },
+    {
+      "evidenceID": "V23-P04-C04-A01",
+      "selectorSuffix": "A01"
+    },
+    {
+      "evidenceID": "V23-P04-C04-H01",
+      "selectorSuffix": "H01"
+    },
+    {
+      "evidenceID": "V23-P04-C04-I01",
+      "selectorSuffix": "I01"
+    },
+    {
+      "evidenceID": "V23-P04-C04-R01",
+      "selectorSuffix": "R01"
+    }
+  ],
+  "evidenceIDs": [
+    "V23-P04-C04-G01",
+    "V23-P04-C04-A01",
+    "V23-P04-C04-H01",
+    "V23-P04-C04-I01",
+    "V23-P04-C04-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "nativeCompileRan": false,
+  "physicalEvidenceComplete": false,
+  "provisional": false,
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P04C04ShopProfileOpenHandoffEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "allExistingProfilesRemainOff": true,
+    "confirmation": "IMMUTABLE_ORIGINAL_PRIVACY_DERIVATIVE_REVIEWED_MARKUP_DETAILS_EXACT_BYTES",
+    "evidenceIDs": [
+      "V23-P04-C04-G01",
+      "V23-P04-C04-A01",
+      "V23-P04-C04-H01",
+      "V23-P04-C04-I01",
+      "V23-P04-C04-R01"
+    ],
+    "formats": [
+      "PDF",
+      "OPEN_JSON",
+      "TEXT",
+      "FORMULA_SAFE_CSV",
+      "MEDIA",
+      "HASH_MANIFEST"
+    ],
+    "lifecycle": [
+      "FIRST_WRITE",
+      "MIGRATION",
+      "JOURNAL",
+      "BACKUP",
+      "RESTORE",
+      "DELETE",
+      "ERASE",
+      "CLONE",
+      "FORK",
+      "CONFIGURATION",
+      "EXPORT",
+      "REPORT",
+      "REPLAY"
+    ],
+    "oneIncumbentRenderer": true,
+    "persistentFamily": "SHOP_REPORT_PROFILE_V1",
+    "rejects": [
+      "ACTIVE_CONTENT",
+      "UNBOUNDED",
+      "REMOTE"
+    ],
+    "schemaVersion": 44,
+    "selectors": [
+      "testV23P04C04G01DeterministicProfilePresetAndConfirmationBytes",
+      "testV23P04C04A01CustomerSafePackagingAndAccessibleOutputs",
+      "testV23P04C04H01RejectsCorruptStaleUnsafeAndSecondRendererInputs",
+      "testV23P04C04I01InterruptionLeavesZeroOrRecoverableCanonicalEffect",
+      "testV23P04C04R01RestoreCloneForkAndHistoricExportImmutability"
+    ],
+    "ui": "STANDALONE_VIEW_ONLY_POST_S10_SETTINGS_AND_FINALIZATION_UNTOUCHED"
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C04G01DeterministicProfilePresetAndConfirmationBytes",
+    "testV23P04C04A01CustomerSafePackagingAndAccessibleOutputs",
+    "testV23P04C04H01RejectsCorruptStaleUnsafeAndSecondRendererInputs",
+    "testV23P04C04I01InterruptionLeavesZeroOrRecoverableCanonicalEffect",
+    "testV23P04C04R01RestoreCloneForkAndHistoricExportImmutability"
+  ],
+  "title": "Shop profile and branded open evidence handoff"
+}

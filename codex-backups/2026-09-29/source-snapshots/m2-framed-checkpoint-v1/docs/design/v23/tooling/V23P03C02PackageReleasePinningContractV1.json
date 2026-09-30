@@ -1,0 +1,624 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "be1d774031fe527fc8e7a445d42a6552faa45893e0f278330bcaa037f991dbce",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "76039ad7d48f04f11f19937ed623dd28b12ea49a",
+    "appBaseTree": "80418a317e75216c8ccc26d7acba5c6cce293d1d",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P03-C02",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "3c238ced11eeffb0b7eb93f968c0e6fc7df555f64e45154bf43b696f25cf5cac",
+    "coordinationAuthorityHead": "710bee763bbc98b323d7c6c3d8b79c5124a4b5bb",
+    "coordinationAuthorityTree": "1b15a4dd0870f8a8d83d0fbeabe654ccc7d1b543",
+    "coordinationCASSequence": 140,
+    "coordinationLedgerDigest": "ae2c41c95a677ed6984a9d1f4964ee91229da8796008844d6a86df3e7b09cf23",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P03-C02-G01",
+      "V23-P03-C02-A01",
+      "V23-P03-C02-H01",
+      "V23-P03-C02-I01",
+      "V23-P03-C02-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P03-C01"
+    ],
+    "dossierDigest": "bd917763a48633bc4d33a21749ada804ad0406e269e3ad06168ea10d823205d7",
+    "dossierLength": 7101,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "03d5143ae59a79430fbbd508aa1b948768a989bb5fcfdfc1dae870409500b227",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "97946a92ee5dec964b2f4a88df62ff05f413c852f7e44338ff184016234bb243",
+    "inheritedV21BlockLength": 7062,
+    "invalidationConsumers": [
+      "V23-P03-C03",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "lineageSource": "V21-P03-C02",
+    "pathFenceDigest": "41823769e2170704e7c6144cb1fa4033dcbcd24f291fc6d35b496e8f78e02bba",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "3e8602995e4e0ef35abd72c0b56fbd274b377bd1739afb5317c63caee0b40d91",
+    "registerOrdinal": 33,
+    "registerRowDigest": "b1ebc559d01849908f82f944073dbbb62fa16ff67cf1e032acbb4c3fd2b3e3e3",
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "registerSectionLength": 44217,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Immutable package release and exact finite workflow-node, branch, predicate, and repeat grammar"
+  },
+  "backupBehaviorDelta": false,
+  "backupRestoreRequired": false,
+  "brandSurfaceDelta": false,
+  "cardID": "V23-P03-C02",
+  "deleteBehaviorDelta": false,
+  "deleteEraseRequired": false,
+  "downgradeDisposition": "DORMANT_REVERT_ALLOWED",
+  "evidenceIDs": [
+    "V23-P03-C02-G01",
+    "V23-P03-C02-A01",
+    "V23-P03-C02-H01",
+    "V23-P03-C02-I01",
+    "V23-P03-C02-R01"
+  ],
+  "exportBehaviorDelta": false,
+  "exportReportRequired": false,
+  "fixtureProjection": {
+    "bindingKinds": [
+      "ACTIVE",
+      "AMENDMENT",
+      "COMPLETED",
+      "DRAFT",
+      "EXPORT"
+    ],
+    "canonicalSHA256": "169c1f1b570240a56b7dd2c356a5a967c12d6fb062872e99c3cf077da9ed57dc",
+    "interruptionBoundaries": [
+      "AFTER_PUBLICATION_BEFORE_RECEIPT",
+      "AFTER_VALIDATION_BEFORE_PUBLICATION",
+      "BEFORE_VALIDATION"
+    ],
+    "limits": {
+      "maximumBranchCount": 32,
+      "maximumEdgeCount": 384,
+      "maximumFieldCount": 128,
+      "maximumGraphDepth": 32,
+      "maximumNodeCount": 128,
+      "maximumPredicateDepth": 8,
+      "maximumPredicateOperands": 16,
+      "maximumRepeatCount": 32,
+      "maximumSetOperandCount": 32,
+      "maximumTotalExecutions": 4096
+    },
+    "negativeCases": [
+      "COUNT_LIMIT",
+      "CYCLE",
+      "DEPTH_LIMIT",
+      "FIELD_COUNT_LIMIT",
+      "FORWARD_PREDICATE_REFERENCE",
+      "MISSING_FIELD_ID",
+      "MISSING_TARGET",
+      "NESTED_REPEAT_ESCAPE",
+      "PREDICATE_DEPTH_LIMIT",
+      "REPEAT_BODY_ESCAPE",
+      "REPEAT_BODY_OUTSIDE_ENTRY",
+      "UNKNOWN_NODE_KIND",
+      "UNKNOWN_PREDICATE_KIND"
+    ],
+    "nodeKinds": [
+      "BRANCH",
+      "EVIDENCE_REQUEST",
+      "FACT",
+      "INSTRUCTION",
+      "REPEAT_GROUP",
+      "REVIEW",
+      "SECTION",
+      "TERMINAL"
+    ],
+    "predicateKinds": [
+      "ALL",
+      "ANY",
+      "COMPARE_FIXED",
+      "EQUALS",
+      "EXISTS",
+      "IN_SET",
+      "IS_KNOWN",
+      "NOT"
+    ],
+    "releaseStates": [
+      "DRAFT",
+      "TESTED",
+      "PUBLISHED"
+    ],
+    "repeat": {
+      "activitySequence": [
+        "ACTIVE",
+        "INACTIVE_BY_PATH",
+        "REACTIVATION_REVIEW_REQUIRED"
+      ],
+      "instanceID": "fixture.repeat.instance.0001",
+      "multiNodeBodyIDs": [
+        "node.body.entry",
+        "node.body.exit",
+        "node.body.interior"
+      ],
+      "nestedBodyIDs": [
+        "node.inner.branch",
+        "node.inner.exit",
+        "node.inner.repeat",
+        "node.outer.entry",
+        "node.outer.exit"
+      ],
+      "nestedRepeatCount": 2,
+      "repeatNodeID": "node.repeat",
+      "stableOrder": 0
+    },
+    "requiredMarkers": [
+      "DRAFT",
+      "ACTIVE",
+      "COMPLETED",
+      "BEFORE_VALIDATION",
+      "AFTER_PUBLICATION_BEFORE_RECEIPT",
+      "FAIL_CLOSED",
+      "NESTED_REPEAT_ESCAPE"
+    ],
+    "schema": "V21P03C02WorkflowGraphCorpusV1",
+    "schemaVersion": 1,
+    "sha256": "1676ba3644de68526dddc0155a5a5392cdc21f83bfaa007bff53d14f1da1be75",
+    "testOnly": true,
+    "topLevelKeys": [
+      "bindingKinds",
+      "failureDisposition",
+      "interruptionBoundaries",
+      "limits",
+      "negativeCases",
+      "nodeKinds",
+      "olderResume",
+      "predicateKinds",
+      "releaseStates",
+      "repeat",
+      "schema",
+      "schemaVersion",
+      "testOnly",
+      "truthDestinations",
+      "workflowID"
+    ],
+    "truthDestinations": {
+      "FALSE": "node.review",
+      "TRUE": "node.repeat",
+      "UNKNOWN": "node.terminal"
+    },
+    "truthResolution": "ONE_TRUTH_VALUE_SELECTS_EXACTLY_ONE_DESTINATION"
+  },
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": false,
+  "migrationRequired": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "noNewSwiftDataV6Entity": true,
+  "persistentChangeMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "KERNEL_CONTRACT_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "pinning": {
+    "amendmentRequiresNewReleaseID": true,
+    "bindingType": "PackageReleaseBindingV1",
+    "changedBytesDisposition": "FAIL_CLOSED",
+    "hashMismatchDisposition": "FAIL_CLOSED",
+    "identity": [
+      "packageReleaseID",
+      "packageID",
+      "packageContentVersion",
+      "packageSHA256",
+      "canonicalPackageBytes"
+    ],
+    "immutableStatuses": [
+      "TESTED",
+      "PUBLISHED"
+    ],
+    "interruption": {
+      "boundaries": [
+        "BEFORE_VALIDATION",
+        "AFTER_VALIDATION_BEFORE_PUBLICATION",
+        "AFTER_PUBLICATION_BEFORE_RECEIPT"
+      ],
+      "partialPublicationAllowed": false,
+      "relaunchDisposition": "RECONSTRUCT_OR_ADOPT_EXACT_RELEASE_OR_FAIL_CLOSED"
+    },
+    "olderReleaseResume": "EXACT_IMMUTABLE_BYTES_AND_HASH_REQUIRED",
+    "publicationReceipt": "REQUIRED_AFTER_EFFECT_AND_CANONICAL_READBACK",
+    "statusTransitions": [
+      "DRAFT_TO_TESTED",
+      "TESTED_TO_PUBLISHED"
+    ],
+    "unknownOrFutureVersionDisposition": "FAIL_CLOSED",
+    "workflowIdentity": [
+      "workflowSHA256",
+      "canonicalWorkflowBytes"
+    ]
+  },
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": false,
+  "schema": "V23P03C02PackageReleasePinningContractV1",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "shippingBoundaryAdoption": "DEFERRED_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+  "sourceBindings": [
+    {
+      "bytes": 22790,
+      "owner": "predecessor-package-contract",
+      "path": "FieldEvidenceApp/Domain/Packs/InspectionPackageContractsV2.swift",
+      "requiredTokens": [
+        "PACKAGE_REGISTRY_V2",
+        "DECLARATION_ONLY",
+        "DORMANT_REVERT_ALLOWED",
+        "requireExactKeys",
+        "allCases"
+      ],
+      "sha256": "80f042ff71d3a229af654bfeaeef5489cf69760e7afa756d53471f628f0126d3",
+      "symbols": [
+        "InspectionPackageV2",
+        "InspectionPackageCanonicalCodecV2",
+        "InspectionPackageLifecycleV2"
+      ]
+    },
+    {
+      "bytes": 1945,
+      "owner": "bundled-registry-release-bridge",
+      "path": "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+      "requiredTokens": [
+        "BUNDLED_ONLY",
+        "runtimeDownloadsAllowed",
+        "InspectionPackageRegistryPublisherV2.publish",
+        "shippingDraftRelease"
+      ],
+      "sha256": "d389e5b936f22c192f8f82032e1c982bc898c6cf910233384224cc404eb0be18",
+      "symbols": [
+        "BundledInspectionPackageRegistryV2",
+        "InspectionPackageReleaseV1.makeDraft"
+      ]
+    },
+    {
+      "bytes": 15053,
+      "owner": "workflow-grammar",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGrammarContractsV1.swift",
+      "requiredTokens": [
+        "SECTION",
+        "INSTRUCTION",
+        "FACT",
+        "EVIDENCE_REQUEST",
+        "BRANCH",
+        "REPEAT_GROUP",
+        "REVIEW",
+        "TERMINAL",
+        "EXISTS",
+        "IS_KNOWN",
+        "EQUALS",
+        "IN_SET",
+        "COMPARE_FIXED",
+        "NOT",
+        "ALL",
+        "ANY",
+        "TRUE",
+        "FALSE",
+        "UNKNOWN",
+        "LESS_THAN",
+        "LESS_THAN_OR_EQUAL",
+        "EQUAL",
+        "GREATER_THAN_OR_EQUAL",
+        "GREATER_THAN",
+        "maximumNodeCount",
+        "maximumEdgeCount",
+        "maximumFieldCount",
+        "maximumGraphDepth",
+        "maximumBranchCount",
+        "maximumPredicateDepth",
+        "maximumPredicateOperands",
+        "maximumSetOperandCount",
+        "maximumRepeatCount",
+        "maximumTotalExecutions",
+        "maximumIDBytes",
+        "values.allSatisfy(WorkflowGrammarValidationV1.validID)",
+        "destination(for value: BranchTruthValueV1)"
+      ],
+      "sha256": "f05449653af24ce35cf1bf95cc80a3c0bfe1820b0c92c6485a2895a9705f2ede",
+      "symbols": [
+        "InspectionKernelFailureV1",
+        "WorkflowNodeKindV1",
+        "BranchPredicateKindV1",
+        "BranchPredicateV1",
+        "WorkflowGrammarLimitsV1"
+      ]
+    },
+    {
+      "bytes": 9027,
+      "owner": "workflow-definition",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowDefinitionV1.swift",
+      "requiredTokens": [
+        "validateShape",
+        "outgoingNodeIDs",
+        "repeatBodyEntryNodeID",
+        "maximumRepeatInstances",
+        "schemaVersion"
+      ],
+      "sha256": "2a4f76f653677ae3ce0e2793ee133ae81ffcf5c811297dd5b90119139873e137",
+      "symbols": [
+        "WorkflowNodeV1",
+        "WorkflowDefinitionV1"
+      ]
+    },
+    {
+      "bytes": 11081,
+      "owner": "workflow-graph-validator",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/WorkflowGraphValidatorV1.swift",
+      "requiredTokens": [
+        "reachable",
+        "cycle",
+        "maximumEdgeCount",
+        "maximumGraphDepth",
+        "forwardPredicateReference",
+        "unreachableNode",
+        "missingTarget"
+      ],
+      "sha256": "bae956b4030891aa101951705d9213ff3e669f854ac84cc5a4d1a643e9df2db1",
+      "symbols": [
+        "WorkflowGraphValidatorV1"
+      ]
+    },
+    {
+      "bytes": 15605,
+      "owner": "immutable-package-release",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/InspectionPackageReleaseV1.swift",
+      "requiredTokens": [
+        "packageReleaseID",
+        "canonicalPackageBytes",
+        "packageSHA256",
+        "canonicalWorkflowBytes",
+        "DRAFT",
+        "TESTED",
+        "PUBLISHED",
+        "InspectionPackageReleasePublisherV1"
+      ],
+      "sha256": "78c1140bca6ebe280f85be1d6256b231ee22893416c169ed05d5ad41954f47a7",
+      "symbols": [
+        "InspectionPackageReleaseV1"
+      ]
+    },
+    {
+      "bytes": 7112,
+      "owner": "package-release-binding",
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/PackageReleaseBindingV1.swift",
+      "requiredTokens": [
+        "packageReleaseID",
+        "packageSHA256",
+        "canonicalPackageBytes",
+        "validateResume",
+        "hashMismatch",
+        "makeDraft"
+      ],
+      "sha256": "5fde4cf87303af126ec98e990abf4fb4c0b0c83007f8dd5ef760c320cd155042",
+      "symbols": [
+        "PackageReleaseBindingV1"
+      ]
+    },
+    {
+      "bytes": 40517,
+      "owner": "evidence-tests",
+      "path": "FieldEvidenceAppTests/V9_12WorkflowGraphTests.swift",
+      "requiredTokens": [
+        "XCTestCase",
+        "XCTAssert",
+        "XCTAssertThrowsError",
+        "WorkflowGraphValidatorV1",
+        "relaunch",
+        "interruption",
+        "fail"
+      ],
+      "sha256": "f210bf6003775bdc524ea346b9da7fddb2462704098597f5078a241b3f13d680",
+      "symbols": [
+        "testV9_12G01PositiveWorkflowGraphMatrixValidates",
+        "testV9_12A01CycleCountDepthPredicateUnknownAndMissingFailClosed",
+        "testV9_12H01PublishedPackageReleaseIsImmutable",
+        "testV9_12I01InterruptedPublicationExposesZeroOrCompleteRelease",
+        "testV9_12R01OlderPackageResumeUsesExactValidatedRelease"
+      ]
+    },
+    {
+      "bytes": 11284,
+      "owner": "workflow-graph-corpus",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/InspectionKernel/V21P03C02WorkflowGraphCorpusV1.json",
+      "requiredTokens": [
+        "DRAFT",
+        "ACTIVE",
+        "COMPLETED",
+        "BEFORE_VALIDATION",
+        "AFTER_PUBLICATION_BEFORE_RECEIPT",
+        "FAIL_CLOSED",
+        "NESTED_REPEAT_ESCAPE"
+      ],
+      "sha256": "1676ba3644de68526dddc0155a5a5392cdc21f83bfaa007bff53d14f1da1be75",
+      "symbols": [
+        "schemaVersion"
+      ]
+    }
+  ],
+  "sourceProjection": {
+    "grammar": {
+      "branchRule": "TRUE_FALSE_UNKNOWN_DESTINATIONS_ARE_EXPLICIT_VALID_IDS_CONVERGENCE_ALLOWED",
+      "comparisonOperators": [
+        "LESS_THAN",
+        "LESS_THAN_OR_EQUAL",
+        "EQUAL",
+        "GREATER_THAN_OR_EQUAL",
+        "GREATER_THAN"
+      ],
+      "failureKinds": [
+        "invalidValue",
+        "unknownKind",
+        "limitExceeded",
+        "duplicateIdentity",
+        "missingTarget",
+        "missingFieldID",
+        "forwardPredicateReference",
+        "unreachableNode",
+        "cycleDetected",
+        "invalidCardinality",
+        "incompatibleVersion",
+        "hashMismatch",
+        "immutableRelease",
+        "invalidTransition",
+        "releaseNotFound",
+        "publicationInterrupted"
+      ],
+      "identifierRule": "NONEMPTY_LOWERCASE_ASCII_DASH_DOT_UNDERSCORE_WITHIN_MAXIMUM_ID_BYTES",
+      "limits": {
+        "maximumBranchCount": 32,
+        "maximumEdgeCount": 384,
+        "maximumFieldCount": 128,
+        "maximumGraphDepth": 32,
+        "maximumIDBytes": 128,
+        "maximumNodeCount": 128,
+        "maximumPredicateDepth": 8,
+        "maximumPredicateOperands": 16,
+        "maximumRepeatCount": 32,
+        "maximumSetOperandCount": 32,
+        "maximumTotalExecutions": 4096
+      },
+      "nodeKinds": [
+        "SECTION",
+        "INSTRUCTION",
+        "FACT",
+        "EVIDENCE_REQUEST",
+        "BRANCH",
+        "REPEAT_GROUP",
+        "REVIEW",
+        "TERMINAL"
+      ],
+      "predicateKinds": [
+        "EXISTS",
+        "IS_KNOWN",
+        "EQUALS",
+        "IN_SET",
+        "COMPARE_FIXED",
+        "NOT",
+        "ALL",
+        "ANY"
+      ],
+      "predicateRule": "KIND_SPECIFIC_EXACT_FIELDS_AND_RECURSIVE_DEPTH_BOUNDED_OPERANDS",
+      "repeatRule": "BOUNDED_REPEAT_GROUP_WITH_EXPLICIT_BODY_ENTRY_EXIT_AND_MAXIMUM_INSTANCES",
+      "truthResolution": "ONE_TRUTH_VALUE_SELECTS_EXACTLY_ONE_DESTINATION",
+      "truthValues": [
+        "TRUE",
+        "FALSE",
+        "UNKNOWN"
+      ]
+    },
+    "kernelFailureKinds": [
+      "invalidValue",
+      "unknownKind",
+      "limitExceeded",
+      "duplicateIdentity",
+      "missingTarget",
+      "missingFieldID",
+      "forwardPredicateReference",
+      "unreachableNode",
+      "cycleDetected",
+      "invalidCardinality",
+      "incompatibleVersion",
+      "hashMismatch",
+      "immutableRelease",
+      "invalidTransition",
+      "releaseNotFound",
+      "publicationInterrupted"
+    ],
+    "packageReleaseBinding": {
+      "canonicalCodec": "PackageReleaseBindingCanonicalCodecV1",
+      "changedOrUnknownReleaseDisposition": "FAIL_CLOSED",
+      "kinds": [
+        "DRAFT",
+        "ACTIVE",
+        "COMPLETED",
+        "AMENDMENT",
+        "EXPORT"
+      ],
+      "requiredFields": [
+        "schemaVersion",
+        "bindingID",
+        "kind",
+        "packageReleaseID",
+        "packageID",
+        "packageContentVersion",
+        "packageSHA256",
+        "canonicalPackageBytes",
+        "workflowSHA256",
+        "canonicalWorkflowBytes"
+      ],
+      "resumeValidation": "EXACT_PUBLISHED_RELEASE_ID_PACKAGE_BYTES_AND_WORKFLOW_BYTES",
+      "sourceDigest": "5fde4cf87303af126ec98e990abf4fb4c0b0c83007f8dd5ef760c320cd155042",
+      "type": "PackageReleaseBindingV1"
+    },
+    "packageReleaseBindingSHA256": "5fde4cf87303af126ec98e990abf4fb4c0b0c83007f8dd5ef760c320cd155042",
+    "predecessorBundledRegistrySHA256": "d389e5b936f22c192f8f82032e1c982bc898c6cf910233384224cc404eb0be18",
+    "predecessorPackageContractSHA256": "80f042ff71d3a229af654bfeaeef5489cf69760e7afa756d53471f628f0126d3",
+    "release": {
+      "canonicalCodec": "InspectionPackageReleaseCanonicalCodecV1",
+      "canonicalRules": [
+        "UTF8",
+        "SORTED_KEYS",
+        "WITHOUT_ESCAPING_SLASHES",
+        "NO_FLOATING_POINT",
+        "MAXIMUM_CANONICAL_BYTES_1048576",
+        "ROUND_TRIP_BYTE_EQUALITY"
+      ],
+      "draftTestPublishTransitions": true,
+      "immutableAfterPublication": true,
+      "releaseSourceDigest": "78c1140bca6ebe280f85be1d6256b231ee22893416c169ed05d5ad41954f47a7",
+      "requiredBindings": [
+        "packageReleaseID",
+        "packageID",
+        "packageContentVersion",
+        "packageSHA256",
+        "canonicalPackageBytes",
+        "workflowSHA256",
+        "canonicalWorkflowBytes"
+      ],
+      "statuses": [
+        "DRAFT",
+        "TESTED",
+        "PUBLISHED"
+      ],
+      "type": "InspectionPackageReleaseV1"
+    },
+    "sourceCount": 9,
+    "workflowDefinitionSHA256": "2a4f76f653677ae3ce0e2793ee133ae81ffcf5c811297dd5b90119139873e137",
+    "workflowGraphValidatorSHA256": "bae956b4030891aa101951705d9213ff3e669f854ac84cc5a4d1a643e9df2db1"
+  },
+  "testMethods": [
+    "testV9_12G01PositiveWorkflowGraphMatrixValidates",
+    "testV9_12A01CycleCountDepthPredicateUnknownAndMissingFailClosed",
+    "testV9_12H01PublishedPackageReleaseIsImmutable",
+    "testV9_12I01InterruptedPublicationExposesZeroOrCompleteRelease",
+    "testV9_12R01OlderPackageResumeUsesExactValidatedRelease"
+  ],
+  "uiSurfaceDelta": false
+}

@@ -1,0 +1,61 @@
+{
+  "validatedAtUTC": "2026-09-22T12:06:04.147373+00:00",
+  "checks": {
+    "AGENTS.md snapshot": "byte-exact SHA256 PASS",
+    ".codex/config.toml snapshot": "byte-exact SHA256 PASS",
+    "nonRoutingAGENTS": "byte-exact PASS",
+    "config": "TOML PASS; all effective values unchanged, workflow comments updated",
+    "profileCopies": "exact active bytes PASS",
+    "brief": "routing consistent PASS",
+    "index": "empty; no unrelated staging",
+    "trackedModes": "100644 retained; no executable path changed",
+    "whitespace": "PASS"
+  },
+  "currentHead": "beaa8f487f0a3cf3267e7465a6195a7d844e8d6c",
+  "profileHashes": {
+    "AGENTS.md": "A550A49026871BB722B9EA321B16DEDBB9962EB058A9E5B4AED0EF22EC070AE2",
+    ".codex/config.toml": "21EBBF437ABBAD45A6A446823706F7CFE1E526D95C6C5478C1C3933387816F37",
+    "docs/design/v23/integration/ACTIVE_BRIEF.md": "3442893439B3E9E15CE787AF65C8D3448A298179FF965EDC6EFCF1DF6C400E40",
+    "docs/design/v23/integration/CURRENT_INTEGRATION.md": "E82FAE3CDD0441DF447DA0F784E264858B76097BE5663BA7A9D59CDFA8E33345",
+    "docs\\execution\\agent-workflows\\README.md": "339E221B133CA9AFD0E7ACA0504F2E6D79D810BBF4541F3DCF4881B74230A068",
+    "docs\\execution\\agent-workflows\\performance.AGENTS.md": "A550A49026871BB722B9EA321B16DEDBB9962EB058A9E5B4AED0EF22EC070AE2",
+    "docs\\execution\\agent-workflows\\performance.config.toml": "21EBBF437ABBAD45A6A446823706F7CFE1E526D95C6C5478C1C3933387816F37"
+  },
+  "modelRoutingEvidence": "Desktop collaboration catalog + actual Astra high helpers; local CLI Luna low catalog confirmed. Never silently substitute for Astra.",
+  "strictConfig": "NOT_PASS: existing user-level features.context_management unsupported by CLI0.144.5; no global change.",
+  "nativeValidation": "Not applicable to policy switch; current original35723712558 untouched; new dispatch requires new policy-pin qualification.",
+  "semanticReview": {
+    "status": "PASS; no findings",
+    "scope": "Working-tree complete-boundary policy review only; not staged/committed/native approval",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "report": ".codex-temp/runtime-beaa8f4/performance-policy-review.json",
+    "sha256": "576DA208058F8DA77E7071CE2A2288E2016DA5F4885516A9274A5EE8575B5996"
+  },
+  "recordScope": "Activation-time checks and hashes; later causal product/CI checkpoints are separately reviewed. Saved profile bytes are immutable activation references, not a continuous whole-file equality assertion.",
+  "laterPolicyChange": {
+    "path": "AGENTS.md",
+    "rawSHA256": "FAEDC080D15056957E71B35BAE8222A15AD164F49A6126D96C23275C346B036F",
+    "delta": "One closed16 codec/Punch diagnostic allowance row reuses owner-approved D30/no-index recipe; routing section and exact saved originals unchanged. Combined source/index/native qualification pending."
+  },
+  "savedBytesThroughGit": {
+    "status": "PASS: saved AGENTS exact; original config base64 roundtrip exact",
+    "reason": "Git text normalization is preserved. The original config bytes are retained losslessly in exactPreviousConfig; restore verifies the original manifest digest."
+  },
+  "exactPreviousConfig": {
+    "encoding": "base64",
+    "sha256": "01A53307D6B65A50BF7C64F41D0CB55AEF4E96A961236A82286C0BEBA1D6F2DE",
+    "base64": "IyBBc3NldFJvdW5kcyBpbmhlcml0cyB0aGUgb3duZXIncyBzZWxlY3RlZCBDb2RleCBHVUkvc2Vzc2lvbiBwZXJtaXNzaW9uIHByb2ZpbGUuDQojIEQtMDA0IGV4cGxpY2l0bHkgcGVybWl0cyBGdWxsIGFjY2VzcywgbmV0d29yayBhY2Nlc3MsIGFuZCBubyBhcHByb3ZhbCBwcm9tcHRzLg0KIyBDVVJSRU5UX1RBU0subWQgc3RpbGwgbGltaXRzIHByb2R1Y3Qgc2NvcGUsIHBhdGhzLCBicmFuY2hlcywgYW5kIGV4dGVybmFsIGFjdGlvbnMuDQoNCiMgT3duZXItc2VsZWN0ZWQgcHJvamVjdCBkZWZhdWx0cyAoMjAyNi0wOS0xOSkuIEV4cGxpY2l0IHNlc3Npb24gY2hvaWNlcyBzdGlsbCB3aW4uDQptb2RlbCA9ICJncHQtNi1hc3RyYSINCm1vZGVsX3JlYXNvbmluZ19lZmZvcnQgPSAieGhpZ2giDQoNCiMgUm9vdCBpbXBsZW1lbnRzOyBvbmUgYm91bmRlZCBoZWxwZXIuIFNlbGVjdCBtb2RlbCBhbmQgZWZmb3J0IGV4cGxpY2l0bHkNCiMgd2hlbiBzcGF3bmluZywgZm9sbG93aW5nIEFHRU5UUy5tZCAoaGlnaCBmb3IgY29uc2VxdWVudGlhbCByZXZpZXdzIHVudGlsIHRoZSBvd25lciBjaGFuZ2VzIGl0IGJhY2spLg0KIyBJbnN0YWxsZWQgQ0xJIDAuMTQ0LjUgcmVqZWN0cyB0aGUgbmV3ZXIgZGVmYXVsdF9zdWJhZ2VudF8qIHNldHRpbmdzLg0KW2FnZW50c10NCm1heF90aHJlYWRzID0gNQ0KDQpbZmVhdHVyZXNdDQpnb2FscyA9IHRydWUNCg0KW3BsdWdpbnMuImdpdGh1YkBvcGVuYWktY3VyYXRlZCJdDQplbmFibGVkID0gdHJ1ZQ0K"
+  },
+  "extraHighUpdate": {
+    "status": "PASS: supported desktop model/effort catalog; synchronized default; previous snapshots and effective config unchanged. Combined source/index/native gates remain due.",
+    "supportedModel": "gpt-6-astra",
+    "supportedEffort": "xhigh",
+    "source": "Desktop collaboration tool model/effort catalog",
+    "defaultEffort": "xhigh",
+    "savedPreviousWorkflowUnchanged": true,
+    "currentAgentsRawSHA256": "3688DB4B98D3768D98E7088B5C18DB46228504AB3CABE00F58C1E96D94AFA721",
+    "currentConfigRawSHA256": "74B3B342788093E29E0BBF29CDD3636036371DBFAFCD29CA1BCE9C82298AA389",
+    "currentConfigNormalizedSHA256": "FA20D80E267EC3E2B58091FE008F28E97B7B32A815470937A17E0FAA93294310"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "status": "sealed_source_only_coupled_compile_native_review_gates_due",
+  "authorModel": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "head": "93159755395d697a5a9da02f41374120433c50f9",
+  "sourceInputs": 1206,
+  "parentBindingSHA256": "d2d9c615051f401308330e0a77a0df706efbe8ce1cc754692d932d521962cf75",
+  "beforeFullSourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "afterFullSourceMapSHA256": "d869dd0e391966480a43b5dcac7ac73fd2ba603a7bf0da904e1282a16a756f74",
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "immediateBeforeSHA256": "7d0bb919941188537463d464be823e1f5e613505e519c004d916f58d3f744434",
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee",
+      "candidateSHA256": "3facc42d4e0df669ed50c8fb053d7f7f4675aff17f24be7cce6dbeeca4fde5ec",
+      "bytes": 132229
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "immediateBeforeSHA256": "117e111caeda31673ce4b4b7b9e930e6d55e297b79408f71ef079d0cec594618",
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e",
+      "candidateSHA256": "117e111caeda31673ce4b4b7b9e930e6d55e297b79408f71ef079d0cec594618",
+      "bytes": 1886955
+    }
+  },
+  "artifacts": {
+    "SUCCESSOR.diff": "88b481fb3d3c4f413f0398eed40391fe54db4437d5ad6c917493b501e5ce2790",
+    "PARSE.json": "e96a826f67c2198abe596650a48b2b5856330f752cbaea4a0aae16db3cf8fbdf",
+    "AFTER_SOURCE_MAP.json": "d869dd0e391966480a43b5dcac7ac73fd2ba603a7bf0da904e1282a16a756f74",
+    "CASE_MATRIX.md": "6c4d4ded77612725490e51dcc86b56e20f588355fb836c0e8bccd41a133ca1d3",
+    "INTERFACES.md": "0ea6f210ae5e29397a748fa65e8b8e43e8665c153eb00d787ef90a52d997c37c",
+    "CANDIDATE.diff": "46f70bc30836e2a7f0617c0097989fe2937e4aa31519cf4b95e138c62b55579a",
+    "HANDOFF.md": "977c19f3413c659f28d74dc2c48621fb9f22adf975607c7dacc5e950a64a1e91"
+  },
+  "trackedSourceDrift": {},
+  "openObligations": [
+    "cross-module authentic issuers/complete grammar/source and terminal authority integration",
+    "original roster exact typed pair capture/decode",
+    "complete multiroot metadata/target/projection value bounds",
+    "real sameheld EX/G/drain/retirement and borrowed root closures",
+    "root actual compilation/native/independent consequential review/all gates"
+  ]
+}

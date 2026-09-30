@@ -1,0 +1,26 @@
+{
+  "schema": "UserWorkPreservationManifestV1",
+  "schemaVersion": 1,
+  "observedWorktrees": [
+    {
+      "path": "C:\\AssetRounds",
+      "branch": "main",
+      "observedHead": "c3e536a03775cc8d25f42a8e31c2f24db4390d4d",
+      "preexistingUntrackedPaths": [
+        "Temp/"
+      ],
+      "disposition": "PRESERVE_NOT_ENUMERATE_NOT_STAGE_NOT_MOVE_NOT_DELETE"
+    },
+    {
+      "path": "C:\\AssetRounds-v23-expansion",
+      "branch": "phase/v23-expansion",
+      "observedHead": "d6b5e88622c5356770c6e9aa3a619afc771b759d",
+      "preexistingUntrackedPaths": [],
+      "disposition": "DEDICATED_V23_WORKTREE"
+    }
+  ],
+  "phase10WorktreeReused": false,
+  "destructiveGitOperationsPermitted": false,
+  "createdAt": "2026-08-25T13:43:48.438Z",
+  "contentDigest": "099ac7fe60d56d9e0b626df5da76bedbedaa98c4adb76c6c73de427c8b7cf87d"
+}

@@ -1,0 +1,2776 @@
+import Foundation
+
+enum C34NavigationReportSnapshotEncoderBoundaryV1 {
+    static let sceneSnapshotIsEncoderInput = false
+    static let restorationFinalizesReport = false
+}
+
+struct EncodedReportSnapshotV1: Equatable, Sendable {
+    let data: Data
+    let sha256: String
+}
+
+enum AccessibleDocumentTreeCanonicalEncoderV1{
+    static func encode(_ tree:AccessibleDocumentSemanticTreeV1)throws->EncodedReportSnapshotV1{try tree.validate();let data=try AccessibleDocumentCanonicalCodecV1.encode(tree);return .init(data:data,sha256:KernelCanonicalHashV1.sha256(data))}
+}
+
+enum ReportSnapshotEncodingErrorV1: Error, Equatable {
+    case invalidSnapshot
+    case noncanonicalData
+}
+
+/// Format identity is separate from the numeric version shared by both families.
+private enum ReportSnapshotFamilyHeaderV1: Decodable {
+    case legacy(Int)
+    case completedActivity(Int)
+
+    private enum CodingKeys: String, CodingKey {
+        case snapshotSchemaVersion, schemaVersion
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        switch (values.contains(.snapshotSchemaVersion), values.contains(.schemaVersion)) {
+        case (true, false):
+            self = .legacy(try values.decode(Int.self, forKey: .snapshotSchemaVersion))
+        case (false, true):
+            self = .completedActivity(try values.decode(Int.self, forKey: .schemaVersion))
+        default:
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+}
+
+enum PracticeWorkspaceReportSnapshotEncodingBoundaryV1 {
+    static func validate(_ snapshot: ReportSnapshotV1) throws {
+        try snapshot.practiceWorkspace?.validate()
+    }
+}
+
+enum IntegrationProjectionReportSnapshotExclusionV1 {
+    static func validate() throws {
+        let coverage = IntegrationEventJournalCoverageV1()
+        try coverage.validate()
+        guard !coverage.reportSourceOfTruth,
+              !IntegrationProjectionSchemaV1.canonicalReportSource else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+}
+
+/// C50 can reference a historic snapshot or produce a derived export, but it
+/// cannot rewrite snapshot truth from a leased source file.
+enum C50IncumbentFileExchangeSnapshotEncoderBoundaryV1 {
+    static let historicSnapshotBytesRemainImmutable = true
+    static let sourceAndQuarantineBytesAreNotSnapshotTruth = true
+    static let directCostProjectionIsAbsent = C50IncumbentFileExchangeLifecycleBoundaryV1.directCostProjectionIsAbsent
+    static let customerSafeDefaultOmitsPrivateValues = true
+    static let deterministicEncodingIsRequired = true
+    static let outputAvailabilityIsNotSnapshotTruth = true
+
+    static func validate() -> Bool {
+        historicSnapshotBytesRemainImmutable
+            && sourceAndQuarantineBytesAreNotSnapshotTruth
+            && directCostProjectionIsAbsent
+            && customerSafeDefaultOmitsPrivateValues
+            && deterministicEncodingIsRequired
+            && outputAvailabilityIsNotSnapshotTruth
+    }
+}
+
+/// Provisional-only companion codec. Production finalization deliberately does
+/// not populate this projection until its owning release surface is activated.
+enum RequirementAssuranceSnapshotCanonicalCodecV1 {
+    static let status = "PROVISIONAL_NONRELEASE_ONLY"
+
+    static func isValid(_ snapshot: RequirementAssuranceSnapshotV1) -> Bool {
+        (try? snapshot.validate()) != nil
+            && snapshot.evaluatedRevision <= UInt64(Int.max)
+            && snapshot.evaluations.allSatisfy {
+                $0.evaluatedRevision <= UInt64(Int.max)
+            }
+            && snapshot.decision.evaluatedRevision <= UInt64(Int.max)
+    }
+
+    static func encode(_ snapshot: RequirementAssuranceSnapshotV1) throws -> Data {
+        do {
+            guard isValid(snapshot) else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            let data = try RequirementAssuranceCanonicalV1.data(snapshot)
+            guard !data.isEmpty,
+                  data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return data
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    static func decode(_ data: Data) throws -> RequirementAssuranceSnapshotV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        do {
+            let value = try JSONDecoder().decode(
+                RequirementAssuranceSnapshotV1.self,
+                from: data
+            )
+            try value.validate()
+            guard try encode(value) == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return value
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            if error == .invalidSnapshot {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+}
+
+/// C13's preview/manifest envelope is encoded for deterministic local
+/// inspection only.  It is intentionally not a finalization producer and the
+/// status remains provisional until a later release surface authorizes it.
+enum ReportEvidenceAssuranceCanonicalCodecV1 {
+    static let status = ReportEvidenceAssuranceProjectionPolicyV1.publicationDisposition
+
+    static func isValid(_ value: ReportEvidenceAssuranceProjectionV1) -> Bool {
+        (try? value.validate()) != nil
+    }
+
+    static func encode(_ value: ReportEvidenceAssuranceProjectionV1) throws -> Data {
+        guard isValid(value) else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        do {
+            let data = try EvidenceAssuranceCanonicalCodecV1.encode(value)
+            guard !data.isEmpty,
+                  data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return data
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    static func decode(_ data: Data) throws -> ReportEvidenceAssuranceProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        do {
+            let value = try EvidenceAssuranceCanonicalCodecV1.decode(
+                ReportEvidenceAssuranceProjectionV1.self, from: data
+            )
+            try value.validate()
+            guard try encode(value) == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return value
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+}
+
+struct ReportSnapshotEncoderV1: Sendable {
+    static let authorityCriterionWriterStatus = "PROVISIONAL_READ_ONLY_PRE_S10"
+    static let requirementAssuranceCodecStatus =
+        RequirementAssuranceSnapshotCanonicalCodecV1.status
+
+    func encode(_ snapshot: CompletedActivitySnapshotV2) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV2.encode(snapshot)
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    func decodeCompletedActivityV2(_ data: Data) throws -> CompletedActivitySnapshotV2 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV2.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    func encode(_ snapshot: CompletedActivitySnapshotV3) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV3.encode(snapshot)
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    func decodeCompletedActivityV3(_ data: Data) throws -> CompletedActivitySnapshotV3 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV3.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    func encode(_ snapshot: CompletedActivitySnapshotV4) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV4.encode(snapshot)
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    func decodeCompletedActivityV4(_ data: Data) throws -> CompletedActivitySnapshotV4 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV4.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    func encode(_ snapshot: CompletedActivitySnapshotV5) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV5.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV5(_ data: Data) throws -> CompletedActivitySnapshotV5 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV5.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    /// C41's additive frozen snapshot codec. V1--V5 encode/decode behavior is
+    /// intentionally unchanged so an older report cannot be rewritten by a
+    /// newer relationship projection.
+    func encode(_ snapshot: CompletedActivitySnapshotV6) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV6.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV6(_ data: Data) throws -> CompletedActivitySnapshotV6 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV6.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    /// C13's additive completed snapshot codec. V1--V6 encoding remains
+    /// unchanged and the assurance facts stay bound to the inner V6 digest.
+    func encode(_ snapshot: CompletedActivitySnapshotV7) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV7.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV7(_ data: Data) throws -> CompletedActivitySnapshotV7 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV7.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    /// C14's additive completed snapshot codec. Review, change-request, and
+    /// corrective-action facts remain bound to the exact V7 source digest;
+    /// this route only encodes an already validated frozen value.
+    func encode(_ snapshot: CompletedActivitySnapshotV8) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV8.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV8(_ data: Data) throws -> CompletedActivitySnapshotV8 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV8.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    /// C15's additive completed snapshot codec. The V8 review history remains
+    /// immutable and the packet event history is encoded as a sibling value
+    /// bound to the same workspace and packet identity.
+    func encode(_ snapshot: CompletedActivitySnapshotV9) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try CompletedActivitySnapshotCanonicalCodecV9.encode(snapshot)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeCompletedActivityV9(_ data: Data) throws -> CompletedActivitySnapshotV9 {
+        do { return try CompletedActivitySnapshotCanonicalCodecV9.decode(data) }
+        catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    func encode(
+        _ history: CompletedInspectionReviewHistorySnapshotV1
+    ) throws -> EncodedReportSnapshotV1 {
+        do {
+            let data = try InspectionReviewCanonicalCodecV1.encode(history)
+            return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+        } catch { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+    }
+
+    func decodeInspectionReviewHistory(
+        _ data: Data
+    ) throws -> CompletedInspectionReviewHistorySnapshotV1 {
+        do {
+            return try InspectionReviewCanonicalCodecV1.decode(
+                CompletedInspectionReviewHistorySnapshotV1.self,
+                from: data
+            )
+        } catch { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+
+    func encode(
+        _ snapshot: RequirementAssuranceSnapshotV1
+    ) throws -> EncodedReportSnapshotV1 {
+        let data = try RequirementAssuranceSnapshotCanonicalCodecV1.encode(snapshot)
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeRequirementAssurance(
+        _ data: Data
+    ) throws -> RequirementAssuranceSnapshotV1 {
+        try RequirementAssuranceSnapshotCanonicalCodecV1.decode(data)
+    }
+
+    func encode(
+        _ assurance: ReportEvidenceAssuranceProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        let data = try ReportEvidenceAssuranceCanonicalCodecV1.encode(assurance)
+        return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+    }
+
+    func decodeEvidenceAssurance(
+        _ data: Data
+    ) throws -> ReportEvidenceAssuranceProjectionV1 {
+        try ReportEvidenceAssuranceCanonicalCodecV1.decode(data)
+    }
+
+    func encode(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
+        try IntegrationProjectionReportSnapshotExclusionV1.validate()
+        guard (1...4).contains(snapshot.snapshotSchemaVersion) else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return try canonicalEncoding(snapshot)
+    }
+
+    private func canonicalEncoding(_ snapshot: ReportSnapshotV1) throws -> EncodedReportSnapshotV1 {
+        guard Self.isValid(snapshot) else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+
+        let data = try CanonicalJSONV1.encode(CanonicalJSONV1.reportSnapshot(snapshot))
+        return EncodedReportSnapshotV1(data: data, sha256: CanonicalJSONV1.sha256(data))
+    }
+
+    func decode(_ data: Data) throws -> ReportSnapshotV1 {
+        let decoder = JSONDecoder()
+        decoder.userInfo[TemporalEvidenceReportLinkWireContextV1.codingKey] =
+            TemporalEvidenceReportLinkWireContextV1.legacyReportSnapshot
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            if let value = try? container.decode(String.self) {
+                guard Self.isCanonicalTimestamp(value),
+                      let date = Self.timestampFormatter.date(from: value) else {
+                    throw ReportSnapshotEncodingErrorV1.noncanonicalData
+                }
+                return date
+            }
+            // C41's nested domain codec uses canonical milliseconds. Accept
+            // that representation only for the additive relationship field;
+            // legacy report dates remain strict UTC timestamp strings.
+            if let milliseconds = try? container.decode(Double.self),
+               milliseconds.isFinite {
+                return Date(timeIntervalSince1970: milliseconds / 1_000)
+            }
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+
+        guard let snapshot = try? decoder.decode(ReportSnapshotV1.self, from: data),
+              let encoded = try? canonicalEncoding(snapshot),
+              encoded.data == data
+        else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return snapshot
+    }
+
+    /// Nil means a validated canonical legacy report, never a failed typed decode.
+    func completedActivityV2SnapshotIfPresent(
+        _ data: Data,
+        declaredSchemaVersion: Int
+    ) throws -> CompletedActivitySnapshotV2? {
+        guard let header = try? JSONDecoder().decode(ReportSnapshotFamilyHeaderV1.self, from: data) else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        switch header {
+        case .legacy(let version):
+            guard version == declaredSchemaVersion else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            _ = try decode(data)
+            return nil
+        case .completedActivity(let version):
+            guard version == declaredSchemaVersion,
+                  version == CompletedActivitySnapshotV2.schemaVersion else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return try CompletedActivitySnapshotCanonicalCodecV2.decode(data)
+        }
+    }
+
+    /// Provisional job-kernel entry point. The released synchronous encoder is
+    /// intentionally unchanged while activation remains disabled.
+    func encodeOffMain(
+        _ snapshot: ReportSnapshotV1
+    ) async throws -> EncodedReportSnapshotV1 {
+        let worker = DeterministicOffMainWorkerV1()
+        return try await worker.run { try self.encode(snapshot) }
+    }
+
+    func decodeOffMain(_ data: Data) async throws -> ReportSnapshotV1 {
+        let worker = DeterministicOffMainWorkerV1()
+        return try await worker.run { try self.decode(data) }
+    }
+
+    private static func isValid(_ snapshot: ReportSnapshotV1) -> Bool {
+        guard (1...4).contains(snapshot.snapshotSchemaVersion),
+              snapshot.stage == "check" || snapshot.stage == "recheck",
+              snapshot.pdfTemplate.id == "field.evidence.pdf.worklight.v1",
+              snapshot.pdfTemplate.version == 1,
+              snapshot.acknowledgements.count == 2,
+              snapshot.acknowledgements[0].key == "after_dark",
+              snapshot.acknowledgements[1].key == "safe_authorized_position",
+              snapshot.acknowledgements.allSatisfy(\.accepted),
+              snapshot.evidence.allSatisfy({
+                  $0.mimeType == "image/jpeg"
+                      && $0.byteCount >= 0
+                      && $0.thumbnailByteCount >= 0
+                      && isLowercaseSHA256($0.sha256)
+                      && isLowercaseSHA256($0.thumbnailSHA256)
+              }),
+              Set(snapshot.evidence.map(\.evidenceID)).count == snapshot.evidence.count,
+              Set(snapshot.issues.map(\.issueID)).count == snapshot.issues.count
+        else {
+            return false
+        }
+
+        guard (snapshot.snapshotSchemaVersion >= 3) == (snapshot.authorityCriterion != nil),
+              (snapshot.snapshotSchemaVersion >= 4) == (snapshot.inspectionReviewHistory != nil) else {
+            return false
+        }
+
+        if let assurance = snapshot.requirementAssurance {
+            guard RequirementAssuranceSnapshotCanonicalCodecV1.isValid(assurance) else {
+                return false
+            }
+        }
+
+        if let accountability = snapshot.accountability {
+            guard (try? accountability.validate()) != nil,
+                  accountability.parties.allSatisfy({ $0.revision <= UInt64(Int.max) }),
+                  accountability.roleEvents.allSatisfy({ $0.revision <= UInt64(Int.max) }),
+                  accountability.signoffs.allSatisfy({ $0.subjectRevision <= UInt64(Int.max) }) else {
+                return false
+            }
+        }
+
+        if let assetSemantics = snapshot.assetSemantics {
+            guard (try? assetSemantics.validate()) != nil else {
+                return false
+            }
+        }
+        if let authorityCriterion = snapshot.authorityCriterion {
+            guard (try? authorityCriterion.validate()) != nil else { return false }
+        }
+        if let functionalRelationships = snapshot.functionalRelationships {
+            guard (try? functionalRelationships.validate()) != nil else { return false }
+        }
+        if let assurance = snapshot.assurance {
+            guard ReportEvidenceAssuranceCanonicalCodecV1.isValid(assurance) else { return false }
+        }
+        if let inspectionReviewHistory = snapshot.inspectionReviewHistory {
+            guard (try? inspectionReviewHistory.validate()) != nil,
+                  snapshot.accountability != nil,
+                  snapshot.assetSemantics != nil,
+                  snapshot.authorityCriterion != nil,
+                  snapshot.functionalRelationships != nil,
+                  snapshot.assurance != nil else { return false }
+        }
+        if let workPacket = snapshot.workPacket {
+            guard snapshot.snapshotSchemaVersion >= 4,
+                  (try? workPacket.validate()) != nil,
+                  workPacket.packetID == snapshot.packetID,
+                  workPacket.itemCount == workPacket.itemIDs.count,
+                  workPacket.itemCount == workPacket.itemStateLabels.count,
+                  ReportWorkPacketProjectionPolicyV1.supports(.openJSON),
+                  ReportWorkPacketProjectionPolicyV1.supports(.structuredText) else {
+                return false
+            }
+        }
+        if let measurementIntegrity = snapshot.measurementIntegrity {
+            guard (try? measurementIntegrity.validate()) != nil,
+                  measurementIntegrity.revision <= UInt64(Int.max),
+                  measurementIntegrity.protocolRevision.map({ $0 <= UInt64(Int.max) }) ?? true,
+                  ReportMeasurementIntegrityProjectionPolicyV1.supportedFormats.allSatisfy({
+                      ReportMeasurementIntegrityProjectionPolicyV1.supports($0)
+                  }) else {
+                return false
+            }
+        }
+        if let privacyTransform = snapshot.privacyTransform {
+            guard (try? privacyTransform.validate()) != nil,
+                  PrivacyTransformReportProjectionPolicyV1.supportedFormats.allSatisfy({
+                      PrivacyTransformReportProjectionPolicyV1.supports($0)
+                  }) else {
+                return false
+            }
+        }
+        if let clientCapability = snapshot.clientCapability {
+            guard (try? clientCapability.validate()) != nil,
+                  ClientCapabilityReportProjectionPolicyV1.supportedFormats.allSatisfy({
+                      ClientCapabilityReportProjectionPolicyV1.supports($0)
+                  }) else {
+                return false
+            }
+        }
+        if let surveyPublication = snapshot.surveyPublication {
+            guard (try? surveyPublication.validate()) != nil,
+                  surveyPublication.sessionRevision <= UInt64(Int.max),
+                  surveyPublication.publicationRevision <= UInt64(Int.max),
+                  surveyPublication.definitionRevision <= UInt64(Int.max) else {
+                return false
+            }
+        }
+        if let scheduleProjection = snapshot.scheduleProjection {
+            guard (try? ScheduleReportProjectionPolicyV1.validate(scheduleProjection)) != nil else {
+                return false
+            }
+        }
+        if let planProjection = snapshot.planProjection {
+            guard (try? PlanReportProjectionPolicyV1.validate(planProjection)) != nil else {
+                return false
+            }
+        }
+        if let placementPose = snapshot.placementPose {
+            guard snapshot.snapshotSchemaVersion >= 4,
+                  (try? placementPose.validate()) != nil else {
+                return false
+            }
+        }
+        if let links = snapshot.temporalEvidenceLinks {
+            guard links.count <= 512,
+                  links.allSatisfy({ (try? $0.validate()) != nil }),
+                  links.allSatisfy({ $0.clipRevision <= UInt64(Int.max)
+                      && $0.durationMilliseconds <= UInt64(Int.max)
+                      && ($0.derivativePreview?.revision ?? 0) <= UInt64(Int.max)
+                      && ($0.derivativePreview?.sourceClipRevision ?? 0) <= UInt64(Int.max)
+                      && $0.anchorBindings.allSatisfy({
+                          $0.revision <= UInt64(Int.max)
+                              && $0.clipRevision <= UInt64(Int.max)
+                      }) }),
+                  links.allSatisfy({ $0.workspaceID == links.first?.workspaceID }) else {
+                return false
+            }
+        }
+
+        guard validObservationAndTime(
+            basis: snapshot.observationBasis,
+            temporal: snapshot.temporalContext,
+            required: snapshot.snapshotSchemaVersion >= 2
+        ) else { return false }
+
+        return snapshot.history.allSatisfy {
+            ($0.stage == "check" || $0.stage == "work" || $0.stage == "recheck")
+                && Set($0.evidenceIDs).count == $0.evidenceIDs.count
+                && Set($0.issueIDs).count == $0.issueIDs.count
+                && validObservationAndTime(
+                    basis: $0.observationBasis,
+                    temporal: $0.temporalContext,
+                    required: snapshot.snapshotSchemaVersion >= 2
+                )
+        } && snapshot.issues.allSatisfy {
+            $0.status == "open" || $0.status == "recheck_due" || $0.status == "resolved"
+        }
+    }
+
+    private static func validObservationAndTime(
+        basis: ObservationBasisV1?,
+        temporal: TemporalContextV1?,
+        required: Bool
+    ) -> Bool {
+        guard (basis == nil) == (temporal == nil),
+              (required && basis != nil) || (!required && basis == nil) else {
+            return false
+        }
+        guard let basis, let temporal else { return !required }
+        do {
+            try basis.validate()
+            try temporal.validate()
+            let basisData = try ObservationAndTimeCodecV1.encode(basis)
+            let temporalData = try ObservationAndTimeCodecV1.encode(temporal)
+            let decodedBasis = try ObservationAndTimeCodecV1
+                .decodeObservationBasis(basisData)
+            let decodedTemporal = try ObservationAndTimeCodecV1
+                .decodeTemporalContext(temporalData)
+            return decodedBasis == basis && decodedTemporal == temporal
+        } catch {
+            return false
+        }
+    }
+
+    private static func isLowercaseSHA256(_ value: String) -> Bool {
+        value.count == 64 && value.unicodeScalars.allSatisfy {
+            (48...57).contains($0.value) || (97...102).contains($0.value)
+        }
+    }
+
+    private static func isCanonicalTimestamp(_ value: String) -> Bool {
+        let scalars = Array(value.unicodeScalars)
+        guard scalars.count == 24 else { return false }
+        let punctuation: [Int: Unicode.Scalar] = [
+            4: "-", 7: "-", 10: "T", 13: ":", 16: ":", 19: ".", 23: "Z",
+        ]
+        for (index, scalar) in scalars.enumerated() {
+            if let expected = punctuation[index] {
+                guard scalar == expected else { return false }
+            } else if !(48...57).contains(scalar.value) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private static let timestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
+}
+
+extension ReportSnapshotEncoderV1 {
+    /// Canonical standalone encoding for the additive C51 projection. It is
+    /// deliberately not a new writer in `ReportSnapshotV1`.
+    static func encodeAdvancedScheduleProjection(
+        _ projection: AdvancedScheduleReportProjectionV1
+    ) throws -> Data {
+        try AdvancedScheduleReportProjectionPolicyV1.validate(projection)
+        let data = try ScheduleCanonicalCodecV1.data(projection)
+        guard try ScheduleCanonicalCodecV1.decode(
+            AdvancedScheduleReportProjectionV1.self, from: data) == projection else {
+            throw SnapshotProjectionFailureV1.projectionDisagreement
+        }
+        return data
+    }
+}
+
+extension ReportSnapshotEncoderV1{
+    func encodeC18LightingNightWorkflow(_ value:C18LightingNightFrozenSnapshotV1)throws->Data{try value.validate();let e=JSONEncoder();e.outputFormatting=[.sortedKeys,.withoutEscapingSlashes];let data=try e.encode(value);guard data.count<=SnapshotProjectionLimitsV1.maximumProjectionBytes else{throw SnapshotProjectionFailureV1.limitExceeded};return data}
+    func decodeC18LightingNightWorkflow(_ data:Data)throws->C18LightingNightFrozenSnapshotV1{guard !data.isEmpty,data.count<=SnapshotProjectionLimitsV1.maximumProjectionBytes else{throw SnapshotProjectionFailureV1.limitExceeded};let value=try JSONDecoder().decode(C18LightingNightFrozenSnapshotV1.self,from:data);try value.validate();guard try encodeC18LightingNightWorkflow(value)==data else{throw SnapshotProjectionFailureV1.projectionDisagreement};return value}
+}
+
+// MARK: - C17 exterior-lighting day inventory frozen snapshot codec
+
+extension ReportSnapshotEncoderV1 {
+    func encodeC17LightingDayInventory(
+        _ snapshot: C17LightingDayInventoryFrozenSnapshotV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try snapshot.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        let data = try encoder.encode(snapshot)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return .init(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+    }
+
+    func decodeC17LightingDayInventory(
+        _ data: Data
+    ) throws -> C17LightingDayInventoryFrozenSnapshotV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(C17LightingDayInventoryFrozenSnapshotV1.self, from: data)
+        try value.validate()
+        guard try encodeC17LightingDayInventory(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static let c17UsesIncumbentSnapshotEncoder = true
+    static let c17ExcludesSafetyRouteActorNotesAndMedia = true
+    static let c17HistoricSnapshotBytesRemainImmutable = true
+}
+
+extension CanonicalJSONV1 {
+    static func reportSnapshot(_ value: ReportSnapshotV1) -> CanonicalJSONValueV1 {
+        var object: [String: CanonicalJSONValueV1] = [
+            "acknowledgements": .array(value.acknowledgements.map(acknowledgement)),
+            "asset": asset(value.asset),
+            "couldNotVerify": value.couldNotVerify.map(couldNotVerify) ?? .null,
+            "disclaimer": .string(value.disclaimer),
+            "display": display(value.display),
+            "evidence": .array(value.evidence.map(evidence)),
+            "evidenceSourceRecordID": uuid(value.evidenceSourceRecordID),
+            "history": .array(value.history.map(history)),
+            "issues": .array(value.issues.map(issueSnapshot)),
+            "note": optionalString(value.note),
+            "outcome": .string(value.outcome),
+            "pack": pack(value.pack),
+            "packetID": uuid(value.packetID),
+            "pdfTemplate": pdfTemplate(value.pdfTemplate),
+            "reportID": uuid(value.reportID),
+            "site": site(value.site),
+            "snapshotCreatedAt": date(value.snapshotCreatedAt),
+            "snapshotSchemaVersion": .integer(value.snapshotSchemaVersion),
+            "sourceApp": sourceApp(value.sourceApp),
+            "sourceRecordID": uuid(value.sourceRecordID),
+            "stableRootID": uuid(value.stableRootID),
+            "stage": .string(value.stage),
+            "timeContext": timeContext(value.timeContext),
+        ]
+        if value.snapshotSchemaVersion >= 2,
+           let basis = value.observationBasis,
+           let temporal = value.temporalContext {
+            object["observationBasis"] = observationBasis(basis)
+            object["temporalContext"] = temporalContext(temporal)
+        }
+        if let assurance = value.requirementAssurance {
+            object["requirementAssurance"] = requirementAssurance(assurance)
+        }
+        if let accountability = value.accountability {
+            object["accountability"] = Self.accountability(accountability)
+        }
+        if let assetSemantics = value.assetSemantics {
+            object["assetSemantics"] = Self.assetSemantics(assetSemantics)
+        }
+        if let authorityCriterion = value.authorityCriterion {
+            object["authorityCriterion"] = Self.authorityCriterion(authorityCriterion)
+        }
+        if let functionalRelationships = value.functionalRelationships {
+            object["functionalRelationships"] = Self.functionalRelationships(functionalRelationships)
+        }
+        if let assurance = value.assurance {
+            object["assurance"] = Self.assurance(assurance)
+        }
+        if let inspectionReviewHistory = value.inspectionReviewHistory {
+            object["inspectionReviewHistory"] = Self.inspectionReviewHistory(
+                inspectionReviewHistory
+            )
+        }
+        if let workPacket = value.workPacket {
+            object["workPacket"] = Self.workPacket(workPacket)
+        }
+        if let measurementIntegrity = value.measurementIntegrity {
+            object["measurementIntegrity"] = Self.measurementIntegrity(measurementIntegrity)
+        }
+        if let privacyTransform = value.privacyTransform {
+            object["privacyTransform"] = Self.privacyTransform(privacyTransform)
+        }
+        if let clientCapability = value.clientCapability {
+            object["clientCapability"] = Self.clientCapability(clientCapability)
+        }
+        if let surveyPublication = value.surveyPublication {
+            object["surveyPublication"] = Self.surveyPublication(surveyPublication)
+        }
+        if let scheduleProjection = value.scheduleProjection {
+            object["scheduleProjection"] = Self.scheduleProjection(scheduleProjection)
+        }
+        if let planProjection = value.planProjection {
+            object["planProjection"] = Self.planProjection(planProjection)
+        }
+        if let placementPose = value.placementPose {
+            object["placementPose"] = Self.placementPose(placementPose)
+        }
+        if let links = value.temporalEvidenceLinks {
+            object["temporalEvidenceLinks"] = .array(
+                links.map(Self.temporalEvidenceLink)
+            )
+        }
+        return .object(object)
+    }
+
+    private static func temporalEvidenceLink(
+        _ value: TemporalEvidenceReportLinkV1
+    ) -> CanonicalJSONValueV1 {
+        var object: [String: CanonicalJSONValueV1] = [
+            "schemaVersion": .integer(value.schemaVersion),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+            "clipID": uuid(value.clipID),
+            "clipRevision": .integer(Int(value.clipRevision)),
+            "clipSHA256": .string(value.clipSHA256),
+            "contentID": .string(value.contentID),
+            "mediaKind": .string(value.mediaKind.rawValue),
+            "durationMilliseconds": .integer(Int(value.durationMilliseconds)),
+            "anchorCount": .integer(value.anchorCount),
+            "anchorBindings": .array(
+                value.anchorBindings.map(Self.temporalEvidenceAnchorBinding)
+            ),
+            "accessibleDescription": .string(value.accessibleDescription),
+            "manualTranscript": optionalString(value.manualTranscript),
+            "projection": .string(value.projection.rawValue),
+            "embedsOriginalBytes": .bool(value.embedsOriginalBytes),
+        ]
+        if let derivativePreview = value.derivativePreview {
+            object["derivativePreview"] = temporalEvidenceDerivativeBinding(derivativePreview)
+        }
+        return .object(object)
+    }
+
+    private static func temporalEvidenceDerivativeBinding(
+        _ value: TemporalEvidenceReportDerivativeBindingV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "derivativeID": uuid(value.derivativeID),
+            "revision": .integer(Int(value.revision)),
+            "derivativeSHA256": .string(value.derivativeSHA256),
+            "kind": .string(value.kind.rawValue),
+            "sourceClipID": uuid(value.sourceClipID),
+            "sourceClipRevision": .integer(Int(value.sourceClipRevision)),
+            "sourceClipSHA256": .string(value.sourceClipSHA256),
+            "projection": .string(value.projection.rawValue),
+        ])
+    }
+
+    private static func temporalEvidenceAnchorBinding(
+        _ value: TemporalEvidenceReportAnchorBindingV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "anchorID": uuid(value.anchorID),
+            "revision": .integer(Int(value.revision)),
+            "anchorSHA256": .string(value.anchorSHA256),
+            "clipID": uuid(value.clipID),
+            "clipRevision": .integer(Int(value.clipRevision)),
+            "clipSHA256": .string(value.clipSHA256),
+            "sourceContentID": .string(value.sourceContentID),
+            "sourceSHA256": .string(value.sourceSHA256),
+        ])
+    }
+
+    private static func scheduleProjection(
+        _ value: ScheduleReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": uuid(value.workspaceID),
+            "scheduleDefinitionID": uuid(value.scheduleDefinitionID),
+            "scheduleRelease": scheduleRelease(value.scheduleRelease),
+            "lifecycleState": .string(value.lifecycleState.rawValue),
+            "recurrenceKind": .string(value.recurrenceKind),
+            "timeBasis": timeBasis(value.timeBasis),
+            "evaluatedAt": date(value.evaluatedAt),
+            "occurrences": .array(value.occurrences.map(scheduleOccurrence)),
+            "dueQueueProjectionSHA256": .string(value.dueQueueProjectionSHA256),
+            "reminderProjectionSHA256": value.reminderProjectionSHA256.map { .string($0) } ?? .null,
+            "sourceClosureSHA256": .string(value.sourceClosureSHA256),
+            "historyFrozen": .bool(value.historyFrozen),
+            "notificationDeliveryIsTruth": .bool(value.notificationDeliveryIsTruth),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    private static func scheduleRelease(
+        _ value: ScheduleDefinitionReleaseReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "scheduleDefinitionID": uuid(value.scheduleDefinitionID),
+            "releaseID": uuid(value.releaseID),
+            "revision": .integer(Int(value.revision)),
+            "releaseSHA256": .string(value.releaseSHA256),
+        ])
+    }
+
+    private static func timeBasis(
+        _ value: FrozenScheduleTimeBasisV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "calendar": .string(value.calendar.rawValue),
+            "ianaTimeZoneIdentifier": .string(value.ianaTimeZoneIdentifier),
+            "timeZoneRuleSetVersion": .string(value.timeZoneRuleSetVersion),
+            "timeZoneRuleSetSHA256": .string(value.timeZoneRuleSetSHA256),
+            "ambiguousTimePolicy": .string(value.ambiguousTimePolicy.rawValue),
+            "nonexistentTimePolicy": .string(value.nonexistentTimePolicy.rawValue),
+            "calendarBasisID": .string(value.calendarBasisID),
+            "calendarBasisRevision": .integer(Int(value.calendarBasisRevision)),
+            "calendarBasisSHA256": .string(value.calendarBasisSHA256),
+        ])
+    }
+
+    private static func scheduleOccurrence(
+        _ value: ScheduleOccurrenceReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "occurrenceID": .string(value.occurrenceID.rawValue),
+            "state": .string(value.state.rawValue),
+            "scheduleRelease": scheduleRelease(value.scheduleRelease),
+            "nominalBasis": occurrenceBasis(value.nominalBasis),
+            "effectiveBasis": occurrenceBasis(value.effectiveBasis),
+            "historyEventSHA256": .string(value.historyEventSHA256),
+            "workInstanceRecorded": .bool(value.workInstanceRecorded),
+        ])
+    }
+
+    private static func occurrenceBasis(
+        _ value: ResolvedOccurrenceBasisV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "nominalLocalDate": .string(value.nominalLocalDate),
+            "nominalLocalTime": .string(value.nominalLocalTime),
+            "resolvedAtUTC": value.resolvedAtUTC.map(date) ?? .null,
+            "utcOffsetSeconds": value.utcOffsetSeconds.map { .integer($0) } ?? .null,
+            "disposition": .string(value.disposition.rawValue),
+            "timeBasisSHA256": .string(value.timeBasisSHA256),
+            "adjustmentProvenanceSHA256": value.adjustmentProvenanceSHA256.map { .string($0) } ?? .null,
+        ])
+    }
+
+    private static func planProjection(
+        _ value: PlanReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": uuid(value.workspaceID),
+            "documentReference": c29PlanDocumentReference(value.documentReference),
+            "revisionReference": c29PlanRevisionReference(value.revisionReference),
+            "documentState": .string(value.documentState.rawValue),
+            "revisionState": .string(value.revisionState.rawValue),
+            "contentReleaseID": uuid(value.contentReleaseID),
+            "contentReleaseRevision": .integer(Int(value.contentReleaseRevision)),
+            "contentReleaseSHA256": .string(value.contentReleaseSHA256),
+            "contentManifestSHA256": .string(value.contentManifestSHA256),
+            "pageCount": .integer(value.pageCount),
+            "placements": .array(value.placements.map(c29PlanPlacement)),
+            "rebasePreview": value.rebasePreview.map(c29PlanPreview) ?? .null,
+            "rebaseReceipt": value.rebaseReceipt.map(c29PlanReceipt) ?? .null,
+            "historicDisplayIsFrozen": .bool(value.historicDisplayIsFrozen),
+            "previewIsNotApplied": .bool(value.previewIsNotApplied),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    private static func c29PlanDocumentReference(
+        _ value: PlanDocumentReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "planDocumentID": uuid(value.planDocumentID),
+            "revision": .integer(Int(value.revision)),
+            "documentSHA256": .string(value.documentSHA256),
+        ])
+    }
+
+    private static func c29PlanRevisionReference(
+        _ value: PlanRevisionReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "planRevisionID": uuid(value.planRevisionID),
+            "planDocumentID": uuid(value.planDocumentID),
+            "revision": .integer(Int(value.revision)),
+            "revisionSHA256": .string(value.revisionSHA256),
+        ])
+    }
+
+    private static func c29PlanPlacement(
+        _ value: PlanPlacementReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "placementID": uuid(value.placementID),
+            "subjectKind": .string(value.subjectKind.rawValue),
+            "subjectID": uuid(value.subjectID),
+            "planRevisionID": uuid(value.planRevisionID),
+            "spatialFrameID": uuid(value.spatialFrameID),
+            "xMillionths": .integer(Int(value.xMillionths)),
+            "yMillionths": .integer(Int(value.yMillionths)),
+            "disposition": .string(value.disposition.rawValue),
+            "revision": .integer(Int(value.revision)),
+            "placementSHA256": .string(value.placementSHA256),
+        ])
+    }
+
+    private static func placementPose(
+        _ value: C37PlacementPoseFrozenSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "sourceSnapshotID": uuid(value.sourceSnapshotID),
+            "projection": placementPoseProjection(value.projection),
+            "historicDisplayIsFrozen": .bool(value.historicDisplayIsFrozen),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+        ])
+    }
+
+    private static func placementPoseProjection(
+        _ value: C37PlacementPoseReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+            "assetID": uuid(value.assetID),
+            "currentTipReferences": .array(value.currentTipReferences.map(placementPoseReference)),
+            "history": .array(value.history.map(placementPoseHistory)),
+            "capturedAt": date(value.capturedAt),
+            "historyFrozen": .bool(value.historyFrozen),
+            "rebasePreviewIsNotApplied": .bool(value.rebasePreviewIsNotApplied),
+            "sensorInputAllowed": .bool(value.sensorInputAllowed),
+            "networkInputAllowed": .bool(value.networkInputAllowed),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    private static func placementPoseReference(
+        _ value: AssetPoseEventReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "eventID": uuid(value.eventID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+            "assetID": uuid(value.assetID),
+            "axisID": .string(value.axisID.rawValue),
+            "revision": .integer(Int(value.revision)),
+            "eventSHA256": .string(value.eventSHA256),
+        ])
+    }
+
+    private static func placementPoseHistory(
+        _ value: C37PoseHistoryProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "eventID": uuid(value.eventID),
+            "axisID": .string(value.axisID),
+            "placementEpisodeID": uuid(value.placementEpisodeID),
+            "placementEventID": uuid(value.placementEventID),
+            "rootObservationEventID": uuid(value.rootObservationEventID),
+            "rootObservedAt": date(value.rootObservedAt),
+            "occurredAt": date(value.occurredAt),
+            "recordedAt": date(value.recordedAt),
+            "referenceFrame": .string(value.referenceFrame.rawValue),
+            "disposition": .string(value.disposition.rawValue),
+            "observationState": .string(value.observationState.rawValue),
+            "notObservedReason": value.notObservedReason.map { .string($0.rawValue) } ?? .null,
+            "azimuthMilliDegrees": value.azimuthMilliDegrees.map { .integer(Int($0)) } ?? .null,
+            "elevationMilliDegrees": value.elevationMilliDegrees.map { .integer(Int($0)) } ?? .null,
+            "horizontalUncertaintyMilliDegrees": value.horizontalUncertaintyMilliDegrees.map { .integer(Int($0)) } ?? .null,
+            "verticalUncertaintyMilliDegrees": value.verticalUncertaintyMilliDegrees.map { .integer(Int($0)) } ?? .null,
+            "horizontalUncertaintyState": .string(value.horizontalUncertaintyState.rawValue),
+            "verticalUncertaintyState": .string(value.verticalUncertaintyState.rawValue),
+            "source": .string(value.source.rawValue),
+            "revision": .integer(Int(value.revision)),
+            "eventSHA256": .string(value.eventSHA256),
+            "planRevisionID": value.planRevisionID.map { .string($0.uuidString.lowercased()) } ?? .null,
+            "planPageID": value.planPageID.map { .string($0.uuidString.lowercased()) } ?? .null,
+            "planSpatialFrameID": value.planSpatialFrameID.map { .string($0.uuidString.lowercased()) } ?? .null,
+            "planTransformSHA256": value.planTransformSHA256.map { .string($0) } ?? .null,
+        ])
+    }
+
+    private static func c29PlanPreview(
+        _ value: PlanRebasePreviewReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "previewID": uuid(value.previewID),
+            "oldRevision": c29PlanRevisionReference(value.oldRevision),
+            "newRevision": c29PlanRevisionReference(value.newRevision),
+            "transformSHA256": .string(value.transformSHA256),
+            "registrySHA256": .string(value.registrySHA256),
+            "componentIDs": .array(value.componentIDs.map { .string($0) }),
+            "rowCount": .integer(value.rowCount),
+            "acceptedRowCount": .integer(value.acceptedRowCount),
+            "reviewRequiredRowCount": .integer(value.reviewRequiredRowCount),
+            "warningCodes": .array(value.warningCodes.map { .string($0.rawValue) }),
+            "requiresReview": .bool(value.requiresReview),
+            "expectedRevision": .integer(Int(value.expectedRevision)),
+            "generatedAt": date(value.generatedAt),
+            "previewSHA256": .string(value.previewSHA256),
+        ])
+    }
+
+    private static func c29PlanReceipt(
+        _ value: PlanRebaseReceiptReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "receiptID": uuid(value.receiptID),
+            "previewID": uuid(value.previewID),
+            "previewSHA256": .string(value.previewSHA256),
+            "decision": .string(value.decision.rawValue),
+            "resultingRevision": value.resultingRevision.map(c29PlanRevisionReference) ?? .null,
+            "resultingPlacementsSHA256": value.resultingPlacementsSHA256.map { .string($0) } ?? .null,
+            "canonicalPlanMutationSHA256": value.canonicalPlanMutationSHA256.map { .string($0) } ?? .null,
+            "recordedAt": date(value.recordedAt),
+            "revision": .integer(Int(value.revision)),
+            "receiptSHA256": .string(value.receiptSHA256),
+        ])
+    }
+
+    private static func surveyPublication(
+        _ value: SurveyPublicationReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        let subject: CanonicalJSONValueV1
+        switch value.subjectAtPublication {
+        case .canonical(let reference):
+            subject = .object([
+                "kind": .string("CANONICAL"),
+                "subjectID": uuid(reference.subjectID),
+                "subjectKind": .string(reference.kind.rawValue),
+                "subjectRevision": .integer(Int(reference.revision)),
+                "ownerAssetID": reference.ownerAssetID.map(uuid) ?? .null,
+            ])
+        case .provisional(let reference):
+            subject = .object([
+                "kind": .string("PROVISIONAL"),
+                "subjectID": uuid(reference.provisionalSubjectID),
+                "subjectRevision": .integer(Int(reference.revision)),
+                "subjectSHA256": .string(reference.subjectSHA256),
+            ])
+        }
+        return .object([
+            "projectionVersion": .string(value.projectionVersion),
+            "snapshotID": uuid(value.snapshotID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+            "sessionID": uuid(value.sessionID),
+            "sessionRevision": .integer(Int(value.sessionRevision)),
+            "publicationRevision": .integer(Int(value.publicationRevision)),
+            "publicationSHA256": .string(value.publicationSHA256),
+            "definitionReleaseID": uuid(value.definitionReleaseID),
+            "definitionRevision": .integer(Int(value.definitionRevision)),
+            "definitionSHA256": .string(value.definitionSHA256),
+            "packageReleaseID": .string(value.packageReleaseID),
+            "packageID": .string(value.packageID),
+            "packageContentVersion": .integer(value.packageContentVersion),
+            "packageSHA256": .string(value.packageSHA256),
+            "workflowSHA256": .string(value.workflowSHA256),
+            "subjectAtPublication": subject,
+            "factCount": .integer(value.factCount),
+            "evidenceCount": .integer(value.evidenceCount),
+        ])
+    }
+
+    /// C20 exposes only the approved derivative's bounded binding. In
+    /// particular, this object has no original/derivative locator, bytes,
+    /// reviewer identity, or rationale.
+    private static func privacyTransform(
+        _ value: PrivacyTransformReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": .object(["rawValue": uuid(value.workspaceID.rawValue)]),
+            "manifestID": uuid(value.manifestID),
+            "reviewReceiptID": uuid(value.reviewReceiptID),
+            "policyID": uuid(value.policyID),
+            "audience": .string(value.audience.rawValue),
+            "derivativeContentID": .string(value.derivativeContentID),
+            "derivativeSHA256": .string(value.derivativeSHA256),
+            "sourceRevision": .integer(Int(value.sourceRevision)),
+            "sourceSHA256": .string(value.sourceSHA256),
+            "policyRevision": .integer(Int(value.policyRevision)),
+            "policySHA256": .string(value.policySHA256),
+            "reviewRevision": .integer(Int(value.reviewRevision)),
+            "reviewSHA256": .string(value.reviewSHA256),
+            "reviewDecision": .string(value.reviewDecision.rawValue),
+            "staleState": .string(value.staleState.rawValue),
+            "metadataSanitized": .bool(value.metadataSanitized),
+            "redactionDeclared": .bool(value.redactionDeclared),
+            "derivativeOnly": .bool(value.derivativeOnly),
+            "originalReferenceExcluded": .bool(value.originalReferenceExcluded),
+            "transformKinds": .array(value.transformKinds.map { .string($0.rawValue) }),
+            "regionCount": .integer(value.regionCount),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    /// C21 carries only deterministic local admission/lifecycle metadata.
+    /// Package bytes, client/device identity, users, endpoints, providers,
+    /// and remote delivery or acknowledgement details are intentionally absent.
+    private static func clientCapability(
+        _ value: ClientCapabilityReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "projectionVersion": .string(value.projectionVersion),
+            "workspaceID": .object(["rawValue": uuid(value.workspaceID.rawValue)]),
+            "decisionID": uuid(value.decisionID),
+            "profileID": uuid(value.profileID),
+            "policyID": uuid(value.policyID),
+            "dispositionID": uuid(value.dispositionID),
+            "packageReleaseID": .string(value.packageReleaseID),
+            "packageSHA256": .string(value.packageSHA256),
+            "workflowSHA256": .string(value.workflowSHA256),
+            "profileRevision": .integer(Int(value.profileRevision)),
+            "policyRevision": .integer(Int(value.policyRevision)),
+            "dispositionRevision": .integer(Int(value.dispositionRevision)),
+            "decisionRevision": .integer(Int(value.decisionRevision)),
+            "profileSHA256": .string(value.profileSHA256),
+            "policySHA256": .string(value.policySHA256),
+            "dispositionSHA256": .string(value.dispositionSHA256),
+            "decisionSHA256": .string(value.decisionSHA256),
+            "operation": .string(value.operation.rawValue),
+            "admission": .string(value.admission.rawValue),
+            "lifecycleState": .string(value.lifecycleState.rawValue),
+            "reasons": .array(value.reasons.map { .string($0.rawValue) }),
+            "readAllowed": .bool(value.readAllowed),
+            "writeAllowed": .bool(value.writeAllowed),
+            "operationAllowed": .bool(value.operationAllowed),
+            "historicArtifact": .bool(value.historicArtifact),
+            "historicExportAllowed": .bool(value.historicExportAllowed),
+            "immutableHistoric": .bool(value.immutableHistoric),
+            "projectionSHA256": .string(value.projectionSHA256),
+        ])
+    }
+
+    /// C19 is deliberately an additive, privacy-safe report object. Exact
+    /// decimal components and enum tokens are retained for deterministic
+    /// reopening; operator snapshots, opaque serials, raw responses, and
+    /// evidence locators never enter this output.
+    private static func measurementIntegrity(
+        _ value: MeasurementIntegrityReportProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        func decimal(_ value: ExactDecimalV1) -> CanonicalJSONValueV1 {
+            .object([
+                "mantissa": .integer(Int(value.mantissa)),
+                "scale": .integer(value.scale),
+            ])
+        }
+        func optionalDecimal(_ value: ExactDecimalV1?) -> CanonicalJSONValueV1 {
+            value.map(decimal) ?? .null
+        }
+        return .object([
+            "schemaVersion": .integer(value.schemaVersion),
+            "captureID": uuid(value.captureID),
+            "workspaceID": .object(["rawValue": uuid(value.workspaceID.rawValue)]),
+            "packageReleaseID": .string(value.packageReleaseID),
+            "workflowSHA256": .string(value.workflowSHA256),
+            "enteredValue": decimal(value.enteredValue),
+            "enteredUnitID": .string(value.enteredUnitID),
+            "canonicalValue": decimal(value.canonicalValue),
+            "canonicalUnitID": .string(value.canonicalUnitID),
+            "dimension": .string(value.dimension.rawValue),
+            "precisionScale": .integer(value.precisionScale),
+            "uncertaintyCanonical": optionalDecimal(value.uncertaintyCanonical),
+            "source": .string(value.source.rawValue),
+            "sourceMode": .string(value.sourceMode.rawValue),
+            "captureMethodID": .string(value.captureMethodID),
+            "instrumentReferenceID": optionalUUID(value.instrumentReferenceID),
+            "instrumentID": optionalUUID(value.instrumentID),
+            "instrumentKind": value.instrumentKind.map { .string($0.rawValue) } ?? .null,
+            "instrumentLifecycleState": value.instrumentLifecycleState.map { .string($0.rawValue) } ?? .null,
+            "calibrationSnapshotID": optionalUUID(value.calibrationSnapshotID),
+            "calibrationStatus": value.calibrationStatus.map { .string($0.rawValue) } ?? .null,
+            "calibrationBasis": value.calibrationBasis.map { .string($0.rawValue) } ?? .null,
+            "seriesID": optionalUUID(value.seriesID),
+            "seriesState": value.seriesState.map { .string($0.rawValue) } ?? .null,
+            "seriesExpectedSampleCount": value.seriesExpectedSampleCount.map { .integer($0) } ?? .null,
+            "seriesObservedSampleCount": value.seriesObservedSampleCount.map { .integer($0) } ?? .null,
+            "protocolReleaseID": optionalUUID(value.protocolReleaseID),
+            "protocolRevision": value.protocolRevision.map { .integer(Int($0)) } ?? .null,
+            "aggregationPolicy": value.aggregationPolicy.map { .string($0.rawValue) } ?? .null,
+            "qualityResult": value.qualityResult.map { .string($0.rawValue) } ?? .null,
+            "qualityReasonCodes": .array(value.qualityReasonCodes.map { .string($0.rawValue) }),
+            "qualityPolicyVersion": value.qualityPolicyVersion.map { .string($0) } ?? .null,
+            "qualityPolicySHA256": value.qualityPolicySHA256.map { .string($0) } ?? .null,
+            "capturedAt": date(value.capturedAt),
+            "revision": .integer(Int(value.revision)),
+            "captureSHA256": .string(value.captureSHA256),
+        ])
+    }
+
+    /// C14 history is owned by its canonical inspection-review codec. Keeping
+    /// that object intact in the report tree prevents a second report-specific
+    /// schema from drifting from the frozen review/change/action facts.
+    private static func inspectionReviewHistory(
+        _ value: CompletedInspectionReviewHistorySnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        guard let data = try? InspectionReviewCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
+    }
+
+    /// C41 relationship descriptors and event history are encoded by the
+    /// domain's canonical codec first, then copied into the report JSON tree.
+    /// This preserves exact nested keys/digests without exposing a second
+    /// report-specific wire representation.
+    private static func functionalRelationships(
+        _ value: CompletedFunctionalRelationshipSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        guard let data = try? FunctionalRelationshipCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
+    }
+
+    private static func authorityCriterion(
+        _ value: CompletedAuthorityCriterionSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            try container.encode(formatter.string(from: date))
+        }
+        guard let data = try? encoder.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else { return .null }
+        return canonicalValue(object)
+    }
+
+    /// C39 values are already validated and canonically encoded by their
+    /// domain codec. Converting that object into the report's canonical JSON
+    /// tree keeps report key ordering deterministic without duplicating the
+    /// semantic domain's wire schema here.
+    private static func assetSemantics(
+        _ value: CompletedAssetSemanticsSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        guard let data = try? AssetSemanticCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
+    }
+
+    /// The assurance domain codec owns the nested wire representation. Copying
+    /// that canonical object into the report tree keeps the preview, manifest,
+    /// visibility, and attestation facts byte-stable without duplicating them.
+    private static func assurance(
+        _ value: ReportEvidenceAssuranceProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        guard let data = try? ReportEvidenceAssuranceCanonicalCodecV1.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
+    }
+
+    /// C15 report output is a typed count/state projection. The packet's
+    /// actor, lease, result, and evidence rows are intentionally not copied.
+    private static func workPacket(
+        _ value: ReportWorkPacketProjectionV1
+    ) -> CanonicalJSONValueV1 {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) else {
+            return .null
+        }
+        return canonicalValue(object)
+    }
+
+    private static func canonicalValue(_ value: Any) -> CanonicalJSONValueV1 {
+        switch value {
+        case let value as String: return .string(value)
+        case let value as Bool: return .bool(value)
+        case let value as NSNumber: return .integer(value.intValue)
+        case let value as [Any]: return .array(value.map(canonicalValue))
+        case let value as [String: Any]:
+            return .object(value.mapValues(canonicalValue))
+        case _ as NSNull: return .null
+        default: return .null
+        }
+    }
+
+    private static func accountability(
+        _ value: CompletedAccountabilitySnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "actors": .array(value.actors.map(actor)),
+            "parties": .array(value.parties.map(party)),
+            "qualifications": .array(value.qualifications.map(qualification)),
+            "roleEvents": .array(value.roleEvents.map(roleEvent)),
+            "schemaVersion": .integer(value.schemaVersion),
+            "signoffs": .array(value.signoffs.map(signoff)),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func party(
+        _ value: ServicePartyReferenceV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "displayName": .string(value.displayName),
+            "effectiveAt": date(value.effectiveAt),
+            "kind": .string(value.kind.rawValue),
+            "partyID": uuid(value.partyID),
+            "privacyClass": .string(value.privacyClass.rawValue),
+            "profileDescriptor": optionalString(value.profileDescriptor),
+            "provenance": .string(value.provenance.rawValue),
+            "receiptSHA256": .string(value.receiptSHA256),
+            "retiredAt": optionalDate(value.retiredAt),
+            "revision": .integer(Int(value.revision)),
+            "schemaVersion": .integer(value.schemaVersion),
+            "state": .string(value.state.rawValue),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func roleEvent(
+        _ value: SitePartyRoleEventV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "effectiveFrom": date(value.effectiveFrom),
+            "effectiveUntil": optionalDate(value.effectiveUntil),
+            "eventID": uuid(value.eventID),
+            "mutationID": uuid(value.mutationID.rawValue),
+            "partyID": uuid(value.partyID),
+            "receiptSHA256": .string(value.receiptSHA256),
+            "recordedAt": date(value.recordedAt),
+            "revision": .integer(Int(value.revision)),
+            "role": .string(value.role.rawValue),
+            "schemaVersion": .integer(value.schemaVersion),
+            "siteID": uuid(value.siteID),
+            "source": .string(value.source.rawValue),
+            "supersedesEventID": optionalUUID(value.supersedesEventID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func actor(
+        _ value: ActorSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "actor": .object([
+                "actorReferenceID": uuid(value.actor.actorReferenceID),
+                "displayName": .string(value.actor.displayName),
+                "partyID": optionalUUID(value.actor.partyID),
+                "schemaVersion": .integer(value.actor.schemaVersion),
+                "workspaceID": uuid(value.actor.workspaceID.rawValue),
+            ]),
+            "capturedAt": date(value.capturedAt),
+            "displayNameAtTime": .string(value.displayNameAtTime),
+            "responsibility": .string(value.responsibility.rawValue),
+            "schemaVersion": .integer(value.schemaVersion),
+            "snapshotID": uuid(value.snapshotID),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func qualification(
+        _ value: QualificationSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "capturedAt": date(value.capturedAt),
+            "credentialLocator": optionalString(value.credentialLocator),
+            "declaredScope": .string(value.declaredScope),
+            "effectiveAt": optionalDate(value.effectiveAt),
+            "expiresAt": optionalDate(value.expiresAt),
+            "issuerDisplay": optionalString(value.issuerDisplay),
+            "provenance": .string(value.provenance.rawValue),
+            "schemaVersion": .integer(value.schemaVersion),
+            "snapshotID": uuid(value.snapshotID),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func signoff(
+        _ value: SignoffSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "disposition": .string(value.disposition.rawValue),
+            "externalEvidenceID": optionalUUID(value.externalEvidenceID),
+            "method": .string(value.method.rawValue),
+            "mutationID": uuid(value.mutationID.rawValue),
+            "occurredAt": optionalDate(value.occurredAt),
+            "purpose": .string(value.purpose),
+            "qualification": value.qualification.map(qualification) ?? .null,
+            "recordedAt": date(value.recordedAt),
+            "roleAssertion": value.roleAssertion.map(roleAssertion) ?? .null,
+            "schemaVersion": .integer(value.schemaVersion),
+            "snapshotID": uuid(value.snapshotID),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "subjectID": uuid(value.subjectID),
+            "subjectRevision": .integer(Int(value.subjectRevision)),
+            "supersedesSnapshotID": optionalUUID(value.supersedesSnapshotID),
+            "workspaceID": uuid(value.workspaceID.rawValue),
+        ])
+    }
+
+    private static func roleAssertion(
+        _ value: SignoffRoleAssertionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "actor": actor(value.actor),
+            "claimedRelationship": value.claimedRelationship.map { .string($0.rawValue) } ?? .null,
+            "claimedRole": .string(value.claimedRole),
+            "disclosureRelease": .object([
+                "disclosureText": .string(value.disclosureRelease.disclosureText),
+                "disclaimsIdentityVerification": .bool(value.disclosureRelease.disclaimsIdentityVerification),
+                "disclaimsLegalSignature": .bool(value.disclosureRelease.disclaimsLegalSignature),
+                "releaseID": .string(value.disclosureRelease.releaseID),
+                "schemaVersion": .integer(value.disclosureRelease.schemaVersion),
+                "statesLocalAssertionOnly": .bool(value.disclosureRelease.statesLocalAssertionOnly),
+            ]),
+            "schemaVersion": .integer(value.schemaVersion),
+        ])
+    }
+
+    static func requirementAssurance(
+        _ value: RequirementAssuranceSnapshotV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "decision": completionDecision(value.decision),
+            "evaluatedRevision": .integer(Int(value.evaluatedRevision)),
+            "evaluations": .array(value.evaluations.map(evaluation)),
+            "findings": .array(value.findings.map(integrityFinding)),
+            "policySetSHA256": .string(value.policySetSHA256),
+            "schemaVersion": .integer(value.schemaVersion),
+            "snapshotSHA256": .string(value.snapshotSHA256),
+            "workflowRecordID": uuid(value.workflowRecordID),
+            "workspaceID": uuid(value.workspaceID),
+        ])
+    }
+
+    private static func evaluation(
+        _ value: RequirementEvaluationV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "evidenceReferenceIDs": .array(value.evidenceReferenceIDs.map { .string($0) }),
+            "evaluatedRevision": .integer(Int(value.evaluatedRevision)),
+            "gateEffect": .string(value.gateEffect.rawValue),
+            "invalidEvidenceReferences": .array(value.invalidEvidenceReferences.map { .string($0) }),
+            "missingEvidenceReferences": .array(value.missingEvidenceReferences.map { .string($0) }),
+            "policySHA256": .string(value.policySHA256),
+            "reasonCodes": .array(value.reasonCodes.map { .string($0.rawValue) }),
+            "requirementID": .string(value.requirementID),
+            "requirementTypeID": .string(value.requirementTypeID),
+            "requirementVersion": .integer(value.requirementVersion),
+            "result": .string(value.result.rawValue),
+            "schemaVersion": .integer(value.schemaVersion),
+            "waiverID": optionalString(value.waiverID),
+        ])
+    }
+
+    private static func completionDecision(
+        _ value: CompletionDecisionV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "disposition": .string(value.disposition.rawValue),
+            "evaluationSetSHA256": .string(value.evaluationSetSHA256),
+            "evaluatedRevision": .integer(Int(value.evaluatedRevision)),
+            "hardBlockerRequirementIDs": .array(value.hardBlockerRequirementIDs.map { .string($0) }),
+            "notApplicableRequirementIDs": .array(value.notApplicableRequirementIDs.map { .string($0) }),
+            "policySetSHA256": .string(value.policySetSHA256),
+            "schemaVersion": .integer(value.schemaVersion),
+            "unknownRequirementIDs": .array(value.unknownRequirementIDs.map { .string($0) }),
+            "waivedRequirementIDs": .array(value.waivedRequirementIDs.map { .string($0) }),
+            "warningRequirementIDs": .array(value.warningRequirementIDs.map { .string($0) }),
+        ])
+    }
+
+    private static func integrityFinding(
+        _ value: IntegrityFindingV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "kind": .string(value.kind.rawValue),
+            "reasonCode": .string(value.reasonCode),
+            "referenceIDs": .array(value.referenceIDs.map { .string($0) }),
+            "requirementID": optionalString(value.requirementID),
+            "schemaVersion": .integer(value.schemaVersion),
+        ])
+    }
+
+    private static func acknowledgement(_ value: AcknowledgementSnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "accepted": .bool(value.accepted),
+            "copy": .string(value.copy),
+            "key": .string(value.key),
+            "version": .string(value.version),
+        ])
+    }
+
+    private static func asset(_ value: AssetSnapshotV1) -> CanonicalJSONValueV1 {
+        .object(["label": .string(value.label)])
+    }
+
+    private static func couldNotVerify(_ value: CouldNotVerifySnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "display": .string(value.display),
+            "key": .string(value.key),
+            "registryVersion": .string(value.registryVersion),
+        ])
+    }
+
+    private static func display(_ value: DisplaySnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "assetSingular": .string(value.assetSingular),
+            "checkSingular": .string(value.checkSingular),
+            "issueSingular": .string(value.issueSingular),
+            "outcome": .string(value.outcome),
+            "stage": .string(value.stage),
+        ])
+    }
+
+    private static func evidence(_ value: EvidenceSnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "byteCount": .integer(value.byteCount),
+            "createdAt": date(value.createdAt),
+            "evidenceID": uuid(value.evidenceID),
+            "mimeType": .string(value.mimeType),
+            "purposeDisplay": .string(value.purposeDisplay),
+            "purposeKey": .string(value.purposeKey),
+            "recordID": uuid(value.recordID),
+            "relativePath": .string(value.relativePath),
+            "sha256": .string(value.sha256),
+            "thumbnailByteCount": .integer(value.thumbnailByteCount),
+            "thumbnailRelativePath": .string(value.thumbnailRelativePath),
+            "thumbnailSHA256": .string(value.thumbnailSHA256),
+        ])
+    }
+
+    private static func history(_ value: HistoryEntrySnapshotV1) -> CanonicalJSONValueV1 {
+        var object: [String: CanonicalJSONValueV1] = [
+            "completedAt": date(value.completedAt),
+            "couldNotVerify": value.couldNotVerify.map(couldNotVerify) ?? .null,
+            "evidenceIDs": .array(value.evidenceIDs.map(uuid)),
+            "issueIDs": .array(value.issueIDs.map(uuid)),
+            "note": optionalString(value.note),
+            "outcome": .string(value.outcome),
+            "outcomeDisplay": .string(value.outcomeDisplay),
+            "recordID": uuid(value.recordID),
+            "stage": .string(value.stage),
+            "stageDisplay": .string(value.stageDisplay),
+            "workDescription": optionalString(value.workDescription),
+            "workPerformedLocalDate": optionalString(value.workPerformedLocalDate),
+        ]
+        if let basis = value.observationBasis, let temporal = value.temporalContext {
+            object["observationBasis"] = observationBasis(basis)
+            object["temporalContext"] = temporalContext(temporal)
+        }
+        return .object(object)
+    }
+
+    private static func issueSnapshot(_ value: IssueSnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "createdAt": date(value.createdAt),
+            "display": .string(value.display),
+            "issueID": uuid(value.issueID),
+            "key": .string(value.key),
+            "openedByRecordID": uuid(value.openedByRecordID),
+            "resolvedByRecordID": optionalUUID(value.resolvedByRecordID),
+            "status": .string(value.status),
+            "updatedAt": date(value.updatedAt),
+        ])
+    }
+
+    private static func pack(_ value: PackSnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "contentVersion": .integer(value.contentVersion),
+            "id": .string(value.id),
+            "schemaVersion": .integer(value.schemaVersion),
+        ])
+    }
+
+    private static func pdfTemplate(_ value: PDFTemplateReferenceV1) -> CanonicalJSONValueV1 {
+        .object([
+            "id": .string(value.id),
+            "version": .integer(value.version),
+        ])
+    }
+
+    private static func site(_ value: SiteSnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "address": optionalString(value.address),
+            "label": .string(value.label),
+        ])
+    }
+
+    private static func sourceApp(_ value: SourceAppSnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "build": .string(value.build),
+            "version": .string(value.version),
+        ])
+    }
+
+    private static func timeContext(_ value: TimeContextSnapshotV1) -> CanonicalJSONValueV1 {
+        .object([
+            "localDate": .string(value.localDate),
+            "localTime": .string(value.localTime),
+            "observedAtUTC": date(value.observedAtUTC),
+            "timeZoneID": .string(value.timeZoneID),
+            "utcOffsetMinutes": .integer(value.utcOffsetMinutes),
+        ])
+    }
+
+    private static func observationBasis(
+        _ value: ObservationBasisV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "kind": .string(value.kind.rawValue),
+            "limitations": .array(value.limitations.map { .string($0) }),
+            "method": .object(["key": .string(value.method.key)]),
+            "source": .object([
+                "kind": .string(value.source.kind.rawValue),
+                "reference": optionalString(value.source.reference),
+            ]),
+            "version": .integer(value.version),
+        ])
+    }
+
+    private static func temporalContext(
+        _ value: TemporalContextV1
+    ) -> CanonicalJSONValueV1 {
+        .object([
+            "ianaTimeZoneIdentifier": optionalString(value.ianaTimeZoneIdentifier),
+            "localDate": optionalString(value.localDate),
+            "localTime": optionalString(value.localTime),
+            "localTimeDisposition": .string(value.localTimeDisposition.rawValue),
+            "occurredAtUTC": optionalDate(value.occurredAtUTC),
+            "recordedAtUTC": date(value.recordedAtUTC),
+            "utcOffsetSeconds": optionalInteger(value.utcOffsetSeconds),
+            "version": .integer(value.version),
+        ])
+    }
+}
+
+extension ReportSnapshotEncoderV1 {
+    /// Encodes the C18 package binding as an additive report companion. The
+    /// existing report snapshot codecs remain byte-for-byte compatible; this
+    /// helper is used only when a report explicitly carries package-evolution
+    /// metadata.
+    static func encodePackageEvolutionReport(
+        _ projection: PackageEvolutionReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        do {
+            try projection.validate()
+            let data = try PackageEvolutionCanonicalCodecV1.encode(projection)
+            guard !data.isEmpty,
+                  data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    static func decodePackageEvolutionReport(
+        _ data: Data
+    ) throws -> PackageEvolutionReportProjectionV1 {
+        do {
+            let projection = try PackageEvolutionCanonicalCodecV1.decode(
+                PackageEvolutionReportProjectionV1.self,
+                from: data
+            )
+            try projection.validate()
+            guard try encodePackageEvolutionReport(projection).data == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return projection
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+
+    /// Encodes the standalone C20 projection with the same sorted, local
+    /// canonical rules used by the report companion renderers.
+    func encode(
+        _ projection: PrivacyTransformReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try projection.validate()
+        let data = try PrivacyTransformCanonicalCodecV1.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodePrivacyTransformProjection(
+        _ data: Data
+    ) throws -> PrivacyTransformReportProjectionV1 {
+        let projection = try PrivacyTransformCanonicalCodecV1.decode(
+            PrivacyTransformReportProjectionV1.self,
+            from: data
+        )
+        try projection.validate()
+        guard try encode(projection).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return projection
+    }
+
+    /// Encodes the standalone C21 admission/lifecycle projection using the
+    /// canonical client-capability codec. This is metadata only; package bytes
+    /// and client identity are not part of the projection.
+    func encode(
+        _ projection: ClientCapabilityReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try projection.validate()
+        let data = try ClientCapabilityCanonicalCodecV1.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeClientCapabilityProjection(
+        _ data: Data
+    ) throws -> ClientCapabilityReportProjectionV1 {
+        let projection = try ClientCapabilityCanonicalCodecV1.decode(
+            ClientCapabilityReportProjectionV1.self,
+            from: data
+        )
+        try projection.validate()
+        guard try encode(projection).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return projection
+    }
+
+    /// Encodes only the bounded C23 release/binding projection.  The
+    /// canonical pack codec is reused so reports never acquire reference
+    /// bytes, private locators, license notices, or subject identity.
+    func encode(
+        _ projection: FieldReferenceReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: .openJSON)
+        let data = try FieldReferencePackCanonicalCodecV1.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeFieldReferenceProjection(
+        _ data: Data
+    ) throws -> FieldReferenceReportProjectionV1 {
+        let projection = try FieldReferencePackCanonicalCodecV1.decode(
+            FieldReferenceReportProjectionV1.self,
+            from: data
+        )
+        try FieldReferenceReportProjectionPolicyV1.validate(projection, format: .openJSON)
+        guard try encode(projection).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return projection
+    }
+
+    /// Encodes the bounded C27 locator report companion.  The canonical
+    /// locator codec preserves the recorded interpretation but never adds the
+    /// scanned input, key material, or private locator bytes to a report.
+    func encode(
+        _ projection: AssetLocatorReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        do {
+            try projection.validate(format: .openJSON)
+            let data = try AssetLocatorCanonicalCodecV1.encode(projection)
+            guard !data.isEmpty,
+                  data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+                throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+            }
+            return EncodedReportSnapshotV1(
+                data: data,
+                sha256: KernelCanonicalHashV1.sha256(data)
+            )
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    func decodeAssetLocatorProjection(
+        _ data: Data
+    ) throws -> AssetLocatorReportProjectionV1 {
+        do {
+            let projection = try AssetLocatorCanonicalCodecV1.decode(
+                AssetLocatorReportProjectionV1.self,
+                from: data
+            )
+            try projection.validate(format: .openJSON)
+            guard try encode(projection).data == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return projection
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+
+    /// Encodes the standalone C37 frozen pose companion. The normal report
+    /// encoder includes this value under `placementPose`; this helper makes
+    /// the same canonical boundary available to local recovery/export code.
+    func encodePlacementPoseSnapshot(
+        _ snapshot: C37PlacementPoseFrozenSnapshotV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try snapshot.validate()
+        let data = try PlacementPoseCanonicalCodecV1.encode(snapshot)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodePlacementPoseSnapshot(
+        _ data: Data
+    ) throws -> C37PlacementPoseFrozenSnapshotV1 {
+        let snapshot = try PlacementPoseCanonicalCodecV1.decode(
+            C37PlacementPoseFrozenSnapshotV1.self,
+            from: data
+        )
+        try snapshot.validate()
+        guard try encodePlacementPoseSnapshot(snapshot).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return snapshot
+    }
+}
+// MARK: - C30 operating-context encoding
+
+extension ReportSnapshotEncoderV1 {
+    func encodeOperatingContextReference(
+        _ projection: C30EvidenceContextReportReferenceV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try projection.validate()
+        var encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeOperatingContextReference(
+        _ data: Data
+    ) throws -> C30EvidenceContextReportReferenceV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        let value = try decoder.decode(C30EvidenceContextReportReferenceV1.self, from: data)
+        try value.validate()
+        guard try encodeOperatingContextReference(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static let c30OperatingContextEncodingIsStandalone = true
+    static let c30OperatingContextEncodingExcludesActorAndSourceBytes = true
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_Finalization_ReportSnapshotEncoderV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift", role: .finalization)
+}
+
+extension ReportSnapshotEncoderV1 {
+    func encodeLightingProjection(
+        _ projection: C31LightingReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try C31LightingProjectionPolicyV1.validate(projection)
+        var encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(projection)
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    func decodeLightingProjection(
+        _ data: Data
+    ) throws -> C31LightingReportProjectionV1 {
+        guard !data.isEmpty,
+              data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+        let value = try JSONDecoder().decode(
+            C31LightingReportProjectionV1.self,
+            from: data
+        )
+        try C31LightingProjectionPolicyV1.validate(value)
+        guard try encodeLightingProjection(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static let c31LightingEncodingPreservesFrozenProjection = true
+    static let c31LightingEncodingExcludesActorsBytesAndPrivateLocators = true
+}
+
+/// C32 keeps assistance candidates outside every durable and derived surface;
+/// only explicit acceptance may reach the existing canonical writer/receipt path.
+enum C32AssistanceCompatibility_Finalization_ReportSnapshotEncoderV1 {
+    enum ProposalDispositionV1: Sendable {
+        case nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+    }
+
+    enum AcceptanceDispositionV1: Sendable {
+        case durableThroughExistingCanonicalWriter
+    }
+
+    static func disposition(
+        for proposal: AssistanceProposalV1
+    ) throws -> ProposalDispositionV1 {
+        try proposal.validate()
+        guard !AssistancePersistenceEnrollmentV1.proposalIsPersistent,
+              !AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent else {
+            throw AssistanceContractFailureV1.nonCanonicalData
+        }
+        switch proposal.verificationState {
+        case .unverified:
+            return .nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+        }
+    }
+
+    static func disposition(
+        for receipt: AssistanceAcceptanceReceiptV1
+    ) throws -> AcceptanceDispositionV1 {
+        try receipt.validate()
+        guard AssistancePersistenceEnrollmentV1.durableModelCount == 1 else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+        return .durableThroughExistingCanonicalWriter
+    }
+
+    static let capabilityScratchIsDiscardedOnTerminalReview = true
+    static let manualFallbackRemainsAvailable = true
+    static let interruptionNeverPromotesAProposal = true
+    static let createsParallelStoreOrWriter = false
+}
+
+enum C45AcceptedLabelReportSnapshotBoundaryV1 { static let acceptedLabelSnapshotIsNotEmbeddedInReport=true;static let reprintAuthorityRemainsTypedPersistence=true }
+
+enum C46OperationalContactBoundary_54{static let defaultProjection="EXCLUDED";static let rawPhoneOrEmailEmitted=false;static let platformOutcomeClaimEmitted=false}
+
+enum C48PortableReviewReportSnapshotEncoderBoundaryV1 {
+    static let encodesDerivedHistoryOnly = true
+    static let capabilityBytesEncoded = false
+    static let capabilityProofBytesEncoded = false
+    static let responseBodyEncoded = false
+    static let rawRequestResponseBytesEncoded = false
+    static let workspaceAndReplicaIdentityEncoded = false
+    static let externalReviewCannotRewriteSnapshot = true
+    static let existingSnapshotEncoderRemainsSoleRoute = true
+
+    static func validate(_ projection: C48PortableReviewDerivedHistoryProjectionV1) throws {
+        try projection.validate()
+    }
+}
+
+// MARK: - C49 work-resource report snapshot encoder
+
+enum C49WorkResourceReportSnapshotEncoderBoundaryV1 {
+    static let usesCanonicalWorkResourceSnapshot = true
+    static let sortedKeyEncoding = true
+    static let appendOnlyCorrectionsRemainHistory = true
+    static let rawStockAndLiveInventoryBytesEncoded = false
+
+    static func encode(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        let envelope = try C49WorkResourceProjectionSupportV1.envelope(
+            projection,
+            format: "OPEN_JSON"
+        )
+        let data = try canonicalData(envelope)
+        return EncodedReportSnapshotV1(
+            data: data,
+            sha256: KernelCanonicalHashV1.sha256(data)
+        )
+    }
+
+    static func decode(
+        _ data: Data
+    ) throws -> C49WorkResourceProjectionEnvelopeV1 {
+        guard !data.isEmpty, data.count <= 8_388_608 else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        do {
+            let value = try JSONDecoder().decode(
+                C49WorkResourceProjectionEnvelopeV1.self,
+                from: data
+            )
+            try value.validate(expectedFormat: "OPEN_JSON")
+            guard try canonicalData(value) == data else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return value
+        } catch let error as ReportSnapshotEncodingErrorV1 {
+            throw error
+        } catch {
+            throw ReportSnapshotEncodingErrorV1.invalidSnapshot
+        }
+    }
+
+    static func encodeFormulaSafeCSV(
+        _ projection: C49WorkResourceReportProjectionV1
+    ) throws -> Data {
+        let rows = try C49FormulaSafeCSVV1.reportRows(projection)
+        guard let data = C49FormulaSafeCSVV1.encode(rows: rows).data(using: .utf8) else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return data
+    }
+
+    private static func canonicalData(
+        _ envelope: C49WorkResourceProjectionEnvelopeV1
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(envelope)
+    }
+}
+
+// MARK: - C52 lifecycle and privacy boundary
+enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_Finalization_ReportSnapshotEncoderV1_swift {
+    static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let acceptedEventPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let duplicateProjectionPersistence: ServiceRequestPersistenceClassV1 = .nonpersistentDerived
+    static let rawCapabilityPersistence: ServiceRequestPersistenceClassV1 = .prohibitedPersistent
+    static let acceptedLifecycleEnrollment: ServiceRequestPersistenceEnrollmentV1.Type = ServiceRequestPersistenceEnrollmentV1.self
+    static let cloneOrForkInvalidatesActiveCapabilities: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities
+    static let duplicateProjectionIsRebuildable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.derivedProjectionIsRebuildable &&
+        !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityIsExcludedFromReportsAndDiagnostics: Bool =
+        !ServiceRequestLifecycleRegistrationBoundaryV1.rawCapabilityAppearsInReportsOrDiagnostics
+    static let sharedPortableFilesAreRecallable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
+    static let unverifiedAssertionsAreVerified: Bool = false
+    static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}
+
+// MARK: - C53 reliability canonical snapshot encoding
+
+enum C53ServiceReliabilityReportSnapshotEncoderV1 {
+    static let encodingIsCanonicalJSON = true
+    static let decodeRequiresExactByteParity = ServiceReliabilityFJ09ContractV1.canonicalDecodeRequiresExactByteParity
+
+    static func encode(
+        _ projection: C53ServiceReliabilityReportProjectionV1
+    ) throws -> EncodedReportSnapshotV1 {
+        try projection.validate()
+        let data = try ServiceReliabilityCanonicalCodecV1.encode(projection)
+        return EncodedReportSnapshotV1(data: data, sha256: KernelCanonicalHashV1.sha256(data))
+    }
+
+    static func decode(_ data: Data) throws -> C53ServiceReliabilityReportProjectionV1 {
+        let value = try ServiceReliabilityCanonicalCodecV1.decode(
+            C53ServiceReliabilityReportProjectionV1.self,
+            from: data
+        )
+        guard try ServiceReliabilityCanonicalCodecV1.encode(value) == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+}
+
+
+/// Explicit, additive codec only. Existing report family dispatch intentionally
+/// rejects this new discriminator until full lifecycle adoption is complete.
+/// Basis schema one embeds the COMPLETE typed snapshot with canonical sorted
+/// Codable keys and finite seconds since the Date reference epoch (2001),
+/// preserving the original Date Double without epoch arithmetic. This differs
+/// from the legacy report file wire. Fixed outer assembly never removes or
+/// normalizes source fields.
+enum ReportPublicationCanonicalCodecV1 {
+    static func encodeBasis(_ value: ReportPublicationBasisV1) throws -> Data {
+        try value.validate()
+        let snapshot = try encodeSnapshot(value.snapshot)
+        return try object([
+            ("audience", scalar(value.audience.rawValue)),
+            ("projectionVersion", scalar(value.projectionVersion)),
+            ("reportBasisSchemaVersion", Data("1".utf8)),
+            ("snapshot", snapshot),
+            ("workspaceID", scalar(value.workspaceID.rawValue.uuidString.lowercased())),
+        ])
+    }
+
+    static func decodeBasis(_ data: Data) throws -> ReportPublicationBasisV1 {
+        try requireBounded(data)
+        let value = try decoder().decode(BasisWire.self, from: data).value()
+        guard try encodeBasis(value) == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static func encode(_ value: ReportPublicationV1) throws -> EncodedReportSnapshotV1 {
+        try value.validate()
+        var fields: [(String, Data)] = [
+            ("basis", try encodeBasis(value.basis)),
+            ("basisSHA256", try scalar(value.basisSHA256)),
+            ("reportPublicationSchemaVersion", Data("1".utf8)),
+        ]
+        if let assurance = value.assurance {
+            fields.append(("assurance", try encodeAssurance(assurance)))
+        }
+        let data = try object(fields)
+        return .init(data: data, sha256: CanonicalJSONV1.sha256(data))
+    }
+
+    static func decode(_ data: Data) throws -> ReportPublicationV1 {
+        try requireBounded(data)
+        let wire = try decoder().decode(PublicationWire.self, from: data)
+        let value = try wire.value()
+        guard try encode(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static func encodeReviewedSource(_ value: ReportReviewedSourceV1) throws -> Data {
+        try value.validate()
+        let subject = try object([
+            ("workspaceID", scalar(value.reportSubject.workspaceID.rawValue.uuidString.lowercased())),
+            ("reportID", scalar(value.reportSubject.subjectID.uuidString.lowercased())),
+            ("fixedCorrectionChainRevision", Data(String(value.reportSubject.subjectRevision).utf8)),
+        ])
+        return try object([
+            ("reportReviewedSourceSchemaVersion", Data("1".utf8)),
+            ("original", encode(value.original).data),
+            ("reportSubject", subject),
+            ("history", encodeHistory(value.history)),
+        ])
+    }
+
+    static func decodeReviewedSource(_ data: Data) throws -> ReportReviewedSourceV1 {
+        try requireBounded(data)
+        let value = try decoder().decode(ReviewedSourceWire.self, from: data).value()
+        guard try encodeReviewedSource(value) == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    static func encode(_ value: ReportReviewPublicationV1) throws -> EncodedReportSnapshotV1 {
+        let data = try object([
+            ("reportReviewPublicationSchemaVersion", Data("1".utf8)),
+            ("source", encodeReviewedSource(value.source)),
+        ])
+        return .init(data: data, sha256: CanonicalJSONV1.sha256(data))
+    }
+
+    static func decodeReview(_ data: Data) throws -> ReportReviewPublicationV1 {
+        try requireBounded(data)
+        let wire = try decoder().decode(ReviewPublicationWire.self, from: data)
+        let value = try ReportReviewPublicationV1(source: wire.source.value())
+        guard try encode(value).data == data else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return value
+    }
+
+    private static func encodeHistory(_ value: CompletedInspectionReviewHistorySnapshotV1) throws -> Data {
+        try value.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        let data = try encoder.encode(value)
+        try requireBounded(data)
+        guard try decoder().decode(CompletedInspectionReviewHistorySnapshotV1.self, from: data) == value else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return data
+    }
+
+    private static func scalar(_ value: String) throws -> Data {
+        try CanonicalJSONV1.encode(.string(value))
+    }
+
+    private static func object(_ fields: [(String, Data)]) throws -> Data {
+        var bytes = Data("{".utf8)
+        for (index, field) in fields.sorted(by: { $0.0 < $1.0 }).enumerated() {
+            if index > 0 { bytes.append(contentsOf: ",".utf8) }
+            bytes.append(try scalar(field.0))
+            bytes.append(contentsOf: ":".utf8)
+            bytes.append(field.1)
+        }
+        bytes.append(contentsOf: "}".utf8)
+        try requireBounded(bytes)
+        return bytes
+    }
+
+    private static func requireBounded(_ data: Data) throws {
+        guard !data.isEmpty, data.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+
+    /// Full typed source serialization; unlike the legacy file encoder this
+    /// includes every stored optional projection. Exact typed parity is a
+    /// mandatory guard against future custom Codable loss or date rounding.
+    static func encodeSnapshot(_ snapshot: ReportSnapshotV1) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        let data = try encoder.encode(snapshot)
+        try requireBounded(data)
+        guard try decoder().decode(ReportSnapshotV1.self, from: data) == snapshot else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return data
+    }
+
+    private static func encodeAssurance(_ assurance: ReportEvidenceAssuranceProjectionV1) throws -> Data {
+        // Preserve the existing assurance domain hashes and predicates while
+        // representing its full Date values losslessly in this NEW outer wire.
+        try assurance.validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        let data = try encoder.encode(assurance)
+        try requireBounded(data)
+        guard try decoder().decode(ReportEvidenceAssuranceProjectionV1.self, from: data) == assurance else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return data
+    }
+
+    private static func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .deferredToDate
+        return decoder
+    }
+
+    private struct BasisWire: Decodable {
+        let workspaceID: WorkspaceID
+        let audience: ReportAudienceV1
+        let projectionVersion: String
+        let snapshot: ReportSnapshotV1
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case reportBasisSchemaVersion, workspaceID, audience, projectionVersion, snapshot
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard try values.decode(Int.self, forKey: .reportBasisSchemaVersion) == 1,
+                  let uuid = UUID(uuidString: try values.decode(String.self, forKey: .workspaceID)) else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            workspaceID = WorkspaceID(rawValue: uuid)
+            audience = try values.decode(ReportAudienceV1.self, forKey: .audience)
+            projectionVersion = try values.decode(String.self, forKey: .projectionVersion)
+            snapshot = try values.decode(ReportSnapshotV1.self, forKey: .snapshot)
+        }
+        func value() throws -> ReportPublicationBasisV1 {
+            try .init(workspaceID: workspaceID, audience: audience,
+                projectionVersion: projectionVersion, snapshot: snapshot)
+        }
+    }
+
+    private struct PublicationWire: Decodable {
+        let basis: BasisWire
+        let basisSHA256: String
+        let assurance: ReportEvidenceAssuranceProjectionV1?
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case reportPublicationSchemaVersion, basis, basisSHA256, assurance
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard try values.decode(Int.self, forKey: .reportPublicationSchemaVersion) == 1 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            basis = try values.decode(BasisWire.self, forKey: .basis)
+            basisSHA256 = try values.decode(String.self, forKey: .basisSHA256)
+            assurance = try ClosedContractDecodingV1.decodeOptional(
+                ReportEvidenceAssuranceProjectionV1.self, from: values, forKey: .assurance)
+        }
+        func value() throws -> ReportPublicationV1 {
+            let value = try ReportPublicationV1(basis: basis.value(), assurance: assurance)
+            guard value.basisSHA256 == basisSHA256 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            return value
+        }
+    }
+
+    private struct ReportSubjectWire: Decodable {
+        let key: CompletedWorkSubjectKeyV1
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case workspaceID, reportID, fixedCorrectionChainRevision
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard let workspace = UUID(uuidString: try values.decode(String.self, forKey: .workspaceID)),
+                  let report = UUID(uuidString: try values.decode(String.self, forKey: .reportID)) else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            key = try CompletedWorkSubjectKeyV1(workspaceID: WorkspaceID(rawValue: workspace),
+                subjectID: report, subjectRevision: values.decode(UInt64.self, forKey: .fixedCorrectionChainRevision))
+        }
+    }
+
+    private struct ReviewedSourceWire: Decodable {
+        let original: PublicationWire
+        let reportSubject: ReportSubjectWire
+        let history: CompletedInspectionReviewHistorySnapshotV1
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case reportReviewedSourceSchemaVersion, original, reportSubject, history
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard try values.decode(Int.self, forKey: .reportReviewedSourceSchemaVersion) == 1 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            original = try values.decode(PublicationWire.self, forKey: .original)
+            reportSubject = try values.decode(ReportSubjectWire.self, forKey: .reportSubject)
+            history = try values.decode(CompletedInspectionReviewHistorySnapshotV1.self, forKey: .history)
+        }
+        func value() throws -> ReportReviewedSourceV1 {
+            try .init(original: original.value(), reportSubject: reportSubject.key, history: history)
+        }
+    }
+
+    private struct ReviewPublicationWire: Decodable {
+        let source: ReviewedSourceWire
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case reportReviewPublicationSchemaVersion, source
+        }
+        init(from decoder: Decoder) throws {
+            try ClosedContractDecodingV1.rejectUnknownKeys(decoder,
+                allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            guard try values.decode(Int.self, forKey: .reportReviewPublicationSchemaVersion) == 1 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            source = try values.decode(ReviewedSourceWire.self, forKey: .source)
+        }
+    }
+}
+
+// MARK: - Explicit finite full-source wire (no production dispatch)
+
+enum ReportCurrentPublicationCanonicalCodecV2 {
+    static func typedBytes<T: Codable & Equatable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .deferredToDate
+        let bytes = try encoder.encode(value)
+        try bounded(bytes)
+        guard try decoder().decode(T.self, from: bytes) == value else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        return bytes
+    }
+    static func encodeBasis(_ value: ReportCurrentPublicationBasisV2) throws -> Data {
+        try value.validate()
+        return try typedBytes(BasisWire(reportCurrentBasisSchemaVersion: 2, basis: value))
+    }
+    static func encode(_ value: ReportCurrentPublicationV2) throws -> EncodedReportSnapshotV1 {
+        try value.validate()
+        let bytes = try typedBytes(OuterWire(value))
+        return .init(data: bytes, sha256: CanonicalJSONV1.sha256(bytes))
+    }
+    static func decode(_ bytes: Data) throws -> ReportCurrentPublicationV2 {
+        try bounded(bytes)
+        let wire = try decoder().decode(OuterWire.self, from: bytes)
+        let value = try wire.value()
+        guard try encode(value).data == bytes else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+        return value
+    }
+    static func decodeBasis(_ bytes: Data) throws -> ReportCurrentPublicationBasisV2 {
+        try bounded(bytes)
+        let wire = try decoder().decode(BasisWire.self, from: bytes)
+        guard wire.reportCurrentBasisSchemaVersion == 2 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+        try wire.basis.validate()
+        guard try encodeBasis(wire.basis) == bytes else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+        return wire.basis
+    }
+    private static func bounded(_ bytes: Data) throws {
+        guard !bytes.isEmpty, bytes.count <= SnapshotProjectionLimitsV1.maximumProjectionBytes else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    private static func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .deferredToDate
+        return decoder
+    }
+    fileprivate struct BasisWire: Codable, Equatable {
+        let reportCurrentBasisSchemaVersion: Int
+        let basis: ReportCurrentPublicationBasisV2
+    }
+    fileprivate struct OuterWire: Codable, Equatable {
+        let reportCurrentPublicationSchemaVersion: Int
+        let basis: BasisWire
+        let basisSHA256: String
+        let currentAssurance: ReportEvidenceAssuranceProjectionV1?
+        init(_ value: ReportCurrentPublicationV2) {
+            reportCurrentPublicationSchemaVersion = 2
+            basis = .init(reportCurrentBasisSchemaVersion: 2, basis: value.basis)
+            basisSHA256 = value.basisSHA256; currentAssurance = value.currentAssurance
+        }
+        func value() throws -> ReportCurrentPublicationV2 {
+            guard reportCurrentPublicationSchemaVersion == 2, basis.reportCurrentBasisSchemaVersion == 2 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            let value = try ReportCurrentPublicationV2(basis: basis.basis, currentAssurance: currentAssurance)
+            guard value.basisSHA256 == basisSHA256 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+            return value
+        }
+    }
+    // The original's decoder has an INITIAL-only source type. It does not first
+    // decode an arbitrary reviewed publication and reject recursion afterwards.
+    fileprivate struct InitialBasisValueWire: Codable {
+        let source: ReportInitialContentV2
+        let audience: ReportAudienceV1
+        let projectionVersion: String
+    }
+    fileprivate struct InitialBasisWire: Codable {
+        let reportCurrentBasisSchemaVersion: Int
+        let basis: InitialBasisValueWire
+    }
+    fileprivate struct InitialOuterWire: Decodable {
+        let reportCurrentPublicationSchemaVersion: Int
+        let basis: InitialBasisWire
+        let basisSHA256: String
+        let currentAssurance: ReportEvidenceAssuranceProjectionV1?
+        func value() throws -> ReportInitialPublicationV2 {
+            guard reportCurrentPublicationSchemaVersion == 2, basis.reportCurrentBasisSchemaVersion == 2 else {
+                throw ReportSnapshotEncodingErrorV1.noncanonicalData
+            }
+            let value = try ReportInitialPublicationV2(content: basis.basis.source,
+                audience: basis.basis.audience, projectionVersion: basis.basis.projectionVersion,
+                assurance: currentAssurance)
+            guard value.basisSHA256 == basisSHA256 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+            return value
+        }
+    }
+}
+
+// These explicit nested representations match the unchanged AH2 V1 codecs.
+// No existing decoder, file-family dispatcher or writer learns V2 admission.
+extension ReportPublicationBasisV1: Codable {
+    private enum CodingKeys: String, CodingKey { case reportBasisSchemaVersion, workspaceID, audience, projectionVersion, snapshot }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard try c.decode(Int.self, forKey: .reportBasisSchemaVersion) == 1,
+              let id = UUID(uuidString: try c.decode(String.self, forKey: .workspaceID)) else {
+            throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+        try self.init(workspaceID: WorkspaceID(rawValue: id), audience: c.decode(ReportAudienceV1.self, forKey: .audience),
+            projectionVersion: c.decode(String.self, forKey: .projectionVersion), snapshot: c.decode(ReportSnapshotV1.self, forKey: .snapshot))
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(1, forKey: .reportBasisSchemaVersion)
+        try c.encode(workspaceID.rawValue.uuidString.lowercased(), forKey: .workspaceID)
+        try c.encode(audience, forKey: .audience); try c.encode(projectionVersion, forKey: .projectionVersion)
+        try c.encode(snapshot, forKey: .snapshot)
+    }
+}
+
+extension ReportPublicationV1: Codable {
+    private enum CodingKeys: String, CodingKey { case reportPublicationSchemaVersion, basis, basisSHA256, assurance }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard try c.decode(Int.self, forKey: .reportPublicationSchemaVersion) == 1 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+        try self.init(basis: c.decode(ReportPublicationBasisV1.self, forKey: .basis),
+            assurance: c.decodeIfPresent(ReportEvidenceAssuranceProjectionV1.self, forKey: .assurance))
+        guard try c.decode(String.self, forKey: .basisSHA256) == basisSHA256 else { throw ReportSnapshotEncodingErrorV1.noncanonicalData }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(1, forKey: .reportPublicationSchemaVersion); try c.encode(basis, forKey: .basis)
+        try c.encode(basisSHA256, forKey: .basisSHA256); try c.encodeIfPresent(assurance, forKey: .assurance)
+    }
+}
+
+extension ReportInitialContentV2: Codable {
+    private enum CodingKeys: String, CodingKey { case sourceKind, value }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .sourceKind) {
+        case "INITIAL": self = .plain(try c.decode(ReportPublicationBasisV1.self, forKey: .value))
+        case "INITIAL_COORDINATED": self = .coordinated(try c.decode(ReportInitialCoordinatedSourceV1.self, forKey: .value))
+        default: throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .plain(let value): try c.encode("INITIAL", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        case .coordinated(let value): try c.encode("INITIAL_COORDINATED", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        }
+    }
+}
+
+extension ReportInitialPublicationV2: Codable {
+    init(from decoder: Decoder) throws {
+        self = try ReportCurrentPublicationCanonicalCodecV2.InitialOuterWire(from: decoder).value()
+    }
+    func encode(to encoder: Encoder) throws {
+        try ReportCurrentPublicationCanonicalCodecV2.OuterWire(currentPublication()).encode(to: encoder)
+    }
+}
+
+extension ReportOriginalPublicationV2: Codable {
+    private enum CodingKeys: String, CodingKey { case originalKind, value }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .originalKind) {
+        case "LEGACY_V1": self = .legacy(try c.decode(ReportPublicationV1.self, forKey: .value))
+        case "INITIAL_V2": self = .initial(try c.decode(ReportInitialPublicationV2.self, forKey: .value))
+        default: throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .legacy(let value): try c.encode("LEGACY_V1", forKey: .originalKind); try c.encode(value, forKey: .value)
+        case .initial(let value): try c.encode("INITIAL_V2", forKey: .originalKind); try c.encode(value, forKey: .value)
+        }
+    }
+}
+
+private struct ReportSubjectWireV2: Codable {
+    let workspaceID: UUID
+    let reportID: UUID
+    let fixedCorrectionChainRevision: UInt64
+    init(_ value: CompletedWorkSubjectKeyV1) throws {
+        guard value.family == .legacyReportSnapshot else { throw ReportSnapshotEncodingErrorV1.invalidSnapshot }
+        workspaceID = value.workspaceID.rawValue; reportID = value.subjectID; fixedCorrectionChainRevision = value.subjectRevision
+    }
+    func value() throws -> CompletedWorkSubjectKeyV1 {
+        try .init(workspaceID: WorkspaceID(rawValue: workspaceID), subjectID: reportID, subjectRevision: fixedCorrectionChainRevision)
+    }
+}
+
+extension ReportReviewedSourceV2: Codable {
+    private enum CodingKeys: String, CodingKey { case original, reportSubject, history }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(original: c.decode(ReportOriginalPublicationV2.self, forKey: .original),
+            reportSubject: c.decode(ReportSubjectWireV2.self, forKey: .reportSubject).value(),
+            history: c.decode(CompletedInspectionReviewHistorySnapshotV1.self, forKey: .history))
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(original, forKey: .original); try c.encode(ReportSubjectWireV2(reportSubject), forKey: .reportSubject)
+        try c.encode(history, forKey: .history)
+    }
+}
+
+extension ReportAcceptedOriginV1: Codable {
+    private enum CodingKeys: String, CodingKey { case subject, finalization, receipt }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(subject: c.decode(ReportSubjectWireV2.self, forKey: .subject).value(),
+            finalization: c.decode(FinalizationWriterCommitBindingV1.self, forKey: .finalization),
+            receipt: c.decode(MutationReceiptV1.self, forKey: .receipt))
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(ReportSubjectWireV2(subject), forKey: .subject)
+        try c.encode(finalization, forKey: .finalization); try c.encode(receipt, forKey: .receipt)
+    }
+}
+
+extension ReportPacketAssociationV1: Codable {
+    private enum CodingKeys: String, CodingKey { case associationKind, value }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .associationKind) {
+        case "DIRECT_INSPECTION": self = .directInspection(try c.decode(WorkPacketItemReferenceV1.self, forKey: .value))
+        case "RECORDED_RESULT": self = .recordedResult(try c.decode(WorkPacketReportResultBindingV1.self, forKey: .value))
+        default: throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .directInspection(let value): try c.encode("DIRECT_INSPECTION", forKey: .associationKind); try c.encode(value, forKey: .value)
+        case .recordedResult(let value): try c.encode("RECORDED_RESULT", forKey: .associationKind); try c.encode(value, forKey: .value)
+        }
+    }
+}
+
+extension ReportPublicationSourceV2: Codable {
+    private enum CodingKeys: String, CodingKey { case sourceKind, value }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .sourceKind) {
+        case "INITIAL": self = .initial(try c.decode(ReportPublicationBasisV1.self, forKey: .value))
+        case "REVIEWED": self = .reviewed(try c.decode(ReportReviewedSourceV2.self, forKey: .value))
+        case "INITIAL_COORDINATED": self = .initialCoordinated(try c.decode(ReportInitialCoordinatedSourceV1.self, forKey: .value))
+        case "REVIEWED_COORDINATED": self = .reviewedCoordinated(try c.decode(ReportReviewedCoordinatedSourceV1.self, forKey: .value))
+        default: throw ReportSnapshotEncodingErrorV1.noncanonicalData
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .initial(let value): try c.encode("INITIAL", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        case .reviewed(let value): try c.encode("REVIEWED", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        case .initialCoordinated(let value): try c.encode("INITIAL_COORDINATED", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        case .reviewedCoordinated(let value): try c.encode("REVIEWED_COORDINATED", forKey: .sourceKind); try c.encode(value, forKey: .value)
+        }
+    }
+}

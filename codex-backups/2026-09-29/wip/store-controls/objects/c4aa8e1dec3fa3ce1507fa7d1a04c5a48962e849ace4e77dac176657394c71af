@@ -1,0 +1,43 @@
+// Interface-only DATA routing. The actual owner is the already-retained
+// EraseColdExistingControlObservationV1 in EraseIntentStore.swift. No new
+// descriptor owner is introduced and decoded presence grants no effect.
+import Foundation
+
+struct EraseSchema2ColdFirstControlPresenceV4 {
+    enum DeclaredCut: UInt8 {
+        case noV4FixedControl = 0
+        case incompleteBootstrap = 1
+        case sourceBootstrap = 2
+        case sourcesWithoutProgress = 3
+        case currentProgress = 4
+        case compactTerminal = 5
+        case unadmittedV4Artifacts = 6
+    }
+    struct FixedLeaf {
+        enum Role: UInt8 {
+            case sources = 1, progress = 2, publicationCheckpoint = 3
+            case ownedIDs = 4, registryPrefix = 5, terminal = 6
+        }
+        enum Cut: UInt8 { case canonical = 0, reservedNext = 1 }
+        let role: Role
+        let cut: Cut
+        let observedBytes: Data
+        let sha256: String
+        let actualHeldFullFact: EraseSchema2ColdNumericFullFactV4
+        let actualNamedFullFact: EraseSchema2ColdNumericFullFactV4
+    }
+    let declaredCut: DeclaredCut
+    let actualHeldEraseRoot: EraseSchema2ColdNumericFullFactV4
+    let actualNamedEraseRoot: EraseSchema2ColdNumericFullFactV4
+    let fixedLeaves: [FixedLeaf] // finite phase grammar<=8; never page names
+    let totalDirectoryEntryCount: UInt64 // streamed complete actual count
+    let recognizedV4PageOrRawNameCount: UInt64 // recognition DATA, not ownership
+    let unknownNameObserved: Bool // true cannot enter a deletion/publication
+    // Existing actual policy/first-held resources remain privately retained
+    // on the actual observer. No runtime policy or FD is serialized here.
+}
+
+@MainActor
+protocol EraseSchema2ColdFirstHeldPresenceContractV4 {
+    func observedSchema2V4ControlPresence() throws -> EraseSchema2ColdFirstControlPresenceV4
+}

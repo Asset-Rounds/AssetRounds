@@ -1,0 +1,48 @@
+// Observation-only authentic original-P origin. This token is never a plan
+// hash, semantic ordinal, progress receipt or authorization for mutation.
+struct OriginalEraseC16InitialPairV1: Equatable {
+    let finalURL: URL
+    let partialURL: URL
+    let finalOriginalFact: String
+    let partialOriginalFact: String
+    let expectedSHA256: String
+    let expectedByteCount: Int64
+    let expectedDevice: UInt64
+    let finalFullFact: String
+    let partialFullFact: String
+    let originToken: String
+    let declaredPartialIndex: Int
+}
+@MainActor final class OriginalEraseC16InitialObservationScopeV1 {
+    let operationID: UUID
+    let originToken: String
+    private let pairs: [OriginalEraseC16InitialPairV1]
+    private let requireBinding: @MainActor () throws -> Void
+    private let poison: @MainActor () -> Void
+    private var retainedAttempts: [OriginalEraseC16CurrentTemporalObservationAttemptV1] = []
+    fileprivate init(operationID: UUID, originToken: String, pairs: [OriginalEraseC16InitialPairV1],
+        requireBinding: @escaping @MainActor () throws -> Void, poison: @escaping @MainActor () -> Void) {
+        self.operationID = operationID; self.originToken = originToken; self.pairs = pairs
+        self.requireBinding = requireBinding; self.poison = poison
+    }
+    func requireCurrentBinding() throws { try requireBinding() }
+    func requirePair(finalURL: URL, partialURL: URL) throws -> OriginalEraseC16InitialPairV1 {
+        try requireCurrentBinding()
+        guard let pair = pairs.first(where: { $0.finalURL == finalURL && $0.partialURL == partialURL }) else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try requireCurrentBinding(); return pair
+    }
+    func roleFor(path: String, fullFact: String, sha256: String) throws -> OriginalEraseC16CurrentPathRoleV1 {
+        try requireCurrentBinding()
+        let suffix = "/" + OwnedStorageRootKindV1.operations.rawValue + "/" + path
+        guard let pair = pairs.first(where: { $0.finalURL.path.hasSuffix(suffix) || $0.partialURL.path.hasSuffix(suffix) }) else {
+            return .ordinary
+        }
+        guard fullFact == pair.finalFullFact || fullFact == pair.partialFullFact,
+              sha256 == pair.expectedSHA256 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        try requireCurrentBinding(); return .initialPair(pair)
+    }
+    func retainObservationAttempt(_ attempt: OriginalEraseC16CurrentTemporalObservationAttemptV1) { retainedAttempts.append(attempt) }
+    func poisonOnUncertainObservation() { poison() }
+}

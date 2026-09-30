@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assignmentInvoked": {
+      "const": false
+    },
+    "calendarInvoked": {
+      "const": false
+    },
+    "canonicalWrites": {
+      "const": 0
+    },
+    "cardID": {
+      "const": "V23-P06-C07"
+    },
+    "disposition": {
+      "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
+    },
+    "historyMutation": {
+      "const": false
+    },
+    "network": {
+      "const": false
+    },
+    "notificationsScheduled": {
+      "const": 0
+    },
+    "schema": {
+      "const": "V23P06C07AdvancedSchedulingStaticProtocolV1"
+    },
+    "unboundedHorizon": {
+      "const": false
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "disposition",
+    "notificationsScheduled",
+    "calendarInvoked",
+    "network",
+    "canonicalWrites",
+    "unboundedHorizon",
+    "historyMutation",
+    "assignmentInvoked",
+    "scope",
+    "evidenceIDs",
+    "flags"
+  ],
+  "type": "object"
+}

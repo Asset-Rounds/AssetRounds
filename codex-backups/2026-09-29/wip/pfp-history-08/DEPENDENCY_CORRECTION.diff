@@ -1,0 +1,80 @@
+--- central-v8/SEALED_GENERIC_OBSERVATION_V1.swift.fragment
++++ central-v9/SEALED_GENERIC_OBSERVATION_V2.swift.fragment
+@@ -1,5 +1,3 @@
+-/// A distinct observation origin. Generic owned payloads never acquire a
+-/// fictitious C16 settlement ordinal or an arbitrary mixed target.
+ enum OriginalEraseSealedGenericObservationOriginV1: Equatable {
+     case sealedPBeforeSources(controlCutSHA256: String)
+     case sourcesPlanBeforeProgress(planSHA256: String,
+@@ -106,6 +104,7 @@
+     private let aliases: @MainActor ([URL]) throws -> OriginalEraseSealedOwnedGenericAliasPairV1
+     private let pathRole: @MainActor (String, String, String) throws -> OriginalEraseSealedGenericPathRoleV1
+     private let evolution: @MainActor (Int) throws -> OriginalEraseSealedOwnedGenericEvolutionV1
++    private let evolutionForOriginalPath: @MainActor (String) throws -> OriginalEraseSealedOwnedGenericEvolutionV1?
+     private let retainAttempt: @MainActor (OriginalEraseC16CurrentTemporalObservationAttemptV1) -> Void
+     private let poisonOrigin: @MainActor () -> Void
+     private var active = true
+@@ -118,6 +117,7 @@
+         aliases: @escaping @MainActor ([URL]) throws -> OriginalEraseSealedOwnedGenericAliasPairV1,
+         pathRole: @escaping @MainActor (String, String, String) throws -> OriginalEraseSealedGenericPathRoleV1,
+         evolution: @escaping @MainActor (Int) throws -> OriginalEraseSealedOwnedGenericEvolutionV1,
++        evolutionForOriginalPath: @escaping @MainActor (String) throws -> OriginalEraseSealedOwnedGenericEvolutionV1?,
+         retainAttempt: @escaping @MainActor (OriginalEraseC16CurrentTemporalObservationAttemptV1) -> Void,
+         poisonOrigin: @escaping @MainActor () -> Void) {
+         self.operationID = operationID; self.originBinding = originBinding
+@@ -125,6 +125,7 @@
+         self.operationsURL = operationsURL.standardizedFileURL
+         self.requireOrigin = requireOrigin; self.aliases = aliases
+         self.pathRole = pathRole; self.evolution = evolution
++        self.evolutionForOriginalPath = evolutionForOriginalPath
+         self.retainAttempt = retainAttempt; self.poisonOrigin = poisonOrigin
+     }
+ 
+@@ -205,14 +206,39 @@
+                 guard row.index == accountingRowIndex,
+                       actualOperation == operationID, binding == originBinding,
+                       accounting == accountingSHA256, consumed.count == 2,
+-                      consumed.map(\.operationsRelativePath) == row.members.map(\.operationsRelativePath),
+-                      consumed[0].target != consumed[1].target else {
++                      consumed.map(\.operationsRelativePath) == row.members.map(\.operationsRelativePath) else {
+                     throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                 }
+                 for source in row.members {
+                     _ = try currentPath(source.operationsRelativePath, mapping: mapping)
+                 }
++                // The immutable member paths distinguish the two physical
++                // effects. One genuine C16 lease-target step may consume both;
++                // it must not acquire a fictitious second semantic ordinal.
+                 for item in consumed { try requireConsumedMember(item, row: row) }
++            }
++            return value
++        }
++    }
++
++    /// Lookup starts from an immutable fixed target path, including after
++    /// the last current alias is gone. Nil requires positively checked
++    /// absence from the complete authenticated accounting table; a current
++    /// missing name never supplies that result or a guessed row ordinal.
++    func requireOwnedGenericEvolutionForOriginalPath(path: String) throws
++        -> OriginalEraseSealedOwnedGenericEvolutionV1? {
++        return try withCurrentProof {
++            try Self.requirePath(path)
++            guard let value = try evolutionForOriginalPath(path) else { return nil }
++            let row: OriginalEraseAuxiliaryPairAccountingDataV1.Row
++            switch value {
++            case .intact(let pair): row = pair.original
++            case .oneMemberConsumed(let survivor): row = survivor.original
++            case .bothMembersConsumed(let original, _, _, _, _, _, _): row = original
++            }
++            guard row.members.contains(where: { $0.operationsRelativePath == path }),
++                  try requireOwnedGenericEvolution(accountingRowIndex: row.index) == value else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+             }
+             return value
+         }
+@@ -364,3 +390,5 @@
+     }
+     fileprivate func revoke() { active = false }
+ }
++
++

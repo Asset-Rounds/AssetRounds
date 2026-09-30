@@ -1,0 +1,657 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactCount": 19,
+  "artifactDigest": "6cb0ed12f39e173e36544c2fab3864c993ea7fa1e7178b8a70b95c770e34c253",
+  "artifactSetDigest": "911cc6506b598ddaf02e3de5c44fa93f6e2a2a4654d1b21daccfbbb89c064fac",
+  "artifacts": [
+    {
+      "bytes": 61996,
+      "path": "Scripts/v23/p01_c07_contracts.py",
+      "sha256": "ba482eed5bee9fdd37ed2666885af1c5a7f0e79b34f0255bd1923f06b541c917"
+    },
+    {
+      "bytes": 1763,
+      "path": "Scripts/v23/generate_p01_c07_contracts.py",
+      "sha256": "55e9bc9e78322190f48edf94bc71e4838900760e32a66ec6dcbda8e10692dcf5"
+    },
+    {
+      "bytes": 15362,
+      "path": "Scripts/v23/verify_p01_c07_contracts.py",
+      "sha256": "132d12aedd68234d02e8b780e14fa7aa4ab31cc7a79f38c2e100da61efa646c6"
+    },
+    {
+      "bytes": 1238,
+      "path": "Scripts/v23/released-data-compatibility-policy.schema.json",
+      "sha256": "a94a190756a2f484fb2535b4f23a4474167fc5bf602ee3680b3f588eced5fc13"
+    },
+    {
+      "bytes": 3934,
+      "path": "Scripts/v23/compatibility-case-manifest.schema.json",
+      "sha256": "5a5574e80dbbc83fc1216e5d2fc040bcf502249f515614fe1a020c687e2ee940"
+    },
+    {
+      "bytes": 1543,
+      "path": "Scripts/v23/compatibility-corpus-manifest.schema.json",
+      "sha256": "7a0c2bf806dcb7e1a5cf60477d6cef14b730a5bf8de5664debcec448426e51da"
+    },
+    {
+      "bytes": 2982,
+      "path": "Scripts/v23/compatibility-run-receipt.schema.json",
+      "sha256": "e711e59de9c36afa636a52cb01665b9302d373698fb72fbef852d334f03fa939"
+    },
+    {
+      "bytes": 738,
+      "path": "Scripts/v23/release-seed-corpus.schema.json",
+      "sha256": "bf3db23e28f07ec7e8ca29e549f26becca4b08e5d9b56678a4d4673590156e59"
+    },
+    {
+      "bytes": 1169,
+      "path": "Scripts/v23/release-seed-corpus-seal.schema.json",
+      "sha256": "f2fb36da719b5c551227af13e8486b286509f870d3c8915ae3ba6f6e4290fb79"
+    },
+    {
+      "bytes": 2372,
+      "path": "Scripts/v23/supported-upgrade-path.schema.json",
+      "sha256": "1e1f8f703eb3357a2beb9966686bb1622c94a016c4edefa5db9daec74f3d92c9"
+    },
+    {
+      "bytes": 4720,
+      "path": "Scripts/v23/data-compatibility-manifest.schema.json",
+      "sha256": "906e4ecf522e000af1187eeeffc6c42a165582724c5ca15879a6af900dad7d4e"
+    },
+    {
+      "bytes": 8397,
+      "path": "docs/design/v23/tooling/V23P01C07ReleasedDataCompatibilityPolicyV1.json",
+      "sha256": "2ba32dfcb13a16003cd77170b96d138468c9c281c39be81cfc2c960202ceb8a7"
+    },
+    {
+      "bytes": 853,
+      "path": "docs/design/v23/tooling/V23P01C07CompatibilityCaseManifestV1.json",
+      "sha256": "7c85e70a22bb974ea3d34d71580bba085f17b10cafd294d2d85a3af0a20798f5"
+    },
+    {
+      "bytes": 27727,
+      "path": "docs/design/v23/tooling/V23P01C07CompatibilityCorpusManifestV1.json",
+      "sha256": "9648affa56ae6b58ba7965ea02fc2dc439b1f599eaedb0e32371e931d8549513"
+    },
+    {
+      "bytes": 5259,
+      "path": "docs/design/v23/tooling/V23P01C07CompatibilityRunReceiptV1.json",
+      "sha256": "dce0c0f0dfad200fa015ab7db73f6b93b3c285b8fe59f079c6d4948d6a202700"
+    },
+    {
+      "bytes": 29821,
+      "path": "docs/design/v23/tooling/V23P01C07ReleaseSeedCorpusV1.json",
+      "sha256": "a934ab96fc92422e30049a679f3ece4021939f2cab395bf34c0e041273540b47"
+    },
+    {
+      "bytes": 327,
+      "path": "docs/design/v23/tooling/V23P01C07ReleaseSeedCorpusSealV1.json",
+      "sha256": "e3b40304a16c6e1548a24c17d0284a46aa8597cb27781edb22d1cdd9f5427434"
+    },
+    {
+      "bytes": 570,
+      "path": "docs/design/v23/tooling/V23P01C07SupportedUpgradePathV1.json",
+      "sha256": "d49a4335b9a433758011b22e140ae74df6a6c97e2f6e788e581abaa4b02acaa4"
+    },
+    {
+      "bytes": 7625,
+      "path": "docs/design/v23/tooling/V23P01C07DataCompatibilityManifestV1.json",
+      "sha256": "49a6f867dbebce4a19247ac58a64b94e0ab707f0396a73a8dc5d5eec84b7d1e7"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "attemptID": 1,
+    "backupBehaviorDelta": true,
+    "backupCompatibilityRequired": true,
+    "baseHead": "e576a3ca91d597fff41d0f23209bab009ff8de6b",
+    "baseTree": "31ee5686b15c4cf60047a09306c60479c6e4468d",
+    "branch": "phase/v23-expansion",
+    "brandSurfaceDelta": false,
+    "cardID": "V23-P01-C07",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "76e761e79c2ca6b0b105bd5015f47c357596eef6fe37b3344722db6e555e30e3",
+    "coordinationAuthorityHead": "9c87863be0ce950258254eb59c9f587719074465",
+    "coordinationCASSequence": 79,
+    "coordinationLedgerDigest": "1b21315e524a177a679b4ec20ab30fec529e9152f22126a08552576cfabbd11c",
+    "deleteBehaviorDelta": true,
+    "deleteCompatibilityRequired": true,
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C07-G01",
+      "V23-P01-C07-A01",
+      "V23-P01-C07-H01",
+      "V23-P01-C07-I01",
+      "V23-P01-C07-R01"
+    ],
+    "directPrerequisites": [
+      "V23-P01-C06"
+    ],
+    "dossierDigest": "9a033191d94475d2670ded408466020254cee0a53e5cf896eaff958bfe8286eb",
+    "downgradeDisposition": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "exportBehaviorDelta": true,
+    "exportCompatibilityRequired": true,
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "51d228d1070f24e2a64cc4ca702a7ac01bc2ccfa4e215c960df6632aca6157de",
+    "invalidationConsumers": [
+      "V23-P02-C01"
+    ],
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "migrationBehaviorDelta": false,
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "fa8024bd83119ef97a817b9bc9e5828b8e13328964cf60c8bfd2981e29ca85ce",
+    "persistentChangeMode": "CONTENT_ONLY",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "2c746250a36d111f065cda9f12bb4deb051127b442866e320d6648e47b5eb68f",
+    "registerOrdinal": 20,
+    "registerRowDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "restoreBehaviorDelta": true,
+    "restoreCompatibilityRequired": true,
+    "schemaBehaviorDelta": false,
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "semanticScope": {
+      "compatibilityPolicy": "FORWARD_MIGRATION_CURRENT_WRITERS_ONLY_FAIL_CLOSED_UNKNOWN_VERSION",
+      "corpusPolicy": "IMMUTABLE_SYNTHETIC_DIGEST_BOUND_GENERATOR_SEED_REVIEWED",
+      "customerDataPolicy": "SYNTHETIC_ONLY_NO_CUSTOMER_OR_SECRET_DATA",
+      "diagnosticPolicy": "FAIL_FAST_ACCEPTANCE_CONTINUE_ONLY_DIAGNOSTIC",
+      "futureContractPolicy": "NO_P02_PLUS_FORMAT_FABRICATION",
+      "historicArtifactPolicy": "PRESERVE_FINALIZED_REPORT_BYTES_AND_RELEASED_FIXTURES",
+      "releasedFamilies": "CURRENT_STORE_ARCHIVE_REPORT_CONTENT_DELETION_ONLY",
+      "shippingWriterActivation": "CURRENT_ONLY_BEHIND_EXISTING_API"
+    },
+    "title": "Released-data compatibility policy, immutable seed corpus, and supported upgrade closure",
+    "uiSurfaceDelta": false,
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    }
+  },
+  "cardID": "V23-P01-C07",
+  "documentPaths": [
+    "docs/design/v23/tooling/V23P01C07ReleasedDataCompatibilityPolicyV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityCaseManifestV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityRunReceiptV1.json",
+    "docs/design/v23/tooling/V23P01C07ReleaseSeedCorpusV1.json",
+    "docs/design/v23/tooling/V23P01C07ReleaseSeedCorpusSealV1.json",
+    "docs/design/v23/tooling/V23P01C07SupportedUpgradePathV1.json",
+    "docs/design/v23/tooling/V23P01C07DataCompatibilityManifestV1.json"
+  ],
+  "evidenceIDs": [
+    "V23-P01-C07-G01",
+    "V23-P01-C07-A01",
+    "V23-P01-C07-H01",
+    "V23-P01-C07-I01",
+    "V23-P01-C07-R01"
+  ],
+  "fixtureBindingComplete": true,
+  "fixtureBindingCount": 4,
+  "fixtureBindings": [
+    {
+      "bytes": 60726,
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "immutable": true,
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07CompatibilityCorpusV1.json",
+      "role": "C07_IMMUTABLE_SYNTHETIC_FIXTURE",
+      "sha256": "91450554b7cc694aa25de73008a958cc261a4c017b84aa263bfe19a10d4a096d",
+      "status": "BOUND",
+      "synthetic": true
+    },
+    {
+      "bytes": 60599,
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "immutable": true,
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07PreV23SeedV1.json",
+      "role": "C07_IMMUTABLE_SYNTHETIC_FIXTURE",
+      "sha256": "c0a82d2c36620de37f05ad342437af4aa6025c0cdfa6a7220cd7a97b3add4021",
+      "status": "BOUND",
+      "synthetic": true
+    },
+    {
+      "bytes": 1130,
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "immutable": true,
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportOpenV1.json",
+      "role": "C07_IMMUTABLE_SYNTHETIC_FIXTURE",
+      "sha256": "3675469de64040dd16f3312b4f8cb9c3ffa8d15645684320a0387acf4b66399a",
+      "status": "BOUND",
+      "synthetic": true
+    },
+    {
+      "bytes": 622,
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "immutable": true,
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportV1.pdf",
+      "role": "C07_IMMUTABLE_SYNTHETIC_FIXTURE",
+      "sha256": "52503c0ec947b60ff8929d868228345bdeccd438d9426a038cd7dc0c37a9b009",
+      "status": "BOUND",
+      "synthetic": true
+    }
+  ],
+  "fixturePaths": [
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07CompatibilityCorpusV1.json",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07PreV23SeedV1.json",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportOpenV1.json",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportV1.pdf"
+  ],
+  "fullCardFence": [
+    "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift",
+    "FieldEvidenceApp/Domain/Compatibility/CompatibilityCorpusContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceAppTests/CompatibilityCorpusSupportV1.swift",
+    "FieldEvidenceAppTests/V9_07CompatibilityPolicyTests.swift",
+    "FieldEvidenceAppTests/V9_07CompatibilityCorpusIntegrationTests.swift",
+    "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+    "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+    "FieldEvidenceAppTests/V9_06DeletionRightsTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07CompatibilityCorpusV1.json",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07PreV23SeedV1.json",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportOpenV1.json",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportV1.pdf",
+    "Scripts/v23/p01_c07_contracts.py",
+    "Scripts/v23/generate_p01_c07_contracts.py",
+    "Scripts/v23/verify_p01_c07_contracts.py",
+    "Scripts/v23/released-data-compatibility-policy.schema.json",
+    "Scripts/v23/compatibility-case-manifest.schema.json",
+    "Scripts/v23/compatibility-corpus-manifest.schema.json",
+    "Scripts/v23/compatibility-run-receipt.schema.json",
+    "Scripts/v23/release-seed-corpus.schema.json",
+    "Scripts/v23/release-seed-corpus-seal.schema.json",
+    "Scripts/v23/supported-upgrade-path.schema.json",
+    "Scripts/v23/data-compatibility-manifest.schema.json",
+    "docs/design/v23/tooling/V23P01C07ReleasedDataCompatibilityPolicyV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityCaseManifestV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityRunReceiptV1.json",
+    "docs/design/v23/tooling/V23P01C07ReleaseSeedCorpusV1.json",
+    "docs/design/v23/tooling/V23P01C07ReleaseSeedCorpusSealV1.json",
+    "docs/design/v23/tooling/V23P01C07SupportedUpgradePathV1.json",
+    "docs/design/v23/tooling/V23P01C07DataCompatibilityManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C07-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230107,
+    "version": "p01-c07-seed-v1"
+  },
+  "hostedDispatchEnabled": false,
+  "immutableReferences": [
+    {
+      "bytes": 37522,
+      "immutable": true,
+      "owner": "V23-P01-C03",
+      "path": "docs/design/v23/tooling/V23P01C03MigrationRecoveryContractV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "9ee484122ca44645df88152656a7c5f6cdef08dde0644b7eda58a778c25adb27"
+    },
+    {
+      "bytes": 19376,
+      "immutable": true,
+      "owner": "V23-P01-C03",
+      "path": "docs/design/v23/tooling/PersistentSchemaReleaseRegistryV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "ce5d076340c893de0e37e9f1642101365f2f532f705dc53e9f6957376e026c35"
+    },
+    {
+      "bytes": 15191,
+      "immutable": true,
+      "owner": "V23-P01-C03",
+      "path": "docs/design/v23/tooling/V23-P01-C03-tooling-manifest.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "5c4093bf86eb108ebea8a86e783c6e4d768775cfef9b7e99939c5ad73a7654c1"
+    },
+    {
+      "bytes": 12839,
+      "immutable": true,
+      "owner": "V23-P01-C04",
+      "path": "docs/design/v23/tooling/V23P01C04StreamingArchiveContractV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "06e7482ebefee6d8402c76b36382431c47e1ff65b96eddaa4b48c4a90e9547c3"
+    },
+    {
+      "bytes": 8346,
+      "immutable": true,
+      "owner": "V23-P01-C04",
+      "path": "docs/design/v23/tooling/V23P01C04ArchiveCorpusManifestV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "d8a8fd24227b2c6bd8a8071235cece31412a64b5616ab16db587d32310daa3e4"
+    },
+    {
+      "bytes": 6071,
+      "immutable": true,
+      "owner": "V23-P01-C04",
+      "path": "docs/design/v23/tooling/V23-P01-C04-tooling-manifest.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "9d62dbd3d0b3c541d774d2e1d25f961f85d15b332ba41308aef566319da2fcd9"
+    },
+    {
+      "bytes": 20188,
+      "immutable": true,
+      "owner": "V23-P01-C05",
+      "path": "docs/design/v23/tooling/V23P01C05RestoreIdentityContractV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "797a375ee537ed3833ae2929ac1bda6506dd157e3a60e3e71f1e4f21f0f9430e"
+    },
+    {
+      "bytes": 8089,
+      "immutable": true,
+      "owner": "V23-P01-C05",
+      "path": "docs/design/v23/tooling/V23P01C05IdentityTransformationManifestV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "ac9d88f1feda11160fc17ae6edb8602733f7146e0aca9dd0fd3bd9ad058f2868"
+    },
+    {
+      "bytes": 6518,
+      "immutable": true,
+      "owner": "V23-P01-C05",
+      "path": "docs/design/v23/tooling/V23-P01-C05-tooling-manifest.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "b471540727b8e9f1321bc1a4e8173622d9a9e2fd51698ae93c573271aac0f486"
+    },
+    {
+      "bytes": 28781,
+      "immutable": true,
+      "owner": "V23-P01-C06",
+      "path": "docs/design/v23/tooling/V23P01C06DeletionRightsContractV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "4250ed5c5c6aad2f6278bc0114ef3b426b01d0eea6bff03e0bdc5a824dc383cd"
+    },
+    {
+      "bytes": 15010,
+      "immutable": true,
+      "owner": "V23-P01-C06",
+      "path": "docs/design/v23/tooling/V23P01C06DeletionGraphManifestV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "dbbdb369ef7a6425378fc1d304cde22ec6578343b8ee9c97a7010a5558f96fda"
+    },
+    {
+      "bytes": 8266,
+      "immutable": true,
+      "owner": "V23-P01-C06",
+      "path": "docs/design/v23/tooling/V23-P01-C06-tooling-manifest.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "dbd2b13032838413e40977a0acb484b71e5584b862f836d45fc8b3be5a6ab78e"
+    },
+    {
+      "bytes": 2697,
+      "immutable": true,
+      "owner": "S3_3",
+      "path": "FieldEvidenceAppTests/Fixtures/S3_3ReportSnapshotV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "8b81589641276df9ee94dba99ac390ce8679fcc2932825e79e4178eb91377b3e"
+    },
+    {
+      "bytes": 9040,
+      "immutable": true,
+      "owner": "S6_2",
+      "path": "FieldEvidenceAppTests/Fixtures/S6_2V4BackupRecordsV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "4f6b1c58fe0bce27d36898f463e4742bde618e631b073a29d98243e8f09ed87f"
+    },
+    {
+      "bytes": 486,
+      "immutable": true,
+      "owner": "S6_3",
+      "path": "FieldEvidenceAppTests/Fixtures/S6_3V4BackupPackageV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "a3699f4070dec364b19c316dd0f0acd5a080bd7bdc89dc861249932d16b9bffa"
+    },
+    {
+      "bytes": 3765,
+      "immutable": true,
+      "owner": "S8_1",
+      "path": "FieldEvidenceAppTests/Fixtures/S8_1ExteriorLightPackV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "6f72c39fa9909ccfec087e33cb82a456b1e7b083745601cc6ea1bb05f277f7c8"
+    },
+    {
+      "bytes": 7204,
+      "immutable": true,
+      "owner": "V21-P01-C04",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Archives/V21P01C04ArchiveCorpusV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "bdc3f92d595bdb21ed465660c9f2e45196dc5271302dcb2e604f57513defec84"
+    },
+    {
+      "bytes": 2838,
+      "immutable": true,
+      "owner": "V21-P01-C05",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Restore/V21P01C05IdentityTransformationsV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "18f14d34d9482519eb17bbd539cc73f89412c60538cb478a0596747e516a043a"
+    },
+    {
+      "bytes": 15753,
+      "immutable": true,
+      "owner": "V21-P01-C06",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Deletion/V21P01C06DeletionGraphV1.json",
+      "referenceDisposition": "IMMUTABLE_REFERENCE_BY_SHA_NO_NEW_ACCEPTANCE_CREDIT",
+      "sha256": "5e8311f758184cd98eb7d6c0c4cd1db2d25427eb25cb166bca393b395ab80e3a"
+    }
+  ],
+  "nativeCompileRan": false,
+  "pathFence": [
+    "Scripts/v23/p01_c07_contracts.py",
+    "Scripts/v23/generate_p01_c07_contracts.py",
+    "Scripts/v23/verify_p01_c07_contracts.py",
+    "Scripts/v23/released-data-compatibility-policy.schema.json",
+    "Scripts/v23/compatibility-case-manifest.schema.json",
+    "Scripts/v23/compatibility-corpus-manifest.schema.json",
+    "Scripts/v23/compatibility-run-receipt.schema.json",
+    "Scripts/v23/release-seed-corpus.schema.json",
+    "Scripts/v23/release-seed-corpus-seal.schema.json",
+    "Scripts/v23/supported-upgrade-path.schema.json",
+    "Scripts/v23/data-compatibility-manifest.schema.json",
+    "docs/design/v23/tooling/V23P01C07ReleasedDataCompatibilityPolicyV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityCaseManifestV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23P01C07CompatibilityRunReceiptV1.json",
+    "docs/design/v23/tooling/V23P01C07ReleaseSeedCorpusV1.json",
+    "docs/design/v23/tooling/V23P01C07ReleaseSeedCorpusSealV1.json",
+    "docs/design/v23/tooling/V23P01C07SupportedUpgradePathV1.json",
+    "docs/design/v23/tooling/V23P01C07DataCompatibilityManifestV1.json",
+    "docs/design/v23/tooling/V23-P01-C07-tooling-manifest.json"
+  ],
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23-P01-C07-tooling-manifest",
+  "schemaPaths": [
+    "Scripts/v23/released-data-compatibility-policy.schema.json",
+    "Scripts/v23/compatibility-case-manifest.schema.json",
+    "Scripts/v23/compatibility-corpus-manifest.schema.json",
+    "Scripts/v23/compatibility-run-receipt.schema.json",
+    "Scripts/v23/release-seed-corpus.schema.json",
+    "Scripts/v23/release-seed-corpus-seal.schema.json",
+    "Scripts/v23/supported-upgrade-path.schema.json",
+    "Scripts/v23/data-compatibility-manifest.schema.json"
+  ],
+  "schemaVersion": 1,
+  "sourceBindingComplete": true,
+  "sourceBindingCount": 9,
+  "sourceBindings": [
+    {
+      "bytes": 17258,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift",
+      "requiredSymbols": [
+        "ReleasedDataCompatibilityPolicyV1",
+        "DataCompatibilityManifestV1",
+        "SupportedUpgradePathV1",
+        "CompatibilityArtifactFamilyV1",
+        "candidateHead",
+        "firstPublicSealOwner",
+        "case finalizationIntent",
+        "static let current"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "fcf687fa63af07a92c8b6b4376ef61ad3649fbbba6a16875f22176efc9c29696",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 25117,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Domain/Compatibility/CompatibilityCorpusContractsV1.swift",
+      "requiredSymbols": [
+        "CompatibilityCanonicalV1",
+        "CompatibilityCaseManifestV1",
+        "CompatibilityCorpusManifestV1",
+        "CompatibilityRunReceiptV1",
+        "ReleaseSeedCorpusV1",
+        "ReleaseSeedCorpusSealV1",
+        "caseIDs("
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "dc7ac4ce717204bb6121772eaf4087fa003125bbc5fcc50efa410d82e00216c2",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 81647,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "requiredSymbols": [
+        "BackupExportService",
+        "prepareStreaming",
+        "prepareCompatibilityFixtureLegacyDirectoryPackage",
+        "exportCompatibilityFixtureLegacyDirectoryPackage",
+        "buildStreamingPrepared"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "cf59180babec5a29d60057b7cec3e41cc0d39946e8a6ef8bf5db9fcf42c56a1e",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 15913,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/CompatibilityCorpusSupportV1.swift",
+      "requiredSymbols": [
+        "V907CompatibilitySupport",
+        "fixtureData",
+        "corpus",
+        "seed",
+        "result",
+        "receipt",
+        "replacing",
+        "generatedCaseArtifacts",
+        "generatedArtifact",
+        "observedOutputSHA256"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "26f7b4a3344ba7e2404832dfed8fb5f9053c9ec639331563aaeeb186f407f999",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 11113,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/V9_07CompatibilityPolicyTests.swift",
+      "requiredSymbols": [
+        "V9_07CompatibilityPolicyTests",
+        "testV9_07A01DeterministicBoundaryAndInternationalSeedCases",
+        "testV9_07H01FutureChangedDigestHostileArchiveAndPrivacyRejection",
+        "testV9_07R01ReplayQuarantineImmutabilityAndAcceptanceModeSeparation",
+        "mode: .acceptingFailFast",
+        "requireAccepting"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "d08f2f980c62e3f20f4dafac7e4602211e370fa1677380d670d0fabe81fc68c3",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 27708,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/V9_07CompatibilityCorpusIntegrationTests.swift",
+      "requiredSymbols": [
+        "V9_07CompatibilityCorpusIntegrationTests",
+        "testV9_07G01AggregateReleasedDataCorpusAndRuntimeRoundTrips",
+        "testV9_07I01EvidenceExportAndRunReceiptInterruptionsPreserveCorpus"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "477619ab62316f3d14294d07e8a5d5c901627c7aac04a33da6f5137389cc5d4f",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 24188,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+      "requiredSymbols": [
+        "S6_2BackupExportTests",
+        "testCanonicalFixturesAndExportedBundleTypeDeclaration"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "8f052f3a017f341b073cd662f6a7bbc9ec50eaa49df58c03fc70c18a3131f4d9",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 90047,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+      "requiredSymbols": [
+        "S6_3BackupValidationTests",
+        "prepareCompatibilityFixtureLegacyDirectoryPackage",
+        "exportCompatibilityFixtureLegacyDirectoryPackage"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "73f9da15823ec18341a53b2edd5b32ee21e2695d04688c0bd2601a53f4f3f87e",
+      "status": "BOUND"
+    },
+    {
+      "bytes": 16449,
+      "digestNormalization": "UTF8_LF",
+      "missingSymbols": [],
+      "path": "FieldEvidenceAppTests/V9_06DeletionRightsTests.swift",
+      "requiredSymbols": [
+        "V9_06DeletionRightsTests",
+        "testV9_06G01",
+        "testV9_06A01",
+        "testV9_06H01"
+      ],
+      "role": "FENCED_PRODUCT_OR_TEST_SOURCE",
+      "sha256": "8943c00109a98a4dc16f36a446c473d7c7f85cc1fdf019178699f50a3ed7a6e6",
+      "status": "BOUND"
+    }
+  ],
+  "sourcePaths": [
+    "FieldEvidenceApp/Domain/Compatibility/ReleasedDataCompatibilityPolicyV1.swift",
+    "FieldEvidenceApp/Domain/Compatibility/CompatibilityCorpusContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceAppTests/CompatibilityCorpusSupportV1.swift",
+    "FieldEvidenceAppTests/V9_07CompatibilityPolicyTests.swift",
+    "FieldEvidenceAppTests/V9_07CompatibilityCorpusIntegrationTests.swift",
+    "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+    "FieldEvidenceAppTests/S6_3BackupValidationTests.swift",
+    "FieldEvidenceAppTests/V9_06DeletionRightsTests.swift"
+  ],
+  "toolingPathCount": 20
+}

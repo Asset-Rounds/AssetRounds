@@ -1,0 +1,38 @@
+{
+  "buildRun": false,
+  "candidateSHA256": "2505294377f664539ad9ef746616b4f909e986f689721003997901f7cf855016",
+  "nativeRun": false,
+  "results": [
+    {
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-physical-effect-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift"
+      ],
+      "evidenceKind": "syntax parse only, not typecheck/compilation/link/runtime",
+      "exitCode": 0,
+      "mode": "DEBUG",
+      "stderrBytes": 0,
+      "stdoutBytes": 0
+    },
+    {
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-physical-effect-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift"
+      ],
+      "evidenceKind": "syntax parse only, not typecheck/compilation/link/runtime",
+      "exitCode": 0,
+      "mode": "nonDEBUG",
+      "stderrBytes": 0,
+      "stdoutBytes": 0
+    }
+  ],
+  "semanticCompilerRun": false
+}

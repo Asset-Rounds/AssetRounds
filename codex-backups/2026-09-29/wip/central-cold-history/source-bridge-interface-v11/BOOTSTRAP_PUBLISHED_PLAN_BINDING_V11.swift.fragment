@@ -1,0 +1,149 @@
+/// Observation-only original-P origin before a C16 plan/progress exists.
+/// Its issuer binds the complete immutable first-P partial role list and the
+/// actual current source/control projection under the genuine owner. No
+/// proposed plan hash, future ordinal or durable progress is fabricated.
+@MainActor
+final class EraseSchema2ColdScratchBootstrapPermitV1 {
+    private let requireActualCut: @MainActor () throws -> Void
+    private let initialBinding: @MainActor ([OriginalEraseC16StepV1]) throws -> String
+    private let initialPublishedPlanBinding: @MainActor (String) throws -> String
+    private let firstPFact: @MainActor (String) throws -> String?
+    private let firstPSHA256: @MainActor (String) throws -> String
+    private let firstPPaths: @MainActor (String) throws -> [String]
+    private let sourceAdmission: @MainActor (String, Data, String) throws -> Void
+    private let genericScopeProvider: @MainActor () throws -> OriginalEraseSealedGenericObservationScopeV1?
+    private let retainUncertainty: @MainActor () -> Void
+    private var active = true
+    private var uncertain = false
+
+    fileprivate init(
+        requireActualCut: @escaping @MainActor () throws -> Void,
+        initialBinding: @escaping @MainActor ([OriginalEraseC16StepV1]) throws -> String,
+        initialPublishedPlanBinding: @escaping @MainActor (String) throws -> String,
+        firstPFact: @escaping @MainActor (String) throws -> String?,
+        firstPSHA256: @escaping @MainActor (String) throws -> String,
+        firstPPaths: @escaping @MainActor (String) throws -> [String],
+        sourceAdmission: @escaping @MainActor (String, Data, String) throws -> Void,
+        genericScopeProvider: @escaping @MainActor () throws -> OriginalEraseSealedGenericObservationScopeV1?,
+        retainUncertainty: @escaping @MainActor () -> Void
+    ) {
+        self.requireActualCut = requireActualCut
+        self.initialBinding = initialBinding
+        self.initialPublishedPlanBinding = initialPublishedPlanBinding
+        self.firstPFact = firstPFact
+        self.firstPSHA256 = firstPSHA256
+        self.firstPPaths = firstPPaths
+        self.sourceAdmission = sourceAdmission
+        self.genericScopeProvider = genericScopeProvider
+        self.retainUncertainty = retainUncertainty
+    }
+
+    private func requireCurrent() throws {
+        guard active, !uncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireActualCut()
+    }
+
+    func requireInitialC16ObservationBinding(
+        firstPPartials: [OriginalEraseC16StepV1]
+    ) throws -> String {
+        try requireCurrent()
+        let token = try initialBinding(firstPPartials)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(token) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireCurrent()
+        return token
+    }
+
+    /// The exact already-published Plan is DATA; actual Store checkpoint,
+    /// complete immutable source roots and positive no-Progress/no-effect cut
+    /// supply this observation token. A page publisher must leave the lexical
+    /// read window before changing the checkpoint and reissue this permit.
+    func requireInitialC16PublishedPlanBinding(planSHA256: String) throws -> String {
+        do {
+            try requireCurrent()
+            guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(planSHA256) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            let token = try initialPublishedPlanBinding(planSHA256)
+            guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(token) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireCurrent()
+            return token
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+    func originalPPhysicalFact(path: String) throws -> String? {
+        try requireCurrent()
+        let value = try firstPFact(path)
+        try requireCurrent()
+        return value
+    }
+
+    func originalPPhysicalSHA256(path: String) throws -> String {
+        try requireCurrent()
+        let value = try firstPSHA256(path)
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(value) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireCurrent()
+        return value
+    }
+
+    func originalPPhysicalPaths(prefix: String) throws -> [String] {
+        try requireCurrent()
+        let value = try firstPPaths(prefix)
+        try Self.requireImmutablePaths(value, prefix: prefix)
+        try requireCurrent()
+        return value
+    }
+
+    fileprivate static func requireImmutablePaths(_ paths: [String], prefix: String) throws {
+        let components = prefix.split(separator: "/", omittingEmptySubsequences: false)
+        guard !prefix.isEmpty, !prefix.hasPrefix("/"), !prefix.hasSuffix("/"),
+              components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+              paths.count <= 100_000, paths == paths.sorted(),
+              Set(paths).count == paths.count,
+              paths.allSatisfy({ path in
+                  let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+                  return (path == prefix || path.hasPrefix(prefix + "/"))
+                    && parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." })
+              }) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireOriginalPSource(path: String, bytes: Data,
+        fullFact: String) throws {
+        try requireCurrent()
+        try sourceAdmission(path, bytes, fullFact)
+        try requireCurrent()
+    }
+
+    /// Reissue after every actual control/record or owned physical cut.
+    /// The real provider revokes the prior lexical scope. A nil result keeps
+    /// ordinary nlink-one policy and cannot exclude an immutable partial.
+    func currentSealedGenericObservationScope() throws
+        -> OriginalEraseSealedGenericObservationScopeV1? {
+        do {
+            try requireCurrent()
+            let scope = try genericScopeProvider()
+            try scope?.requireCurrentBinding()
+            try requireCurrent()
+            return scope
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+
+    func poisonOnUncertainEffect() {
+        if !uncertain {
+            uncertain = true
+            retainUncertainty()
+        }
+    }
+
+    fileprivate func revoke() { active = false }
+}
+

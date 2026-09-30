@@ -1,0 +1,10 @@
+// Sole Workflow author inserts INSIDE the existing UserNotificationSystemAdapterV1.
+// Add NotificationTerminalSystemPortV4 conformance to that same class; do not change ordinary port methods.
+func pendingObservations() async throws -> [NotificationSystemObservationV1] {
+    let values = await center.pendingNotificationRequests()
+    return values.map { Self.observation($0, delivered: false) }
+}
+func deliveredObservations() async throws -> [NotificationSystemObservationV1] {
+    let values = await center.deliveredNotifications()
+    return values.map { Self.observation($0.request, delivered: true) }
+}

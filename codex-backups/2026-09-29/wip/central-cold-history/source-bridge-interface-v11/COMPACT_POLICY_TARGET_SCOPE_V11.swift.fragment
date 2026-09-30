@@ -1,0 +1,118 @@
+/// Exact current private policy membership DATA returned by the genuine
+/// first-held target owner. No child kind/path is accepted from the caller
+/// alone. Ancestors are the positively named/held closed hierarchy.
+struct EraseSchema2CompactPolicyPathBindingV4: Equatable {
+    struct Ancestor: Equatable {
+        let url: URL
+        let fullFact: String
+    }
+    let kind: OwnedFileKindV1
+    let url: URL
+    let fullFact: String
+    let parentURL: URL
+    let parentFullFact: String
+    let ancestors: [Ancestor]
+}
+
+/// Observation-only actual current target admission. The concrete Router
+/// issuer binds the first-held compact capsule/real held EX and exact surviving
+/// suffix before creating this lexical scope. Required checks are nonrecursive.
+@MainActor
+final class EraseSchema2CompactTargetReadPermitV4 {
+    let operationID: UUID
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    let originBinding: String
+    private let requireActualCut: @MainActor () throws -> String
+    private let requireActualPolicyPath: @MainActor (OwnedFileKindV1, URL) throws -> EraseSchema2CompactPolicyPathBindingV4
+    private let retainPolicyAttempt: @MainActor (OriginalEraseC16CurrentTemporalObservationAttemptV1) -> Void
+    private let retainIO: @MainActor (EraseAbortCheckedSnapshotIOV1) -> Void
+    private let retainUncertainty: @MainActor () -> Void
+    private var active = true
+    private var uncertain = false
+
+    fileprivate init(operationID: UUID,
+        subject: EraseSchema2ConsumerCompleteSubjectV4, originBinding: String,
+        requireActualCut: @escaping @MainActor () throws -> String,
+        requireActualPolicyPath: @escaping @MainActor (OwnedFileKindV1, URL) throws -> EraseSchema2CompactPolicyPathBindingV4,
+        retainPolicyAttempt: @escaping @MainActor (OriginalEraseC16CurrentTemporalObservationAttemptV1) -> Void,
+        retainIO: @escaping @MainActor (EraseAbortCheckedSnapshotIOV1) -> Void,
+        retainUncertainty: @escaping @MainActor () -> Void) throws {
+        try subject.validateData()
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(originBinding) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        self.operationID = operationID; self.subject = subject
+        self.originBinding = originBinding; self.requireActualCut = requireActualCut
+        self.requireActualPolicyPath = requireActualPolicyPath
+        self.retainPolicyAttempt = retainPolicyAttempt
+        self.retainIO = retainIO; self.retainUncertainty = retainUncertainty
+    }
+
+    func requireCurrentBinding() throws {
+        do {
+            guard active, !uncertain, try requireActualCut() == originBinding else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func requireExpectedTargetGenerationID() throws -> UUID {
+        try requireCurrentBinding()
+        let value = subject.targetGenerationID
+        try requireCurrentBinding()
+        return value
+    }
+    func requireTarget(generationID: UUID, pointerSHA256: String,
+        preservedManifestSHA256: String) throws {
+        do {
+            try requireCurrentBinding()
+            guard generationID == subject.targetGenerationID,
+                  pointerSHA256 == subject.targetPointerSHA256,
+                  preservedManifestSHA256 == subject.preservedManifestSHA256 else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireCurrentBinding()
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    /// Positive kind/path lookup occurs before the first PFP descriptor open.
+    /// The returned actual fact must separately equal the scanner's own
+    /// current full11 observation; caller bytes never become the authority.
+    func requirePolicyTarget(_ kind: OwnedFileKindV1, at url: URL) throws
+        -> EraseSchema2CompactPolicyPathBindingV4 {
+        do {
+            try requireCurrentBinding()
+            let actual = try requireActualPolicyPath(kind, url)
+            guard actual.kind == kind, actual.url == url,
+                  actual.fullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+                  actual.parentURL == url.deletingLastPathComponent(),
+                  actual.parentFullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11,
+                  !actual.ancestors.isEmpty,
+                  actual.ancestors.allSatisfy({ $0.url.isFileURL &&
+                    $0.fullFact.split(separator: "|", omittingEmptySubsequences: false).count == 11 }) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireCurrentBinding()
+            return actual
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func requirePolicyPath(kind: OwnedFileKindV1, at url: URL, fullFact: String) throws {
+        do {
+            let actual = try requirePolicyTarget(kind, at: url)
+            guard actual.fullFact == fullFact else { throw EraseAllServiceError.invalidAuthority }
+            try requireCurrentBinding()
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func retainPolicyObservationAttempt(_ attempt: OriginalEraseC16CurrentTemporalObservationAttemptV1) {
+        retainPolicyAttempt(attempt)
+    }
+
+    func retainObservationAttempt(io: EraseAbortCheckedSnapshotIOV1) {
+        // Retention precedes every child open. Revocation never discards or
+        // retries an uncertain numeric descriptor; this grants no IO itself.
+        retainIO(io)
+    }
+    func poisonOnUncertainObservation() {
+        if !uncertain { uncertain = true; retainUncertainty() }
+    }
+    fileprivate func revoke() { active = false }
+}
+

@@ -1,0 +1,378 @@
+{
+  "schema": "SourceLockEliminationReceiptV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C09",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "506887f637679d2416657c99638069605e4ca918",
+    "baseTree": "50fe6f3696e7fd7675b4be1ae2f231cdb7c71a87",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "bc821da9b06681f3682e87a11900be0a6bb0e816c40262a11c040f26c9bf9cb9",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "46c382016f5600610d421abdcf4f5a3e486bc0d8c01e791c1b31d6d33513041c",
+    "bootstrapPathFenceDigest": "7138b44784ebe79a77e3bb243e6048f50d05b4ffd37cf74664bcdb800c54b36e",
+    "provisionalPrerequisiteDigest": "d44bd9940a710ba151ce21d5e9d5b746d9443dc6bf87d7f305f6ce50aae3b2a2",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "2e042673a4eb518e480cc12a03f1f09b61b3b752ae955bf2bbcb05341132398c",
+    "ledgerCASSequence": 23,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "scanRoots": [
+    "FieldEvidenceAppTests",
+    "FieldEvidenceAppUITests"
+  ],
+  "scanRuleDigest": "4a64101b3d7966938d1fcf5b41a7fd6f1a28dc584c46b4a04e4e59b8069b29af",
+  "findings": [
+    {
+      "path": "FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift",
+      "line": 923,
+      "kind": "SOURCE_OCCURRENCE_COUNT_LOCK",
+      "evidenceSHA256": "361fd2a572b4d00f1d191ab000772a2a0fb1640fb36d815aabac920e84016c93",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S6_2BackupExportTests.swift",
+      "line": 166,
+      "kind": "SOURCE_OCCURRENCE_COUNT_LOCK",
+      "evidenceSHA256": "7ac1dfec2ecfff0c1610966299f65a7f89530e3b812308c1029c97aabb46f9a1",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 107,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "0d61f03a009875441f48bbae3f3e43d8233ce2f9020016a83a71ed0d1a55e548",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 110,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "0d61f03a009875441f48bbae3f3e43d8233ce2f9020016a83a71ed0d1a55e548",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 113,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "0d61f03a009875441f48bbae3f3e43d8233ce2f9020016a83a71ed0d1a55e548",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 116,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "7028e6c9f1690f928c16df6ca6c31b32d0577ab1815feb9e5836e2004286c8d0",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 117,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "3f96f85e2dd74ed89f14846bd36084ba5ca8c691f576910f0ae1e2bb610f0a7b",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 118,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "9d1e6226a0def57e4e03961b42eee5c63bcfb77aea3c9b7d9e4c42c5baf57aa8",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 120,
+      "kind": "SOURCE_AGGREGATION_LOCK",
+      "evidenceSHA256": "6fd59c21dc969f6ca41037564cceef7ed6393613dffc2468c565274a41445fb2",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 121,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "6b92ecf79ced3dfb54a91d065db89fb6da6cafcefb291eb8bab14075eb692dc6",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 122,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "db61358e90912bb8f1291e0362f9f1ce35f6e31dc6ea4d0240cb1487e8ec6936",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 123,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "d0281122838aad4d77c810ab2600bc6a4e5cff5a9cd6af0b79ffb34b6dd00c71",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 154,
+      "kind": "SOURCE_AGGREGATION_LOCK",
+      "evidenceSHA256": "55c5017a6f24b873235a4e19e0f0e5a2ce646515667b413ee55e2a60b8e9f8b0",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 155,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "12bdf71b65f3bb381b4389e6b63dd0154d1b3af4432c0938e968beae46844d6a",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 156,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "29f4ae6c94f755b3b9145d0cdb69cb900c86587fb8bae5b47fbb61f93c431766",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 158,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "ace432b9487e23ca6f543b8eb267ad545dc16115a4dfd542eadea78f66dcb65f",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 159,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "0a4fe1dc2b31adecc6e8ac83ef619d275739b3060a97bf692d7747890d6914c0",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 160,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "89d99ac643a8e045d7b103b3f7be2bc08e8a2545bebd43318566c392a9feaf6e",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 162,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "25ff6511a44c850b4725d6161e71ef901740480ae0a9823a69bb4869fe4a66ba",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 163,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "03153249faf415113d7fceed1660a77c9e6473af60a4d04b32a87e6eac34e0c3",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 218,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "e9f6e471eb9fd4d8c81ff778b319b2a7bec8551c7661bcaf3b5a39e7c20c3abc",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 219,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "32be696dd37e3c42fc73b9d05cb218cb934b7f17151257bde76a86d18dcb2a91",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 222,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "5f642c63e9635ee6bcc5e2f2a5844c72c338dbf0d515da73365ecc0d42d297af",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 223,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "286f2c554b70cffbad1e07d3a5735ad1d98225139606e5ad4a9a97ca651aa0e2",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 224,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "cf9a542d0220681ee09bc495e104338bf0586bdbf6727495fc179da19e01e9e1",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 225,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "32be696dd37e3c42fc73b9d05cb218cb934b7f17151257bde76a86d18dcb2a91",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 242,
+      "kind": "PROJECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "ea495597012bd4dbe7c95643d8a14cd56c899410e88b8f3a424d27249218920f",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 254,
+      "kind": "DIRECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "78a9bb8877cc0ecd0c665853df80050f58a33da4fcc7c3bfc03172a5ecb5da45",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 255,
+      "kind": "DIRECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "d7d32542e253d20970dfac3bde3feeda6f49d71e72e2b3fd4abee29b4b2f620d",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 256,
+      "kind": "DIRECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "b9354361eded07c8d39bb24599b51af036a46b5af5e086bd250b893e4539c4cb",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 257,
+      "kind": "DIRECT_SOURCE_TEXT_LOCK",
+      "evidenceSHA256": "eadc5d830240cbb382fa1b393e7093b3a6b50f34c8bb7a1c3dd6451ee65d9d0a",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 372,
+      "kind": "SOURCE_AGGREGATION_LOCK",
+      "evidenceSHA256": "0cd084a129c53c21811653a284bb8b442537b1a485c922d1b4a72c42783dd4c6",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 383,
+      "kind": "SOURCE_AGGREGATION_LOCK",
+      "evidenceSHA256": "805c3e3cdec56f95da29261be11b24c755201d6439f6a2ab72c38c711dbb37ff",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 528,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "610a49eb84648345481df38a0fe82cf593e6d4ac3ae4ecdd78cce6d1ce0e74fb",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 529,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "a0f9345675dab3f44ac84e46ca3305556372188ddfa3ff38c34a8729c5d89f8d",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 530,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "8dad2abff1e79e151f1a937622f42ab508ecede3438d9a4de0af7d072565e922",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 531,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "2cb6bb0c54918901925ca8ab6fe60be7660ec388be37581c0be15b79724e6498",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 532,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "b12e9bac77bf08a3a6d54d2b1e5a8bb3f7967298f5d790591440bd0da5dbb8d3",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 533,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "47964c7a88ee83ef1889aea71acc16e655705b1c1e7d9a855bdcde493283e3c4",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 534,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "ebf6ea60778c5a10a189b3b3fd85fac54773b6b4a8078f4cd114ced06ba1164c",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 535,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "fb631f2996bede7cbdb814c1a0c4d03a11f3dac7e9dfd015b737047a8bff82c4",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 536,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "2e60eb4cbaf97b2f5a46ebe6c73e80fa0ab5ae4b3c90e6f66adb1a692fbec3f3",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 540,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "ee39a9ed3080fe25a743356ed7a192e6ae844b6c5c15d309c5fadd3772eec2bd",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 541,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "4582e47c21d50a78b99bfdcd8fc9a85d6ae7a30156e9e97d6ea860f4730805eb",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 542,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "9aabd4907b8a7517100657ae013ff3877de1d2ce2c2f5218277e739bf59f2afd",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 543,
+      "kind": "SOURCE_VALIDATOR_TEXT_LOCK",
+      "evidenceSHA256": "f05680dc36c18a3615e55847caf030e8c85fdccbbabd2845ddf2e1e92eb27a15",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "line": 582,
+      "kind": "SOURCE_OCCURRENCE_COUNT_LOCK",
+      "evidenceSHA256": "cb3616a050ae7016869ff269539392396c271e0bc08a7ccb6ca3472650b57028",
+      "disposition": "REQUIRES_SEMANTIC_MANIFEST_OR_PARSER_REPLACEMENT"
+    }
+  ],
+  "findingCount": 47,
+  "eliminationSatisfied": false,
+  "disposition": "PROVISIONAL_FINDINGS_REMAIN",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "38a3949df09241c226bda24f3718fa35007b5aae0c8a02099ebb12d0429e803c"
+}

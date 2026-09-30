@@ -1,0 +1,438 @@
+{
+  "schema": "V22P03C43CustomerLearningCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C43",
+  "classification": "PREPARE_NOW",
+  "collectionDisposition": "DISABLED_NO_COLLECTION",
+  "questions": [
+    {
+      "questionID": "CUSTOMER_LEARNING.ACQUISITION_SOURCE_MIX.V1",
+      "version": 1,
+      "decisionID": "DECISION.ACQUISITION_SOURCE_MIX",
+      "purpose": "ACQUISITION_SOURCE_MIX",
+      "allowedSourceKinds": [
+        "APP_STORE_CONNECT_AGGREGATE"
+      ],
+      "exclusions": [
+        "CUSTOMER_CONTENT",
+        "INFERRED_PEOPLE"
+      ]
+    },
+    {
+      "questionID": "CUSTOMER_LEARNING.PRODUCT_PAGE_CONVERSION.V1",
+      "version": 1,
+      "decisionID": "DECISION.PRODUCT_PAGE_CONVERSION",
+      "purpose": "PRODUCT_PAGE_CONVERSION",
+      "allowedSourceKinds": [
+        "APP_STORE_CONNECT_AGGREGATE"
+      ],
+      "exclusions": [
+        "CUSTOMER_CONTENT",
+        "CAMPAIGN_TOKEN_INGESTION"
+      ]
+    },
+    {
+      "questionID": "CUSTOMER_LEARNING.FIRST_REAL_JOB_COMPLETION.V1",
+      "version": 1,
+      "decisionID": "DECISION.FIRST_REAL_JOB_COMPLETION",
+      "purpose": "FIRST_REAL_JOB_COMPLETION",
+      "allowedSourceKinds": [
+        "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION"
+      ],
+      "exclusions": [
+        "PRACTICE",
+        "SYNTHETIC",
+        "TEST",
+        "DIAGNOSTIC"
+      ]
+    },
+    {
+      "questionID": "CUSTOMER_LEARNING.OFFLINE_ROUND_COMPLETION.V1",
+      "version": 1,
+      "decisionID": "DECISION.OFFLINE_ROUND_COMPLETION",
+      "purpose": "OFFLINE_READY_ROUND_COMPLETION",
+      "allowedSourceKinds": [
+        "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION"
+      ],
+      "exclusions": [
+        "PRACTICE",
+        "SYNTHETIC",
+        "TEST",
+        "DIAGNOSTIC"
+      ]
+    },
+    {
+      "questionID": "CUSTOMER_LEARNING.REPORT_PREVIEW_SUCCESS.V1",
+      "version": 1,
+      "decisionID": "DECISION.REPORT_PREVIEW_SUCCESS",
+      "purpose": "REPORT_PREVIEW_SUCCESS",
+      "allowedSourceKinds": [
+        "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION"
+      ],
+      "exclusions": [
+        "PRACTICE",
+        "SYNTHETIC",
+        "TEST",
+        "DIAGNOSTIC"
+      ]
+    },
+    {
+      "questionID": "CUSTOMER_LEARNING.SEVEN_DAY_RETURN.V1",
+      "version": 1,
+      "decisionID": "DECISION.SEVEN_DAY_RETURN",
+      "purpose": "SEVEN_DAY_AGGREGATE_RETURN",
+      "allowedSourceKinds": [
+        "FUTURE_CONSENTED_PRODUCT_ANALYTICS"
+      ],
+      "exclusions": [
+        "UNCONSENTED_POPULATION",
+        "USER_LEVEL_LINKAGE"
+      ]
+    },
+    {
+      "questionID": "CUSTOMER_LEARNING.THIRTY_DAY_RETURN.V1",
+      "version": 1,
+      "decisionID": "DECISION.THIRTY_DAY_RETURN",
+      "purpose": "THIRTY_DAY_AGGREGATE_RETURN",
+      "allowedSourceKinds": [
+        "FUTURE_CONSENTED_PRODUCT_ANALYTICS"
+      ],
+      "exclusions": [
+        "UNCONSENTED_POPULATION",
+        "USER_LEVEL_LINKAGE"
+      ]
+    },
+    {
+      "questionID": "CUSTOMER_LEARNING.OWNER_INTERVIEW_THEMES.V1",
+      "version": 1,
+      "decisionID": "DECISION.OWNER_INTERVIEW_THEMES",
+      "purpose": "OWNER_FIELD_RESEARCH_THEMES",
+      "allowedSourceKinds": [
+        "EXPLICIT_FIELD_RESEARCH"
+      ],
+      "exclusions": [
+        "CUSTOMER_CONTENT",
+        "SILENTLY_INFERRED_PEOPLE"
+      ]
+    }
+  ],
+  "metricDefinitions": [
+    {
+      "metricID": "METRIC.ACQUISITION_SOURCE_SHARE.V1",
+      "version": 1,
+      "questionID": "CUSTOMER_LEARNING.ACQUISITION_SOURCE_MIX.V1",
+      "decisionID": "DECISION.ACQUISITION_SOURCE_MIX",
+      "numeratorID": "OUTCOME.ACQUISITIONS_FOR_DECLARED_SOURCE",
+      "denominatorID": "OUTCOME.ALL_ELIGIBLE_ACQUISITIONS",
+      "formula": "PERCENTAGE_BASIS_POINTS",
+      "unit": "BASIS_POINTS",
+      "sourceKind": "APP_STORE_CONNECT_AGGREGATE",
+      "sourceReleaseID": "SOURCE.APP_STORE_CONNECT.AGGREGATE.V1",
+      "privacyThreshold": 20,
+      "missingDataDisposition": "UNKNOWN",
+      "noncausalInterpretation": "Aggregate association does not establish causal acquisition effect.",
+      "observationWindowDays": 30,
+      "attributionWindowDays": 30,
+      "exclusions": [
+        "MISSING_SOURCE",
+        "UNSUPPORTED_DENOMINATOR"
+      ]
+    },
+    {
+      "metricID": "METRIC.PRODUCT_PAGE_CONVERSION.V1",
+      "version": 1,
+      "questionID": "CUSTOMER_LEARNING.PRODUCT_PAGE_CONVERSION.V1",
+      "decisionID": "DECISION.PRODUCT_PAGE_CONVERSION",
+      "numeratorID": "OUTCOME.FIRST_DOWNLOADS",
+      "denominatorID": "OUTCOME.PRODUCT_PAGE_VIEWS",
+      "formula": "PERCENTAGE_BASIS_POINTS",
+      "unit": "BASIS_POINTS",
+      "sourceKind": "APP_STORE_CONNECT_AGGREGATE",
+      "sourceReleaseID": "SOURCE.APP_STORE_CONNECT.AGGREGATE.V1",
+      "privacyThreshold": 20,
+      "missingDataDisposition": "UNKNOWN",
+      "noncausalInterpretation": "Observed conversion is descriptive and not a causal product-page claim.",
+      "observationWindowDays": 30,
+      "attributionWindowDays": 30,
+      "exclusions": [
+        "DELAYED_REPORT",
+        "UNSUPPORTED_DENOMINATOR"
+      ]
+    },
+    {
+      "metricID": "METRIC.FIRST_REAL_JOB_COMPLETION.V1",
+      "version": 1,
+      "questionID": "CUSTOMER_LEARNING.FIRST_REAL_JOB_COMPLETION.V1",
+      "decisionID": "DECISION.FIRST_REAL_JOB_COMPLETION",
+      "numeratorID": "OUTCOME.FIRST_REAL_JOB_COMPLETED",
+      "denominatorID": "OUTCOME.ELIGIBLE_FIRST_REAL_JOB_STARTED",
+      "formula": "PERCENTAGE_BASIS_POINTS",
+      "unit": "BASIS_POINTS",
+      "sourceKind": "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION",
+      "sourceReleaseID": "SOURCE.SYNTHETIC_OPERATIONAL_RECEIPT_DESCRIPTOR.V1",
+      "privacyThreshold": 10,
+      "missingDataDisposition": "UNKNOWN",
+      "noncausalInterpretation": "Completion association does not identify a cause of success or failure.",
+      "observationWindowDays": 30,
+      "attributionWindowDays": 30,
+      "exclusions": [
+        "PRACTICE",
+        "SYNTHETIC",
+        "TEST",
+        "DIAGNOSTIC"
+      ]
+    },
+    {
+      "metricID": "METRIC.OFFLINE_ROUND_COMPLETION.V1",
+      "version": 1,
+      "questionID": "CUSTOMER_LEARNING.OFFLINE_ROUND_COMPLETION.V1",
+      "decisionID": "DECISION.OFFLINE_ROUND_COMPLETION",
+      "numeratorID": "OUTCOME.OFFLINE_READY_ROUND_COMPLETED",
+      "denominatorID": "OUTCOME.ELIGIBLE_OFFLINE_READY_ROUND_STARTED",
+      "formula": "PERCENTAGE_BASIS_POINTS",
+      "unit": "BASIS_POINTS",
+      "sourceKind": "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION",
+      "sourceReleaseID": "SOURCE.SYNTHETIC_OPERATIONAL_RECEIPT_DESCRIPTOR.V1",
+      "privacyThreshold": 10,
+      "missingDataDisposition": "UNKNOWN",
+      "noncausalInterpretation": "Offline completion association does not establish why a round completed.",
+      "observationWindowDays": 30,
+      "attributionWindowDays": 30,
+      "exclusions": [
+        "PRACTICE",
+        "SYNTHETIC",
+        "TEST",
+        "DIAGNOSTIC"
+      ]
+    },
+    {
+      "metricID": "METRIC.REPORT_PREVIEW_SUCCESS.V1",
+      "version": 1,
+      "questionID": "CUSTOMER_LEARNING.REPORT_PREVIEW_SUCCESS.V1",
+      "decisionID": "DECISION.REPORT_PREVIEW_SUCCESS",
+      "numeratorID": "OUTCOME.REPORT_PREVIEW_PRODUCED",
+      "denominatorID": "OUTCOME.ELIGIBLE_REPORT_PREVIEW_REQUESTED",
+      "formula": "PERCENTAGE_BASIS_POINTS",
+      "unit": "BASIS_POINTS",
+      "sourceKind": "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION",
+      "sourceReleaseID": "SOURCE.SYNTHETIC_OPERATIONAL_RECEIPT_DESCRIPTOR.V1",
+      "privacyThreshold": 10,
+      "missingDataDisposition": "UNKNOWN",
+      "noncausalInterpretation": "Preview success association does not prove the cause of the outcome.",
+      "observationWindowDays": 30,
+      "attributionWindowDays": 30,
+      "exclusions": [
+        "PRACTICE",
+        "SYNTHETIC",
+        "TEST",
+        "DIAGNOSTIC"
+      ]
+    },
+    {
+      "metricID": "METRIC.SEVEN_DAY_RETURN.V1",
+      "version": 1,
+      "questionID": "CUSTOMER_LEARNING.SEVEN_DAY_RETURN.V1",
+      "decisionID": "DECISION.SEVEN_DAY_RETURN",
+      "numeratorID": "OUTCOME.ELIGIBLE_COHORT_RETURNED_BY_DAY_SEVEN",
+      "denominatorID": "OUTCOME.ELIGIBLE_CONSENTED_COHORT",
+      "formula": "PERCENTAGE_BASIS_POINTS",
+      "unit": "BASIS_POINTS",
+      "sourceKind": "FUTURE_CONSENTED_PRODUCT_ANALYTICS",
+      "sourceReleaseID": "SOURCE.FUTURE_CONSENTED_PRODUCT_ANALYTICS.V1",
+      "privacyThreshold": 25,
+      "missingDataDisposition": "UNKNOWN",
+      "noncausalInterpretation": "Aggregate return association does not establish why a cohort returned.",
+      "observationWindowDays": 7,
+      "attributionWindowDays": 7,
+      "exclusions": [
+        "UNCONSENTED_POPULATION",
+        "USER_LEVEL_LINKAGE"
+      ]
+    },
+    {
+      "metricID": "METRIC.THIRTY_DAY_RETURN.V1",
+      "version": 1,
+      "questionID": "CUSTOMER_LEARNING.THIRTY_DAY_RETURN.V1",
+      "decisionID": "DECISION.THIRTY_DAY_RETURN",
+      "numeratorID": "OUTCOME.ELIGIBLE_COHORT_RETURNED_BY_DAY_THIRTY",
+      "denominatorID": "OUTCOME.ELIGIBLE_CONSENTED_COHORT",
+      "formula": "PERCENTAGE_BASIS_POINTS",
+      "unit": "BASIS_POINTS",
+      "sourceKind": "FUTURE_CONSENTED_PRODUCT_ANALYTICS",
+      "sourceReleaseID": "SOURCE.FUTURE_CONSENTED_PRODUCT_ANALYTICS.V1",
+      "privacyThreshold": 25,
+      "missingDataDisposition": "UNKNOWN",
+      "noncausalInterpretation": "Aggregate return association does not establish why a cohort returned.",
+      "observationWindowDays": 30,
+      "attributionWindowDays": 30,
+      "exclusions": [
+        "UNCONSENTED_POPULATION",
+        "USER_LEVEL_LINKAGE"
+      ]
+    },
+    {
+      "metricID": "METRIC.OWNER_INTERVIEW_THEME_FREQUENCY.V1",
+      "version": 1,
+      "questionID": "CUSTOMER_LEARNING.OWNER_INTERVIEW_THEMES.V1",
+      "decisionID": "DECISION.OWNER_INTERVIEW_THEMES",
+      "numeratorID": "OUTCOME.EXPLICIT_THEME_OBSERVATIONS",
+      "denominatorID": "OUTCOME.ELIGIBLE_OWNER_RUN_INTERVIEWS",
+      "formula": "PERCENTAGE_BASIS_POINTS",
+      "unit": "BASIS_POINTS",
+      "sourceKind": "EXPLICIT_FIELD_RESEARCH",
+      "sourceReleaseID": "SOURCE.EXPLICIT_FIELD_RESEARCH.V1",
+      "privacyThreshold": 5,
+      "missingDataDisposition": "UNKNOWN",
+      "noncausalInterpretation": "Interview-theme frequency is descriptive and cannot establish causation.",
+      "observationWindowDays": 90,
+      "attributionWindowDays": 90,
+      "exclusions": [
+        "CUSTOMER_CONTENT",
+        "SILENTLY_INFERRED_PEOPLE"
+      ]
+    }
+  ],
+  "sourceSeparation": [
+    {
+      "sourceKind": "APP_STORE_CONNECT_AGGREGATE",
+      "releaseID": "SOURCE.APP_STORE_CONNECT.AGGREGATE.V1",
+      "provenance": "OWNER_OPERATED_EXTERNAL_AGGREGATE",
+      "privacyThreshold": 20,
+      "eligibility": "AGGREGATE_REPORT_ONLY",
+      "refreshLagDays": 2,
+      "missingness": "DELAYED_OR_ABSENT_REPORT_IS_UNKNOWN",
+      "nonjoinable": true,
+      "userLevelLinkageForbidden": true
+    },
+    {
+      "sourceKind": "EXPLICIT_FIELD_RESEARCH",
+      "releaseID": "SOURCE.EXPLICIT_FIELD_RESEARCH.V1",
+      "provenance": "OWNER_RUN_EXPLICIT_RESEARCH",
+      "privacyThreshold": 5,
+      "eligibility": "EXPLICIT_RESEARCH_RECORD_ONLY",
+      "refreshLagDays": 14,
+      "missingness": "NO_RESEARCH_RECORD_IS_UNKNOWN",
+      "nonjoinable": true,
+      "userLevelLinkageForbidden": true
+    },
+    {
+      "sourceKind": "REBUILDABLE_OPERATIONAL_RECEIPT_PROJECTION",
+      "releaseID": "SOURCE.SYNTHETIC_OPERATIONAL_RECEIPT_DESCRIPTOR.V1",
+      "provenance": "SYNTHETIC_TESTSUPPORT_DESCRIPTOR_ONLY",
+      "privacyThreshold": 10,
+      "eligibility": "SYNTHETIC_FIXTURE_ONLY",
+      "refreshLagDays": 0,
+      "missingness": "MISSING_SYNTHETIC_INPUT_IS_UNKNOWN",
+      "nonjoinable": true,
+      "userLevelLinkageForbidden": true
+    },
+    {
+      "sourceKind": "FUTURE_CONSENTED_PRODUCT_ANALYTICS",
+      "releaseID": "SOURCE.FUTURE_CONSENTED_PRODUCT_ANALYTICS.V1",
+      "provenance": "DORMANT_FUTURE_SOURCE_CONTRACT",
+      "privacyThreshold": 25,
+      "eligibility": "OWNER_ACCEPTED_ACTIVATION_REQUIRED",
+      "refreshLagDays": 1,
+      "missingness": "UNACTIVATED_SOURCE_IS_UNKNOWN",
+      "nonjoinable": true,
+      "userLevelLinkageForbidden": true
+    }
+  ],
+  "activationDecision": {
+    "state": "UNACTIVATED_OWNER_ACCEPTANCE_REQUIRED",
+    "ownerAcceptanceRequired": true,
+    "configCannotActivate": true,
+    "expires": true
+  },
+  "hostileCases": [
+    "DENOMINATOR_DRIFT",
+    "CAMPAIGN_LABEL_RENAME",
+    "SMALL_COHORT",
+    "DELAYED_OR_MISSING_APP_STORE_REPORT",
+    "OPT_IN_POPULATION_BIAS",
+    "DUPLICATE_SYNTHETIC_RECEIPT",
+    "CLOCK_OR_TIME_ZONE_CHANGE",
+    "CUSTOMER_TEXT_AS_DIMENSION",
+    "HASHED_EMAIL_OR_DEVICE_ID_AS_ANONYMOUS",
+    "TRANSITIVE_ANALYTICS_SDK",
+    "HIDDEN_CRASH_OR_SUPPORT_LOGGING_REUSE",
+    "REMOTE_ENABLE_FLAG",
+    "CORRELATION_MEANS_CAUSATION_COPY"
+  ],
+  "archiveProofs": [
+    {
+      "surface": "DEPENDENCY",
+      "disposition": "STATIC_SOURCE_SCAN_CLEAN",
+      "forbiddenFindings": []
+    },
+    {
+      "surface": "LINK",
+      "disposition": "PENDING_NOT_ACCEPTING",
+      "forbiddenFindings": []
+    },
+    {
+      "surface": "STRING",
+      "disposition": "PENDING_NOT_ACCEPTING",
+      "forbiddenFindings": []
+    },
+    {
+      "surface": "DOMAIN",
+      "disposition": "PENDING_NOT_ACCEPTING",
+      "forbiddenFindings": []
+    },
+    {
+      "surface": "BACKGROUND_TASK",
+      "disposition": "PENDING_NOT_ACCEPTING",
+      "forbiddenFindings": []
+    },
+    {
+      "surface": "RUNTIME_NETWORK",
+      "disposition": "PENDING_NOT_ACCEPTING",
+      "forbiddenFindings": []
+    }
+  ],
+  "lifecycle": {
+    "persistence": "NONPERSISTENT",
+    "catalog": "STATIC_VERSIONED_POLICY",
+    "evaluator": "SYNTHETIC_TEST_TARGET_ONLY",
+    "runtimeStorage": "NONE",
+    "runtimeProvider": "NONE",
+    "runtimeNetwork": "NONE",
+    "retry": "BYTE_IDENTICAL_RESULT_OR_NO_EFFECT",
+    "rollback": "REMOVE_UNACTIVATED_CONTRACT_AND_TEST_CHANGES",
+    "supersession": "IMMUTABLE_RELEASES_SUPERSEDED_NOT_REWRITTEN"
+  },
+  "invariants": {
+    "fourSourcesNonjoinable": true,
+    "userLevelLinkageForbidden": true,
+    "missingNeverZero": true,
+    "thresholdSuppressesSmallCohort": true,
+    "evaluatorSyntheticOnly": true,
+    "noProductionReceiptReader": true,
+    "noWorkflowFrictionInput": true,
+    "noDiagnosticsInput": true,
+    "noIdentityInput": true,
+    "noNetwork": true,
+    "noPersistence": true,
+    "noRuntimeProvider": true,
+    "configCannotActivate": true,
+    "ownerAcceptanceRequired": true,
+    "noOperationalMetricBridge": true,
+    "noScreenNameIdentity": true,
+    "noCausalClaim": true
+  },
+  "evidenceIDs": [
+    "V23-P03-C43-G01",
+    "V23-P03-C43-A01",
+    "V23-P03-C43-H01",
+    "V23-P03-C43-I01",
+    "V23-P03-C43-R01"
+  ],
+  "statusFlags": {
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false
+  }
+}

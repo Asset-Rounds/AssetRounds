@@ -1,0 +1,25 @@
+// Root-delegated reversible direction14/20, 2026-09-29. DATA only.
+// Ordinary strict walkers/pins and historical packets stay unchanged.
+enum OriginalEraseScratchPrivateDirectoryRoleV1: Equatable {
+    case originalP(sourcePath: String, recordedFullMode: UInt32)
+    case checkedBirth(requestID: UUID, recordedFullMode: UInt32)
+    var recordedFullMode: UInt32 { get }
+    func admits(fullMode: UInt32) -> Bool
+    // Exact fullMode==recordedFullMode; directory type; 07777 exactly0700 or
+    // 2700. No broad masking, sticky/setuid allowance, current-mode adoption.
+}
+// Add required role fields to existing LIVE immutable selected bindings:
+// Node.directoryRole: OriginalEraseScratchPrivateDirectoryRoleV1?
+//   nonnil iff directory; files exact0600 and nil directoryRole.
+// Node.Ancestor.directoryRole: OriginalEraseScratchPrivateDirectoryRoleV1
+//   each actual directory's fullmode is the exact positive role mode.
+// This fixed engine has NO directory-birth kind: physical issuer creates only
+// .originalP from exact immutable record directory9 mode + checked actual11
+// and genuine same-owner rename-prefix mapping. checkedBirth is NOT issued
+// without a separate real checked directory-birth output/contract.
+// Every child GID: actual held parent's SGID?actual parent.gid:getegid(),
+// checked with fresh stat and source-backed selected role. UID=geteuid,
+// exact same device, held/named current11/private policy/name and source9/SHA.
+// Support/OS ancestors outside selected Operations policy anchor keep their
+// actual existing rules. New scopes retain exact actual lexical held-G object;
+// admission renewal cannot revive an old scope.

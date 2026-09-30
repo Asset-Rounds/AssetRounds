@@ -1,0 +1,164 @@
+{
+  "artifactDigest": "c0e78181a5820fe8f51d11c98bd1be0a11ce21bea81b12212b2c0f46dd37871c",
+  "authority": {
+    "appBaseHead": "160f9b4e8440e730ce7ba725056f33d75471b09c",
+    "appBaseTree": "6223655a8657fa86467c2b0e9b0579e0c62e9b1d",
+    "authorizedOverlapCount": 4552,
+    "candidateHead": "1ff39bf2",
+    "candidateTree": "bf68792589b662c7e7ab27ec76762357d39302e5",
+    "contextDigest": "3baa3ea127c70c2286343ba1070e63461cbfc9dd757035723f4e068dead67f63",
+    "contractProviderCards": [
+      "V23-P03-C15",
+      "V23-P03-C28",
+      "V23-P03-C51"
+    ],
+    "coordinationCASSequence": 372,
+    "coordinationHead": "1ff39bf2",
+    "coordinationLedgerDigest": "ffaf89f9380c8b8bf1d7e5790f9c8e11b5d6c31d3db5e0e5903ca43061151e2b",
+    "coordinationProjectionDigest": "d7426a4bcebc12b33453d2c06038d3a5afd7015368a136ebe140a15bd4f8aefe",
+    "coordinationTree": "bf68792589b662c7e7ab27ec76762357d39302e5",
+    "directPrerequisiteCards": [
+      "V23-P03-C34",
+      "V23-P03-C51"
+    ],
+    "dossierByteCount": 7090,
+    "dossierSHA256": "f9f3f484758772242371d8c62cb836bcd5ce28632da4c3f291321d2a06e367c9",
+    "expectedExistingPathCount": 201,
+    "expectedFencePathCount": 215,
+    "expectedNewPathCount": 14,
+    "hydrationTransitionDigest": "c1dce6fe8a03bc2d903e21c178faa49f17f1eac9fca75fa3d5ec1789b06bac3a",
+    "pathFenceDigest": "9ca89ed7499e8a4ada6cb716d4a1384d4751abf0fa11a71121028b41e7abd60f",
+    "priorFenceCount": 86,
+    "priorOwnedPathCount": 1398,
+    "provisionalPrerequisiteDigest": "e0a33e9c8ab580b041a2c3fd2eea4caba9dd04821f9efd50296abf39a632bff4",
+    "registerOrdinal": 88,
+    "registerRowByteCount": 305,
+    "registerRowSHA256": "7b074e1b98caf476c18c3db255110031d42536517f041b6d6e19149f767a9815",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P03-C57",
+  "cases": [
+    {
+      "evidenceID": "V23-P03-C57-G01",
+      "focus": [
+        "bounded plan identity",
+        "membership/order/estimate",
+        "source readiness projection"
+      ],
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P03-C57-A01",
+      "focus": [
+        "DST",
+        "time-zone change",
+        "explicit carryover receipt"
+      ],
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P03-C57-H01",
+      "focus": [
+        "duplicate",
+        "superseded occurrence",
+        "retired/restored source"
+      ],
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P03-C57-I01",
+      "focus": [
+        "journal replay",
+        "idempotency",
+        "search rebuild"
+      ],
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P03-C57-R01",
+      "focus": [
+        "replace restore",
+        "configuration clone",
+        "workspace fork",
+        "erase"
+      ],
+      "kind": "RECOVERY"
+    }
+  ],
+  "evidenceIDs": [
+    "V23-P03-C57-G01",
+    "V23-P03-C57-A01",
+    "V23-P03-C57-H01",
+    "V23-P03-C57-I01",
+    "V23-P03-C57-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "journey": "FJ12",
+  "nativeCompileRan": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "provisional": false,
+  "schema": "V23P03C57MyDayPlanEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "dossierByteCount": 7090,
+    "dossierSHA256": "f9f3f484758772242371d8c62cb836bcd5ce28632da4c3f291321d2a06e367c9",
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/MyDay/MyDayContractsV1.swift",
+      "FieldEvidenceApp/Domain/Models/MyDayPersistenceModelsV1.swift",
+      "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/MyDay/MyDayLifecycleAdapterV1.swift",
+      "FieldEvidenceAppTests/V9_65MyDayPlanTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/MyDay/V22P03C57MyDayPlanCorpusV1.json"
+    ],
+    "missingPaths": [],
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/MyDay/MyDayContractsV1.swift",
+      "FieldEvidenceApp/Domain/Models/MyDayPersistenceModelsV1.swift",
+      "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/MyDay/MyDayLifecycleAdapterV1.swift",
+      "FieldEvidenceAppTests/V9_65MyDayPlanTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/MyDay/V22P03C57MyDayPlanCorpusV1.json"
+    ],
+    "registerRowByteCount": 305,
+    "registerRowSHA256": "7b074e1b98caf476c18c3db255110031d42536517f041b6d6e19149f767a9815",
+    "registerRows": [
+      "| 88 | <a id=\"v23-p03-c57-register\"></a>[`V23-P03-C57`](EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md#v23-p03-c57) | MyDayPlanV1, bounded membership/order/estimate, carryover, readiness projection, and source-truth reconciliation | `IMPLEMENT_NOW` | `NOT_STARTED` | `V23-P03-C34`, `V23-P03-C51` | `ADDED_V23` |"
+    ],
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "selectors": [
+      "testV23P03C57G01GoldenPlanMembershipOrderEstimateAndReadiness",
+      "testV23P03C57A01MidnightDSTZoneCarryoverAndSourceReconciliation",
+      "testV23P03C57H01HostileIdentityBoundsFrontierAndReplay",
+      "testV23P03C57I01InterruptedMutationEffectBeforeReceiptAndRelaunch",
+      "testV23P03C57R01RestoreCloneForkEraseSearchAndReportClosure"
+    ],
+    "sourceSemanticsInspected": true
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P03C57G01GoldenPlanMembershipOrderEstimateAndReadiness",
+    "testV23P03C57A01MidnightDSTZoneCarryoverAndSourceReconciliation",
+    "testV23P03C57H01HostileIdentityBoundsFrontierAndReplay",
+    "testV23P03C57I01InterruptedMutationEffectBeforeReceiptAndRelaunch",
+    "testV23P03C57R01RestoreCloneForkEraseSearchAndReportClosure"
+  ],
+  "title": "MyDayPlanV1, bounded membership/order/estimate, carryover, readiness projection, and source-truth reconciliation"
+}

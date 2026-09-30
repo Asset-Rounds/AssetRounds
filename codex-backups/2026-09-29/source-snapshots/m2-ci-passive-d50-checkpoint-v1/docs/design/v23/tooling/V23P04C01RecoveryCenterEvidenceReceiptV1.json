@@ -1,0 +1,393 @@
+{
+  "artifactDigest": "6bc39114cc6af0b52b985ae9c18ff0cca6d09ad18e18b83ff31bec481f69679a",
+  "authority": {
+    "appBaseHead": "f8c797fe0e6524f85a15b771e84f899fd9763bc0",
+    "appBaseTree": "5ba84e18b17cadb31062d240854b991e474c7a39",
+    "authorizedOverlapCount": 4788,
+    "candidateHead": "f8c797fe0e6524f85a15b771e84f899fd9763bc0",
+    "candidateTree": "5ba84e18b17cadb31062d240854b991e474c7a39",
+    "contextDigest": "e032c21cd95df0074537a163bb3c57fd280dbaed0e375efa612673357d069425",
+    "coordinationCASSequence": 377,
+    "coordinationHead": "7865dec825fc9b30d9f7367f725322fc42df3d7b",
+    "coordinationLedgerDigest": "8f26f6306e6ef6d809bb4bdaf0c5ca1c0f79a279be2512b54e4ecbae5cc47d02",
+    "coordinationProjectionDigest": "24c97be7186938b61c820cc8fdfbbea26c619d0ff9cf7401807f27bbdd334d22",
+    "coordinationTree": "073a7a1bec19312a1f60e052bd67464a9066073e",
+    "directPrerequisiteCards": [
+      "V23-P03-C22",
+      "V23-P03-C34"
+    ],
+    "dossierByteCount": 7561,
+    "dossierSHA256": "f427c7b716f80e5dd4de2eeb415b748bc424cbca3f36f9141d953a6cc0a2c34f",
+    "expectedExistingPathCount": 217,
+    "expectedFencePathCount": 232,
+    "expectedNewPathCount": 15,
+    "fenceCorrectionDigest": "0fcf8ef9cbc552182cd1781cb1512f54b7f6ba9ab24190e848f17d5fe1bee1df",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 2,
+    "hydrationTransitionDigest": "27f055f2c24511d58b0005c581cc3b433e910a841540f8ec6f45422e2365c928",
+    "inheritedV21BlockByteCount": 12642,
+    "inheritedV21BlockSHA256": "fb047a08f2009dbc98cb11a3f65297c38a7eb39680b064ffbb223acd6c83dc5a",
+    "optionalCapabilityProviders": [
+      "V23-P03-C54:ENCRYPTED_BACKUP"
+    ],
+    "pathFenceDigest": "f59c7d2d98907aed26492f3a06d6de52ce1436790ddfda9da157689346d0a706",
+    "priorFenceCount": 87,
+    "priorOwnedPathCount": 1412,
+    "provisionalPrerequisiteDigest": "d579aa7d8a3882e871b311a8d3be2852ea61332c3a0d502c7de705737008fd9b",
+    "registerOrdinal": 89,
+    "registerRowByteCount": 323,
+    "registerRowSHA256": "ac098b8fe94021852dd5d7c36e9539dfb2c2d8d26c6d17ae921a063b2cccaa2a",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C01",
+  "cases": [
+    {
+      "evidenceID": "V23-P04-C01-G01",
+      "focus": [
+        "eleven-state projection",
+        "freshness and startup gate",
+        "standard recovery"
+      ],
+      "kind": "GOLDEN",
+      "selectorSuffix": "G01"
+    },
+    {
+      "evidenceID": "V23-P04-C01-A01",
+      "focus": [
+        "optional encrypted backup available",
+        "typed unavailable/manual fallback",
+        "privacy closure"
+      ],
+      "kind": "ALTERNATE",
+      "selectorSuffix": "A01"
+    },
+    {
+      "evidenceID": "V23-P04-C01-H01",
+      "focus": [
+        "duplicate source/failure",
+        "stale or corrupt frontier",
+        "no unsupported claim"
+      ],
+      "kind": "HOSTILE",
+      "selectorSuffix": "H01"
+    },
+    {
+      "evidenceID": "V23-P04-C01-I01",
+      "focus": [
+        "effect-before-receipt",
+        "relaunch and scratch cleanup",
+        "support draft preservation"
+      ],
+      "kind": "INTERRUPTION",
+      "selectorSuffix": "I01"
+    },
+    {
+      "evidenceID": "V23-P04-C01-R01",
+      "focus": [
+        "replace/restore",
+        "clone/fork quarantine",
+        "erase and privacy-safe export"
+      ],
+      "kind": "RECOVERY",
+      "selectorSuffix": "R01"
+    }
+  ],
+  "closedRecoveryStates": [
+    "HEALTHY",
+    "CHECKING",
+    "ACTIONABLE",
+    "IN_PROGRESS",
+    "INTERRUPTED",
+    "FILE_REQUIRED",
+    "VALIDATION_FAILED",
+    "PARTIAL_SAFE",
+    "COMPLETE",
+    "RESTART_REQUIRED",
+    "EXTERNAL_ACTION_REQUIRED"
+  ],
+  "evidenceIDs": [
+    "V23-P04-C01-G01",
+    "V23-P04-C01-A01",
+    "V23-P04-C01-H01",
+    "V23-P04-C01-I01",
+    "V23-P04-C01-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "journey": "FJ11",
+  "nativeCompileRan": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "providerArtifacts": [
+    {
+      "allFilesPresent": true,
+      "candidateHead": "d0485977644a71e49b8d4b898bb527e0353bd81e",
+      "candidateTree": "2fc990ee64f9da6e84b07fddc2abed036f679630",
+      "capability": null,
+      "checkpointDigest": "827c81d1c99a110f592ae54c03b9953e3800470cadb9c77f9024384e32d9a2fb",
+      "contextDigest": "4e2d0c1f46926387a8e15a798d551744fa23448c4790f466a4d5d3903d026dc4",
+      "contracts": [
+        "RecoverabilityVerificationStagingV1",
+        "RecoverabilityVerificationReceiptV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 67541,
+          "path": "Scripts/v23/p03_c22_contracts.py",
+          "sha256": "2874e619aea3273a53af44cecbe26f6d1a0419ec4ff34f61cdb0326cd732a52d",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1712,
+          "path": "Scripts/v23/generate_p03_c22_contracts.py",
+          "sha256": "888e53f6e5338317bdf0886cbf6fe851997bc808929163d2d2a143796f6e50dd",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 18098,
+          "path": "Scripts/v23/verify_p03_c22_contracts.py",
+          "sha256": "6baa1c4e6038bc68c6abeca88cd0ee87fb589dfa8a74f2e37e457199a041f5f0",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 12498,
+          "path": "Scripts/v23/recoverability-verification.schema.json",
+          "sha256": "76ef9fbb6379b1b3585b57a81839cc5f682aef8d43f50f74616a3adb82321fb0",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1306381,
+          "path": "docs/design/v23/tooling/V23P03C22RecoverabilityVerificationContractV1.json",
+          "sha256": "c59cb42546487ea2f2b8adc778773b2e61f499a3bee34231a1373a5f8574151d",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1312420,
+          "path": "docs/design/v23/tooling/V23P03C22RecoverabilityVerificationEvidenceReceiptV1.json",
+          "sha256": "4b433b30c6abd77421365ae242a00d1de393e13a2a90d3e20755954103cc4dfe",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1290671,
+          "path": "docs/design/v23/tooling/V23P03C22RecoverabilityVerificationBrandImpactManifestV1.json",
+          "sha256": "295d1fb233eb2f590f57908ffa5689bdb82d19e07b16357b396b0db425355846",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1337445,
+          "path": "docs/design/v23/tooling/V23-P03-C22-tooling-manifest.json",
+          "sha256": "5d2897ea036c045479a7fd3c391ca5923238f62289b9798627679f53619abe76",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "c34e0f79176c9213abc467ff20e6f70282ded318b919768dbfd4506883fc2f40",
+      "providerCardID": "V23-P03-C22",
+      "required": true,
+      "verificationReceiptDigest": "5365dd9ef144d40a81662ba3d2bf1fc69c30761c8905526a5703ad58953bd8bb"
+    },
+    {
+      "allFilesPresent": true,
+      "candidateHead": "837fe50cc71f030618236aafe7896ac424f10437",
+      "candidateTree": "965d8633d5bbd4f4f7d26941085e9a9e428185af",
+      "capability": null,
+      "checkpointDigest": "dd5d8023998cb467baa774f30e3fdf9d65439a9ab65379fc9db653d4c295c8bf",
+      "contextDigest": "8add3078bd1abace390df25dab4bbdd8c9943e966c22f6b1f0624ea29f8a57db",
+      "contracts": [
+        "RouteRegistryV1",
+        "RecoveryRouteV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 9111,
+          "path": "Scripts/v23/p03_c34_contracts.py",
+          "sha256": "225f590eb6e5c74def572ddd9956450ba518e2776fd47f5a59368df8ce5f9a39",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 936,
+          "path": "Scripts/v23/generate_p03_c34_contracts.py",
+          "sha256": "e732a1c1bddc66740737952e7a667cf1f5a57ec58fe9da1448e44bb98a4216d0",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1773,
+          "path": "Scripts/v23/verify_p03_c34_contracts.py",
+          "sha256": "b21872731275d8b2a776f5bb608aa912adb8f464ff7360fa3456c5dbcb4b8c79",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 545,
+          "path": "Scripts/v23/route-registry.schema.json",
+          "sha256": "23c09974062f551f8e9a8a3995897efca54589f6a8590d2486582d9e15c7768e",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1965,
+          "path": "docs/design/v23/tooling/V23P03C34RouteRegistryContractV1.json",
+          "sha256": "83cd09b05410d0123dd56155653e307341abef73268ec66bf5050908294ad611",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1887,
+          "path": "docs/design/v23/tooling/V23P03C34RouteRegistryEvidenceReceiptV1.json",
+          "sha256": "5826d9bf0de5f2be01fc7127190e8474bf235a57c1ef11c918bf6e236fae1560",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1820,
+          "path": "docs/design/v23/tooling/V23P03C34BrandImpactManifestV1.json",
+          "sha256": "8f472333f70b35bb942a9c27731fb7c2c55f79bebbc295fd71706a16661d3e49",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 45799,
+          "path": "docs/design/v23/tooling/V23-P03-C34-tooling-manifest.json",
+          "sha256": "ea5ed7974fe457ce84387dbbfd9202383e0a0e1d71a39bb62b25b6d54de91400",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "0e54c0aae93e45c906fc6870cf7ccfec05557223382ca5cd95776c793af69be4",
+      "providerCardID": "V23-P03-C34",
+      "required": true,
+      "verificationReceiptDigest": "58421f28f14762752449cbf27896e68f663e4a9e51713d72c73b68525a6f7c6a"
+    },
+    {
+      "allFilesPresent": true,
+      "candidateHead": "e4bb386889a4051efeb9359fef9a90fbd7c70d54",
+      "candidateTree": "1a409af2305ddc1e78754ccd70ea05f9572ed44d",
+      "capability": "ENCRYPTED_BACKUP",
+      "checkpointDigest": "9e01caafe3162fdd642f31494cc135e2b06504d3ad0d583c71a3ed47c3e3f57d",
+      "contextDigest": "6ff43b0c6ea104ca91a63e9e14312ad8fc12ecabc542b41f00fce33286c99d05",
+      "contracts": [
+        "EncryptedPortableEnvelopeProtocolReleaseV1",
+        "EncryptedEnvelopeSealReceiptV1",
+        "TypedAvailabilityAndFallbackReceiptV1"
+      ],
+      "fallback": "DECLARED_TYPED_DISABLED_OR_MANUAL_FALLBACK",
+      "files": [
+        {
+          "byteCount": 41178,
+          "path": "Scripts/v23/p03_c54_contracts.py",
+          "sha256": "a4e5e53795d87d3f6635e98bc95f9b38e937d00511b93558221ee3e05fe1fbcf",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1220,
+          "path": "Scripts/v23/generate_p03_c54_contracts.py",
+          "sha256": "6a00fcec1d47555fa6381b44b49c2104c5d3146e81ccb39df04645e65314e85e",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 4505,
+          "path": "Scripts/v23/verify_p03_c54_contracts.py",
+          "sha256": "bd3536205ff5f8d7f59395a72134e4a94d53c66e848ca45227598961fa147df6",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 6926,
+          "path": "Scripts/v23/encrypted-portable-envelope.schema.json",
+          "sha256": "5eca8cc863b17ec4c2a36c9798a9179065d33097671cd4a4452e53351b614489",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 4839,
+          "path": "docs/design/v23/tooling/V23P03C54EncryptedPortableEnvelopeContractV1.json",
+          "sha256": "7e7da16e58eaa43aa7587052222aa43b1584eaf2d7d133bd07c77968a88dad15",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2561,
+          "path": "docs/design/v23/tooling/V23P03C54EncryptedPortableEnvelopeEvidenceReceiptV1.json",
+          "sha256": "581166bc2ea5d80bc46d70db978e4dcf8fb754038278e604e69bbbeaec687da5",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2527,
+          "path": "docs/design/v23/tooling/V23P03C54BrandImpactManifestV1.json",
+          "sha256": "0e1daefd6b68cdd51d77747a58033c9fa4df866fff9c00753def0da400d756d0",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 8375,
+          "path": "docs/design/v23/tooling/V23-P03-C54-tooling-manifest.json",
+          "sha256": "ba12c8999bb7fa2ea5c3bec9e222ec8c66e8b5e0bc0179ee7fef94b39da191e0",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "be5dc8f42a5b026596149b405814a3e6c96f1a500ce2750339a439c18364fcec",
+      "providerCardID": "V23-P03-C54",
+      "required": false,
+      "verificationReceiptDigest": "4934744c662825104e850bf727f82a061106b4c9c02c5b3dd6c6b870d9946785"
+    }
+  ],
+  "provisional": false,
+  "schema": "V23P04C01RecoveryCenterEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "dossierByteCount": 7561,
+    "dossierSHA256": "f427c7b716f80e5dd4de2eeb415b748bc424cbca3f36f9141d953a6cc0a2c34f",
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/Recovery/RecoveryCenterContractsV1.swift",
+      "FieldEvidenceApp/Application/Recovery/RecoveryCenterCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Recovery/RecoveryCenterLifecycleAdapterV1.swift",
+      "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+      "FieldEvidenceAppTests/V9_66RecoveryCenterTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C01RecoveryCenterUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/RecoveryCenter/V22P04C01RecoveryCenterCorpusV1.json"
+    ],
+    "inheritedV21BlockByteCount": 12642,
+    "inheritedV21BlockSHA256": "fb047a08f2009dbc98cb11a3f65297c38a7eb39680b064ffbb223acd6c83dc5a",
+    "missingPaths": [],
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/Recovery/RecoveryCenterContractsV1.swift",
+      "FieldEvidenceApp/Application/Recovery/RecoveryCenterCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Recovery/RecoveryCenterLifecycleAdapterV1.swift",
+      "FieldEvidenceApp/Features/Recovery/RecoveryCenterView.swift",
+      "FieldEvidenceAppTests/V9_66RecoveryCenterTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C01RecoveryCenterUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/RecoveryCenter/V22P04C01RecoveryCenterCorpusV1.json"
+    ],
+    "registerRowByteCount": 323,
+    "registerRowSHA256": "ac098b8fe94021852dd5d7c36e9539dfb2c2d8d26c6d17ae921a063b2cccaa2a",
+    "registerRows": [
+      "| 89 | <a id=\"v23-p04-c01-register\"></a>[`V23-P04-C01`](EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md#v23-p04-c01) | Visible local reliability, recovery freshness, encrypted-backup option, and user-controlled Support and Recovery Center | `IMPLEMENT_NOW` | `NOT_STARTED` | `V23-P03-C22`, `V23-P03-C34` | `REFINED_WITHOUT_LOSS` |"
+    ],
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "selectors": [
+      "testV23P04C01G01HealthyProjectionRoutesAndOptionalBackupAreCanonical",
+      "testV23P04C01A01ClosedStatesFreshnessPrivacyAndEntitlementFallbacksRemainVisible",
+      "testV23P04C01H01HostileDuplicateFalseHealthyPrivacySupportAndDraftInputsFailClosed",
+      "testV23P04C01I01InterruptionCancellationAndReplayLeaveNoPartialCanonicalEffect",
+      "testV23P04C01R01RecoveryFeedbackStoreResetEraseAndFJ11TruthRemainDurable"
+    ],
+    "sourceSemanticsInspected": true
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C01G01HealthyProjectionRoutesAndOptionalBackupAreCanonical",
+    "testV23P04C01A01ClosedStatesFreshnessPrivacyAndEntitlementFallbacksRemainVisible",
+    "testV23P04C01H01HostileDuplicateFalseHealthyPrivacySupportAndDraftInputsFailClosed",
+    "testV23P04C01I01InterruptionCancellationAndReplayLeaveNoPartialCanonicalEffect",
+    "testV23P04C01R01RecoveryFeedbackStoreResetEraseAndFJ11TruthRemainDurable"
+  ],
+  "title": "Visible local reliability, recovery freshness, encrypted-backup option, and user-controlled Support and Recovery Center",
+  "uiAdoptionSkipped": true
+}

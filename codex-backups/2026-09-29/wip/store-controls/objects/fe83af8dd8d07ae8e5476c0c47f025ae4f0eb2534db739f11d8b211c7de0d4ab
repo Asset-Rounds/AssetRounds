@@ -1,0 +1,11 @@
+{
+  "inputs": {
+    "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-terminal-consumer-capacity-review-sol61-xhigh-v1/REVIEW.md": "d3899c4ef6fad9fd28aa4d775bf7c07a10eec2df8b5b42d2739f9ca8e40e7795",
+    "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-control-continuation-sol61-xhigh-v4/V4_SEGMENTATION_PROPOSAL_V1.md": "63bba9e5331ae2bbedce7853687fe669e1e550f69f96d41e0757ecf1cc82fcf1",
+    "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-control-continuation-sol61-xhigh-v4/V4_INTERFACES_PROPOSED.swift.fragment": "5925afaa75588544fddac71f2a4fd2f030c0f04058baa447d1065477c41c4748",
+    "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-firstcapture-root-decision-v1/DECISION.md": "7cb3225bcfa525663c127757f6c2f4f1a91a818e9e836b6937ce69c1f036b141"
+  },
+  "reviewer": "gpt-6.1-sol",
+  "effort": "xhigh",
+  "scope": "Root reversible internal direction only; no implementation, compilation or acceptance approval"
+}

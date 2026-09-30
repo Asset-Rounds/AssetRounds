@@ -1,0 +1,97 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactCount": 5,
+  "artifactDigest": "af0e6868894a30b535b358fc0d4d62dd8415725fa326443d11fa2262e6ba4ead",
+  "artifacts": [
+    {
+      "bytes": 13044,
+      "path": "Scripts/v23/p01_c01_contracts.py",
+      "sha256": "22e327a94cefe073793b1055400d2f845d366f2cf21da63f1e4d4c3e3fc24492"
+    },
+    {
+      "bytes": 997,
+      "path": "Scripts/v23/generate_p01_c01_contracts.py",
+      "sha256": "7ee2aacfb311ada20e87fc32716eaa8b7b0d37410185d0b8718d91178beecd60"
+    },
+    {
+      "bytes": 16924,
+      "path": "Scripts/v23/verify_p01_c01_contracts.py",
+      "sha256": "6fdb11749f4f74ccd0127b6ea77074d328d924b6e80a2ef81e5edaad43e876db"
+    },
+    {
+      "bytes": 43240,
+      "path": "Scripts/v23/versioned-schema-identity.schema.json",
+      "sha256": "6f2650f4a0aa8587a276e20f77b31a93b712db409d6f167aead407720b229078"
+    },
+    {
+      "bytes": 12312,
+      "path": "docs/design/v23/tooling/V23P01C01SchemaIdentityContractV1.json",
+      "sha256": "79d840a588094501eb3d0a574ecc27673d524b603c7a0b363a1c06c394ccf883"
+    }
+  ],
+  "authority": {
+    "acceptanceCredit": false,
+    "acceptanceEnabled": false,
+    "acceptedS10_6BaselineDigest": null,
+    "adoptionEnabled": false,
+    "baseHead": "f3c4a764ddaa0dd607b04fa1929c80620d3164aa",
+    "baseTree": "d4b04d57475493511a8482563a7f1f981639c65a",
+    "branch": "phase/v23-expansion",
+    "contextDigest": "7e182eeb0787008de8c3ebeb5b575d1138dda4c7c2be6198c41e1ae671b3377b",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C01-G01",
+      "V23-P01-C01-A01",
+      "V23-P01-C01-H01",
+      "V23-P01-C01-I01",
+      "V23-P01-C01-R01"
+    ],
+    "directPrerequisite": {
+      "acceptanceCredit": false,
+      "archiveInspectionComplete": false,
+      "candidateHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+      "candidateTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+      "cardID": "V23-P00-C06",
+      "checkpointDigest": "8bdd5bcee83c136496e1ca6bd4b2a9ec79719ecf002d6f8bca9b73d853fc03ee",
+      "contextDigest": "afbb364ed404d4fbd57ee66c5707c8f670a002b8d81cdc425cc6a0cfb3c53d60",
+      "installedRuntimeClosureComplete": false,
+      "nativeCompileComplete": false,
+      "pathFenceDigest": "ca49bcc135ddc270e18c42b808a804a6b1de71bb8a08647b32bccd3b1a9a6eca",
+      "platformScopeManifestDigest": "ba548ef8cec1be0d290c300ebf88f10239640bc57e35841843aa4632d4bbed6b",
+      "platformScopeManifestFileSHA256": "cc94c682351116ecb7254ccd3a50a05af835fbebe2fd3f5873a0be7f103df0de",
+      "releaseCredit": false,
+      "releaseHookClosureComplete": false,
+      "toolingManifestDigest": "33e5f0043ab318261ec63ee92b0bc4360215e5fd7bd7ac279b647738b743198e",
+      "toolingManifestFileSHA256": "9e969a4c3b7622d7b02086f41abfc723a53dc97aab619e9f769f500cebcab579",
+      "verificationReceiptDigest": "77444d12c7a2bec4b09f16e96fcb70f8278805d58200a15cd8033263eb4d53b8"
+    },
+    "dossierDigest": "881d5f6b834c73ddfee3e645c133d86f2f01acdc4cb091c0f6ee8e8f1e6358af",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "hostedDispatchRan": false,
+    "inheritedV21BlockDigest": "a590970b54dc229ffc0fc0825935e32465d716237be7cd4764caa5426f99353a",
+    "nativeCompileRan": false,
+    "pathFenceDigest": "26f81fe92663d9450a2292347eaf85dfcf49ac0f7323123995cf6cb07993271b",
+    "phase10PollingDuringParallelExecution": false,
+    "provisionalPrerequisiteDigest": "7c529255d7c23764ff050062fe0e509fa2c70131ca85cd4e022dfbf42841a82b",
+    "releaseCredit": false,
+    "requiresAcceptedS10_6Reconciliation": true
+  },
+  "cardID": "V23-P01-C01",
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "pathFence": [
+    "Scripts/v23/p01_c01_contracts.py",
+    "Scripts/v23/generate_p01_c01_contracts.py",
+    "Scripts/v23/verify_p01_c01_contracts.py",
+    "Scripts/v23/versioned-schema-identity.schema.json",
+    "docs/design/v23/tooling/V23P01C01SchemaIdentityContractV1.json",
+    "docs/design/v23/tooling/V23-P01-C01-tooling-manifest.json"
+  ],
+  "phase10PollingDuringParallelExecution": false,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C01ToolingManifestV1",
+  "schemaVersion": 1
+}

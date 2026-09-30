@@ -1,0 +1,132 @@
+{
+  "cardID": "V23-P03-C57",
+  "schema": "V22P03C57MyDayPlanCorpusV1",
+  "schemaVersion": 1,
+  "evidenceIDs": [
+    "V23-P03-C57-G01",
+    "V23-P03-C57-A01",
+    "V23-P03-C57-H01",
+    "V23-P03-C57-I01",
+    "V23-P03-C57-R01"
+  ],
+  "selectors": ["G01", "A01", "H01", "I01", "R01"],
+  "contractRefs": [
+    "MyDayKeyV1",
+    "MyDayPlanV1",
+    "MyDayCarryoverReceiptV1",
+    "MyDayReadinessProjectionV1",
+    "DirectPrerequisiteEvidenceSetV1",
+    "CardAcceptanceInclusionProofV1",
+    "CardAcceptanceInclusionProofRecoveryReceiptV1",
+    "CandidateAcceptanceCompatibilityReceiptV1"
+  ],
+  "journeyRefs": ["FJ12"],
+  "activeModelCount": 142,
+  "durableFamilyCount": 2,
+  "maximumMembership": 50,
+  "persistentRowTypes": [
+    "MyDayPlanRowV1",
+    "MyDayCarryoverReceiptRowV1"
+  ],
+  "nonpersistentTypes": [
+    "MyDayReadinessProjectionV1",
+    "MyDaySourceFrontierV1"
+  ],
+  "finalHashesSealed": true,
+  "provisional": false,
+  "estimateMinutes": {
+    "minimum": 1,
+    "maximum": 720
+  },
+  "workspaceID": "c5700000-0000-4000-8000-000000000001",
+  "civilDate": "2026-08-30",
+  "ianaTimeZoneIdentifier": "America/New_York",
+  "maximumItems": 50,
+  "minimumEstimateMinutes": 1,
+  "maximumEstimateMinutes": 720,
+  "eligibleReferenceKinds": [
+    "WORK_PACKET",
+    "ROUND_SESSION",
+    "SCHEDULE_OCCURRENCE",
+    "RESUMABLE_DRAFT"
+  ],
+  "coveredReferenceKinds": [
+    "WORK_PACKET",
+    "ROUND_SESSION",
+    "RESUMABLE_DRAFT"
+  ],
+  "sourceStates": [
+    "ACTIVE",
+    "COMPLETED",
+    "CANCELLED",
+    "RETIRED",
+    "MISSING",
+    "STALE",
+    "REOPENED"
+  ],
+  "readinessStates": [
+    "READY",
+    "NOT_READY",
+    "BLOCKED",
+    "UNAVAILABLE"
+  ],
+  "temporalCases": {
+    "preMidnightDate": "2026-03-07",
+    "dstGapDate": "2026-03-08",
+    "postDSTDate": "2026-03-09",
+    "zone": "America/New_York",
+    "alternateZone": "America/Los_Angeles"
+  },
+  "hostileCases": [
+    "DUPLICATE_NATURAL_KEY",
+    "CROSS_WORKSPACE_REFERENCE",
+    "DUPLICATE_REFERENCE",
+    "NONCONTIGUOUS_ORDER",
+    "OVER_CAPACITY",
+    "ESTIMATE_BELOW_MINIMUM",
+    "ESTIMATE_ABOVE_MAXIMUM",
+    "STALE_SOURCE_FRONTIER",
+    "FORGED_SOURCE_DIGEST",
+    "BAD_CARRYOVER_MEMBERSHIP",
+    "CORRUPT_CANONICAL_BYTES",
+    "DIVERGENT_MUTATION_REPLAY",
+    "FOREIGN_EXPECTED_REVISION",
+    "SCHEMA_40_MY_DAY_ROWS"
+  ],
+  "recoveryRules": [
+    "EFFECT_BEFORE_RECEIPT",
+    "IDEMPOTENT_RETRY",
+    "RELAUNCH_CANONICAL_DECODE",
+    "REPLACE_RESTORE_EXACT",
+    "CLONE_OMITS_MY_DAY",
+    "FORK_NONACTIVE_HISTORY_ONLY",
+    "ERASE_PURGES_MY_DAY",
+    "SEARCH_DROP_AND_REBUILD",
+    "REPORT_REBUILD_FROM_FRONTIER"
+  ],
+  "canonicalRowKinds": [
+    "MyDayPlanRowV1",
+    "MyDayCarryoverReceiptRowV1"
+  ],
+  "persistentSchemaVersion": 42,
+  "recordsSchemaVersion": 41,
+  "lifecycle": {
+    "readinessSourceStateDueNonpersistent": true,
+    "removalMutatesSource": false,
+    "automaticCarryover": false,
+    "dispatchesOrSchedules": false,
+    "storesActualDuration": false,
+    "replaceRestorePreservesExactPlans": true,
+    "configurationCloneOmitsPlans": true,
+    "workspaceForkRetainsNonactiveHistoryOnly": true,
+    "erasePurgesMyDayTruth": true
+  },
+  "forbiddenEffects": [
+    "AUTO_SCHEDULING",
+    "ROUTE_OPTIMIZATION",
+    "DUE_DATE_MUTATION",
+    "DISPATCH",
+    "NOTIFICATION_DELIVERY",
+    "SECOND_WORK_LEDGER"
+  ]
+}

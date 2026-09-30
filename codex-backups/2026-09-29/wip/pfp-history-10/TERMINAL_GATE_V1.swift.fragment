@@ -1,0 +1,13 @@
+    /// Resource-set proof only. Terminal may follow a refused observation
+    /// and is entered before closes; empty sets alone do not prove a close
+    /// has returned or any observation/publication/accounting succeeded.
+    /// The genuine handoff owner must separately require completed calls,
+    /// positive receipts and its nonpoisoned frame. No external lease is
+    /// owned or released here; this check performs no IO or state change.
+    func requireCheckedObservationTerminal() throws {
+        guard state == .terminal, openDescriptors.isEmpty,
+              uncertainDescriptors.isEmpty else {
+            throw ProtectedFilePolicyError.identityChanged
+        }
+    }
+

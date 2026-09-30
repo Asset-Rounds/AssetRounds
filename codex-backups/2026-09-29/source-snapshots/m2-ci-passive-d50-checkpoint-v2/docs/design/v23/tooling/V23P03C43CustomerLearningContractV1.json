@@ -1,0 +1,82 @@
+{
+  "artifactDigest": "fca55baa147b01918ab0874c1354d0d52d53a56fa9a7b52eba86bc6284e27a3e",
+  "authority": {
+    "allowedPathCount": 14,
+    "appBaseHead": "92f9fd0dda196da017a909248e5d5c65dc9fcfc1",
+    "appBaseTree": "b6c49a03dc96acf65c11d36b79e420e88fb3015e",
+    "attemptID": 1,
+    "authorizedOverlapCount": 0,
+    "cardID": "V23-P03-C43",
+    "classification": "PREPARE_NOW",
+    "contextDigest": "1bfab05155a2de75d1e088662d0b70619d11bf6840c5c68761f6fe768738a924",
+    "coordinationCASSequence": 310,
+    "coordinationHead": "40fdf45f071dacd8b47dea518e071a2b07510a5f",
+    "coordinationLedgerDigest": "70f8bb799125d67fbf1e358e9b3847fc50a5ec147784bc8a233810fefb6e3198",
+    "coordinationProjectionDigest": "d3e2e7d8b8bfa87997d6257d658fc96dee20b6116ed6b43c67b6cd1799bec99b",
+    "coordinationTree": "dba3ec2b3e6f3b5822303ebd4bb5d05bcc3c2baa",
+    "directPrerequisiteCards": [
+      "V23-P03-C21"
+    ],
+    "existingPathCount": 0,
+    "fenceDigest": "0c4c80889e7b193b538751905fde435df24d298022d25828acfdc5354aa69649",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "a1a53a171394b9c4351687bd5fea96021756fc4518e876e777da231961746a15",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C44",
+    "nextRegisterOrdinal": 74,
+    "planningStatus": "NOT_STARTED",
+    "prerequisiteDigest": "f25e638e7198ea80acc7416b3dd4fe30a1bbfd2b2902ee914af9202283d95b4d",
+    "registerOrdinal": 73,
+    "s10ReservationOverlapCount": 0,
+    "title": "Privacy-first customer-learning and acquisition-measurement contract, zero-collection default, and explicit activation gate",
+    "unauthorizedOverlapCount": 0
+  },
+  "persistence": {
+    "acceptedContractReleaseDisposition": "IMMUTABLE_VERSION_AND_DIGEST_SUPERSESSION_ONLY",
+    "durableFamilyCount": 0,
+    "eventInstancePersistence": false,
+    "mode": "NONPERSISTENT_STATIC_POLICY_AND_SYNTHETIC_TESTSUPPORT_ONLY",
+    "networkLifecycle": false,
+    "operationalReceiptProjectionPersistence": false,
+    "persistedFamilies": [],
+    "persistentKindLifecycleModelCount": 0,
+    "persistentSchemaVersion": null,
+    "recordsSchemaVersion": null,
+    "runtimeInvocation": false
+  },
+  "requiredSemantics": {
+    "activationRequiresUnexpiredExplicitOwnerAcceptance": true,
+    "configurationCannotActivateCollection": true,
+    "contractNames": [
+      "CustomerLearningQuestionV1",
+      "CustomerLearningMetricDefinitionV1",
+      "MeasurementPurposeV1",
+      "AcquisitionSourceVocabularyV1",
+      "MeasurementSourceKindV1",
+      "MeasurementActivationDecisionV1",
+      "MeasurementCollectionDispositionV1",
+      "ZeroCollectionConformanceReceiptV1"
+    ],
+    "customerContentAndSilentlyInferredPeopleAreForbidden": true,
+    "dependencyStaticSourceScanIsClean": true,
+    "exactCandidateLinkStringDomainBackgroundTaskAndRuntimeNetworkEvidenceIsPendingNotAccepting": true,
+    "fiveSelectors": [
+      "testV23P03C43G01StaticCatalogRemainsZeroCollectionAndPurposeBound",
+      "testV23P03C43A01MissingThresholdAndDelayedSourcesRemainUnknownOrSuppressed",
+      "testV23P03C43H01ForbiddenIdentityJoinsActivationAndRuntimeProvidersFailClosed",
+      "testV23P03C43I01SyntheticEvaluationIsDeterministicAndLeavesNoRuntimeState",
+      "testV23P03C43R01ArchiveRuntimeRollbackAndSupersessionPreserveZeroCollection"
+    ],
+    "fourMeasurementSourcesRemainPurposeBoundAndNonjoinable": true,
+    "noSDKEventStoreEndpointUploaderIdentifierTrackingProviderUIExportOrRuntimeInvocation": true,
+    "operationalReceiptsRemainOperationalTruthNotAnalytics": true,
+    "screenCopyCoordinatesCampaignLabelsAndAccessibilityIDsAreNotSemanticIdentity": true,
+    "shippingValueEvaluationEntrypointIsAbsent": true,
+    "syntheticEvaluatorIsDeterministicAndLeavesNoReleaseStorage": true,
+    "unknownMissingAndSuppressedAreDistinctFromZero": true,
+    "vendorNeutralQuestionAndMetricCatalogsAreVersioned": true,
+    "zeroCollectionReceiptIsUnissuablePendingExactCandidateEvidence": true
+  },
+  "schema": "V23P03C43CustomerLearningContractV1",
+  "schemaVersion": 1
+}

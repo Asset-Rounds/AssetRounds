@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact source/contract inputs only; working counterpart pin not freeze/approval",
+  "inputs": [
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-control-continuation-review-sol61-xhigh-v3/REVIEW.md",
+      "sha256": "728679416edf7783529f4f1dcd4515e69a7cbe27434abd9ba8ecbe11dd91d7b2",
+      "bytes": 13698
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/BORN_PRODUCER_SLOTS_INTERFACE_V5.swift.fragment",
+      "sha256": "66e4ed55ac8d8c51d44b83908eae8f51e98e07f0ac49092992f9ea4c074c0d90",
+      "bytes": 3199
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/BORN_PRODUCER_SLOTS_STREAM_V6.swift.fragment",
+      "sha256": "8dac58cc34a502a017b0d66b10f81875029ec4e73b4cae5449a157424208608a",
+      "bytes": 2835
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/physical-author-input-v1/COLD_CONTINUATION_CONTRACT_V2_1_ADDENDUM.md",
+      "sha256": "6bd86d68cbeec45ad3b3317c500d2aec0d2973a745aee586232fece44b498a5f",
+      "bytes": 5195
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v3/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+      "sha256": "1c8c9336835cc7af0357dfbe2bb4bbec01cca5e51df2ec1eb396a18098d80434",
+      "bytes": 145735
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sha256": "253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90",
+      "bytes": 478209
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/FieldEvidenceApp/Infrastructure/Workflow/RecurringRoundExperienceLifecycleAdapterV1.swift",
+      "sha256": "5c904dd6d045fb4108da2652f7ddce54bdc1c738b3a31f11763e31eb14f6d227",
+      "bytes": 96283
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+      "sha256": "3e58efb4340c5bef5001365fe74ac4b0a9296bb0a7d1d969fac06d2a009493c5",
+      "bytes": 33538
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "sha256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+      "bytes": 541485
+    }
+  ]
+}

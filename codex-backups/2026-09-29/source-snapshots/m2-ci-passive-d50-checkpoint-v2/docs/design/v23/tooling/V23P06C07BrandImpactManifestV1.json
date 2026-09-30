@@ -1,0 +1,24 @@
+{
+  "appBaseHead": "a3ab088f7b8a86fe952f3f1bc9064360fb1ac38e",
+  "appBaseTree": "dd3e1940d459c7c869b9dec5b617f523052f595a",
+  "cardID": "V23-P06-C07",
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "flags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "implementation": false,
+    "main": false,
+    "merge": false,
+    "native": false,
+    "phase": false,
+    "physical": false,
+    "release": false,
+    "selector": false
+  },
+  "impact": "NONE_SHIPPING",
+  "manifest": "AdvancedSchedulingBrandImpactManifestV1",
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "schema": "V23P06C07StaticPreparationToolingV1"
+}

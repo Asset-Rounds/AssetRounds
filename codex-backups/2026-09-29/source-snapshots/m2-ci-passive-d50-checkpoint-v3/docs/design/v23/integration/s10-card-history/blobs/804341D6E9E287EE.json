@@ -1,0 +1,194 @@
+{
+  "schema_version": "4.1.0",
+  "document_status": "planned",
+  "activation_id": "assetrounds-s10-brand-handoff-v4.1-2026-08-15",
+  "product_head": "REQUIRED_AFTER_S10_MIGRATION",
+  "plan": {
+    "minimum_physical_sessions": 5,
+    "minimum_distinct_roles": 3,
+    "required_lighting_conditions": [
+      "daylight",
+      "low_light"
+    ],
+    "required_scenario_ids": [
+      "one_handed_start",
+      "capture_and_review",
+      "force_quit_draft_resume",
+      "history_recovery",
+      "work_and_recheck",
+      "report_comprehension"
+    ],
+    "required_common_task_ids": [
+      "one_handed_start",
+      "capture_and_review",
+      "force_quit_draft_resume",
+      "history_recovery",
+      "work_and_recheck",
+      "report_comprehension"
+    ],
+    "physical_session_gate_ids": [
+      "physical-session-01",
+      "physical-session-02",
+      "physical-session-03",
+      "physical-session-04",
+      "physical-session-05"
+    ],
+    "planned_role_ids": [
+      "field-inspector",
+      "service-technician",
+      "owner-operator"
+    ],
+    "device_profile_ids": [
+      "iphone-17-ios-26.2-current",
+      "iphone-se-3-ios-18.0-minimum"
+    ],
+    "required_durability_families": [
+      "offline_save_reopen",
+      "reconnect_reopen",
+      "force_quit_resume",
+      "camera_denial_recovery",
+      "photo_import_if_shipped",
+      "capture_retake_delete_order",
+      "report_export_retry",
+      "low_storage_if_shipped"
+    ],
+    "durability_checks": [
+      {
+        "gate_id": "durability.offline-save-reopen",
+        "check_id": "offline_save_reopen",
+        "applicability": "required",
+        "rationale": "Device-local inspection data must remain durable when the network is absent and after reopen."
+      },
+      {
+        "gate_id": "durability.reconnect-reopen",
+        "check_id": "reconnect_reopen",
+        "applicability": "required",
+        "rationale": "Reconnection must not alter device-local inspection records or create synchronization claims."
+      },
+      {
+        "gate_id": "durability.force-quit-resume",
+        "check_id": "force_quit_resume",
+        "applicability": "required",
+        "rationale": "The single durable draft must resume at its persisted step after force quit."
+      },
+      {
+        "gate_id": "durability.camera-denial-recovery",
+        "check_id": "camera_denial_recovery",
+        "applicability": "required",
+        "rationale": "Denied camera access must retain the shipped Photos, Settings, and safe incomplete-exit recovery."
+      },
+      {
+        "gate_id": "durability.photo-import",
+        "check_id": "photo_import_if_shipped",
+        "applicability": "required",
+        "rationale": "The shipped photo-import route must preserve canonical evidence bytes and review order."
+      },
+      {
+        "gate_id": "durability.capture-order",
+        "check_id": "capture_retake_delete_order",
+        "applicability": "required",
+        "rationale": "Wide and close capture, retake, deletion, and acceptance order must remain explicit and durable."
+      },
+      {
+        "gate_id": "durability.report-export-retry",
+        "check_id": "report_export_retry",
+        "applicability": "required",
+        "rationale": "A report delivery failure must preserve the completed report and allow bounded retry."
+      },
+      {
+        "gate_id": "durability.low-storage",
+        "check_id": "low_storage_if_shipped",
+        "applicability": "required",
+        "rationale": "Shipped storage preflight must fail before partial evidence, report, backup, or restore writes."
+      }
+    ],
+    "required_performance_families": [
+      "cold_launch_to_usable",
+      "discrete_action_feedback",
+      "capture_to_durable_thumbnail",
+      "history_retrieval",
+      "report_preview_ready"
+    ],
+    "performance_metrics": [
+      {
+        "gate_id": "performance.cold-launch",
+        "metric_id": "cold_launch_to_welcome",
+        "metric_family": "cold_launch_to_usable",
+        "scenario_id": "one_handed_start",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "fixture_id": "fixture.empty-install",
+        "method": "Milliseconds between the UISmoke cold_launch_to_welcome start/end log markers on a terminated-process launch.",
+        "run_condition": "cold",
+        "statistic": "p95",
+        "unit": "milliseconds",
+        "s9_baseline": 0,
+        "operator": "less_than_or_equal",
+        "threshold": 5000
+      },
+      {
+        "gate_id": "performance.start-check",
+        "metric_id": "start_check_to_preflight",
+        "metric_family": "discrete_action_feedback",
+        "scenario_id": "one_handed_start",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "fixture_id": "fixture.visible-issue-report",
+        "method": "Milliseconds between the UISmoke start_check_to_preflight action and ready-state log markers.",
+        "run_condition": "warm",
+        "statistic": "p95",
+        "unit": "milliseconds",
+        "s9_baseline": 0,
+        "operator": "less_than_or_equal",
+        "threshold": 1000
+      },
+      {
+        "gate_id": "performance.evidence-durable",
+        "metric_id": "evidence_use_photo_to_durable_next_state",
+        "metric_family": "capture_to_durable_thumbnail",
+        "scenario_id": "capture_and_review",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "fixture_id": "fixture.visible-issue-report",
+        "method": "Maximum milliseconds across the UISmoke evidence_use_photo_to_durable_next_state_* wide/close action and durable-next-state log-marker pairs.",
+        "run_condition": "warm",
+        "statistic": "max",
+        "unit": "milliseconds",
+        "s9_baseline": 0,
+        "operator": "less_than_or_equal",
+        "threshold": 3000
+      },
+      {
+        "gate_id": "performance.report-history",
+        "metric_id": "report_history_open",
+        "metric_family": "history_retrieval",
+        "scenario_id": "history_recovery",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "fixture_id": "fixture.visible-issue-report",
+        "method": "Milliseconds between the UISmoke report_history_open action and ready-state log markers.",
+        "run_condition": "warm",
+        "statistic": "p95",
+        "unit": "milliseconds",
+        "s9_baseline": 0,
+        "operator": "less_than_or_equal",
+        "threshold": 2000
+      },
+      {
+        "gate_id": "performance.report-preview",
+        "metric_id": "report_open_to_preview",
+        "metric_family": "report_preview_ready",
+        "scenario_id": "report_comprehension",
+        "device_profile_id": "iphone-17-ios-26.2-current",
+        "fixture_id": "fixture.visible-issue-report",
+        "method": "Milliseconds between the UISmoke report_open_to_preview action and PDF-preview-ready log markers.",
+        "run_condition": "warm",
+        "statistic": "p95",
+        "unit": "milliseconds",
+        "s9_baseline": 0,
+        "operator": "less_than_or_equal",
+        "threshold": 3000
+      }
+    ]
+  },
+  "physical_sessions": [],
+  "durability_results": [],
+  "performance_results": [],
+  "severe_issue_count": 0
+}

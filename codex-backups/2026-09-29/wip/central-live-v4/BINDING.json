@@ -1,0 +1,38 @@
+{
+  "effort": "xhigh",
+  "files": {
+    "HANDOFF.md": "e0719067542821c9ba052480e6cab53dac022aa666a8ef2042dad744da5bf8b7",
+    "OWNED_COMPOSITION_MAP.json": "740b11319bbc40b5edf7be228e5a48c08cd939f47720afdff486ebf57fd7b1ec",
+    "PARSE-Service-DEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PARSE-Service-nonDEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PARSE.json": "fce27c9fcb22ac2d428639d2638f3fa449cf01cb44564ec655494c13c1f063c1",
+    "SERVICE_V3_TO_V4.diff": "6cf040c019b8b3a483bc2a9fcbb03c6ec48321c4da73f5b8b174534d1baf1958",
+    "candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "2fe16079b59973b5867b6094aba613163e6e7d539e5fd80c863bcda1c9905803"
+  },
+  "model": "gpt-6.1-sol",
+  "noTypecheckBuildNative": true,
+  "ownedComposition": {
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": {
+      "absoluteSource": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/source-correction-v4/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "restoreRepositoryPath": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "sha256": "2fe16079b59973b5867b6094aba613163e6e7d539e5fd80c863bcda1c9905803",
+      "sourceOnly": true
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": {
+      "absoluteSource": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/interface-checkpoint-v3/candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+      "restoreRepositoryPath": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+      "sha256": "1f8066c62a612bfdeb205fab0eccecc1e6c600c8427380c2bfc3aca5027b45dd",
+      "sourceOnly": true
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": {
+      "absoluteSource": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/interface-checkpoint-v3/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "restoreRepositoryPath": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "sha256": "026d1499fa31acdbeb42d9c2ab82454fda600f25847e469b9a331bd00583921c",
+      "sourceOnly": true
+    }
+  },
+  "parentHead": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "predecessorBindingSHA256": "66549cbfe3046c7a5745b904c5433b1621cb980c9602467de7610c00bef97864",
+  "schemaVersion": 4,
+  "status": "SOURCE_ONLY_COMPILE_RISK_CORRECTION_NOT_INSTALLABLE"
+}

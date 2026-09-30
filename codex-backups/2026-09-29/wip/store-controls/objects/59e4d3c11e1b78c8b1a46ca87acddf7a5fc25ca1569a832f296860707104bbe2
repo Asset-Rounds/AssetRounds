@@ -1,0 +1,102 @@
+from pathlib import Path
+r=Path('.codex-temp/cold-control-continuation-successor-v1'); p=r/'candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift'
+s=p.read_text()
+# Data grammar cannot infer IDs from absent controls; Router supplies real authority.
+s=s.replace('              !originalSources.isEmpty else { throw EraseIntentStoreError.invalidPreparation }','              originalSources.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount else { throw EraseIntentStoreError.invalidPreparation }')
+# Preserve the initial observer's descriptor retention pattern for every closed
+# versioned canonical/reserved control name. Do not decode before EX/G.
+s=s.replace('        let opaqueRetiredStageIdentityNextPresent: Bool\n','        let opaqueRetiredStageIdentityNextPresent: Bool\n        let opaqueCleanupNames: [String]\n',1)
+s=s.replace('    private var opaqueOriginalRetiredFDs: [String: Int32] = [:]\n','    private var opaqueOriginalRetiredFDs: [String: Int32] = [:]\n    private var opaqueCleanupFDs: [String: Int32] = [:]\n    private var capturedOpaqueCleanup: [String: OpaqueOriginalRetiredLeafV1] = [:]\n',1)
+s=s.replace('                opaqueRetiredStageIdentityNextPresent: false)','                opaqueRetiredStageIdentityNextPresent: false,\n                opaqueCleanupNames: [])',1)
+s=s.replace('                $0 == ".original-retired-stage-identity.json.next"\n','                $0 == ".original-retired-stage-identity.json.next" ||\n                EraseSchema2ColdCleanupGrammarV1.isControlName($0)\n',2)
+needle='        let intent = try capturedIntentBytes.map {'
+s=s.replace(needle,'''        let cleanupNames = initialNames.filter(EraseSchema2ColdCleanupGrammarV1.isControlName)
+        guard cleanupNames.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount + 8 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        for name in cleanupNames {
+            guard let leaf = try openOpaqueOriginalRetired(name, at: erase, root: eraseURL) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            capturedOpaqueCleanup[name] = leaf
+        }
+'''+needle,1)
+s=s.replace('                ".original-retired-stage-identity.json.next"))','                ".original-retired-stage-identity.json.next"),\n            opaqueCleanupNames: cleanupNames)',1)
+s=s.replace('        captured = snapshot\n        try requireCaptured(snapshot, operation: operation)\n        return snapshot\n    }\n\n    func requireCaptured', '''        guard snapshot.opaqueCleanupNames.isEmpty ||
+                (intent?.schemaVersion == 2 && preparation?.c05JobDrainV3 == nil) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        captured = snapshot
+        try requireCaptured(snapshot, operation: operation)
+        return snapshot
+    }
+
+    func requireCaptured''',1)
+s=s.replace('                 opaqueOriginalRetired:\n                    [String: OpaqueOriginalRetiredLeafV1],','                 opaqueOriginalRetired:\n                    [String: OpaqueOriginalRetiredLeafV1],\n                 opaqueCleanup: [String: OpaqueOriginalRetiredLeafV1],',1)
+# Observer owns both maps; clear slots BEFORE checked close to prevent reuse.
+needle='        borrowedSchema2Store = true\n'
+s=s.replace(needle,'''        for name in opaqueCleanupFDs.keys.sorted() {
+            guard let descriptor = opaqueCleanupFDs.removeValue(forKey: name) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            if Darwin.close(descriptor) != 0 {
+                uncertainFDs.append(descriptor)
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+'''+needle,1)
+s=s.replace('            capturedOpaqueOriginalRetired,\n','            capturedOpaqueOriginalRetired, capturedOpaqueCleanup,\n',1)
+s=s.replace('              presentNames.contains("schema2-cold-deletion-roster.json")','              presentNames.filter(EraseSchema2ColdCleanupGrammarV1.isControlName)\n                == expected.opaqueCleanupNames,\n              presentNames.contains("schema2-cold-deletion-roster.json")',1)
+needle='        if expected.intent == nil && expected.preparation == nil {'
+s=s.replace(needle,'''        for name in expected.opaqueCleanupNames {
+            guard let fd = opaqueCleanupFDs[name], let first = capturedOpaqueCleanup[name] else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            var held = stat(), named = stat()
+            guard Darwin.fstat(fd, &held) == 0,
+                  Darwin.fstatat(eraseFD, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseColdControlLeafFactV1(held) == first.fact,
+                  EraseColdControlLeafFactV1(named) == first.fact,
+                  try opaqueBytes(fd, parent: eraseFD, name: name) == first.bytes,
+                  try observeColdPolicy(name.hasSuffix(".next") ? .journalTemporary : .journal,
+                    at: eraseURL.appendingPathComponent(name)) == first.policy else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+'''+needle,1)
+needle='        guard uncertainFDs.isEmpty, !uncertainStreamClose else {'
+s=s.replace(needle,'''        for name in opaqueCleanupFDs.keys.sorted() {
+            guard let descriptor = opaqueCleanupFDs.removeValue(forKey: name) else { continue }
+            if Darwin.close(descriptor) != 0 { uncertainFDs.append(descriptor) }
+        }
+'''+needle,1)
+s=s.replace('                name == ".original-retired-stage-identity.json.next",\n              opaqueOriginalRetiredFDs[name] == nil else {','                name == ".original-retired-stage-identity.json.next" ||\n                EraseSchema2ColdCleanupGrammarV1.isControlName(name),\n              opaqueOriginalRetiredFDs[name] == nil, opaqueCleanupFDs[name] == nil else {',1)
+s=s.replace('        opaqueOriginalRetiredFDs[name] = fd\n','        if EraseSchema2ColdCleanupGrammarV1.isControlName(name) { opaqueCleanupFDs[name] = fd }\n        else { opaqueOriginalRetiredFDs[name] = fd }\n',1)
+# Store retains transferred first-held bytes/facts/policy, never replacing them
+# with a later source observation.
+needle='    private var coldExpectedIntentBytes: Data?\n'
+s=s.replace(needle,'''    private var coldCleanupFirstLeaves: [String: EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1] = [:]
+    private var coldCleanupProjectedLeaves: [String: EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1] = [:]
+    private var coldCleanupPermit: EraseSchema2ColdControlPermitV1?
+    private var coldCleanupOwnBytes: [String: Data] = [:]
+    private var coldCleanupControlAttempt: (canonicalName: String, expected: Data?, replacement: Data)?
+    private var coldCleanupSourcesReceipt: EraseSchema2ColdCleanupSourcesReceiptV1?
+    private var coldCleanupTerminalRemovalNames: [String] = []
+    private var coldCleanupTerminalRemovalIndex = 0
+    private var coldCleanupTerminalRemovalStarted = false
+'''+needle,1)
+s=s.replace('        self.coldCapturedOpaqueOriginalRetired =\n            held.opaqueOriginalRetired','        self.coldCapturedOpaqueOriginalRetired =\n            held.opaqueOriginalRetired\n        self.coldCleanupFirstLeaves = held.opaqueCleanup\n        self.coldCleanupProjectedLeaves = held.opaqueCleanup',1)
+# Same checked O_EXCL publisher receives only closed versioned control names.
+s=s.replace('guard borrowsColdObservation, !coldCloseAttempted, !coldClosed,\n              coldUncertainFDs.isEmpty, !coldEffectUncertain else {','guard (borrowsColdObservation || coldCleanupPermit != nil), !coldCloseAttempted, !coldClosed,\n              coldUncertainFDs.isEmpty, !coldEffectUncertain else {',1)
+s=s.replace('guard kind == .journalTemporary,\n                      [Self.nextName, Self.preparationNextName,\n                       Self.rosterNextName].contains(name),','guard kind == .journalTemporary,\n                      ([Self.nextName, Self.preparationNextName,\n                       Self.rosterNextName].contains(name) ||\n                       (coldCleanupPermit != nil && EraseSchema2ColdCleanupGrammarV1.isControlName(name))),',1)
+s=s.replace('            if borrowsColdObservation {\n                guard kind == .journalTemporary,','            if borrowsColdObservation || coldCleanupPermit != nil {\n                guard kind == .journalTemporary,',1)
+s=s.replace('        guard borrowsColdObservation, !coldCloseAttempted, !coldClosed,\n              !coldEffectUncertain, coldOwnTemporaryName == name,','        guard (borrowsColdObservation || coldCleanupPermit != nil), !coldCloseAttempted, !coldClosed,\n              !coldEffectUncertain, coldOwnTemporaryName == name,',1)
+s=s.replace('        guard borrowsColdObservation, coldEnumerationFD == nil,','        guard (borrowsColdObservation || coldCleanupPermit != nil), coldEnumerationFD == nil,',1)
+s=s.replace('               Self.originalRetiredStageIdentityName].contains(name),\n              maximumBytes > 0 else {','               Self.originalRetiredStageIdentityName].contains(name) ||\n                (coldCleanupPermit != nil && EraseSchema2ColdCleanupGrammarV1.isControlName(name)),\n              maximumBytes > 0 else {',1)
+s=s.replace('                [Self.nextName, Self.preparationNextName,\n                 Self.rosterNextName].contains(name)\n                    ? .journalTemporary : .journal','                ([Self.nextName, Self.preparationNextName,\n                 Self.rosterNextName].contains(name) || name.hasSuffix(".next"))\n                    ? .journalTemporary : .journal',1)
+s=s.replace('                        coldOwnRosterBytes == data))','                        coldOwnRosterBytes == data) ||\n                     coldCleanupOwnBytes[name] == data)',1)
+s=s.replace('        guard [Self.nextName, Self.preparationNextName,\n               Self.rosterNextName].contains(name),','        guard ([Self.nextName, Self.preparationNextName,\n               Self.rosterNextName].contains(name) ||\n               (coldCleanupPermit != nil && EraseSchema2ColdCleanupGrammarV1.isControlName(name))),',1)
+s=s.replace('                    ($0 == Self.nextName &&\n                        coldCapturedOpaqueNextBytes != nil)','                    ($0 == Self.nextName &&\n                        coldCapturedOpaqueNextBytes != nil) ||\n                    (EraseSchema2ColdCleanupGrammarV1.isControlName($0) &&\n                        (coldCleanupProjectedLeaves[$0] != nil ||\n                         coldCleanupOwnBytes[$0] != nil))',1)
+# Preserve exact existing names while including owned controls in later scopes.
+s=s.replace('            coldCapturedOpaqueOriginalRetired.keys.sorted() + added).sorted()','            coldCapturedOpaqueOriginalRetired.keys.sorted() +\n            coldCleanupProjectedLeaves.keys.sorted() + added).sorted()',1)
+p.write_text(s)

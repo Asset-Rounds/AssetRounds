@@ -1,0 +1,82 @@
+{
+  "schema": "ReadOnlyIndependentReviewInputsV1",
+  "createdAtUTC": "2026-09-30T01:38:54.349295+00:00",
+  "reviewer": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh",
+    "role": "independent-read-only-nonauthor"
+  },
+  "scope": "subsequent proposal-only selected-slot/unlock clarification; no source implementation, Store-interface approval, compiler/native/runtime/gate credit",
+  "inputs": [
+    {
+      "role": "proposal-supplement",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/SUPPLEMENT_SELECTED_SLOT_AND_UNLOCK_V1.md",
+      "sha256": "8238e8149ee88aef8c5a07d8dcb6fb3d27ec5dd3f4035f91be55be8eaa6b7ef1",
+      "bytes": 3614,
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-supplement",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/SUPPLEMENT_INPUTS_V1.json",
+      "sha256": "8a9faedc3b2781b8d6e16eca5524db0d6b8a3252937de646330afb8720d526a1",
+      "bytes": 1637,
+      "expectedMatched": true
+    },
+    {
+      "role": "proposal-supplement",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/SUPPLEMENT_MANIFEST_V1.json",
+      "sha256": "67f6f89efbcdcc5130f584235fe01e9749802d679296fbf25d61a6e0bc69fbda",
+      "bytes": 383,
+      "expectedMatched": true
+    },
+    {
+      "role": "supplement-bound-proposal",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/PROPOSAL.md",
+      "sha256": "51dccb719c9c49c624461b8017a5bfe7f8b99434b37a17446403ee32e25c797a",
+      "bytes": 8063,
+      "expectedMatched": true
+    },
+    {
+      "role": "supplement-bound-inputs",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-firstcapture-read-window-proposal-v1/INPUTS.json",
+      "sha256": "85a3ca97320bb0492cbaaf8a3c3c43598bb90ae1bd6b8284db2cf529a83ff9a7",
+      "bytes": 2052,
+      "expectedMatched": true
+    },
+    {
+      "role": "supplement-bound-prePInterface",
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/FIRST_CAPTURE_SCOPE_INTERFACE_V2.swift.fragment",
+      "sha256": "0d330bd56a10d7df5186a5176ab1acdcf9fc488f465494224b0e023c1138b156",
+      "bytes": 7164,
+      "expectedMatched": true
+    },
+    {
+      "role": "supplement-bound-storeReadInterface",
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1.swift",
+      "sha256": "7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+      "bytes": 24510,
+      "expectedMatched": true
+    },
+    {
+      "role": "supplement-bound-storeReadBinding",
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1_BINDING.json",
+      "sha256": "c570863e503da5f243e4d5cf812faaa591722dff8eb3be43ce4d30d43da25219",
+      "bytes": 3985,
+      "expectedMatched": true
+    },
+    {
+      "role": "original-frozen-review",
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/firstcapture-read-window-review-sol61-xhigh-v1/REVIEW.md",
+      "sha256": "e68e6276d41afc1923d86ab84c241ab493bf97b027dc61bef01c63fd8d276455",
+      "bytes": 15693,
+      "expectedMatched": true
+    },
+    {
+      "role": "original-frozen-inputs",
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/firstcapture-read-window-review-sol61-xhigh-v1/INPUTS.json",
+      "sha256": "b1af44bb9e26ec1405ba39b83c00dfb358e9bdc9679647f1a95a6fa9f0d0653e",
+      "bytes": 9375,
+      "expectedMatched": true
+    }
+  ]
+}

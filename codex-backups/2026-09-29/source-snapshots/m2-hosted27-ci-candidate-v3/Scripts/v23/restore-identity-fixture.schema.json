@@ -1,0 +1,172 @@
+{
+  "$id": "urn:assetrounds:v23:p01:c05:identity-transformation-manifest:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P01-C05"
+    },
+    "cases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "evidenceID": {
+            "pattern": "^V23-P01-C05-[GAHIR]01$"
+          },
+          "expectedOutcome": {
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "G01",
+              "A01",
+              "H01",
+              "I01",
+              "R01"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "EMPTY",
+              "REPLACE",
+              "CLONE",
+              "FORK",
+              "ALL"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "family",
+          "mode",
+          "expectedOutcome",
+          "evidenceID"
+        ],
+        "type": "object"
+      },
+      "minItems": 12,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "coverage": {
+      "type": "object"
+    },
+    "fixtureBinding": {
+      "required": [
+        "path",
+        "bytes",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "identityTable": {
+      "const": [
+        {
+          "destinationPrecondition": "NO_CANONICAL_WORKSPACE",
+          "existingDestinationContent": "MUST_BE_EMPTY",
+          "mode": "EMPTY",
+          "recordIDs": "PRESERVE_SOURCE",
+          "replicaID": "MINT_DESTINATION_OWNED",
+          "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+          "sourceWorkspaceLineage": "CONTINUATION_SOURCE_WORKSPACE",
+          "workspaceID": "PRESERVE_SOURCE"
+        },
+        {
+          "destinationPrecondition": "EXPLICIT_MATCHED_DESTINATION_AUTHORITY",
+          "existingDestinationContent": "REPLACE_UNDER_DELETION_WINS",
+          "mode": "REPLACE",
+          "recordIDs": "PRESERVE_SOURCE_REPLACEMENT_UNION",
+          "replicaID": "RETAIN_DESTINATION_OR_MINT_IF_ABSENT",
+          "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+          "sourceWorkspaceLineage": "SOURCE_ARCHIVE_PROVENANCE_ONLY",
+          "workspaceID": "PRESERVE_DESTINATION"
+        },
+        {
+          "destinationPrecondition": "EXPLICIT_CLONE_AUTHORIZATION",
+          "existingDestinationContent": "NEW_GENERATION_ONLY",
+          "mode": "CLONE",
+          "recordIDs": "PRESERVE_SOURCE",
+          "replicaID": "MINT_DESTINATION_OWNED",
+          "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+          "sourceWorkspaceLineage": "SOURCE_ARCHIVE_PROVENANCE_ONLY",
+          "workspaceID": "MINT_DESTINATION_OWNED"
+        },
+        {
+          "destinationPrecondition": "EXPLICIT_FORK_AUTHORIZATION",
+          "existingDestinationContent": "NEW_GENERATION_ONLY",
+          "mode": "FORK",
+          "recordIDs": "PRESERVE_RAW_UUID_RESCOPED_BY_NEW_WORKSPACE",
+          "replicaID": "MINT_DESTINATION_OWNED",
+          "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+          "sourceWorkspaceLineage": "REQUIRED_EXPLICIT_SOURCE_WORKSPACE_LINEAGE",
+          "workspaceID": "MINT_DESTINATION_OWNED"
+        }
+      ]
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "V23P01C05IdentityTransformationManifestV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "fixtureBinding",
+    "identityTable",
+    "cases",
+    "coverage",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation",
+    "phase10PollingDuringParallelExecution",
+    "artifactDigest"
+  ],
+  "title": "V23P01C05IdentityTransformationManifestV1",
+  "type": "object"
+}

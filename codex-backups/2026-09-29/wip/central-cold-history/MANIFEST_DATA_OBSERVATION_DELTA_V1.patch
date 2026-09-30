@@ -1,0 +1,18 @@
+--- a/FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift
++++ b/FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift
+@@ -2396,9 +2396,12 @@
+               names.count == Set(names).count else {
+             throw StoreMigrationFailure.invalidIdentity
+         }
+-        // Both recursive completion cuts follow a successful scratch erase.
+-        // Its reappearance cannot be treated as a deletable historical subset.
+-        if erasePhase == .sessionActivated || erasePhase == .cleanupComplete {
++        // R is also a genuine pre-cleanup cut. Observe its registered Scratch
++        // owner without promoting the current tree to deletion authority;
++        // the immutable original-P roster and fixed C16 progress must admit
++        // its complete projection before any effect. cleanupComplete retains
++        // its stronger physical absence predicate.
++        if erasePhase == .cleanupComplete {
+             guard !names.contains("ScratchDataV1") else {
+                 throw StoreMigrationFailure.invalidIdentity
+             }

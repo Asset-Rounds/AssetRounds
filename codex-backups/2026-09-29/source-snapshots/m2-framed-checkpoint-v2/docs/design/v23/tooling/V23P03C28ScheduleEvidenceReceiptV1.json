@@ -1,0 +1,34 @@
+{
+  "artifactDigest": "404a4866026d792e76f409d7f7a508c37614656ee59f4ec6fc10d426c8b1a7fe",
+  "cardID": "V23-P03-C28",
+  "evidenceIDs": [
+    "V23-P03-C28-G01",
+    "V23-P03-C28-A01",
+    "V23-P03-C28-H01",
+    "V23-P03-C28-I01",
+    "V23-P03-C28-R01"
+  ],
+  "requiredSemanticsDigest": "b106a7ff7da80d41c8bede44803dfbf303a2372ab373070bc78e887f379685bb",
+  "schema": "V23P03C28ScheduleEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C28G01DeterministicScheduleAndOccurrenceIdentitySurviveDSTAndTravel",
+    "testV23P03C28A01FixedAndCompletionRelativePoliciesRemainDistinct",
+    "testV23P03C28H01AmbiguousNonexistentRollbackDuplicateAndLateCompletionFailClosed",
+    "testV23P03C28I01BoundedGenerationAndOccurrenceHistoryRetryIdempotently",
+    "testV23P03C28R01RestoreRebuildsDueQueueAndReminderProjectionWithoutNotificationTruth"
+  ]
+}

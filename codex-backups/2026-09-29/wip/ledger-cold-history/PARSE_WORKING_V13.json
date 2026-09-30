@@ -1,0 +1,30 @@
+{
+  "sourceSHA256": "9e103f62be4aeb15d72c7e822c2c89eb17853c5aa2c9f837fdb2abcac1977723",
+  "parseOnly": true,
+  "results": [
+    {
+      "mode": "DEBUG",
+      "exit": 0,
+      "log": "PARSE_WORKING_V13_DEBUG.log",
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift"
+      ]
+    },
+    {
+      "mode": "nonDEBUG",
+      "exit": 0,
+      "log": "PARSE_WORKING_V13_nonDEBUG.log",
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+        "-frontend",
+        "-parse",
+        "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift"
+      ]
+    }
+  ]
+}

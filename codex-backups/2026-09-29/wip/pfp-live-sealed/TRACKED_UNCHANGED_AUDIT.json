@@ -1,0 +1,34 @@
+{
+  "addedLines": 1189,
+  "additiveOnly": true,
+  "allOriginalLinesPreservedInOrder": true,
+  "beforeSHA256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+  "candidateSHA256": "07d257675980361e8c945cfaeda332877c80b43566455368d93d1baefcac38cd",
+  "changedTrackedPaths": [],
+  "insertions": [
+    [
+      "insert",
+      2,
+      2,
+      2,
+      3
+    ],
+    [
+      "insert",
+      1469,
+      1469,
+      1470,
+      2351
+    ],
+    [
+      "insert",
+      1685,
+      1685,
+      2567,
+      2874
+    ]
+  ],
+  "removedLines": 0,
+  "sourceCount": 1206,
+  "sourceMapSHA256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175"
+}

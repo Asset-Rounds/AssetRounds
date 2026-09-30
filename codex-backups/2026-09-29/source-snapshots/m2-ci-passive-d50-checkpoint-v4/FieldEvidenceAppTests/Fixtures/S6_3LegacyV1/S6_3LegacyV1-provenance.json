@@ -1,0 +1,191 @@
+{
+  "evidence": [
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-build-exit.json",
+      "sha256": "30e46c5ad0f9a5c65611bc05bd44cdfc50cfac39f2ab987f23801fcd14c3c73f"
+    },
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-build-command.json",
+      "sha256": "49669f328c3eadecf0c75f2a99ef19eeb939b44d8adcd801ea18e557d8499f27"
+    },
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-source-sha256.json",
+      "sha256": "27a138319ccbe6b57ebea9c945aecef8421f4b970e4753dfd0f81f93cace5407"
+    },
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-provenance-summary.json",
+      "sha256": "44697084336972b802782c13e84ccb7be92158b881780b8fcaf9e9bcf54f78b8"
+    },
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-provenance-tests.json",
+      "sha256": "edd09e9479b25dedab2fdd741c688cac2a4ab91f5295ae3f1614ec6944675293"
+    },
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-provenance-command.json",
+      "sha256": "0190faf92a2daf3bd6951c0fbfc6aab892fb73846f68df77051a484e7f4d0b7b"
+    },
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-provenance-source-audit.json",
+      "sha256": "da0fc2fec2f3280085af5addabd14e3c30250212f210b968f850b4ca6ba4f4c3"
+    },
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-provenance-products-after.json",
+      "sha256": "dc641c2f25f3a65b60d796760a9964d3910edffdc22e0a65bf699dfa898ff99b"
+    },
+    {
+      "path": ".codex-temp/codex-20260926/batch-lg1-instrumentation.swift",
+      "sha256": "94962fb9c6895bb7f2db31dfe73e1752b637a6ec3a03a133806f6793cf332456"
+    }
+  ],
+  "instrumentationNote": "Original test source SHA binds the accepted S10 blob; instrumented source SHA binds the additive-only local fixture-retention test used in LG1. Local generation is development provenance, not acceptance.",
+  "instrumentedTestSourceSHA256": "94962fb9c6895bb7f2db31dfe73e1752b637a6ec3a03a133806f6793cf332456",
+  "memberCount": 22,
+  "members": [
+    {
+      "byteCount": 4228,
+      "path": "manifest.json",
+      "resourceName": "S6_3LegacyV1-member-00.bin",
+      "sha256": "b95b532871e596d28b18635a573f5dfd513681518f6fbbcc6c861608ee25a5a3"
+    },
+    {
+      "byteCount": 4525,
+      "path": "media/63000000-0000-0000-0000-000000000017.jpg",
+      "resourceName": "S6_3LegacyV1-member-01.bin",
+      "sha256": "4984c7dd7aba389bad11ee82a8f66cedf85f02f1d3c3ee3c07777e846ab2fba2"
+    },
+    {
+      "byteCount": 4497,
+      "path": "media/8a807280-8b07-4534-8392-1b4b60308082.jpg",
+      "resourceName": "S6_3LegacyV1-member-02.bin",
+      "sha256": "8b6eec87b7e3029b581bfbe5bc94de23c66f1ecce27211887439a6f6eac7158e"
+    },
+    {
+      "byteCount": 4453,
+      "path": "media/a223a327-31ea-4740-a9bc-7e2773ae3d09.jpg",
+      "resourceName": "S6_3LegacyV1-member-03.bin",
+      "sha256": "191e0bc58a06249c2636e444de13f21cc63e1dd91dcd3b721b8601cae0717d04"
+    },
+    {
+      "byteCount": 4543,
+      "path": "media/b10a2a29-0c39-4134-a61e-0862ad510269.jpg",
+      "resourceName": "S6_3LegacyV1-member-04.bin",
+      "sha256": "d4d915c7304969f0bea43dd0ca5970b62e297c97f5172b28a38f95ffb217e7f4"
+    },
+    {
+      "byteCount": 4513,
+      "path": "media/d2c63da8-40d2-44e3-9f1b-5875ba5fe126.jpg",
+      "resourceName": "S6_3LegacyV1-member-05.bin",
+      "sha256": "dd5591cdd0413af773a7b8b73af0a0d972a750dc8b59a773a357f3fbebb713b3"
+    },
+    {
+      "byteCount": 4481,
+      "path": "media/d58583d6-6f48-4c85-9644-63e667573426.jpg",
+      "resourceName": "S6_3LegacyV1-member-06.bin",
+      "sha256": "40e1e860a156baefed40d8d8611c0db3d21f59a66db8f527d37ed62db1d920a2"
+    },
+    {
+      "byteCount": 4501,
+      "path": "media/e16cb297-bd1c-40c2-bfe3-4621b16e9d89.jpg",
+      "resourceName": "S6_3LegacyV1-member-07.bin",
+      "sha256": "e4192e8a39e2aa4b736743e439bbf5e244ab12f5b6d6347f613e32eb627fe71e"
+    },
+    {
+      "byteCount": 45270,
+      "path": "pdfs/63000000-0000-0000-0000-000000000024.pdf",
+      "resourceName": "S6_3LegacyV1-member-08.bin",
+      "sha256": "7435174bb8a327a5c166b3c596ea664984c60d5f4321ac3f3d0bcb3b913bb203"
+    },
+    {
+      "byteCount": 45220,
+      "path": "pdfs/63000000-0000-0000-0000-000000000028.pdf",
+      "resourceName": "S6_3LegacyV1-member-09.bin",
+      "sha256": "bd44d171933ccdbc2227b60b4b724dd6d3e48ac25e43fc60c229dd9bbc3e17dd"
+    },
+    {
+      "byteCount": 16090,
+      "path": "records.json",
+      "resourceName": "S6_3LegacyV1-member-10.bin",
+      "sha256": "7a9e97a58984b22aa5ec9c819e5fee716b303a3b55dbf8821799365728aa057c"
+    },
+    {
+      "byteCount": 2973,
+      "path": "snapshots/63000000-0000-0000-0000-000000000014.json",
+      "resourceName": "S6_3LegacyV1-member-11.bin",
+      "sha256": "89e1ca3a45be50c373ba59598381a473ef6922d4ae9334c797e99ab3e80227c2"
+    },
+    {
+      "byteCount": 5664,
+      "path": "snapshots/63000000-0000-0000-0000-000000000024.json",
+      "resourceName": "S6_3LegacyV1-member-12.bin",
+      "sha256": "671b48af32e889f770eafa8fef344c4449aca3207eea1273f4d4d1c1bd21ed42"
+    },
+    {
+      "byteCount": 5659,
+      "path": "snapshots/63000000-0000-0000-0000-000000000028.json",
+      "resourceName": "S6_3LegacyV1-member-13.bin",
+      "sha256": "6e49880f6492a1abd526a0b5adf0f1b64673394dd5f592bfe9b544e1368e9d93"
+    },
+    {
+      "byteCount": 2697,
+      "path": "snapshots/63000000-0000-0000-0000-000000000034.json",
+      "resourceName": "S6_3LegacyV1-member-14.bin",
+      "sha256": "2b30b05181810ceb129dc8abf7008ffe8a4023bca6426f2057194c4545c4c026"
+    },
+    {
+      "byteCount": 4393,
+      "path": "thumbnails/63000000-0000-0000-0000-000000000017.jpg",
+      "resourceName": "S6_3LegacyV1-member-15.bin",
+      "sha256": "a5057b37294d90a93902e1aee21e75a1db5ea1d83c7df426dbb7445046debaa8"
+    },
+    {
+      "byteCount": 4367,
+      "path": "thumbnails/8a807280-8b07-4534-8392-1b4b60308082.jpg",
+      "resourceName": "S6_3LegacyV1-member-16.bin",
+      "sha256": "27efc46f9a03a9e827340c14d4db33b81be6e419cce9e7c82851d887d174e585"
+    },
+    {
+      "byteCount": 4325,
+      "path": "thumbnails/a223a327-31ea-4740-a9bc-7e2773ae3d09.jpg",
+      "resourceName": "S6_3LegacyV1-member-17.bin",
+      "sha256": "e380e7e2fa9f631b5634a77b743566a0a8e2b715b338e7be1c25603a8bb1f092"
+    },
+    {
+      "byteCount": 4401,
+      "path": "thumbnails/b10a2a29-0c39-4134-a61e-0862ad510269.jpg",
+      "resourceName": "S6_3LegacyV1-member-18.bin",
+      "sha256": "ac5f878f1f255e4d953657a89feeb2d18cd4c3f85833039e112ce2002235231d"
+    },
+    {
+      "byteCount": 4379,
+      "path": "thumbnails/d2c63da8-40d2-44e3-9f1b-5875ba5fe126.jpg",
+      "resourceName": "S6_3LegacyV1-member-19.bin",
+      "sha256": "e57ca01fb3d225b6230dfd6347168c4d50176e1aafc6011f61ae805e6d13be5b"
+    },
+    {
+      "byteCount": 4367,
+      "path": "thumbnails/d58583d6-6f48-4c85-9644-63e667573426.jpg",
+      "resourceName": "S6_3LegacyV1-member-20.bin",
+      "sha256": "ff10f21c54218597334666ef93b6226dcbade05781911d32413ac991a2ce954d"
+    },
+    {
+      "byteCount": 4377,
+      "path": "thumbnails/e16cb297-bd1c-40c2-bfe3-4621b16e9d89.jpg",
+      "resourceName": "S6_3LegacyV1-member-21.bin",
+      "sha256": "f4d7203e0a349c5fd5565b59eb73a0bbb4f63b7a4a8dbd209567815b4cb00f44"
+    }
+  ],
+  "originalTestSourceSHA256": "40d3c8f60de8c027c34dfdccb2422950c6d6490e4ecd00291c5eeffc2831255a",
+  "packageName": "AssetRounds.fieldrecordbackup",
+  "producerCommit": "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+  "producerPath": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+  "producerSourceSHA256": "b6dcc3d5f26cd95cb32f4c328496d82a033e0e7fb426d87efcd2120cd8d9de7c",
+  "purpose": "Local historical fixture production; not gate or acceptance evidence",
+  "schema": "AcceptedS10LegacyPackageFixtureAttachmentV1",
+  "schemaVersion": 1,
+  "sourceArtifact": {
+    "path": ".codex-temp/codex-20260926/batch-lg1-provenance-attachments/D9F086E9-4D74-4B61-8834-2BE3AA7DDB4A.json",
+    "sha256": "30f795a3c0defdae4ffd0788d7f251a3fcc6d9a9a62bd5ef2e433efbb18e9c1d"
+  },
+  "testMethod": "testRetainAcceptedS10OriginalLegacyMixedPackageProvenanceV1",
+  "totalMemberByteCount": 189923
+}

@@ -1,0 +1,17 @@
+    /// Original Scratch lends this existing exclusive handle only. The fixed
+    /// validator uses held/named identities and checked policy descriptors;
+    /// it never takes SH, a second EX or an ordinary constructor/reopen.
+    @MainActor
+    fileprivate func validateOriginalEraseScratchCleanupRegistry(
+        _ expected: GenerationLeaseRegistryV1
+    ) throws {
+        try lock.withLock {
+            guard registry === expected, exclusive, descriptor >= 0,
+                  retirementCloseState == .open,
+                  originalRecoveryUncertainCloseDescriptor == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try registry.validateOriginalEraseScratchCleanupActivityDescriptor(descriptor)
+        }
+    }
+

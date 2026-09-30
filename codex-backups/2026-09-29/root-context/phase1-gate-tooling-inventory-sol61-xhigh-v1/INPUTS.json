@@ -1,0 +1,382 @@
+{
+  "schema": "phase1-gate-tooling-read-only-inputs.v1",
+  "observedAtUTC": "2026-09-30T02:12:39.730663+00:00",
+  "reviewer": {
+    "model": "gpt-6.1-sol",
+    "effort": "xhigh",
+    "independent": true,
+    "nonauthor": true
+  },
+  "head": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "tree": "af8b177e266be1cb0d3bd7578ecf71d475a281ec",
+  "fullSourceMap": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/live-notification-marker-link-primary-checkpoint-v1/SOURCE_MAP.json",
+    "sha256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+    "entries": 1206,
+    "actualCurrentBytesChecked": 1206,
+    "mismatches": []
+  },
+  "retainedCI": {
+    "scope": "Existing381/381 native-CI and42/42 selection-generator DEVELOPMENT only; no rerun/promotion here",
+    "actual9Inputs": {
+      "Scripts/dev/prun.py": "1738f81d0a9b9b40d0fe9293c99cf3c3a40730726c12837626643f2b44beee14",
+      "Scripts/test-v23-native-ci.py": "42d6a9b6c56768c74e707ce471fff1f4b063bc1e222d2f3b6ee44a7bc9d77ad1",
+      "Scripts/test-v23-selection-generator.py": "d9bcb4588647f05663c46e64e10473770e73e8d9b3700c7fa0831766a080195b",
+      "Scripts/v23-coverage-partitions.json": "db6560f75bb5fdbd9cb84ddf390f7ca5d11df04cec14f8a3d8bfe53cf687d1c7",
+      "Scripts/v23-coverage-partitions.py": "c5d155ecb571066703834be29fee3a63eb70c6a9a3420fac34b7ae519535cb6c",
+      "Scripts/v23-dev-batch.json": "10e1754d8d6c7b1c80f384d98c1fbca59468d9cbde8feba9e71d1736228258b8",
+      "Scripts/v23-native-ci.py": "0188014035a79e620cc9e2d902c22f55cf991f3f4b046547e34dbd5084f7fd95",
+      "Scripts/v23-selection-generator.py": "4a987864e3046e165c35bb8af1278a693c83a4bb90d2d398e81d528cff2c1c2a",
+      "Scripts/v23-selection-manifest.json": "d99dd93e7ebcaca9cc63ed93bd2d0c72a152bafc1a85780407c26ea3b3cd76ac"
+    },
+    "allActualHashesMatch": true
+  },
+  "phase1ClosedSourceClosure": [
+    "Scripts/v23-phase1-gates.py",
+    "Scripts/dev/v23-original.py",
+    "Scripts/v23-native-ci.py",
+    ".github/workflows/ios-ci.yml",
+    ".github/workflows/ios-ci-worker.yml",
+    ".github/workflows/ios-ci-shared-worker.yml",
+    "Scripts/v23-shared-worker.sh",
+    "Scripts/v23-ui-evidence.py",
+    "Scripts/v23-ui-smoke.sh",
+    "Scripts/v23-ui-batch.json",
+    "Scripts/ci-selection-map.json",
+    "Scripts/ci-selection.json",
+    "Scripts/ci-worker-selection.jq",
+    "Scripts/v23-selection-generator.py",
+    "Scripts/v23-selection-manifest.json",
+    "Scripts/build-smoke.sh",
+    "Scripts/test-smoke.sh",
+    "Scripts/ui-smoke.sh",
+    "Scripts/run-with-timeout.sh",
+    "Scripts/validate-required-evidence.sh",
+    "Scripts/s10-4-build-payload.py",
+    "Scripts/v23-coverage-partitions.json",
+    "docs/design/v23/integration/phase1-critical-states.json",
+    "docs/design/v23/integration/PHASE1_SIMULATOR_FUNCTIONAL_GATE_DECISION_20260926.md",
+    "docs/design/v23/integration/SIMULATOR_FILE_PROTECTION_DIAGNOSTIC.json"
+  ],
+  "inputs": [
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-phase1-gates.py",
+      "relativePath": "Scripts/v23-phase1-gates.py",
+      "sha256": "e72117104442bb6698b9d75bfacd806a488718c546816dc1a33f3caff06a6af2",
+      "bytes": 37047,
+      "equalsHEAD": true,
+      "headSHA256": "e72117104442bb6698b9d75bfacd806a488718c546816dc1a33f3caff06a6af2"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/dev/v23-original.py",
+      "relativePath": "Scripts/dev/v23-original.py",
+      "sha256": "08e7ea3f05b8f97adeadc353b606c2126991b45c398eaac6c3325931c2756366",
+      "bytes": 185905,
+      "equalsHEAD": true,
+      "headSHA256": "08e7ea3f05b8f97adeadc353b606c2126991b45c398eaac6c3325931c2756366"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-native-ci.py",
+      "relativePath": "Scripts/v23-native-ci.py",
+      "sha256": "0188014035a79e620cc9e2d902c22f55cf991f3f4b046547e34dbd5084f7fd95",
+      "bytes": 342812,
+      "equalsHEAD": true,
+      "headSHA256": "0188014035a79e620cc9e2d902c22f55cf991f3f4b046547e34dbd5084f7fd95"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.github/workflows/ios-ci.yml",
+      "relativePath": ".github/workflows/ios-ci.yml",
+      "sha256": "cf5dbcb1770699cc7468364be4398666180042959ea8904e4c071c3573b81166",
+      "bytes": 128170,
+      "equalsHEAD": true,
+      "headSHA256": "cf5dbcb1770699cc7468364be4398666180042959ea8904e4c071c3573b81166"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.github/workflows/ios-ci-worker.yml",
+      "relativePath": ".github/workflows/ios-ci-worker.yml",
+      "sha256": "96295ad63c9348fbf4b3bd878ea90ec2263fbeae088c6e9659fa4d08665b883e",
+      "bytes": 345410,
+      "equalsHEAD": true,
+      "headSHA256": "96295ad63c9348fbf4b3bd878ea90ec2263fbeae088c6e9659fa4d08665b883e"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.github/workflows/ios-ci-shared-worker.yml",
+      "relativePath": ".github/workflows/ios-ci-shared-worker.yml",
+      "sha256": "13b2126dca55b6cb64aefe048c1508c6aad1a96410b470730f9e7d659d86d82b",
+      "bytes": 9659,
+      "equalsHEAD": true,
+      "headSHA256": "13b2126dca55b6cb64aefe048c1508c6aad1a96410b470730f9e7d659d86d82b"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-shared-worker.sh",
+      "relativePath": "Scripts/v23-shared-worker.sh",
+      "sha256": "78b80f1a5ec6d9172d6cfda4cd6842037dc4c6ab928f9c6baa400cfe534eb2a1",
+      "bytes": 14392,
+      "equalsHEAD": true,
+      "headSHA256": "78b80f1a5ec6d9172d6cfda4cd6842037dc4c6ab928f9c6baa400cfe534eb2a1"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-ui-evidence.py",
+      "relativePath": "Scripts/v23-ui-evidence.py",
+      "sha256": "4a6c428bf9a8d8a44dd51e6410b0c8329cde866bb9ef02a01d0836eb307884aa",
+      "bytes": 28364,
+      "equalsHEAD": true,
+      "headSHA256": "4a6c428bf9a8d8a44dd51e6410b0c8329cde866bb9ef02a01d0836eb307884aa"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-ui-smoke.sh",
+      "relativePath": "Scripts/v23-ui-smoke.sh",
+      "sha256": "9a0b285ec38de30a84540c9bfad295d49f2f7fcfb038346288103e077fb57ae8",
+      "bytes": 358,
+      "equalsHEAD": true,
+      "headSHA256": "9a0b285ec38de30a84540c9bfad295d49f2f7fcfb038346288103e077fb57ae8"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-ui-batch.json",
+      "relativePath": "Scripts/v23-ui-batch.json",
+      "sha256": "f92f11a76b85b3ad1751cdb9e5349c68737f57f39dc88e7df5b3466a4c02b88f",
+      "bytes": 1484,
+      "equalsHEAD": true,
+      "headSHA256": "f92f11a76b85b3ad1751cdb9e5349c68737f57f39dc88e7df5b3466a4c02b88f"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/ci-selection-map.json",
+      "relativePath": "Scripts/ci-selection-map.json",
+      "sha256": "2872b03cdc17b8c001ca351411fbf10954063b09f052146becac81be8e831fb0",
+      "bytes": 9875,
+      "equalsHEAD": true,
+      "headSHA256": "2872b03cdc17b8c001ca351411fbf10954063b09f052146becac81be8e831fb0"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/ci-selection.json",
+      "relativePath": "Scripts/ci-selection.json",
+      "sha256": "aa6fed058b963a5110857e98fd68573dca72f20fd8d0bd19b7a50b252e957a7b",
+      "bytes": 139414,
+      "equalsHEAD": true,
+      "headSHA256": "aa6fed058b963a5110857e98fd68573dca72f20fd8d0bd19b7a50b252e957a7b"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/ci-worker-selection.jq",
+      "relativePath": "Scripts/ci-worker-selection.jq",
+      "sha256": "1f4a90cb0c63ccd7f5ed6575eed634981285186b0df6a033226eea3d951f0700",
+      "bytes": 62573,
+      "equalsHEAD": true,
+      "headSHA256": "1f4a90cb0c63ccd7f5ed6575eed634981285186b0df6a033226eea3d951f0700"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-selection-generator.py",
+      "relativePath": "Scripts/v23-selection-generator.py",
+      "sha256": "4a987864e3046e165c35bb8af1278a693c83a4bb90d2d398e81d528cff2c1c2a",
+      "bytes": 26572,
+      "equalsHEAD": true,
+      "headSHA256": "4a987864e3046e165c35bb8af1278a693c83a4bb90d2d398e81d528cff2c1c2a"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-selection-manifest.json",
+      "relativePath": "Scripts/v23-selection-manifest.json",
+      "sha256": "d99dd93e7ebcaca9cc63ed93bd2d0c72a152bafc1a85780407c26ea3b3cd76ac",
+      "bytes": 281114,
+      "equalsHEAD": true,
+      "headSHA256": "d99dd93e7ebcaca9cc63ed93bd2d0c72a152bafc1a85780407c26ea3b3cd76ac"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/build-smoke.sh",
+      "relativePath": "Scripts/build-smoke.sh",
+      "sha256": "65bc10a739292c9dac3c4c4cb2c4dc5cd30ad0f5be4a0e6085d5adcf8215052b",
+      "bytes": 5984,
+      "equalsHEAD": true,
+      "headSHA256": "65bc10a739292c9dac3c4c4cb2c4dc5cd30ad0f5be4a0e6085d5adcf8215052b"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/test-smoke.sh",
+      "relativePath": "Scripts/test-smoke.sh",
+      "sha256": "80ff64159fa698e4b6fd2f3a71ce73287909f047f99022efca3d117d68b2be20",
+      "bytes": 24698,
+      "equalsHEAD": true,
+      "headSHA256": "80ff64159fa698e4b6fd2f3a71ce73287909f047f99022efca3d117d68b2be20"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/ui-smoke.sh",
+      "relativePath": "Scripts/ui-smoke.sh",
+      "sha256": "a8de01614f20b8c8187d62f4b0d4e489344f4e10ee65de31c3a679e8196e1ff7",
+      "bytes": 80439,
+      "equalsHEAD": true,
+      "headSHA256": "a8de01614f20b8c8187d62f4b0d4e489344f4e10ee65de31c3a679e8196e1ff7"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/run-with-timeout.sh",
+      "relativePath": "Scripts/run-with-timeout.sh",
+      "sha256": "461c410c4f794b9ba929e76dcb69459f8e848610948b035ed6e9962fb3fa1cb2",
+      "bytes": 1431,
+      "equalsHEAD": true,
+      "headSHA256": "461c410c4f794b9ba929e76dcb69459f8e848610948b035ed6e9962fb3fa1cb2"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/validate-required-evidence.sh",
+      "relativePath": "Scripts/validate-required-evidence.sh",
+      "sha256": "518c8bea1e5a5c529d1de7efce4faed07051eebac852652f2a9cc1102bfc6470",
+      "bytes": 21803,
+      "equalsHEAD": true,
+      "headSHA256": "518c8bea1e5a5c529d1de7efce4faed07051eebac852652f2a9cc1102bfc6470"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/s10-4-build-payload.py",
+      "relativePath": "Scripts/s10-4-build-payload.py",
+      "sha256": "ea731fd64278d3ab242956bf2f36d486254903a10f5f8bc17c65de3d10397521",
+      "bytes": 131259,
+      "equalsHEAD": true,
+      "headSHA256": "ea731fd64278d3ab242956bf2f36d486254903a10f5f8bc17c65de3d10397521"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-coverage-partitions.json",
+      "relativePath": "Scripts/v23-coverage-partitions.json",
+      "sha256": "db6560f75bb5fdbd9cb84ddf390f7ca5d11df04cec14f8a3d8bfe53cf687d1c7",
+      "bytes": 485261,
+      "equalsHEAD": true,
+      "headSHA256": "db6560f75bb5fdbd9cb84ddf390f7ca5d11df04cec14f8a3d8bfe53cf687d1c7"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/docs/design/v23/integration/phase1-critical-states.json",
+      "relativePath": "docs/design/v23/integration/phase1-critical-states.json",
+      "sha256": "f3fbe13cde8077fdd4ae4a179802047251f474d9585360fb6e9b893aee56b1a4",
+      "bytes": 20710,
+      "equalsHEAD": true,
+      "headSHA256": "f3fbe13cde8077fdd4ae4a179802047251f474d9585360fb6e9b893aee56b1a4"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/docs/design/v23/integration/PHASE1_SIMULATOR_FUNCTIONAL_GATE_DECISION_20260926.md",
+      "relativePath": "docs/design/v23/integration/PHASE1_SIMULATOR_FUNCTIONAL_GATE_DECISION_20260926.md",
+      "sha256": "7fcaa0670436dd0fdeb3e3ff907b7dc68e3fd60bc1d375ca7d11a0b80749e523",
+      "bytes": 5623,
+      "equalsHEAD": true,
+      "headSHA256": "7fcaa0670436dd0fdeb3e3ff907b7dc68e3fd60bc1d375ca7d11a0b80749e523"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/docs/design/v23/integration/SIMULATOR_FILE_PROTECTION_DIAGNOSTIC.json",
+      "relativePath": "docs/design/v23/integration/SIMULATOR_FILE_PROTECTION_DIAGNOSTIC.json",
+      "sha256": "4ce71ca43d961cf8a1318da882bba8989179700ab5202e5ce191185cfc0e44e0",
+      "bytes": 1892,
+      "equalsHEAD": true,
+      "headSHA256": "4ce71ca43d961cf8a1318da882bba8989179700ab5202e5ce191185cfc0e44e0"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/AGENTS.md",
+      "relativePath": "AGENTS.md",
+      "sha256": "794faa1aacc772cc598bb916225c44af6506bbf359b410ee462e0fe2102f7833",
+      "bytes": 23950,
+      "equalsHEAD": true,
+      "headSHA256": "794faa1aacc772cc598bb916225c44af6506bbf359b410ee462e0fe2102f7833",
+      "immutableCapturedCopy": "RECORD_SNAPSHOTS/AGENTS.md",
+      "role": "Current working coordination/policy record; not source or publication approval"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/docs/design/v23/integration/ACTIVE_BRIEF.md",
+      "relativePath": "docs/design/v23/integration/ACTIVE_BRIEF.md",
+      "sha256": "962d72f643b12cdab3f9b86bb3abda099a1540e795ba2c6a544d732873169955",
+      "bytes": 7653,
+      "equalsHEAD": false,
+      "headSHA256": "920a5d01a32d6522b2b851eae731c420085b8d8816e741b1ce3ca61efe6d2fd8",
+      "immutableCapturedCopy": "RECORD_SNAPSHOTS/ACTIVE_BRIEF.md",
+      "role": "Current working coordination/policy record; not source or publication approval"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/docs/design/v23/integration/VERIFICATION_DUE.md",
+      "relativePath": "docs/design/v23/integration/VERIFICATION_DUE.md",
+      "sha256": "345574b62886d8c50b0a7753435ddf92ba84283cbd824901a47b37360a6a56e8",
+      "bytes": 183597,
+      "equalsHEAD": false,
+      "headSHA256": "0653490ac743a478402ee4fa094dc80bcfdecce41aeb736aac279114be0f53b8",
+      "immutableCapturedCopy": "RECORD_SNAPSHOTS/VERIFICATION_DUE.md",
+      "role": "Current working coordination/policy record; not source or publication approval"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/dev/test_v23_original.py",
+      "relativePath": "Scripts/dev/test_v23_original.py",
+      "sha256": "bc0ce6d3442465ba101aceb64124e064a48c3794b219d160b3ca9f74dcb977bb",
+      "bytes": 225579,
+      "equalsHEAD": true,
+      "headSHA256": "bc0ce6d3442465ba101aceb64124e064a48c3794b219d160b3ca9f74dcb977bb"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/test-v23-phase1-gates.py",
+      "relativePath": "Scripts/test-v23-phase1-gates.py",
+      "sha256": "835a8461b4549f168511ee35aa3dabb8bb5fec011bebd571ec7e1d335d84f569",
+      "bytes": 28964,
+      "equalsHEAD": true,
+      "headSHA256": "835a8461b4549f168511ee35aa3dabb8bb5fec011bebd571ec7e1d335d84f569"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/test-v23-native-ci.py",
+      "relativePath": "Scripts/test-v23-native-ci.py",
+      "sha256": "42d6a9b6c56768c74e707ce471fff1f4b063bc1e222d2f3b6ee44a7bc9d77ad1",
+      "bytes": 877783,
+      "equalsHEAD": true,
+      "headSHA256": "42d6a9b6c56768c74e707ce471fff1f4b063bc1e222d2f3b6ee44a7bc9d77ad1"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/test-v23-selection-generator.py",
+      "relativePath": "Scripts/test-v23-selection-generator.py",
+      "sha256": "d9bcb4588647f05663c46e64e10473770e73e8d9b3700c7fa0831766a080195b",
+      "bytes": 150234,
+      "equalsHEAD": true,
+      "headSHA256": "d9bcb4588647f05663c46e64e10473770e73e8d9b3700c7fa0831766a080195b"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/dev/prun.py",
+      "relativePath": "Scripts/dev/prun.py",
+      "sha256": "1738f81d0a9b9b40d0fe9293c99cf3c3a40730726c12837626643f2b44beee14",
+      "bytes": 5205,
+      "equalsHEAD": true,
+      "headSHA256": "1738f81d0a9b9b40d0fe9293c99cf3c3a40730726c12837626643f2b44beee14"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-coverage-partitions.py",
+      "relativePath": "Scripts/v23-coverage-partitions.py",
+      "sha256": "c5d155ecb571066703834be29fee3a63eb70c6a9a3420fac34b7ae519535cb6c",
+      "bytes": 15238,
+      "equalsHEAD": true,
+      "headSHA256": "c5d155ecb571066703834be29fee3a63eb70c6a9a3420fac34b7ae519535cb6c"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/Scripts/v23-dev-batch.json",
+      "relativePath": "Scripts/v23-dev-batch.json",
+      "sha256": "10e1754d8d6c7b1c80f384d98c1fbca59468d9cbde8feba9e71d1736228258b8",
+      "bytes": 2796,
+      "equalsHEAD": true,
+      "headSHA256": "10e1754d8d6c7b1c80f384d98c1fbca59468d9cbde8feba9e71d1736228258b8"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+      "relativePath": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+      "sha256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+      "bytes": 89099,
+      "equalsHEAD": true,
+      "headSHA256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/live-notification-marker-link-primary-checkpoint-v1/SOURCE_MAP.json",
+      "sha256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+      "bytes": 173874,
+      "role": "Retained root checkpoint input"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/live-notification-marker-link-primary-checkpoint-v1/CI_UNCHANGED.json",
+      "sha256": "5f3a8a83c022bde8bbc83b2a0260b997d9da571cc10e0fc125093e580aedf322",
+      "bytes": 1141,
+      "role": "Retained root checkpoint input"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/live-notification-marker-link-primary-checkpoint-v1/COMMITTED.json",
+      "sha256": "5619aaa0d38c94e6f41f15b86535cb9ebb7d3b05ea708ff3fe6c00c36ee9d891",
+      "bytes": 1162,
+      "role": "Retained root checkpoint input"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/live-notification-marker-link-primary-checkpoint-v1/PUSHED.json",
+      "sha256": "12131c26dec88e675533fb5b92ac2371d44111c704a83734bf33f125db91ee2c",
+      "bytes": 682,
+      "role": "Retained root checkpoint input"
+    }
+  ],
+  "effects": "Only this new exact root-ignored immutable inventory packet. No source/test/CI/settings/Git/ledger/original evidence mutation, test/compiler/native execution or dispatch."
+}

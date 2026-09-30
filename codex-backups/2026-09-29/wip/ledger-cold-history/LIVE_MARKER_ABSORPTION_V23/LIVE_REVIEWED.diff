@@ -1,0 +1,53 @@
+--- before/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift
++++ candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift
+@@ -2443,6 +2443,12 @@
+                 == policyReceipt.firstRootFact else {
+             throw AppAccessContractFailureV1.notificationReconciliationRequired
+         }
++        let sourceRootFields = policyReceipt.projectedRootFact.split(
++            separator: "|", omittingEmptySubsequences: false)
++        guard sourceRootFields.count == 11,
++              let sourceRootLinks = UInt64(sourceRootFields[5]) else {
++            throw AppAccessContractFailureV1.notificationReconciliationRequired
++        }
+         let io = retainedIO
+         let root = authority.rootDescriptor
+         let operations = authority.operationsDescriptor
+@@ -2505,10 +2511,35 @@
+                     }
+                 }
+             }
++            // This invocation adds one O_EXCL pending name, then renames
++            // that same inode to the canonical name. Some filesystems count
++            // the regular child in directory nlink; retain the complete actual
++            // root fact while projecting only this proved single-name edge.
++            let ownedMarkerNames = Set(names).subtracting(firstNames)
++            guard Set(firstNames).isSubset(of: Set(names)),
++                  ownedMarkerNames.count <= 1,
++                  ownedMarkerNames.isSubset(of:
++                    Set([Self.eraseName, Self.erasePendingName])) else {
++                throw AppAccessContractFailureV1.notificationReconciliationRequired
++            }
++            let currentRootLinks = UInt64(held.st_nlink)
++            let normalizeAddedMarker: UInt64?
++            if currentRootLinks == sourceRootLinks {
++                normalizeAddedMarker = nil
++            } else {
++                guard ownedMarkerNames.count == 1,
++                      sourceRootLinks < UInt64.max,
++                      currentRootLinks == sourceRootLinks + 1 else {
++                    throw AppAccessContractFailureV1.notificationReconciliationRequired
++                }
++                normalizeAddedMarker = sourceRootLinks
++            }
+             guard try io.postRetiredTree(parent: operations,
+                     name: Self.rootName,
+-                    excluding: [Self.eraseName, Self.erasePendingName],
+-                    ignoringDirectoryMetadata: Set([""]))
++                    excluding: ownedMarkerNames,
++                    ignoringDirectoryMetadata: Set([""]),
++                    normalizingSingleTargetManifestRootLinksFrom:
++                        normalizeAddedMarker)
+                     == firstStableTreeDigest else {
+                 throw AppAccessContractFailureV1.notificationReconciliationRequired
+             }

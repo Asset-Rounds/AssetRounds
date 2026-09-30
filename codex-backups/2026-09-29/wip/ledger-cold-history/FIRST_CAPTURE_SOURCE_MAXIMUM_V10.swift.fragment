@@ -1,0 +1,44 @@
+extension ScratchDataLeaseStoreV1 {
+    /// Pure allocation bound for one registered canonical source role. This
+    /// does not assign a role to a partial, read bytes, or admit any policy.
+    static func originalEraseC16FirstCaptureCanonicalSourceMaximum(
+        path: String
+    ) throws -> Int {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        guard components.allSatisfy(OperationalDiagnosticsBoundsV1.validRelativeName),
+              let root = components.first else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        if root == "ScratchDataV1" {
+            guard components.count == 3, components[2] == metadataName,
+                  isLeaseDirectoryName(components[1]) || isDeletionTombstone(components[1]) else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            return 65_536
+        }
+        guard root == "ProtectedIngressReceiptsV1", components.count == 2 else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        let name = components[1]
+        if name == controlEraseName { return originalEraseC16SourceMaximum(name: name) }
+        let vocabulary: [(String, [String])] = [
+            ("ingress-", [".prepare.json", ".claim.json", ".published.json",
+                ".pending.json", ".pending.json.replacement", ".terminal.json", ".aborted.json"]),
+            ("erase-", [".prepare.json", ".complete.json"]),
+            ("hygiene-", [".prepare.json.finalizing", ".prepare.json", ".json"])
+        ]
+        for (prefix, suffixes) in vocabulary where name.hasPrefix(prefix) {
+            for suffix in suffixes where name.hasSuffix(suffix) {
+                let identifier = String(name.dropFirst(prefix.count).dropLast(suffix.count))
+                if let id = UUID(uuidString: identifier), id != SettingsValidationV1.zeroUUID,
+                   identifier == id.uuidString.lowercased() {
+                    return originalEraseC16SourceMaximum(name: name)
+                }
+            }
+        }
+        // Arbitrary or partial-only controls need an authentic producer
+        // declaration before allocation; a suffix is never that declaration.
+        throw ScratchDataLeaseStoreFailureV1.leaseCollision
+    }
+}

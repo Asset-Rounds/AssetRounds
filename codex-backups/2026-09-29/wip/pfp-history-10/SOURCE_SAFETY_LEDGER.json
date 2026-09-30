@@ -1,0 +1,88 @@
+{
+  "authorActions": {
+    "Git": false,
+    "compilerTypecheck": false,
+    "nativeBuildInstallOrDispatch": false,
+    "primaryEdits": false,
+    "syntaxParsesOnly": true,
+    "testsOrCIOrPinsEdits": false
+  },
+  "baselineSourceCount": 1206,
+  "coupledDue": [
+    "same independent reviewer",
+    "actual Migration positive finish/owner/receipt integration",
+    "actual DEBUG/nonDEBUG semantic compile including inherited actor-callback risk",
+    "actual issuer/provider/full finite capacity/work proofs",
+    "root affected native development",
+    "legitimate actual-byte CI pin succession retaining20abe historical plus full381+42",
+    "all full same-head gates; physical protection remains unverified/release-blocking"
+  ],
+  "historicalPackets": [
+    {
+      "bindingSHA256": "2b18d4a50f66375add2cabf20145a9dea35b1cf1c6a435eb6c07073c216ee7ea",
+      "candidateSHA256": "8db23f0eddb1f73a0702c61bd04df59f60a253660b64cfa4fda5612a02daee7a",
+      "knownHistoricalFilesExact": 5,
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1"
+    },
+    {
+      "bindingSHA256": "c44d55f0e137ecacf487c13fce01d06ae2e15773be297581fa41abd1ce41c6e4",
+      "candidateSHA256": "4e5b589273907064a2da59328a9fe421d17a63b2b94665bc76f4b9c32966cbf3",
+      "knownHistoricalFilesExact": 5,
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1"
+    },
+    {
+      "bindingSHA256": "59157420ad89706934dac4d372fe8f1beca9774f8391ac8d66b60c91a6589d7d",
+      "candidateSHA256": "a2a38ec4875ad25136532c159740f12f75bc97b8c018236dc431947b139c0ed9",
+      "knownHistoricalFilesExact": 5,
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1"
+    },
+    {
+      "bindingSHA256": "39ae97f2935b48f52ff4293108d97e0862655d90758ab385a13c220a304b55ad",
+      "candidateSHA256": "330938cb61f5c5e1c3c7b8655f7603af31e8f15e1ff890542940a802678aa6bd",
+      "knownHistoricalFilesExact": 5,
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1"
+    },
+    {
+      "allSealFilesExact": 13,
+      "bindingSHA256": "0bcf176f19d9b7c765f8b1cffaa56e3c2ea74de5b18f9c6819938d4eaf67937f",
+      "candidateSHA256": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700",
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1",
+      "sealSHA256": "d5f927210960cac262c40b8905172fbac935d1f1d5832a2196df88cedfe5395a"
+    },
+    {
+      "allSealFilesExact": 13,
+      "bindingSHA256": "37d49a9ad33e05538fb2ecd477d95e68e5de626b23a69727b23218d9c623c7d2",
+      "candidateSHA256": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1",
+      "sealSHA256": "309096101b8efd75aa2b8bc177dee5f7f648abf75ee8ee034e1d77e6b05e5ffe"
+    },
+    {
+      "allSealFilesExact": 14,
+      "bindingSHA256": "cf6c0899acdba2e58bb26f1f8c0f078374c4fdab3a75bafd686e0ee56608a1ac",
+      "candidateSHA256": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1",
+      "sealSHA256": "6edf73114b0e4d07757a06612c5069ba0ef012d6f63261324f4275d379f660ba"
+    }
+  ],
+  "newMethod": {
+    "IO": false,
+    "closeOrRetryOrNumericInspection": false,
+    "externalLeaseRelease": false,
+    "resourcePredicateOnly": true,
+    "stateWrites": false,
+    "successReceiptOrAuthority": false,
+    "terminalLastPopCaveatExplicit": true
+  },
+  "sourceDelta": {
+    "addedLines": 13,
+    "allExistingLifecycleObserversReaderPoliciesAndWorkHelpersByteIdentical": true,
+    "removedLines": 0,
+    "removingExactFragmentRecreatesBefore": true
+  },
+  "sourceMismatches": [],
+  "trackedPFP": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "sha256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+    "unchanged": true
+  }
+}

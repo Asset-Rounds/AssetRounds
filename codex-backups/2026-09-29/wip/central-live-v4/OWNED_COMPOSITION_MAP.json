@@ -1,0 +1,20 @@
+{
+  "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": {
+    "absoluteSource": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/source-correction-v4/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "restoreRepositoryPath": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "sha256": "2fe16079b59973b5867b6094aba613163e6e7d539e5fd80c863bcda1c9905803",
+    "sourceOnly": true
+  },
+  "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": {
+    "absoluteSource": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/interface-checkpoint-v3/candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "restoreRepositoryPath": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "sha256": "1f8066c62a612bfdeb205fab0eccecc1e6c600c8427380c2bfc3aca5027b45dd",
+    "sourceOnly": true
+  },
+  "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": {
+    "absoluteSource": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/interface-checkpoint-v3/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "restoreRepositoryPath": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "sha256": "026d1499fa31acdbeb42d9c2ab82454fda600f25847e469b9a331bd00583921c",
+    "sourceOnly": true
+  }
+}

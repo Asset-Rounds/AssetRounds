@@ -1,0 +1,49 @@
+/// Lossless source DATA, never an observation/effect permit. A source record
+/// retains this whole commitment before either alias or lease metadata loss.
+/// original facts remain immutable; current stage facts belong a separate
+/// actual Router/Store scope and must not overwrite or reconstruct these.
+struct OriginalEraseAuxiliaryPairAccountingDataV1: Codable, Equatable {
+    struct Member: Codable, Equatable {
+        let operationsRelativePath: String
+        let observedFact: String // immutable original nine
+        let fullFact: String // actual eleven at original capture
+    }
+    struct Metadata: Codable, Equatable {
+        let state: String // closed: validatedLease | ownedOrphan
+        let operationsRelativePath: String
+        let canonicalBytes: Data? // only positively present validatedLease
+        let sha256: String?
+        let observedFact: String?
+        let fullFact: String?
+        // ownedOrphan requires all optional fields nil AND positive original
+        // complete namespace absence; present corruption is never this case.
+    }
+    struct Row: Codable, Equatable {
+        let index: Int // canonical complete table position, checked actual count
+        let kind: String // canonicalProducer | observedOwnedGenericAliases
+        let producerRole: String? // exact pure closed declaration for canonical only
+        let predecessorSourcePaths: [String]
+        let members: [Member] // exactly2, strict UTF8 ordered path membership
+        let sha256: String
+        let byteCount: Int64
+        let device: UInt64
+        let inode: UInt64
+        let metadata: Metadata? // required generic; canonical role has its own premises
+    }
+    let schemaVersion: Int //1; separate DATA capsule, old auxiliary format untouched
+    let originalOperationID: UUID
+    let eraseID: UUID
+    let captureToken: String
+    let originalRosterSHA256: String
+    let rows: [Row]
+}
+
+/// Issuer contract (implementation due): Migration's private positive live
+/// receipt is minted ONLY after genuine retained FirstCapture owner, complete
+/// actual Factory typedPairs for BOTH nodes/private policy, canonical original
+/// roster and actual original Store publication receipt are reproofed. Getter
+/// returns DATA/canonicalBytes/SHA under exact original binding; it cannot mint
+/// current observation or skip any physical effect. Cold decoder accepts DATA
+/// only after actual Store retained canonical-source/fact/private-policy proof.
+/// No caller alias map, fresh survivors, guessed final/temp, current-only
+/// metadata, C16 settlement ordinal or immutable-P fiction may issue it.

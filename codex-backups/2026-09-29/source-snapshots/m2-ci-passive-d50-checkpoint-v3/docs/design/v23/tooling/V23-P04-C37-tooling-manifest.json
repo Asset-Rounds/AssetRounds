@@ -1,0 +1,168 @@
+{
+  "authority": {
+    "allocationDigest": "6f10fa9ffd35e180f8780ed9623fc77904a921f45626d28d8d141b4f11e12663",
+    "appBaseHead": "2576e34fd399fa9800f696a82cc945ad8fa3b2d9",
+    "appBaseTree": "2687b0f59764f9fc8836e643768df8b2d6dac66b",
+    "attemptID": 1,
+    "authorizedOverlapCount": 0,
+    "cardID": "V23-P04-C37",
+    "contextDigest": "4f73c1c6b4009340df653eb0a4c61d50ebf764cc0f30008bdc33dd1c8e8da9dd",
+    "coordinationHead": "f0f3c599e3ec851e1f8b34a6bce808c2c192554c",
+    "coordinationTree": "5b7a0e436be6bbe88802f21465cae8dbf63319f3",
+    "existingPathCount": 0,
+    "fencePathCount": 13,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "ledgerDigest": "3ab274727f36594fb651d9c61e61d39a0ce8e91cebf356509364c764ec74dcf5",
+    "newPathCount": 13,
+    "orderedPathFence": [
+      "FieldEvidenceApp/Application/Integrations/IncumbentFileAdapterWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_100IncumbentFileAdapterWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/IncumbentExchange/V23P04C37IncumbentFileAdapterWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C37IncumbentFileAdapterWorkflowUITests.swift",
+      "Scripts/v23/p04_c37_contracts.py",
+      "Scripts/v23/generate_p04_c37_contracts.py",
+      "Scripts/v23/verify_p04_c37_contracts.py",
+      "Scripts/v23/incumbent-file-adapter-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C37BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C37-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "e273fb7e28d72993006a3bcae1478fb8d38523b4dc3a1a9826bcd2d31bb5e972",
+    "prerequisiteDigest": "fe9c955636d805f0c2fe1f235156e70725a1e3d0c2d398f947f46b5d53780734",
+    "productTestUIFixturePathCount": 5,
+    "projectionDigest": "bfddef3867d94bd22d11aba022806ac9303072cb00569b68cd13f190bc0cc215",
+    "registerOrdinal": 122,
+    "s10ReservationOverlapCount": 0,
+    "sequence": 546,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C37",
+        "sha256": "51c0ec0ab817454e36d99cd306ceb9e021c2a0ba744f890943792a2e7f976ad7",
+        "utf8Length": 7376
+      },
+      {
+        "anchor": "V21-P04-C37",
+        "sha256": "9d547f4219c6e4e8ffc62ad6bb2fd18f8f82e3f0d9ec15ef8a07dafa327e4996",
+        "utf8Length": 4011
+      },
+      {
+        "anchor": "V23-P04-C37-register",
+        "sha256": "c29ca85c4862586a5e4997f07fda7282962d2fa684264da2a1d5edb2903f540b",
+        "utf8Length": 327
+      }
+    ],
+    "title": "Evidence-selected first incumbent flat-file adapter with dry-run mapping and deterministic exchange",
+    "toolingPathCount": 8,
+    "transitionDigest": "c15a5d798078bc59952c0cba8ded6710c7171a266fa60ee2289be5600d21ac17",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C37",
+  "counts": {
+    "durableFamilyCount": 0,
+    "existingPathCount": 0,
+    "fencePathCount": 13,
+    "newPathCount": 13,
+    "productTestUIFixturePathCount": 5,
+    "s10ReservationOverlapCount": 0,
+    "toolingPathCount": 8
+  },
+  "files": [
+    {
+      "path": "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowContractV1.json",
+      "sha256": "16155e7115872d5b1f81fdc915061f70e98467c97b54719f7965768388254fea"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowEvidenceReceiptV1.json",
+      "sha256": "ce6d9bdf922836a499eaa8c2d528d41e6061b6a08446b1cfc9b47061d34d8ff9"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P04C37BrandImpactManifestV1.json",
+      "sha256": "33d25d2a9716156b6eb6049b3b7c41b6448acaef63783793f464d14318a781a8"
+    },
+    {
+      "path": "Scripts/v23/incumbent-file-adapter-workflow.schema.json",
+      "sha256": "e6ceb70b44086021a2a12d3dd140b6b21c19df9f37ec0dcf190e1dd358737e0e"
+    }
+  ],
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "independence": {
+    "c08ReadOnly": true,
+    "c16ReadOnly": true,
+    "c50ReadOnly": true,
+    "credentials": false,
+    "login": false,
+    "network": false,
+    "newBackend": false,
+    "newImporter": false,
+    "newRenderer": false,
+    "newStore": false,
+    "newWriter": false,
+    "profileSpecificStrings": false,
+    "providerSuccessClaim": false,
+    "sdk": false,
+    "selectedProfileCount": 0,
+    "selectionDisposition": "DISABLED_NO_SELECTED_PROFILE"
+  },
+  "ordinal": 122,
+  "pathFence": [
+    "FieldEvidenceApp/Application/Integrations/IncumbentFileAdapterWorkflowCoordinatorV1.swift",
+    "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+    "FieldEvidenceAppTests/V9_100IncumbentFileAdapterWorkflowTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V23/IncumbentExchange/V23P04C37IncumbentFileAdapterWorkflowCorpusV1.json",
+    "FieldEvidenceAppUITests/V23_P04_C37IncumbentFileAdapterWorkflowUITests.swift",
+    "Scripts/v23/p04_c37_contracts.py",
+    "Scripts/v23/generate_p04_c37_contracts.py",
+    "Scripts/v23/verify_p04_c37_contracts.py",
+    "Scripts/v23/incumbent-file-adapter-workflow.schema.json",
+    "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowContractV1.json",
+    "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P04C37BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P04-C37-tooling-manifest.json"
+  ],
+  "schema": "V23P04C37ToolingManifestV1",
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Application/Integrations/IncumbentFileAdapterWorkflowCoordinatorV1.swift",
+      "sha256": "a34abd8de5572f0063c14ec96f4ddd16843d2736e3cbd1c9dfcb77443150d8c3",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+      "sha256": "f3557940a31b1251e7598c9384160a8da21f0057e1c5c660fb26817ea1226090",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_100IncumbentFileAdapterWorkflowTests.swift",
+      "sha256": "6eced588b7c3dd5db27c9f1fe8e6753f322603b5d22188948ab0f4569aab1c52",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/IncumbentExchange/V23P04C37IncumbentFileAdapterWorkflowCorpusV1.json",
+      "sha256": "5a7102e763b4101d6c7111793ee3b69cea8cf485462ef1be0fdf46cecb94950c",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C37IncumbentFileAdapterWorkflowUITests.swift",
+      "sha256": "c440f6e7d9d5e42a22216a6ebf19a14902ab2e9f45caa8c500c0ed1050827f76",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

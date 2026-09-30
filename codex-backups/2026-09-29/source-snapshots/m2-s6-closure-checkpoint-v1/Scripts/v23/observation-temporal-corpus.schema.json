@@ -1,0 +1,1099 @@
+{
+  "$id": "https://assetrounds.invalid/v23/ObservationTemporalCorpusManifestV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "0a97101d906816fd9a17bdc02d2b42ac02e3616d"
+        },
+        "appBaseTree": {
+          "const": "a5432c93afa969d4b936ff313b9cd0985661829e"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C07"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "f8ec963ab7e2a2ea1122b34d96e957ade3564748f10a3582619316d825413b8b"
+        },
+        "coordinationAuthorityHead": {
+          "const": "4737a62d29a4e87c8e67341bcc32acb1668bbfe4"
+        },
+        "coordinationAuthorityTree": {
+          "const": "66d2df86c6007fb084a058b8fb0929d5223a47ea"
+        },
+        "coordinationCASSequence": {
+          "const": 112
+        },
+        "coordinationLedgerDigest": {
+          "const": "e264a7a6932757680bd457823c79a056c1e21769278368372f8225c22c2b0968"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C07-G01"
+            },
+            {
+              "const": "V23-P02-C07-A01"
+            },
+            {
+              "const": "V23-P02-C07-H01"
+            },
+            {
+              "const": "V23-P02-C07-I01"
+            },
+            {
+              "const": "V23-P02-C07-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C06"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "dfbeb39f8f4993fe069aecb29f555e160567df69de1da53e35942b9be1168d5b"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "18c68d2ffa91ff935c93e30efaf231aca52acee85a3e9d21c59dbf2cb21afe0f"
+        },
+        "hydrationTransitionDigest": {
+          "const": "a147d23067a61d3797dafc776d5e5bfeb8da2b43f8578ced16b480599e5a57f1"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "1c469d8e8baa23cf64a446f729eb8f6c52c7e675597182b4cf144cde99f099f6"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C08"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C07"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "2e293ae5e604d6f5c4f83009aad480b3eb278bc80b3c2202272c6bf13115c118"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "a76e7d82ef3e832fb0b4d884f25727fd40cfaa9d4fe0014b2c13cc396627b8a0"
+        },
+        "registerOrdinal": {
+          "const": 27
+        },
+        "registerRowDigest": {
+          "const": "444712a550a1d0419fe2da21822b2352777c919c7912cad497938d2ec30d7778"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "ObservationBasisV1, bounded uncertainty, and explicit temporal semantics"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "authorityReceiptDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C07"
+    },
+    "customerDataPresent": {
+      "const": false
+    },
+    "evidence": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C07-G01"
+            },
+            "testMethod": {
+              "const": "testV9_11G01ObservationBasisRoundTripsIndependentlyFromOutcome"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C07-A01"
+            },
+            "testMethod": {
+              "const": "testV9_11A01ReportedInferredAndUnknownRemainDistinct"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C07-H01"
+            },
+            "testMethod": {
+              "const": "testV9_11H01DSTGapFoldRollbackUnknownZoneAndNoWallClockCausality"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C07-I01"
+            },
+            "testMethod": {
+              "const": "testV9_11I01AtomicInterruptionRetryNeverPersistsPartialPair"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C07-R01"
+            },
+            "testMethod": {
+              "const": "testV9_11R01LegacyMigrationPortableReplayDeleteEraseAndQuarantine"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C07-G01"
+        },
+        {
+          "const": "V23-P02-C07-A01"
+        },
+        {
+          "const": "V23-P02-C07-H01"
+        },
+        {
+          "const": "V23-P02-C07-I01"
+        },
+        {
+          "const": "V23-P02-C07-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "exactFiveTestMethods": {
+      "const": true
+    },
+    "executableEvidence": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "OBSERVATION_BASIS_ROUND_TRIP"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "ObservationBasisV1"
+                },
+                {
+                  "const": "ObservationAndTimeCodecV1"
+                },
+                {
+                  "const": "basisKinds"
+                },
+                {
+                  "const": "outcomes"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "REPORTED_SOURCE_REMAINS_DISTINCT_FROM_INFERENCE"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "reported"
+                },
+                {
+                  "const": "inferred"
+                },
+                {
+                  "const": "reportedParty"
+                },
+                {
+                  "const": "record"
+                },
+                {
+                  "const": "unknown"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "DST_FOLD_GAP_AND_CLOCK_ROLLBACK"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "ambiguousFold"
+                },
+                {
+                  "const": "nonexistentGap"
+                },
+                {
+                  "const": "wall-clock-rollback"
+                },
+                {
+                  "const": "XCTAssertThrowsError"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "LEGACY_COULD_NOT_VERIFY_MIGRATION"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "const": "legacy_could_not_verify"
+                },
+                {
+                  "const": "ObservationAndTimeMigrationV1"
+                },
+                {
+                  "const": "unverifiable"
+                },
+                {
+                  "const": "unknown"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "ATOMIC_MUTATION_NO_PARTIAL_BYTES"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 5,
+              "minItems": 5,
+              "prefixItems": [
+                {
+                  "const": "afterEffectBeforeReceipt"
+                },
+                {
+                  "const": "afterReceiptBeforeSave"
+                },
+                {
+                  "const": "afterSaveBeforeReturn"
+                },
+                {
+                  "const": "observationBasisV1Data"
+                },
+                {
+                  "const": "temporalContextV1Data"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "case": {
+              "const": "PORTABLE_LIFECYCLE_CANONICAL_BYTES"
+            },
+            "requiredTokens": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "const": "backup"
+                },
+                {
+                  "const": "restore"
+                },
+                {
+                  "const": "export"
+                },
+                {
+                  "const": "import"
+                },
+                {
+                  "const": "replay"
+                },
+                {
+                  "const": "delete"
+                },
+                {
+                  "const": "erase"
+                }
+              ],
+              "type": "array"
+            },
+            "testPath": {
+              "const": "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift"
+            }
+          },
+          "required": [
+            "case",
+            "testPath",
+            "requiredTokens"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureGeneratedByTooling": {
+      "const": false
+    },
+    "fixtureIdentity": {
+      "const": "V21-P02-C07-OBSERVATION-TEMPORAL-CORPUS-V1"
+    },
+    "fixtureLegacyMigration": {
+      "additionalProperties": false,
+      "properties": {
+        "directObservationFabricated": {
+          "const": false
+        },
+        "expectedCompleteKind": {
+          "const": "unverifiable"
+        },
+        "expectedMethod": {
+          "const": "unknown"
+        },
+        "expectedPartialKind": {
+          "const": "unknown"
+        },
+        "expectedSourceReference": {
+          "type": "null"
+        },
+        "outcomeKey": {
+          "const": "could_not_verify"
+        }
+      },
+      "required": [
+        "outcomeKey",
+        "expectedCompleteKind",
+        "expectedPartialKind",
+        "expectedMethod",
+        "expectedSourceReference",
+        "directObservationFabricated"
+      ],
+      "type": "object"
+    },
+    "fixturePath": {
+      "const": "FieldEvidenceAppTests/Fixtures/V21/Observation/V21P02C07ObservationTemporalCorpusV1.json"
+    },
+    "fixtureRequiredBasisKinds": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "const": "directly_observed"
+        },
+        {
+          "const": "reported_by_person"
+        },
+        {
+          "const": "inferred"
+        },
+        {
+          "const": "not_observed"
+        },
+        {
+          "const": "unverifiable"
+        },
+        {
+          "const": "unknown"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureRequiredHostileTimeCaseIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "fall-fold-first"
+        },
+        {
+          "const": "fall-fold-second"
+        },
+        {
+          "const": "spring-gap"
+        },
+        {
+          "const": "unknown-zone"
+        },
+        {
+          "const": "wall-clock-rollback"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureRequiredInterruptionBoundaries": {
+      "items": false,
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "const": "afterEffectBeforeReceipt"
+        },
+        {
+          "const": "afterReceiptBeforeSave"
+        },
+        {
+          "const": "afterSaveBeforeReturn"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureRequiredOutcomes": {
+      "items": false,
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "const": "compliant"
+        },
+        {
+          "const": "noncompliant"
+        },
+        {
+          "const": "unknown"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureRequiredPortableLifecycle": {
+      "items": false,
+      "maxItems": 9,
+      "minItems": 9,
+      "prefixItems": [
+        {
+          "const": "backup"
+        },
+        {
+          "const": "replace_restore"
+        },
+        {
+          "const": "clone"
+        },
+        {
+          "const": "fork"
+        },
+        {
+          "const": "export"
+        },
+        {
+          "const": "import"
+        },
+        {
+          "const": "journal_replay"
+        },
+        {
+          "const": "delete"
+        },
+        {
+          "const": "erase"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureSchema": {
+      "const": "V21P02C07ObservationTemporalCorpusV1"
+    },
+    "fixtureSchemaVersion": {
+      "const": 1
+    },
+    "fixtureTopLevelFields": {
+      "items": false,
+      "maxItems": 11,
+      "minItems": 11,
+      "prefixItems": [
+        {
+          "const": "schemaVersion"
+        },
+        {
+          "const": "fixtureIdentity"
+        },
+        {
+          "const": "basisKinds"
+        },
+        {
+          "const": "outcomes"
+        },
+        {
+          "const": "golden"
+        },
+        {
+          "const": "alternate"
+        },
+        {
+          "const": "hostileTimeCases"
+        },
+        {
+          "const": "interruptionBoundaries"
+        },
+        {
+          "const": "legacyCouldNotVerify"
+        },
+        {
+          "const": "portableLifecycle"
+        },
+        {
+          "const": "unsupportedSchemaVersion"
+        }
+      ],
+      "type": "array"
+    },
+    "fixtureUnsupportedSchemaVersion": {
+      "const": 2147483647
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "hostileFailClosed": {
+      "const": true
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "backupBehaviorDelta": {
+          "const": true
+        },
+        "canonicalCodec": {
+          "const": "ObservationAndTimeCodecV1"
+        },
+        "deleteBehaviorDelta": {
+          "const": true
+        },
+        "downgrade": {
+          "const": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_ACTIVATION"
+        },
+        "exportBehaviorDelta": {
+          "const": true
+        },
+        "interruption": {
+          "const": "ATOMIC_NO_PARTIAL_BYTES"
+        },
+        "legacyCouldNotVerify": {
+          "const": "LOSSLESS_UNVERIFIABLE_OR_UNKNOWN_NO_DIRECT_OBSERVATION"
+        },
+        "migrationBehaviorDelta": {
+          "const": true
+        },
+        "noCausalWallClockOrdering": {
+          "const": true
+        },
+        "noPersistedMonotonicTicks": {
+          "const": true
+        },
+        "persistentChangeMode": {
+          "const": "NEW_SCHEMA_VERSION"
+        },
+        "persistentContractSchema": {
+          "const": "ObservationAndTimeSchemaV1"
+        },
+        "portableLifecycle": {
+          "const": "CANONICAL_BYTES_OR_QUARANTINE"
+        },
+        "restoreBehaviorDelta": {
+          "const": true
+        },
+        "schemaBehaviorDelta": {
+          "const": true
+        }
+      },
+      "required": [
+        "persistentChangeMode",
+        "persistentContractSchema",
+        "schemaBehaviorDelta",
+        "migrationBehaviorDelta",
+        "backupBehaviorDelta",
+        "restoreBehaviorDelta",
+        "deleteBehaviorDelta",
+        "exportBehaviorDelta",
+        "downgrade",
+        "legacyCouldNotVerify",
+        "canonicalCodec",
+        "portableLifecycle",
+        "interruption",
+        "noPersistedMonotonicTicks",
+        "noCausalWallClockOrdering"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "provisional": {
+      "const": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiredCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "A01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "REPORTED_SOURCE_IS_NOT_INFERENCE"
+            },
+            {
+              "const": "BOUNDED_METHOD_SOURCE_AND_LIMITATIONS"
+            },
+            {
+              "const": "EXPLICIT_UNKNOWN_IS_PRESERVED"
+            }
+          ],
+          "type": "array"
+        },
+        "G01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "OBSERVATION_BASIS_ROUND_TRIP"
+            },
+            {
+              "const": "ALL_SIX_BASIS_KINDS"
+            },
+            {
+              "const": "OUTCOME_INDEPENDENCE"
+            }
+          ],
+          "type": "array"
+        },
+        "H01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "DST_FOLD_AND_NONEXISTENT_GAP"
+            },
+            {
+              "const": "CLOCK_ROLLBACK_NO_CAUSAL_REORDER"
+            },
+            {
+              "const": "UNSUPPORTED_OR_CORRUPT_BYTES_FAIL_CLOSED"
+            }
+          ],
+          "type": "array"
+        },
+        "I01": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "ATOMIC_MUTATION_BOUNDARIES"
+            },
+            {
+              "const": "NO_PARTIAL_BASIS_OR_TEMPORAL_BYTES"
+            }
+          ],
+          "type": "array"
+        },
+        "R01": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "BACKUP_RESTORE_CLONE_FORK_IMPORT_EXPORT_REPLAY"
+            },
+            {
+              "const": "DELETE_AND_ERASE_RECONCILE_CANONICAL_BYTES"
+            },
+            {
+              "const": "IDENTICAL_BYTES_OR_QUARANTINE"
+            },
+            {
+              "const": "LEGACY_MIGRATION_NO_DIRECT_OBSERVATION"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "G01",
+        "A01",
+        "H01",
+        "I01",
+        "R01"
+      ],
+      "type": "object"
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "s10Exclusions": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "hostedDispatchRan": {
+          "const": false
+        },
+        "nativeCompileRan": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalEvidenceComplete": {
+          "const": false
+        },
+        "releaseReady": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        }
+      },
+      "required": [
+        "nativeCompileRan",
+        "hostedDispatchRan",
+        "physicalEvidenceComplete",
+        "adoptionEnabled",
+        "acceptanceEnabled",
+        "releaseReady",
+        "phase10PollingDuringParallelExecution",
+        "requiresAcceptedS10_6Reconciliation"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "ObservationTemporalCorpusManifestV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "secretsPresent": {
+      "const": false
+    },
+    "testPath": {
+      "const": "FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "fixturePath",
+    "fixtureSchema",
+    "fixtureSchemaVersion",
+    "testPath",
+    "fixtureTopLevelFields",
+    "fixtureIdentity",
+    "fixtureRequiredBasisKinds",
+    "fixtureRequiredOutcomes",
+    "fixtureRequiredHostileTimeCaseIDs",
+    "fixtureRequiredInterruptionBoundaries",
+    "fixtureRequiredPortableLifecycle",
+    "fixtureLegacyMigration",
+    "fixtureUnsupportedSchemaVersion",
+    "evidence",
+    "requiredCoverage",
+    "executableEvidence",
+    "hostileFailClosed",
+    "customerDataPresent",
+    "secretsPresent",
+    "fixtureGeneratedByTooling",
+    "exactFiveTestMethods",
+    "lifecycle",
+    "s10Exclusions",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "ObservationTemporalCorpusManifestV1",
+  "type": "object"
+}

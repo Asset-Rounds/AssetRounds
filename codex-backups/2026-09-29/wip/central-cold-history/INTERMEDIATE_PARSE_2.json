@@ -1,0 +1,162 @@
+[
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "debug": false,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "df0a100c57a76826c25ef00f5264f9264705d6147196d11cc7167d2f1e040baa"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "debug": true,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      "-D",
+      "DEBUG",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "df0a100c57a76826c25ef00f5264f9264705d6147196d11cc7167d2f1e040baa"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "debug": false,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "2eca38e99a7d7574d5075beef76a4663a4078fd1aae1919c1df386626e4f2943"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "debug": true,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      "-D",
+      "DEBUG",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "2eca38e99a7d7574d5075beef76a4663a4078fd1aae1919c1df386626e4f2943"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "debug": false,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "edaed37fdfe302ae5e7d270f6fc946a3cea0a3deb6b31ee27a74ddcc9ab8d99e"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "debug": true,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      "-D",
+      "DEBUG",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "edaed37fdfe302ae5e7d270f6fc946a3cea0a3deb6b31ee27a74ddcc9ab8d99e"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+    "debug": false,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "acf7e71d6beb02f14b982fecdce6af6a49dc65065a902820ca05da308f282c6a"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+    "debug": true,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      "-D",
+      "DEBUG",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "acf7e71d6beb02f14b982fecdce6af6a49dc65065a902820ca05da308f282c6a"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "debug": false,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "5fb1a27fd6e3211ac71c7b82e28ac9c39ee2fe9b62ce635fc6b3c72ff2743193"
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "debug": true,
+    "command": [
+      "xcrun",
+      "swiftc",
+      "-frontend",
+      "-parse",
+      "-D",
+      "DEBUG",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": "",
+    "candidateSHA256": "5fb1a27fd6e3211ac71c7b82e28ac9c39ee2fe9b62ce635fc6b3c72ff2743193"
+  }
+]

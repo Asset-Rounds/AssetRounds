@@ -1,0 +1,421 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "6930cc6a9a2a758c77b1de76acadba9c43af9fd2497cc413d03715ed7e57f437",
+  "afterSHA256": "7fa795fdf82883518694eefb096e4274c0570047d603aeffb2cbb2d4146b9e1c",
+  "kind": "Memory/fresh actual provider before and after retained descriptor metadata/read IO; actual errno preserved",
+  "wrappedCalls": [
+    {
+      "method": "originalEraseVerifyGenericPolicy",
+      "lineBefore": 4688,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "issueOriginalEraseC16InitialPairs",
+      "lineBefore": 5275,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "issueOriginalEraseC16InitialPairs",
+      "lineBefore": 5288,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "issueOriginalEraseC16InitialPairs",
+      "lineBefore": 5289,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "originalEraseC16VerifyInitialPairPolicy",
+      "lineBefore": 5342,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "originalEraseC16VerifyInitialPairPolicy",
+      "lineBefore": 5343,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "originalEraseC16IssueFirstPPairs",
+      "lineBefore": 5382,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "originalEraseC16IssueFirstPPairs",
+      "lineBefore": 5405,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "originalEraseC16IssueFirstPPairs",
+      "lineBefore": 5406,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "originalEraseC16VerifyFirstPPairPolicy",
+      "lineBefore": 5476,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "originalEraseC16VerifyFirstPPairPolicy",
+      "lineBefore": 5477,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "originalEraseC16CurrentObservationScope",
+      "lineBefore": 5515,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "originalEraseC16TargetCut",
+      "lineBefore": 5684,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "originalEraseC16TargetCut",
+      "lineBefore": 5706,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "originalEraseC16PhysicalCutPrimitive",
+      "lineBefore": 6238,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "originalEraseCurrentC16MarkerBirth",
+      "lineBefore": 6639,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "originalEraseBorrowedLocalLineageCheck",
+      "lineBefore": 6880,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "originalEraseBorrowedLocalLineageCheck",
+      "lineBefore": 6881,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "originalEraseBorrowedLocalLineageCheck",
+      "lineBefore": 6888,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "originalEraseC16PlanFromFirstP",
+      "lineBefore": 7203,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "settleOriginalEraseFirstPPartial",
+      "lineBefore": 7586,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "settleOriginalEraseFirstPPartial",
+      "lineBefore": 7611,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "originalEraseNoRepairLeaseContents",
+      "lineBefore": 8118,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "originalEraseNoRepairSemanticAdmission",
+      "lineBefore": 8197,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "originalEraseNoRepairSemanticAdmission",
+      "lineBefore": 8218,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "protectedIngressReceiptDirectory",
+      "lineBefore": 8541,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "makeProtectedIngressPrepare",
+      "lineBefore": 8689,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "validatePreparedIngressTargetForRecovery",
+      "lineBefore": 8757,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "c16OwnedTargetSteps",
+      "lineBefore": 8814,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "stageProtectedIngress",
+      "lineBefore": 9668,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "stageProtectedIngress",
+      "lineBefore": 9720,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "validateIngressRemovalWithoutEffects",
+      "lineBefore": 9856,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "makeUnpublishedIngressEraseTarget",
+      "lineBefore": 9945,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "hasExistingIngressControl",
+      "lineBefore": 10358,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "c16ControlRootRemovalSteps",
+      "lineBefore": 10544,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "validateIngressClaim",
+      "lineBefore": 11343,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "validateIngressPublication",
+      "lineBefore": 11378,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "validateOpaqueSourceLink",
+      "lineBefore": 11404,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "opaqueSHA256",
+      "lineBefore": 11418,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "opaqueSHA256",
+      "lineBefore": 11436,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "publishOpaqueIngress",
+      "lineBefore": 11461,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "publishOpaqueIngress",
+      "lineBefore": 11480,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "checkedOriginalEraseSourceCut",
+      "lineBefore": 11992,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "checkedOriginalEraseSourceCut",
+      "lineBefore": 11993,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "checkedOriginalEraseSourceCut",
+      "lineBefore": 11994,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "checkedOriginalEraseSourceCut",
+      "lineBefore": 11995,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "checkedOriginalEraseSourceCut",
+      "lineBefore": 12014,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "checkedOriginalEraseSourceCut",
+      "lineBefore": 12015,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "checkedOriginalEraseSourceCut",
+      "lineBefore": 12017,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "checkedOriginalEraseSourceCut",
+      "lineBefore": 12018,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "eraseScratchDataSynchronously",
+      "lineBefore": 13605,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "removeLeaseDirectory",
+      "lineBefore": 13734,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "removeLeaseDirectory",
+      "lineBefore": 13745,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "removeLeaseDirectory",
+      "lineBefore": 13756,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "eraseOriginalFrozenLease",
+      "lineBefore": 13829,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "eraseOriginalFrozenEmptyRoot",
+      "lineBefore": 13942,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "eraseOriginalFrozenEmptyRoot",
+      "lineBefore": 13953,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "eraseOriginalFrozenEmptyRoot",
+      "lineBefore": 13954,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "eraseOriginalFrozenEmptyRoot",
+      "lineBefore": 13978,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "c16DeletePinnedDirectorySteps",
+      "lineBefore": 14168,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "directoryInformationIfPresent",
+      "lineBefore": 14180,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "openLeaseDirectory",
+      "lineBefore": 14205,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "openLeaseDirectory",
+      "lineBefore": 14225,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "verifyLeaseDirectory",
+      "lineBefore": 14248,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "verifyLeaseDirectory",
+      "lineBefore": 14254,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "regularFileInformationIfPresent",
+      "lineBefore": 14342,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "regularFileInformationIfPresent",
+      "lineBefore": 14364,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "regularFileInformationIfPresent",
+      "lineBefore": 14365,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "regularFileInformationIfPresent",
+      "lineBefore": 14378,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "regularFileInformationIfPresent",
+      "lineBefore": 14379,
+      "call": "Darwin.lstat"
+    },
+    {
+      "method": "readRegularFile",
+      "lineBefore": 14468,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "readRegularFile",
+      "lineBefore": 14480,
+      "call": "Darwin.read"
+    },
+    {
+      "method": "readRegularFile",
+      "lineBefore": 14493,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "readRegularFile",
+      "lineBefore": 14498,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "readOriginalErasePublicationLeaf",
+      "lineBefore": 14522,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "readOriginalErasePublicationLeaf",
+      "lineBefore": 14525,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "readOriginalErasePublicationLeaf",
+      "lineBefore": 14546,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "readOriginalErasePublicationLeaf",
+      "lineBefore": 14558,
+      "call": "Darwin.read"
+    },
+    {
+      "method": "readOriginalErasePublicationLeaf",
+      "lineBefore": 14564,
+      "call": "Darwin.fstat"
+    },
+    {
+      "method": "readOriginalErasePublicationLeaf",
+      "lineBefore": 14565,
+      "call": "Darwin.fstatat"
+    },
+    {
+      "method": "removeInterruptedPublications",
+      "lineBefore": 15162,
+      "call": "Darwin.fstatat"
+    }
+  ],
+  "count": 81,
+  "exclusions": [
+    "open/openat/dup before descriptor ownership retained require separate exact attempt admission",
+    "checked close/closedir terminal paths keep owner fencing and receipts; no descriptor-access wrapper after terminal",
+    "static constructors and nested owner types remain separately audited"
+  ],
+  "status": "INTERMEDIATE NONINSTALLABLE; parse/typecheck/review/runtime due"
+}

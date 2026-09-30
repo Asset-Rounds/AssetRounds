@@ -1,0 +1,13 @@
+{
+  "baselineHead": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "historicalPreservationInventory": "f227412ddfed28c609d956731a1d49b91edf3950fb1a8899fee847b2d4304ab9",
+  "inputs": {
+    "inputs/CENTRAL_BINDING.json": "8a0cd6b3b6585134f370bbe95e89b32237de6dcb733973cf126d62a3a8beeea2",
+    "inputs/CENTRAL_ROUTER_ADMISSION_PERMIT_READBACK_V2.swift.fragment": "b330446ebf14b4c24e583cd364b89d817b2e900ad8e9b3b7f4628b008cdeab07",
+    "inputs/LIVE_POLICY_EFFECT_SCOPE_INTERFACE_V1.swift.fragment": "3f4b1c88ceb8260609a926d76743104465b5957213ba677e31824f5df2e826e0",
+    "inputs/LIVE_POLICY_SCOPE_INTERFACE_V1.swift.fragment": "30a6eb5e79b86b3577a5a81a86ef70a766321b550c3022a0b90a0a9b39da6e1d",
+    "inputs/LIVE_PRIVATE_DIRECTORY_ROLE_V2.swift.fragment": "ce1c0b6aa0caa04a8969fb6cc6333f382cf71c7a9400aca292769d35e738239b"
+  },
+  "scope": "Exact LIVE APIs only; no inherited cold/default/source/runtime authority",
+  "sourceMap": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175"
+}

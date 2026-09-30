@@ -1,0 +1,33 @@
+{
+  "tier": "syntax_parse_only_not_compilation",
+  "results": [
+    {
+      "argv": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        ".codex-temp/cold-physical-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+        ".codex-temp/cold-physical-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        ".codex-temp/cold-physical-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+        ".codex-temp/cold-physical-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

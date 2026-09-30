@@ -1,0 +1,92 @@
+from pathlib import Path
+r=Path('.codex-temp/cold-control-continuation-successor-v1'); p=r/'candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift'; s=p.read_text()
+# New private v2.1 progress never predicts a future physical postimage.
+a=s.index('struct EraseSchema2ColdCleanupProgressV1:'); b=s.index('struct EraseSchema2ColdSurvivingNotificationProvenanceV1:',a)
+block=s[a:b]
+block=block.replace('        let postimageSHA256: String','        let postimageSHA256: String?',1)
+block=block.replace('                  !checkedClose,\n                  stage != .preparingCaptured','                  !checkedClose, transition?.postimageSHA256 == nil,\n                  stage != .preparingCaptured',1)
+block=block.replace('                  transition?.targetIndex == completedPrefixCount - 1,\n                  checkedClose','                  transition?.targetIndex == completedPrefixCount - 1,\n                  transition?.postimageSHA256 == Self.projectionSHA256(physicalProjection),\n                  checkedClose',1)
+block=block.replace('            try EraseSchema2ColdCleanupGrammarV1.requireDigest(transition.postimageSHA256)','            if let post = transition.postimageSHA256 {\n                try EraseSchema2ColdCleanupGrammarV1.requireDigest(post)\n            }',1)
+block=block.replace('            return completedPrefixCount == next.completedPrefixCount\n                && prefixSHA256 == next.prefixSHA256 && births == next.births','            return completedPrefixCount == next.completedPrefixCount\n                && prefixSHA256 == next.prefixSHA256 && births == next.births\n                && next.transition?.preimageSHA256 == Self.projectionSHA256(physicalProjection)',1)
+block=block.replace('        case (.preparing, .preparingCaptured), (.preparingCaptured, .preparingCaptured):','''        case (.preparing, .preparing), (.preparingCaptured, .preparingCaptured)
+            where births == next.births:
+            // Only a typed engine inspection receipt may issue this exact
+            // one-effect CAS. The record is the last checked cut, not a new
+            // source/plan baseline inferred from current survivors.
+            return completedPrefixCount == next.completedPrefixCount
+                && prefixSHA256 == next.prefixSHA256 && transition == next.transition
+                && activeTargetIndex == next.activeTargetIndex
+        case (.preparing, .preparingCaptured), (.preparingCaptured, .preparingCaptured):''',1)
+block=block.replace('                  transition == next.transition, births == next.births,\n                  let transition else { return false }\n            var bytes = Data(prefixSHA256.utf8)\n            bytes.append(try StoreMigrationCanonicalJSONV1.encode(transition))','''                  births == next.births, let transition, let completed = next.transition,
+                  transition.targetIndex == completed.targetIndex,
+                  transition.preimageSHA256 == completed.preimageSHA256,
+                  transition.postimageSHA256 == nil,
+                  completed.postimageSHA256 == Self.projectionSHA256(next.physicalProjection) else { return false }
+            var bytes = Data(prefixSHA256.utf8)
+            bytes.append(try StoreMigrationCanonicalJSONV1.encode(completed))''',1)
+block=block.replace('    func capturing(_ birth: Birth, sources:', '    func capturing(_ birth: Birth, physicalProjection: [Projection], sources:',1)
+block=block.replace('            activeTargetIndex: activeTargetIndex, physicalProjection: physicalProjection,','            activeTargetIndex: activeTargetIndex, physicalProjection: physicalProjection,',1)
+# Method parameter shadows old property deliberately, exact whole new image.
+marker='    var completedC16PrefixCount: Int {'
+block=block.replace(marker,'''    static func projectionSHA256(_ projection: [Projection]) -> String {
+        // Projection contains only validated strings/optionals/integers;
+        // canonical encoding has no filesystem or authority side effects.
+        (try? StoreMigrationCanonicalJSONV1.encode(projection)).map(
+            StoreMigrationCanonicalJSONV1.sha256) ?? ""
+    }
+    static func firstPrefixSHA256(eraseID: String,
+        originalPAuxiliaryRosterSHA256: String, sourcesSHA256: String,
+        targets: [Target]
+    ) throws -> String {
+        struct Prefix: Codable {
+            let schemaVersion: Int; let eraseID: String
+            let originalPAuxiliaryRosterSHA256: String
+            let sourcesSHA256: String; let targets: [Target]
+        }
+        return StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(
+            Prefix(schemaVersion: 1, eraseID: eraseID,
+                originalPAuxiliaryRosterSHA256: originalPAuxiliaryRosterSHA256,
+                sourcesSHA256: sourcesSHA256, targets: targets)))
+    }
+'''+marker,1)
+block=block.replace('        case .prepared:\n            guard completedPrefixCount == 0,','        case .prepared:\n            guard prefixSHA256 == (try Self.firstPrefixSHA256(eraseID: eraseID,\n                originalPAuxiliaryRosterSHA256: originalPAuxiliaryRosterSHA256,\n                sourcesSHA256: sourcesSHA256, targets: targets)),\n                  completedPrefixCount == 0,',1)
+block=block.replace('        case .completedEmpty:\n            guard targets.isEmpty,','        case .completedEmpty:\n            guard prefixSHA256 == (try Self.firstPrefixSHA256(eraseID: eraseID,\n                originalPAuxiliaryRosterSHA256: originalPAuxiliaryRosterSHA256,\n                sourcesSHA256: sourcesSHA256, targets: targets)),\n                  targets.isEmpty,',1)
+s=s[:a]+block+s[b:]
+# Born capture persists exact whole observed image, including changed parents.
+s=s.replace('path: String, role: String, bytes: Data, fullFact: String,\n        expected:', 'path: String, role: String, bytes: Data, fullFact: String,\n        physicalProjection: [EraseSchema2ColdCleanupProgressV1.Projection],\n        expected:',1)
+s=s.replace('                EraseSchema2ColdCleanupCommitmentV1.sha256(role)], path: path), permit: permit)\n        try beginSchema2ColdCleanupControlScope(permit)\n        try expected.validate', '                EraseSchema2ColdCleanupCommitmentV1.sha256(role),\n                EraseSchema2ColdCleanupProgressV1.projectionSHA256(physicalProjection)], path: path), permit: permit)\n        try beginSchema2ColdCleanupControlScope(permit)\n        try expected.validate',1)
+s=s.replace('expected.capturing(.init(role: role, targetIndex: active, source: source), sources: sources)','expected.capturing(.init(role: role, targetIndex: active, source: source),\n            physicalProjection: physicalProjection, sources: sources)',1)
+# Authentic original-P data bounds before any new source write.
+s=s.replace('        guard Set(sourceBytes.keys) == Set(sources.sources.map(\\.path)),','        guard Set(sourceBytes.keys) == Set(sources.sources.map(\\.path)),\n              sourceBytes.values.allSatisfy({ $0.count <= 1_024 * 1_024 * 1_024 }),',1)
+# A pending progress temp is never silently read as a settled cursor.
+s=s.replace('        let value = try StoreMigrationCanonicalJSONV1.decodeCanonical(\n            EraseSchema2ColdCleanupProgressV1.self, from: leaf.bytes)','''        guard try readSchema2CleanupOpaqueLeaf(
+            EraseSchema2ColdCleanupGrammarV1.temporaryName(name)) == nil else {
+            // Router must use the exact expected/replacement CAS from the
+            // first-held finite cut, preserving its zero/prefix/pair proof.
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let value = try StoreMigrationCanonicalJSONV1.decodeCanonical(
+            EraseSchema2ColdCleanupProgressV1.self, from: leaf.bytes)''',1)
+# Primitive callbacks are reached only from the @MainActor cleanup APIs.
+marker='    private func clearSchema2CleanupPublisherTransients() {'
+s=s.replace(marker,'''    private func requireSchema2ColdCleanupPrimitiveEffect() throws {
+        if let permit = coldCleanupPermit {
+            try MainActor.assumeIsolated { try self.requireSchema2ColdCleanupEffect(permit) }
+        }
+    }
+'''+marker,1)
+s=s.replace('    private func clearSchema2CleanupPublisherTransients() {\n        coldOwnTemporaryName','    private func clearSchema2CleanupPublisherTransients() {\n        if let attempt = coldCleanupControlAttempt {\n            coldCleanupOwnBytes.removeValue(forKey: attempt.canonicalName)\n            coldCleanupOwnBytes.removeValue(forKey: EraseSchema2ColdCleanupGrammarV1.temporaryName(attempt.canonicalName))\n        }\n        coldOwnTemporaryName',1)
+# Place current effect checks on incumbent writer boundaries without changing
+# ordinary callers; no lexical authorization is reused outside a new API.
+a=s.index('    private func createColdLeaf('); b=s.index('    private func removeIfExact(',a)
+block=s[a:b].replace('        coldOwnTemporaryName = name','        try requireSchema2ColdCleanupPrimitiveEffect()\n        coldOwnTemporaryName = name',1)
+block=block.replace('            try data.withUnsafeBytes','            try requireSchema2ColdCleanupPrimitiveEffect()\n            try data.withUnsafeBytes',1)
+block=block.replace('                    let count = Darwin.write','                    try self.requireSchema2ColdCleanupPrimitiveEffect()\n                    let count = Darwin.write',1)
+block=block.replace('            guard Darwin.fsync(descriptor) == 0','            try requireSchema2ColdCleanupPrimitiveEffect()\n            guard Darwin.fsync(descriptor) == 0',1)
+block=block.replace('            try closeColdActiveChecked()','            try requireSchema2ColdCleanupPrimitiveEffect()\n            try closeColdActiveChecked()',1)
+s=s[:a]+block+s[b:]
+# Memory-fenced terminal removes root only under a concrete retained attempt.
+s=s.replace('        guard borrowsColdObservation, !coldCloseAttempted, !coldClosed,\n              !coldEffectUncertain, coldOwnTemporaryName == name,','        guard (borrowsColdObservation || coldCleanupPermit != nil), !coldCloseAttempted, !coldClosed,\n              !coldEffectUncertain, coldOwnTemporaryName == name,',1)
+# Header comment separates data progress from predicted physical truth.
+s=s.replace('        let physicalProjection: [Projection]','        let physicalProjection: [Projection]')
+p.write_text(s)

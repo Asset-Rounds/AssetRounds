@@ -1,0 +1,944 @@
+{
+  "schemaVersion": 1,
+  "deduplication": "Content-addressed snapshot only. Original source packets and every logical restore path remain intact. No deletion or reclamation is authorized by this inventory.",
+  "groups": [
+    {
+      "sha256": "00843f571110702ddb2f9f851cd07ac80a67a0ad1b38c8ac0a2733c6f58c8d43",
+      "byteCount": 5785,
+      "objectRelativePath": "objects/00843f571110702ddb2f9f851cd07ac80a67a0ad1b38c8ac0a2733c6f58c8d43",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/V2_TYPES.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "0243bc15920a2404b3c933717f0442655bc9419cfeafcf9a6714fbcc42fe5126",
+      "byteCount": 446065,
+      "objectRelativePath": "objects/0243bc15920a2404b3c933717f0442655bc9419cfeafcf9a6714fbcc42fe5126",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/EraseIntentStore.diff"
+      ]
+    },
+    {
+      "sha256": "031afeefe67b722ec728599427c8136621a14fd7f5f34a4ffdaa5e8b37444be1",
+      "byteCount": 39436,
+      "objectRelativePath": "objects/031afeefe67b722ec728599427c8136621a14fd7f5f34a4ffdaa5e8b37444be1",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/APIS.swift.fragment",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/frozen-v1/APIS.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "03d89ee91c039aefc56235aa68c9ded2d5f6b2d63dd58cfd2007692fbe5dbe64",
+      "byteCount": 7544,
+      "objectRelativePath": "objects/03d89ee91c039aefc56235aa68c9ded2d5f6b2d63dd58cfd2007692fbe5dbe64",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/DRAFT.diff"
+      ]
+    },
+    {
+      "sha256": "04a5c7ab8bbee6acae28d3372de95976666be879d9b11e733c8500314483cb38",
+      "byteCount": 40532,
+      "objectRelativePath": "objects/04a5c7ab8bbee6acae28d3372de95976666be879d9b11e733c8500314483cb38",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/V4_CONTROL_CONTRACT_WORKING.md"
+      ]
+    },
+    {
+      "sha256": "08ce628b1a101bf6b212155c4990c45d25f065843d5f64ac125d541169ba0a95",
+      "byteCount": 548,
+      "objectRelativePath": "objects/08ce628b1a101bf6b212155c4990c45d25f065843d5f64ac125d541169ba0a95",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/terminal-authority-interface-v10/BINDING.json"
+      ]
+    },
+    {
+      "sha256": "0f8b2180eff07915c4d70774a9736c3a9a67027498c1459fccc286bcaef87f05",
+      "byteCount": 2981,
+      "objectRelativePath": "objects/0f8b2180eff07915c4d70774a9736c3a9a67027498c1459fccc286bcaef87f05",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/FACTORY_LOAN_ABI_V12.md"
+      ]
+    },
+    {
+      "sha256": "11d886dcbe3a502b4c3088543996573c187da3c563ea21d4f38daedc0623d665",
+      "byteCount": 16647,
+      "objectRelativePath": "objects/11d886dcbe3a502b4c3088543996573c187da3c563ea21d4f38daedc0623d665",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/CASE_MATRIX.md"
+      ]
+    },
+    {
+      "sha256": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+      "byteCount": 20237,
+      "objectRelativePath": "objects/16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/SEALED_GENERIC_OBSERVATION_V2.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "1819d9df874e0d56be603b36ea0553c11aeca605e3543ec0d66e67aba6a9db79",
+      "byteCount": 13838,
+      "objectRelativePath": "objects/1819d9df874e0d56be603b36ea0553c11aeca605e3543ec0d66e67aba6a9db79",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/REGISTRY_CONSTRUCTOR_ADDENDUM.md"
+      ]
+    },
+    {
+      "sha256": "187e4682c31c6893819e5a811bc1a0aba644497d2aa02c305bc7add72b8fb0f3",
+      "byteCount": 6571,
+      "objectRelativePath": "objects/187e4682c31c6893819e5a811bc1a0aba644497d2aa02c305bc7add72b8fb0f3",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/derive_capacity.py"
+      ]
+    },
+    {
+      "sha256": "1945d616fc9913792526ac8e5d1726765e817d8cb595a91c45e75fc66e106181",
+      "byteCount": 91869,
+      "objectRelativePath": "objects/1945d616fc9913792526ac8e5d1726765e817d8cb595a91c45e75fc66e106181",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_APIS_V21.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "19a1f9a9f6aed015b1a88ad642846dd802182ba4e4e82638338908212d590fb3",
+      "byteCount": 568,
+      "objectRelativePath": "objects/19a1f9a9f6aed015b1a88ad642846dd802182ba4e4e82638338908212d590fb3",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/pending-producer-interface-v10/BINDING.json"
+      ]
+    },
+    {
+      "sha256": "19cb4a18680cf8c876054a901a33f29d7f30f44edee5e57d283c91e6452dca93",
+      "byteCount": 16154,
+      "objectRelativePath": "objects/19cb4a18680cf8c876054a901a33f29d7f30f44edee5e57d283c91e6452dca93",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/checkpoint-v31/INITIAL_SLOT_PAGE_AND_RENEWAL_V31.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "1e97e77cd523b96088a8679ec4083463b8d5b0cdb1684689dc3ea9523d06fd1c",
+      "byteCount": 994,
+      "objectRelativePath": "objects/1e97e77cd523b96088a8679ec4083463b8d5b0cdb1684689dc3ea9523d06fd1c",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/pending-producer-interface-v10/STORE_PENDING_REQUEST_API_V10.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "21b42bb8f62ebc5e2c1aa28ee8324ca174843f0d251e6b444fb33bddc35bd4bf",
+      "byteCount": 10563,
+      "objectRelativePath": "objects/21b42bb8f62ebc5e2c1aa28ee8324ca174843f0d251e6b444fb33bddc35bd4bf",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/APPLY_V2.py"
+      ]
+    },
+    {
+      "sha256": "225a88055f23f996096fce68909ed11468bc030ab52da3c1743024220b8936cf",
+      "byteCount": 91904,
+      "objectRelativePath": "objects/225a88055f23f996096fce68909ed11468bc030ab52da3c1743024220b8936cf",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_APIS_V22.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90",
+      "byteCount": 478209,
+      "objectRelativePath": "objects/253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/TRACKED_STORE_BEFORE.swift"
+      ]
+    },
+    {
+      "sha256": "2575dd5d70b7b9216ac36a9213e76d9824d17d0bc0b956655b67dab1fd412e1b",
+      "byteCount": 1951,
+      "objectRelativePath": "objects/2575dd5d70b7b9216ac36a9213e76d9824d17d0bc0b956655b67dab1fd412e1b",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/DRAFT_BINDING.json"
+      ]
+    },
+    {
+      "sha256": "25b73241ad3c7c4ee6b8fd63ecff347f8455d2b4ee424a6b1b56c36955cd59b2",
+      "byteCount": 5617,
+      "objectRelativePath": "objects/25b73241ad3c7c4ee6b8fd63ecff347f8455d2b4ee424a6b1b56c36955cd59b2",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INTERFACE_AGREEMENT.md"
+      ]
+    },
+    {
+      "sha256": "2718594f0cccab1ead3c0aba6e36e77a403b4320b3759baba0c13279d2be3e71",
+      "byteCount": 4807,
+      "objectRelativePath": "objects/2718594f0cccab1ead3c0aba6e36e77a403b4320b3759baba0c13279d2be3e71",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/UNRESOLVED_SOURCE_QUESTIONS.md"
+      ]
+    },
+    {
+      "sha256": "2e9d22888c16d04ff89cbc825a86e1fb0e148a8f97444f3a405ce9811dbbec19",
+      "byteCount": 830867,
+      "objectRelativePath": "objects/2e9d22888c16d04ff89cbc825a86e1fb0e148a8f97444f3a405ce9811dbbec19",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-author-baseline-v1/before/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+      ]
+    },
+    {
+      "sha256": "2fd68db1c0050c47bdfff83f31fa2c350c3fcec39d2f2ed744d6c7d2617d9a60",
+      "byteCount": 3725,
+      "objectRelativePath": "objects/2fd68db1c0050c47bdfff83f31fa2c350c3fcec39d2f2ed744d6c7d2617d9a60",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/HANDOFF.md"
+      ]
+    },
+    {
+      "sha256": "33b34bfb7c43cba5184cca2d6ab39e8908ef51e37f56be41e009d98999d4f8cd",
+      "byteCount": 139404,
+      "objectRelativePath": "objects/33b34bfb7c43cba5184cca2d6ab39e8908ef51e37f56be41e009d98999d4f8cd",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/SOURCE_PERSISTENT_SCHEMAS.swift"
+      ]
+    },
+    {
+      "sha256": "340281b77c4f26dc9fbbcdcd8743040882ffbd5bc2d8e66395c6ebe519c8d082",
+      "byteCount": 3657,
+      "objectRelativePath": "objects/340281b77c4f26dc9fbbcdcd8743040882ffbd5bc2d8e66395c6ebe519c8d082",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/physical/cold-physical-v4-progress-interface-v1/INTERFACE.md"
+      ]
+    },
+    {
+      "sha256": "349fbc7147135ee00e9ce63264c1705e9baf68b2c6e43ea8567b9d6ac62af9b7",
+      "byteCount": 5326,
+      "objectRelativePath": "objects/349fbc7147135ee00e9ce63264c1705e9baf68b2c6e43ea8567b9d6ac62af9b7",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ROOT_TARGET_A_DIRECTION.md"
+      ]
+    },
+    {
+      "sha256": "368e65bc96cb19b861be4c5b5611d96658995965f1b7dd1993befc80f60289b8",
+      "byteCount": 545385,
+      "objectRelativePath": "objects/368e65bc96cb19b861be4c5b5611d96658995965f1b7dd1993befc80f60289b8",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/frozen-v1/EraseIntentStore.swift"
+      ]
+    },
+    {
+      "sha256": "3a9dc0eacc3fda1e3e8ab061e82659407a8a977998d46c22f9476d5de24b26be",
+      "byteCount": 1344,
+      "objectRelativePath": "objects/3a9dc0eacc3fda1e3e8ab061e82659407a8a977998d46c22f9476d5de24b26be",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/terminal-authority-interface-v10/ORDER.md"
+      ]
+    },
+    {
+      "sha256": "3edc425f555a85558a5a804f772d88936ed1c5a475264ee8e434c70156cd8f54",
+      "byteCount": 140466,
+      "objectRelativePath": "objects/3edc425f555a85558a5a804f772d88936ed1c5a475264ee8e434c70156cd8f54",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-author-baseline-v1/before/FieldEvidenceAppTests/V23ProductionAppAccessTests.swift"
+      ]
+    },
+    {
+      "sha256": "40f3022399f6634e7f0578785879bbc68d71674394a52b9ea0f063a475f4e766",
+      "byteCount": 4110,
+      "objectRelativePath": "objects/40f3022399f6634e7f0578785879bbc68d71674394a52b9ea0f063a475f4e766",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/physical/cold-physical-continuation-successor-v5/INTERFACES.md"
+      ]
+    },
+    {
+      "sha256": "4250ed5c5c6aad2f6278bc0114ef3b426b01d0eea6bff03e0bdc5a824dc383cd",
+      "byteCount": 28781,
+      "objectRelativePath": "objects/4250ed5c5c6aad2f6278bc0114ef3b426b01d0eea6bff03e0bdc5a824dc383cd",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/frozen-design/V23P01C06DeletionRightsContractV1.json"
+      ]
+    },
+    {
+      "sha256": "462de0dd913db651f4aba1a45e226207db73348c54801c09d42eabb8f43b76d5",
+      "byteCount": 6154,
+      "objectRelativePath": "objects/462de0dd913db651f4aba1a45e226207db73348c54801c09d42eabb8f43b76d5",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/ROUTER_REAL_TARGET_PRODUCER_SCOPE_V12.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "46ed4fbd76370eb0982c2db5698daea51f29d815192fa43b1884dc5b13170449",
+      "byteCount": 2771,
+      "objectRelativePath": "objects/46ed4fbd76370eb0982c2db5698daea51f29d815192fa43b1884dc5b13170449",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/INPUT_PINS.json"
+      ]
+    },
+    {
+      "sha256": "4871a3c2447cfb61293f5ba48d6ed534e983e9d263d7da0297c84b8e6dc441e3",
+      "byteCount": 5288,
+      "objectRelativePath": "objects/4871a3c2447cfb61293f5ba48d6ed534e983e9d263d7da0297c84b8e6dc441e3",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_REAL_OS_COMPONENT_V4.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "489696294d0d446f624cba649d5418deabb5a35d65721ceb6ae17f0100ce5da4",
+      "byteCount": 176942,
+      "objectRelativePath": "objects/489696294d0d446f624cba649d5418deabb5a35d65721ceb6ae17f0100ce5da4",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-author-baseline-v1/BASELINE.json"
+      ]
+    },
+    {
+      "sha256": "4990d51532b82a98774c7583b1df70adc41907b798b72a119ea7fc2a437ac241",
+      "byteCount": 5009,
+      "objectRelativePath": "objects/4990d51532b82a98774c7583b1df70adc41907b798b72a119ea7fc2a437ac241",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/REGISTRY_SOURCE_BOUNDS_ADDENDUM.md"
+      ]
+    },
+    {
+      "sha256": "4aacfe3bd27e75febeaa82df8603cb0787986abcfa50b363302ca39781e8f5e7",
+      "byteCount": 4998,
+      "objectRelativePath": "objects/4aacfe3bd27e75febeaa82df8603cb0787986abcfa50b363302ca39781e8f5e7",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ROOT_COMPACT_DIRECTION.md"
+      ]
+    },
+    {
+      "sha256": "555b5549527f16ae0ad907f9a45d0081ff1c605606ad31208fdd9db7f28422d5",
+      "byteCount": 5836,
+      "objectRelativePath": "objects/555b5549527f16ae0ad907f9a45d0081ff1c605606ad31208fdd9db7f28422d5",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/HANDOFF.md"
+      ]
+    },
+    {
+      "sha256": "5925afaa75588544fddac71f2a4fd2f030c0f04058baa447d1065477c41c4748",
+      "byteCount": 5018,
+      "objectRelativePath": "objects/5925afaa75588544fddac71f2a4fd2f030c0f04058baa447d1065477c41c4748",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/V4_INTERFACES_PROPOSED.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "59e4d3c11e1b78c8b1a46ca87acddf7a5fc25ca1569a832f296860707104bbe2",
+      "byteCount": 10945,
+      "objectRelativePath": "objects/59e4d3c11e1b78c8b1a46ca87acddf7a5fc25ca1569a832f296860707104bbe2",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/ADAPT_OBSERVER.py"
+      ]
+    },
+    {
+      "sha256": "5c65692db2dbbafb51c39309a910f7f9afbf6ee3e78f81a7c34614b43008348c",
+      "byteCount": 4166,
+      "objectRelativePath": "objects/5c65692db2dbbafb51c39309a910f7f9afbf6ee3e78f81a7c34614b43008348c",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/CLOSE_EDGE_PATCH.py"
+      ]
+    },
+    {
+      "sha256": "600f50f9639f479e8b20144f112da4acdcc77bf55f62e529179bc5288f6d2dfc",
+      "byteCount": 6316,
+      "objectRelativePath": "objects/600f50f9639f479e8b20144f112da4acdcc77bf55f62e529179bc5288f6d2dfc",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_FIXED_SUBJECT_V4.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "623a6900ee6ebe6db61d9d03f7ebc5a0b277af6755a4f4ae4ed3a6f104d34067",
+      "byteCount": 10379,
+      "objectRelativePath": "objects/623a6900ee6ebe6db61d9d03f7ebc5a0b277af6755a4f4ae4ed3a6f104d34067",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/PROGRESS_V21.py"
+      ]
+    },
+    {
+      "sha256": "62a9a10491af48be43af78aef5de2db8e08af5c61820521ba1b6ed250553965a",
+      "byteCount": 22898,
+      "objectRelativePath": "objects/62a9a10491af48be43af78aef5de2db8e08af5c61820521ba1b6ed250553965a",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/V2_APIS.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "63bba9e5331ae2bbedce7853687fe669e1e550f69f96d41e0757ecf1cc82fcf1",
+      "byteCount": 17752,
+      "objectRelativePath": "objects/63bba9e5331ae2bbedce7853687fe669e1e550f69f96d41e0757ecf1cc82fcf1",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/V4_SEGMENTATION_PROPOSAL_V1.md"
+      ]
+    },
+    {
+      "sha256": "65f70b79427c8db8c745d0c0260843237f7cd35bfd71774694341f2ccbd8d5af",
+      "byteCount": 5735,
+      "objectRelativePath": "objects/65f70b79427c8db8c745d0c0260843237f7cd35bfd71774694341f2ccbd8d5af",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/SEMANTIC_TARGET_FIXED_DATA_V12.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "6674f52568611efcd35c5cf958906e8134b36fc149d33f4e189b8178c7f707f7",
+      "byteCount": 4090,
+      "objectRelativePath": "objects/6674f52568611efcd35c5cf958906e8134b36fc149d33f4e189b8178c7f707f7",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/BINDING.json"
+      ]
+    },
+    {
+      "sha256": "68ae75caa33ec7f06c33fbf43aa20af05d9631588072f6872b1d4d764d257071",
+      "byteCount": 2218,
+      "objectRelativePath": "objects/68ae75caa33ec7f06c33fbf43aa20af05d9631588072f6872b1d4d764d257071",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/pending-producer-interface-v10/ORDER.md"
+      ]
+    },
+    {
+      "sha256": "69b4d3cb3292eebb566554990147118a18a2968dcc2fac69d9d8b677cdc38164",
+      "byteCount": 93544,
+      "objectRelativePath": "objects/69b4d3cb3292eebb566554990147118a18a2968dcc2fac69d9d8b677cdc38164",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_APIS_V3_FINAL.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "6ac042cc14191fa31852a4e4bd5233c8c4368ead5679b999160e290825541bdf",
+      "byteCount": 692,
+      "objectRelativePath": "objects/6ac042cc14191fa31852a4e4bd5233c8c4368ead5679b999160e290825541bdf",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/BINDING.json"
+      ]
+    },
+    {
+      "sha256": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+      "byteCount": 2618,
+      "objectRelativePath": "objects/6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/migration/ORIGINAL_PAIR_ACCOUNTING_DATA_V1.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "6b8b58d8f859993c4c71333fffb8be73868a99a123157cd6d4194bdde7ee90a2",
+      "byteCount": 716,
+      "objectRelativePath": "objects/6b8b58d8f859993c4c71333fffb8be73868a99a123157cd6d4194bdde7ee90a2",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/frozen-v1/HANDOFF.md"
+      ]
+    },
+    {
+      "sha256": "6e02ac3d80f01f2e4fe073db7269af70d887d63c0a197e7469645ddc93b3117e",
+      "byteCount": 1534,
+      "objectRelativePath": "objects/6e02ac3d80f01f2e4fe073db7269af70d887d63c0a197e7469645ddc93b3117e",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_CONSUMER_RECEIPT_INTERFACE_V4.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+      "byteCount": 24510,
+      "objectRelativePath": "objects/7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1.swift",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/V4_TYPES_AND_READ_APIS_WORKING.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "728679416edf7783529f4f1dcd4515e69a7cbe27434abd9ba8ecbe11dd91d7b2",
+      "byteCount": 13698,
+      "objectRelativePath": "objects/728679416edf7783529f4f1dcd4515e69a7cbe27434abd9ba8ecbe11dd91d7b2",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/STORE_V3_REVIEW.md"
+      ]
+    },
+    {
+      "sha256": "731c552348e835c002db85c2fdb291feada342e46a9bb2b915c3785d65206c5b",
+      "byteCount": 93526,
+      "objectRelativePath": "objects/731c552348e835c002db85c2fdb291feada342e46a9bb2b915c3785d65206c5b",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_APIS_V3.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "74f1a40438bd4ec186253df646168e8a346408cf0a5acbad2b892cce61330874",
+      "byteCount": 22977,
+      "objectRelativePath": "objects/74f1a40438bd4ec186253df646168e8a346408cf0a5acbad2b892cce61330874",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/TYPES.swift.fragment",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/frozen-v1/TYPES.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "75e0ddccd75cd3a8ace50a5bc66025c4fb1e19c98382363b945b52017aa47913",
+      "byteCount": 6033,
+      "objectRelativePath": "objects/75e0ddccd75cd3a8ace50a5bc66025c4fb1e19c98382363b945b52017aa47913",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/CAPACITY_ARITHMETIC_V4.json"
+      ]
+    },
+    {
+      "sha256": "76819c16b520b8c68d3226870309dbb22e022815b5b830221e74a48585228dfb",
+      "byteCount": 817,
+      "objectRelativePath": "objects/76819c16b520b8c68d3226870309dbb22e022815b5b830221e74a48585228dfb",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/NOTIFICATION_DIGEST_HELPERS_V4.swift"
+      ]
+    },
+    {
+      "sha256": "794faa1aacc772cc598bb916225c44af6506bbf359b410ee462e0fe2102f7833",
+      "byteCount": 23950,
+      "objectRelativePath": "objects/794faa1aacc772cc598bb916225c44af6506bbf359b410ee462e0fe2102f7833",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/AGENTS.md"
+      ]
+    },
+    {
+      "sha256": "7aa4fa4900234c0daa1eff99712d65b11ad02f9e62a6b929a8cfeb687bd9edd8",
+      "byteCount": 14432,
+      "objectRelativePath": "objects/7aa4fa4900234c0daa1eff99712d65b11ad02f9e62a6b929a8cfeb687bd9edd8",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/WIRE_EFFECTS.py"
+      ]
+    },
+    {
+      "sha256": "7dd6635ac9328f02645fb7103679d261aa310bd30a7a7e98bd7889d0b9d69fea",
+      "byteCount": 625080,
+      "objectRelativePath": "objects/7dd6635ac9328f02645fb7103679d261aa310bd30a7a7e98bd7889d0b9d69fea",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-author-baseline-v1/before/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+      ]
+    },
+    {
+      "sha256": "7e01101ab31bb78e61f6655c236e16b8224d5d5b035deaad7abd442b5f272d4e",
+      "byteCount": 890,
+      "objectRelativePath": "objects/7e01101ab31bb78e61f6655c236e16b8224d5d5b035deaad7abd442b5f272d4e",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/SOURCEPINS.json"
+      ]
+    },
+    {
+      "sha256": "836dd3ce8dd32c2239ec46cfdf323534696ee3be8f0db80a911832bab47a62e2",
+      "byteCount": 10422,
+      "objectRelativePath": "objects/836dd3ce8dd32c2239ec46cfdf323534696ee3be8f0db80a911832bab47a62e2",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/COMPACT_TERMINAL_STORE_APIS_WORKING.swift"
+      ]
+    },
+    {
+      "sha256": "83e0ca3ac7ecbf593c602795781aeddc9fb3d333b2a06fac14b68a8ecb849ca3",
+      "byteCount": 12115,
+      "objectRelativePath": "objects/83e0ca3ac7ecbf593c602795781aeddc9fb3d333b2a06fac14b68a8ecb849ca3",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/FINALIZE_CORE.py"
+      ]
+    },
+    {
+      "sha256": "86668b6ebbe9fa26b8ba67e6dd7967d9a7ece08a9d2361b13762c7f8175b818c",
+      "byteCount": 10319,
+      "objectRelativePath": "objects/86668b6ebbe9fa26b8ba67e6dd7967d9a7ece08a9d2361b13762c7f8175b818c",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/CAPACITY_PROOF_WORKING.md"
+      ]
+    },
+    {
+      "sha256": "86825adf3c60794f2e16693552c35bb54c7359ec3fb37c32ed4ca5e10d5ca6d3",
+      "byteCount": 8037,
+      "objectRelativePath": "objects/86825adf3c60794f2e16693552c35bb54c7359ec3fb37c32ed4ca5e10d5ca6d3",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_REAL_OS_SCOPE_V4.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "885af97f00716236a7f537d6a4ece372e3f8b2602ef0914d3eb1781f3ca8adb3",
+      "byteCount": 1672,
+      "objectRelativePath": "objects/885af97f00716236a7f537d6a4ece372e3f8b2602ef0914d3eb1781f3ca8adb3",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/EFFECT_COMMITMENT_API_V4.swift"
+      ]
+    },
+    {
+      "sha256": "8dac58cc34a502a017b0d66b10f81875029ec4e73b4cae5449a157424208608a",
+      "byteCount": 2835,
+      "objectRelativePath": "objects/8dac58cc34a502a017b0d66b10f81875029ec4e73b4cae5449a157424208608a",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/BORN_PRODUCER_SLOTS_STREAM_V6.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "8e13687a5288b449d7b05a607c7a8c46f5c6f34a9a4a3f2e1b633cef36bf4c92",
+      "byteCount": 4349,
+      "objectRelativePath": "objects/8e13687a5288b449d7b05a607c7a8c46f5c6f34a9a4a3f2e1b633cef36bf4c92",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/SERVICE_FIXED_GRAPH_FRAME_V12.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "9010550346f17967c892734b1e955207b4d990e5cef429d40d44a76cc7e6ca5a",
+      "byteCount": 2242,
+      "objectRelativePath": "objects/9010550346f17967c892734b1e955207b4d990e5cef429d40d44a76cc7e6ca5a",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/HANDOFF_MANIFEST.json"
+      ]
+    },
+    {
+      "sha256": "920a5d01a32d6522b2b851eae731c420085b8d8816e741b1ce3ca61efe6d2fd8",
+      "byteCount": 7154,
+      "objectRelativePath": "objects/920a5d01a32d6522b2b851eae731c420085b8d8816e741b1ce3ca61efe6d2fd8",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ACTIVE_BRIEF_SNAPSHOT.md"
+      ]
+    },
+    {
+      "sha256": "94f0f36ff9a465e1a962c53510ebf49806e20041c9afa40d16a8f439992c84d0",
+      "byteCount": 5279,
+      "objectRelativePath": "objects/94f0f36ff9a465e1a962c53510ebf49806e20041c9afa40d16a8f439992c84d0",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/SEAL.json"
+      ]
+    },
+    {
+      "sha256": "966dc355dc56aee5feb97bda05d59780fb6cd4e5c90116ba5be2df81d9fb08bb",
+      "byteCount": 4749,
+      "objectRelativePath": "objects/966dc355dc56aee5feb97bda05d59780fb6cd4e5c90116ba5be2df81d9fb08bb",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/CAPACITY_ARITHMETIC_WORKING.json"
+      ]
+    },
+    {
+      "sha256": "974e1e468150f7654f059d800c76f4f33e9fc7bb1efcf81deb70efa463e07d94",
+      "byteCount": 5588,
+      "objectRelativePath": "objects/974e1e468150f7654f059d800c76f4f33e9fc7bb1efcf81deb70efa463e07d94",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/SDK_SIMULATOR_DIRENT.h"
+      ]
+    },
+    {
+      "sha256": "98c5f3dcfccb880ca11a0775a6f3881b961e1a28662f41bf8175aa62548598e3",
+      "byteCount": 1265,
+      "objectRelativePath": "objects/98c5f3dcfccb880ca11a0775a6f3881b961e1a28662f41bf8175aa62548598e3",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/PARSE_DRAFT.json"
+      ]
+    },
+    {
+      "sha256": "a2b75040e1ef5c155a8d4c47465a3cb9222094bd0427c93084b61c88842af9f0",
+      "byteCount": 5849,
+      "objectRelativePath": "objects/a2b75040e1ef5c155a8d4c47465a3cb9222094bd0427c93084b61c88842af9f0",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/CASE_MATRIX.md"
+      ]
+    },
+    {
+      "sha256": "a46a6b7a67fb555e181894c0cb1c170b479d7d404008ba2ec9167530b9770900",
+      "byteCount": 7308,
+      "objectRelativePath": "objects/a46a6b7a67fb555e181894c0cb1c170b479d7d404008ba2ec9167530b9770900",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/FINAL_ORIGINAL_TERMINAL.py"
+      ]
+    },
+    {
+      "sha256": "a738d0b09e6050540435a273ec11a434afa5d1c862a70c623cc0cfa2d859719c",
+      "byteCount": 1767,
+      "objectRelativePath": "objects/a738d0b09e6050540435a273ec11a434afa5d1c862a70c623cc0cfa2d859719c",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v8/FIRST_CAPTURE_CONTROL_STORE_HOOK_V8.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "a8de8c12dbf176a9f5f394c715190d7b14f1d5c086468c3f8cf11d3d9fb9ab45",
+      "byteCount": 3287,
+      "objectRelativePath": "objects/a8de8c12dbf176a9f5f394c715190d7b14f1d5c086468c3f8cf11d3d9fb9ab45",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/checkpoint-v31/BINDING.json"
+      ]
+    },
+    {
+      "sha256": "b3a2edfb29caf3792baa39db52e1fb0dc78a6333807025207b816e001d0cb607",
+      "byteCount": 624679,
+      "objectRelativePath": "objects/b3a2edfb29caf3792baa39db52e1fb0dc78a6333807025207b816e001d0cb607",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift"
+      ]
+    },
+    {
+      "sha256": "b4c797924bc1bcba426b829c5aec2297b7e21e137cfec74c295e06e8ee9bd603",
+      "byteCount": 1265,
+      "objectRelativePath": "objects/b4c797924bc1bcba426b829c5aec2297b7e21e137cfec74c295e06e8ee9bd603",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/PARSE.json"
+      ]
+    },
+    {
+      "sha256": "b7b20f35a1440a1faa1bedf1ce023b125ba0af51c7a0f62aaee7e80ea25ef4c8",
+      "byteCount": 35582,
+      "objectRelativePath": "objects/b7b20f35a1440a1faa1bedf1ce023b125ba0af51c7a0f62aaee7e80ea25ef4c8",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_TYPES_V21.swift.fragment",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_TYPES_V22.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "ba9dee5da526136718c7ddc7ab834de4775da9cf1bd23938f2c63b46c7f1c14b",
+      "byteCount": 1700,
+      "objectRelativePath": "objects/ba9dee5da526136718c7ddc7ab834de4775da9cf1bd23938f2c63b46c7f1c14b",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/V2_EFFECTS.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "bacd4ea65e909390f1baa0924bbe34d068d7cdd72d8c8a0b732b2f6d37dc4d3d",
+      "byteCount": 8727,
+      "objectRelativePath": "objects/bacd4ea65e909390f1baa0924bbe34d068d7cdd72d8c8a0b732b2f6d37dc4d3d",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/EFFECT_COMMITMENTS.md"
+      ]
+    },
+    {
+      "sha256": "bb8e24801ddd69366beb5683206b7c4879e4831a380338e8085e359a930e785f",
+      "byteCount": 37511,
+      "objectRelativePath": "objects/bb8e24801ddd69366beb5683206b7c4879e4831a380338e8085e359a930e785f",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_TYPES_V3.swift.fragment",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_TYPES_V3_FINAL.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "be527834e2ff704575672a61006ab37f46babe0ec577359d8970283f8cce4617",
+      "byteCount": 837,
+      "objectRelativePath": "objects/be527834e2ff704575672a61006ab37f46babe0ec577359d8970283f8cce4617",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/pending-producer-interface-v10/LEDGER_PENDING_REQUEST_SHAPE_V10.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "c1ae7f8edb8dc81ae50a4428dccc904a3988596554c5b68ea928b9dac1d16ca7",
+      "byteCount": 10120,
+      "objectRelativePath": "objects/c1ae7f8edb8dc81ae50a4428dccc904a3988596554c5b68ea928b9dac1d16ca7",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_CONTINUATION_V3_ADDENDUM.md"
+      ]
+    },
+    {
+      "sha256": "c4aa8e1dec3fa3ce1507fa7d1a04c5a48962e849ace4e77dac176657394c71af",
+      "byteCount": 1863,
+      "objectRelativePath": "objects/c4aa8e1dec3fa3ce1507fa7d1a04c5a48962e849ace4e77dac176657394c71af",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/FIRST_HELD_V4_PRESENCE_API.swift"
+      ]
+    },
+    {
+      "sha256": "c570863e503da5f243e4d5cf812faaa591722dff8eb3be43ce4d30d43da25219",
+      "byteCount": 3985,
+      "objectRelativePath": "objects/c570863e503da5f243e4d5cf812faaa591722dff8eb3be43ce4d30d43da25219",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1_BINDING.json"
+      ]
+    },
+    {
+      "sha256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "byteCount": 622434,
+      "objectRelativePath": "objects/c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift"
+      ]
+    },
+    {
+      "sha256": "c7a831ad2227d57680ced759c5a28c4adb80b395d2795c07ff4f87e4161392f5",
+      "byteCount": 986,
+      "objectRelativePath": "objects/c7a831ad2227d57680ced759c5a28c4adb80b395d2795c07ff4f87e4161392f5",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/PROPOSAL_BINDING.json"
+      ]
+    },
+    {
+      "sha256": "cfd77fb328fe2dbf1fda0dc1e4d7a8624715731a5cf8d97c539e15ef14249b73",
+      "byteCount": 12441,
+      "objectRelativePath": "objects/cfd77fb328fe2dbf1fda0dc1e4d7a8624715731a5cf8d97c539e15ef14249b73",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/TARGET_A_MINIMUM_TUPLE.md"
+      ]
+    },
+    {
+      "sha256": "d3899c4ef6fad9fd28aa4d775bf7c07a10eec2df8b5b42d2739f9ca8e40e7795",
+      "byteCount": 18851,
+      "objectRelativePath": "objects/d3899c4ef6fad9fd28aa4d775bf7c07a10eec2df8b5b42d2739f9ca8e40e7795",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/TERMINAL_CAPACITY_REVIEW.md"
+      ]
+    },
+    {
+      "sha256": "d4e855fea7e73038381049896efcc68143143d011a0c3ead2b29251023f975b4",
+      "byteCount": 16195,
+      "objectRelativePath": "objects/d4e855fea7e73038381049896efcc68143143d011a0c3ead2b29251023f975b4",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/FIRST_CAPTURE_PRODUCER_DECLARATIONS_V5.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "d82bb67b604e212c838f789c029ba12a2113df13bba8b8d0b04b442af12713b2",
+      "byteCount": 29373,
+      "objectRelativePath": "objects/d82bb67b604e212c838f789c029ba12a2113df13bba8b8d0b04b442af12713b2",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/WIRE_SCHEMAS_WORKING.md"
+      ]
+    },
+    {
+      "sha256": "d839241ed9f3b2fb45ba8ac85f156b1bc9df6a13a9d8160fa2d783ba21d8c727",
+      "byteCount": 3828,
+      "objectRelativePath": "objects/d839241ed9f3b2fb45ba8ac85f156b1bc9df6a13a9d8160fa2d783ba21d8c727",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/migration/ORIGINAL_PAIR_ACCOUNTING_RECEIPT_V2.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "d841df37746a9f1120f8646bb0a2300ecff1c0030f63bd704317048afaa421e5",
+      "byteCount": 2794,
+      "objectRelativePath": "objects/d841df37746a9f1120f8646bb0a2300ecff1c0030f63bd704317048afaa421e5",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/COUNTERPART_RISKS.md"
+      ]
+    },
+    {
+      "sha256": "d84d3a09c9a5f49705f99cbaced03f0e5882cfc40cc1a0ceda908b8a6bc7c445",
+      "byteCount": 5999,
+      "objectRelativePath": "objects/d84d3a09c9a5f49705f99cbaced03f0e5882cfc40cc1a0ceda908b8a6bc7c445",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/physical/cold-physical-continuation-successor-v5/BINDING.json"
+      ]
+    },
+    {
+      "sha256": "e2f4dc2b3267ba1b84733c309cb6cd0552aa1e8ce9a46b836844ba7b11a6a3c1",
+      "byteCount": 1611,
+      "objectRelativePath": "objects/e2f4dc2b3267ba1b84733c309cb6cd0552aa1e8ce9a46b836844ba7b11a6a3c1",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v7/C16_CURRENT_RECORD_GETTER_V7.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "e33e50624d252dd440235e2473fa691fc835ae6f9c32053c349f12c0c7522359",
+      "byteCount": 477,
+      "objectRelativePath": "objects/e33e50624d252dd440235e2473fa691fc835ae6f9c32053c349f12c0c7522359",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_NOTIFICATION_PORT_PROTOCOL_V4.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "byteCount": 0,
+      "objectRelativePath": "objects/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/parse/DEBUG.log",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/parse/nonDEBUG.log",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/parse-DEBUG.log",
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/parse-nonDEBUG.log"
+      ]
+    },
+    {
+      "sha256": "e866c9044c0c77077a64d35e12f85bb960de871aa50e9202859f201b54caf3c9",
+      "byteCount": 6682,
+      "objectRelativePath": "objects/e866c9044c0c77077a64d35e12f85bb960de871aa50e9202859f201b54caf3c9",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/BINDING.json"
+      ]
+    },
+    {
+      "sha256": "e87c3c18e7404c9530074cd05d750d23eb5bda62f9f4ec6e89aef154ac909b89",
+      "byteCount": 3014,
+      "objectRelativePath": "objects/e87c3c18e7404c9530074cd05d750d23eb5bda62f9f4ec6e89aef154ac909b89",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/NEW_CONTROL_REGISTRATION.md"
+      ]
+    },
+    {
+      "sha256": "ec7c9762a9e635bcbded5cdc2bc06fc30690a01f3dbc6f82b8a933f392e00243",
+      "byteCount": 12673,
+      "objectRelativePath": "objects/ec7c9762a9e635bcbded5cdc2bc06fc30690a01f3dbc6f82b8a933f392e00243",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/ORIGINAL_SCOPE.py"
+      ]
+    },
+    {
+      "sha256": "ecc36d3a25f8deb29c10dfb5c31d112c598669a63ea6a1bcd867f093bcdb48da",
+      "byteCount": 9035,
+      "objectRelativePath": "objects/ecc36d3a25f8deb29c10dfb5c31d112c598669a63ea6a1bcd867f093bcdb48da",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/frozen-design/V23P02C06OwnedStorageLedgerContractV1.json"
+      ]
+    },
+    {
+      "sha256": "ee2f5dcee5d802498b25089559793dbb62372b6f323bd7fa5b61c9a460a76369",
+      "byteCount": 3321,
+      "objectRelativePath": "objects/ee2f5dcee5d802498b25089559793dbb62372b6f323bd7fa5b61c9a460a76369",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/CAPACITY_SOURCE_EVIDENCE_V13.md"
+      ]
+    },
+    {
+      "sha256": "eee663e7dad0bab6a899c2ccb5dfdf6ba20bc59f053499fe8a77b4e9a711be6a",
+      "byteCount": 11924,
+      "objectRelativePath": "objects/eee663e7dad0bab6a899c2ccb5dfdf6ba20bc59f053499fe8a77b4e9a711be6a",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/BOUNDED_RAW_TERMINAL.py"
+      ]
+    },
+    {
+      "sha256": "f2241579c9e0529e009c2c74b6e4d8593489ec7c5a1aa72fc238f52eea2a04d1",
+      "byteCount": 31533,
+      "objectRelativePath": "objects/f2241579c9e0529e009c2c74b6e4d8593489ec7c5a1aa72fc238f52eea2a04d1",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUT_BINDING_WORKING.json"
+      ]
+    },
+    {
+      "sha256": "f2cdb43868e2390167032aadd38d9cc093c0bc67e16cc51a95958c2e8db487b7",
+      "byteCount": 15561,
+      "objectRelativePath": "objects/f2cdb43868e2390167032aadd38d9cc093c0bc67e16cc51a95958c2e8db487b7",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/frozen-design/V23P02C05LocalJobStoreLifecycleContractV1.json"
+      ]
+    },
+    {
+      "sha256": "f6b8977d722e281114c09b4d701af6cf0504d0644b7c178566a9f9c571d3fea8",
+      "byteCount": 454,
+      "objectRelativePath": "objects/f6b8977d722e281114c09b4d701af6cf0504d0644b7c178566a9f9c571d3fea8",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-author-baseline-v1/EXCLUDE_BEFORE"
+      ]
+    },
+    {
+      "sha256": "f7c7ebd45f6dc61a29735726aa383dc84abaad2b66ff50a473eed9fed952cc2f",
+      "byteCount": 464,
+      "objectRelativePath": "objects/f7c7ebd45f6dc61a29735726aa383dc84abaad2b66ff50a473eed9fed952cc2f",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/TARGET_A_DIRECTION_INPUTS.json"
+      ]
+    },
+    {
+      "sha256": "f8c61d0d624522f7549bdf8b795570a3c30731c4b08282de5cb9cc76867a7a9d",
+      "byteCount": 344802,
+      "objectRelativePath": "objects/f8c61d0d624522f7549bdf8b795570a3c30731c4b08282de5cb9cc76867a7a9d",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-author-baseline-v1/before/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+      ]
+    },
+    {
+      "sha256": "f951ec35bf7214995d205292960a8dbb6e436788c57344e0d8fce8985efea936",
+      "byteCount": 8449,
+      "objectRelativePath": "objects/f951ec35bf7214995d205292960a8dbb6e436788c57344e0d8fce8985efea936",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/terminal-authority-interface-v10/COMPACT_TERMINAL_AUTHORITY_V4.swift.fragment"
+      ]
+    },
+    {
+      "sha256": "fb3cb3b55e60062e574444b57ddc075345053c396c9da1b2c5e5350f2aeae2a2",
+      "byteCount": 2706749,
+      "objectRelativePath": "objects/fb3cb3b55e60062e574444b57ddc075345053c396c9da1b2c5e5350f2aeae2a2",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/frozen-design/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md"
+      ]
+    },
+    {
+      "sha256": "fe83af8dd8d07ae8e5476c0c47f025ae4f0eb2534db739f11d8b211c7de0d4ab",
+      "byteCount": 942,
+      "objectRelativePath": "objects/fe83af8dd8d07ae8e5476c0c47f025ae4f0eb2534db739f11d8b211c7de0d4ab",
+      "restorePaths": [
+        "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ROOT_COMPACT_DIRECTION_INPUTS.json"
+      ]
+    }
+  ]
+}

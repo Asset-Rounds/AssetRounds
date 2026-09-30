@@ -1,0 +1,244 @@
+{
+  "schema": "V21P03C38PartyAccountabilityCorpusV1",
+  "schemaVersion": 1,
+  "fixtureIdentity": "V21-P03-C38-PARTY-ACCOUNTABILITY-CORPUS-V1",
+  "cardID": "V23-P03-C38",
+  "workspaceID": "73800000-0000-4000-8000-000000000001",
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "persistence": {
+    "schemaRelease": "PERSISTENT_SCHEMA_V9_PARTY_ACCOUNTABILITY",
+    "predecessorSchemaVersion": 8,
+    "migration": "EXACT_V8_TO_V9_COPY_ON_WRITE",
+    "canonicalWriter": "P02-C01",
+    "lifecycleOwner": "P03-C38",
+    "searchRebuild": "ALLOWLISTED_PARTY_ROLE_SIGNOFF_DISPLAY_FIELDS_ONLY",
+    "deleteDisposition": "EXPLICIT_ERASE_OR_TOMBSTONE_WITH_HISTORY_PRESERVED",
+    "exportDisposition": "CANONICAL_DOMAIN_BYTES_AND_FROZEN_SNAPSHOTS"
+  },
+  "enumContracts": {
+    "partyKinds": ["PERSON", "ORGANIZATION"],
+    "partyProvenance": ["LOCALLY_RECORDED", "IMPORTED_EXTERNAL_EVIDENCE", "MIGRATED_BASELINE"],
+    "partyStates": ["EFFECTIVE", "RETIRED"],
+    "sitePartyRoles": ["OWNER", "OPERATOR", "CLIENT", "SERVICE_PROVIDER", "CONTACT"],
+    "responsibilities": ["RECORDED_BY", "PERFORMED_BY", "OBSERVED_BY", "REVIEWED_BY", "VERIFIED_BY", "APPROVED_BY", "ACKNOWLEDGED_BY", "ASSIGNED_TO", "WITNESSED_BY"],
+    "qualificationProvenance": ["SELF_DECLARED", "IMPORTED_EXTERNAL_EVIDENCE"],
+    "signoffDispositions": ["RECORDED_LOCAL_ASSERTION", "EXTERNAL_EVIDENCE_ATTACHED", "NOT_RECORDED", "NOT_APPLICABLE"],
+    "signoffMethods": ["TYPED_LOCAL_ASSERTION", "EXPLICIT_LOCAL_ACKNOWLEDGEMENT", "EXTERNAL_EVIDENCE_REFERENCE", "NO_ASSERTION"]
+  },
+  "parties": [
+    {
+      "id": "73800000-0000-4000-8000-000000000010",
+      "kind": "PERSON",
+      "displayName": "Jordan Lee",
+      "profileDescriptor": "Independent sign technician",
+      "provenance": "LOCALLY_RECORDED",
+      "state": "EFFECTIVE",
+      "revision": 1,
+      "effectiveAt": "2026-08-27T19:00:00.000Z"
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000011",
+      "kind": "ORGANIZATION",
+      "displayName": "Acme Electric",
+      "profileDescriptor": "Service provider organization",
+      "provenance": "IMPORTED_EXTERNAL_EVIDENCE",
+      "state": "EFFECTIVE",
+      "revision": 1,
+      "effectiveAt": "2026-08-27T19:00:00.000Z"
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000012",
+      "kind": "PERSON",
+      "displayName": "Former Operator",
+      "profileDescriptor": null,
+      "provenance": "MIGRATED_BASELINE",
+      "state": "RETIRED",
+      "revision": 2,
+      "effectiveAt": "2026-08-27T19:00:00.000Z",
+      "retiredAt": "2026-08-27T20:00:00.000Z"
+    }
+  ],
+  "siteRoleEvents": [
+    {
+      "id": "73800000-0000-4000-8000-000000000020",
+      "siteID": "73800000-0000-4000-8000-000000000002",
+      "partyID": "73800000-0000-4000-8000-000000000011",
+      "role": "SERVICE_PROVIDER",
+      "effectiveFrom": "2026-08-27T19:00:00.000Z",
+      "effectiveUntil": null,
+      "source": "IMPORTED_EXTERNAL_EVIDENCE",
+      "supersedesEventID": null,
+      "revision": 1,
+      "recordedAt": "2026-08-27T19:01:00.000Z"
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000021",
+      "siteID": "73800000-0000-4000-8000-000000000002",
+      "partyID": "73800000-0000-4000-8000-000000000011",
+      "role": "SERVICE_PROVIDER",
+      "effectiveFrom": "2026-08-27T20:00:00.000Z",
+      "effectiveUntil": "2026-08-27T21:00:00.000Z",
+      "source": "LOCALLY_RECORDED",
+      "supersedesEventID": "73800000-0000-4000-8000-000000000020",
+      "revision": 2,
+      "recordedAt": "2026-08-27T20:01:00.000Z"
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000022",
+      "siteID": "73800000-0000-4000-8000-000000000002",
+      "partyID": "73800000-0000-4000-8000-000000000010",
+      "role": "CONTACT",
+      "effectiveFrom": "2026-08-27T19:00:00.000Z",
+      "effectiveUntil": null,
+      "source": "LOCALLY_RECORDED",
+      "supersedesEventID": null,
+      "revision": 1,
+      "recordedAt": "2026-08-27T19:02:00.000Z"
+    }
+  ],
+  "actorSnapshots": [
+    {
+      "id": "73800000-0000-4000-8000-000000000030",
+      "partyID": "73800000-0000-4000-8000-000000000010",
+      "displayNameAtTime": "Jordan Lee",
+      "responsibility": "PERFORMED_BY",
+      "capturedAt": "2026-08-27T19:05:00.000Z"
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000031",
+      "partyID": "73800000-0000-4000-8000-000000000011",
+      "displayNameAtTime": "Acme Electric",
+      "responsibility": "ASSIGNED_TO",
+      "capturedAt": "2026-08-27T19:06:00.000Z"
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000032",
+      "partyID": null,
+      "displayNameAtTime": "Unknown local actor",
+      "responsibility": "RECORDED_BY",
+      "capturedAt": "2026-08-27T19:07:00.000Z"
+    }
+  ],
+  "qualificationSnapshots": [
+    {
+      "id": "73800000-0000-4000-8000-000000000040",
+      "declaredScope": "Exterior sign service",
+      "issuerDisplay": "Jordan Lee",
+      "credentialLocator": null,
+      "effectiveAt": "2026-08-27T19:00:00.000Z",
+      "expiresAt": "2027-08-27T19:00:00.000Z",
+      "provenance": "SELF_DECLARED",
+      "capturedAt": "2026-08-27T19:08:00.000Z"
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000041",
+      "declaredScope": "Electrical service evidence supplied by party",
+      "issuerDisplay": "Acme Electric",
+      "credentialLocator": "fixture://external-evidence/qualification-41",
+      "effectiveAt": null,
+      "expiresAt": null,
+      "provenance": "IMPORTED_EXTERNAL_EVIDENCE",
+      "capturedAt": "2026-08-27T19:09:00.000Z"
+    }
+  ],
+  "signoffSnapshots": [
+    {
+      "id": "73800000-0000-4000-8000-000000000050",
+      "purpose": "WORK_DETAIL_COMPLETED_RESPONSE_V1",
+      "subjectID": "73800000-0000-4000-8000-000000000060",
+      "subjectRevision": 1,
+      "disposition": "RECORDED_LOCAL_ASSERTION",
+      "method": "TYPED_LOCAL_ASSERTION",
+      "actorSnapshotID": "73800000-0000-4000-8000-000000000030",
+      "qualificationSnapshotID": "73800000-0000-4000-8000-000000000040",
+      "occurredAt": "2026-08-27T19:10:00.000Z",
+      "recordedAt": "2026-08-27T19:11:00.000Z",
+      "supersedesSnapshotID": null
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000051",
+      "purpose": "WORK_DETAIL_COMPLETED_RESPONSE_V1",
+      "subjectID": "73800000-0000-4000-8000-000000000060",
+      "subjectRevision": 1,
+      "disposition": "EXTERNAL_EVIDENCE_ATTACHED",
+      "method": "EXTERNAL_EVIDENCE_REFERENCE",
+      "actorSnapshotID": "73800000-0000-4000-8000-000000000031",
+      "qualificationSnapshotID": "73800000-0000-4000-8000-000000000041",
+      "externalEvidenceID": "73800000-0000-4000-8000-000000000070",
+      "occurredAt": "2026-08-27T19:12:00.000Z",
+      "recordedAt": "2026-08-27T19:13:00.000Z",
+      "supersedesSnapshotID": "73800000-0000-4000-8000-000000000050"
+    },
+    {
+      "id": "73800000-0000-4000-8000-000000000052",
+      "purpose": "WORK_DETAIL_COMPLETED_RESPONSE_V1",
+      "subjectID": "73800000-0000-4000-8000-000000000061",
+      "subjectRevision": 1,
+      "disposition": "NOT_APPLICABLE",
+      "method": "NO_ASSERTION",
+      "actorSnapshotID": null,
+      "qualificationSnapshotID": null,
+      "occurredAt": null,
+      "recordedAt": "2026-08-27T19:14:00.000Z",
+      "supersedesSnapshotID": null
+    }
+  ],
+  "searchProjection": {
+    "allowlistedFields": ["party.displayName", "party.profileDescriptor", "siteRole.role", "signoff.purpose", "signoff.claimedRole"],
+    "excludedFields": ["phone", "email", "credentialLocator", "authentication", "secret", "networkIdentity"],
+    "rebuildIsRevisionBound": true
+  },
+  "reportProjection": {
+    "frozenDisplayFields": ["displayNameAtTime", "claimedRole", "purpose", "method", "disposition"],
+    "historyIsImmutable": true,
+    "renamesDoNotRewriteSnapshots": true
+  },
+  "localizationAccessibility": {
+    "sourceLanguage": "en",
+    "shippingLocales": ["en"],
+    "pseudoLocalesTestOnly": ["en-XA", "en-XB", "ar-XB", "en-XL", "en-XT"],
+    "rtlRequired": true,
+    "dynamicTypeRequired": true,
+    "voiceOverRequired": true,
+    "voiceControlRequired": true,
+    "switchControlRequired": true,
+    "nonColorStateTextRequired": true,
+    "semanticIDs": ["accountability.party", "accountability.site-role", "accountability.actor", "accountability.qualification", "accountability.signoff", "accountability.signoff.disclosure", "accountability.signoff.history"]
+  },
+  "claims": {
+    "identityVerified": false,
+    "authorityVerified": false,
+    "legalSignature": false,
+    "nonRepudiation": false,
+    "workflowTransition": false,
+    "approvalForAnotherPerson": false,
+    "externalQualificationVerified": false,
+    "contactPointTruth": false,
+    "accountOrTenant": false,
+    "networkSync": false
+  },
+  "goldenCases": [
+    {"id": "V23-P03-C38-G01-typed-local", "expectedResult": "RECORDED_LOCAL_ASSERTION", "reason": "Typed assertion preserves subject revision, actor snapshot, qualification provenance, and disclosure."},
+    {"id": "V23-P03-C38-G01-role-history", "expectedResult": "APPEND_ONLY_SUCCESSOR", "reason": "Role successor references its predecessor without rewriting prior history."}
+  ],
+  "alternateCases": [
+    {"id": "V23-P03-C38-A01-external-evidence", "expectedResult": "EXTERNAL_EVIDENCE_ATTACHED", "reason": "External evidence remains a disposition and never becomes verified identity."},
+    {"id": "V23-P03-C38-A01-unknown-actor", "expectedResult": "UNKNOWN_ACTOR_ALLOWED", "reason": "An actor snapshot may retain an unknown local actor without inventing identity."}
+  ],
+  "hostileCases": [
+    {"id": "V23-P03-C38-H01-unknown-key", "expectedResult": "REJECTED", "reason": "Closed Codable values reject an unknown key before persistence."},
+    {"id": "V23-P03-C38-H01-digest-tamper", "expectedResult": "REJECTED", "reason": "Changed canonical bytes reject the stale receipt or snapshot digest."},
+    {"id": "V23-P03-C38-H01-cross-workspace", "expectedResult": "REJECTED", "reason": "Party, actor, role, qualification, and signoff workspace references cannot cross boundaries."}
+  ],
+  "interruptionCases": [
+    {"id": "V23-P03-C38-I01-before-effect", "expectedResult": "NO_PARTIAL_CANONICAL_WRITE", "reason": "Cancellation before the writer effect leaves no party, role, snapshot, or receipt."},
+    {"id": "V23-P03-C38-I01-after-effect-before-receipt", "expectedResult": "EFFECT_BEFORE_RECEIPT_RECOVERY", "reason": "Recovery returns the original effect and receipt or no effect, never a duplicate."}
+  ],
+  "recoveryCases": [
+    {"id": "V23-P03-C38-R01-backup-restore", "expectedResult": "BYTE_STABLE_HISTORY", "reason": "Backup and replacement restore retain canonical accountability bytes and frozen snapshots."},
+    {"id": "V23-P03-C38-R01-erase", "expectedResult": "EXPLICIT_TOMBSTONE_OR_ERASE", "reason": "Erase is explicit and does not silently rewrite released history."},
+    {"id": "V23-P03-C38-R01-search-rebuild", "expectedResult": "REVISION_BOUND_REBUILD", "reason": "Search rebuild is deterministic and indexes only the allowlisted display fields."}
+  ]
+}

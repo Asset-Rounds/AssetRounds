@@ -1,0 +1,21 @@
+{
+  "schema": "v23-ui-batch.v1",
+  "question": "Phase 1 critical states: migrated shell, sign/report/approval response, Settings and App Lock",
+  "cataloguePath": "docs/design/v23/integration/phase1-critical-states.json",
+  "catalogueSHA256": "F3FBE13CDE8077FDD4AE4A179802047251F474D9585360FB6E9B893AEE56B1A4",
+  "unitTestSelectors": [
+    "FieldEvidenceAppTests/V23PhaseGateTests/testShippingGateEnablesNoGatedFeature",
+    "FieldEvidenceAppTests/V23PhaseGateTests/testAllFeaturesGateEnablesEveryGatedFeature",
+    "FieldEvidenceAppTests/V23PhaseGateTests/testEveryGatedFeatureBelongsToAPhaseLaterThanPhaseOne",
+    "FieldEvidenceAppTests/V23PhaseGateTests/testBuiltInfoPlistClaimsNoEnvelopeDocumentTypeWhileEnvelopeOpenIsGated",
+    "FieldEvidenceAppTests/V23PhaseGateTests/testBuiltCameraPurposeUsesTheAcceptedS10Wording",
+    "FieldEvidenceAppTests/V23PhaseGateTests/testSystemDiscoveryIntentsAreUndiscoverableWhileGated",
+    "FieldEvidenceAppTests/V23PhaseGateTests/testShippingShellShowsPhaseOneTodayAndCompletedWorkWithoutLaterPhaseSurfaces",
+    "FieldEvidenceAppTests/V23PhaseGateTests/testAllFeaturesShellStillReachesEveryGatedSurfaceForTests"
+  ],
+  "uiTestSelectors": [
+    "FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests/test1MigratedS10StoreOpensFourTabShell",
+    "FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests/test2SignReportAndApprovalResponseInShell",
+    "FieldEvidenceAppUITests/V23Phase1CriticalStatesUITests/test3SettingsAppLockAndCover"
+  ]
+}

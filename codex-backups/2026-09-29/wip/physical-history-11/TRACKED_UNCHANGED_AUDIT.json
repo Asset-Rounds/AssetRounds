@@ -1,0 +1,13 @@
+{
+  "afterMapIsUninstalledSingleFileOverlay": true,
+  "all1206InputBytesUnchanged": true,
+  "candidateOverlayOnly": [
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift"
+  ],
+  "count": 1206,
+  "gitStatusPorcelain": "",
+  "head": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "inputMapSHA256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+  "trackedSourceChanged": false,
+  "unchangedBaselineBytePrefix": true
+}

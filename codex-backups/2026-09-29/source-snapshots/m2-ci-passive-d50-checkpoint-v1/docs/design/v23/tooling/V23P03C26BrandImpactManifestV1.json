@@ -1,0 +1,53 @@
+{
+  "artifact": "V23P03C26BrandImpactManifestV1",
+  "artifactDigest": "545ebda6481c91946d707d0d9b2e21b4c1f1ac6fd121034320cdd9c3c61f89d6",
+  "authorityContextDigest": "94711c712cecbf4639124e11f12d3ce43faaf2a3e7ea1133ad2d7924a64b3d09",
+  "authorityFenceDigest": "e4262e0f0631682dfb1196e769dda7aeab644004d35487ed7a7b3b4d99a8bf7e",
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C26",
+  "contractDigest": "1558ae81cd1b9c57abed7003b443fa112663267e9a409079897784af0593d143",
+  "deferred": [
+    "native-build",
+    "hosted-CI",
+    "adoption",
+    "acceptance",
+    "release",
+    "provider",
+    "network",
+    "account",
+    "cloud",
+    "Phase10"
+  ],
+  "existingPathCount": 123,
+  "impact": "GUIDED_SURVEY_SESSIONS_TYPED_FACTS_PROVISIONAL_SUBJECTS_AND_IMMUTABLE_PUBLICATION_WITHOUT_NEW_UI_OR_S10_ASSETS",
+  "newPathCount": 14,
+  "pathFenceCount": 137,
+  "preserved": [
+    "sole-workspace-writer",
+    "generic-mutation-receipt",
+    "existing-journal",
+    "immutable-report-bytes",
+    "local-only-privacy-boundary"
+  ],
+  "priorFenceOverlapCount": 1466,
+  "priorFenceUnauthorizedOverlapCount": 0,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "s10FenceOverlapPaths": [],
+  "schemaVersion": 1,
+  "status": "PASS_STATIC_PROVISIONAL",
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "uiSurfaceDelta": false,
+  "verificationMode": "STATIC_ONLY"
+}

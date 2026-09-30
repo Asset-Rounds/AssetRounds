@@ -1,0 +1,249 @@
+{
+  "$defs": {
+    "entry": {
+      "additionalProperties": false,
+      "properties": {
+        "archive": {
+          "enum": [
+            "EXCLUDE_DORMANT_DECLARATION",
+            "INCLUDE_CANONICAL",
+            "INCLUDE_IMMUTABLE_HISTORY",
+            "INCLUDE_OPERATIONAL_CHECKPOINT"
+          ],
+          "type": "string"
+        },
+        "backup": {
+          "enum": [
+            "EXCLUDE_DORMANT_DECLARATION",
+            "INCLUDE_CANONICAL",
+            "INCLUDE_IMMUTABLE_HISTORY",
+            "INCLUDE_OPERATIONAL_CHECKPOINT"
+          ],
+          "type": "string"
+        },
+        "clearsTombstonesOnDelete": {
+          "const": false
+        },
+        "clearsTombstonesOnErase": {
+          "type": "boolean"
+        },
+        "clone": {
+          "enum": [
+            "NOT_APPLICABLE",
+            "PRESERVE",
+            "REBIND_WORKSPACE",
+            "REGENERATE_LOCAL"
+          ],
+          "type": "string"
+        },
+        "deleteRule": {
+          "enum": [
+            "APPEND_ERASE_ONLY",
+            "CLEAR_ON_ERASE",
+            "DELETE_AFTER_DEPENDENTS",
+            "DELETE_WITH_OWNER",
+            "PRESERVE_UNLESS_EXPLICIT",
+            "TOMBSTONE_WHEN_COUNTED"
+          ],
+          "type": "string"
+        },
+        "deletion": {
+          "enum": [
+            "DELETE_AFTER_DEPENDENTS",
+            "DELETE_WITH_OWNER",
+            "EXPLICIT_ONLY",
+            "PRESERVE_UNTIL_ERASE",
+            "TOMBSTONE_PRESERVING_HISTORY"
+          ],
+          "type": "string"
+        },
+        "erase": {
+          "enum": [
+            "CLEAR_CANONICAL_AND_HISTORY",
+            "CLEAR_LOCAL_OPERATIONAL_STATE",
+            "CLEAR_RECOVERY_STATE",
+            "REBUILD_EMPTY_PROJECTION"
+          ],
+          "type": "string"
+        },
+        "fork": {
+          "enum": [
+            "NOT_APPLICABLE",
+            "PRESERVE",
+            "REBIND_WORKSPACE_AND_LINEAGE",
+            "REGENERATE_LOCAL"
+          ],
+          "type": "string"
+        },
+        "interruption": {
+          "const": "SAME_COMPLETE_EFFECT_AND_RECEIPT_OR_NO_EFFECT"
+        },
+        "journal": {
+          "enum": [
+            "CANONICAL_MUTATION_ENVELOPE",
+            "IMMUTABLE_EFFECT_RECEIPT",
+            "NOT_APPLICABLE",
+            "OPERATION_RECOVERY"
+          ],
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "Asset",
+            "CompletedActivitySnapshotV1",
+            "ContentReferenceV1",
+            "ContractSchemaDerivationReceiptV1",
+            "ControlledAmendmentSupersessionV1",
+            "DeletionLedgerRow",
+            "EntityMutationRevisionRow",
+            "EvidenceFile",
+            "Issue",
+            "MutationQuarantineRow",
+            "MutationReceiptRow",
+            "ObservationAndTimeRow",
+            "OpenJSONSchemaProjectionV1",
+            "Packet",
+            "PersistentSchemaReleaseMarker",
+            "Report",
+            "Site",
+            "WorkflowRecord",
+            "WorkspaceMutationStateRow"
+          ],
+          "type": "string"
+        },
+        "openExport": {
+          "enum": [
+            "CANONICAL_PORTABLE",
+            "EXCLUDED",
+            "IMMUTABLE_HISTORY_PORTABLE",
+            "READ_ONLY_CONTRACT_PROJECTION"
+          ],
+          "type": "string"
+        },
+        "orphanCleanup": {
+          "enum": [
+            "PRESERVE_CANONICAL_RECORD",
+            "REMOVE_DERIVED_PROJECTION",
+            "REMOVE_OWNED_BYTES_WHEN_UNREFERENCED"
+          ],
+          "type": "string"
+        },
+        "rebuild": {
+          "enum": [
+            "CANONICAL_SOURCE",
+            "NOT_APPLICABLE",
+            "REBUILD_FROM_CANONICAL_DEPENDENCIES",
+            "REPLAY_JOURNAL"
+          ],
+          "type": "string"
+        },
+        "replay": {
+          "enum": [
+            "IDEMPOTENT_CANONICAL_MUTATION",
+            "IMMUTABLE_HISTORY",
+            "NOT_APPLICABLE",
+            "REBUILD_PROJECTION",
+            "RECOVERY_STATE_MACHINE"
+          ],
+          "type": "string"
+        },
+        "restore": {
+          "enum": [
+            "REBUILD_CONTRACT_PROJECTION",
+            "REPLACE_CANONICAL",
+            "REPLAY_RECOVERY_CHECKPOINT",
+            "RESET_LOCAL_OPERATIONAL",
+            "RESTORE_APPEND_ONLY_HISTORY",
+            "RESTORE_IMMUTABLE_IDENTITY"
+          ],
+          "type": "string"
+        },
+        "search": {
+          "enum": [
+            "BOUNDED_CANONICAL_FIELDS",
+            "EXCLUDED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "archive",
+        "backup",
+        "clearsTombstonesOnDelete",
+        "clearsTombstonesOnErase",
+        "clone",
+        "deleteRule",
+        "deletion",
+        "erase",
+        "fork",
+        "interruption",
+        "journal",
+        "kind",
+        "openExport",
+        "orphanCleanup",
+        "rebuild",
+        "replay",
+        "restore",
+        "search"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.assetrounds.local/v23/p03/c07/kernel-lifecycle-registry/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "backupArchiveRestoreComplete": {
+      "const": true
+    },
+    "deleteEraseComplete": {
+      "const": true
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/entry"
+      },
+      "maxItems": 19,
+      "minItems": 19,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "openExportComplete": {
+      "const": true
+    },
+    "recordKindCount": {
+      "const": 19
+    },
+    "registryID": {
+      "const": "kernel-lifecycle-registry-v4"
+    },
+    "registryVersion": {
+      "const": 4
+    },
+    "schemaID": {
+      "const": "KERNEL_PERSISTENCE_V4"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "searchRebuildReplayComplete": {
+      "const": true
+    }
+  },
+  "required": [
+    "backupArchiveRestoreComplete",
+    "deleteEraseComplete",
+    "entries",
+    "openExportComplete",
+    "recordKindCount",
+    "registryID",
+    "registryVersion",
+    "schemaID",
+    "schemaVersion",
+    "searchRebuildReplayComplete"
+  ],
+  "title": "KernelLifecycleRegistryV4",
+  "type": "object",
+  "x_assetrounds_cardID": "V23-P03-C07",
+  "x_assetrounds_staticOnly": true
+}

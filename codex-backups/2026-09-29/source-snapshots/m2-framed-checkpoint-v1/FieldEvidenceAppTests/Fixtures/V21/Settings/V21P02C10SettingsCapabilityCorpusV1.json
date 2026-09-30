@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "fixtureIdentity": "V21-P02-C10-SETTINGS-CAPABILITY-CORPUS-V1",
+  "authority": {
+    "cardID": "V23-P02-C10",
+    "contextDigest": "30e8590878c7ebf335245cbc37e160523194a0be0cef648c125eda46e2aa294e",
+    "pathFenceDigest": "9d402508388e16f092697f74de5bdc56fbe8eee6934bfa40c5eeb12675d905d7"
+  },
+  "settingKeys": [
+    "device.hapticFeedback",
+    "device.recentInputMemory"
+  ],
+  "settingScopes": [
+    "DERIVED",
+    "DEVICE_LOCAL",
+    "WORKSPACE_CANONICAL"
+  ],
+  "availabilityReasons": ["AVAILABLE","NOT_ENTITLED","OFFLINE_CONTENT_MISSING","PACKAGE_NOT_ENABLED","PACKAGE_RETIRED","PERMISSION_DENIED","PERMISSION_LIMITED","PERMISSION_NOT_DETERMINED","PERMISSION_RESTRICTED","RECOVERY_BLOCKED","TEMPORARILY_UNAVAILABLE","UNSUPPORTED_OS_OR_DEVICE","WORKSPACE_POLICY_DISABLED"],
+  "availabilityScenarios": [
+    {"reason":"AVAILABLE","nextAction":"BEGIN","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"AUTHORIZED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"NOT_ENTITLED","nextAction":"VIEW_SUBSCRIPTION","packageEnabled":true,"entitled":false,"osAndDeviceSupported":true,"permission":"AUTHORIZED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"OFFLINE_CONTENT_MISSING","nextAction":"DOWNLOAD_BUNDLED_CONTENT","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"AUTHORIZED","offlineContentAvailable":false,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"PACKAGE_NOT_ENABLED","nextAction":"ENABLE_PACKAGE","packageEnabled":false,"entitled":true,"osAndDeviceSupported":true,"permission":"AUTHORIZED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"PACKAGE_RETIRED","nextAction":"CHOOSE_CURRENT_PACKAGE","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"AUTHORIZED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":true,"temporarilyAvailable":true},
+    {"reason":"PERMISSION_DENIED","nextAction":"OPEN_SYSTEM_SETTINGS","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"DENIED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"PERMISSION_LIMITED","nextAction":"USE_MANUAL_PATH","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"LIMITED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"PERMISSION_NOT_DETERMINED","nextAction":"REQUEST_PERMISSION_AT_FEATURE_BOUNDARY","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"NOT_DETERMINED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"PERMISSION_RESTRICTED","nextAction":"OPEN_SYSTEM_SETTINGS","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"RESTRICTED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"RECOVERY_BLOCKED","nextAction":"RECOVER_LOCAL_DATA","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"AUTHORIZED","offlineContentAvailable":true,"recoveryReady":false,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"TEMPORARILY_UNAVAILABLE","nextAction":"RETRY","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"AUTHORIZED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":false},
+    {"reason":"UNSUPPORTED_OS_OR_DEVICE","nextAction":"USE_MANUAL_PATH","packageEnabled":true,"entitled":true,"osAndDeviceSupported":false,"permission":"AUTHORIZED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":true,"packageRetired":false,"temporarilyAvailable":true},
+    {"reason":"WORKSPACE_POLICY_DISABLED","nextAction":"CHANGE_WORKSPACE_POLICY","packageEnabled":true,"entitled":true,"osAndDeviceSupported":true,"permission":"AUTHORIZED","offlineContentAvailable":true,"recoveryReady":true,"workspacePolicyEnabled":false,"packageRetired":false,"temporarilyAvailable":true}
+  ],
+  "essentialOperations": ["BACKUP","DELETE","ERASE","EXPORT","PRIOR_READ","RECOVERY","RESTORE"],
+  "capabilityIDs": ["AUDIO_CAPTURE","CAMERA","DIAGNOSTICS","FILES_AND_SHARE","HAPTICS","LOCATION","MICROPHONE","NOTIFICATIONS","PHOTO_LIBRARY","REMINDERS","SCAN_OCR","SPEECH_DICTATION","VIDEO_CAPTURE"],
+  "permissionStates": ["AUTHORIZED","DENIED","LIMITED","NOT_DETERMINED","NOT_REQUIRED","RESTRICTED"],
+  "captureKinds": ["AUDIO","CAMERA","MICROPHONE","SPEECH","VIDEO"],
+  "scratchSourcePurposes": ["CAPTURE","IMPORT","SOURCE"],
+  "scratchTerminalDispositions": ["ACCEPTED_INTO_IMMUTABLE_CONTENT","CANCELLED","EXPIRED","FAILED","REJECTED"],
+  "scratchFaultEvents": ["ACCEPT","CANCEL","CRASH_RECOVERY","EXPIRY","FAILED_PUBLICATION","PROTECTED_DATA_LOSS","REJECT"],
+  "scratchExcludedConsumers": ["BACKUP","DIAGNOSTICS","REPORT","SEARCH","SUPPORT_EXPORT"],
+  "featureIDs": ["cameraCapture","hapticFeedback","locationCapture","scanOCR","speechDictation","supportDiagnostics"],
+  "entryAssist": {"maximumVisiblePerField":3,"maximumEntries":128,"retentionDays":90},
+  "interruptionBoundaries": ["AFTER_CANONICAL_EFFECT_BEFORE_RECEIPT","AFTER_SCRATCH_STAGING_BEFORE_ACCEPTANCE","BEFORE_CANONICAL_PUBLICATION","BEFORE_SCRATCH_STAGING","DURING_SUPPORT_EXPORT"],
+  "hostileCases": ["CANONICAL_PUBLICATION_BEFORE_ACCEPTANCE","CAPTURE_INDICATOR_ENDS_EARLY","CONSENT_INFERRED_FROM_PERMISSION","DEVICE_SCOPE_LEAK","DUPLICATE_RETRY_EFFECT","DUPLICATE_SETTING_KEY","HAPTIC_FEATURE_LOCAL_KEY","INVALID_LEGACY_VALUE","INVALID_TYPED_VALUE","PERMISSION_PROMPT_AT_LAUNCH","PERMISSION_PROMPT_DURING_BACKGROUND_PREFLIGHT","RAW_FREE_TEXT_IN_RECENT_MEMORY","SOURCE_SCRATCH_EXPORTED","SUPPORT_EXPORT_BYPASSES_LEASE","UNKNOWN_AVAILABILITY_REASON","WORKSPACE_SCOPE_LEAK"]
+}

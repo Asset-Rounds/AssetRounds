@@ -1,0 +1,20 @@
+{
+  "schema": "v23-dev-batch.v1",
+  "question": "Development checkpoint: pinned-runtime retirement-policy effects and cold recovery, framed canonical memory/semantic parity, maintenance journal and V906 recovery. S6 later authority and V949 hostile-source SHM failures remain explicitly open; no gate acceptance.",
+  "tests": [
+    "FieldEvidenceAppTests/S2PersistenceLedgerTests/testImmediateEraseCleanupReplacesRetiredWriterBeforePublication",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree",
+    "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests/testRecoveryRetiredSourcesPreserveHistoryAcrossPreparedPointerLagAndPartialCleanup",
+    "FieldEvidenceAppTests/V23ProductionAppAccessTests/testProductionEraseAdoptsFreshSettingOwnerAndNextToggleCommits",
+    "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseAuthenticatesSharedOriginalAndRecoversAfterPointerPublication",
+    "FieldEvidenceAppTests/V9_53OperationalContactTests/testV23P03C46R01BackupRestoreCloneForkDeleteEraseExportSearchAndReplayRemainExact",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew",
+    "FieldEvidenceAppTests/V9_06DeletionArchiveIntegrationTests/testV9_06I01PartialDeletionRecoveryAndInterruptedErasePreservesOrForwards",
+    "FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests/testC33EraseRecoveryRejectsHostileRetainedOriginalInventoryBeforeCleanup",
+    "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testRevokedDurableReaderWithLiveWrapperRefusesEraseBeforeEffects",
+    "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests/testGenuineNoAdmissionReturnsSameWriterAndAuthenticatedRestartPublishesIt",
+    "FieldEvidenceAppTests/V23ProductionAppAccessTests/testTrackedMaintenanceDeletionRecoversActualPreparedJournalAndClosesOwner",
+    "FieldEvidenceAppTests/S6_6EraseRecoveryTests/testCompletedAbortHeldBackupAccessDefersCheckedColdExit",
+    "FieldEvidenceAppTests/V23StoreSemanticValidationTests/testCurrentV53ValidationTraversesEveryLayerWithoutRetainingPredecessorBytesAndColdReopens"
+  ]
+}

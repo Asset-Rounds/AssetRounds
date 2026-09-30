@@ -1,0 +1,132 @@
+{
+  "artifactDigest": "d49ed3bae15bdd148adc4f949252fde3a44e5c0c6b6fc0aeab1d831b566bee29",
+  "authority": {
+    "allowedPathCount": 160,
+    "appBaseHead": "d22f3764c32136d592636478a778a5ec21cdf7d8",
+    "appBaseTree": "2f214a9549a27c533274c9a0184868a49d61da85",
+    "attemptID": 1,
+    "cardID": "V23-P03-C28",
+    "contextDigest": "48e0e15c7c6890d57a36909f5060428b8e2b53ac8a6a3948e453edcc176a9972",
+    "coordinationCASSequence": 278,
+    "coordinationHead": "1acd0991739c42dcd955504f875fd0b7567e59bb",
+    "coordinationLedgerDigest": "9abdd8c33c9ef0db0681c686f2431228fb9174c435d312b3258d0883986a71f7",
+    "coordinationProjectionDigest": "12de0e5d8b3e873909f9d66caa59d74fae5c0947f14e30e99bbfb85ef487c3fd",
+    "coordinationTree": "508c1bcc7502fbfa65f4ed99e2866f1a2299c90b",
+    "digestPinsPending": false,
+    "directPrerequisiteCards": [
+      "V23-P03-C25"
+    ],
+    "existingPathCount": 146,
+    "fenceCorrectionReceiptDigest": "29a393ac76236564c5663ebd1bf5920b4dd0a8574907fbceeff4b130de873b43",
+    "fenceDigest": "59de5cf7743a73e39d7d2bab3097f0ac71104737b2436122d17333a82bf69c15",
+    "hydrationRevision": 2,
+    "hydrationTransitionDigest": "9e91fbaae5eda3dd058097e75e73765d276978f98b79df8570d7b253c05e6235",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C29",
+    "registerOrdinal": 65,
+    "title": "Deterministic schedule definitions, occurrence identity, basis provenance, due-state projection, and history"
+  },
+  "directPrerequisiteEvidence": {
+    "acceptanceCredit": false,
+    "canonicalRelationPreserved": true,
+    "disposition": "PROVISIONALLY_SATISFIED_FOR_ORDERED_IMPLEMENTATION_AND_STATIC_TEST_ONLY",
+    "nativeCompileRan": false,
+    "nonreleaseSpecialEdgeApplied": false,
+    "ordinaryDirectEdgeCount": 1,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "predecessors": [
+      {
+        "attemptID": 1,
+        "cardID": "V23-P03-C25",
+        "disposition": "CHECKPOINTED_PROVISIONAL_CANONICAL_DIRECT_PREREQUISITE_AT_EXACT_C25_HEAD"
+      }
+    ],
+    "prerequisiteDigest": "05b66f89907d30c24b389309e9820ad34387758faacc14d19fbc2b72ae06890c",
+    "releaseCredit": false,
+    "schema": "ProvisionalExecutionPrerequisiteSetReceiptV1",
+    "schemaVersion": 1,
+    "successorAttemptID": 1,
+    "successorCardID": "V23-P03-C28"
+  },
+  "persistence": {
+    "backupRestoreRequired": true,
+    "cloneForkRequired": true,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V27_WRITE",
+    "durableFamilyCount": 2,
+    "exportReportRequired": true,
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "nonPersistentFamilies": [
+      "DueQueueProjectionV1",
+      "ReminderProjectionV1",
+      "ScheduleGenerationPlanV1"
+    ],
+    "persistedFamilies": [
+      "ScheduleDefinitionReleaseV1",
+      "OccurrenceHistoryEventV1"
+    ],
+    "persistentKindLifecycleModelCount": 96,
+    "persistentSchemaVersion": 27,
+    "recordsSchemaVersion": 26,
+    "replayRequired": true,
+    "schemaRelease": "SCHEDULE_V1",
+    "searchRebuildRequired": true
+  },
+  "requiredSemantics": {
+    "contractNames": [
+      "ScheduleDefinitionReleaseV1",
+      "OccurrenceIDV1",
+      "OccurrenceStateV1",
+      "ScheduleExceptionV1",
+      "DueQueueProjectionV1",
+      "ReminderProjectionV1"
+    ],
+    "deterministicBoundedGeneration": true,
+    "deviceCurrentTimeZoneReinterpretation": false,
+    "fiveSelectors": [
+      "testV23P03C28G01DeterministicScheduleAndOccurrenceIdentitySurviveDSTAndTravel",
+      "testV23P03C28A01FixedAndCompletionRelativePoliciesRemainDistinct",
+      "testV23P03C28H01AmbiguousNonexistentRollbackDuplicateAndLateCompletionFailClosed",
+      "testV23P03C28I01BoundedGenerationAndOccurrenceHistoryRetryIdempotently",
+      "testV23P03C28R01RestoreRebuildsDueQueueAndReminderProjectionWithoutNotificationTruth"
+    ],
+    "fixedAndCompletionRelativeDistinct": true,
+    "frozenTimeZoneAndDSTBasis": true,
+    "historyRewritten": false,
+    "nonPersistentFamilies": [
+      "DueQueueProjectionV1",
+      "ReminderProjectionV1",
+      "ScheduleGenerationPlanV1"
+    ],
+    "notificationDeliveryIsTruth": false,
+    "occurrenceStates": [
+      "UPCOMING",
+      "READY",
+      "DUE",
+      "OVERDUE",
+      "DEFERRED",
+      "MISSED",
+      "SKIPPED",
+      "CANCELLED",
+      "STARTED",
+      "COMPLETED"
+    ],
+    "persistentFamilies": [
+      "ScheduleDefinitionReleaseV1",
+      "OccurrenceHistoryEventV1"
+    ],
+    "scheduleActions": [
+      "CREATE",
+      "EDIT_SUCCESSOR",
+      "PAUSE",
+      "RESUME",
+      "END",
+      "RETIRE"
+    ],
+    "unboundedGeneration": false
+  },
+  "schema": "V23P03C28ScheduleContractV1",
+  "schemaVersion": 1
+}

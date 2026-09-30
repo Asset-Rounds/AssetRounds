@@ -1,0 +1,52 @@
+// Proposed pure effect DATA agreement. Actual issuer stays private Router.
+// No old V1 makeEffect call (its4KiB path bound is inapplicable to V4).
+import Foundation
+
+enum EraseSchema2ColdControlOpcodeV4: UInt8 {
+    case registerOriginalScope = 1
+    case publishSources = 2
+    case loadSources = 3
+    case loadPlan = 4
+    case bootstrapSourceCut = 5
+    case loadBootstrapPlan = 6
+    case loadProgress = 7
+    case currentC16Record = 8
+    case capturedBornSource = 9
+    case originalTransferredSource = 10
+    case pairHeader = 11
+    case pairRow = 12
+    case pairPredecessors = 13
+    case pairMetadata = 14
+    case scratchDirectory = 15
+    case scratchChildren = 16
+    case scratchMetadata = 17
+    case physicalView = 18
+    case lastProjection = 19
+    case mixedTarget = 20
+    case targetDependencies = 21
+    case targetBirthPaths = 22
+    case createProgress = 23
+    case replaceProgress = 24
+    case prepareProducerRequest = 25
+    case readProducerRequest = 26
+    case captureBornSource = 27
+    case replaceCleanupPhase = 28
+    case publishOwnedIDs = 29
+    case publishTerminal = 30
+    case observeTerminal = 31
+    case removeTerminalControl = 32
+    case removeLastCapsule = 33
+    case removeEraseRoot = 34
+    case closeOriginalStore = 35
+    case closeBorrowedStore = 36
+}
+
+@MainActor
+protocol EraseSchema2ColdEffectCommitmentContractV4 {
+    static func makeV4ControlEffect(
+        opcode: EraseSchema2ColdControlOpcodeV4,
+        eraseID: UUID, operationID: UUID, phase: EraseIntentPhaseV1,
+        expectedCanonicalSHA256: String?, path: String?,
+        inputCommitments: [String]
+    ) throws -> EraseSchema2ColdControlEffectV1
+}

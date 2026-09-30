@@ -1,0 +1,21 @@
+{
+  "$id": "https://assetrounds.invalid/v23/ExactDecimalV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "mantissa": {
+      "type": "integer"
+    },
+    "scale": {
+      "maximum": 9,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "mantissa",
+    "scale"
+  ],
+  "title": "ExactDecimalV1",
+  "type": "object"
+}

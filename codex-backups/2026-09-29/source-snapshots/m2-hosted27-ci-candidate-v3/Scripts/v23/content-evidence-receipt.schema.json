@@ -1,0 +1,167 @@
+{
+  "$id": "https://assetrounds.invalid/v23/v23-p03-c05/ContentEvidenceReceiptV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P03-C05"
+    },
+    "durableFamilies": {
+      "const": [
+        "EVIDENCE_ASSOCIATION_EVENT",
+        "EVIDENCE_SEQUENCE_REVISION"
+      ]
+    },
+    "durableFamilyCount": {
+      "const": 2
+    },
+    "evidenceIDs": {
+      "items": {
+        "enum": [
+          "V23-P03-C05-G01",
+          "V23-P03-C05-A01",
+          "V23-P03-C05-H01",
+          "V23-P03-C05-I01",
+          "V23-P03-C05-R01"
+        ],
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "integrationEventKinds": {
+      "const": [
+        "evidence.association_event.v1",
+        "evidence.sequence_revision.v1"
+      ]
+    },
+    "integrationLifecycle": {
+      "const": "DERIVED_DROP_AND_REBUILD"
+    },
+    "integrationOrderingBasis": {
+      "const": "ACCEPTED_WORKSPACE_REVISION_THEN_RECEIPT_IDENTITY_THEN_PAYLOAD_ORDINAL"
+    },
+    "integrationReplayLimit": {
+      "const": 100000
+    },
+    "integrationSourcePathCount": {
+      "const": 6
+    },
+    "integrationTestCount": {
+      "const": 4
+    },
+    "integrationTestMethods": {
+      "const": [
+        "testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata",
+        "testV23P03C05Records42CorpusKeepsOrderedPredecessorClosedMetadata",
+        "testV23P03C05Records41ReadAndRecords42RestoreRejectFutureMetadata",
+        "testV23P03C05MetadataDeletionIsAppendOnlyAndContentRemainsIncumbentOwned"
+      ]
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "persistentSchemaVersion": {
+      "const": 43
+    },
+    "receiptID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "recordsSchemaVersion": {
+      "const": 42
+    },
+    "registrySHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "result": {
+      "const": "PASS"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceArtifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "byteCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "path": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "byteCount",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "verificationStatus": {
+      "const": "PASS_STATIC_PROVISIONAL"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "cardID",
+    "receiptID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "durableFamilyCount",
+    "durableFamilies",
+    "registrySHA256",
+    "sourceArtifacts",
+    "integrationSourcePathCount",
+    "integrationTestCount",
+    "integrationTestMethods",
+    "integrationEventKinds",
+    "integrationOrderingBasis",
+    "integrationLifecycle",
+    "integrationReplayLimit",
+    "evidenceIDs",
+    "result",
+    "verificationStatus",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "acceptanceCredit",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation"
+  ],
+  "title": "ContentEvidenceReceiptV1",
+  "type": "object",
+  "x-assetrounds-restoreSemantics": {
+    "cloneForkEmptyC05Metadata": "UNCHANGED",
+    "cloneForkNonemptyC05Metadata": "FAIL_CLOSED",
+    "recordsAtOrBelow41": "UNCHANGED",
+    "replace": "EXACT_C05_METADATA"
+  }
+}

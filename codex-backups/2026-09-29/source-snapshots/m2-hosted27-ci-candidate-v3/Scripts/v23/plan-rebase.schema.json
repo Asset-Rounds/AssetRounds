@@ -1,0 +1,85 @@
+{
+  "$id": "https://assetrounds.invalid/v23/plan-rebase.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P03-C29"
+    },
+    "durableFamilies": {
+      "const": [
+        "PlanDocumentV1",
+        "PlanRevisionV1",
+        "PlanPlacementV1",
+        "RebaseReceiptV1"
+      ],
+      "type": "array"
+    },
+    "durableFamilyCount": {
+      "const": 4
+    },
+    "persistentKindLifecycleModelCount": {
+      "const": 100
+    },
+    "persistentSchemaVersion": {
+      "const": 28
+    },
+    "rebaseOutcomes": {
+      "const": [
+        "UNCHANGED",
+        "TRANSFORMED",
+        "OUT_OF_BOUNDS",
+        "ORPHANED",
+        "RESIDUAL_WARNING",
+        "REVIEW_REQUIRED",
+        "APPROVED",
+        "REJECTED"
+      ],
+      "type": "array"
+    },
+    "recordsSchemaVersion": {
+      "const": 27
+    },
+    "requiredContractNames": {
+      "const": [
+        "PlanDocumentV1",
+        "PlanRevisionV1",
+        "SpatialReferenceFrameV1",
+        "PlanPlacementV1",
+        "PlanRebaseComponentV1",
+        "PlanRebaseComponentRegistryV1",
+        "PlanRebaseCoordinatorV1",
+        "RebasePreviewV1",
+        "RebaseReceiptV1"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V22P03C29PlanRebaseCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "persistentKindLifecycleModelCount",
+    "durableFamilyCount",
+    "durableFamilies",
+    "rebaseOutcomes",
+    "requiredContractNames",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C29 Plan Rebase Corpus",
+  "type": "object"
+}

@@ -1,0 +1,16 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "9e103f62be4aeb15d72c7e822c2c89eb17853c5aa2c9f837fdb2abcac1977723",
+  "afterSHA256": "d7d992666a3c932d713c48b902342f3911626ebba0cf301af552bdeee5cbf8ee",
+  "contractSHA256": "afcccf2438ae96d12f14662c8914fc3f68bf6e2a2d9f5d05141148ee4ea624d4",
+  "scope": "Ledger-only ignored candidate",
+  "status": "INTERMEDIATE NONINSTALLABLE; required provider API and permanent memory-first actor bridge only",
+  "remaining": [
+    "actual Router provider/Store authenticated accounting readback",
+    "generic positive pair/single policy bridge and role exclusion",
+    "raw IO before/after proof census beyond entry memory fence",
+    "actual generic rename provenance beyond C16 mapping",
+    "independent review/typecheck/runtime/gates"
+  ]
+}

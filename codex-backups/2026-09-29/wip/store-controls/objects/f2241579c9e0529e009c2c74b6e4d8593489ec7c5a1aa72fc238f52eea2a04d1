@@ -1,0 +1,400 @@
+{
+  "authorModel": "gpt-6.1-sol",
+  "inputs": [
+    {
+      "bytes": 23950,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/AGENTS.md",
+      "name": "AGENTS.md",
+      "sha256": "794faa1aacc772cc598bb916225c44af6506bbf359b410ee462e0fe2102f7833",
+      "source": "/Users/rentamac/Developer/AssetRounds/AGENTS.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 7154,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ACTIVE_BRIEF_SNAPSHOT.md",
+      "name": "ACTIVE_BRIEF_SNAPSHOT.md",
+      "sha256": "920a5d01a32d6522b2b851eae731c420085b8d8816e741b1ce3ca61efe6d2fd8",
+      "source": "/Users/rentamac/Developer/AssetRounds/docs/design/v23/integration/ACTIVE_BRIEF.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 4998,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ROOT_COMPACT_DIRECTION.md",
+      "name": "ROOT_COMPACT_DIRECTION.md",
+      "sha256": "4aacfe3bd27e75febeaa82df8603cb0787986abcfa50b363302ca39781e8f5e7",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-terminal-root-direction-v1/DECISION.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 942,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ROOT_COMPACT_DIRECTION_INPUTS.json",
+      "name": "ROOT_COMPACT_DIRECTION_INPUTS.json",
+      "sha256": "fe83af8dd8d07ae8e5476c0c47f025ae4f0eb2534db739f11d8b211c7de0d4ab",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-terminal-root-direction-v1/INPUTS.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 5326,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ROOT_TARGET_A_DIRECTION.md",
+      "name": "ROOT_TARGET_A_DIRECTION.md",
+      "sha256": "349fbc7147135ee00e9ce63264c1705e9baf68b2c6e43ea8567b9d6ac62af9b7",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-root-direction-v1/DECISION.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 12441,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/TARGET_A_MINIMUM_TUPLE.md",
+      "name": "TARGET_A_MINIMUM_TUPLE.md",
+      "sha256": "cfd77fb328fe2dbf1fda0dc1e4d7a8624715731a5cf8d97c539e15ef14249b73",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-root-direction-v1/MINIMUM_TUPLE_AND_PRODUCER_CUTS.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 464,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/TARGET_A_DIRECTION_INPUTS.json",
+      "name": "TARGET_A_DIRECTION_INPUTS.json",
+      "sha256": "f7c7ebd45f6dc61a29735726aa383dc84abaad2b66ff50a473eed9fed952cc2f",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-root-direction-v1/INPUTS.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 18851,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/TERMINAL_CAPACITY_REVIEW.md",
+      "name": "TERMINAL_CAPACITY_REVIEW.md",
+      "sha256": "d3899c4ef6fad9fd28aa4d775bf7c07a10eec2df8b5b42d2739f9ca8e40e7795",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-terminal-consumer-capacity-review-sol61-xhigh-v1/REVIEW.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 13698,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/STORE_V3_REVIEW.md",
+      "name": "STORE_V3_REVIEW.md",
+      "sha256": "728679416edf7783529f4f1dcd4515e69a7cbe27434abd9ba8ecbe11dd91d7b2",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-control-continuation-review-sol61-xhigh-v3/REVIEW.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 13838,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/REGISTRY_CONSTRUCTOR_ADDENDUM.md",
+      "name": "REGISTRY_CONSTRUCTOR_ADDENDUM.md",
+      "sha256": "1819d9df874e0d56be603b36ea0553c11aeca605e3543ec0d66e67aba6a9db79",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-registry-terminal-authority-review-sol61-xhigh-v1/CONSTRUCTOR_ADDENDUM.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 5009,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/REGISTRY_SOURCE_BOUNDS_ADDENDUM.md",
+      "name": "REGISTRY_SOURCE_BOUNDS_ADDENDUM.md",
+      "sha256": "4990d51532b82a98774c7583b1df70adc41907b798b72a119ea7fc2a437ac241",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-registry-terminal-authority-review-sol61-xhigh-v1/SOURCE_BOUNDS_ADDENDUM.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 1611,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v7/C16_CURRENT_RECORD_GETTER_V7.swift.fragment",
+      "name": "central/issuer-core-successor-v7/C16_CURRENT_RECORD_GETTER_V7.swift.fragment",
+      "sha256": "e2f4dc2b3267ba1b84733c309cb6cd0552aa1e8ce9a46b836844ba7b11a6a3c1",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v7/C16_CURRENT_RECORD_GETTER_V7.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 1767,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v8/FIRST_CAPTURE_CONTROL_STORE_HOOK_V8.swift.fragment",
+      "name": "central/issuer-core-successor-v8/FIRST_CAPTURE_CONTROL_STORE_HOOK_V8.swift.fragment",
+      "sha256": "a738d0b09e6050540435a273ec11a434afa5d1c862a70c623cc0cfa2d859719c",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v8/FIRST_CAPTURE_CONTROL_STORE_HOOK_V8.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 6316,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_FIXED_SUBJECT_V4.swift.fragment",
+      "name": "central/issuer-core-successor-v9/TERMINAL_FIXED_SUBJECT_V4.swift.fragment",
+      "sha256": "600f50f9639f479e8b20144f112da4acdcc77bf55f62e529179bc5288f6d2dfc",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_FIXED_SUBJECT_V4.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 1534,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_CONSUMER_RECEIPT_INTERFACE_V4.swift.fragment",
+      "name": "central/issuer-core-successor-v9/TERMINAL_CONSUMER_RECEIPT_INTERFACE_V4.swift.fragment",
+      "sha256": "6e02ac3d80f01f2e4fe073db7269af70d887d63c0a197e7469645ddc93b3117e",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_CONSUMER_RECEIPT_INTERFACE_V4.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 5288,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_REAL_OS_COMPONENT_V4.swift.fragment",
+      "name": "central/issuer-core-successor-v9/TERMINAL_REAL_OS_COMPONENT_V4.swift.fragment",
+      "sha256": "4871a3c2447cfb61293f5ba48d6ed534e983e9d263d7da0297c84b8e6dc441e3",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_REAL_OS_COMPONENT_V4.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 8037,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_REAL_OS_SCOPE_V4.swift.fragment",
+      "name": "central/issuer-core-successor-v9/TERMINAL_REAL_OS_SCOPE_V4.swift.fragment",
+      "sha256": "86825adf3c60794f2e16693552c35bb54c7359ec3fb37c32ed4ca5e10d5ca6d3",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_REAL_OS_SCOPE_V4.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 477,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/TERMINAL_NOTIFICATION_PORT_PROTOCOL_V4.swift.fragment",
+      "name": "central/issuer-core-successor-v9/TERMINAL_NOTIFICATION_PORT_PROTOCOL_V4.swift.fragment",
+      "sha256": "e33e50624d252dd440235e2473fa691fc835ae6f9c32053c349f12c0c7522359",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_NOTIFICATION_PORT_PROTOCOL_V4.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 20237,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/SEALED_GENERIC_OBSERVATION_V2.swift.fragment",
+      "name": "central/issuer-core-successor-v9/SEALED_GENERIC_OBSERVATION_V2.swift.fragment",
+      "sha256": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/SEALED_GENERIC_OBSERVATION_V2.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 4090,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/issuer-core-successor-v9/BINDING.json",
+      "name": "central/issuer-core-successor-v9/BINDING.json",
+      "sha256": "6674f52568611efcd35c5cf958906e8134b36fc149d33f4e189b8178c7f707f7",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/BINDING.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 994,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/pending-producer-interface-v10/STORE_PENDING_REQUEST_API_V10.swift.fragment",
+      "name": "central/pending-producer-interface-v10/STORE_PENDING_REQUEST_API_V10.swift.fragment",
+      "sha256": "1e97e77cd523b96088a8679ec4083463b8d5b0cdb1684689dc3ea9523d06fd1c",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/STORE_PENDING_REQUEST_API_V10.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 837,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/pending-producer-interface-v10/LEDGER_PENDING_REQUEST_SHAPE_V10.swift.fragment",
+      "name": "central/pending-producer-interface-v10/LEDGER_PENDING_REQUEST_SHAPE_V10.swift.fragment",
+      "sha256": "be527834e2ff704575672a61006ab37f46babe0ec577359d8970283f8cce4617",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/LEDGER_PENDING_REQUEST_SHAPE_V10.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 2218,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/pending-producer-interface-v10/ORDER.md",
+      "name": "central/pending-producer-interface-v10/ORDER.md",
+      "sha256": "68ae75caa33ec7f06c33fbf43aa20af05d9631588072f6872b1d4d764d257071",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/ORDER.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 568,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/pending-producer-interface-v10/BINDING.json",
+      "name": "central/pending-producer-interface-v10/BINDING.json",
+      "sha256": "19a1f9a9f6aed015b1a88ad642846dd802182ba4e4e82638338908212d590fb3",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/BINDING.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 8449,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/terminal-authority-interface-v10/COMPACT_TERMINAL_AUTHORITY_V4.swift.fragment",
+      "name": "central/terminal-authority-interface-v10/COMPACT_TERMINAL_AUTHORITY_V4.swift.fragment",
+      "sha256": "f951ec35bf7214995d205292960a8dbb6e436788c57344e0d8fce8985efea936",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/terminal-authority-interface-v10/COMPACT_TERMINAL_AUTHORITY_V4.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 1344,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/terminal-authority-interface-v10/ORDER.md",
+      "name": "central/terminal-authority-interface-v10/ORDER.md",
+      "sha256": "3a9dc0eacc3fda1e3e8ab061e82659407a8a977998d46c22f9476d5de24b26be",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/terminal-authority-interface-v10/ORDER.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 548,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/terminal-authority-interface-v10/BINDING.json",
+      "name": "central/terminal-authority-interface-v10/BINDING.json",
+      "sha256": "08ce628b1a101bf6b212155c4990c45d25f065843d5f64ac125d541169ba0a95",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/terminal-authority-interface-v10/BINDING.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 3321,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/CAPACITY_SOURCE_EVIDENCE_V13.md",
+      "name": "ledger/CAPACITY_SOURCE_EVIDENCE_V13.md",
+      "sha256": "ee2f5dcee5d802498b25089559793dbb62372b6f323bd7fa5b61c9a460a76369",
+      "source": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/CAPACITY_SOURCE_EVIDENCE_V13.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 2835,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/BORN_PRODUCER_SLOTS_STREAM_V6.swift.fragment",
+      "name": "ledger/BORN_PRODUCER_SLOTS_STREAM_V6.swift.fragment",
+      "sha256": "8dac58cc34a502a017b0d66b10f81875029ec4e73b4cae5449a157424208608a",
+      "source": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/BORN_PRODUCER_SLOTS_STREAM_V6.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 16154,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/checkpoint-v31/INITIAL_SLOT_PAGE_AND_RENEWAL_V31.swift.fragment",
+      "name": "ledger/checkpoint-v31/INITIAL_SLOT_PAGE_AND_RENEWAL_V31.swift.fragment",
+      "sha256": "19cb4a18680cf8c876054a901a33f29d7f30f44edee5e57d283c91e6452dca93",
+      "source": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/checkpoint-v31/INITIAL_SLOT_PAGE_AND_RENEWAL_V31.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 3287,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/checkpoint-v31/BINDING.json",
+      "name": "ledger/checkpoint-v31/BINDING.json",
+      "sha256": "a8de8c12dbf176a9f5f394c715190d7b14f1d5c086468c3f8cf11d3d9fb9ab45",
+      "source": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/checkpoint-v31/BINDING.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 2618,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/migration/ORIGINAL_PAIR_ACCOUNTING_DATA_V1.swift.fragment",
+      "name": "migration/ORIGINAL_PAIR_ACCOUNTING_DATA_V1.swift.fragment",
+      "sha256": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+      "source": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/ORIGINAL_PAIR_ACCOUNTING_DATA_V1.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 3828,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/migration/ORIGINAL_PAIR_ACCOUNTING_RECEIPT_V2.swift.fragment",
+      "name": "migration/ORIGINAL_PAIR_ACCOUNTING_RECEIPT_V2.swift.fragment",
+      "sha256": "d839241ed9f3b2fb45ba8ac85f156b1bc9df6a13a9d8160fa2d783ba21d8c727",
+      "source": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-migration-firstcapture-successor-v2/ORIGINAL_PAIR_ACCOUNTING_RECEIPT_V2.swift.fragment",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 4110,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/physical/cold-physical-continuation-successor-v5/INTERFACES.md",
+      "name": "physical/cold-physical-continuation-successor-v5/INTERFACES.md",
+      "sha256": "40f3022399f6634e7f0578785879bbc68d71674394a52b9ea0f063a475f4e766",
+      "source": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v5/INTERFACES.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 5999,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/physical/cold-physical-continuation-successor-v5/BINDING.json",
+      "name": "physical/cold-physical-continuation-successor-v5/BINDING.json",
+      "sha256": "d84d3a09c9a5f49705f99cbaced03f0e5882cfc40cc1a0ceda908b8a6bc7c445",
+      "source": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v5/BINDING.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 3657,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/physical/cold-physical-v4-progress-interface-v1/INTERFACE.md",
+      "name": "physical/cold-physical-v4-progress-interface-v1/INTERFACE.md",
+      "sha256": "340281b77c4f26dc9fbbcdcd8743040882ffbd5bc2d8e66395c6ebe519c8d082",
+      "source": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-v4-progress-interface-v1/INTERFACE.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 2706749,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/frozen-design/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+      "name": "frozen-design/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+      "sha256": "fb3cb3b55e60062e574444b57ddc075345053c396c9da1b2c5e5350f2aeae2a2",
+      "source": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/docs/design/v23/EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 28781,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/frozen-design/V23P01C06DeletionRightsContractV1.json",
+      "name": "frozen-design/V23P01C06DeletionRightsContractV1.json",
+      "sha256": "4250ed5c5c6aad2f6278bc0114ef3b426b01d0eea6bff03e0bdc5a824dc383cd",
+      "source": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/docs/design/v23/tooling/V23P01C06DeletionRightsContractV1.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 9035,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/frozen-design/V23P02C06OwnedStorageLedgerContractV1.json",
+      "name": "frozen-design/V23P02C06OwnedStorageLedgerContractV1.json",
+      "sha256": "ecc36d3a25f8deb29c10dfb5c31d112c598669a63ea6a1bcd867f093bcdb48da",
+      "source": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/docs/design/v23/tooling/V23P02C06OwnedStorageLedgerContractV1.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 15561,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/frozen-design/V23P02C05LocalJobStoreLifecycleContractV1.json",
+      "name": "frozen-design/V23P02C05LocalJobStoreLifecycleContractV1.json",
+      "sha256": "f2cdb43868e2390167032aadd38d9cc093c0bc67e16cc51a95958c2e8db487b7",
+      "source": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/docs/design/v23/tooling/V23P02C05LocalJobStoreLifecycleContractV1.json",
+      "status": "IMMUTABLE AUTHORITY/INTERFACE INPUT; no inherited execution approval"
+    },
+    {
+      "bytes": 5588,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/SDK_SIMULATOR_DIRENT.h",
+      "name": "SDK_SIMULATOR_DIRENT.h",
+      "sha256": "974e1e468150f7654f059d800c76f4f33e9fc7bb1efcf81deb70efa463e07d94",
+      "source": "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/sys/dirent.h",
+      "status": "Installed SDK source capacity only, no compiler/runtime evidence"
+    },
+    {
+      "bytes": 478209,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/TRACKED_STORE_BEFORE.swift",
+      "name": "TRACKED_STORE_BEFORE.swift",
+      "sha256": "253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90",
+      "source": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "status": "Exact unchanged tracked Store253a, source-only baseline"
+    },
+    {
+      "bytes": 692,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/BINDING.json",
+      "name": "central/semantic-target-interface-v12/BINDING.json",
+      "sha256": "6ac042cc14191fa31852a4e4bd5233c8c4368ead5679b999160e290825541bdf",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/semantic-target-interface-v12/BINDING.json",
+      "status": "IMMUTABLE SOURCE/INTERFACE INPUT; no inherited approval or issuer claim"
+    },
+    {
+      "bytes": 2981,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/FACTORY_LOAN_ABI_V12.md",
+      "name": "central/semantic-target-interface-v12/FACTORY_LOAN_ABI_V12.md",
+      "sha256": "0f8b2180eff07915c4d70774a9736c3a9a67027498c1459fccc286bcaef87f05",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/semantic-target-interface-v12/FACTORY_LOAN_ABI_V12.md",
+      "status": "IMMUTABLE SOURCE/INTERFACE INPUT; no inherited approval or issuer claim"
+    },
+    {
+      "bytes": 6154,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/ROUTER_REAL_TARGET_PRODUCER_SCOPE_V12.swift.fragment",
+      "name": "central/semantic-target-interface-v12/ROUTER_REAL_TARGET_PRODUCER_SCOPE_V12.swift.fragment",
+      "sha256": "462de0dd913db651f4aba1a45e226207db73348c54801c09d42eabb8f43b76d5",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/semantic-target-interface-v12/ROUTER_REAL_TARGET_PRODUCER_SCOPE_V12.swift.fragment",
+      "status": "IMMUTABLE SOURCE/INTERFACE INPUT; no inherited approval or issuer claim"
+    },
+    {
+      "bytes": 5735,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/SEMANTIC_TARGET_FIXED_DATA_V12.swift.fragment",
+      "name": "central/semantic-target-interface-v12/SEMANTIC_TARGET_FIXED_DATA_V12.swift.fragment",
+      "sha256": "65f70b79427c8db8c745d0c0260843237f7cd35bfd71774694341f2ccbd8d5af",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/semantic-target-interface-v12/SEMANTIC_TARGET_FIXED_DATA_V12.swift.fragment",
+      "status": "IMMUTABLE SOURCE/INTERFACE INPUT; no inherited approval or issuer claim"
+    },
+    {
+      "bytes": 4349,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/central/semantic-target-interface-v12/SERVICE_FIXED_GRAPH_FRAME_V12.swift.fragment",
+      "name": "central/semantic-target-interface-v12/SERVICE_FIXED_GRAPH_FRAME_V12.swift.fragment",
+      "sha256": "8e13687a5288b449d7b05a607c7a8c46f5c6f34a9a4a3f2e1b633cef36bf4c92",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/semantic-target-interface-v12/SERVICE_FIXED_GRAPH_FRAME_V12.swift.fragment",
+      "status": "IMMUTABLE SOURCE/INTERFACE INPUT; no inherited approval or issuer claim"
+    },
+    {
+      "bytes": 139404,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/SOURCE_PERSISTENT_SCHEMAS.swift",
+      "name": "SOURCE_PERSISTENT_SCHEMAS.swift",
+      "sha256": "33b34bfb7c43cba5184cca2d6ab39e8908ef51e37f56be41e009d98999d4f8cd",
+      "source": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift",
+      "status": "SOURCE enum v1...v53 codec input only; no compile/runtime result"
+    },
+    {
+      "bytes": 16195,
+      "copy": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/INPUTS/ledger/FIRST_CAPTURE_PRODUCER_DECLARATIONS_V5.swift.fragment",
+      "name": "ledger/FIRST_CAPTURE_PRODUCER_DECLARATIONS_V5.swift.fragment",
+      "sha256": "d4e855fea7e73038381049896efcc68143143d011a0c3ead2b29251023f975b4",
+      "source": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/FIRST_CAPTURE_PRODUCER_DECLARATIONS_V5.swift.fragment",
+      "status": "IMMUTABLE DATA parser source pin; no source-issuer or runtime credit"
+    }
+  ],
+  "reasoningEffort": "xhigh",
+  "schemaVersion": 1,
+  "status": "INPUT SNAPSHOTS ONLY; no contract approval or inherited source/runtime credit"
+}

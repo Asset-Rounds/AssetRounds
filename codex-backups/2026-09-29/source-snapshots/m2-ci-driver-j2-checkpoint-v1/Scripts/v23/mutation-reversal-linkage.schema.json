@@ -1,0 +1,844 @@
+{
+  "$id": "https://assetrounds.invalid/v23/MutationRecoveryMatrixV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "acceptedSemanticReplayReproof": {
+      "additionalProperties": false,
+      "properties": {
+        "beforeReturningPriorReceipt": {
+          "const": "BOUNDED_FULL_JOURNAL_VALIDATE_ALL"
+        },
+        "missingOrTamperedLink": {
+          "const": "FAIL_CLOSED_AS_CORRUPT_HISTORY"
+        },
+        "requiredChain": {
+          "items": false,
+          "maxItems": 8,
+          "minItems": 8,
+          "prefixItems": [
+            {
+              "const": "targetReceipt"
+            },
+            {
+              "const": "reversalBasis"
+            },
+            {
+              "const": "basisDigestAndPlan"
+            },
+            {
+              "const": "semanticReversalExecution"
+            },
+            {
+              "const": "semanticReceiptResultingRevision"
+            },
+            {
+              "const": "singleCompensatingReceipt"
+            },
+            {
+              "const": "quarantineDomains"
+            },
+            {
+              "const": "persistedState"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "beforeReturningPriorReceipt",
+        "requiredChain",
+        "missingOrTamperedLink"
+      ],
+      "type": "object"
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "atomicFaultBoundaries": {
+      "items": false,
+      "maxItems": 7,
+      "minItems": 7,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "const": "before_effect_transaction"
+            },
+            "relaunchDisposition": {
+              "const": "EXACTLY_PRIOR_RECEIPT_OR_NO_EFFECT_NEVER_PARTIAL"
+            }
+          },
+          "required": [
+            "boundary",
+            "relaunchDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "const": "after_effect_before_envelope_insert"
+            },
+            "relaunchDisposition": {
+              "const": "EXACTLY_PRIOR_RECEIPT_OR_NO_EFFECT_NEVER_PARTIAL"
+            }
+          },
+          "required": [
+            "boundary",
+            "relaunchDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "const": "after_envelope_before_basis_insert"
+            },
+            "relaunchDisposition": {
+              "const": "EXACTLY_PRIOR_RECEIPT_OR_NO_EFFECT_NEVER_PARTIAL"
+            }
+          },
+          "required": [
+            "boundary",
+            "relaunchDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "const": "after_basis_before_receipt_insert"
+            },
+            "relaunchDisposition": {
+              "const": "EXACTLY_PRIOR_RECEIPT_OR_NO_EFFECT_NEVER_PARTIAL"
+            }
+          },
+          "required": [
+            "boundary",
+            "relaunchDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "const": "after_receipt_before_transaction_commit"
+            },
+            "relaunchDisposition": {
+              "const": "EXACTLY_PRIOR_RECEIPT_OR_NO_EFFECT_NEVER_PARTIAL"
+            }
+          },
+          "required": [
+            "boundary",
+            "relaunchDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "const": "after_transaction_commit_before_return"
+            },
+            "relaunchDisposition": {
+              "const": "EXACTLY_PRIOR_RECEIPT_OR_NO_EFFECT_NEVER_PARTIAL"
+            }
+          },
+          "required": [
+            "boundary",
+            "relaunchDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "boundary": {
+              "const": "after_quarantine_commit_before_return"
+            },
+            "relaunchDisposition": {
+              "const": "EXACTLY_PRIOR_RECEIPT_OR_NO_EFFECT_NEVER_PARTIAL"
+            }
+          },
+          "required": [
+            "boundary",
+            "relaunchDisposition"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "56e53031b0f598b2395c5060dd2243136e4af66a"
+        },
+        "appBaseTree": {
+          "const": "5989170055899a3ab5bcdfea1b2306175109199d"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C02"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "7a640c0d6bf190ccb6f0193d09b7760e60ff5f96c66bf785f2ba971b8cf608a6"
+        },
+        "coordinationAuthorityHead": {
+          "const": "5ab409463ed33b2c21f9c6007a5dd0fb1bffb9ef"
+        },
+        "coordinationAuthorityTree": {
+          "const": "bdb4e2e9168e980a2ac63f7ed3c4e49fdc790a66"
+        },
+        "coordinationCASSequence": {
+          "const": 88
+        },
+        "coordinationLedgerDigest": {
+          "const": "c5f704a60c123e9b71e7d95178cd410e5d884a6bf4a24ae58889da64d9fa70fe"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C02-G01"
+            },
+            {
+              "const": "V23-P02-C02-A01"
+            },
+            {
+              "const": "V23-P02-C02-H01"
+            },
+            {
+              "const": "V23-P02-C02-I01"
+            },
+            {
+              "const": "V23-P02-C02-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C01"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "844d28364a666c3abb4a480ba86a11c731b4a2c105c47dc1d99cc2d70575e1af"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "5594a8413614532282f1e8507618d0ce34c0c9d90ba283669d781e363229acc2"
+        },
+        "hydrationTransitionDigest": {
+          "const": "f04daba62cda24e4345a2def0ba0cdad9ae622bf45935e8bd20d6833856d1a02"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "fa87a8ab94d8ff3d543e48f8367c167e58eae400f6a9abfb4d5764c5676af26a"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C03"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C02"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452"
+        },
+        "pathFenceDigest": {
+          "const": "9593de9026efe12b8b89b59c9811ba8848d445f3dc681b637e34c17e6900aaef"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "0860b9b744561a99230db53a1b4803ded94c69cb034663d658559a6ea5e3bd3b"
+        },
+        "registerOrdinal": {
+          "const": 22
+        },
+        "registerRowDigest": {
+          "const": "73dd7fcd314d63bc9e9244a9da68ef67e0c81a85c09343e031117e7b0a0da577"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "Portable MutationEnvelopeV1 and atomic durable MutationReceiptV1"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "bounds": {
+      "additionalProperties": false,
+      "properties": {
+        "maximumMutableContentValidationCount": {
+          "const": 100000
+        },
+        "maximumReceiptValidationCount": {
+          "const": 100000
+        },
+        "maximumReversalItemCount": {
+          "const": 256
+        }
+      },
+      "required": [
+        "maximumReceiptValidationCount",
+        "maximumMutableContentValidationCount",
+        "maximumReversalItemCount"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C02"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C02-G01"
+        },
+        {
+          "const": "V23-P02-C02-A01"
+        },
+        {
+          "const": "V23-P02-C02-H01"
+        },
+        {
+          "const": "V23-P02-C02-I01"
+        },
+        {
+          "const": "V23-P02-C02-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "hostileCases": {
+      "additionalProperties": false,
+      "properties": {
+        "crossWorkspace": {
+          "const": "FAIL_CLOSED_NO_EFFECT"
+        },
+        "missingReversalBasis": {
+          "const": "FAIL_CLOSED_NO_INVERSE_RECONSTRUCTION"
+        },
+        "sequenceCollision": {
+          "const": "QUARANTINE_NO_EFFECT"
+        },
+        "sourceReplicaAsDestination": {
+          "const": "FAIL_CLOSED_NO_EFFECT"
+        },
+        "staleRevision": {
+          "const": "FAIL_CLOSED_NO_EFFECT"
+        },
+        "tamperedEnvelopeOrReceiptHash": {
+          "const": "QUARANTINE_NO_EFFECT"
+        },
+        "unknownSchemaOrCommand": {
+          "const": "FAIL_CLOSED_NO_EFFECT"
+        }
+      },
+      "required": [
+        "unknownSchemaOrCommand",
+        "staleRevision",
+        "crossWorkspace",
+        "sourceReplicaAsDestination",
+        "tamperedEnvelopeOrReceiptHash",
+        "sequenceCollision",
+        "missingReversalBasis"
+      ],
+      "type": "object"
+    },
+    "implementationFaultInjectionPoints": {
+      "items": false,
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "const": "afterEffectBeforeReceipt"
+        },
+        {
+          "const": "afterReceiptBeforeSave"
+        },
+        {
+          "const": "afterSaveBeforeReturn"
+        }
+      ],
+      "type": "array"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "persistedStateRecovery": {
+      "additionalProperties": false,
+      "properties": {
+        "externalProjection": {
+          "const": "AUTHORIZED_EXTERNAL_MUTATION_OR_RESTORE_REPROVES_CURRENT_POST_IMAGE"
+        },
+        "importedProjectionRevisionLinkage": {
+          "const": "EVERY_MAXIMUM_IMPORTED_POST_IMAGE_REVISION_HAS_ENTITY_PROJECTION_REVISION_AT_LEAST_AS_NEW"
+        },
+        "latestReceiptReproof": {
+          "const": "CURRENT_POST_IMAGE_EQUALS_LATEST_RECEIPT_UNLESS_EXTERNAL_PROJECTION_EXISTS"
+        },
+        "mutableSemantic": {
+          "const": "BOUNDED_CURRENT_CONTENT_PLUS_DELETION_LEDGER"
+        },
+        "postImageBasis": {
+          "const": "ACTUAL_PERSISTED_V4_DTO_OR_TYPED_TOMBSTONE"
+        },
+        "relaunchValidation": {
+          "const": "VERIFY_ACTUAL_STATE_TOMBSTONES_MUTABLE_SEMANTIC_AND_EXTERNAL_PROJECTIONS"
+        },
+        "tombstoneDisposition": {
+          "const": "ABSENT_AFTER_MUTATION"
+        }
+      },
+      "required": [
+        "postImageBasis",
+        "tombstoneDisposition",
+        "latestReceiptReproof",
+        "mutableSemantic",
+        "externalProjection",
+        "importedProjectionRevisionLinkage",
+        "relaunchValidation"
+      ],
+      "type": "object"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "provisional": {
+      "const": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "restartReconciliation": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "const": "VERIFY_CANONICAL_EFFECT_POST_IMAGES_OR_TOMBSTONES"
+        },
+        {
+          "const": "VERIFY_ENVELOPE_AND_RECEIPT_HASH_CHAIN"
+        },
+        {
+          "const": "VERIFY_CONTENT_DEPENDENCY_IDENTITIES_AND_HASHES"
+        },
+        {
+          "const": "VERIFY_REPLICA_LOCAL_SEQUENCE_UNIQUENESS"
+        },
+        {
+          "const": "VERIFY_REVERSAL_CHAIN_IF_PRESENT"
+        },
+        {
+          "const": "REBUILD_BOUNDED_PROJECTIONS_FROM_RECEIPTS"
+        }
+      ],
+      "type": "array"
+    },
+    "reversalLinkage": {
+      "additionalProperties": false,
+      "properties": {
+        "basisCommandKindMustEqualExecutedCommandKind": {
+          "const": true
+        },
+        "basisFields": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "targetMutationID"
+            },
+            {
+              "const": "targetReceiptIdentity"
+            },
+            {
+              "const": "policyVersion"
+            },
+            {
+              "const": "planDigest"
+            },
+            {
+              "const": "compensatingCommandKinds"
+            }
+          ],
+          "type": "array"
+        },
+        "compensatingMutationIDsExactlyCurrentMutation": {
+          "const": true
+        },
+        "durableReplayProbeBeforeTargetValidation": {
+          "const": true
+        },
+        "executionFields": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "targetMutationID"
+            },
+            {
+              "const": "targetReceiptIdentity"
+            },
+            {
+              "const": "reversalBasisSHA256"
+            },
+            {
+              "const": "planDigest"
+            },
+            {
+              "const": "compensatingMutationIDs"
+            }
+          ],
+          "type": "array"
+        },
+        "forwardHistoryOnly": {
+          "const": true
+        },
+        "largeEvidenceBytesDuplicated": {
+          "const": false
+        },
+        "mayRecallEraseExternalDeliveryOrFinalizedArtifact": {
+          "const": false
+        },
+        "originalReceiptImmutable": {
+          "const": true
+        },
+        "ownerArtifacts": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "SemanticReversalReplayIdentityV1"
+            },
+            {
+              "const": "ReversalBasisV1"
+            },
+            {
+              "const": "SemanticReversalExecutionV1"
+            },
+            {
+              "const": "SemanticReversalReceiptV1"
+            }
+          ],
+          "type": "array"
+        },
+        "receiptLinkageFields": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "reversesMutationID"
+            }
+          ],
+          "type": "array"
+        },
+        "replayIdentityFields": {
+          "items": false,
+          "maxItems": 9,
+          "minItems": 9,
+          "prefixItems": [
+            {
+              "const": "workspaceID"
+            },
+            {
+              "const": "replicaID"
+            },
+            {
+              "const": "generationID"
+            },
+            {
+              "const": "mutationID"
+            },
+            {
+              "const": "commandBodySHA256"
+            },
+            {
+              "const": "expectedRevision"
+            },
+            {
+              "const": "targetMutationID"
+            },
+            {
+              "const": "planDigest"
+            },
+            {
+              "const": "compensatingMutationIDs"
+            }
+          ],
+          "type": "array"
+        },
+        "requiredChain": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "originalReceipt"
+            },
+            {
+              "const": "reversalBasis"
+            },
+            {
+              "const": "acceptedPlan"
+            },
+            {
+              "const": "compensatingMutations"
+            },
+            {
+              "const": "semanticReversalReceipt"
+            }
+          ],
+          "type": "array"
+        },
+        "sameIDChangedTargetPlanOrCommands": {
+          "const": "DURABLE_QUARANTINE_NO_EFFECT"
+        },
+        "semanticReceiptFields": {
+          "items": false,
+          "maxItems": 7,
+          "minItems": 7,
+          "prefixItems": [
+            {
+              "const": "reversalReceiptIdentity"
+            },
+            {
+              "const": "reversesMutationID"
+            },
+            {
+              "const": "targetReceiptIdentity"
+            },
+            {
+              "const": "reversalBasisSHA256"
+            },
+            {
+              "const": "planDigest"
+            },
+            {
+              "const": "compensatingMutationIDs"
+            },
+            {
+              "const": "resultingRevision"
+            }
+          ],
+          "type": "array"
+        },
+        "semanticReceiptResultingRevisionMustEqualExecutionReceipt": {
+          "const": true
+        },
+        "singleCommandExecutionRequired": {
+          "const": true
+        },
+        "unknownBasisOrReversalVersion": {
+          "const": "FAIL_CLOSED"
+        }
+      },
+      "required": [
+        "ownerArtifacts",
+        "forwardHistoryOnly",
+        "originalReceiptImmutable",
+        "requiredChain",
+        "receiptLinkageFields",
+        "basisFields",
+        "semanticReceiptFields",
+        "executionFields",
+        "replayIdentityFields",
+        "durableReplayProbeBeforeTargetValidation",
+        "singleCommandExecutionRequired",
+        "compensatingMutationIDsExactlyCurrentMutation",
+        "basisCommandKindMustEqualExecutedCommandKind",
+        "semanticReceiptResultingRevisionMustEqualExecutionReceipt",
+        "sameIDChangedTargetPlanOrCommands",
+        "unknownBasisOrReversalVersion",
+        "largeEvidenceBytesDuplicated",
+        "mayRecallEraseExternalDeliveryOrFinalizedArtifact"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "MutationRecoveryMatrixV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "atomicFaultBoundaries",
+    "implementationFaultInjectionPoints",
+    "restartReconciliation",
+    "bounds",
+    "persistedStateRecovery",
+    "acceptedSemanticReplayReproof",
+    "hostileCases",
+    "reversalLinkage",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "MutationRecoveryMatrixV1",
+  "type": "object"
+}

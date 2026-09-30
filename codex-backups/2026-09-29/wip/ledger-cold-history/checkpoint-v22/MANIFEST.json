@@ -1,0 +1,18 @@
+{
+  "BINDING.json": "22f838cb1ba7ddb443f2a204054c6cda467c692e89f1d6142f26a8f95d6ab1a2",
+  "CASE_MATRIX.md": "8919e6586268a237d97c0002a74487ca701f633ac7cae3aa96c94809bcdd2c40",
+  "DIFF.patch": "66db7c8d2bddbecd2292af603e8a14fe8c72dae142194da76f5e46d6e5391415",
+  "ERRNO_PRESERVATION_V21.json": "f6d92acf79e15259386617d1cf1f1c62aea90cd0bb2e0e4394acb53adfe4a94c",
+  "HANDOFF.md": "6bc172e8c45d5e19925a294f1e1a6877eded6b246c1073ba38da78372701ce56",
+  "LEGACY_FD_PATH_CENSUS_WORKING_V22.json": "9095cffa758a005db145835b4ca1511ab6b9a8390ca1bfb39c78a9a03b365656",
+  "NESTED_PUBLICATION_IO_V22.json": "a0ff8b44caa77070cbef9503db77a3f6759feeeec4d657b7dd2fe9b8a80fe8e7",
+  "PARSE_WORKING_V22.json": "c13fbeb3a067c3d32324a9b65450a84f85bdc2d3eedd04341d65de1ba3d9c1b2",
+  "PARSE_WORKING_V22_DEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "PARSE_WORKING_V22_nonDEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "PATCH_forward.log": "b87c7eada31289acd0c4d543571926c0f23970b7dde80bb94eda8d5e9bc4aea2",
+  "PATCH_reverse.log": "b87c7eada31289acd0c4d543571926c0f23970b7dde80bb94eda8d5e9bc4aea2",
+  "before/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+  "candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift": "d8a6653232e000590c716ad7d79f85b2786029ef1b83ebab4fcd271e2982d3b8",
+  "patch-proof/forward/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift": "d8a6653232e000590c716ad7d79f85b2786029ef1b83ebab4fcd271e2982d3b8",
+  "patch-proof/reverse/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e"
+}

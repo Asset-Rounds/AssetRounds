@@ -1,0 +1,37 @@
+    /// Outside-G post-publication finish is a distinct lifetime edge. It
+    /// neither recreates the cleared read context nor revives any old scope.
+    /// Migration separately reproofs the actual publication/accounting and
+    /// terminal resource gates before dropping observation-only associations.
+    func requireOriginalFirstCaptureAccountingFinish(
+        _ observation: OriginalEraseAuxiliaryFirstCaptureObservationOwnerV1,
+        publication: EraseIntentStore.OriginalAuxiliaryRosterPublicationReceiptV1,
+        operation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        store: EraseIntentStore, intent: EraseIntentV1,
+        preparation: ErasePreparationV2
+    ) throws {
+        do {
+            guard !firstCaptureScopedBorrowInFlight,
+                  firstCaptureObservationContext == nil,
+                  !firstCaptureObservationUncertain,
+                  !inFlight, !rosterCaptureInFlight, !rosterReproofInFlight,
+                  !rosterReproofFailed,
+                  firstCaptureObservation === observation,
+                  firstCaptureOperation === operation,
+                  firstCaptureStore === store,
+                  firstSnapshot != nil, firstRoster != nil,
+                  let caches, let temporary else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try operation.requireOriginalEraseFirstCaptureAccountingFinishOwner(
+                owner: self, observer: observer, publication: publication,
+                coordinator: coordinator, exclusion: exclusion,
+                store: store, intent: intent, preparation: preparation)
+            try requireParent(caches)
+            try requireParent(temporary)
+            try exclusion.physicalRoot.revalidate(
+                applicationSupportURL: coordinator.originalEraseAuxiliarySupportURL)
+        } catch { failOriginalFirstCaptureObservation(operation: operation); throw error }
+    }
+

@@ -1,0 +1,468 @@
+{
+  "$id": "https://assetrounds.invalid/v23/measurement-integrity.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "aggregationPolicies": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "calibrationStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "aiDiagnosis": {
+          "type": "boolean"
+        },
+        "automaticCompliance": {
+          "type": "boolean"
+        },
+        "cloudState": {
+          "type": "boolean"
+        },
+        "hardwareIntegration": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "predictiveMaintenance": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        },
+        "remoteCalibration": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "acceptance",
+        "acceptanceCredit",
+        "adoption",
+        "aiDiagnosis",
+        "automaticCompliance",
+        "cloudState",
+        "hardwareIntegration",
+        "hosted",
+        "native",
+        "predictiveMaintenance",
+        "release",
+        "releaseCredit",
+        "remoteCalibration"
+      ],
+      "type": "object"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "evidenceCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assertion",
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "maxItems": 12,
+      "minItems": 12,
+      "type": "array"
+    },
+    "forbiddenClaims": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 14,
+      "minItems": 14,
+      "type": "array"
+    },
+    "instrumentLifecycleStates": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "instrumentTypes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "measurementCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "calibration": {
+            "type": "string"
+          },
+          "finalized": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "quality": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "calibration",
+          "finalized",
+          "id",
+          "quality"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    },
+    "measurementSourceModes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "measurementUnits": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "migrationInventedMeasurementIntegrityCount": {
+      "type": "integer"
+    },
+    "observationBases": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "canonicalSourceOfTruth": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportReportRequired": {
+          "type": "boolean"
+        },
+        "forwardFix": {
+          "type": "string"
+        },
+        "migrationRequired": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "providerRows": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "replayRequired": {
+          "type": "boolean"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "searchRebuildRequired": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "backupRestoreRequired",
+        "canonicalSourceOfTruth",
+        "canonicalWriter",
+        "currentProjectionRowCount",
+        "deleteEraseRequired",
+        "downgrade",
+        "exportReportRequired",
+        "forwardFix",
+        "migrationRequired",
+        "mode",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "providerRows",
+        "recordsSchemaVersion",
+        "replayRequired",
+        "schemaRelease",
+        "schemaVersion",
+        "searchRebuildRequired",
+        "secondStore",
+        "secondWriter"
+      ],
+      "type": "object"
+    },
+    "persistentMeasurementIntegrityKindCount": {
+      "type": "integer"
+    },
+    "persistentSchemaVersion": {
+      "type": "integer"
+    },
+    "qualityDispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "recordsSchemaVersion": {
+      "type": "integer"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array"
+    },
+    "requiredBehaviors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "evidence",
+          "id",
+          "requirement"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array"
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "aggregationPolicies",
+    "calibrationStates",
+    "cardID",
+    "claims",
+    "containsCustomerData",
+    "containsSecrets",
+    "evidenceCases",
+    "forbiddenClaims",
+    "hostileCases",
+    "instrumentLifecycleStates",
+    "instrumentTypes",
+    "interruptionCases",
+    "measurementCases",
+    "measurementSourceModes",
+    "measurementUnits",
+    "migrationInventedMeasurementIntegrityCount",
+    "observationBases",
+    "persistence",
+    "persistentMeasurementIntegrityKindCount",
+    "persistentSchemaVersion",
+    "qualityDispositions",
+    "recordsSchemaVersion",
+    "recoveryCases",
+    "requiredBehaviors",
+    "requiredContractNames",
+    "schema",
+    "schemaVersion",
+    "synthetic"
+  ],
+  "title": "V23 P03 C19 Measurement Integrity Corpus",
+  "type": "object"
+}

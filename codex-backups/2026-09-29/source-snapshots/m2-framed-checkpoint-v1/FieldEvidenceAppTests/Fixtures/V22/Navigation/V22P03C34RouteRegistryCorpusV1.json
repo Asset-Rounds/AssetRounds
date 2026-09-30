@@ -1,0 +1,46 @@
+{
+  "schema": "V22P03C34RouteRegistryCorpusV1",
+  "schemaVersion": 1,
+  "roots": ["TODAY", "WORK", "ASSETS", "REPORTS"],
+  "precedence": [
+    "STARTUP_MAINTENANCE",
+    "INCOMPLETE_MUTATION_RECOVERY",
+    "EXPLICIT_INGRESS",
+    "SCENE_SNAPSHOT",
+    "TODAY_FALLBACK"
+  ],
+  "evidenceIDs": [
+    "V23-P03-C34-G01",
+    "V23-P03-C34-A01",
+    "V23-P03-C34-H01",
+    "V23-P03-C34-I01",
+    "V23-P03-C34-R01"
+  ],
+  "deviceOperationalLifecycle": {
+    "workspaceTruth": false,
+    "backupIncluded": false,
+    "journalIncluded": false,
+    "reportIncluded": false,
+    "exportIncluded": false,
+    "eraseClears": true,
+    "tolerantDecode": true
+  },
+  "scheduleNavigation": {
+    "stableScheduleDefinitionID": "UUID",
+    "stableScheduleReleaseID": "UUID",
+    "stableOccurrenceID": "OccurrenceIDV1",
+    "expectedScheduleRevision": "UInt64",
+    "expectedOccurrenceRevision": "UInt64",
+    "restorationExecutesMutation": false,
+    "staleOrUnavailableUsesSafeFallback": true
+  },
+  "prohibitedAutomaticEffects": [
+    "CAPTURE",
+    "SCANNER",
+    "MUTATION",
+    "FINALIZATION",
+    "PURCHASE",
+    "EXPORT",
+    "SHARE"
+  ]
+}

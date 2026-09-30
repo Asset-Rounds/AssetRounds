@@ -1,0 +1,161 @@
+    /// Only the actual active witness and pure original-owner hook can
+    /// reprove this G. The hook must not reacquire G/SH or perform a census;
+    /// canonical Registry bytes/policy/cohort are read before and after body.
+    @MainActor
+    fileprivate func requireOriginalEraseScratchCleanupEffectScopeHeld(
+        _ scope: OriginalEraseScratchCleanupHeldGScopeV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        cohort: [GenerationLeaseTokenV1]
+    ) throws {
+        guard !originalEraseScratchCleanupEffectUncertain,
+              originalEraseScratchCleanupEffectScope === scope,
+              generationMutationLockDepth == 1 else {
+            throw Self.uncertainOwnerFailure()
+        }
+        try activity.validateOriginalEraseScratchCleanupRegistry(self)
+        guard try operation.requireOriginalEraseScratchCleanupEffectUnderHeldG(
+            registry: self, activity: activity, store: store,
+            exclusion: exclusion) == cohort else {
+            throw Self.uncertainOwnerFailure()
+        }
+    }
+
+    @MainActor
+    fileprivate func failOriginalEraseScratchCleanupEffectScope(
+        operation: EraseRouterOperationV1
+    ) {
+        originalEraseScratchCleanupEffectUncertain = true
+        operation.failOriginalEraseScratchCleanupEffect()
+    }
+
+    /// A fixed synchronous Scratch cleanup under the SAME original EX,
+    /// activity and this actual Registry G. Router privately issues the effect
+    /// permit from this witness; Ledger returns its actual checked receipt.
+    /// No ordinary initializer/SH/read-only permit or new cold lineage enters.
+    @MainActor
+    func withOriginalEraseScratchCleanupEffect(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        _ body: @MainActor (OriginalEraseScratchCleanupHeldGScopeV1)
+            throws -> OriginalEraseScratchCleanupReceiptV1
+    ) throws -> OriginalEraseScratchCleanupReceiptV1 {
+        do { try activity.validateOriginalEraseScratchCleanupRegistry(self) }
+        catch {
+            failOriginalEraseScratchCleanupEffectScope(operation: operation)
+            throw error
+        }
+        Self.processMutationLock.lock()
+        defer { Self.processMutationLock.unlock() }
+        guard !originalEraseScratchCleanupEffectUncertain,
+              originalEraseScratchCleanupEffectScope == nil,
+              generationMutationLockDepth == 0 else {
+            failOriginalEraseScratchCleanupEffectScope(operation: operation)
+            throw Self.uncertainOwnerFailure()
+        }
+        let lockResult = flock(mutationLockDescriptor, LOCK_EX)
+        let lockErrno = errno // capture BEFORE any proof/failure callback
+        guard lockResult == 0 else {
+            failOriginalEraseScratchCleanupEffectScope(operation: operation)
+            throw Self.identityFailure(errorNumber: lockErrno)
+        }
+        generationMutationLockDepth = 1
+        var scope: OriginalEraseScratchCleanupHeldGScopeV1?
+        let result: Result<OriginalEraseScratchCleanupReceiptV1, Error>
+        do {
+            try activity.validateOriginalEraseScratchCleanupRegistry(self)
+            try requireOriginalEraseScratchCleanupNamedRegistry()
+            let cohort = try operation
+                .requireOriginalEraseScratchCleanupEffectUnderHeldG(
+                    registry: self, activity: activity, store: store,
+                    exclusion: exclusion)
+            let migrationBefore = try observeOriginalEraseScratchCleanupNoMigrationReservationLocked(
+                activity: activity, operation: operation, store: store,
+                exclusion: exclusion, expectedCohort: cohort)
+            guard let intent = try store.load(),
+                  intent.schemaVersion == 2, intent.phase == .sessionActivated,
+                  let preparation = try store.loadPreparation(),
+                  preparation.matches(intent) else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let before = try observeOriginalEraseScratchCleanupRegistryLocked(
+                activity: activity, operation: operation, store: store,
+                exclusion: exclusion, expectedCohort: cohort)
+            guard before.leases == cohort else {
+                throw Self.uncertainOwnerFailure()
+            }
+            let held = OriginalEraseScratchCleanupHeldGScopeV1(
+                registry: self, operation: operation, store: store,
+                exclusion: exclusion, activity: activity, cohort: cohort)
+            scope = held
+            originalEraseScratchCleanupEffectScope = held // retain before body IO
+            try held.requireHeld(operation: operation, store: store,
+                registry: self, exclusion: exclusion, activity: activity)
+            let receipt = try body(held)
+            try receipt.requireCheckedSettlement()
+            try receipt.requireBound(operation: operation, store: store,
+                registry: self, exclusion: exclusion, activity: activity)
+            try held.requireHeld(operation: operation, store: store,
+                registry: self, exclusion: exclusion, activity: activity)
+            let after = try observeOriginalEraseScratchCleanupRegistryLocked(
+                activity: activity, operation: operation, store: store,
+                exclusion: exclusion, expectedCohort: cohort)
+            guard after.leases == before.leases,
+                  after.registryBytes == before.registryBytes,
+                  after.registryPolicy == before.registryPolicy,
+                  after.directoryPolicy == before.directoryPolicy,
+                  try store.load() == intent,
+                  try store.loadPreparation() == preparation else {
+                throw Self.uncertainOwnerFailure()
+            }
+            guard try observeOriginalEraseScratchCleanupNoMigrationReservationLocked(
+                activity: activity, operation: operation, store: store,
+                exclusion: exclusion, expectedCohort: cohort) == migrationBefore else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try requireOriginalEraseScratchCleanupNamedRegistry()
+            try activity.validateOriginalEraseScratchCleanupRegistry(self)
+            try receipt.requireCheckedSettlement()
+            try held.requireHeld(operation: operation, store: store,
+                registry: self, exclusion: exclusion, activity: activity)
+            result = .success(receipt)
+        } catch {
+            scope?.poisonOnUncertainCleanup()
+            failOriginalEraseScratchCleanupEffectScope(operation: operation)
+            result = .failure(error)
+        }
+        scope?.revokeBeforeUnlock() // every primitive is fenced BEFORE release
+        let unlockResult = flock(mutationLockDescriptor, LOCK_UN)
+        let unlockErrno = errno // no callback may overwrite actual syscall errno
+        guard unlockResult == 0 else {
+            scope?.poisonOnUncertainCleanup()
+            failOriginalEraseScratchCleanupEffectScope(operation: operation)
+            // Keep depth/scope/owners on uncertainty; never retry numeric lock.
+            throw Self.identityFailure(errorNumber: unlockErrno)
+        }
+        generationMutationLockDepth = 0
+        switch result {
+        case .success(let receipt):
+            guard let scope else {
+                failOriginalEraseScratchCleanupEffectScope(operation: operation)
+                throw Self.uncertainOwnerFailure()
+            }
+            do {
+                try scope.completeCheckedUnlock()
+                originalEraseScratchCleanupEffectScope = nil
+                try scope.requireCheckedRelease(operation: operation, store: store,
+                    registry: self, exclusion: exclusion, activity: activity)
+                return receipt
+            } catch {
+                failOriginalEraseScratchCleanupEffectScope(operation: operation)
+                throw error
+            }
+        case .failure(let error):
+            // The actual scope/resources remain retained and permanently
+            // poisoned even if this kernel unlock succeeded.
+            throw error
+        }
+    }
+

@@ -1,0 +1,303 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactCount": 23,
+  "artifactDigest": "b6a2438e1c796aad44f4e8f41fa52500671b4ff2b8b585cb984ef17a7898a21d",
+  "artifactSetDigest": "d745fc03e1ec40bad6c51b5fb5c68a495b4e63ad6763e0060551f08143526e61",
+  "artifacts": [
+    {
+      "bytes": 26819,
+      "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+      "sha256": "db43077c8664af775dfc758938fc27989f93474056696ea877fad7da57b5853a"
+    },
+    {
+      "bytes": 26761,
+      "path": "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+      "sha256": "18822f3884487965e73bc5f215350bcc76f6b110c53e0877c5686e8eaddb1961"
+    },
+    {
+      "bytes": 13002,
+      "path": "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+      "sha256": "eb9165f2c390f8d471973a8de6715bf004d1688d93da8ab31e96b01f2a3ad1f2"
+    },
+    {
+      "bytes": 5319,
+      "path": "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift",
+      "sha256": "54ffc00a39fb1588d37509e17331aa4157236e28c055e40aaf6207f793ca1df6"
+    },
+    {
+      "bytes": 9065,
+      "path": "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+      "sha256": "3dac91ae70977df5554bc7c211528609965277d7b0e4279e0add35367edc6595"
+    },
+    {
+      "bytes": 13629,
+      "path": "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift",
+      "sha256": "a4f24b44a211c840a19c89c7523da743b45770d054a34835c51b9845d3516652"
+    },
+    {
+      "bytes": 24977,
+      "path": "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift",
+      "sha256": "4677a04ce0daa3cda948488eff0a7e7f99c7385859f3b937ca8dd47398ecc696"
+    },
+    {
+      "bytes": 53831,
+      "path": "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift",
+      "sha256": "d9cb436a9472c19ab6f0d71a29e6d9c4033dc4faf99d73ed3ec3d4f9980cebec"
+    },
+    {
+      "bytes": 8437,
+      "path": "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json",
+      "sha256": "3d8ad0dd0c5ba45168b80821dad8a706308c67f2212d3a4aa6169ef59a3fb04f"
+    },
+    {
+      "bytes": 15707,
+      "path": "Scripts/v23/p02_c11_contracts.py",
+      "sha256": "43ece2343b98fb7d1e854e873d2c97488a8cfd44607e4a78fae1ee7108a949b7"
+    },
+    {
+      "bytes": 1260,
+      "path": "Scripts/v23/generate_p02_c11_contracts.py",
+      "sha256": "644a09c53f6167773d6cfe60297a85e601ff1df7b7d3e6aae629bf000705c582"
+    },
+    {
+      "bytes": 37852,
+      "path": "Scripts/v23/verify_p02_c11_contracts.py",
+      "sha256": "f24e6cdb78cb9ba5f7761fe72e22854fb4118af454f12e7d603781194c528db9"
+    },
+    {
+      "bytes": 20690,
+      "path": "Scripts/v23/device-local-app-lock-setting.schema.json",
+      "sha256": "828f81c4ca56b1962dfa33663ec15e1bd033921cd48447700f3b7cfeb1abe10e"
+    },
+    {
+      "bytes": 33952,
+      "path": "Scripts/v23/app-access-gate.schema.json",
+      "sha256": "cdc64e947f497ed5880d23f42ac8fdc7dff75f12a9c337e46d817fa7a12ce358"
+    },
+    {
+      "bytes": 21524,
+      "path": "Scripts/v23/local-authentication-policy.schema.json",
+      "sha256": "8c444966b614f0dd06c7c175659ca8c06e65f9ed29af93ab8b3276d83b5ab211"
+    },
+    {
+      "bytes": 30215,
+      "path": "Scripts/v23/protected-ingress.schema.json",
+      "sha256": "22c20bd5a14a93201bf0a882bd372a2a5ae06db51ad44cb5d35d8bd14ff593f0"
+    },
+    {
+      "bytes": 73449,
+      "path": "Scripts/v23/app-lock-access-lifecycle.schema.json",
+      "sha256": "e72b496c511da702717e23c3d181c52836cfb24dcaaed3f5caeb226869c384cd"
+    },
+    {
+      "bytes": 73449,
+      "path": "Scripts/v23/app-lock-evidence-receipt.schema.json",
+      "sha256": "f0c8a76019951665da6cde7de3ea7446c2f31c59f5b1f2a8b3fca9e8df241c01"
+    },
+    {
+      "bytes": 8306,
+      "path": "docs/design/v23/tooling/V23P02C11DeviceLocalAppLockSettingContractV1.json",
+      "sha256": "32c1dfd72f651e4fdf5ffafc39c35ed233951049e9fb5cc9e1aa18e7acb5c717"
+    },
+    {
+      "bytes": 11912,
+      "path": "docs/design/v23/tooling/V23P02C11AppAccessGateContractV1.json",
+      "sha256": "993295304a120814259b69ac8ce68ec9209146d694519e0f860c23aa77fb2d3c"
+    },
+    {
+      "bytes": 8281,
+      "path": "docs/design/v23/tooling/V23P02C11LocalAuthenticationPolicyContractV1.json",
+      "sha256": "a446b3792ae72e06452f38a262bac587af81c51b99e1a15ded98136f30a4ca06"
+    },
+    {
+      "bytes": 10689,
+      "path": "docs/design/v23/tooling/V23P02C11ProtectedIngressLifecycleContractV1.json",
+      "sha256": "a45f3c31fb1067239d3f9ca197b9e16d341059f06fc41d16aceea36c460b7f3c"
+    },
+    {
+      "bytes": 23369,
+      "path": "docs/design/v23/tooling/V23P02C11AppLockEvidenceReceiptV1.json",
+      "sha256": "9812463eb24b0d9e204bf4a1933c09231afbf061e2fb94a077291268fb1ae6b7"
+    }
+  ],
+  "authority": {
+    "appBaseHead": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5",
+    "appBaseTree": "d897c15c99f82b993bd3072caf3ce7e937c224c5",
+    "cardID": "V23-P02-C11",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1",
+      "FJ10"
+    ],
+    "contextDigest": "b864682eb37661d7b0316331e9f53de201b7027cc4f8363e130ce5ee66015469",
+    "directPrerequisites": [
+      "V23-P02-C10"
+    ],
+    "invalidationConsumers": [
+      "V23-P04-C14",
+      "V23-P04-C16"
+    ],
+    "lineage": "ADDED_V23",
+    "pathFenceDigest": "c9bef9203b66eea8e816413a646ee5f3ef530ca3d1d5797be43c8f05314207a5",
+    "provisionalPrerequisiteDigest": "1b8045783e35c40f4068db8e692c81751c1d76f58760572a680c699c1ffb4195",
+    "registerOrdinal": 31
+  },
+  "cardID": "V23-P02-C11",
+  "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+  "existingPaths": [
+    "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+  ],
+  "fenceProof": {
+    "activeS10Overlap": false,
+    "activeS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "allowedDeletePaths": [],
+    "allowedRenamePaths": [],
+    "authorizedOverlapEdges": [
+      {
+        "boundEvidence": {
+          "attemptID": 1,
+          "candidateHead": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5",
+          "candidateTree": "d897c15c99f82b993bd3072caf3ce7e937c224c5",
+          "cardID": "V23-P02-C10",
+          "checkpointDigest": "d34b2c65f7bda83e42d01efee9f846d99d4b20893ef30668316b83d25a208820",
+          "contextDigest": "30e8590878c7ebf335245cbc37e160523194a0be0cef648c125eda46e2aa294e",
+          "pathFenceDigest": "9d402508388e16f092697f74de5bdc56fbe8eee6934bfa40c5eeb12675d905d7",
+          "verificationReceiptDigest": "5cbe13f4521b03cf3a7b2793715373f0ec4f36be9adbcdf6a0cf0fca5f851ed4"
+        },
+        "disposition": "AUTHORIZED_SEMANTIC_EXTENSION_OF_DEVICE_LOCAL_TYPED_SETTING_REGISTRY_FOR_APP_LOCK_WITH_PREDECESSOR_EVIDENCE_BOUND",
+        "path": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+        "priorCardID": "V23-P02-C10",
+        "priorFenceDigest": "9d402508388e16f092697f74de5bdc56fbe8eee6934bfa40c5eeb12675d905d7"
+      }
+    ],
+    "authorizedPriorFenceOverlapCount": 1,
+    "baseHead": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5",
+    "baseTree": "d897c15c99f82b993bd3072caf3ce7e937c224c5",
+    "pathFenceDigest": "c9bef9203b66eea8e816413a646ee5f3ef530ca3d1d5797be43c8f05314207a5",
+    "priorFenceCount": 31,
+    "priorFenceOverlapCount": 1,
+    "priorOwnedPathCount": 481,
+    "unauthorizedPriorFenceOverlapCount": 0
+  },
+  "generatedPaths": [
+    "Scripts/v23/device-local-app-lock-setting.schema.json",
+    "Scripts/v23/app-access-gate.schema.json",
+    "Scripts/v23/local-authentication-policy.schema.json",
+    "Scripts/v23/protected-ingress.schema.json",
+    "Scripts/v23/app-lock-access-lifecycle.schema.json",
+    "Scripts/v23/app-lock-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P02C11DeviceLocalAppLockSettingContractV1.json",
+    "docs/design/v23/tooling/V23P02C11AppAccessGateContractV1.json",
+    "docs/design/v23/tooling/V23P02C11LocalAuthenticationPolicyContractV1.json",
+    "docs/design/v23/tooling/V23P02C11ProtectedIngressLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C11AppLockEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P02-C11-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230211,
+    "version": "p02-c11-contracts-v1"
+  },
+  "hostedDispatchEnabled": false,
+  "nativeCompileRan": false,
+  "newPaths": [
+    "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+    "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json",
+    "Scripts/v23/p02_c11_contracts.py",
+    "Scripts/v23/generate_p02_c11_contracts.py",
+    "Scripts/v23/verify_p02_c11_contracts.py",
+    "Scripts/v23/device-local-app-lock-setting.schema.json",
+    "Scripts/v23/app-access-gate.schema.json",
+    "Scripts/v23/local-authentication-policy.schema.json",
+    "Scripts/v23/protected-ingress.schema.json",
+    "Scripts/v23/app-lock-access-lifecycle.schema.json",
+    "Scripts/v23/app-lock-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P02C11DeviceLocalAppLockSettingContractV1.json",
+    "docs/design/v23/tooling/V23P02C11AppAccessGateContractV1.json",
+    "docs/design/v23/tooling/V23P02C11LocalAuthenticationPolicyContractV1.json",
+    "docs/design/v23/tooling/V23P02C11ProtectedIngressLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C11AppLockEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P02-C11-tooling-manifest.json"
+  ],
+  "pathFence": [
+    "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+    "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+    "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json",
+    "Scripts/v23/p02_c11_contracts.py",
+    "Scripts/v23/generate_p02_c11_contracts.py",
+    "Scripts/v23/verify_p02_c11_contracts.py",
+    "Scripts/v23/device-local-app-lock-setting.schema.json",
+    "Scripts/v23/app-access-gate.schema.json",
+    "Scripts/v23/local-authentication-policy.schema.json",
+    "Scripts/v23/protected-ingress.schema.json",
+    "Scripts/v23/app-lock-access-lifecycle.schema.json",
+    "Scripts/v23/app-lock-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P02C11DeviceLocalAppLockSettingContractV1.json",
+    "docs/design/v23/tooling/V23P02C11AppAccessGateContractV1.json",
+    "docs/design/v23/tooling/V23P02C11LocalAuthenticationPolicyContractV1.json",
+    "docs/design/v23/tooling/V23P02C11ProtectedIngressLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C11AppLockEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P02-C11-tooling-manifest.json"
+  ],
+  "pathFenceCount": 24,
+  "pendingArtifactCount": 0,
+  "pendingFencePaths": [],
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "provisionalKernelOnly": true,
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23-P02-C11-tooling-manifest",
+  "schemaVersion": 1,
+  "semanticCoverage": {
+    "contractSymbolCount": 14,
+    "exactTestCount": 5,
+    "fixtureDigest": "3d8ad0dd0c5ba45168b80821dad8a706308c67f2212d3a4aa6169ef59a3fb04f",
+    "interruptionBoundaryCount": 12,
+    "sourcePending": false
+  },
+  "sourcePathCount": 9,
+  "sourcePaths": [
+    "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+    "FieldEvidenceApp/Domain/Security/AppAccessContractsV1.swift",
+    "FieldEvidenceApp/Application/Ports/AppAccessPortsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/SystemLocalAuthenticationClientV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/AppAccessGateV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/ProtectedIngressCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Security/AppLockLifecycleCoordinatorV1.swift",
+    "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V23/AppLock/V23P02C11AppLockLifecycleCorpusV1.json"
+  ],
+  "strictSchemaCount": 6,
+  "toolingPathCount": 15,
+  "toolingPaths": [
+    "Scripts/v23/p02_c11_contracts.py",
+    "Scripts/v23/generate_p02_c11_contracts.py",
+    "Scripts/v23/verify_p02_c11_contracts.py",
+    "Scripts/v23/device-local-app-lock-setting.schema.json",
+    "Scripts/v23/app-access-gate.schema.json",
+    "Scripts/v23/local-authentication-policy.schema.json",
+    "Scripts/v23/protected-ingress.schema.json",
+    "Scripts/v23/app-lock-access-lifecycle.schema.json",
+    "Scripts/v23/app-lock-evidence-receipt.schema.json",
+    "docs/design/v23/tooling/V23P02C11DeviceLocalAppLockSettingContractV1.json",
+    "docs/design/v23/tooling/V23P02C11AppAccessGateContractV1.json",
+    "docs/design/v23/tooling/V23P02C11LocalAuthenticationPolicyContractV1.json",
+    "docs/design/v23/tooling/V23P02C11ProtectedIngressLifecycleContractV1.json",
+    "docs/design/v23/tooling/V23P02C11AppLockEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P02-C11-tooling-manifest.json"
+  ]
+}

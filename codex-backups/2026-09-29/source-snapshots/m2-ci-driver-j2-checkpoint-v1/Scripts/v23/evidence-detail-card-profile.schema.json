@@ -1,0 +1,3779 @@
+{
+  "$defs": {
+    "audience-privacy-detector-disposition-v1": {
+      "enum": [
+        "BLOCKED",
+        "PASS"
+      ],
+      "type": "string"
+    },
+    "audience-privacy-finding-kind-v1": {
+      "enum": [
+        "PROHIBITED_ANNOTATION",
+        "PROHIBITED_FIELD",
+        "PROHIBITED_REFERENCE_LABEL",
+        "PROHIBITED_SEMANTIC_TEXT"
+      ],
+      "type": "string"
+    },
+    "audience-privacy-policy-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "$ref": "#/$defs/report-audience-v1"
+        },
+        "policyID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "policySHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "policyVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "prohibitedCanaries": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "audience",
+        "policyID",
+        "policySHA256",
+        "policyVersion",
+        "prohibitedCanaries",
+        "schemaVersion"
+      ],
+      "type": "object"
+    },
+    "completed-activity-snapshot-payload-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "amendmentReason": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "completedAt": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+          "type": "string"
+        },
+        "evidenceCards": {
+          "items": {
+            "$ref": "#/$defs/evidence-detail-card-v1"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "generatedAt": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 64,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "packageReleaseID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "profileBinding": {
+          "$ref": "#/$defs/finalized-report-profile-binding-v1"
+        },
+        "reportID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "serviceFacts": {
+          "items": {
+            "$ref": "#/$defs/completed-service-fact-v1"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "snapshotID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "snapshotRevision": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sourceActivityID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "sourceRevision": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "supersededSnapshotSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "supersedesSnapshotID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "workspaceID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "completedAt",
+        "evidenceCards",
+        "generatedAt",
+        "limitations",
+        "packageReleaseID",
+        "profileBinding",
+        "reportID",
+        "schemaVersion",
+        "serviceFacts",
+        "snapshotID",
+        "snapshotRevision",
+        "sourceActivityID",
+        "sourceRevision",
+        "workspaceID"
+      ],
+      "type": "object"
+    },
+    "completed-activity-snapshot-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "payload": {
+          "$ref": "#/$defs/completed-activity-snapshot-payload-v1"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "snapshotSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "payload",
+        "schemaVersion",
+        "snapshotSHA256"
+      ],
+      "type": "object"
+    },
+    "completed-service-fact-kind-v1": {
+      "enum": [
+        "SERVICE_HISTORY",
+        "SERVICE_REQUEST",
+        "SERVICE_STATUS"
+      ],
+      "type": "string"
+    },
+    "completed-service-fact-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "effectiveAt": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+          "type": "string"
+        },
+        "factID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "kind": {
+          "$ref": "#/$defs/completed-service-fact-kind-v1"
+        },
+        "label": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "privacyClass": {
+          "$ref": "#/$defs/report-privacy-class-v1"
+        },
+        "value": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "factID",
+        "kind",
+        "label",
+        "privacyClass",
+        "value"
+      ],
+      "type": "object"
+    },
+    "content-byte-role-v1": {
+      "enum": [
+        "DERIVATIVE",
+        "IMMUTABLE_ORIGINAL"
+      ],
+      "type": "string"
+    },
+    "contract-codec-rule-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "binaryEncoding": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "canonicalJSON": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "codecVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "formatAssertion": {
+          "type": "boolean"
+        },
+        "integerEncoding": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "nullEncoding": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "stringNormalization": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "timeEncoding": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "binaryEncoding",
+        "canonicalJSON",
+        "codecVersion",
+        "formatAssertion",
+        "integerEncoding",
+        "nullEncoding",
+        "stringNormalization",
+        "timeEncoding"
+      ],
+      "type": "object"
+    },
+    "contract-compatibility-rule-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "maximumReaderVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "minimumReaderVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "publishedVersionsImmutable": {
+          "type": "boolean"
+        },
+        "unknownObjectFields": {
+          "$ref": "#/$defs/contract-unknown-field-policy-v1"
+        }
+      },
+      "required": [
+        "maximumReaderVersion",
+        "minimumReaderVersion",
+        "publishedVersionsImmutable",
+        "unknownObjectFields"
+      ],
+      "type": "object"
+    },
+    "contract-enum-definition-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "knownValues": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 512,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true,
+          "x_assetrounds_orderingKey": "LEXICOGRAPHIC"
+        },
+        "policy": {
+          "$ref": "#/$defs/contract-enum-policy-v1"
+        },
+        "typeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "knownValues",
+        "policy",
+        "typeID",
+        "version"
+      ],
+      "type": "object"
+    },
+    "contract-enum-policy-v1": {
+      "enum": [
+        "CLOSED",
+        "PRESERVE_UNKNOWN"
+      ],
+      "type": "string"
+    },
+    "contract-field-definition-v1": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "nullable": {
+                "const": true
+              }
+            },
+            "required": [
+              "nullable"
+            ]
+          },
+          "then": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "arrayElementKind"
+                  ]
+                },
+                {
+                  "required": [
+                    "maximumItems"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "ordered": {
+                "const": false
+              },
+              "uniqueItems": {
+                "const": false
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ARRAY"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "minimumInteger"
+                  ]
+                },
+                {
+                  "required": [
+                    "maximumInteger"
+                  ]
+                },
+                {
+                  "required": [
+                    "maximumUTF8Bytes"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "arrayElementKind": {
+                "not": {
+                  "const": "ARRAY"
+                }
+              }
+            },
+            "required": [
+              "arrayElementKind",
+              "maximumItems"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "OBJECT",
+                  "ENUM"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "referencedTypeID"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "arrayElementKind": {
+                "enum": [
+                  "OBJECT",
+                  "ENUM"
+                ]
+              },
+              "kind": {
+                "const": "ARRAY"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "referencedTypeID"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "BASE64_BYTES",
+                  "BOOLEAN",
+                  "INTEGER",
+                  "SHA256",
+                  "STRING",
+                  "UTC_INSTANT"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "referencedTypeID"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "arrayElementKind": {
+                "enum": [
+                  "BASE64_BYTES",
+                  "BOOLEAN",
+                  "INTEGER",
+                  "SHA256",
+                  "STRING",
+                  "UTC_INSTANT"
+                ]
+              },
+              "kind": {
+                "const": "ARRAY"
+              }
+            },
+            "required": [
+              "kind",
+              "arrayElementKind"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "referencedTypeID"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "minimumInteger"
+                  ]
+                },
+                {
+                  "required": [
+                    "maximumInteger"
+                  ]
+                }
+              ]
+            }
+          },
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "INTEGER"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        },
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "maximumUTF8Bytes"
+                  ]
+                }
+              ]
+            }
+          },
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "STRING",
+                  "BASE64_BYTES"
+                ]
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "arrayElementKind": {
+          "$ref": "#/$defs/contract-scalar-kind-v1"
+        },
+        "fieldID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "jsonName": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "kind": {
+          "$ref": "#/$defs/contract-scalar-kind-v1"
+        },
+        "maximumInteger": {
+          "type": "integer"
+        },
+        "maximumItems": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumUTF8Bytes": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "minimumInteger": {
+          "type": "integer"
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "ordered": {
+          "type": "boolean"
+        },
+        "referencedTypeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "uniqueItems": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "fieldID",
+        "jsonName",
+        "kind",
+        "nullable",
+        "ordered",
+        "required",
+        "uniqueItems"
+      ],
+      "type": "object",
+      "x_assetrounds_integerBoundOrder": "minimumInteger <= maximumInteger when both are present"
+    },
+    "contract-manifest-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "codec": {
+          "$ref": "#/$defs/contract-codec-rule-v1"
+        },
+        "compatibility": {
+          "$ref": "#/$defs/contract-compatibility-rule-v1"
+        },
+        "enums": {
+          "items": {
+            "$ref": "#/$defs/contract-enum-definition-v1"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true,
+          "x_assetrounds_orderingKey": "typeID"
+        },
+        "manifestID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "manifestVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/contract-object-definition-v1"
+          },
+          "maxItems": 512,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true,
+          "x_assetrounds_orderingKey": "typeID"
+        },
+        "persistentContractSchema": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "reportSectionRegistry": {
+          "$ref": "#/$defs/report-section-registry-v1"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "codec",
+        "compatibility",
+        "enums",
+        "manifestID",
+        "manifestVersion",
+        "objects",
+        "persistentContractSchema",
+        "reportSectionRegistry",
+        "schemaVersion"
+      ],
+      "type": "object"
+    },
+    "contract-object-definition-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/contract-field-definition-v1"
+          },
+          "maxItems": 512,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true,
+          "x_assetrounds_orderingKey": "fieldID"
+        },
+        "typeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "unknownFieldPolicy": {
+          "$ref": "#/$defs/contract-unknown-field-policy-v1"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fields",
+        "typeID",
+        "unknownFieldPolicy",
+        "version"
+      ],
+      "type": "object"
+    },
+    "contract-scalar-kind-v1": {
+      "enum": [
+        "ARRAY",
+        "BASE64_BYTES",
+        "BOOLEAN",
+        "ENUM",
+        "INTEGER",
+        "OBJECT",
+        "SHA256",
+        "STRING",
+        "UTC_INSTANT"
+      ],
+      "type": "string"
+    },
+    "contract-schema-derivation-receipt-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "independentInstanceValidationOwner": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "manifestSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "officialMetaSchemaValid": {
+          "type": "boolean"
+        },
+        "receiptID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "releaseDependencyAdded": {
+          "type": "boolean"
+        },
+        "repeatedGenerationByteIdentical": {
+          "type": "boolean"
+        },
+        "schemaSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "independentInstanceValidationOwner",
+        "manifestSHA256",
+        "officialMetaSchemaValid",
+        "receiptID",
+        "releaseDependencyAdded",
+        "repeatedGenerationByteIdentical",
+        "schemaSHA256",
+        "schemaVersion"
+      ],
+      "type": "object"
+    },
+    "contract-unknown-field-policy-v1": {
+      "enum": [
+        "PRESERVE",
+        "REJECT"
+      ],
+      "type": "string"
+    },
+    "evidence-detail-card-profile-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "$ref": "#/$defs/report-audience-v1"
+        },
+        "audiencePrivacyPolicy": {
+          "$ref": "#/$defs/audience-privacy-policy-v1"
+        },
+        "displayProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "includedFieldIDs": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "limitationsText": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "localeIdentifier": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 64,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "markupProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "markupProfileVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "outputScopeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "privacyTransformID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "privacyTransformVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "profileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "profileRelease": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "rendererVersion": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "audience",
+        "audiencePrivacyPolicy",
+        "displayProfileID",
+        "includedFieldIDs",
+        "limitationsText",
+        "localeIdentifier",
+        "markupProfileID",
+        "markupProfileVersion",
+        "outputScopeID",
+        "privacyTransformID",
+        "privacyTransformVersion",
+        "profileID",
+        "profileRelease",
+        "rendererVersion",
+        "schemaVersion"
+      ],
+      "type": "object"
+    },
+    "evidence-detail-card-render-receipt-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "$ref": "#/$defs/report-audience-v1"
+        },
+        "captureTimeVerified": {
+          "type": "boolean"
+        },
+        "cardID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "composedOutputSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "confirmation": {
+          "$ref": "#/$defs/final-audience-privacy-confirmation-v1"
+        },
+        "confirmationID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "limitationsPresented": {
+          "type": "boolean"
+        },
+        "locationVerified": {
+          "type": "boolean"
+        },
+        "outputScopeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "personVerified": {
+          "type": "boolean"
+        },
+        "privacyTransformSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "profileSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "receiptID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "reviewedMarkupSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "semanticSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "semanticTextSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "snapshotID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "sourceSnapshotSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "audience",
+        "captureTimeVerified",
+        "cardID",
+        "composedOutputSHA256",
+        "confirmation",
+        "confirmationID",
+        "limitationsPresented",
+        "locationVerified",
+        "outputScopeID",
+        "personVerified",
+        "privacyTransformSHA256",
+        "profileSHA256",
+        "receiptID",
+        "reviewedMarkupSHA256",
+        "schemaVersion",
+        "semanticSHA256",
+        "semanticTextSHA256",
+        "snapshotID",
+        "sourceSnapshotSHA256"
+      ],
+      "type": "object"
+    },
+    "evidence-detail-card-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 128,
+          "type": "array",
+          "x_assetrounds_ordered": true
+        },
+        "audience": {
+          "$ref": "#/$defs/report-audience-v1"
+        },
+        "audiencePrivacyPolicy": {
+          "$ref": "#/$defs/audience-privacy-policy-v1"
+        },
+        "audiencePrivacyPolicyID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "audiencePrivacyPolicySHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "audiencePrivacyPolicyVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "cardID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "displayProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "evidenceID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/evidence-detail-field-v1"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "limitationsText": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "localeIdentifier": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 64,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "outputReferences": {
+          "items": {
+            "$ref": "#/$defs/output-scoped-content-reference-v1"
+          },
+          "maxItems": 256,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "outputScopeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "privacyTransformID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "privacyTransformVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "privacyTransformedSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/evidence-detail-card-profile-v1"
+        },
+        "profileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "profileSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "referenceLabels": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 256,
+          "type": "array",
+          "x_assetrounds_ordered": true
+        },
+        "rendererVersion": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "reviewedMarkup": {
+          "$ref": "#/$defs/reviewed-evidence-markup-v1"
+        },
+        "reviewedMarkupID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "reviewedMarkupSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "workspaceID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "annotations",
+        "audience",
+        "audiencePrivacyPolicy",
+        "audiencePrivacyPolicyID",
+        "audiencePrivacyPolicySHA256",
+        "audiencePrivacyPolicyVersion",
+        "cardID",
+        "displayProfileID",
+        "evidenceID",
+        "fields",
+        "limitationsText",
+        "localeIdentifier",
+        "outputReferences",
+        "outputScopeID",
+        "privacyTransformID",
+        "privacyTransformVersion",
+        "privacyTransformedSHA256",
+        "profile",
+        "profileID",
+        "profileSHA256",
+        "referenceLabels",
+        "rendererVersion",
+        "reviewedMarkup",
+        "reviewedMarkupID",
+        "reviewedMarkupSHA256",
+        "schemaVersion",
+        "workspaceID"
+      ],
+      "type": "object"
+    },
+    "evidence-detail-field-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "fieldID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "label": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "sensitivity": {
+          "$ref": "#/$defs/evidence-detail-sensitivity-v1"
+        },
+        "value": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "fieldID",
+        "label",
+        "sensitivity",
+        "value"
+      ],
+      "type": "object"
+    },
+    "evidence-detail-sensitivity-v1": {
+      "enum": [
+        "AUDIENCE_SAFE",
+        "CAPABILITY_SECRET",
+        "CONTACT_DATA",
+        "DIAGNOSTIC",
+        "DIRECT_COST",
+        "LOCAL_IDENTIFIER",
+        "ORIGINAL_MEDIA",
+        "PRIVATE_NOTE"
+      ],
+      "type": "string"
+    },
+    "export-profile-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "exportProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "exportProfileRelease": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "formats": {
+          "items": {
+            "$ref": "#/$defs/report-projection-format-v1"
+          },
+          "maxItems": 6,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "maximumArchiveBytes": {
+          "maximum": 8388608,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumMediaItems": {
+          "maximum": 256,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "packaging": {
+          "$ref": "#/$defs/report-packaging-v1"
+        },
+        "privacyTransformID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "exportProfileID",
+        "exportProfileRelease",
+        "formats",
+        "maximumArchiveBytes",
+        "maximumMediaItems",
+        "packaging",
+        "privacyTransformID",
+        "schemaVersion"
+      ],
+      "type": "object"
+    },
+    "final-audience-privacy-confirmation-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "approvalVerified": {
+          "type": "boolean"
+        },
+        "audience": {
+          "$ref": "#/$defs/report-audience-v1"
+        },
+        "audiencePrivacyPolicyID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "audiencePrivacyPolicySHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "audiencePrivacyPolicyVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "captureTimeVerified": {
+          "type": "boolean"
+        },
+        "card": {
+          "$ref": "#/$defs/evidence-detail-card-v1"
+        },
+        "cardSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "composedOutputSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "confirmationID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "deliveryVerified": {
+          "type": "boolean"
+        },
+        "detection": {
+          "$ref": "#/$defs/post-markup-audience-privacy-detection-v1"
+        },
+        "detectorDisposition": {
+          "$ref": "#/$defs/audience-privacy-detector-disposition-v1"
+        },
+        "detectorID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "detectorVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "displayProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "historicalRewriteClaimed": {
+          "type": "boolean"
+        },
+        "localeIdentifier": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 64,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "locationVerified": {
+          "type": "boolean"
+        },
+        "outputScopeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "personVerified": {
+          "type": "boolean"
+        },
+        "privacyTransformAppliedBeforeMarkup": {
+          "type": "boolean"
+        },
+        "privacyTransformSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "profileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "profileSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "rendererVersion": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "reviewedMarkupSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "securityVerified": {
+          "type": "boolean"
+        },
+        "semanticSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "semanticTextSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sourceSnapshotSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "userConfirmedExactComposedBytes": {
+          "type": "boolean"
+        },
+        "workspaceID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "approvalVerified",
+        "audience",
+        "audiencePrivacyPolicyID",
+        "audiencePrivacyPolicySHA256",
+        "audiencePrivacyPolicyVersion",
+        "captureTimeVerified",
+        "card",
+        "cardSHA256",
+        "composedOutputSHA256",
+        "confirmationID",
+        "deliveryVerified",
+        "detection",
+        "detectorDisposition",
+        "detectorID",
+        "detectorVersion",
+        "displayProfileID",
+        "historicalRewriteClaimed",
+        "localeIdentifier",
+        "locationVerified",
+        "outputScopeID",
+        "personVerified",
+        "privacyTransformAppliedBeforeMarkup",
+        "privacyTransformSHA256",
+        "profileID",
+        "profileSHA256",
+        "rendererVersion",
+        "reviewedMarkupSHA256",
+        "schemaVersion",
+        "securityVerified",
+        "semanticSHA256",
+        "semanticTextSHA256",
+        "sourceSnapshotSHA256",
+        "userConfirmedExactComposedBytes",
+        "workspaceID"
+      ],
+      "type": "object"
+    },
+    "finalized-report-profile-binding-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "$ref": "#/$defs/report-audience-v1"
+        },
+        "contractManifestID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "contractManifestSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "contractManifestVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "detail": {
+          "$ref": "#/$defs/report-detail-level-v1"
+        },
+        "displayProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "exportProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "exportProfileRelease": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "exportProfileSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "localeIdentifier": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 64,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "mediaLayout": {
+          "$ref": "#/$defs/report-media-layout-v1"
+        },
+        "orientation": {
+          "$ref": "#/$defs/report-orientation-v1"
+        },
+        "outputScopeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "privacyTransformID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "projectionVersion": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "rendererVersion": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "reportProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "reportProfileRelease": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "reportProfileSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sectionIDs": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 64,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "sectionRegistryID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "sectionRegistrySHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "sectionRegistryVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "snapshotID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "unitsProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "workspaceID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "audience",
+        "contractManifestID",
+        "contractManifestSHA256",
+        "contractManifestVersion",
+        "detail",
+        "displayProfileID",
+        "exportProfileID",
+        "exportProfileRelease",
+        "exportProfileSHA256",
+        "localeIdentifier",
+        "mediaLayout",
+        "orientation",
+        "outputScopeID",
+        "privacyTransformID",
+        "projectionVersion",
+        "rendererVersion",
+        "reportProfileID",
+        "reportProfileRelease",
+        "reportProfileSHA256",
+        "schemaVersion",
+        "sectionIDs",
+        "sectionRegistryID",
+        "sectionRegistrySHA256",
+        "sectionRegistryVersion",
+        "snapshotID",
+        "unitsProfileID",
+        "workspaceID"
+      ],
+      "type": "object"
+    },
+    "open-json-schema-projection-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "manifestID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "manifestSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "manifestVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "networkFetchRequired": {
+          "type": "boolean"
+        },
+        "schemaID": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "schemaSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dialect",
+        "manifestID",
+        "manifestSHA256",
+        "manifestVersion",
+        "networkFetchRequired",
+        "schemaID",
+        "schemaSHA256",
+        "schemaVersion"
+      ],
+      "type": "object"
+    },
+    "output-scoped-content-reference-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "byteRole": {
+          "$ref": "#/$defs/content-byte-role-v1"
+        },
+        "contentSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "mediaType": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "outputReferenceID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "outputScopeID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "workspaceBindingSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "byteRole",
+        "contentSHA256",
+        "mediaType",
+        "outputReferenceID",
+        "outputScopeID",
+        "workspaceBindingSHA256"
+      ],
+      "type": "object"
+    },
+    "post-markup-audience-privacy-detection-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "$ref": "#/$defs/report-audience-v1"
+        },
+        "cardSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "composedOutput": {
+          "contentEncoding": "base64",
+          "maxLength": 11184812,
+          "minLength": 4,
+          "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+          "type": "string",
+          "x_assetrounds_maximumDecodedBytes": 8388608,
+          "x_assetrounds_maximumEncodedUTF8Bytes": 11184812
+        },
+        "composedOutputSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "detectorID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "detectorVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "disposition": {
+          "$ref": "#/$defs/audience-privacy-detector-disposition-v1"
+        },
+        "findingKinds": {
+          "items": {
+            "$ref": "#/$defs/audience-privacy-finding-kind-v1"
+          },
+          "maxItems": 4,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "policyID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "policySHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "policyVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "semanticText": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "semanticTextSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "audience",
+        "cardSHA256",
+        "composedOutput",
+        "composedOutputSHA256",
+        "detectorID",
+        "detectorVersion",
+        "disposition",
+        "findingKinds",
+        "policyID",
+        "policySHA256",
+        "policyVersion",
+        "schemaVersion",
+        "semanticText",
+        "semanticTextSHA256"
+      ],
+      "type": "object"
+    },
+    "report-audience-v1": {
+      "enum": [
+        "CUSTOMER_SAFE",
+        "INTERNAL"
+      ],
+      "type": "string"
+    },
+    "report-detail-level-v1": {
+      "enum": [
+        "COMPLETE",
+        "SUMMARY"
+      ],
+      "type": "string"
+    },
+    "report-layout-profile-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "$ref": "#/$defs/report-audience-v1"
+        },
+        "detail": {
+          "$ref": "#/$defs/report-detail-level-v1"
+        },
+        "displayProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "localeIdentifier": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 64,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "mediaLayout": {
+          "$ref": "#/$defs/report-media-layout-v1"
+        },
+        "orientation": {
+          "$ref": "#/$defs/report-orientation-v1"
+        },
+        "profileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "profileRelease": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sectionIDs": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 64,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "unitsProfileID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "audience",
+        "detail",
+        "displayProfileID",
+        "localeIdentifier",
+        "mediaLayout",
+        "orientation",
+        "profileID",
+        "profileRelease",
+        "schemaVersion",
+        "sectionIDs",
+        "unitsProfileID"
+      ],
+      "type": "object"
+    },
+    "report-media-layout-v1": {
+      "enum": [
+        "COMPACT_GRID",
+        "FULL_WIDTH",
+        "NONE",
+        "STANDARD_GRID"
+      ],
+      "type": "string"
+    },
+    "report-orientation-v1": {
+      "enum": [
+        "LANDSCAPE",
+        "PORTRAIT"
+      ],
+      "type": "string"
+    },
+    "report-packaging-v1": {
+      "enum": [
+        "COMBINED",
+        "SEPARATE_PER_WORK_ITEM"
+      ],
+      "type": "string"
+    },
+    "report-preview-projection-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "hasMetricEffect": {
+          "type": "boolean"
+        },
+        "hasReportEffect": {
+          "type": "boolean"
+        },
+        "hasShareEffect": {
+          "type": "boolean"
+        },
+        "markedPreview": {
+          "type": "boolean"
+        },
+        "previewID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "profileSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sourceRevision": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hasMetricEffect",
+        "hasReportEffect",
+        "hasShareEffect",
+        "markedPreview",
+        "previewID",
+        "profileSHA256",
+        "schemaVersion",
+        "sourceRevision"
+      ],
+      "type": "object"
+    },
+    "report-privacy-class-v1": {
+      "enum": [
+        "AUDIENCE_SAFE",
+        "INTERNAL_ONLY",
+        "MANDATORY_PUBLIC_TRUTH"
+      ],
+      "type": "string"
+    },
+    "report-projection-format-v1": {
+      "enum": [
+        "FORMULA_SAFE_CSV",
+        "MANIFEST",
+        "MEDIA",
+        "OPEN_JSON",
+        "PDF",
+        "STRUCTURED_TEXT"
+      ],
+      "type": "string"
+    },
+    "report-projection-registry-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "adoptionEnabled": {
+          "type": "boolean"
+        },
+        "downgradeDisposition": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "hostedDispatchRan": {
+          "type": "boolean"
+        },
+        "nativeCompileRan": {
+          "type": "boolean"
+        },
+        "persistentContractSchema": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "registryID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        },
+        "requiredFormats": {
+          "items": {
+            "$ref": "#/$defs/report-projection-format-v1"
+          },
+          "maxItems": 6,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "type": "boolean"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "soleRenderer": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "acceptanceCredit",
+        "adoptionEnabled",
+        "downgradeDisposition",
+        "hostedDispatchRan",
+        "nativeCompileRan",
+        "persistentContractSchema",
+        "registryID",
+        "releaseCredit",
+        "requiredFormats",
+        "requiresAcceptedS10_6Reconciliation",
+        "schemaVersion",
+        "soleRenderer"
+      ],
+      "type": "object"
+    },
+    "report-section-definition-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "order": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "privacyClass": {
+          "$ref": "#/$defs/report-privacy-class-v1"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "requiresHeading": {
+          "type": "boolean"
+        },
+        "requiresTextAlternative": {
+          "type": "boolean"
+        },
+        "sectionID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "supportedFormats": {
+          "items": {
+            "$ref": "#/$defs/report-projection-format-v1"
+          },
+          "maxItems": 6,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true,
+          "x_assetrounds_orderingKey": "RAW_VALUE"
+        },
+        "version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "order",
+        "privacyClass",
+        "required",
+        "requiresHeading",
+        "requiresTextAlternative",
+        "sectionID",
+        "supportedFormats",
+        "version"
+      ],
+      "type": "object"
+    },
+    "report-section-registry-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "registryID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "registryVersion": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/report-section-definition-v1"
+          },
+          "maxItems": 64,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true,
+          "x_assetrounds_orderingKey": "order"
+        }
+      },
+      "required": [
+        "registryID",
+        "registryVersion",
+        "schemaVersion",
+        "sections"
+      ],
+      "type": "object"
+    },
+    "report-semantic-node-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "outputReferenceID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "role": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "sectionID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "semanticID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "value": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 4096,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        }
+      },
+      "required": [
+        "label",
+        "role",
+        "sectionID",
+        "semanticID",
+        "value"
+      ],
+      "type": "object"
+    },
+    "report-semantic-projection-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "manifestSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/report-semantic-node-v1"
+          },
+          "maxItems": 512,
+          "type": "array",
+          "uniqueItems": true,
+          "x_assetrounds_ordered": true
+        },
+        "profileBindingSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "projectionVersion": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "schemaVersion": {
+          "maximum": 1,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "semanticSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "snapshotID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "snapshotSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "manifestSHA256",
+        "nodes",
+        "profileBindingSHA256",
+        "projectionVersion",
+        "schemaVersion",
+        "semanticSHA256",
+        "snapshotID",
+        "snapshotSHA256"
+      ],
+      "type": "object"
+    },
+    "reviewed-evidence-markup-v1": {
+      "additionalProperties": false,
+      "properties": {
+        "markupID": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+          "type": "string",
+          "x_assetrounds_forbiddenUnicodeScalarClasses": [
+            "C0",
+            "C1",
+            "BIDI_CONTROL",
+            "NONCHARACTER"
+          ],
+          "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+          "x_assetrounds_maximumUTF8Bytes": 128,
+          "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+          "x_assetrounds_requiresNFC": true
+        },
+        "orderedAnnotations": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 128,
+          "type": "array",
+          "x_assetrounds_ordered": true
+        },
+        "orderedReferenceLabels": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "maxItems": 256,
+          "type": "array",
+          "x_assetrounds_ordered": true
+        },
+        "sourcePrivacyDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "markupID",
+        "orderedAnnotations",
+        "orderedReferenceLabels",
+        "sourcePrivacyDigest"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.assetrounds.local/v23/p03/c06/evidence-detail-card-profile-v1/schema",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "audience": {
+      "$ref": "#/$defs/report-audience-v1"
+    },
+    "audiencePrivacyPolicy": {
+      "$ref": "#/$defs/audience-privacy-policy-v1"
+    },
+    "displayProfileID": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_forbiddenUnicodeScalarClasses": [
+        "C0",
+        "C1",
+        "BIDI_CONTROL",
+        "NONCHARACTER"
+      ],
+      "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+      "x_assetrounds_maximumUTF8Bytes": 128,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "includedFieldIDs": {
+      "items": {
+        "minLength": 1,
+        "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+        "type": "string",
+        "x_assetrounds_forbiddenUnicodeScalarClasses": [
+          "C0",
+          "C1",
+          "BIDI_CONTROL",
+          "NONCHARACTER"
+        ],
+        "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+        "x_assetrounds_requiresNFC": true
+      },
+      "maxItems": 256,
+      "type": "array",
+      "uniqueItems": true,
+      "x_assetrounds_ordered": true
+    },
+    "limitationsText": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_forbiddenUnicodeScalarClasses": [
+        "C0",
+        "C1",
+        "BIDI_CONTROL",
+        "NONCHARACTER"
+      ],
+      "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+      "x_assetrounds_maximumUTF8Bytes": 4096,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "localeIdentifier": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_forbiddenUnicodeScalarClasses": [
+        "C0",
+        "C1",
+        "BIDI_CONTROL",
+        "NONCHARACTER"
+      ],
+      "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+      "x_assetrounds_maximumUTF8Bytes": 64,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "markupProfileID": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_forbiddenUnicodeScalarClasses": [
+        "C0",
+        "C1",
+        "BIDI_CONTROL",
+        "NONCHARACTER"
+      ],
+      "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+      "x_assetrounds_maximumUTF8Bytes": 128,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "markupProfileVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "outputScopeID": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_forbiddenUnicodeScalarClasses": [
+        "C0",
+        "C1",
+        "BIDI_CONTROL",
+        "NONCHARACTER"
+      ],
+      "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+      "x_assetrounds_maximumUTF8Bytes": 128,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "privacyTransformID": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_forbiddenUnicodeScalarClasses": [
+        "C0",
+        "C1",
+        "BIDI_CONTROL",
+        "NONCHARACTER"
+      ],
+      "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+      "x_assetrounds_maximumUTF8Bytes": 128,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "privacyTransformVersion": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "profileID": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_forbiddenUnicodeScalarClasses": [
+        "C0",
+        "C1",
+        "BIDI_CONTROL",
+        "NONCHARACTER"
+      ],
+      "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+      "x_assetrounds_maximumUTF8Bytes": 128,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "profileRelease": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "rendererVersion": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+      "type": "string",
+      "x_assetrounds_forbiddenUnicodeScalarClasses": [
+        "C0",
+        "C1",
+        "BIDI_CONTROL",
+        "NONCHARACTER"
+      ],
+      "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+      "x_assetrounds_maximumUTF8Bytes": 128,
+      "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+      "x_assetrounds_requiresNFC": true
+    },
+    "schemaVersion": {
+      "maximum": 1,
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "audience",
+    "audiencePrivacyPolicy",
+    "displayProfileID",
+    "includedFieldIDs",
+    "limitationsText",
+    "localeIdentifier",
+    "markupProfileID",
+    "markupProfileVersion",
+    "outputScopeID",
+    "privacyTransformID",
+    "privacyTransformVersion",
+    "profileID",
+    "profileRelease",
+    "rendererVersion",
+    "schemaVersion"
+  ],
+  "title": "EvidenceDetailCardProfileV1",
+  "type": "object",
+  "x_assetrounds_manifestID": "v23-p03-c06-contract-manifest-v1",
+  "x_assetrounds_manifestVersion": 1,
+  "x_assetrounds_normativeManifestPath": "docs/design/v23/tooling/V23P03C06ContractManifestV1.json",
+  "x_assetrounds_productManifestDerived": true,
+  "x_assetrounds_rootTypeID": "evidence-detail-card-profile-v1",
+  "x_assetrounds_schemaClass": "PRODUCT_CONTRACT"
+}

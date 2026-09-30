@@ -1,0 +1,335 @@
+{
+  "schema": "V23P04C15DiscoveryTruthCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C15",
+  "ordinal": 103,
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "authority": {
+    "contextDigest": "8c91ab54613fdb048eb004a0c1bb986ea205c40b61d2b9cbc2092ef383acf089",
+    "pathFenceDigest": "0bab4884aaee9d5653a6beb4f5ef9ec41ded105a7f77677a64e57eb542f0be0b",
+    "sequence": 448,
+    "finalHashesSealed": false
+  },
+  "semantics": {
+    "persistentContractMode": "DECLARATION_ONLY",
+    "persistentContractSchema": "DISCOVERY_TRUTH_CATALOG_V1",
+    "publicationEligible": false,
+    "sixProofKinds": [
+      "CAPABILITY",
+      "EVIDENCE",
+      "BRAND",
+      "CANDIDATE",
+      "APPROVAL",
+      "EXPIRY_SUPERSESSION"
+    ],
+    "aggregateNoJoinKey": true,
+    "aggregateNoRealData": true,
+    "uiAdoption": "POST_S10_6_SKIP_NO_CREDIT"
+  },
+  "selectors": [
+    {
+      "id": "G01",
+      "selector": "testV23P04C15G01DiscoveryTruthCatalogValidatesLocalizedLimitsAndClosedArtifactSet",
+      "tier": "GOLDEN"
+    },
+    {
+      "id": "A01",
+      "selector": "testV23P04C15A01CategoriesAndAppTagsRemainSeparateTypedSets",
+      "tier": "ALTERNATE"
+    },
+    {
+      "id": "H01",
+      "selector": "testV23P04C15H01HostileOpaqueStaleRealDataAndDraftPublishedInputsFailClosed",
+      "tier": "HOSTILE"
+    },
+    {
+      "id": "I01",
+      "selector": "testV23P04C15I01InterruptedDeclarationGenerationLeavesZeroPartialOrCompleteArtifactSet",
+      "tier": "INTERRUPTION"
+    },
+    {
+      "id": "R01",
+      "selector": "testV23P04C15R01DeletingAndRebuildingDeclarationArtifactsLeavesProductAndPublicStateUnchanged",
+      "tier": "RECOVERY"
+    }
+  ],
+  "requirements": {
+    "closedLocalizedPlatformLimits": true,
+    "categoriesAndAppTagsAreSeparate": true,
+    "candidateAndBrandRevisionBindExactly": true,
+    "staticProofKindsAreClosed": true,
+    "syntheticSamplesOnly": true,
+    "aggregateEvidenceHasNoStableJoinKeys": true,
+    "unapprovedClaimsDisabledOrDeferred": true,
+    "publicationProviderAndNetworkDisabled": true,
+    "interruptionIsZeroPartialOrComplete": true,
+    "declarationDeletionPreservesProductAndPublicState": true
+  },
+  "catalog": {
+    "candidate": {
+      "candidateID": "c15-candidate-synthetic-v1",
+      "status": "DRAFT_ONLY",
+      "brandBaselineID": "c15-brand-baseline-synthetic-v1",
+      "brandRevision": "c15-brand-revision-v1",
+      "brandRevisionSHA256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "locales": [
+      {
+        "locale": "en-US",
+        "name": "AssetRounds",
+        "subtitle": "Evidence for every round",
+        "keywords": "field,evidence,inspection,report",
+        "promotionalText": "Practice inspections with private, synthetic evidence.",
+        "description": "AssetRounds keeps inspection work clear and reviewable with bounded, synthetic examples. This declaration is a draft-only proof of localized storefront limits and does not represent a submitted or published listing."
+      },
+      {
+        "locale": "fr-FR",
+        "name": "AssetRounds",
+        "subtitle": "Des preuves claires",
+        "keywords": "terrain,preuve,inspection,rapport",
+        "promotionalText": "Répétez les inspections avec des preuves synthétiques privées.",
+        "description": "AssetRounds clarifie les inspections avec des exemples synthétiques et bornés. Cette déclaration est un brouillon de preuve des limites localisées et ne représente pas une fiche envoyée ou publiée."
+      }
+    ],
+    "categories": [
+      "BUSINESS",
+      "PRODUCTIVITY"
+    ],
+    "appTags": [
+      "EVIDENCE",
+      "FIELD_WORK"
+    ],
+    "screenshots": [
+      {
+        "id": "c15-shot-home-v1",
+        "surface": "HOME",
+        "artifactID": "c15-home-proof-v1",
+        "status": "DRAFT_ONLY",
+        "publishable": false
+      },
+      {
+        "id": "c15-shot-report-v1",
+        "surface": "SAMPLE_REPORT",
+        "artifactID": "c15-sample-report-proof-v1",
+        "status": "DRAFT_ONLY",
+        "publishable": false
+      }
+    ],
+    "claims": [
+      {
+        "id": "verified-outcomes",
+        "enabled": false,
+        "status": "DISABLED_OR_DEFERRED",
+        "evidenceID": null
+      },
+      {
+        "id": "ratings",
+        "enabled": false,
+        "status": "DISABLED_OR_DEFERRED",
+        "evidenceID": null
+      },
+      {
+        "id": "privacy-certification",
+        "enabled": false,
+        "status": "DISABLED_OR_DEFERRED",
+        "evidenceID": null
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "c15-home-proof-v1",
+      "kind": "HOME",
+      "status": "DRAFT_ONLY",
+      "publishable": false,
+      "containsCustomerData": false,
+      "practiceWorkspace": false,
+      "watermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "contentSHA256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "id": "c15-use-case-proof-v1",
+      "kind": "USE_CASE",
+      "status": "DRAFT_ONLY",
+      "publishable": false,
+      "containsCustomerData": false,
+      "practiceWorkspace": false,
+      "watermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "contentSHA256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    {
+      "id": "c15-privacy-proof-v1",
+      "kind": "PRIVACY",
+      "status": "DRAFT_ONLY",
+      "publishable": false,
+      "containsCustomerData": false,
+      "practiceWorkspace": false,
+      "watermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "contentSHA256": "4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "id": "c15-accessibility-proof-v1",
+      "kind": "ACCESSIBILITY",
+      "status": "DRAFT_ONLY",
+      "publishable": false,
+      "containsCustomerData": false,
+      "practiceWorkspace": false,
+      "watermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "contentSHA256": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    {
+      "id": "c15-support-proof-v1",
+      "kind": "SUPPORT",
+      "status": "DRAFT_ONLY",
+      "publishable": false,
+      "containsCustomerData": false,
+      "practiceWorkspace": false,
+      "watermarks": [
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "contentSHA256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "id": "c15-sample-report-proof-v1",
+      "kind": "SAMPLE_REPORT",
+      "status": "DRAFT_ONLY",
+      "publishable": false,
+      "containsCustomerData": false,
+      "practiceWorkspace": true,
+      "watermarks": [
+        "PRACTICE — NOT FOR FIELD USE",
+        "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+      ],
+      "contentSHA256": "7777777777777777777777777777777777777777777777777777777777777777"
+    }
+  ],
+  "acquisition": {
+    "enabled": false,
+    "claimStatus": "DISABLED_OR_DEFERRED",
+    "source": "AGGREGATE_SYNTHETIC_FIXTURE",
+    "provider": "NONE",
+    "networkAccess": false,
+    "containsRealData": false,
+    "stableJoinKeys": [],
+    "personIdentifiers": [],
+    "deviceIdentifiers": [],
+    "workspaceIdentifiers": [],
+    "entityIdentifiers": [],
+    "watermark": "SYNTHETIC EXAMPLE — NO CUSTOMER DATA"
+  },
+  "publication": {
+    "status": "DRAFT_ONLY",
+    "publishable": false,
+    "upload": false,
+    "signing": false,
+    "deployment": false,
+    "networkAccess": false,
+    "provider": "NONE"
+  },
+  "expectedDispositions": [
+    {
+      "case": "VALID_CATALOG",
+      "disposition": "ACCEPT_DECLARATION_ONLY",
+      "acceptedArtifactCount": 6,
+      "productWrites": 0,
+      "publicWrites": 0
+    },
+    {
+      "case": "OPAQUE_METADATA",
+      "disposition": "REJECT_UNKNOWN_FIELDS",
+      "acceptedArtifactCount": 0,
+      "productWrites": 0,
+      "publicWrites": 0
+    },
+    {
+      "case": "INTERRUPTED_GENERATION",
+      "disposition": "ZERO_PARTIAL_OR_COMPLETE",
+      "acceptedArtifactCount": 0,
+      "productWrites": 0,
+      "publicWrites": 0
+    },
+    {
+      "case": "DELETE_AND_REBUILD",
+      "disposition": "DECLARATION_ONLY_STATE_REBUILT",
+      "acceptedArtifactCount": 6,
+      "productWrites": 0,
+      "publicWrites": 0
+    }
+  ],
+  "hostileCases": [
+    "ARBITRARY_NONEMPTY_METADATA",
+    "PLATFORM_LIMIT_OVERFLOW",
+    "UNSUPPORTED_LOCALE",
+    "CATEGORY_AS_APP_TAG",
+    "STALE_BRAND_REVISION",
+    "UNIMPLEMENTED_ENABLED_CLAIM",
+    "REAL_DATA_IDENTIFIER",
+    "MISSING_SYNTHETIC_WATERMARK",
+    "MISSING_PRACTICE_WATERMARK",
+    "STABLE_JOIN_KEY",
+    "DRAFT_LABELED_PUBLISHED",
+    "PUBLICATION_PROVIDER_PATH",
+    "NETWORK_ACCESS_PATH"
+  ],
+  "journalFaultBoundaries": [
+    "BEFORE_ACCEPTED_ARTIFACT_WRITE",
+    "AFTER_ARTIFACT_WRITE_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_RETURN"
+  ],
+  "lifecycleCoverage": [
+    "DELETE_DECLARATION_DRAFTS",
+    "REBUILD_DECLARATION_DRAFTS",
+    "EXPORT_DECLARATION_REPORT",
+    "SEARCH_DECLARATION_FIXTURES",
+    "REPLAY_DECLARATION_RECEIPT"
+  ],
+  "recovery": {
+    "backupRestore": "NOT_APPLICABLE_DECLARATION_ONLY",
+    "delete": "DECLARATION_ONLY_ARTIFACTS",
+    "rebuild": "EXACT_CATALOG_AND_ARTIFACT_SET",
+    "replay": "ZERO_PARTIAL_OR_ONE_COMPLETE_RECEIPT",
+    "preservesProductState": true,
+    "preservesPublicState": true,
+    "noProviderConnection": true,
+    "noUpload": true
+  },
+  "productState": {
+    "canonicalWrites": 0,
+    "workspaceRecords": 0,
+    "publishedRecords": 0,
+    "mutationReceipts": 0
+  },
+  "publicState": {
+    "publishedArtifacts": 0,
+    "uploads": 0,
+    "providerConnections": 0,
+    "networkRequests": 0
+  },
+  "statusFlags": {
+    "activation": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "publish": false,
+    "nativeAcceptance": false,
+    "hostedAcceptance": false,
+    "physicalEvidence": false,
+    "phase10PollingDuringParallelExecution": false,
+    "uiAcceptanceCredit": false
+  },
+  "uiAdoptionSkipped": true
+}

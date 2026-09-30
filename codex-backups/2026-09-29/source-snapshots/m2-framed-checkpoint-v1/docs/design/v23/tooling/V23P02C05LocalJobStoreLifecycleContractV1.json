@@ -1,0 +1,467 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "apiClosure": [
+    "enqueue",
+    "job",
+    "jobs",
+    "requestCancellation",
+    "resumePending",
+    "removeTerminal",
+    "removeJobs",
+    "eraseAll",
+    "removeExpired",
+    "migrationReceipt",
+    "claimForExecution",
+    "saveCheckpoint",
+    "markSucceeded",
+    "markAwaitingPublication",
+    "markPublicationSucceeded",
+    "markPublicationAbsentAndCancelled",
+    "markCancelled",
+    "markFailed",
+    "requeue"
+  ],
+  "artifactDigest": "6c137b31b3919d50002541a448baf743838671858501270161afd40f43e81c82",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "a6742867a235ad7cc4e4bc07f2b650cca82434cd",
+    "appBaseTree": "fc0d86d8d02fc463621540637321d4645ad727f8",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C05",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "625a596b0bd0f67c4ca83befe0b05309f35535c9db70584ff9bef3df87bdacaa",
+    "coordinationAuthorityHead": "a02692c9f20c6fe4944c7771dde6dd9bdcd51a71",
+    "coordinationAuthorityTree": "f326ad839c04b312bb07cbdba17953c6a10237f6",
+    "coordinationCASSequence": 101,
+    "coordinationLedgerDigest": "1cd7e2f90d12258b9e079c650d40d4ce4cee1f22a6b28970167883a26f6d3916",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C05-G01",
+      "V23-P02-C05-A01",
+      "V23-P02-C05-H01",
+      "V23-P02-C05-I01",
+      "V23-P02-C05-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P00-C08",
+      "V23-P02-C04"
+    ],
+    "dossierDigest": "ec42ff8d9671a79c44c9d20d861958771689e6b391e00de2d6527dac31e206fe",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "65d096f19e97ee8b8bdc52a297d58510a57397b952ec9da02432b23ba9145fb2",
+    "hydrationTransitionDigest": "620971c0df32ad82017122d3c81a73f2edec048196412a4454ad8be2a3f6e5d1",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "2d967b801e515707b91344039ceb22c2dad717847cb297f05b4fddb510e6989b",
+    "invalidationConsumers": [
+      "V23-P02-C06"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C05",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "336ad660a86cb30e4ea70ae99ca157f3dbaac1f89dd3011d0f37dd61926a73ac",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "9da050851718d6877bb678614f014e657e60868fa9160a62a3a5778da7776d1b",
+    "registerOrdinal": 25,
+    "registerRowDigest": "59877398b77b4aefa0bd64678165c52939906eb97bc82e0f9288704366f8f283",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Off-main resumable local jobs, cancellation, concurrency, and scale budgets"
+  },
+  "backupRestore": {
+    "destinationStartsWithFreshLocalStore": true,
+    "includedInUserBackup": false,
+    "includedInUserExport": false,
+    "restoreImportsCheckpoints": false,
+    "restoreRebuildsFromCanonicalIncompleteIntents": true,
+    "sourceCheckpointMayBecomeDestinationAuthority": false
+  },
+  "cardID": "V23-P02-C05",
+  "deleteEraseExpiry": {
+    "activeRowsRequireCancellationBeforeWorkspaceRemoval": true,
+    "canonicalWorkspaceTruthPreservedUntilItsOwnerActs": true,
+    "eraseRemovesCheckpoints": true,
+    "expiryRemovesCheckpoints": true,
+    "workspaceDeleteRemovesCheckpoints": true
+  },
+  "downgrade": {
+    "disposition": "DROP_AND_REBUILD_AFTER_CANONICAL_SURVIVAL_PROOF",
+    "immutableOutputRewrite": false,
+    "releasedSchemaRewrite": false
+  },
+  "durability": {
+    "atomicReplace": true,
+    "boundedReadBeforeDecode": true,
+    "completeFileProtection": true,
+    "encoder": "SORTED_KEYS_MILLISECONDS_SINCE_1970",
+    "excludedFromUserBackup": true,
+    "partialCanonicalStoreAuthority": false,
+    "quarantinePermissions": "DEVICE_LOCAL_PROTECTED",
+    "receiptAndStoreRecovery": "REBUILD_EMPTY_ON_UNKNOWN_OR_CORRUPT"
+  },
+  "evidenceIDs": [
+    "V23-P02-C05-G01",
+    "V23-P02-C05-A01",
+    "V23-P02-C05-H01",
+    "V23-P02-C05-I01",
+    "V23-P02-C05-R01"
+  ],
+  "hostedDispatchRan": false,
+  "lifecycleDimensions": [
+    {
+      "dimension": "MIGRATION",
+      "disposition": "ABSENT_OR_OLDER_VERSION_MIGRATES; UNKNOWN_OR_CORRUPT_QUARANTINES_AND_REBUILDS",
+      "receipt": "LocalJobStoreMigrationReceiptV1",
+      "required": true
+    },
+    {
+      "dimension": "ARCHIVE",
+      "disposition": "JOB_KIND_ARCHIVE_REBUILDABLE_FROM_CANONICAL_INPUTS",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "RESTORE_VALIDATION",
+      "disposition": "REBUILD_ELIGIBLE_WORK_FROM_CANONICAL_INCOMPLETE_INTENTS",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "REPORT_GENERATION",
+      "disposition": "JOB_KIND_FINALIZE_OR_RENDER_OFF_MAIN",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "SEARCH_REBUILD",
+      "disposition": "JOB_KIND_SEARCH_REBUILD_FROM_NAMED_CANONICAL_INPUTS",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "IMPORT",
+      "disposition": "JOB_KIND_IMPORT_WITH_CHECKPOINT_AND_CANCELLATION",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "STARTER_INSTALLATION",
+      "disposition": "JOB_KIND_STARTER_INSTALLATION_WITH_CHECKPOINT_AND_CANCELLATION",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "MEDIA_PROCESSING",
+      "disposition": "JOB_KIND_MEDIA_PROCESSING_WITH_BOUNDED_PROXY",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "USER_BACKUP",
+      "disposition": "EXCLUDE_OPERATIONAL_CHECKPOINTS",
+      "receipt": "NONE",
+      "required": true
+    },
+    {
+      "dimension": "USER_EXPORT",
+      "disposition": "EXCLUDE_OPERATIONAL_CHECKPOINTS",
+      "receipt": "NONE",
+      "required": true
+    },
+    {
+      "dimension": "REPLACE_RESTORE",
+      "disposition": "DO_NOT_IMPORT_DEVICE_CHECKPOINTS_REBUILD_ELIGIBLE_WORK",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "CLONE",
+      "disposition": "NOT_APPLICABLE_DEVICE_LOCAL_OPERATIONAL_STATE",
+      "receipt": "NONE",
+      "required": true
+    },
+    {
+      "dimension": "FORK",
+      "disposition": "NOT_APPLICABLE_DEVICE_LOCAL_OPERATIONAL_STATE",
+      "receipt": "NONE",
+      "required": true
+    },
+    {
+      "dimension": "REPLAY",
+      "disposition": "RELAUNCH_RECONCILES_DURABLE_ROWS_IDEMPOTENTLY; AWAITING_PUBLICATION_ADOPTS_EXACT_READBACK",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "RELAUNCH",
+      "disposition": "RUNNING_REQUEUES; CANCELLATION_REQUESTED_CANCELS; AWAITING_PUBLICATION_RECONCILES",
+      "receipt": "LOCAL_JOB_STATE",
+      "required": true
+    },
+    {
+      "dimension": "WORKSPACE_DELETE",
+      "disposition": "REMOVE_WORKSPACE_OPERATIONAL_CHECKPOINTS_CANONICAL_TRUTH_PRESERVED",
+      "receipt": "NONE",
+      "required": true
+    },
+    {
+      "dimension": "ERASE",
+      "disposition": "REMOVE_ALL_OPERATIONAL_CHECKPOINTS_CANONICAL_ERASE_AUTHORITY_PRESERVED",
+      "receipt": "NONE",
+      "required": true
+    },
+    {
+      "dimension": "EXPIRY",
+      "disposition": "REMOVE_EXPIRED_TERMINAL_OPERATIONAL_ROWS",
+      "receipt": "NONE",
+      "required": true
+    },
+    {
+      "dimension": "RETENTION",
+      "disposition": "BOUNDED_BY_MAXIMUM_JOB_COUNT_AND_STORE_BYTES",
+      "receipt": "NONE",
+      "required": true
+    },
+    {
+      "dimension": "DOWNGRADE",
+      "disposition": "DROP_AND_REBUILD_AFTER_CANONICAL_STATE_AND_IMMUTABLE_OUTPUT_SURVIVAL_PROOF",
+      "receipt": "NONE",
+      "required": true
+    }
+  ],
+  "migration": {
+    "absentOrOlderVersionRequired": true,
+    "dispositions": [
+      "CREATED_EMPTY",
+      "OPENED_CURRENT",
+      "MIGRATED",
+      "QUARANTINED_AND_REBUILT"
+    ],
+    "receiptFields": [
+      "schemaVersion",
+      "source",
+      "disposition",
+      "sourceStoreVersion",
+      "destinationStoreVersion",
+      "migratedJobCount",
+      "occurredAt"
+    ],
+    "receiptType": "LocalJobStoreMigrationReceiptV1",
+    "sourceValues": [
+      "ABSENT",
+      "VERSION_1",
+      "OLDER_VERSION",
+      "UNKNOWN_OR_CORRUPT"
+    ],
+    "unknownOrCorruptDisposition": "QUARANTINE_DELETE_AND_RECONSTRUCT_EMPTY"
+  },
+  "nativeCompileRan": false,
+  "owner": "LocalJobStoreSchemaV1",
+  "persistentChangeMode": "NEW_SCHEMA_VERSION",
+  "persistentContractSchema": "LOCAL_JOB_STORE_SCHEMA_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "prohibitedTokens": [
+    "accountID",
+    "authenticatedUserID",
+    "backgroundDaemon",
+    "CloudKit",
+    "CKRecord",
+    "inbox",
+    "outbox",
+    "providerID",
+    "remoteProvider",
+    "serverCursor",
+    "serverRevision",
+    "tenantID",
+    "vectorClock",
+    "accessToken",
+    "serviceCredential",
+    "secretMaterial"
+  ],
+  "provisional": true,
+  "publicationLifecycle": {
+    "destructiveRemoval": {
+      "awaitActiveTasks": true,
+      "cancelActiveRowsFirst": true,
+      "cleanupBeforeDurableRemoval": true,
+      "failClosedRetainRowOnAmbiguousPublication": true,
+      "reconcileAwaitingPublication": true,
+      "requireAllRowsTerminal": true
+    },
+    "dispositions": [
+      "PUBLISHED",
+      "ADOPTED"
+    ],
+    "generationPublicationAuthority": {
+      "authorityType": "ResumableLocalJobPublicationAuthorityV1",
+      "heldAcrossEffectAndReadback": true,
+      "mandatoryWhenGenerationEpochPresent": true
+    },
+    "intermediateState": "AWAITING_PUBLICATION",
+    "modes": [
+      "PUBLISH_OR_ADOPT",
+      "ADOPT_ONLY"
+    ],
+    "pendingField": "pendingPublication",
+    "publisherIdempotency": {
+      "effectBeforeReceiptRelaunch": "ADOPT_EXACT_READBACK",
+      "key": "JOB_ID_ATTEMPT_COUNT_KIND_OUTPUT_SHA256",
+      "readbackReceipt": "PUBLICATION_RECEIPT_V1",
+      "required": true
+    },
+    "receiptField": "publicationReceipt",
+    "retrySuppression": {
+      "automaticRetrySpin": false,
+      "explicitRetryOrRelaunchRequired": true,
+      "suppressedPublicationRetries": true
+    },
+    "stateRows": [
+      {
+        "from": "RUNNING",
+        "guard": "FINAL_CHECKPOINT_DURABLE_AND_RESULT_VALID",
+        "to": "AWAITING_PUBLICATION"
+      },
+      {
+        "from": "CANCELLATION_REQUESTED",
+        "guard": "FINAL_CHECKPOINT_DURABLE_AND_PENDING_CANCELLATION",
+        "to": "AWAITING_PUBLICATION"
+      },
+      {
+        "from": "AWAITING_PUBLICATION",
+        "guard": "PUBLISHED_OR_ADOPTED_AND_RECEIPT_DURABLE",
+        "to": "SUCCEEDED"
+      },
+      {
+        "from": "AWAITING_PUBLICATION",
+        "guard": "ADOPT_ONLY_ABSENT_AND_STAGING_CLEANUP_PROVED",
+        "to": "CANCELLED"
+      }
+    ]
+  },
+  "relaunchReplay": {
+    "arrivalOrderAuthority": false,
+    "awaitingPublicationDisposition": "RECONCILE_PUBLISH_OR_ADOPT",
+    "cancellationRequestedDisposition": "CANCELLED",
+    "effectBeforeReceiptDisposition": "ADOPT_EXACT_READBACK_BEFORE_RECEIPT",
+    "enabled": true,
+    "publicationFailureDisposition": "SUPPRESS_RETRY_NO_SPIN",
+    "runningDisposition": "REQUEUE_RETRYABLE",
+    "sameJobIdentityAfterReplay": true,
+    "terminalRowsRemainUntilExplicitRemovalOrExpiry": true
+  },
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "LocalJobStoreLifecycleContractV1",
+  "schemaVersion": 1,
+  "sourceBindings": [
+    {
+      "owner": "V23-P02-C05",
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreSchemaV1.swift",
+      "requiredTokens": [
+        "currentVersion",
+        "maximumJobCount",
+        "maximumStoreBytes",
+        "includedInUserBackup = false",
+        "restoreRebuildsFromCanonicalIncompleteIntents = true",
+        "quarantinedAndRebuilt"
+      ],
+      "symbols": [
+        "LocalJobStoreSchemaV1",
+        "LocalJobStoreEnvelopeV1",
+        "LocalJobStoreMigrationReceiptV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C05",
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+      "requiredTokens": [
+        "actor LocalJobStoreV1",
+        ".atomic",
+        ".completeFileProtection",
+        "isExcludedFromBackup",
+        "protectedDataFailureHook",
+        "injectProtectedDataFailure",
+        "quarantineAndRebuild",
+        "O_NOFOLLOW",
+        "AT_SYMLINK_NOFOLLOW",
+        "markAwaitingPublication",
+        "markPublicationSucceeded",
+        "markPublicationAbsentAndCancelled",
+        "pendingPublication",
+        "publicationReceipt"
+      ],
+      "symbols": [
+        "LocalJobStoreV1",
+        "resumePending",
+        "saveCheckpoint",
+        "markSucceeded",
+        "markAwaitingPublication",
+        "markPublicationSucceeded",
+        "markPublicationAbsentAndCancelled",
+        "markCancelled",
+        "markFailed"
+      ]
+    },
+    {
+      "owner": "V23-P02-C05",
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+      "requiredTokens": [
+        "maximumConcurrency",
+        "activeTasks",
+        "Task.checkCancellation",
+        "GenerationLeaseHandleV1",
+        "cleanupStaging",
+        "scheduleAvailableWork",
+        "suppressedPublicationRetries",
+        "reconcilePublication",
+        "reconcileForDestructiveRemoval",
+        "generationPublicationAdapter",
+        "generationPublicationAdapter.publish",
+        "if job.generationEpoch != nil, generationPublicationAdapter == nil",
+        "func removeJobs(workspaceID: UUID) async throws",
+        "func eraseAll() async throws",
+        "try await reconcileForDestructiveRemoval(workspaceID: workspaceID)",
+        "try await reconcileForDestructiveRemoval(workspaceID: nil)",
+        "guard terminal.allSatisfy({ $0.state.isTerminal })",
+        ".awaitingPublication",
+        ".publishOrAdopt",
+        ".adoptOnly"
+      ],
+      "symbols": [
+        "ResumableLocalJobRunnerV1",
+        "ResumableLocalJobRunnerFailureV1"
+      ]
+    }
+  ],
+  "store": {
+    "canonicalSchemaReleaseLease": false,
+    "canonicalSwiftDataStore": false,
+    "currentVersion": 1,
+    "deviceLocal": true,
+    "directoryName": "local-jobs-v1",
+    "genericEntityValuePersistence": false,
+    "kind": "DEVICE_LOCAL_OPERATIONAL_CHECKPOINT_STORE",
+    "maximumJobCount": 10000,
+    "maximumStoreBytes": 33554432,
+    "migrationReceiptFileName": "migration-receipt.json",
+    "ordering": "JOB_ID_LOWERCASE_LEXICOGRAPHIC",
+    "quarantineDirectoryName": "quarantine",
+    "storeFileName": "jobs.json",
+    "strictFixedSchema": true,
+    "uniqueJobIdentity": true
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "kind": "syntax_parse_only",
+  "notSemanticCompilation": true,
+  "results": [
+    {
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+        "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+      ],
+      "exitCode": 0,
+      "mode": "nonDEBUG",
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+        "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+      ],
+      "exitCode": 0,
+      "mode": "DEBUG",
+      "stderr": "",
+      "stdout": ""
+    }
+  ]
+}

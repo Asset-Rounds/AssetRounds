@@ -1,0 +1,126 @@
+{
+  "artifactDigest": "291db90ec17c137d585c83014a0f4e1a4d43603f439952fe9c4b392325760c20",
+  "authority": {
+    "appBaseHead": "f968cab80d2f1b66b633c15d84f7ab50ad85d8b0",
+    "appBaseTree": "84c61b4b40e6c3a97de36e9fdcb8d8fba922cd78",
+    "contextDigest": "b20b0d9c7a25dc79aa0b0f270ea32afcf3c2d45cc45313ca8513434bc4684976",
+    "coordinationCASSequence": 335,
+    "coordinationHead": "4de3a951a7b96ae9dbb118ac24e951f304db1cf1",
+    "coordinationLedgerDigest": "227365f2c84f602ec0db663ec6068d669f43b8adf6a5bd0ce136a0b948a7d2d4",
+    "coordinationProjectionDigest": "7d47a11ecb9d3fc2deeaff07b41f65204b795c8980dadab2934bdd823e3d4f54",
+    "coordinationTree": "bf06d7f59f0116674c58465ae249c560128798d5",
+    "directPrerequisites": [
+      "V23-P03-C25"
+    ],
+    "hydrationTransitionDigest": "2706b785d36ebb30733793fd1460fd6030c0dc3907f66095138a3b8a50c5876b",
+    "pathFenceDigest": "1f98c92b714a1e4dbecc689efa070f53bbd679fbbc681e5f37da49bdda53d431",
+    "provisionalPrerequisiteDigest": "f564bd037fc70b4a28b0a9fec08f782d7757d3ba719bafc462e19964badbcccf"
+  },
+  "cardID": "V23-P03-C49",
+  "contractDigest": "7cd27602ef788a12341ef36f8e57971c9d64fa399fac2daae158ff8b983d3cfe",
+  "evidenceIDs": [
+    "V23-P03-C49-G01",
+    "V23-P03-C49-A01",
+    "V23-P03-C49-H01",
+    "V23-P03-C49-I01",
+    "V23-P03-C49-R01"
+  ],
+  "iso4217ListOne": {
+    "concreteScalePins": {
+      "BHD": 3,
+      "CLF": 4,
+      "KWD": 3,
+      "UYW": 4
+    },
+    "nonNumericMinorUnitDisposition": "N.A. EXCLUDED",
+    "numericMinorUnitCodeCount": 165,
+    "published": "2026-01-01",
+    "rawByteCount": 47463,
+    "rawSHA256": "838dfb991648cf36df939edd5fe3811737962b75a32252847d239cedd1e291c9"
+  },
+  "schema": "V23P03C49WorkResourceEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceArtifacts": [
+    {
+      "byteCount": 22045,
+      "path": "FieldEvidenceApp/Domain/WorkResources/WorkResourceContractsV1.swift",
+      "sha256": "c252849a04089983bc6cfb0dcee9bce427f61900aa973bdd4e00212d87a23773"
+    },
+    {
+      "byteCount": 17539,
+      "path": "FieldEvidenceApp/Domain/Models/WorkResourcePersistenceModelsV1.swift",
+      "sha256": "e489f15ff459809ab3e4a9a21dba42a16fab27c389bd40f99db95858728380bc"
+    },
+    {
+      "byteCount": 4169,
+      "path": "FieldEvidenceApp/Application/WorkResources/WorkResourceCoordinatorV1.swift",
+      "sha256": "4290db3646ce70feadfb23c198fb124b1c634db44df9e79c13747e2bae47968f"
+    },
+    {
+      "byteCount": 14795,
+      "path": "FieldEvidenceApp/Infrastructure/WorkResources/WorkResourceLifecycleAdapterV1.swift",
+      "sha256": "3988496da19c86f250563f21aa63f90809e758e8c6568f3858d6d9ec9283ff54"
+    },
+    {
+      "byteCount": 26111,
+      "path": "FieldEvidenceAppTests/V9_56WorkResourceTests.swift",
+      "sha256": "a927e934521a74b930afc51450af6df47e568a0861182449eba91dbe686da745"
+    },
+    {
+      "byteCount": 1757,
+      "path": "FieldEvidenceAppTests/Fixtures/V22/WorkResources/V22P03C49WorkResourceCorpusV1.json",
+      "sha256": "6daeaff1200e694dcd4449a12d5810e9a4d82183994690605939719f2e60587b"
+    }
+  ],
+  "sourceProjection": {
+    "dossier": {
+      "byteCount": 7492,
+      "sha256": "c5e88d34bffbc53638519694e72e3dd248bdee57e9a131be464fb41a0c8889c9"
+    },
+    "inherited": {
+      "byteCount": 5555,
+      "sha256": "a1e531e13222c3fe16b97c85819190e82c984dd89d4b7ce64146da99d74e86c0"
+    },
+    "journeyID": "FJ06",
+    "registerRow": {
+      "byteCount": 290,
+      "sha256": "656e2afd580f67ef8eefb5f788e97ef8fd6294f7735b6485a1c236f511fc838a"
+    },
+    "registerSection": {
+      "byteCount": 44217,
+      "sha256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5"
+    }
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "verification": {
+    "appendOnly": true,
+    "exactArithmetic": true,
+    "lifecycle": [
+      "MIGRATION",
+      "BACKUP",
+      "REPLACE_RESTORE",
+      "CLONE_FORK",
+      "JOURNAL_REPLAY",
+      "SEARCH_REBUILD",
+      "DELETE_ERASE",
+      "REPORT_EXPORT",
+      "COMPATIBILITY",
+      "FORWARD_FIX"
+    ],
+    "privacySecretExclusion": true
+  }
+}

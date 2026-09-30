@@ -1,0 +1,109 @@
+{
+  "cardID": "V23-P03-C30",
+  "c52ServiceRequestBoundary": { "typedAnchor": "C52ServiceRequestBoundary_V22EvidenceContext", "consumedContract": "PortableServiceRequestProtocolReleaseV1", "preservesExistingFamily": true },
+  "correctionHostiles": [
+    "INVALID_TIME_ZONE",
+    "OFFSET_CONFLICT",
+    "EXTREME_FINITE_DATE",
+    "INT64_CONVERSION_OVERFLOW",
+    "DANGLING_PAIRED_ENDPOINT",
+    "REPORT_ZERO_UUID",
+    "REPORT_LINK_IDENTITY_MISMATCH",
+    "CONFLICTING_COMPARISON_PURPOSE"
+  ],
+  "durableFamilies": [
+    "EvidenceContextV1",
+    "PairedObservationLinkV1"
+  ],
+  "durableFamilyCount": 2,
+  "exclusions": [
+    "TIMESTAMP_ONLY_CLASSIFICATION",
+    "ONE_PHOTO_TWO_PURPOSES",
+    "AUTOMATIC_FAILURE_OR_COMPLIANCE_INFERENCE",
+    "WEATHER_PROVIDER",
+    "CLOUD_OR_TELEMETRY",
+    "REMOTE_IDENTITY"
+  ],
+  "lifecycleDimensions": [
+    "APPEND",
+    "SUCCESSOR",
+    "INTERRUPTION",
+    "IDEMPOTENT_RETRY",
+    "BACKUP_RESTORE_REPLAY",
+    "SEARCH_REBUILD",
+    "DELETE_ERASE"
+  ],
+  "lightingConditions": [
+    "DAYLIGHT",
+    "CIVIL_TWILIGHT",
+    "NIGHT",
+    "COVERED_DAY_CONDITION",
+    "COVERED_NIGHT_CONDITION",
+    "UNKNOWN"
+  ],
+  "mismatchReasons": [
+    "ASSET_REVISION_MISMATCH",
+    "CONTROL_MISMATCH",
+    "MEASUREMENT_METHOD_MISMATCH",
+    "PLAN_MISMATCH",
+    "PURPOSE_MISMATCH",
+    "SURFACE_WEATHER_MISMATCH",
+    "TIME_MISMATCH",
+    "VIEWPOINT_MISMATCH"
+  ],
+  "persistentSchemaVersion": 30,
+  "polarDispositions": [
+    "ORDINARY",
+    "POLAR_DAY",
+    "POLAR_NIGHT",
+    "INDETERMINATE"
+  ],
+  "recordsSchemaVersion": 29,
+  "schema": "V22P03C30EvidenceContextCorpusV1",
+  "schemaVersion": 1,
+  "c31LightingPackageCompatibility": {
+    "compatibilityCardID": "V23-P03-C31",
+    "persistentSchemaVersion": 31,
+    "recordsSchemaVersion": 30,
+    "durableFamilies": ["LightingSystemV1", "LightingObservationV1", "LightingIssueV1", "MeasurementPlanV1", "LightingClaimStateV1"],
+    "claimTierCount": 5,
+    "hostileCaseCount": 45,
+    "photoExifNeverMeasurement": true,
+    "exactFootcandleLuxConversion": "10.76391",
+    "sharedSupportNoClones": true,
+    "safetyStopKinds": ["ELECTRICAL", "TRAFFIC"]
+  },
+  "c32AssistanceProposalCompatibility": {
+    "compatibilityCardID": "V23-P03-C32",
+    "proposalLifecycle": "NONPERSISTENT",
+    "acceptanceReceiptPersistentSchemaVersion": 32,
+    "proposalRemainsUnverifiedUntilAcceptance": true,
+    "proposalNeverMutatesEvidenceContext": true,
+    "acceptedValueUsesExpectedRevisionWriter": true
+  },
+  "c33TemporalEvidenceCompatibility": {
+    "compatibilityCardID": "V23-P03-C33",
+    "clipAndAnchorPersistentSchemaVersion": 33,
+    "accessibleDescriptionIsExplicitTypedMetadata": true,
+    "evidenceContextNeverAliasesTemporalOriginalBytes": true,
+    "expectedRevisionBindsContextAndClipTargets": true
+  },
+  "c45AssetLabelCompatibility": {
+    "compatibilityCardID": "V23-P03-C45",
+    "soleLocatorAuthorityCardID": "V23-P03-C27",
+    "soleRendererAuthorityCardID": "V23-P03-C24",
+    "acceptedSnapshotsAreCanonical": true,
+    "unacceptedPlansAndResultsAreLeasedScratch": true,
+    "outputReceiptDoesNotClaimExternalPossession": true,
+    "physicalPrintScanEvidenceOwnerPending": true
+  },
+  "c46OperationalContactCompatibility": {
+    "compatibilityCardID": "V23-P03-C46",
+    "operationalContactsArePurposeSeparated": true,
+    "siteRoleOwnershipForbidden": true,
+    "subscriberConsentCampaignAndMeasurementProjectionForbidden": true,
+    "systemHandoffsAreExplicitEphemeralAndNoncanonical": true,
+    "contactExportIsExcludedByDefault": true,
+    "importedSourceBytesRemainLeasedScratch": true
+  }
+}

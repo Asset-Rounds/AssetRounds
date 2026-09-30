@@ -1,0 +1,617 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "f8fedb67d187d50fd689e50853b67a07f5f5746f18a523199f481ed329814cf3",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "5f4259dc9d46090203d59273f0c35b1ab1ee6a0d",
+    "appBaseTree": "198e918442229b3a64dd854bc8f3ae9ee9922092",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C08",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "f4c82433da05626667d4ae8f47f3fa639eb59bdd529be0557e2f1db983e235e0",
+    "coordinationAuthorityHead": "9a1219ffe4cf56855c47c44a85b7fb3f46b1c799",
+    "coordinationAuthorityTree": "062078b5cc177851c1e297b4d493ddd93054f1ad",
+    "coordinationCASSequence": 119,
+    "coordinationLedgerDigest": "8933be2a9f9f79faa2fe9736be7eb9762564145258685e34303dbb87d9d98",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C08-G01",
+      "V23-P02-C08-A01",
+      "V23-P02-C08-H01",
+      "V23-P02-C08-I01",
+      "V23-P02-C08-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C07"
+    ],
+    "dossierDigest": "efc49f07fbae9a5d819e2baf4761092413d2fb870ab5e9e98ff489798268e05d",
+    "dossierLength": 7086,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "6c21bb0bdee6ef786abb8c8eb22e0be8171ba09c93c35fe40c68b6451273fe7d",
+    "hydrationTransitionDigest": "70e17d89ed8cda171a10839958d44fea9130d40dcee7f585fb8fac83230e4e12",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "53d746da0409703496b1f34ba921456717c914288c93e02550d7698d6f77d7f1",
+    "inheritedV21BlockLength": 15097,
+    "invalidationConsumers": [
+      "V23-P02-C09",
+      "V23-P02-C10"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C08",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "486696b004021f1a5095fd41de92b1a4b9a6692cd98a4e463fe09c7ace6f2ce5",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "762869613302e037463d122dcebf50ed34fa68bce4d211524f1198aed7d9acdf",
+    "registerOrdinal": 28,
+    "registerRowDigest": "246a85c06cbc8174e3e096f26a3f7b87df76f51fb84491402913939ffb08cf1c",
+    "registerRowLength": 316,
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "System health, operational failures, workflow friction, protected scratch, MetricKit compatibility, and explicit support export"
+  },
+  "backupBehaviorDelta": true,
+  "bootstrap": {
+    "canonicalStoreOpenCount": 0,
+    "successRequiresDurableOperationalReceipt": true,
+    "usableUnderCorruptStore": true,
+    "usableUnderFailedMigration": true,
+    "usableUnderLowStorage": true,
+    "usableUnderProtectedDataDenial": true
+  },
+  "bundle": {
+    "allowlist": [
+      "appBuild",
+      "appVersion",
+      "archiveBuildUUIDs",
+      "generatedAt",
+      "healthClasses",
+      "operationalCodeCounts",
+      "schemaVersions"
+    ],
+    "allowlistedDataIsDeviceOperationalOnly": true,
+    "bootstrapOnlyMembers": [
+      "appBuild",
+      "appVersion",
+      "generatedAt",
+      "operationalCodeCounts"
+    ],
+    "containsCustomerContent": false,
+    "containsCustomerIdentifier": false,
+    "containsRawLogs": false,
+    "manifestType": "SupportBundleManifestV1",
+    "maximumCanonicalBytes": 524288,
+    "maximumMemberCount": 2,
+    "permitsAutomaticUpload": false,
+    "schemaVersion": 1
+  },
+  "cardID": "V23-P02-C08",
+  "deleteBehaviorDelta": true,
+  "evidenceIDs": [
+    "V23-P02-C08-G01",
+    "V23-P02-C08-A01",
+    "V23-P02-C08-H01",
+    "V23-P02-C08-I01",
+    "V23-P02-C08-R01"
+  ],
+  "exportBehaviorDelta": true,
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": true,
+  "nativeCompileRan": false,
+  "owner": "SupportBundleBuilderV1",
+  "persistentChangeMode": "NEW_SCHEMA_VERSION",
+  "persistentSchema": "DeviceOperationalSupportStoreSchemaV2",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "privacy": {
+    "allowlistOnly": true,
+    "forbiddenBehaviors": [
+      "automaticUpload",
+      "remoteTelemetry",
+      "analytics",
+      "sessionReplay",
+      "includeEverything",
+      "readBackOSLog"
+    ],
+    "forbiddenFields": [
+      "customerText",
+      "customerMedia",
+      "customerNote",
+      "addresses",
+      "preciseLocation",
+      "stableEntityIdentifiers",
+      "workspaceIdentifiers",
+      "localPaths",
+      "secrets",
+      "credentials",
+      "rawLogs",
+      "rawMetricPayloads"
+    ],
+    "noCustomerContent": true,
+    "noNetwork": true,
+    "noRawLogs": true,
+    "noSecrets": true
+  },
+  "prohibitedTokens": [
+    "customerText",
+    "customerMedia",
+    "customerNote",
+    "address",
+    "preciseLocation",
+    "entityID",
+    "workspaceID",
+    "localPath",
+    "secret",
+    "credential",
+    "rawLog",
+    "rawMetricPayload",
+    "automaticUpload",
+    "CloudKit",
+    "CKRecord",
+    "MetricManager",
+    "sessionReplay",
+    "analytics"
+  ],
+  "provisional": true,
+  "redaction": {
+    "rejectsAddress": true,
+    "rejectsCustomerText": true,
+    "rejectsEntityID": true,
+    "rejectsLocalPath": true,
+    "rejectsMedia": true,
+    "rejectsPreciseLocation": true,
+    "rejectsRawLog": true,
+    "rejectsSecret": true,
+    "rejectsSourceScratch": true
+  },
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "restoreBehaviorDelta": true,
+  "result": {
+    "automaticUpload": false,
+    "cancelIsTerminal": true,
+    "expiryIsTerminal": true,
+    "failureIsTypedAndVisible": true,
+    "networkRequestCount": 0,
+    "noMailOrShareFallback": "COPY_SUPPORT_ADDRESS_OR_SAVE_TO_FILES",
+    "previewRequired": true,
+    "shareCannotClaimRecall": true,
+    "shareIsExplicitExternalEffect": true,
+    "type": "SupportExportResultV1",
+    "userInitiated": true
+  },
+  "schema": "V23P02C08SupportExportContractV1",
+  "schemaBehaviorDelta": true,
+  "schemaVersion": 1,
+  "scratch": {
+    "deleteAfterPreviewCancelShareExpiryFailure": true,
+    "leaseType": "ScratchDataLeaseV1",
+    "maximumBytes": 1048576,
+    "maximumLifetimeSeconds": 900,
+    "protection": "COMPLETE",
+    "purpose": "SUPPORT_EXPORT",
+    "recovery": {
+      "deletionTombstonePrefix": ".deleting-",
+      "expiredLeasesDeleted": true,
+      "idempotentAcquireSameRequest": true,
+      "idempotentTerminalRelease": true,
+      "leaseCollisionFailsClosed": true,
+      "noAutomaticDeleteForSpace": true,
+      "relaunchRecovery": true,
+      "tombstoneCollisionPreservesOriginal": true,
+      "tombstoneIdentityVerified": true,
+      "unknownOrCorruptLeaseFailsClosed": true
+    },
+    "sourcePurposesRejected": [
+      "CAPTURE",
+      "IMPORT",
+      "SOURCE"
+    ]
+  },
+  "sourceBindings": [
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+      "requiredTokens": [
+        "DiagnosticsStore",
+        "DiagnosticsV1",
+        "operationalSupportSnapshot",
+        "DeviceOperationalSupportStoreV2",
+        "DeviceOperationalSupportEnvelopeV2",
+        "PinnedDiagnosticsAuthority",
+        "canonicalData",
+        "canonicalRecordData",
+        "persist",
+        "resetOperationalSupport",
+        "isExactlyZero",
+        "OperationalFailureBoundaryV1",
+        "OperationalFailureMapperV1",
+        "recordAndRethrowOperationalFailure",
+        "at boundary:"
+      ],
+      "symbols": [
+        "DiagnosticsStore",
+        "DiagnosticsV1",
+        "DeviceOperationalSupportStoreV2",
+        "DeviceOperationalSupportEnvelopeV2",
+        "PinnedDiagnosticsAuthority"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+      "requiredTokens": [
+        "DiagnosticExportV1",
+        "MetricKitSummaryV1",
+        "canonical",
+        "generatedAt",
+        "SupportBundleBuilderV1",
+        "SupportBundleBuilderFailureV1",
+        "alreadyFinished",
+        "finish(",
+        "prepared"
+      ],
+      "symbols": [
+        "DiagnosticExportV1",
+        "MetricKitSummaryV1",
+        "SupportBundleBuilderV1",
+        "SupportBundleBuilderFailureV1",
+        "SupportExportResultV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsLogger.swift",
+      "requiredTokens": [
+        "DiagnosticsLogger",
+        "DiagnosticsLogEvent",
+        "SUPPORT_EXPORT_FAILED",
+        "privacy"
+      ],
+      "symbols": [
+        "DiagnosticsLogger",
+        "DiagnosticsLogEvent"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+      "requiredTokens": [
+        "MetricKitDiagnosticsAdapter",
+        "MetricKitReportingSourceV1",
+        "MXMetricManager",
+        "MetricReportingSource",
+        "MetricReportingSourceContractV1",
+        "sourceCount",
+        "permitsSecondReportingSource",
+        "registrationLock",
+        "NSLock",
+        "desiredRegistration",
+        "appliedRegistration",
+        "isDrivingRegistration",
+        "requestRegistration",
+        "start()",
+        "stop()",
+        "shared"
+      ],
+      "symbols": [
+        "MetricKitDiagnosticsAdapter",
+        "MetricKitReportingSourceV1",
+        "MXMetricManagerSubscriber"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "requiredTokens": [
+        "StoragePreflightService",
+        "StoragePreflightError",
+        "insufficientCapacity",
+        "capacityUnavailable",
+        "requiredBytes",
+        "availableBytes"
+      ],
+      "symbols": [
+        "StoragePreflightService"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "requiredTokens": [
+        "OwnedStorageLedgerV1",
+        "snapshot",
+        "reserve",
+        "release",
+        "reconcile",
+        "reservationLimitExceeded",
+        "maximumActiveReservationCount",
+        "attemptCollision",
+        "adoptExistingFileIfIdentical",
+        "recoverScratchLeases",
+        "eraseScratchData",
+        "invalidLease"
+      ],
+      "symbols": [
+        "OwnedStorageLedgerV1",
+        "OwnedStorageLedgerFailureV1",
+        "OwnedStorageSnapshotV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+      "requiredTokens": [
+        "DeviceLifecycleCoordinatorV1",
+        "DeviceLifecycleReducerV1",
+        "ProtectedDataLifecycleStateV1",
+        "SceneLifecycleStateV1",
+        "DeviceLifecycleEventV1",
+        "DeviceLifecycleActionV1",
+        "DeviceLifecycleTransitionV1",
+        "initiallyConservative",
+        "suspendForLifecycle",
+        "resumeAfterLifecycle",
+        "resetDeviceLocalState",
+        "recoverScratchLeases",
+        "pendingActions"
+      ],
+      "symbols": [
+        "DeviceLifecycleCoordinatorV1",
+        "DeviceLifecycleReducerV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "requiredTokens": [
+        "EraseAllService",
+        "EraseAllFailurePoint",
+        "EraseGenerationDrainProof",
+        "erase(",
+        "completeCleanup",
+        "eraseScratchData",
+        "resetOperationalSupport",
+        "canonicalDiagnosticsZero",
+        "acceptDescriptorErasedZero",
+        "isExactlyZero"
+      ],
+      "symbols": [
+        "EraseAllService"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/CurrentSyncClassificationCatalogV1.swift",
+      "requiredTokens": [
+        "CurrentSyncClassificationCatalogV1",
+        "CurrentSyncLifecycleRouteV1",
+        "CurrentReplayDispositionV1",
+        "diagnostic",
+        "diagnosticNames",
+        "diagnosticSubjects",
+        "lifecycleRoutes",
+        "lifecycleRoute",
+        "makeAdditionalRegistrations",
+        "validate",
+        "portableExport",
+        "semanticBackup",
+        "erase",
+        "replay",
+        "searchImplementationPresent"
+      ],
+      "symbols": [
+        "CurrentSyncClassificationCatalogV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift",
+      "requiredTokens": [
+        "S6_6EraseRecoveryTests",
+        "testGoldenEraseActivatesEmptyGenerationAndClearsFrozenState",
+        "testEveryInterruptionRecoversOldOrFullyErasedNew",
+        "testMalformedAuxiliaryTreeFailsBeforeAnyDeletion",
+        "testReplacedGenerationAncestorFailsClosedWithoutDeletingEitherTree",
+        "EraseAllFailurePoint",
+        "EraseAllService",
+        "erase(",
+        "cleanupDeferred",
+        "generationID",
+        "currentGenerationID",
+        "retiredGenerationIDs",
+        "canonicalOperationalSupportData",
+        "DeviceOperationalSupportSnapshotV2",
+        "injectedFailure",
+        "invalidAuthority"
+      ],
+      "symbols": [
+        "S6_6EraseRecoveryTests"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift",
+      "requiredTokens": [
+        "V10_03ReplicationConflictRegistryTests",
+        "testV10_03G01CatalogCompletenessAndLifecycleRouting",
+        "testV10_03A01SixRuleMatrixAndPermutationIdentity",
+        "testV10_03H01UnknownLimitsPrivacyDependencyLeakAndCollisionRejection",
+        "testV10_03I01NamedInputsDeferredAndInterruptionBoundaries",
+        "testV10_03R01FrozenBasisRelaunchIdempotencyAndLateCompetitor",
+        "CurrentSyncClassificationCatalogV1",
+        "registrations",
+        "persistentModelSubjects",
+        "ownedFileClassSubjects",
+        "portableContentProjectionSubjects",
+        "derivedIndexProjectionSubjects",
+        "journalRecoverySubjects",
+        "diagnosticSubjects",
+        "lifecycleRoute",
+        "validate",
+        "searchImplementationPresent",
+        "keychainUsageDeclared",
+        "ConflictRuleV1",
+        "ReplicationPolicyV1",
+        "privateDeviceOnly",
+        "noncustomerDiagnostic"
+      ],
+      "symbols": [
+        "V10_03ReplicationConflictRegistryTests",
+        "CurrentSyncClassificationCatalogV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/S2PersistenceLedgerTests.swift",
+      "requiredTokens": [
+        "testDiagnosticsCreatesExactZeroBytesAndReloadsEveryCounterAndBucket",
+        "testDiagnosticsCountersAndPurchaseBucketsSaturateAtInt64Max",
+        "testMalformedDiagnosticsResetOnlyDiagnosticsAndPreserveDomainSentinels",
+        "testDiagnosticsWriteFailureIsNonGatingAndDoesNotInventAnIncrement",
+        "DeviceOperationalSupportSnapshotV2",
+        "operationalSupportSnapshot",
+        "canonicalOperationalSupportData",
+        "canonicalDiagnosticsData",
+        "exactZeroDiagnosticsData"
+      ],
+      "symbols": [
+        "S2PersistenceLedgerTests",
+        "DeviceOperationalSupportSnapshotV2"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/SystemHealthContractsV1.swift",
+      "requiredTokens": [
+        "SystemHealthDiagnosticsV1",
+        "OperationalFailureV1",
+        "OperationalFailureRegistryV1",
+        "DeviceOperationalSupportStoreSchemaV2",
+        "OperationalFailureBoundaryV1",
+        "OperationalFailureMapperV1",
+        "maximumRecordBytes",
+        "maximumTotalBytes",
+        "maximumRecords",
+        "ScratchDataLeaseV1",
+        "SUPPORT_EXPORT",
+        "CAPTURE",
+        "IMPORT",
+        "SOURCE",
+        "bootstrapOnly",
+        "containsCustomerContent",
+        "permitsAutomaticUpload",
+        "COMPLETE",
+        "SupportExportTerminalTokenV1",
+        "terminalToken",
+        "beginTerminalDisposition",
+        "rollbackTerminalDisposition",
+        "commitTerminalDisposition",
+        "available",
+        "inProgress",
+        "retryable",
+        "finished",
+        "switch boundary",
+        "return .unknown"
+      ],
+      "symbols": [
+        "SystemHealthDiagnosticsV1",
+        "OperationalFailureV1",
+        "OperationalFailureRegistryV1",
+        "DeviceOperationalSupportStoreSchemaV2",
+        "OperationalFailureBoundaryV1",
+        "OperationalFailureMapperV1",
+        "ScratchDataLeaseV1",
+        "SupportBundleManifestV1",
+        "SupportExportResultV1",
+        "WorkflowFrictionProfileV1",
+        "LocalDiagnosticsPreferenceV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/V9_12SystemHealthOperationalDiagnosticsTests.swift",
+      "requiredTokens": [
+        "testV9_12G01BoundedSystemHealthAndSingleMetricSource",
+        "testV9_12A01OperationalFailureRegistryAndDefaultOffFrictionAreClosed",
+        "testV9_12H01SupportExportRejectsCustomerDataAndSourceScratch",
+        "testV9_12I01StoreScratchAndSupportExportRecoverWithoutDuplicateEffects",
+        "testV9_12R01MigrationResetEraseAndBootstrapRemainDeviceLocal",
+        "XCTAssertEqual",
+        "XCTAssertFalse",
+        "XCTAssertThrowsError",
+        "canonicalOpenCount",
+        "networkRequestCount",
+        "SupportBundleBuilderV1",
+        "bootstrapOnly",
+        "eraseScratchData",
+        "DeviceOperationalSupportStoreSchemaV2",
+        "operationalSupportSnapshot",
+        "resetOperationalSupport",
+        ".complete",
+        "OperationalFailureBoundaryV1",
+        "OperationalFailureMapperV1",
+        "recordAndRethrowOperationalFailure",
+        "typedErrorMapping",
+        "provisionalKernelOnly",
+        "shippingBoundaryAdoption"
+      ],
+      "symbols": [
+        "Card28EvidenceTests"
+      ]
+    },
+    {
+      "owner": "V23-P02-C08",
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Diagnostics/V21P02C08SystemHealthOperationalDiagnosticsCorpusV1.json",
+      "requiredTokens": [
+        "schemaVersion",
+        "fixtureIdentity",
+        "clock",
+        "bounds",
+        "metricCompatibility",
+        "health",
+        "failureCodes",
+        "unknownFailure",
+        "typedErrorMapping",
+        "supportExport",
+        "storeCases",
+        "scratchIsolation",
+        "workflowFriction",
+        "logging",
+        "resetErase"
+      ],
+      "symbols": [
+        "V21P02C08SystemHealthOperationalDiagnosticsCorpusV1"
+      ]
+    }
+  ],
+  "terminalReplay": {
+    "beginRequiresPrepared": true,
+    "changedDispositionRejected": true,
+    "cleanupFailureIsRetryable": true,
+    "concurrentClaimRejected": true,
+    "finishedClaimRejected": true,
+    "leaseReleasedExactlyOnceOnCommit": true,
+    "receiptPublishedOnlyAfterCleanup": true,
+    "sameDispositionRetryAfterCleanupFailure": true,
+    "stateMachine": [
+      "AVAILABLE",
+      "IN_PROGRESS",
+      "RETRYABLE",
+      "FINISHED"
+    ]
+  }
+}

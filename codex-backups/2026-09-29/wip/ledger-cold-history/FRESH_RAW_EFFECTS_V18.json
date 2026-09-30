@@ -1,0 +1,291 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "7fa795fdf82883518694eefb096e4274c0570047d603aeffb2cbb2d4146b9e1c",
+  "afterSHA256": "df2ca0db62a7bd73e91cda43688e35ee492ca4150bbf7567ba35bc7f9d6601d7",
+  "kind": "Fresh actual provider before/after owned effect and directory read IO; unchanged semantic effect checks and actual errno preserved",
+  "wrappedCalls": [
+    {
+      "method": "settleOriginalEraseFirstPPartial",
+      "lineBefore": 7606,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "settleOriginalEraseFirstPPartial",
+      "lineBefore": 7607,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "originalEraseNoRepairSemanticAdmission",
+      "lineBefore": 8180,
+      "call": "flock"
+    },
+    {
+      "method": "c16OwnedTargetSteps",
+      "lineBefore": 8810,
+      "call": "flock"
+    },
+    {
+      "method": "c16OwnedTargetSteps",
+      "lineBefore": 8832,
+      "call": "Darwin.renameat"
+    },
+    {
+      "method": "c16OwnedTargetSteps",
+      "lineBefore": 8834,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "c16FinalizeHygieneSteps",
+      "lineBefore": 8913,
+      "call": "Darwin.renameat"
+    },
+    {
+      "method": "c16FinalizeHygieneSteps",
+      "lineBefore": 8914,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "stageProtectedIngress",
+      "lineBefore": 9713,
+      "call": "Darwin.mkdirat"
+    },
+    {
+      "method": "stageProtectedIngress",
+      "lineBefore": 9714,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "replaceIngressControlBytes",
+      "lineBefore": 9788,
+      "call": "Darwin.renameat"
+    },
+    {
+      "method": "replaceIngressControlBytes",
+      "lineBefore": 9789,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "validateIngressRemovalWithoutEffects",
+      "lineBefore": 9852,
+      "call": "flock"
+    },
+    {
+      "method": "c16IngressRemovalSteps",
+      "lineBefore": 9895,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "c16IngressRemovalSteps",
+      "lineBefore": 9896,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "c16ControlRootRemovalSteps",
+      "lineBefore": 10537,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "c16ControlRootRemovalSteps",
+      "lineBefore": 10538,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "c16ControlEraseSteps",
+      "lineBefore": 11304,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "c16ControlEraseSteps",
+      "lineBefore": 11305,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "c16ControlEraseSteps",
+      "lineBefore": 11319,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "c16ControlEraseSteps",
+      "lineBefore": 11320,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "publishOpaqueIngress",
+      "lineBefore": 11511,
+      "call": "Darwin.linkat"
+    },
+    {
+      "method": "publishOpaqueIngress",
+      "lineBefore": 11512,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "publishOpaqueIngress",
+      "lineBefore": 11513,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "acquireScratchLeaseSynchronously",
+      "lineBefore": 13211,
+      "call": "Darwin.mkdirat"
+    },
+    {
+      "method": "recoverScratchLeaseState",
+      "lineBefore": 13471,
+      "call": "flock"
+    },
+    {
+      "method": "eraseScratchDataSynchronously",
+      "lineBefore": 13594,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "eraseScratchDataSynchronously",
+      "lineBefore": 13599,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "removeLeaseDirectory",
+      "lineBefore": 13722,
+      "call": "flock"
+    },
+    {
+      "method": "removeLeaseDirectory",
+      "lineBefore": 13735,
+      "call": "Darwin.renameat"
+    },
+    {
+      "method": "removeLeaseDirectory",
+      "lineBefore": 13741,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "eraseOriginalFrozenLease",
+      "lineBefore": 13825,
+      "call": "flock"
+    },
+    {
+      "method": "eraseOriginalFrozenLease",
+      "lineBefore": 13847,
+      "call": "Darwin.renameat"
+    },
+    {
+      "method": "eraseOriginalFrozenLease",
+      "lineBefore": 13849,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "eraseOriginalFrozenLease",
+      "lineBefore": 13891,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "eraseOriginalFrozenLease",
+      "lineBefore": 13892,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "eraseOriginalFrozenLease",
+      "lineBefore": 13908,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "eraseOriginalFrozenLease",
+      "lineBefore": 13910,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "eraseOriginalFrozenEmptyRoot",
+      "lineBefore": 13969,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "eraseOriginalFrozenEmptyRoot",
+      "lineBefore": 13971,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "removeDeletionTombstone",
+      "lineBefore": 13997,
+      "call": "flock"
+    },
+    {
+      "method": "c16DeletePinnedDirectorySteps",
+      "lineBefore": 14096,
+      "call": "flock"
+    },
+    {
+      "method": "c16DeletePinnedDirectorySteps",
+      "lineBefore": 14139,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "c16DeletePinnedDirectorySteps",
+      "lineBefore": 14144,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "c16DeletePinnedDirectorySteps",
+      "lineBefore": 14161,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "c16DeletePinnedDirectorySteps",
+      "lineBefore": 14163,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "c16DeletePinnedDirectorySteps",
+      "lineBefore": 14164,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "directoryNames",
+      "lineBefore": 14304,
+      "call": "readdir"
+    },
+    {
+      "method": "unlinkPublicationTemporary",
+      "lineBefore": 14638,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "unlinkPublicationTemporary",
+      "lineBefore": 14639,
+      "call": "Darwin.fsync"
+    },
+    {
+      "method": "writePublicationChunk",
+      "lineBefore": 14666,
+      "call": "Darwin.write"
+    },
+    {
+      "method": "publishPublicationTemporary",
+      "lineBefore": 14686,
+      "call": "Darwin.renameatx_np"
+    },
+    {
+      "method": "publishPublicationTemporary",
+      "lineBefore": 14689,
+      "call": "Darwin.linkat"
+    },
+    {
+      "method": "removeInterruptedPublications",
+      "lineBefore": 15171,
+      "call": "Darwin.unlinkat"
+    },
+    {
+      "method": "removeInterruptedPublications",
+      "lineBefore": 15176,
+      "call": "Darwin.fsync"
+    }
+  ],
+  "count": 55,
+  "exclusions": [
+    "open/openat/dup before descriptor ownership retained require separate exact attempt admission",
+    "checked close/closedir terminal paths keep owner fencing and receipts; no descriptor-access wrapper after terminal",
+    "static constructors and nested owner types remain separately audited"
+  ],
+  "status": "INTERMEDIATE NONINSTALLABLE; parse/typecheck/review/runtime due"
+}

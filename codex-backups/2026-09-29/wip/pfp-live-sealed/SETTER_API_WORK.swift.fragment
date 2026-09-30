@@ -1,0 +1,73 @@
+    /// The exact active LIVE policy request, privately issued by the image
+    /// owner. A read-only observation Scope can never call this setter.
+    @MainActor
+    static func applyOriginalEraseScratchPublicationPolicyWithCheckedClose(
+        _ kind: OwnedFileKindV1, at url: URL, initialFullFact: String,
+        scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        retainUncertainDescriptor: (Int32) -> Void
+    ) throws -> TemporalPolicyObservationV1 {
+        let attempt = OriginalEraseScratchPublicationPolicyAttemptV1()
+        scope.retainPolicyAttempt(attempt) // Retain actual owner before first getter/open.
+        do {
+            try scope.requireCurrentBinding()
+            let target = try scope.requireTarget(kind, at: url, initialFullFact: initialFullFact)
+            guard target.kind == kind, target.url == url, target.fullFact == initialFullFact else {
+                throw ProtectedFilePolicyError.identityChanged
+            }
+            let context = try OriginalEraseScratchPublicationPolicyContextV1(scope: scope, attempt: attempt, target: target)
+            try context.openAll(retain: retainUncertainDescriptor)
+            #if DEBUG && os(iOS) && targetEnvironment(simulator)
+            var independent = URL(fileURLWithPath: url.path)
+            independent.removeAllCachedResourceValues()
+            _ = try context.requirePolicyBoundary()
+            let capabilityBefore: Bool?
+            do {
+                capabilityBefore = try independent.resourceValues(forKeys: [.volumeSupportsFileProtectionKey])
+                    .allValues[.volumeSupportsFileProtectionKey] as? Bool
+            } catch { _ = try context.requirePolicyBoundary(); throw mapWriteError(error) }
+            _ = try context.requirePolicyBoundary()
+            #endif
+            try context.streamSource()
+            let protection = try context.perform(.completeProtection)
+            let backup = try context.perform(.backupExclusion)
+            let held = try context.requirePolicyBoundary()
+            let value = try readOriginalEraseScratchPublicationPolicy(kind, at: url,
+                expectedDevice: UInt64(held.st_dev), expectedInode: UInt64(held.st_ino),
+                expectedLinkCount: UInt64(held.st_nlink), context: context)
+            try context.streamSource(); try context.requireCompletedWork()
+            try protection.requireBound(scope: scope, kind: kind, at: url, fullFact: protection.fullFact)
+            try backup.requireBound(scope: scope, kind: kind, at: url, fullFact: backup.fullFact)
+            #if DEBUG && os(iOS) && targetEnvironment(simulator)
+            if value.state == .pendingSimulatorRequest {
+                let readback = DirectoryProtectionReadback(urlProtection: value.urlProtection,
+                    fileManagerProtection: value.fileManagerProtection, backupExcluded: value.backupExcluded,
+                    isDirectory: value.isDirectory, volumeSupportsProtection: value.volumeSupportsProtection)
+                // Both flags derive this call's real events and full held/named
+                // ctime-only proof, never a caller success Boolean.
+                guard simulatorDiagnosticAllows(capabilityBefore: capabilityBefore, after: readback,
+                    disposition: disposition(for: kind), successfulCompleteRequest: true,
+                    identityUnchanged: true) else { throw ProtectedFilePolicyError.resourceValueMismatch }
+                _ = try context.requirePolicyBoundary()
+                do { try emitVerificationDisposition(.simulatorFileProtectionUnsupported, kind: kind) }
+                catch { _ = try context.requirePolicyBoundary(); throw error }
+                _ = try context.requirePolicyBoundary()
+            }
+            #endif
+            _ = try context.requirePolicyBoundary()
+            let finalFact = context.currentFullFact
+            try attempt.finish(scope: scope, retain: retainUncertainDescriptor)
+            try scope.requireCurrentBinding()
+            try attempt.complete(scope: scope, value: value, fullFact: finalFact)
+            try attempt.requireCheckedSettlement(scope: scope, kind: kind, at: url)
+            return value
+        } catch {
+            if attempt.needsFinish {
+                do { try attempt.finish(scope: scope, retain: retainUncertainDescriptor) }
+                catch { attempt.poison(scope); throw error }
+            }
+            attempt.poison(scope)
+            if let error = error as? ProtectedFilePolicyError { throw error }
+            throw mapWriteError(error)
+        }
+    }
+

@@ -1,0 +1,25 @@
+{
+  "schema": "V23P04C43SignoffEnrollmentCorpusV1",
+  "schemaVersion": 1,
+  "fixtureIdentity": "V23-P04-C43-SIGNOFF-ENROLLMENT-CORPUS-V1",
+  "cardID": "V23-P04-C43",
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "manifest": "WORK_DETAIL_COMPLETED_RESPONSE_V1",
+  "evidenceIDs": ["V23-P04-C43-G01", "V23-P04-C43-A01", "V23-P04-C43-H01", "V23-P04-C43-I01", "V23-P04-C43-R01"],
+  "golden": {"method": "TYPED_LOCAL_ASSERTION", "durableFields": ["method", "receiptSHA256"], "forbiddenDurableFields": ["strokes", "image", "digest", "biometric", "template"]},
+  "alternate": {"method": "EXPLICIT_LOCAL_ACKNOWLEDGEMENT", "drawnMark": "PRESENT_NON_BIOMETRIC", "expected": "method-only durable distinction"},
+  "hostile": [
+    {"id": "cross-workspace-actor", "expected": "REJECTED"},
+    {"id": "missing-actor-row", "expected": "REJECTED"},
+    {"id": "stale-expected-revision", "expected": "REJECTED"},
+    {"id": "corrupted-receipt-sha", "expected": "REJECTED"},
+    {"id": "wrong-manifest", "expected": "REJECTED"},
+    {"id": "deep-link-only-route", "expected": "REJECTED"}
+  ],
+  "claims": {"verifiedIdentity": false, "verifiedAuthority": false, "legalSignature": false, "legalEffect": false, "nonrepudiation": false, "finalApproval": false, "workflowTransition": false, "behalfOfAnotherPerson": false},
+  "route": ["work-root", "immutable-work-detail", "more", "record-approval-response", "signoff-editor", "signoff-history"],
+  "routeEligibility": {"requiresVisibleWorkRoot": true, "directDeepLinkOnlyIsEligible": false},
+  "acknowledgementSnapshot": {"accepted": true, "copy": "Local response only", "key": "local_response_only", "version": "v1", "migration": "FORBIDDEN"}
+}

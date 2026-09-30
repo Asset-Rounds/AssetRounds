@@ -1,0 +1,64 @@
+{
+  "schema": "V23P05C01ExactCodeCandidateGateV1",
+  "schemaVersion": 1,
+  "card": {"id": "V23-P05-C01", "ordinal": 134, "attempt": 1, "classification": "PREPARE_NOW"},
+  "candidate": {"baseHead": "2952775307a182d183461f81157af6cb3819be69", "baseTree": "36b3c5f0993519aa703a341f6e650989dc5f1102", "status": "PROVISIONAL_STATIC_ONLY"},
+  "prerequisite": {"cardID": "V23-P04-C29", "acceptance": false, "checkpointDigest": "b5a01f55325d5bbebc8e5744d4ddcf926936f73ed9c42b36a1f64e59d7bc2b89", "verificationDigest": "45cb4f66f35ea76c024526a0d5a1cac4d4b642b6797b4565b40eb1646d224f38", "boundaryDigest": "a4669291ed3722c46c30067066367d669ac00a850fda9e673fc147354ad1719f"},
+  "selectorRows": [
+    {"id": "P03ShippingSurfaceSetV1", "memberCount": 19, "digest": "abcd7c41f9e2493840d2132f8fe6dd519eb6618e2074361e204a72d9516041c7"},
+    {"id": "P04ShippingSurfaceSetV1", "memberCount": 40, "digest": "8398caa9f991c98d3eecc5d9568379b787c286c6b03b1148556d3aa512b18bec"},
+    {"id": "P04BrandClosureSetV1", "memberCount": 65, "digest": "823914bb28232f22138f8e8ccd78cd730977d0f37fd09b06c57e3d4d6a194186"},
+    {"id": "PublicCapabilityTruthSetV1", "memberCount": 15, "digest": "6556f62fd77179354579fe129dd0341b9ae1f4f075befe9ed4d6e57a4766cdc0"},
+    {"id": "AutonomousRequiredAcceptedSetV1", "memberCount": 132, "digest": "31356cbabc5e576be8b9eae25a9102060ebf0109da666fbcece94765777bf5c8"},
+    {"id": "ContactPurposeSeparationSetV1", "memberCount": 11, "digest": "de91c7b97c537b3233789eb1133d6e7c395715392c2411b91dfe438fb5d228fc"},
+    {"id": "KernelConformanceSubjectSetV1", "memberCount": 72, "digest": "5235cb5f53c2130502a7b4e7fc26b534e8749bde0fe283edf5fae5b69832dff9"}
+  ],
+  "provisionalEvidence": {
+    "orderedMemberIDs": [
+      "V23-P00-C01", "V23-P00-C02", "V23-P00-C04", "V23-P00-C05", "V23-P00-C07", "V23-P00-C09", "V23-P00-C10", "V23-P00-C11", "V23-P00-C12", "V23-P00-C06", "V23-P00-C08", "V23-P00-C13", "V23-P01-C01", "V23-P01-C02", "V23-P01-C03", "V23-P01-C04", "V23-P01-C05", "V23-P01-C06", "V23-P01-C07", "V23-P02-C01", "V23-P02-C02", "V23-P02-C03", "V23-P02-C04", "V23-P02-C05", "V23-P02-C06", "V23-P02-C07", "V23-P02-C08", "V23-P02-C09", "V23-P02-C10", "V23-P02-C11", "V23-P03-C01", "V23-P03-C02", "V23-P03-C03", "V23-P03-C04", "V23-P03-C05", "V23-P03-C06", "V23-P03-C07", "V23-P03-C08", "V23-P03-C11", "V23-P03-C35", "V23-P03-C09", "V23-P03-C10", "V23-P03-C12", "V23-P03-C16", "V23-P03-C38", "V23-P03-C39", "V23-P03-C40", "V23-P03-C41", "V23-P03-C13", "V23-P03-C14", "V23-P03-C15", "V23-P03-C36", "V23-P03-C17", "V23-P03-C18", "V23-P03-C19", "V23-P03-C20", "V23-P03-C21", "V23-P03-C22", "V23-P03-C23", "V23-P03-C24", "V23-P03-C25", "V23-P03-C26", "V23-P03-C27", "V23-P03-C28", "V23-P03-C29", "V23-P03-C37", "V23-P03-C30", "V23-P03-C31", "V23-P03-C42", "V23-P03-C32", "V23-P03-C33", "V23-P03-C43", "V23-P03-C44", "V23-P03-C45", "V23-P03-C46", "V23-P03-C47", "V23-P03-C48", "V23-P03-C49", "V23-P03-C50", "V23-P03-C51", "V23-P03-C34", "V23-P03-C52", "V23-P03-C53", "V23-P03-C54", "V23-P03-C55", "V23-P03-C56", "V23-P03-C57", "V23-P04-C01", "V23-P04-C02", "V23-P04-C03", "V23-P04-C04", "V23-P04-C05", "V23-P04-C06", "V23-P04-C07", "V23-P04-C08", "V23-P04-C09", "V23-P04-C10", "V23-P04-C11", "V23-P04-C12", "V23-P04-C13", "V23-P04-C14", "V23-P04-C15", "V23-P04-C16", "V23-P04-C17", "V23-P04-C18", "V23-P04-C19", "V23-P04-C20", "V23-P04-C21", "V23-P04-C22", "V23-P04-C23", "V23-P04-C24", "V23-P04-C25", "V23-P04-C26", "V23-P04-C30", "V23-P04-C31", "V23-P04-C32", "V23-P04-C33", "V23-P04-C34", "V23-P04-C35", "V23-P04-C36", "V23-P04-C37", "V23-P04-C38", "V23-P04-C39", "V23-P04-C27", "V23-P04-C28", "V23-P04-C29", "V23-P04-C40", "V23-P04-C41", "V23-P04-C42", "V23-P04-C43", "V23-P04-C44", "V23-P04-C45"
+    ],
+    "memberCount": 132,
+    "stateCountVector": [112, 14, 5, 1],
+    "acceptedCount": 0,
+    "predicateSatisfied": false,
+    "creditGranted": false,
+    "source": "SIBLING_BOUNDARY_RECEIPT"
+  },
+  "journeyGates": {
+    "commonJourneyIDs": ["J01_FIRST_ENTRY", "J02_REAL_WORKSPACE_CREATE_IMPORT_SELECT", "J03_SITE_LOCATION_ASSET_CREATE_FIND_SCAN", "J04_OFFLINE_PREPARE", "J05_ROUND_START_RESUME", "J06_EVIDENCE_CAPTURE_CURATE", "J07_VALIDATION_INCOMPLETE_RESOLUTION", "J08_COMPLETE_NEXT_CLOSE", "J09_REPORT_PREVIEW_SHARE_EXPORT", "J10_BACKUP_RESTORE_RECOVERY", "J11_SETTINGS_ACCESSIBILITY_HELP", "J12_PURCHASE_RESTORE", "J13_DELETE_ERASE", "J14_PRACTICE_START_SWITCH_LEAVE"],
+    "featureJourneyIDs": ["FJ01", "FJ02", "FJ03", "FJ04", "FJ05", "FJ06", "FJ07", "FJ08", "FJ09", "FJ10", "FJ11", "FJ12", "FJ13", "FJ14", "FJ15", "FJ16", "FJ17"],
+    "status": "NOT_RUN"
+  },
+  "logicalAcceptanceLanes": [
+    {"id": "COMPILE_STATIC_ARCHITECTURE_CLAIMS_LOCALIZATION", "status": "NOT_RUN"},
+    {"id": "UNIT_CONTRACT_LIFECYCLE_HOSTILE_PARSER", "status": "NOT_RUN"},
+    {"id": "INTEGRATION_INTERRUPTION_RECOVERY_COMPATIBILITY", "status": "NOT_RUN"},
+    {"id": "UI_JOURNEY_ACCESSIBILITY_VISUAL_AFFECTED_HIG", "status": "BLOCKED"},
+    {"id": "COVERAGE_UNINSTRUMENTED_PERFORMANCE_ARCHIVE_RELEASE_EVIDENCE", "status": "BLOCKED"}
+  ],
+  "scenarioRows": [
+    {"id": "G01", "status": "NOT_RUN"}, {"id": "A01", "status": "NOT_RUN"}, {"id": "H01", "status": "BLOCKED"}, {"id": "I01", "status": "NOT_RUN"}, {"id": "R01", "status": "NOT_RUN"}
+  ],
+  "readOnlyBindings": [
+    {"role": "ciSelector", "path": "Scripts/ci-selection.json", "sha256": "03c23506919733dde0174448e446d26df4753c505be242587886f142d281314f"},
+    {"role": "ciWorkflow", "path": ".github/workflows/ios-ci.yml", "sha256": "bcd64e2a42752d28844435241b5abfca911d04190375cbbdbfc10b45acba97d7"},
+    {"role": "controllerWorkflow", "path": ".github/workflows/v23-controller.yml", "sha256": "9191e22ef1485af2dc3dd6a1f0201fe16fe2e6f884bed89fc701f1b4eb4b817b"},
+    {"role": "workerWorkflow", "path": ".github/workflows/v23-worker.yml", "sha256": "ee00dd9c894cfdc353b53e52813498c81a7a6d5486920931eec2cbe1caca2f51"},
+    {"role": "controller", "path": "Scripts/v23/controller.py", "sha256": "f5634cf788afe80911db6dbedff53464b23556eff5eef4037a7f625343738b35"},
+    {"role": "capacityContracts", "path": "Scripts/v23/controller_contracts.py", "sha256": "64f2a2d6975ae17cdab96ca1ddaa78feb5eeb8990325ee632c01f1cd79ccb977"},
+    {"role": "releasePlan", "path": "TestPlans/V23-ReleaseCandidate.xctestplan", "sha256": "0539566b34917618f575650d256a2ae125fea6e8c31365c07871c52556f4b606"},
+    {"role": "capacityPolicy", "path": "docs/design/v23/tooling/RepositoryHostedCapacityPolicyV1.json", "sha256": "6f4a12aac49dbb812808a4721962fb7ca5a223ce9975a642505060c74ad188c8"},
+    {"role": "controllerEnrollment", "path": "docs/design/v23/tooling/ControllerWorkflowEnrollmentV1.json", "sha256": "783db29a403f2130c647cce3d6c514a4134ee1535cdaa0279da6c12464aa591c"},
+    {"role": "commonJourneys", "path": "docs/design/v23/tooling/CommonTaskJourneyReleaseV2.json", "sha256": "3a233ef98d116c43a6e349f51699759d53ab3118120decbc0230a2af98427003"},
+    {"role": "featureJourneys", "path": "docs/design/v23/tooling/FeatureEndToEndJourneyReleaseV1.json", "sha256": "4d13350dacbfe16568d06fa11f331741359581567d476db1dfab3cb557ea7aac"},
+    {"role": "privacyInventory", "path": "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json", "sha256": "3a4f5f8afe44daed06cbe8a95ccb16be7610495af780b8df36b4138b7beaeb4b"},
+    {"role": "higEvidence", "path": "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json", "sha256": "b630bffebe0e2a365ac7e082517d587fef7361a0711425e8574f3e8286ea35c8"},
+    {"role": "persistenceRegistry", "path": "docs/design/v23/tooling/PersistentSchemaReleaseRegistryV1.json", "sha256": "ce5d076340c893de0e37e9f1642101365f2f532f705dc53e9f6957376e026c35"},
+    {"role": "archiveContract", "path": "docs/design/v23/tooling/V23P01C04StreamingArchiveContractV1.json", "sha256": "06e7482ebefee6d8402c76b36382431c47e1ff65b96eddaa4b48c4a90e9547c3"},
+    {"role": "packageRegistry", "path": "docs/design/v23/tooling/V23P03C01PackageRegistryContractV2.json", "sha256": "908fb71753b97d74e6cb8cfa479cc76e9ed55213554042e401f064ca79a8be4e"},
+    {"role": "releaseManifest", "path": "Release/ReleaseInputManifestV1.json", "sha256": "15ea1c720342eabc53247089639cc8df8b75b66352008df5d4f4091d453dc3ee"}
+  ],
+  "lifecycle": {"customerData": false, "persistentWrites": false, "archiveWrites": false, "packageWrites": false},
+  "flags": {"native": false, "hosted": false, "physical": false, "adoption": false, "acceptance": false, "publication": false, "release": false, "phaseIntegration": false, "requiresAcceptedS10_6": true},
+  "prohibitions": ["NO_XCODE", "NO_IOS_DEVICE", "NO_UDID", "NO_WORKFLOW_INVENTION", "NO_SIGNING", "NO_UPLOAD", "NO_SUBMISSION", "NO_P05_C02_C03_OR_P06_WORK"]
+}

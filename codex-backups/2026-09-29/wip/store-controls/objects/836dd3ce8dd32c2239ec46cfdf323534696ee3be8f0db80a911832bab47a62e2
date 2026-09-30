@@ -1,0 +1,195 @@
+// Store-only interface source. Actual syscall issuers are not implemented.
+// Central authority f951 and realOS4871 are private external dependencies.
+import Foundation
+
+struct EraseSchema2CompactTerminalCapsuleReadbackV4: Equatable {
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    let notificationOrigin: EraseSchema2TerminalNotificationOriginV4
+    let semanticData: EraseSchema2TransferredTargetSemanticDataV4
+    let binding: EraseSchema2CompactTerminalBindingV4
+    let nextDeletionOrdinal: UInt64
+    let remainingEarlierControlCount: UInt64
+    let actualEraseRootFullFact: String
+    // Capsule selfSHA/fact are supplied EXTERNALLY after actualreadback;
+    // no self fact/SHA occurs in its serialized bytes. Complete origin<=2MiB.
+}
+
+@MainActor
+final class EraseSchema2CompactTerminalLastLeafReceiptV4 {
+    let operationID: UUID
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    let binding: EraseSchema2CompactTerminalBindingV4
+    let deletionOrdinal: UInt64
+    let eraseRootBeforeFullFact: String
+    let eraseRootAfterFullFact: String
+    let unlinkedHeldCapsuleFullFact: String
+    let checkedLeafCloseIdentity: UUID
+    private weak var store: EraseIntentStore?
+    private let reproveActualRetainedCut: @MainActor () throws -> Void
+    private var uncertain = false
+    fileprivate init(store: EraseIntentStore, operationID: UUID,
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4, deletionOrdinal: UInt64,
+        eraseRootBeforeFullFact: String, eraseRootAfterFullFact: String,
+        unlinkedHeldCapsuleFullFact: String, checkedLeafCloseIdentity: UUID,
+        reproveActualRetainedCut: @escaping @MainActor () throws -> Void) throws {
+        try reproveActualRetainedCut()
+        self.store = store; self.operationID = operationID
+        self.subject = subject; self.binding = binding; self.deletionOrdinal = deletionOrdinal
+        self.eraseRootBeforeFullFact = eraseRootBeforeFullFact
+        self.eraseRootAfterFullFact = eraseRootAfterFullFact
+        self.unlinkedHeldCapsuleFullFact = unlinkedHeldCapsuleFullFact
+        self.checkedLeafCloseIdentity = checkedLeafCloseIdentity
+        self.reproveActualRetainedCut = reproveActualRetainedCut
+        try reproveActualRetainedCut()
+    }
+    func requireBound(store: EraseIntentStore,
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4) throws {
+        do {
+            guard !uncertain, self.store === store, self.subject == subject,
+                self.binding == binding else { throw EraseIntentStoreError.invalidAuthority }
+            try reproveActualRetainedCut()
+        } catch { uncertain = true; throw error }
+    }
+}
+
+@MainActor
+final class EraseSchema2CompactTerminalRootRemovalReceiptV4 {
+    let operationID: UUID
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    let binding: EraseSchema2CompactTerminalBindingV4
+    let lastLeaf: EraseSchema2CompactTerminalLastLeafReceiptV4
+    let eraseRootBeforeFullFact: String
+    let unlinkedHeldEraseRootFullFact: String
+    let supportParentBeforeFullFact: String
+    let supportParentAfterFullFact: String
+    let checkedParentDurabilityIdentity: UUID
+    private weak var store: EraseIntentStore?
+    private let reproveActualRetainedCut: @MainActor () throws -> Void
+    private var uncertain = false
+    fileprivate init(store: EraseIntentStore, operationID: UUID,
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4,
+        lastLeaf: EraseSchema2CompactTerminalLastLeafReceiptV4,
+        eraseRootBeforeFullFact: String, unlinkedHeldEraseRootFullFact: String,
+        supportParentBeforeFullFact: String, supportParentAfterFullFact: String,
+        checkedParentDurabilityIdentity: UUID,
+        reproveActualRetainedCut: @escaping @MainActor () throws -> Void) throws {
+        try lastLeaf.requireBound(store: store, subject: subject, binding: binding)
+        try reproveActualRetainedCut()
+        self.store = store; self.operationID = operationID
+        self.subject = subject; self.binding = binding; self.lastLeaf = lastLeaf
+        self.eraseRootBeforeFullFact = eraseRootBeforeFullFact
+        self.unlinkedHeldEraseRootFullFact = unlinkedHeldEraseRootFullFact
+        self.supportParentBeforeFullFact = supportParentBeforeFullFact
+        self.supportParentAfterFullFact = supportParentAfterFullFact
+        self.checkedParentDurabilityIdentity = checkedParentDurabilityIdentity
+        self.reproveActualRetainedCut = reproveActualRetainedCut
+        try reproveActualRetainedCut()
+    }
+    func requireBound(store: EraseIntentStore,
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4) throws {
+        do {
+            guard !uncertain, self.store === store, self.subject == subject,
+                self.binding == binding else { throw EraseIntentStoreError.invalidAuthority }
+            try lastLeaf.requireBound(store: store, subject: subject, binding: binding)
+            try reproveActualRetainedCut()
+        } catch { uncertain = true; throw error }
+    }
+}
+
+@MainActor
+final class EraseSchema2CompactTerminalStoreCloseReceiptV4 {
+    enum Origin { case originalOwnedDescriptors, coldFirstHeldObservation }
+    let operationID: UUID
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    let binding: EraseSchema2CompactTerminalBindingV4
+    let rootRemoval: EraseSchema2CompactTerminalRootRemovalReceiptV4
+    let origin: Origin
+    let checkedResourceCloseIdentity: UUID
+    private weak var store: EraseIntentStore?
+    private let reproveClosedMemoryAndActualOwner: @MainActor () throws -> Void
+    private var uncertain = false
+    fileprivate init(store: EraseIntentStore, operationID: UUID,
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4,
+        rootRemoval: EraseSchema2CompactTerminalRootRemovalReceiptV4,
+        origin: Origin, checkedResourceCloseIdentity: UUID,
+        reproveClosedMemoryAndActualOwner: @escaping @MainActor () throws -> Void) throws {
+        try reproveClosedMemoryAndActualOwner()
+        self.store = store; self.operationID = operationID; self.subject = subject
+        self.binding = binding; self.rootRemoval = rootRemoval; self.origin = origin
+        self.checkedResourceCloseIdentity = checkedResourceCloseIdentity
+        self.reproveClosedMemoryAndActualOwner = reproveClosedMemoryAndActualOwner
+        try reproveClosedMemoryAndActualOwner()
+    }
+    func requireBound(store: EraseIntentStore,
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4) throws {
+        do {
+            guard !uncertain, self.store === store, self.subject == subject,
+                self.binding == binding else { throw EraseIntentStoreError.invalidAuthority }
+            // NO IO on any closed/uncertain numeric descriptor. The real higher
+            // retained EX owner reproofs its distinct actual resource set here.
+            try reproveClosedMemoryAndActualOwner()
+        } catch { uncertain = true; throw error }
+    }
+}
+
+@MainActor
+protocol EraseSchema2CompactTerminalStoreContractV4 {
+    // New prospective capsules require exact909-byte semantic DATA and an
+    // actually produced private seal; legacy missingDATA uses genuinefullB.
+    func publishSchema2CompactTerminal(
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        notificationOrigin: EraseSchema2TerminalNotificationOriginV4,
+        semanticData: EraseSchema2TransferredTargetSemanticDataV4,
+        semanticSeal: EraseSchema2TransferredTargetSemanticProducerSealV4,
+        consumerComplete: EraseSchema2ConsumerCompleteReceiptV4,
+        sources: EraseSchema2ColdSourcesHeaderV4,
+        finalRecord: EraseSchema2ColdProgressReadbackV4,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2CompactTerminalCapsuleReadbackV4
+    func observeSchema2CompactTerminal(permit: EraseSchema2ColdControlPermitV1)
+        throws -> EraseSchema2CompactTerminalCapsuleReadbackV4
+    func removeSchema2CompactTerminalControl(
+        capsule: EraseSchema2CompactTerminalCapsuleReadbackV4, ordinal: UInt64,
+        authority: EraseSchema2CompactTerminalAuthorityV4,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2CompactTerminalCapsuleReadbackV4
+    func removeSchema2CompactTerminalLastCapsule(
+        capsule: EraseSchema2CompactTerminalCapsuleReadbackV4,
+        authority: EraseSchema2CompactTerminalAuthorityV4,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2CompactTerminalLastLeafReceiptV4
+    func removeSchema2CompactTerminalEraseRoot(
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4,
+        lastLeaf: EraseSchema2CompactTerminalLastLeafReceiptV4,
+        authority: EraseSchema2CompactTerminalAuthorityV4,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2CompactTerminalRootRemovalReceiptV4
+    func closeOriginalSchema2CompactTerminalStoreChecked(
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4,
+        rootRemoval: EraseSchema2CompactTerminalRootRemovalReceiptV4,
+        authority: EraseSchema2CompactTerminalAuthorityV4,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4,
+        originalRetirement: ErasedRegistryRetirementProofV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2CompactTerminalStoreCloseReceiptV4
+    func closeBorrowedSchema2CompactTerminalStoreChecked(
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        binding: EraseSchema2CompactTerminalBindingV4,
+        rootRemoval: EraseSchema2CompactTerminalRootRemovalReceiptV4,
+        authority: EraseSchema2CompactTerminalAuthorityV4,
+        readback: EraseSchema2TerminalNotificationReadbackReceiptV4,
+        operation: EraseColdPreparationOperationV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2CompactTerminalStoreCloseReceiptV4
+}

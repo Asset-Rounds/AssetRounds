@@ -1,0 +1,1972 @@
+import Darwin
+import Foundation
+
+enum Counter: Sendable {
+    case firstSignCreated
+    case onboardingCompleted
+    case paywallPresented
+    case recheckCompleted
+    case reportSaved
+    case reportShareSheetPresented
+}
+
+enum PurchaseResult: Sendable {
+    case cancelled
+    case failed
+    case pending
+    case unverified
+    case verified
+}
+
+struct PurchaseResultHistogram: Codable, Equatable, Sendable {
+    var cancelled: Int64
+    var failed: Int64
+    var pending: Int64
+    var unverified: Int64
+    var verified: Int64
+
+    static let zero = PurchaseResultHistogram(
+        cancelled: 0,
+        failed: 0,
+        pending: 0,
+        unverified: 0,
+        verified: 0
+    )
+}
+
+struct DiagnosticsV1: Codable, Equatable, Sendable {
+    var firstSignCreated: Int64
+    var onboardingCompleted: Int64
+    var paywallPresented: Int64
+    var purchaseResult: PurchaseResultHistogram
+    var recheckCompleted: Int64
+    var reportSaved: Int64
+    var reportShareSheetPresented: Int64
+    var schemaVersion: Int
+
+    enum CodingKeys: String, CodingKey {
+        case firstSignCreated = "first_sign_created"
+        case onboardingCompleted = "onboarding_completed"
+        case paywallPresented = "paywall_presented"
+        case purchaseResult = "purchase_result"
+        case recheckCompleted = "recheck_completed"
+        case reportSaved = "report_saved"
+        case reportShareSheetPresented = "report_share_sheet_presented"
+        case schemaVersion
+    }
+
+    static let zero = DiagnosticsV1(
+        firstSignCreated: 0,
+        onboardingCompleted: 0,
+        paywallPresented: 0,
+        purchaseResult: .zero,
+        recheckCompleted: 0,
+        reportSaved: 0,
+        reportShareSheetPresented: 0,
+        schemaVersion: 1
+    )
+
+    var isValid: Bool {
+        schemaVersion == 1
+            && firstSignCreated >= 0
+            && onboardingCompleted >= 0
+            && paywallPresented >= 0
+            && purchaseResult.cancelled >= 0
+            && purchaseResult.failed >= 0
+            && purchaseResult.pending >= 0
+            && purchaseResult.unverified >= 0
+            && purchaseResult.verified >= 0
+            && recheckCompleted >= 0
+            && reportSaved >= 0
+            && reportShareSheetPresented >= 0
+    }
+}
+
+private struct DeviceOperationalSupportEnvelopeV2: Codable, Equatable, Sendable {
+    static let schemaVersion = 2
+    let schemaVersion: Int
+    let health: SystemHealthDiagnosticsV1
+    let counters: DiagnosticsV1
+
+    init(health: SystemHealthDiagnosticsV1, counters: DiagnosticsV1) throws {
+        schemaVersion = Self.schemaVersion
+        self.health = health
+        self.counters = counters
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, counters.isValid else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try health.validate()
+    }
+}
+
+private struct DeviceOperationalSupportEnvelopeV3: Codable, Equatable, Sendable {
+    static let schemaVersion = 3
+    let schemaVersion: Int
+    let health: SystemHealthDiagnosticsV1
+    let counters: DiagnosticsV1
+    let feedbackDraft: SupportFeedbackDraftV1?
+    let feedbackDraftRecoveryRequired: Bool
+
+    init(
+        health: SystemHealthDiagnosticsV1,
+        counters: DiagnosticsV1,
+        feedbackDraft: SupportFeedbackDraftV1?,
+        feedbackDraftRecoveryRequired: Bool
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.health = health
+        self.counters = counters
+        self.feedbackDraft = feedbackDraft
+        self.feedbackDraftRecoveryRequired = feedbackDraftRecoveryRequired
+        try validate()
+    }
+
+    func validate() throws {
+        guard schemaVersion == Self.schemaVersion, counters.isValid else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try health.validate()
+        try feedbackDraft?.validate()
+        guard !feedbackDraftRecoveryRequired || feedbackDraft == nil else {
+            throw DiagnosticsFailure.invalidFile
+        }
+    }
+}
+
+actor DiagnosticsStore: DeviceOperationalSupportStoreV3 {
+    /// Process-wide serialization for the sole device-operational support
+    /// format. Per-instance actor isolation alone cannot serialize two store
+    /// handles opened against the same application-support root.
+    private static let formatLease = NSRecursiveLock()
+    static let maximumOperationalRecordBytes =
+        DeviceOperationalSupportStoreSchemaV3.maximumRecordBytes
+    static let maximumOperationalTotalBytes =
+        DeviceOperationalSupportStoreSchemaV3.maximumTotalBytes
+    static let maximumOperationalRecords =
+        DeviceOperationalSupportStoreSchemaV3.maximumRecords
+    private struct FileIdentity: Equatable {
+        let device: UInt64
+        let inode: UInt64
+        let linkCount: UInt64
+        let size: Int64
+
+        init(_ information: stat) {
+            device = UInt64(information.st_dev)
+            inode = UInt64(information.st_ino)
+            linkCount = UInt64(information.st_nlink)
+            size = Int64(information.st_size)
+        }
+    }
+
+    private struct DirectoryIdentity: Equatable {
+        let device: UInt64
+        let inode: UInt64
+
+        init(_ information: stat) throws {
+            guard (information.st_mode & S_IFMT) == S_IFDIR else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            device = UInt64(information.st_dev)
+            inode = UInt64(information.st_ino)
+        }
+    }
+
+    private final class PinnedDiagnosticsAuthority {
+        let applicationSupportDescriptor: Int32
+        let diagnosticsDescriptor: Int32
+        let applicationSupportIdentity: DirectoryIdentity
+        let diagnosticsIdentity: DirectoryIdentity
+        private let applicationSupportURL: URL
+        private let diagnosticsName: String
+
+        private init(
+            applicationSupportDescriptor: Int32,
+            diagnosticsDescriptor: Int32,
+            applicationSupportIdentity: DirectoryIdentity,
+            diagnosticsIdentity: DirectoryIdentity,
+            applicationSupportURL: URL,
+            diagnosticsName: String
+        ) {
+            self.applicationSupportDescriptor = applicationSupportDescriptor
+            self.diagnosticsDescriptor = diagnosticsDescriptor
+            self.applicationSupportIdentity = applicationSupportIdentity
+            self.diagnosticsIdentity = diagnosticsIdentity
+            self.applicationSupportURL = applicationSupportURL
+            self.diagnosticsName = diagnosticsName
+        }
+
+        deinit {
+            _ = Darwin.close(diagnosticsDescriptor)
+            _ = Darwin.close(applicationSupportDescriptor)
+        }
+
+        static func open(
+            applicationSupportURL: URL,
+            diagnosticsURL: URL,
+            fileManager: FileManager,
+            createIfMissing: Bool
+        ) throws -> PinnedDiagnosticsAuthority? {
+            #if DEBUG
+            var diagnosticBoundary = "application-support-create"
+            var diagnosticFailed = true
+            defer {
+                if diagnosticFailed {
+                    print("Diagnostics authority lastBoundary=\(diagnosticBoundary)")
+                }
+            }
+            #endif
+            if createIfMissing {
+                try fileManager.createDirectory(
+                    at: applicationSupportURL,
+                    withIntermediateDirectories: true
+                )
+            }
+            #if DEBUG
+            diagnosticBoundary = "application-support-open"
+            #endif
+            let applicationSupportDescriptor = Darwin.open(
+                applicationSupportURL.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            if applicationSupportDescriptor < 0 {
+                if !createIfMissing, errno == ENOENT {
+                    #if DEBUG
+                    diagnosticFailed = false
+                    #endif
+                    return nil
+                }
+                throw DiagnosticsFailure.invalidFile
+            }
+            var ownsApplicationSupport = true
+            defer {
+                if ownsApplicationSupport {
+                    _ = Darwin.close(applicationSupportDescriptor)
+                }
+            }
+            #if DEBUG
+            diagnosticBoundary = "application-support-stat"
+            #endif
+            var applicationSupportInformation = stat()
+            guard Darwin.fstat(
+                applicationSupportDescriptor,
+                &applicationSupportInformation
+            ) == 0 else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            let applicationSupportIdentity = try DirectoryIdentity(
+                applicationSupportInformation
+            )
+            let diagnosticsName = diagnosticsURL.lastPathComponent
+            #if DEBUG
+            diagnosticBoundary = "diagnostics-relationship"
+            #endif
+            guard !diagnosticsName.isEmpty,
+                  diagnosticsURL.deletingLastPathComponent()
+                    .standardizedFileURL == applicationSupportURL.standardizedFileURL else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            #if DEBUG
+            diagnosticBoundary = "diagnostics-open"
+            #endif
+            var diagnosticsDescriptor = Darwin.openat(
+                applicationSupportDescriptor,
+                diagnosticsName,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            if diagnosticsDescriptor < 0, errno == ENOENT {
+                guard createIfMissing else {
+                    #if DEBUG
+                    diagnosticFailed = false
+                    #endif
+                    return nil
+                }
+                #if DEBUG
+                diagnosticBoundary = "diagnostics-mkdir"
+                #endif
+                guard Darwin.mkdirat(
+                    applicationSupportDescriptor,
+                    diagnosticsName,
+                    mode_t(0o700)
+                ) == 0 || errno == EEXIST else {
+                    throw DiagnosticsFailure.invalidFile
+                }
+                #if DEBUG
+                diagnosticBoundary = "application-support-sync-after-mkdir"
+                #endif
+                guard Darwin.fsync(applicationSupportDescriptor) == 0 else {
+                    throw DiagnosticsFailure.invalidFile
+                }
+                #if DEBUG
+                diagnosticBoundary = "diagnostics-reopen"
+                #endif
+                diagnosticsDescriptor = Darwin.openat(
+                    applicationSupportDescriptor,
+                    diagnosticsName,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+                )
+            }
+            guard diagnosticsDescriptor >= 0 else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            var ownsDiagnostics = true
+            defer {
+                if ownsDiagnostics { _ = Darwin.close(diagnosticsDescriptor) }
+            }
+            #if DEBUG
+            diagnosticBoundary = "diagnostics-stat"
+            #endif
+            var diagnosticsInformation = stat()
+            guard Darwin.fstat(
+                diagnosticsDescriptor,
+                &diagnosticsInformation
+            ) == 0 else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            let diagnosticsIdentity = try DirectoryIdentity(
+                diagnosticsInformation
+            )
+            let authority = PinnedDiagnosticsAuthority(
+                applicationSupportDescriptor: applicationSupportDescriptor,
+                diagnosticsDescriptor: diagnosticsDescriptor,
+                applicationSupportIdentity: applicationSupportIdentity,
+                diagnosticsIdentity: diagnosticsIdentity,
+                applicationSupportURL: applicationSupportURL.standardizedFileURL,
+                diagnosticsName: diagnosticsName
+            )
+            ownsApplicationSupport = false
+            ownsDiagnostics = false
+            #if DEBUG
+            diagnosticFailed = false
+            #endif
+            return authority
+        }
+
+        func verify() throws {
+            var applicationSupportInformation = stat()
+            guard Darwin.fstat(
+                applicationSupportDescriptor,
+                &applicationSupportInformation
+            ) == 0,
+                  try DirectoryIdentity(applicationSupportInformation)
+                    == applicationSupportIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            var diagnosticsInformation = stat()
+            guard Darwin.fstat(
+                diagnosticsDescriptor,
+                &diagnosticsInformation
+            ) == 0,
+                  try DirectoryIdentity(diagnosticsInformation)
+                    == diagnosticsIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            var childInformation = stat()
+            guard Darwin.fstatat(
+                applicationSupportDescriptor,
+                diagnosticsName,
+                &childInformation,
+                AT_SYMLINK_NOFOLLOW
+            ) == 0,
+                  try DirectoryIdentity(childInformation)
+                    == diagnosticsIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            let reopenedApplicationSupport = Darwin.open(
+                applicationSupportURL.path,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard reopenedApplicationSupport >= 0 else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            defer { _ = Darwin.close(reopenedApplicationSupport) }
+            var reopenedInformation = stat()
+            guard Darwin.fstat(
+                reopenedApplicationSupport,
+                &reopenedInformation
+            ) == 0,
+                  try DirectoryIdentity(reopenedInformation)
+                    == applicationSupportIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            let reopenedDiagnostics = Darwin.openat(
+                reopenedApplicationSupport,
+                diagnosticsName,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            )
+            guard reopenedDiagnostics >= 0 else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            defer { _ = Darwin.close(reopenedDiagnostics) }
+            var reopenedDiagnosticsInformation = stat()
+            guard Darwin.fstat(
+                reopenedDiagnostics,
+                &reopenedDiagnosticsInformation
+            ) == 0,
+                  try DirectoryIdentity(reopenedDiagnosticsInformation)
+                    == diagnosticsIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+        }
+    }
+
+    private static let temporaryName = ".counters.json.next"
+    private static let backupName = ".counters.json.previous"
+    private static let quarantineName = ".counters.json.quarantine"
+
+    private let applicationSupportURL: URL
+    private let directoryURL: URL
+    private let countersURL: URL
+    private let fileManager: FileManager
+    private let logger: DiagnosticsLogger
+    private let now: @Sendable () -> Date
+    private let storagePreflight: StoragePreflightService
+    private var counters = DiagnosticsV1.zero
+    private var health: SystemHealthDiagnosticsV1?
+    private var feedbackDraft: SupportFeedbackDraftV1?
+    private var feedbackDraftRecoveryRequired = false
+    private var lastCommittedData: Data?
+    private var isPrepared = false
+    private var preparationFailure: DiagnosticsFailure?
+
+    init(
+        applicationSupportURL: URL,
+        fileManager: FileManager = .default,
+        logger: DiagnosticsLogger = .live,
+        now: @escaping @Sendable () -> Date = Date.init,
+        capacityProvider: @escaping StoragePreflightService.CapacityProvider = {
+            try $0.resourceValues(
+                forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+            ).volumeAvailableCapacityForImportantUsage
+        }
+    ) {
+        let directoryURL = applicationSupportURL.appendingPathComponent(
+            "FieldEvidenceDiagnostics",
+            isDirectory: true
+        )
+        self.applicationSupportURL = directoryURL.deletingLastPathComponent()
+        self.directoryURL = directoryURL
+        self.countersURL = directoryURL.appendingPathComponent(
+            "counters.json",
+            isDirectory: false
+        )
+        self.fileManager = fileManager
+        self.logger = logger
+        self.now = now
+        self.storagePreflight = StoragePreflightService(
+            capacityProvider: capacityProvider
+        )
+        self.health = nil
+        self.feedbackDraft = nil
+    }
+
+    func prepare() {
+        guard !isPrepared else {
+            return
+        }
+        do {
+            try recoverPendingPublication()
+            guard let authority = try PinnedDiagnosticsAuthority.open(
+                applicationSupportURL: applicationSupportURL,
+                diagnosticsURL: directoryURL,
+                fileManager: fileManager,
+                createIfMissing: false
+            ) else {
+                let initialHealth = try emptyHealth()
+                guard persist(.zero, health: initialHealth) else { return }
+                counters = .zero
+                health = initialHealth
+                isPrepared = true
+                preparationFailure = nil
+                return
+            }
+            let authorityCheck = { try authority.verify() }
+            try authorityCheck()
+            guard let identity = try fileIdentityIfPresent(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) else {
+                let initialHealth = try emptyHealth()
+                guard persist(.zero, health: initialHealth) else { return }
+                counters = .zero
+                health = initialHealth
+                isPrepared = true
+                preparationFailure = nil
+                return
+            }
+            do {
+                try authorityCheck()
+                try ProtectedFilePolicyV1.verify(.diagnostics, at: countersURL)
+                try authorityCheck()
+            } catch let failure as ProtectedFilePolicyError
+                where failure == .resourceValueMismatch {
+                let data = try readData(
+                    at: countersURL,
+                    expected: identity,
+                    authorityCheck: authorityCheck
+                )
+                let decoded = try decodeOperationalStore(data)
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .diagnostics,
+                    at: countersURL,
+                    authorityCheck: authorityCheck
+                )
+                try syncFile(
+                    at: countersURL,
+                    expected: identity,
+                    authorityCheck: authorityCheck
+                )
+                counters = decoded.counters
+                health = decoded.health
+                lastCommittedData = data
+                isPrepared = true
+                preparationFailure = nil
+                feedbackDraft = decoded.feedbackDraft
+                feedbackDraftRecoveryRequired = decoded.feedbackDraftRecoveryRequired
+                if !isV3Envelope(data) {
+                    guard persist(counters, health: decoded.health) else {
+                        isPrepared = false
+                        return
+                    }
+                }
+                return
+            }
+            let data = try readData(
+                at: countersURL,
+                expected: identity,
+                authorityCheck: authorityCheck
+            )
+            let decoded = try decodeOperationalStore(data)
+            counters = decoded.counters
+            health = decoded.health
+            lastCommittedData = data
+            feedbackDraft = decoded.feedbackDraft
+            feedbackDraftRecoveryRequired = decoded.feedbackDraftRecoveryRequired
+            isPrepared = true
+            preparationFailure = nil
+            if !isV3Envelope(data) {
+                guard persist(counters, health: decoded.health) else {
+                    isPrepared = false
+                    return
+                }
+            }
+        } catch let failure as ProtectedFilePolicyError
+            where failure == .protectedDataUnavailable {
+            preparationFailure = .protectedDataUnavailable
+            logger.record(DiagnosticsLogEvent.countersWriteFailed)
+        } catch DiagnosticsFailure.unsupportedVersion {
+            // A newer writer owns these bytes. Downgrade never destroys or
+            // rewrites them; a compatible forward upgrade is required.
+            preparationFailure = .unsupportedVersion
+            logger.record(DiagnosticsLogEvent.countersWriteFailed)
+        } catch DiagnosticsFailure.recoveryRequired {
+            logger.record(DiagnosticsLogEvent.countersWriteFailed)
+            // Quarantine the unreadable bytes, recreate the operational file,
+            // and persist the visible recovery-required state. The draft is
+            // never represented as empty success while its safe copy exists.
+            let candidate = try? emptyHealth()
+            if let candidate,
+               persist(
+                   .zero,
+                   health: candidate,
+                   feedbackDraft: .some(nil),
+                   feedbackDraftRecoveryRequired: true,
+                   repairExisting: true
+               ) {
+                counters = .zero
+                health = candidate
+                feedbackDraft = nil
+                feedbackDraftRecoveryRequired = true
+                isPrepared = true
+                preparationFailure = nil
+            } else {
+                preparationFailure = .recoveryRequired
+            }
+        } catch {
+            logger.record(DiagnosticsLogEvent.invalidCountersReset)
+            if persist(.zero, repairExisting: true) {
+                counters = .zero
+                isPrepared = true
+                preparationFailure = nil
+            } else {
+                preparationFailure = .invalidFile
+            }
+        }
+    }
+
+    func snapshot() -> DiagnosticsV1 {
+        prepare()
+        return counters
+    }
+
+    func acceptDescriptorErasedZero() {
+        counters = .zero
+        do {
+            health = try emptyHealth()
+            feedbackDraft = nil
+            feedbackDraftRecoveryRequired = false
+            lastCommittedData = nil
+            isPrepared = true
+            preparationFailure = nil
+        } catch {
+            health = nil
+            isPrepared = false
+            preparationFailure = .invalidFile
+        }
+    }
+
+    func isExactlyZero() -> Bool {
+        prepare()
+        return counters == .zero
+            && health?.state == .unknown
+            && health?.failures.isEmpty == true
+            && health?.metricKit == nil
+            && feedbackDraft == nil
+            && !feedbackDraftRecoveryRequired
+    }
+
+    func operationalSupportSnapshot() async throws -> DeviceOperationalSupportSnapshotV2 {
+        prepare()
+        guard isPrepared, let health else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        return try DeviceOperationalSupportSnapshotV2(health: health, counters: counters)
+    }
+
+    /// Internal verification bytes for lifecycle owners that must compare the
+    /// physical file against the actual current schema. This deliberately does
+    /// not expose the private envelope type or provide another encoder.
+    func canonicalOperationalSupportEnvelopeDataV3() async throws -> Data {
+        prepare()
+        guard isPrepared, let health else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        let envelope = try DeviceOperationalSupportEnvelopeV3(
+            health: health,
+            counters: counters,
+            feedbackDraft: feedbackDraft,
+            feedbackDraftRecoveryRequired: feedbackDraftRecoveryRequired
+        )
+        let data = try canonicalData(for: envelope)
+        guard data.count <= Self.maximumOperationalTotalBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        return data
+    }
+
+    func recordOperationalFailure(_ failure: OperationalFailureV1) async throws {
+        prepare()
+        guard isPrepared, let health else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        try failure.validate()
+        let recordBytes = try canonicalRecordData(failure)
+        guard recordBytes.count <= Self.maximumOperationalRecordBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        var failures = health.failures
+        failures.append(failure)
+        if failures.count > Self.maximumOperationalRecords {
+            failures.removeFirst(failures.count - Self.maximumOperationalRecords)
+        }
+        let candidate = try SystemHealthDiagnosticsV1(
+            generatedAt: now(),
+            state: .degraded,
+            failures: failures,
+            metricKit: health.metricKit
+        )
+        guard persist(counters, health: candidate) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        self.health = candidate
+    }
+
+    /// Runs an operation whose declared result is `Never`, records its typed
+    /// failure, then rethrows it. A diagnostics-write failure is propagated
+    /// instead, so neither the underlying operation nor persistence failure can
+    /// be converted into an empty success.
+    func recordAndRethrowOperationalFailure(
+        at boundary: OperationalFailureBoundaryV1,
+        occurrenceCount: Int64 = 1,
+        facts: [OperationalFailureFactV1] = [],
+        appVersion: String? = nil,
+        appBuild: String? = nil,
+        packageVersion: String? = nil,
+        operation: @Sendable () async throws -> Never
+    ) async throws -> Never {
+        do {
+            return try await operation()
+        } catch {
+            let failure = try OperationalFailureMapperV1.failure(
+                for: error,
+                at: boundary,
+                occurredAt: now(),
+                occurrenceCount: occurrenceCount,
+                facts: facts,
+                appVersion: appVersion,
+                appBuild: appBuild,
+                packageVersion: packageVersion
+            )
+            try await recordOperationalFailure(failure)
+            throw error
+        }
+    }
+
+    func replaceSystemHealth(_ candidate: SystemHealthDiagnosticsV1) async throws {
+        prepare()
+        guard isPrepared else { throw preparationFailure ?? DiagnosticsFailure.invalidFile }
+        try candidate.validate()
+        for failure in candidate.failures {
+            guard try canonicalRecordData(failure).count
+                    <= Self.maximumOperationalRecordBytes else {
+                throw DiagnosticsFailure.sizeLimitExceeded
+            }
+        }
+        guard persist(counters, health: candidate) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        health = candidate
+    }
+
+    func resetOperationalSupport() async throws {
+        prepare()
+        let isExplicitRecoveryReset = preparationFailure == .recoveryRequired
+            || feedbackDraftRecoveryRequired
+        guard isPrepared || isExplicitRecoveryReset else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        let candidate = try emptyHealth()
+        if preparationFailure == .recoveryRequired {
+            guard persist(
+                .zero,
+                health: candidate,
+                feedbackDraft: .some(nil),
+                feedbackDraftRecoveryRequired: true,
+                repairExisting: true
+            ) else { throw DiagnosticsFailure.invalidFile }
+            counters = .zero
+            health = candidate
+            feedbackDraft = nil
+            feedbackDraftRecoveryRequired = true
+            isPrepared = true
+            preparationFailure = nil
+        }
+        if isExplicitRecoveryReset {
+            try removeFeedbackRecoveryCopyIfPresent()
+        }
+        guard persist(
+            .zero,
+            health: candidate,
+            feedbackDraft: .some(nil),
+            feedbackDraftRecoveryRequired: false,
+            repairExisting: false
+        ) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        counters = .zero
+        health = candidate
+        feedbackDraft = nil
+        feedbackDraftRecoveryRequired = false
+        isPrepared = true
+        preparationFailure = nil
+    }
+
+    func supportFeedbackDraftSnapshot() async throws -> SupportFeedbackDraftStoreSnapshotV1 {
+        prepare()
+        if preparationFailure == .recoveryRequired || feedbackDraftRecoveryRequired {
+            return try SupportFeedbackDraftStoreSnapshotV1(
+                state: .recoveryRequired,
+                draft: nil,
+                safeCopyAvailable: (try? feedbackRecoveryCopyExists()) == true
+            )
+        }
+        guard isPrepared else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        if let feedbackDraft {
+            return try SupportFeedbackDraftStoreSnapshotV1(
+                state: .available,
+                draft: feedbackDraft,
+                safeCopyAvailable: false
+            )
+        }
+        return try SupportFeedbackDraftStoreSnapshotV1(
+            state: .empty,
+            draft: nil,
+            safeCopyAvailable: false
+        )
+    }
+
+    func supportFeedbackRecoveryCopy() async throws -> Data? {
+        prepare()
+        guard preparationFailure == .recoveryRequired || feedbackDraftRecoveryRequired else {
+            return nil
+        }
+        guard let authority = try PinnedDiagnosticsAuthority.open(
+            applicationSupportURL: applicationSupportURL,
+            diagnosticsURL: directoryURL,
+            fileManager: fileManager,
+            createIfMissing: false
+        ) else { return nil }
+        let authorityCheck = { try authority.verify() }
+        let url = directoryURL.appendingPathComponent(
+            Self.quarantineName,
+            isDirectory: false
+        )
+        guard let identity = try fileIdentityIfPresent(
+            at: url,
+            authorityCheck: authorityCheck
+        ) else { return nil }
+        try ProtectedFilePolicyV1.verify(.diagnostics, at: url)
+        let data = try readData(
+            at: url,
+            expected: identity,
+            authorityCheck: authorityCheck
+        )
+        guard data.count <= Self.maximumOperationalTotalBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        return data
+    }
+
+    func saveSupportFeedbackDraft(
+        _ draft: SupportFeedbackDraftV1,
+        expectedRevision: UInt64?
+    ) async throws {
+        prepare()
+        guard isPrepared else {
+            throw preparationFailure ?? DiagnosticsFailure.invalidFile
+        }
+        try draft.validate()
+        guard !feedbackDraftRecoveryRequired else {
+            throw DiagnosticsFailure.recoveryRequired
+        }
+        let record = try canonicalData(for: draft)
+        guard record.count <= DeviceOperationalSupportStoreSchemaV3.maximumRecordBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        switch (feedbackDraft, expectedRevision) {
+        case (nil, nil):
+            guard draft.revision == 1 else { throw DiagnosticsFailure.concurrentMutation }
+        case let (current?, expected?):
+            let (next, overflow) = expected.addingReportingOverflow(1)
+            guard !overflow,
+                  current.draftID == draft.draftID,
+                  current.revision == expected,
+                  draft.revision == next,
+                  draft.createdAt == current.createdAt,
+                  draft.updatedAt >= current.updatedAt else {
+                throw DiagnosticsFailure.concurrentMutation
+            }
+        default:
+            throw DiagnosticsFailure.concurrentMutation
+        }
+        guard persist(counters, health: health, feedbackDraft: .some(draft)) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        feedbackDraft = draft
+    }
+
+    func discardSupportFeedbackDraft(
+        expectedDraftID: UUID,
+        expectedRevision: UInt64
+    ) async throws {
+        prepare()
+        guard isPrepared, let current = feedbackDraft,
+              current.draftID == expectedDraftID,
+              current.revision == expectedRevision else {
+            throw preparationFailure ?? DiagnosticsFailure.concurrentMutation
+        }
+        guard persist(counters, health: health, feedbackDraft: .some(nil)) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        feedbackDraft = nil
+    }
+
+    func increment(_ counter: Counter) {
+        prepare()
+        guard isPrepared else { return }
+        var candidate = counters
+
+        switch counter {
+        case .firstSignCreated:
+            candidate.firstSignCreated = incremented(candidate.firstSignCreated)
+        case .onboardingCompleted:
+            candidate.onboardingCompleted = incremented(candidate.onboardingCompleted)
+        case .paywallPresented:
+            candidate.paywallPresented = incremented(candidate.paywallPresented)
+        case .recheckCompleted:
+            candidate.recheckCompleted = incremented(candidate.recheckCompleted)
+        case .reportSaved:
+            candidate.reportSaved = incremented(candidate.reportSaved)
+        case .reportShareSheetPresented:
+            candidate.reportShareSheetPresented = incremented(
+                candidate.reportShareSheetPresented
+            )
+        }
+
+        if persist(candidate) {
+            counters = candidate
+            isPrepared = true
+        }
+    }
+
+    func incrementPurchaseResult(_ result: PurchaseResult) {
+        prepare()
+        guard isPrepared else { return }
+        var candidate = counters
+
+        switch result {
+        case .cancelled:
+            candidate.purchaseResult.cancelled = incremented(
+                candidate.purchaseResult.cancelled
+            )
+        case .failed:
+            candidate.purchaseResult.failed = incremented(
+                candidate.purchaseResult.failed
+            )
+        case .pending:
+            candidate.purchaseResult.pending = incremented(
+                candidate.purchaseResult.pending
+            )
+        case .unverified:
+            candidate.purchaseResult.unverified = incremented(
+                candidate.purchaseResult.unverified
+            )
+        case .verified:
+            candidate.purchaseResult.verified = incremented(
+                candidate.purchaseResult.verified
+            )
+        }
+
+        if persist(candidate) {
+            counters = candidate
+            isPrepared = true
+        }
+    }
+
+    private func persist(
+        _ candidate: DiagnosticsV1,
+        health healthCandidate: SystemHealthDiagnosticsV1? = nil,
+        feedbackDraft feedbackDraftCandidate: SupportFeedbackDraftV1?? = nil,
+        feedbackDraftRecoveryRequired recoveryCandidate: Bool? = nil,
+        repairExisting: Bool = false
+    ) -> Bool {
+        Self.formatLease.lock()
+        defer { Self.formatLease.unlock() }
+        let temporaryURL = directoryURL.appendingPathComponent(
+            Self.temporaryName,
+            isDirectory: false
+        )
+        let backupURL = directoryURL.appendingPathComponent(
+            Self.backupName,
+            isDirectory: false
+        )
+        let quarantineURL = directoryURL.appendingPathComponent(
+            Self.quarantineName,
+            isDirectory: false
+        )
+        var temporaryIdentity: FileIdentity?
+        var replacementIdentity: FileIdentity?
+        var oldIdentity: FileIdentity?
+        var didPublish = false
+        var authority: PinnedDiagnosticsAuthority?
+        #if DEBUG
+        var diagnosticBoundary = "authority-open"
+        #endif
+        do {
+            guard let openedAuthority = try PinnedDiagnosticsAuthority.open(
+                applicationSupportURL: applicationSupportURL,
+                diagnosticsURL: directoryURL,
+                fileManager: fileManager,
+                createIfMissing: true
+            ) else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            authority = openedAuthority
+            let authorityCheck = { try openedAuthority.verify() }
+            try authorityCheck()
+            #if DEBUG
+            diagnosticBoundary = "staging-directory-protection"
+            #endif
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .stagingDirectory,
+                at: directoryURL,
+                authorityCheck: authorityCheck
+            )
+            #if DEBUG
+            diagnosticBoundary = "envelope-encode"
+            #endif
+            let state = try DeviceOperationalSupportEnvelopeV3(
+                health: try resolvedHealth(healthCandidate),
+                counters: candidate,
+                feedbackDraft: feedbackDraftCandidate ?? feedbackDraft,
+                feedbackDraftRecoveryRequired: recoveryCandidate
+                    ?? feedbackDraftRecoveryRequired
+            )
+            let data = try canonicalData(for: state)
+            let privacyState = try DeviceOperationalSupportEnvelopeV2(
+                health: state.health,
+                counters: state.counters
+            )
+            try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(
+                canonicalData(for: privacyState)
+            )
+            guard data.count <= Self.maximumOperationalTotalBytes else {
+                throw DiagnosticsFailure.sizeLimitExceeded
+            }
+            #if DEBUG
+            diagnosticBoundary = "capacity-preflight"
+            #endif
+            try storagePreflight.checkDeviceOperationalWrite(
+                byteCount: UInt64(data.count),
+                onVolumeContaining: directoryURL
+            )
+
+            if let existing = try fileIdentityIfPresent(
+                at: temporaryURL,
+                authorityCheck: authorityCheck
+            ) {
+                _ = try readData(
+                    at: temporaryURL,
+                    expected: existing,
+                    authorityCheck: authorityCheck
+                )
+                try removeOwnedFile(
+                    at: temporaryURL,
+                    expected: existing,
+                    authorityCheck: authorityCheck
+                )
+            }
+            #if DEBUG
+            diagnosticBoundary = "temporary-write"
+            #endif
+            try authorityCheck()
+            try data.write(to: temporaryURL, options: .withoutOverwriting)
+            try authorityCheck()
+            temporaryIdentity = try fileIdentity(
+                at: temporaryURL,
+                authorityCheck: authorityCheck
+            )
+            guard let temporaryIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            #if DEBUG
+            diagnosticBoundary = "temporary-sync"
+            #endif
+            try syncFile(
+                at: temporaryURL,
+                expected: temporaryIdentity,
+                authorityCheck: authorityCheck
+            )
+            #if DEBUG
+            diagnosticBoundary = "temporary-protection"
+            #endif
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .temporaryFile,
+                at: temporaryURL,
+                authorityCheck: authorityCheck
+            )
+            try syncFile(
+                at: temporaryURL,
+                expected: temporaryIdentity,
+                authorityCheck: authorityCheck
+            )
+
+            oldIdentity = try fileIdentityIfPresent(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            )
+            #if DEBUG
+            diagnosticBoundary = "existing-readback"
+            #endif
+            if !repairExisting {
+                switch (oldIdentity, lastCommittedData) {
+                case let (identity?, expected?):
+                    guard try readData(
+                        at: countersURL,
+                        expected: identity,
+                        authorityCheck: authorityCheck
+                    ) == expected else {
+                        throw DiagnosticsFailure.concurrentMutation
+                    }
+                case (nil, nil):
+                    break
+                default:
+                    throw DiagnosticsFailure.concurrentMutation
+                }
+            }
+            if let oldIdentity {
+                if !repairExisting {
+                    try authorityCheck()
+                    try ProtectedFilePolicyV1.verify(
+                        .diagnostics,
+                        at: countersURL
+                    )
+                    try authorityCheck()
+                }
+                guard try fileIdentityIfPresent(
+                    at: countersURL,
+                    authorityCheck: authorityCheck
+                ) == oldIdentity else {
+                    throw DiagnosticsFailure.invalidFile
+                }
+                #if DEBUG
+                diagnosticBoundary = "existing-replace"
+                #endif
+                if let staleBackup = try fileIdentityIfPresent(
+                    at: backupURL,
+                    authorityCheck: authorityCheck
+                ) {
+                    try removeOwnedFile(
+                        at: backupURL,
+                        expected: staleBackup,
+                        authorityCheck: authorityCheck
+                    )
+                    try syncDirectory(authorityCheck: authorityCheck)
+                }
+                try authorityCheck()
+                try fileManager.replaceItemAt(
+                    countersURL,
+                    withItemAt: temporaryURL,
+                    backupItemName: Self.backupName,
+                    options: [.withoutDeletingBackupItem]
+                )
+                try authorityCheck()
+                guard let publishedBackupIdentity = try fileIdentityIfPresent(
+                    at: backupURL,
+                    authorityCheck: authorityCheck
+                ) else {
+                    throw DiagnosticsFailure.invalidFile
+                }
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .temporaryFile,
+                    at: backupURL,
+                    authorityCheck: authorityCheck
+                )
+                guard try fileIdentityIfPresent(
+                    at: backupURL,
+                    authorityCheck: authorityCheck
+                ) == publishedBackupIdentity else {
+                    throw DiagnosticsFailure.invalidFile
+                }
+            } else {
+                #if DEBUG
+                diagnosticBoundary = "fresh-move"
+                #endif
+                guard try fileIdentityIfPresent(
+                    at: countersURL,
+                    authorityCheck: authorityCheck
+                ) == nil else {
+                    throw DiagnosticsFailure.invalidFile
+                }
+                try authorityCheck()
+                try fileManager.moveItem(at: temporaryURL, to: countersURL)
+            }
+            didPublish = true
+            #if DEBUG
+            diagnosticBoundary = "replacement-identity"
+            #endif
+            try authorityCheck()
+            replacementIdentity = try fileIdentity(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            )
+            guard let replacementIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            #if DEBUG
+            diagnosticBoundary = "replacement-protection"
+            #endif
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .diagnostics,
+                at: countersURL,
+                authorityCheck: authorityCheck
+            )
+            #if DEBUG
+            diagnosticBoundary = "replacement-sync-readback"
+            #endif
+            try syncFile(
+                at: countersURL,
+                expected: replacementIdentity,
+                authorityCheck: authorityCheck
+            )
+            guard try readData(
+                at: countersURL,
+                expected: replacementIdentity,
+                authorityCheck: authorityCheck
+            ) == data,
+                  try fileIdentityIfPresent(
+                      at: temporaryURL,
+                      authorityCheck: authorityCheck
+                  ) == nil else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            if oldIdentity != nil,
+               let backupIdentity = try fileIdentityIfPresent(
+                   at: backupURL,
+                   authorityCheck: authorityCheck
+               ) {
+                if repairExisting {
+                    if let staleQuarantine = try fileIdentityIfPresent(
+                        at: quarantineURL,
+                        authorityCheck: authorityCheck
+                    ) {
+                        try removeOwnedFile(
+                            at: quarantineURL,
+                            expected: staleQuarantine,
+                            authorityCheck: authorityCheck
+                        )
+                    }
+                    guard try fileIdentityIfPresent(
+                        at: backupURL,
+                        authorityCheck: authorityCheck
+                    ) == backupIdentity else {
+                        throw DiagnosticsFailure.invalidFile
+                    }
+                    try fileManager.moveItem(at: backupURL, to: quarantineURL)
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        .diagnostics,
+                        at: quarantineURL,
+                        authorityCheck: authorityCheck
+                    )
+                    try ProtectedFilePolicyV1.verify(
+                        .diagnostics,
+                        at: quarantineURL
+                    )
+                    let quarantineIdentity = try fileIdentity(
+                        at: quarantineURL,
+                        authorityCheck: authorityCheck
+                    )
+                    try syncFile(
+                        at: quarantineURL,
+                        expected: quarantineIdentity,
+                        authorityCheck: authorityCheck
+                    )
+                } else {
+                    try removeOwnedFile(
+                        at: backupURL,
+                        expected: backupIdentity,
+                        authorityCheck: authorityCheck
+                    )
+                }
+                try syncDirectory(authorityCheck: authorityCheck)
+            }
+            #if DEBUG
+            diagnosticBoundary = "directory-sync"
+            #endif
+            try syncDirectory(authorityCheck: authorityCheck)
+            lastCommittedData = data
+            return true
+        } catch {
+            #if DEBUG
+            print("Diagnostics persist lastBoundary=\(diagnosticBoundary)")
+            #endif
+            isPrepared = false
+            let cleanupAuthority: () throws -> Void
+            if let authority {
+                cleanupAuthority = { try authority.verify() }
+            } else {
+                cleanupAuthority = {}
+            }
+            if didPublish,
+               let replacementIdentity,
+               let authority {
+                let authorityCheck = { try authority.verify() }
+                if oldIdentity != nil,
+                   let backupIdentity = try? fileIdentity(
+                       at: backupURL,
+                       authorityCheck: authorityCheck
+                   ),
+                   isIdentity(
+                       replacementIdentity,
+                       at: countersURL,
+                       authorityCheck: authorityCheck
+                   ) {
+                    do {
+                        try ProtectedFilePolicyV1.applyAndVerify(
+                            .temporaryFile,
+                            at: backupURL,
+                            authorityCheck: authorityCheck
+                        )
+                        try authorityCheck()
+                        try fileManager.replaceItemAt(
+                            countersURL,
+                            withItemAt: backupURL,
+                            backupItemName: nil,
+                            options: []
+                        )
+                        try ProtectedFilePolicyV1.applyAndVerify(
+                            .diagnostics,
+                            at: countersURL,
+                            authorityCheck: authorityCheck
+                        )
+                        try syncFile(
+                            at: countersURL,
+                            expected: backupIdentity,
+                            authorityCheck: authorityCheck
+                        )
+                        try syncDirectory(authorityCheck: authorityCheck)
+                    } catch {
+                        // Leave the exact replacement for startup recovery.
+                    }
+                } else if oldIdentity == nil,
+                          isIdentity(
+                              replacementIdentity,
+                              at: countersURL,
+                              authorityCheck: authorityCheck
+                          ) {
+                    try? removeOwnedFile(
+                        at: countersURL,
+                        expected: replacementIdentity,
+                        authorityCheck: authorityCheck
+                    )
+                    try? syncDirectory(authorityCheck: authorityCheck)
+                }
+            }
+            if let temporaryIdentity,
+               isIdentity(
+                   temporaryIdentity,
+                   at: temporaryURL,
+                   authorityCheck: cleanupAuthority
+               ) {
+                try? removeOwnedFile(
+                    at: temporaryURL,
+                    expected: temporaryIdentity,
+                    authorityCheck: cleanupAuthority
+                )
+            }
+            logger.record(DiagnosticsLogEvent.countersWriteFailed)
+            return false
+        }
+    }
+
+    private func fileIdentityIfPresent(
+        at url: URL,
+        authorityCheck: () throws -> Void = {}
+    ) throws -> FileIdentity? {
+        try authorityCheck()
+        var information = stat()
+        if Darwin.lstat(url.path, &information) == 0 {
+            guard (information.st_mode & S_IFMT) == S_IFREG,
+                  information.st_nlink == 1 else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            let identity = FileIdentity(information)
+            try authorityCheck()
+            return identity
+        }
+        if errno == ENOENT {
+            try authorityCheck()
+            return nil
+        }
+        throw DiagnosticsFailure.invalidFile
+    }
+
+    private func recoverPendingPublication() throws {
+        Self.formatLease.lock()
+        defer { Self.formatLease.unlock() }
+        guard let authority = try PinnedDiagnosticsAuthority.open(
+            applicationSupportURL: applicationSupportURL,
+            diagnosticsURL: directoryURL,
+            fileManager: fileManager,
+            createIfMissing: false
+        ) else {
+            return
+        }
+        let authorityCheck = { try authority.verify() }
+        let backupURL = directoryURL.appendingPathComponent(
+            Self.backupName,
+            isDirectory: false
+        )
+        let temporaryURL = directoryURL.appendingPathComponent(
+            Self.temporaryName,
+            isDirectory: false
+        )
+        guard let backupIdentity = try fileIdentityIfPresent(
+            at: backupURL,
+            authorityCheck: authorityCheck
+        ) else {
+            guard try fileIdentityIfPresent(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) == nil,
+                  let temporaryIdentity = try fileIdentityIfPresent(
+                    at: temporaryURL,
+                    authorityCheck: authorityCheck
+                  ),
+                  temporaryIdentity.size >= 0,
+                  temporaryIdentity.size <= Int64(Self.maximumOperationalTotalBytes) else {
+                return
+            }
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .temporaryFile,
+                at: temporaryURL,
+                authorityCheck: authorityCheck
+            )
+            let temporaryData = try readData(
+                at: temporaryURL,
+                expected: temporaryIdentity,
+                authorityCheck: authorityCheck
+            )
+            _ = try decodeOperationalStore(temporaryData)
+            try authorityCheck()
+            guard try fileIdentityIfPresent(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) == nil,
+                  try fileIdentityIfPresent(
+                    at: temporaryURL,
+                    authorityCheck: authorityCheck
+                  ) == temporaryIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            try fileManager.moveItem(at: temporaryURL, to: countersURL)
+            try authorityCheck()
+            guard try fileIdentity(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) == temporaryIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .diagnostics,
+                at: countersURL,
+                authorityCheck: authorityCheck
+            )
+            guard try fileIdentity(
+                at: countersURL,
+                authorityCheck: authorityCheck
+            ) == temporaryIdentity else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            try syncFile(
+                at: countersURL,
+                expected: temporaryIdentity,
+                authorityCheck: authorityCheck
+            )
+            try syncDirectory(authorityCheck: authorityCheck)
+            return
+        }
+        try ProtectedFilePolicyV1.applyAndVerify(
+            .temporaryFile,
+            at: backupURL,
+            authorityCheck: authorityCheck
+        )
+        try authorityCheck()
+        if let currentIdentity = try fileIdentityIfPresent(
+            at: countersURL,
+            authorityCheck: authorityCheck
+        ) {
+            do {
+                do {
+                    try authorityCheck()
+                    try ProtectedFilePolicyV1.verify(.diagnostics, at: countersURL)
+                    try authorityCheck()
+                } catch let failure as ProtectedFilePolicyError
+                    where failure == .resourceValueMismatch {
+                    let data = try readData(
+                        at: countersURL,
+                        expected: currentIdentity,
+                        authorityCheck: authorityCheck
+                    )
+                    _ = try decodeOperationalStore(data)
+                    try ProtectedFilePolicyV1.applyAndVerify(
+                        .diagnostics,
+                        at: countersURL,
+                        authorityCheck: authorityCheck
+                    )
+                    try syncFile(
+                        at: countersURL,
+                        expected: currentIdentity,
+                        authorityCheck: authorityCheck
+                    )
+                }
+                let data = try readData(
+                    at: countersURL,
+                    expected: currentIdentity,
+                    authorityCheck: authorityCheck
+                )
+                _ = try decodeOperationalStore(data)
+                try removeOwnedFile(
+                    at: backupURL,
+                    expected: backupIdentity,
+                    authorityCheck: authorityCheck
+                )
+                try syncDirectory(authorityCheck: authorityCheck)
+            } catch let failure as ProtectedFilePolicyError
+                where failure == .protectedDataUnavailable {
+                throw failure
+            } catch DiagnosticsFailure.unsupportedVersion {
+                throw DiagnosticsFailure.unsupportedVersion
+            } catch {
+                guard currentIdentity != backupIdentity else {
+                    throw DiagnosticsFailure.invalidFile
+                }
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .temporaryFile,
+                    at: backupURL,
+                    authorityCheck: authorityCheck
+                )
+                let backupData = try readData(
+                    at: backupURL,
+                    expected: backupIdentity,
+                    authorityCheck: authorityCheck
+                )
+                _ = try decodeOperationalStore(backupData)
+                try authorityCheck()
+                try fileManager.replaceItemAt(
+                    countersURL,
+                    withItemAt: backupURL,
+                    backupItemName: nil,
+                    options: []
+                )
+                try ProtectedFilePolicyV1.applyAndVerify(
+                    .diagnostics,
+                    at: countersURL,
+                    authorityCheck: authorityCheck
+                )
+                try syncFile(
+                    at: countersURL,
+                    expected: backupIdentity,
+                    authorityCheck: authorityCheck
+                )
+                try syncDirectory(authorityCheck: authorityCheck)
+            }
+        } else {
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .temporaryFile,
+                at: backupURL,
+                authorityCheck: authorityCheck
+            )
+            let backupData = try readData(
+                at: backupURL,
+                expected: backupIdentity,
+                authorityCheck: authorityCheck
+            )
+            _ = try decodeOperationalStore(backupData)
+            try authorityCheck()
+            try fileManager.moveItem(at: backupURL, to: countersURL)
+            try ProtectedFilePolicyV1.applyAndVerify(
+                .diagnostics,
+                at: countersURL,
+                authorityCheck: authorityCheck
+            )
+            try syncFile(
+                at: countersURL,
+                expected: backupIdentity,
+                authorityCheck: authorityCheck
+            )
+            try syncDirectory(authorityCheck: authorityCheck)
+        }
+    }
+
+    private func fileIdentity(
+        at url: URL,
+        authorityCheck: () throws -> Void = {}
+    ) throws -> FileIdentity {
+        guard let identity = try fileIdentityIfPresent(
+            at: url,
+            authorityCheck: authorityCheck
+        ) else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        return identity
+    }
+
+    private func isIdentity(
+        _ expected: FileIdentity,
+        at url: URL,
+        authorityCheck: () throws -> Void = {}
+    ) -> Bool {
+        guard let actual = try? fileIdentity(
+            at: url,
+            authorityCheck: authorityCheck
+        ) else {
+            return false
+        }
+        return actual == expected
+    }
+
+    private func readData(
+        at url: URL,
+        expected: FileIdentity,
+        authorityCheck: () throws -> Void = {}
+    ) throws -> Data {
+        let parent = url.deletingLastPathComponent().standardizedFileURL
+        let name = url.lastPathComponent
+        guard parent == directoryURL.standardizedFileURL,
+              !name.isEmpty else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try authorityCheck()
+        let parentDescriptor = Darwin.open(
+            directoryURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard parentDescriptor >= 0 else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        defer { _ = Darwin.close(parentDescriptor) }
+        var parentInformation = stat()
+        guard Darwin.fstat(parentDescriptor, &parentInformation) == 0,
+              (parentInformation.st_mode & S_IFMT) == S_IFDIR else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        let descriptor = Darwin.openat(
+            parentDescriptor,
+            name,
+            O_RDONLY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        defer { _ = Darwin.close(descriptor) }
+        var before = stat()
+        guard Darwin.fstat(descriptor, &before) == 0,
+              (before.st_mode & S_IFMT) == S_IFREG,
+              before.st_nlink == 1,
+              FileIdentity(before) == expected else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes {
+                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            }
+            if count > 0 {
+                data.append(contentsOf: buffer.prefix(count))
+            } else if count == 0 {
+                break
+            } else if errno != EINTR {
+                throw DiagnosticsFailure.invalidFile
+            }
+        }
+        var after = stat()
+        var entry = stat()
+        guard Darwin.fstat(descriptor, &after) == 0,
+              FileIdentity(after) == expected,
+              data.count == Int(after.st_size),
+              Darwin.fstatat(
+                  parentDescriptor,
+                  name,
+                  &entry,
+                  AT_SYMLINK_NOFOLLOW
+              ) == 0,
+              (entry.st_mode & S_IFMT) == S_IFREG,
+              FileIdentity(entry) == expected else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try authorityCheck()
+        return data
+    }
+
+    private func syncFile(
+        at url: URL,
+        expected: FileIdentity,
+        authorityCheck: () throws -> Void = {}
+    ) throws {
+        try authorityCheck()
+        let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        defer { _ = Darwin.close(descriptor) }
+        var information = stat()
+        guard Darwin.fstat(descriptor, &information) == 0,
+              FileIdentity(information) == expected,
+              Darwin.fsync(descriptor) == 0 else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try authorityCheck()
+    }
+
+    private func syncDirectory(
+        authorityCheck: () throws -> Void = {}
+    ) throws {
+        try authorityCheck()
+        let descriptor = Darwin.open(
+            directoryURL.path,
+            O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        )
+        guard descriptor >= 0 else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        defer { _ = Darwin.close(descriptor) }
+        guard Darwin.fsync(descriptor) == 0 else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try authorityCheck()
+    }
+
+    private func removeOwnedFile(
+        at url: URL,
+        expected: FileIdentity,
+        authorityCheck: () throws -> Void = {}
+    ) throws {
+        guard try fileIdentityIfPresent(
+            at: url,
+            authorityCheck: authorityCheck
+        ) == expected else {
+            throw DiagnosticsFailure.invalidFile
+        }
+        try authorityCheck()
+        try fileManager.removeItem(at: url)
+        try authorityCheck()
+        guard try fileIdentityIfPresent(
+            at: url,
+            authorityCheck: authorityCheck
+        ) == nil else {
+            throw DiagnosticsFailure.invalidFile
+        }
+    }
+
+    private func removeFeedbackRecoveryCopyIfPresent() throws {
+        guard let authority = try PinnedDiagnosticsAuthority.open(
+            applicationSupportURL: applicationSupportURL,
+            diagnosticsURL: directoryURL,
+            fileManager: fileManager,
+            createIfMissing: false
+        ) else { return }
+        let authorityCheck = { try authority.verify() }
+        let quarantineURL = directoryURL.appendingPathComponent(
+            Self.quarantineName,
+            isDirectory: false
+        )
+        guard let identity = try fileIdentityIfPresent(
+            at: quarantineURL,
+            authorityCheck: authorityCheck
+        ) else { return }
+        _ = try readData(
+            at: quarantineURL,
+            expected: identity,
+            authorityCheck: authorityCheck
+        )
+        try ProtectedFilePolicyV1.verify(.diagnostics, at: quarantineURL)
+        try removeOwnedFile(
+            at: quarantineURL,
+            expected: identity,
+            authorityCheck: authorityCheck
+        )
+        try syncDirectory(authorityCheck: authorityCheck)
+    }
+
+    private func feedbackRecoveryCopyExists() throws -> Bool {
+        guard let authority = try PinnedDiagnosticsAuthority.open(
+            applicationSupportURL: applicationSupportURL,
+            diagnosticsURL: directoryURL,
+            fileManager: fileManager,
+            createIfMissing: false
+        ) else { return false }
+        return try fileIdentityIfPresent(
+            at: directoryURL.appendingPathComponent(
+                Self.quarantineName,
+                isDirectory: false
+            ),
+            authorityCheck: { try authority.verify() }
+        ) != nil
+    }
+
+    private func canonicalData<T: Encodable>(for value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+
+    private func decodeOperationalStore(
+        _ data: Data
+    ) throws -> DeviceOperationalSupportEnvelopeV3 {
+        do {
+            let object = try JSONSerialization.jsonObject(with: data)
+            if let dictionary = object as? [String: Any],
+               let version = dictionary["schemaVersion"] as? NSNumber,
+               version.intValue > DeviceOperationalSupportStoreSchemaV3.version {
+                throw DiagnosticsFailure.unsupportedVersion
+            }
+        } catch DiagnosticsFailure.unsupportedVersion {
+            throw DiagnosticsFailure.unsupportedVersion
+        } catch {
+            // Canonical decoding below owns the visible corruption outcome.
+        }
+        do {
+            let value = try JSONDecoder().decode(
+                DeviceOperationalSupportEnvelopeV3.self,
+                from: data
+            )
+            try value.validate()
+            guard try canonicalData(for: value) == data,
+                  data.count <= Self.maximumOperationalTotalBytes else {
+                throw DiagnosticsFailure.invalidFile
+            }
+            return value
+        } catch DiagnosticsFailure.invalidFile {
+            if schemaVersion(in: data) == DeviceOperationalSupportEnvelopeV3.schemaVersion {
+                throw DiagnosticsFailure.recoveryRequired
+            }
+            // Older released formats are decoded below. Their corrupt bytes
+            // retain the existing repair-on-prepare behavior because they
+            // could not contain a feedback draft.
+        } catch {
+            if schemaVersion(in: data) == DeviceOperationalSupportEnvelopeV3.schemaVersion {
+                throw DiagnosticsFailure.recoveryRequired
+            }
+        }
+        if let v2 = try? JSONDecoder().decode(DeviceOperationalSupportEnvelopeV2.self, from: data),
+           (try? v2.validate()) != nil,
+           (try? canonicalData(for: v2)) == data {
+            return try DeviceOperationalSupportEnvelopeV3(
+                health: v2.health,
+                counters: v2.counters,
+                feedbackDraft: nil,
+                feedbackDraftRecoveryRequired: false
+            )
+        }
+        // A released DiagnosticsV1 document is the sole older format.
+        let legacy: DiagnosticsV1
+        do {
+            legacy = try JSONDecoder().decode(DiagnosticsV1.self, from: data)
+            guard legacy.isValid, try canonicalData(for: legacy) == data else {
+                throw DiagnosticsFailure.recoveryRequired
+            }
+        } catch DiagnosticsFailure.recoveryRequired {
+            throw DiagnosticsFailure.recoveryRequired
+        } catch {
+            throw DiagnosticsFailure.recoveryRequired
+        }
+        let migrated = try DeviceOperationalSupportEnvelopeV3(
+            health: try emptyHealth(),
+            counters: legacy,
+            feedbackDraft: nil,
+            feedbackDraftRecoveryRequired: false
+        )
+        return migrated
+    }
+
+    private func isV3Envelope(_ data: Data) -> Bool {
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            return false
+        }
+        guard let dictionary = object as? [String: Any],
+              let version = dictionary["schemaVersion"] as? NSNumber else {
+            return false
+        }
+        return version.intValue == DeviceOperationalSupportEnvelopeV3.schemaVersion
+            && dictionary["health"] != nil
+            && dictionary["counters"] != nil
+            && dictionary["feedbackDraftRecoveryRequired"] != nil
+    }
+
+    private func schemaVersion(in data: Data) -> Int? {
+        guard let dictionary = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let version = dictionary["schemaVersion"] as? NSNumber else { return nil }
+        return version.intValue
+    }
+
+    private func canonicalRecordData(_ value: OperationalFailureV1) throws -> Data {
+        let data = try canonicalData(for: value)
+        try C54EncryptedPortableEnvelopeDiagnosticPrivacyBoundaryV1.validate(data)
+        guard data.count <= Self.maximumOperationalRecordBytes else {
+            throw DiagnosticsFailure.sizeLimitExceeded
+        }
+        return data
+    }
+
+    private func emptyHealth() throws -> SystemHealthDiagnosticsV1 {
+        try Self.makeEmptyHealth(at: now())
+    }
+
+    private static func makeEmptyHealth(
+        at date: Date
+    ) throws -> SystemHealthDiagnosticsV1 {
+        try SystemHealthDiagnosticsV1(
+            generatedAt: date,
+            state: .unknown,
+            failures: [],
+            metricKit: nil
+        )
+    }
+
+    private func resolvedHealth(
+        _ candidate: SystemHealthDiagnosticsV1?
+    ) throws -> SystemHealthDiagnosticsV1 {
+        if let candidate { return candidate }
+        if let health { return health }
+        return try emptyHealth()
+    }
+
+    private func incremented(_ value: Int64) -> Int64 {
+        value == .max ? .max : value + 1
+    }
+}
+
+enum DiagnosticsFailure: Error, Equatable {
+    case invalidFile
+    case protectedDataUnavailable
+    case sizeLimitExceeded
+    case unsupportedVersion
+    case recoveryRequired
+    case concurrentMutation
+}
+
+typealias DeviceOperationalSupportStoreV1 = DiagnosticsStore
+
+/// C54 does not add a diagnostics store, record kind, or persistence writer.
+/// This declaration keeps the store's exclusion and lifecycle ownership
+/// explicit while preserving the existing counters and health schema.
+enum C54EncryptedPortableEnvelopeDiagnosticsStoreBoundaryV1 {
+    static let diagnosticsAreMetadataOnly = true
+    static let createsPersistentEnvelopeRecord = false
+    static let persistsEnvelopeBytes = false
+    static let envelopeBytesExported = false
+    static let persistsPassphrases = false
+    static let passphrasesExported = false
+    static let persistsDerivedKeys = false
+    static let derivedKeysExported = false
+    static let persistsSaltsOrNonces = false
+    static let saltsOrNoncesExported = false
+    static let persistsPlaintextOrCustomerDigests = false
+    static let plaintextOrCustomerDigestsExported = false
+    static let persistsRawMetadata = false
+    static let rawMetadataExported = false
+    static let persistsLinkableIDsOrFilenames = false
+    static let linkableIDsOrFilenamesExported = false
+    static let persistsScratchPaths = false
+    static let scratchPathsExported = false
+    static let preservesExistingCounters = true
+    static let customerDataExported = false
+    static let diagnosticsOwnCleanup = false
+
+    static func validate() -> Bool {
+        diagnosticsAreMetadataOnly
+            && !createsPersistentEnvelopeRecord
+            && !persistsEnvelopeBytes
+            && !envelopeBytesExported
+            && !persistsPassphrases
+            && !passphrasesExported
+            && !persistsDerivedKeys
+            && !derivedKeysExported
+            && !persistsSaltsOrNonces
+            && !saltsOrNoncesExported
+            && !persistsPlaintextOrCustomerDigests
+            && !plaintextOrCustomerDigestsExported
+            && !persistsRawMetadata
+            && !rawMetadataExported
+            && !persistsLinkableIDsOrFilenames
+            && !linkableIDsOrFilenamesExported
+            && !persistsScratchPaths
+            && !scratchPathsExported
+            && preservesExistingCounters
+            && !customerDataExported
+            && !diagnosticsOwnCleanup
+    }
+}
+
+typealias C54EncryptedPortableEnvelopeDiagnosticStoreBoundaryV1 =
+    C54EncryptedPortableEnvelopeDiagnosticsStoreBoundaryV1

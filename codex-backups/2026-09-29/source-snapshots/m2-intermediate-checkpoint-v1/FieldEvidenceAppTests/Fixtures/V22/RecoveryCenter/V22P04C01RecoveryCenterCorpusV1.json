@@ -1,0 +1,246 @@
+{
+  "schema": "V22P04C01RecoveryCenterCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C01",
+  "corpusID": "v23-p04-c01-recovery-center-synthetic-v1",
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsProductionSecrets": false,
+  "evidenceIDs": [
+    "V23-P04-C01-G01",
+    "V23-P04-C01-A01",
+    "V23-P04-C01-H01",
+    "V23-P04-C01-I01",
+    "V23-P04-C01-R01"
+  ],
+  "states": [
+    "HEALTHY",
+    "CHECKING",
+    "ACTIONABLE",
+    "IN_PROGRESS",
+    "INTERRUPTED",
+    "FILE_REQUIRED",
+    "VALIDATION_FAILED",
+    "PARTIAL_SAFE",
+    "COMPLETE",
+    "RESTART_REQUIRED",
+    "EXTERNAL_ACTION_REQUIRED"
+  ],
+  "statePrecedence": [
+    "VALIDATION_FAILED",
+    "FILE_REQUIRED",
+    "PARTIAL_SAFE",
+    "RESTART_REQUIRED",
+    "EXTERNAL_ACTION_REQUIRED",
+    "INTERRUPTED",
+    "ACTIONABLE",
+    "IN_PROGRESS",
+    "CHECKING",
+    "COMPLETE",
+    "HEALTHY"
+  ],
+  "authoritySources": [
+    "BACKUP",
+    "COMMERCE",
+    "DIAGNOSTICS",
+    "FINALIZATION",
+    "GENERATION",
+    "JOBS",
+    "PACKAGE_READINESS",
+    "PROTECTED_DATA",
+    "REPORTING",
+    "RESTORE",
+    "STORAGE"
+  ],
+  "operationalFailureCodes": [
+    "BACKUP_EXPORT_FAILED",
+    "BACKUP_RESTORE_FAILED",
+    "BACKUP_SOURCE_CHANGED",
+    "CAPABILITY_UNAVAILABLE",
+    "CONCURRENT_OPERATION",
+    "CONTENT_READ_FAILED",
+    "COMMERCE_UNAVAILABLE",
+    "CORRUPT_OPERATIONAL_STORE",
+    "DIAGNOSTICS_WRITE_FAILED",
+    "EXPORT_CANCELLED",
+    "EXPORT_FAILED",
+    "INTERRUPTED",
+    "PARTIAL_SAFE_STATE",
+    "PERMISSION_DENIED",
+    "PERSISTENCE_MIGRATION_REQUIRED",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "REPORT_RENDER_FAILED",
+    "REPORT_UNAVAILABLE",
+    "REQUIRED_FILE_MISSING",
+    "RESTART_REQUIRED",
+    "RESUME_REQUIRED",
+    "STORAGE_CAPACITY_INSUFFICIENT",
+    "STORAGE_WRITE_FAILED",
+    "UNKNOWN",
+    "USER_CANCELLED"
+  ],
+  "support": {
+    "fullMembers": [
+      "DIAGNOSTIC_SUMMARY",
+      "SYSTEM_HEALTH"
+    ],
+    "bootstrapMembers": [
+      "DIAGNOSTIC_SUMMARY"
+    ],
+    "maximumCanonicalBytes": 524288,
+    "maximumMemberCount": 2,
+    "scratchPurpose": "SUPPORT_EXPORT",
+    "scratchMaximumBytes": 1048576,
+    "scratchMaximumLifetimeSeconds": 900,
+    "terminalResults": [
+      "CANCELLED",
+      "EXPIRED",
+      "FAILED",
+      "PREPARED",
+      "SHARED"
+    ],
+    "networkPermitted": false,
+    "automaticUpload": false,
+    "forbiddenFields": [
+      "CUSTOMER_CONTENT",
+      "CUSTOMER_IDENTIFIER",
+      "RAW_LOGS",
+      "WORKSPACE_IDENTIFIER",
+      "LOCAL_PATH",
+      "SECRET"
+    ]
+  },
+  "privacy": {
+    "statuses": [
+      "DRAFT_LOCAL",
+      "LIVE_MATCHED",
+      "BLOCKED"
+    ],
+    "blockedReasons": [
+      "MISSING_LIVE_RELEASE",
+      "RELEASE_DIGEST_MISMATCH",
+      "INVALID_LIVE_URL",
+      "CLOSURE_UNAVAILABLE"
+    ],
+    "alwaysVisibleRoutes": [
+      "BACKUP",
+      "DELETE",
+      "ERASE",
+      "PERMISSION_REVOCATION"
+    ],
+    "readyStatus": "LIVE_MATCHED",
+    "customerDataInTelemetry": false,
+    "networkPermitted": false
+  },
+  "encryptedBackup": {
+    "availabilityStates": [
+      "AVAILABLE",
+      "UNAVAILABLE"
+    ],
+    "innerKinds": [
+      "WORKSPACE_BACKUP",
+      "REVIEW_REQUEST",
+      "REVIEW_RESPONSE"
+    ],
+    "protocolVersion": 1,
+    "uniformTypeIdentifier": "com.assetrounds.encrypted-envelope",
+    "fileExtension": "arenvelope",
+    "innerBytesUnchanged": true,
+    "legacyClearReadersRemainAvailable": true,
+    "ordinaryRecoveryRequiresEncryptedBackup": false,
+    "journey": [
+      "CREATE",
+      "SEPARATE_PASSPHRASE_HANDOFF",
+      "WRONG_PASSPHRASE",
+      "CORRECT_OPEN",
+      "IMPORT",
+      "CLEANUP"
+    ]
+  },
+  "feedback": {
+    "categories": [
+      "RECOVERY",
+      "BACKUP",
+      "DIAGNOSTICS",
+      "PRIVACY_AND_DATA",
+      "OTHER"
+    ],
+    "contactChoices": [
+      "NO_CONTACT",
+      "INCLUDE_EMAIL",
+      "INCLUDE_PHONE"
+    ],
+    "destinations": [
+      "MAIL",
+      "LOCAL_ONLY"
+    ],
+    "results": [
+      "HANDED_TO_MAIL",
+      "SAVED_IN_MAIL",
+      "CANCELLED",
+      "FAILED",
+      "LOCAL_ONLY"
+    ],
+    "maximumMessageBytes": 4096,
+    "maximumDraftCount": 1,
+    "storeSchemaVersion": 3,
+    "everyResultPreservesDraft": true,
+    "claimsDeliveredOrReceived": false
+  },
+  "interruptionBoundaries": [
+    "BEFORE_STAGING",
+    "AFTER_STAGING",
+    "BEFORE_CANONICAL_BOUNDARY",
+    "AFTER_EFFECT_BEFORE_RECEIPT",
+    "DURING_EVIDENCE_EXPORT",
+    "RELAUNCH"
+  ],
+  "recoveryCases": [
+    "SAME_ID_AND_DIGEST_IS_IDEMPOTENT",
+    "DIVERGENT_INPUTS_QUARANTINED",
+    "ACCEPTED_GENERATION_PRESERVED",
+    "IMMUTABLE_ARTIFACTS_PRESERVED",
+    "RESET_AND_ERASE_CLEAR_DEVICE_OPERATIONAL_DATA",
+    "SUPPORT_SCRATCH_EXPIRES_AND_IS_DELETED",
+    "CORRUPT_DRAFT_SAFE_COPY_EXACT",
+    "SAFE_COPY_REMOVED_BY_RESET_ERASE",
+    "NO_PARTIAL_CANONICAL_SUCCESS"
+  ],
+  "hostileCases": [
+    "FALSE_HEALTHY_PROJECTION",
+    "DUPLICATE_OPERATIONAL_OWNER",
+    "DUPLICATE_AUTHORITY_SOURCE",
+    "MISSING_AUTHORITY_SOURCE",
+    "FUTURE_AUTHORITY_UPTIME",
+    "CUSTOMER_DATA_IN_SUPPORT_BUNDLE",
+    "SUPPORT_ALLOWLIST_ESCALATION",
+    "PRIVACY_LIVE_URL_MISMATCH",
+    "ENCRYPTED_CAPABILITY_WRONG_KIND",
+    "FEEDBACK_DIGEST_TAMPER",
+    "FEEDBACK_UNKNOWN_KEY",
+    "STALE_FEEDBACK_DRAFT",
+    "INVALID_TERMINAL_RESULT"
+  ],
+  "lifecycle": {
+    "projectionPersistence": "NONPERSISTENT_DROP_AND_REBUILD",
+    "presentationClockPersistence": "NONPERSISTENT_MONOTONIC_ONLY",
+    "feedbackDraftPersistence": "DEVICE_OPERATIONAL_SUPPORT_STORE_ONLY",
+    "feedbackDraftIncludedInWorkspaceBackup": false,
+    "canonicalWorkspaceWrites": false,
+    "secondRecoveryWriter": false,
+    "secondRouter": false,
+    "secretsPersisted": false
+  },
+  "forbiddenClaims": [
+    "DELIVERED",
+    "RECEIVED",
+    "IDENTITY",
+    "AUTHORITY",
+    "LEGAL_SIGNATURE",
+    "AUTOMATIC_UPLOAD",
+    "NETWORK_SYNC",
+    "CANONICAL_WORKSPACE_RECEIPT"
+  ]
+}

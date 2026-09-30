@@ -1,0 +1,65 @@
+{
+  "acceptanceCredit": false,
+  "authority": {
+    "appBaseHead": "bdb4b61e2e148fb10f35f4536ac65119697b1133",
+    "appBaseTree": "9f81756d95e9d397f3dc56fd13fd544850645ac1",
+    "contextDigest": "04061e30aaf4968b271b9657af03e71152ae446bdf84f24730d06e1b8cf129e1",
+    "coordinationCASSequence": 339,
+    "coordinationHead": "de38be916f88f5999e961a74d1daf9aa9502f439",
+    "coordinationLedgerDigest": "cba53f0dda6cc72621f889718861e2da9d318a0d1fd8f6dc9782d61aed3407e8",
+    "coordinationProjectionDigest": "066d98d840e5a333a28698b38f240ebdf668f03d61d0b445b12a5babaf17592c",
+    "coordinationTree": "801ea5867896da24c1359e85d03c51bcafdfaf41",
+    "directPrerequisites": [
+      "V23-P03-C20"
+    ],
+    "hydrationTransitionDigest": "d4f5d40659734ebce4339d70009ff6414904dafa0d0c2d11b43b7fdb760a5cdf",
+    "pathFenceDigest": "43add5f59574b0686a74dd09f9379e6dc4b07cb93ad6578d8e0910d6947e6800",
+    "provisionalPrerequisiteDigest": "7eff4ff26f7c4332e7399e81a514877157137353f786743a21cccc54d7431da1"
+  },
+  "cardID": "V23-P03-C50",
+  "cases": {
+    "alternate": {
+      "evidenceID": "V23-P03-C50-A01",
+      "status": "STATIC_CONTRACT_BOUND"
+    },
+    "golden": {
+      "evidenceID": "V23-P03-C50-G01",
+      "status": "STATIC_CONTRACT_BOUND"
+    },
+    "hostile": {
+      "evidenceID": "V23-P03-C50-H01",
+      "status": "STATIC_CONTRACT_BOUND"
+    },
+    "interruption": {
+      "evidenceID": "V23-P03-C50-I01",
+      "status": "STATIC_CONTRACT_BOUND"
+    },
+    "recovery": {
+      "evidenceID": "V23-P03-C50-R01",
+      "status": "STATIC_CONTRACT_BOUND"
+    }
+  },
+  "hostedDispatchEnabled": false,
+  "nativeCompileRan": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "releaseCredit": false,
+  "schema": "V23P03C50IncumbentFileAdapterEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "selectedProfileCount": 0,
+  "selectionStatus": "DISABLED_NO_SELECTED_PROFILE",
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  }
+}

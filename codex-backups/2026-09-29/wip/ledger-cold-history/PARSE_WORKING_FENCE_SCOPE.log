@@ -1,0 +1,21 @@
+.codex-temp/cold-ledger-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift:13504:9: error: expected declaration
+13501 | }
+13502 | 
+13503 | protocol EncryptedPortableEnvelopeStreamingScratchPortV1: ScratchDataLeasePortV1 {
+      |          `- note: in declaration of 'EncryptedPortableEnvelopeStreamingScratchPortV1'
+13504 |         try requireScratchDescriptorAccess()
+      |         `- error: expected declaration
+13505 |     /// Real provider identity, never a caller-selected capacity-root surrogate.
+13506 |     func acquireOwnedStorageProducerActivity() async throws -> OwnedStorageProducerActivityV1
+
+.codex-temp/cold-ledger-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift:13517:9: error: expected declaration
+13512 | }
+13513 | 
+13514 | final class EncryptedPortableEnvelopeProtectedFileScratchV1:
+      |             `- note: in declaration of 'EncryptedPortableEnvelopeProtectedFileScratchV1'
+13515 |     EncryptedPortableEnvelopeTerminalScratchV1,
+13516 |     @unchecked Sendable {
+13517 |         try requireScratchDescriptorAccess()
+      |         `- error: expected declaration
+13518 |         try requireScratchDescriptorAccess()
+13519 |     static let maximumAppendByteCount = 1_048_604

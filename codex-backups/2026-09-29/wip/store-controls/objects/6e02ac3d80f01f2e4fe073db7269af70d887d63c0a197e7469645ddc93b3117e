@@ -1,0 +1,30 @@
+/// This is a live Service-owned capability, not the serialized compact DATA.
+/// Its private concrete issuer must consume the actual full completion frame
+/// while all old source/phase controls still survive. No caller or decoder can
+/// construct it, and it is never inferred from a completed Progress stage.
+@MainActor
+final class EraseSchema2ConsumerCompleteReceiptV4 {
+    let operationID: UUID
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    private let requireAllActualConsumers: @MainActor () throws -> Void
+    private var uncertain = false
+
+    fileprivate init(operationID: UUID,
+        subject: EraseSchema2ConsumerCompleteSubjectV4,
+        requireAllActualConsumers: @escaping @MainActor () throws -> Void) throws {
+        try requireAllActualConsumers()
+        try subject.validateData()
+        self.operationID = operationID; self.subject = subject
+        self.requireAllActualConsumers = requireAllActualConsumers
+        try requireAllActualConsumers()
+    }
+    func requireBound(subject expected: EraseSchema2ConsumerCompleteSubjectV4) throws {
+        do {
+            guard !uncertain, subject == expected else { throw EraseAllServiceError.invalidAuthority }
+            try requireAllActualConsumers()
+        } catch { uncertain = true; throw error }
+    }
+    // The checked Store transition consumes this only before semantic chunk
+    // loss. Its positive publication/readback then transfers to a DISTINCT
+    // retained capsule owner; removed full inputs are never reconstructed here.
+}

@@ -1,0 +1,338 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "a3ad7e01bffe2988c5dad6bc829571cedf37a3eb2739c9cd088eb8352a0399c1",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "e05839a52a93a367cf4b118974a45db0d47182d0",
+    "appBaseTree": "49dc23d51ddb18d1752e97c6820ec918b27aefca",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C03",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "977fa96c1c91515720786d629fe2ca50cec87d544653171811f1bb4430138426",
+    "coordinationAuthorityHead": "e0a662ca9f050b03c3f04439d3083c83b6bb89b9",
+    "coordinationAuthorityTree": "cb77483ead8b0bb3a38a2a35afdf8dd0c5ea6b71",
+    "coordinationCASSequence": 92,
+    "coordinationLedgerDigest": "ccf99b6769d804d48277d2e24f7bbaef2057452d019d482cac63cb1512e199db",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C03-G01",
+      "V23-P02-C03-A01",
+      "V23-P02-C03-H01",
+      "V23-P02-C03-I01",
+      "V23-P02-C03-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C02"
+    ],
+    "dossierDigest": "19d5bdf991e30ad2bc9d9533ce7236aeb4a813e6c8ad576f916f984be4997eb9",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "5cdfc8faf30aeea2ccd9f021fe1b655b6e8e801278cf19d16ee3e996047cdaca",
+    "hydrationTransitionDigest": "0755effff93435a3771fc797bbe9228868dbcff78c9039b71ef7b1f91f5af2e6",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "457ff9a99e9541d4e7590b946bafa8e0efc29129d65a21bfdf912a2e6455cadb",
+    "invalidationConsumers": [
+      "V23-P02-C04"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C03",
+    "ownerParallelOverrideAuthorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "pathFenceDigest": "20ae2fa339b0dfe67a9f862415d67ad85630b6440812063f6c278551777e1ee3",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "213b125f708006475ab59e23d99a424e8b767c6efcc3808d167a25012f8af971",
+    "registerOrdinal": 23,
+    "registerRowDigest": "2de00be32e26c5e366d28707f2323f3054f873aa95f15402bc7b671ab8a40188",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "SyncClassificationRegistryV1, ReplicationPolicyV1, and ConflictPolicyV1 completeness gates"
+  },
+  "cardID": "V23-P02-C03",
+  "classificationMatrix": [
+    {
+      "classification": "REPLICATED",
+      "delete": [
+        "CANONICAL_DELETE",
+        "APPEND_TOMBSTONE",
+        "LOCAL_AUTHORITY"
+      ],
+      "erase": [
+        "CLEAR_WITH_WORKSPACE"
+      ],
+      "filesystemBackup": [
+        "NOT_APPLICABLE"
+      ],
+      "portableExport": [
+        "PORTABLE_CANONICAL",
+        "PORTABLE_IMMUTABLE_HISTORY"
+      ],
+      "semanticBackup": [
+        "INCLUDE_CANONICAL",
+        "INCLUDE_IMMUTABLE_HISTORY"
+      ],
+      "transport": [
+        "FUTURE_ACCEPTED_MUTATION_ELIGIBLE"
+      ]
+    },
+    {
+      "classification": "LOCAL_ONLY",
+      "delete": [
+        "LOCAL_AUTHORITY",
+        "OPERATION_CLEANUP"
+      ],
+      "erase": [
+        "RECREATE_EMPTY",
+        "CLEAR_WITH_WORKSPACE",
+        "LOCAL_AUTHORITY"
+      ],
+      "filesystemBackup": [
+        "INCLUDED",
+        "EXCLUDED",
+        "NOT_APPLICABLE"
+      ],
+      "portableExport": [
+        "EXCLUDE",
+        "PORTABLE_CANONICAL"
+      ],
+      "semanticBackup": [
+        "EXCLUDE"
+      ],
+      "transport": [
+        "EXCLUDED"
+      ]
+    },
+    {
+      "classification": "DERIVED_REBUILDABLE",
+      "delete": [
+        "REBUILD"
+      ],
+      "erase": [
+        "REBUILD_AFTER_ERASE"
+      ],
+      "filesystemBackup": [
+        "INCLUDED",
+        "EXCLUDED",
+        "NOT_APPLICABLE"
+      ],
+      "portableExport": [
+        "PORTABLE_CANONICAL",
+        "EXCLUDE"
+      ],
+      "semanticBackup": [
+        "INCLUDE_CANONICAL",
+        "REBUILD_AFTER_RESTORE"
+      ],
+      "transport": [
+        "EXCLUDED"
+      ]
+    },
+    {
+      "classification": "CONTENT_BLOB",
+      "delete": [
+        "CANONICAL_DELETE"
+      ],
+      "erase": [
+        "CLEAR_WITH_WORKSPACE"
+      ],
+      "filesystemBackup": [
+        "INCLUDED",
+        "NOT_APPLICABLE"
+      ],
+      "portableExport": [
+        "PORTABLE_IMMUTABLE_HISTORY"
+      ],
+      "semanticBackup": [
+        "INCLUDE_IMMUTABLE_HISTORY"
+      ],
+      "transport": [
+        "FUTURE_BOUNDED_BLOB_ELIGIBLE"
+      ]
+    },
+    {
+      "classification": "PRIVATE_DEVICE_ONLY",
+      "delete": [
+        "LOCAL_AUTHORITY"
+      ],
+      "erase": [
+        "LOCAL_AUTHORITY"
+      ],
+      "filesystemBackup": [
+        "EXCLUDED",
+        "NOT_APPLICABLE"
+      ],
+      "portableExport": [
+        "EXCLUDE"
+      ],
+      "semanticBackup": [
+        "EXCLUDE"
+      ],
+      "transport": [
+        "EXCLUDED"
+      ]
+    }
+  ],
+  "closedDomains": {
+    "authority": [
+      "WORKSPACE_WRITER",
+      "IMMUTABLE_CONTENT_WRITER",
+      "LOCAL_DEVICE",
+      "DERIVED_FROM_CANONICAL_INPUTS"
+    ],
+    "bootstrap": [
+      "CANONICAL_SNAPSHOT",
+      "IMMUTABLE_HISTORY",
+      "REBUILD_FROM_DEPENDENCIES",
+      "DESTINATION_LOCAL",
+      "EXCLUDED"
+    ],
+    "persistence": [
+      "SWIFT_DATA_RECORD",
+      "OWNED_FILE",
+      "NONPERSISTENT"
+    ],
+    "privacy": [
+      "WORKSPACE_DATA",
+      "WORKSPACE_CONTENT_BLOB",
+      "PRIVATE_DEVICE_DATA",
+      "SECRET_NEVER_PORTABLE",
+      "NONCUSTOMER_DIAGNOSTIC"
+    ],
+    "retention": [
+      "UNTIL_CANONICAL_DELETE_OR_ERASE",
+      "IMMUTABLE_HISTORY_UNTIL_ERASE",
+      "REBUILDABLE",
+      "OPERATION_SCOPED",
+      "LOCAL_DEVICE_RETAINED"
+    ],
+    "transport": [
+      "FUTURE_ACCEPTED_MUTATION_ELIGIBLE",
+      "FUTURE_BOUNDED_BLOB_ELIGIBLE",
+      "EXCLUDED"
+    ]
+  },
+  "consumerRouting": {
+    "delete": "POLICY_DELETE_DISPOSITION_AND_DELETION_LEDGER",
+    "erase": "POLICY_ERASE_DISPOSITION_AND_VERIFIED_ERASE",
+    "filesystemBackup": "PROTECTED_FILE_POLICY_AND_STREAMING_ARCHIVE_CONTRACT",
+    "inbound": "ONLY_WORKSPACE_WRITER_PLUS_CONFLICT_POLICY_PLUS_DELETE_WINS_PLUS_RECEIPT_PLUS_IMMUTABLE_BLOB_VALIDATION",
+    "outbound": "ONLY_ACCEPTED_MUTATION_ENVELOPES_RECEIPTS_AND_EXPLICIT_CHECKPOINTS",
+    "rebuildReplay": "DECLARED_CANONICAL_DEPENDENCIES_ONLY",
+    "restore": "VALIDATE_POLICY_AND_REBUILD_DERIVED_OUTPUTS",
+    "semanticBackupExport": "POLICY_BACKUP_AND_EXPORT_DISPOSITIONS"
+  },
+  "evidenceIDs": [
+    "V23-P02-C03-G01",
+    "V23-P02-C03-A01",
+    "V23-P02-C03-H01",
+    "V23-P02-C03-I01",
+    "V23-P02-C03-R01"
+  ],
+  "hostedDispatchRan": false,
+  "lifecycleAxisBinding": {
+    "axesAreIndependent": true,
+    "classificationRowsAreClosedCurrentAllowedSetsNotUniversalSingleValues": true,
+    "filesystemBackup": "CurrentSyncLifecycleRouteV1.filesystemBackup",
+    "portableDerivedProfile": "portableProjection",
+    "portableExport": "CurrentSyncLifecycleRouteV1.portableExport",
+    "portableLocalProfile": "reviewedDiagnosticExport",
+    "replicatedImmutableHistorySubjects": [
+      "MutationEnvelopeV1",
+      "MutationHistoryQuarantineRecordV1",
+      "MutationReceiptV1",
+      "ReversalBasisV1",
+      "SemanticReversalReceiptV1"
+    ],
+    "semanticBackup": "CurrentSyncLifecycleRouteV1.semanticBackup"
+  },
+  "nativeCompileRan": false,
+  "networkTransportImplemented": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "policyAxes": [
+    "authority",
+    "persistence",
+    "transport",
+    "bootstrap",
+    "privacy",
+    "retention",
+    "codecVersion",
+    "maximumSize",
+    "dependency",
+    "filesystemBackup",
+    "semanticBackup",
+    "portableExport",
+    "delete",
+    "erase"
+  ],
+  "policyAxisCount": 14,
+  "prohibitedFields": [
+    "accountID",
+    "authenticatedUserID",
+    "inbox",
+    "outbox",
+    "providerID",
+    "remoteAcknowledgement",
+    "serverCursor",
+    "serverRevision",
+    "tenantID",
+    "vectorClock",
+    "accessToken",
+    "serviceCredential",
+    "secretMaterial"
+  ],
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "ReplicationPolicyMatrixV1",
+  "schemaVersion": 1,
+  "searchImplementationPresent": false,
+  "sourceSymbols": [
+    "ReplicationPolicyV1",
+    "ReplicationCodecV1",
+    "ReplicationSizeLimitV1",
+    "CurrentSyncClassificationCatalogV1"
+  ],
+  "validation": {
+    "codecReadableVersionsSortedUniquePositive": true,
+    "currentWriteVersionReadable": true,
+    "dependenciesSortedUnique": true,
+    "maximumDependencyCount": 64,
+    "maximumSizePositiveOrNotApplicable": true,
+    "portableSecretsAllowed": false,
+    "privateSecretDiagnosticTransport": "EXCLUDED",
+    "providerAuthorityOrRetentionExposedAtThisHead": false,
+    "providerAuthorityOrRetentionInput": "FAIL_CLOSED_AS_UNKNOWN_ENUM_VALUE",
+    "reviewedDiagnosticExportException": {
+      "mayApplyToSecret": false,
+      "portableExport": "PORTABLE_CANONICAL",
+      "privacy": "NONCUSTOMER_DIAGNOSTIC",
+      "profile": "reviewedDiagnosticExport"
+    },
+    "secretNeverPortable": {
+      "authority": "LOCAL_DEVICE",
+      "bootstrap": [
+        "DESTINATION_LOCAL",
+        "EXCLUDED"
+      ],
+      "delete": "LOCAL_AUTHORITY",
+      "erase": "LOCAL_AUTHORITY",
+      "portableExport": "EXCLUDE",
+      "privacy": "SECRET_NEVER_PORTABLE",
+      "semanticBackup": "EXCLUDE",
+      "transport": "EXCLUDED",
+      "violation": "FAIL_CLOSED_INVALID_POLICY"
+    },
+    "unknownPolicyOrAxis": "FAIL_CLOSED"
+  }
+}

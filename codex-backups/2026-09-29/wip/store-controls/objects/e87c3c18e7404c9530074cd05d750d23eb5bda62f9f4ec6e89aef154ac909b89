@@ -1,0 +1,18 @@
+# New Erase-owned internal control registration
+
+Owner-delegated reversible decisions14/20; frozen Blueprint1802/1811/1821, DeletionRights105–123, OwnedStorage98–103 and LocalJob295–321 govern. This author record does not grant phase/main/release approval.
+
+All new canonical controls and raw source copies belong to the existing FieldEvidenceErase namespace and sole EraseIntentStore writer. Existing journal policy applies to canonical leaves; journalTemporary applies to exact reserved next leaves. Required600 mode, real process uid/gid, one link, no-follow held/named stat identity, backup exclusion, temporal protection verification/checked request and checked descriptor ownership remain mandatory. DEBUG Simulator unsupported protection is an explicit actual disposition, never production protection proof.
+
+| Name family | Data/lifecycle authority | Size and compatibility |
+|---|---|---|
+| schema2-cleanup-transfer-v1.json | Immutable full unpublished original-P transfer declaration, prospectively before copied source/plan/index |96MiB canonical schema1; retained through terminal; no schema0/legacy guesses |
+| schema2-source-v1-<sha>.bytes | Exact original/born canonical dependency bytes; content address is data, not permission | Role ceilings32MiB/262144/65536/4096; streamed first witness; no arbitrary opaque payload |
+| schema2-cleanup-plan-v1.json | Existing exact OriginalEraseC16PlanV1 bytes | Existing96MiB/100000 limit/format unchanged |
+| schema2-cleanup-sources-v1.json | Fully resolved exact original source table/actual copied-leaf and plan facts |96MiB canonical schema1; complete positive index readback before effects |
+| schema2-cleanup-progress-v1.json | Fixed mixed target order, immutable preimage/actual final postimage and exact capture receipts |96MiB canonical schema1; typed actual engine/Router permit, no drain/retirement issuer |
+| notification-retirement-v1.json | Exact original source identities/revocation/ownedIDs surviving mapping/control loss |96MiB canonical schema1; no defaultempty IDs or OS-receipt serialization |
+| schema2-cleanup-terminal-v1.json | Final pure lineage and earlier-control deletion roster, LAST named data control | Derived877654016-byte envelope, schema1; authentic Service issuer/actual OS checks remain separate |
+| .<canonical>.next | Exact predeclared sole-publisher temporary | Corresponding final ceiling; closed absent/zero/prefix/complete or exact displaced CAS grammar only |
+
+No ordinary producer creates, adopts or repairs these controls. A first observation is data before EX/policy; mutation/admission requires actual privately issued revocable one-effect authority. Original live Store first-minted receipts and fresh borrowed observation are separate. Legacy original intent/preparation/auxiliary-roster and C16 format decoders stay unchanged. New controls prospectively preserve bits; they cannot reconstruct already-lost old raw bytes or owned IDs. Root owns coupled compatibility disposition and independent review.

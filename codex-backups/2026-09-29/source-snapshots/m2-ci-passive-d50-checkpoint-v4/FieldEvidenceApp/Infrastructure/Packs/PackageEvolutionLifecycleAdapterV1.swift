@@ -1,0 +1,416 @@
+import Foundation
+import SwiftData
+
+@MainActor
+final class PackageEvolutionLifecycleAdapterV1: PackageEvolutionWritingV1 {
+    private let writer: WorkspaceWriterV1
+    private let journal: MutationJournalStoreV1
+    private let context: ModelContext
+
+    init(writer: WorkspaceWriterV1, journal: MutationJournalStoreV1, modelContext: ModelContext) {
+        self.writer = writer; self.journal = journal; context = modelContext
+    }
+
+    func activePointer(workspaceID: WorkspaceID, packageID: String) throws -> ActivePackageRegistryPointerV1? {
+        let workspace = workspaceID.rawValue
+        let packageKey = packageID
+        let rows = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(
+            predicate: #Predicate { $0.workspaceID == workspace && $0.packageID == packageKey }
+        ))
+        let values = try rows.map { try $0.value() }.sorted { $0.revision < $1.revision }
+        guard Set(values.map(\.revision)).count == values.count else { throw PackageEvolutionFailureV1.stalePointer }
+        for pair in zip(values, values.dropFirst()) { try pair.1.validateSuccessor(of: pair.0, expectedRevision: pair.0.revision) }
+        return values.last
+    }
+
+    func acceptedReceipt(mutationID: MutationIDV1) throws -> PackagePromotionReceiptV1? {
+        let id = mutationID.rawValue
+        let rows = try context.fetch(FetchDescriptor<PackagePromotionReceiptRow>(
+            predicate: #Predicate { $0.mutationID == id }
+        ))
+        guard rows.count <= 1 else { throw PackageEvolutionFailureV1.divergentMutation }
+        return try rows.first?.value()
+    }
+
+    func acceptedLifecycleClosure(mutationID: MutationIDV1) throws -> PackageEvolutionLifecycleClosureV1? {
+        guard let receipt = try acceptedReceipt(mutationID: mutationID) else { return nil }
+        let releaseID = receipt.promotedReleaseRecordID
+        let runID = receipt.sandboxRunID
+        let receiptID = receipt.receiptID
+        let releaseRows = try context.fetch(FetchDescriptor<PromotedPackageReleaseRow>(
+            predicate: #Predicate { $0.releaseRecordID == releaseID }
+        ))
+        let runRows = try context.fetch(FetchDescriptor<PackageSandboxRunRow>(
+            predicate: #Predicate { $0.runID == runID }
+        ))
+        let pointerRows = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(
+            predicate: #Predicate { $0.promotionReceiptID == receiptID }
+        ))
+        guard releaseRows.count == 1, runRows.count == 1, pointerRows.count == 1,
+              let release = try releaseRows.first?.value(),
+              let run = try runRows.first?.value(),
+              let resultingPointer = try pointerRows.first?.value() else {
+            throw PackageEvolutionFailureV1.divergentMutation
+        }
+        var pointers = [resultingPointer]
+        if let predecessorID = resultingPointer.supersedesPointerID {
+            let predecessorRows = try context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(
+                predicate: #Predicate { $0.pointerID == predecessorID }
+            ))
+            guard predecessorRows.count == 1, let predecessor = try predecessorRows.first?.value() else {
+                throw PackageEvolutionFailureV1.divergentMutation
+            }
+            pointers.append(predecessor)
+        }
+        return try PackageEvolutionLifecycleClosureV1(
+            promotedReleases: [release], sandboxRuns: [run],
+            promotionReceipts: [receipt], activePointers: pointers
+        )
+    }
+
+    func applyPromotion(_ bundle: PackagePromotionAtomicBundleV1) throws -> PackagePromotionReceiptV1 {
+        try bundle.validate()
+        let expectedRevision = bundle.predecessorPointer?.revision ?? 0
+        let mutation = try PackagePromotionMutationV1(
+            workspaceID: bundle.resultingPointer.workspaceID,
+            expectedPointerRevision: expectedRevision,
+            mutationID: bundle.receipt.mutationID,
+            bundle: bundle
+        )
+        let replay = try writer.packagePromotionReceipt(for: mutation)
+        if replay == nil {
+            _ = try writer.execute(.applyPackagePromotion(mutation), mutationID: mutation.mutationID)
+        }
+        guard let canonicalReceipt = try replay ?? journal.receipt(mutationID: mutation.mutationID) else {
+            throw PackageEvolutionFailureV1.incompatiblePromotion
+        }
+        _ = try PackagePromotionMutationReceiptV1(mutation: mutation, mutationReceipt: canonicalReceipt)
+        guard let closure = try acceptedLifecycleClosure(mutationID: mutation.mutationID),
+              closure.promotedReleases == [bundle.promotedRelease],
+              closure.sandboxRuns == [bundle.sandboxRun],
+              closure.promotionReceipts == [bundle.receipt],
+              closure.activePointers == [bundle.predecessorPointer, bundle.resultingPointer]
+                .compactMap({ $0 }).sorted(by: { $0.pointerID.uuidString < $1.pointerID.uuidString }) else {
+            throw PackageEvolutionFailureV1.divergentMutation
+        }
+        // A new promotion must become current. Exact replay only returns its
+        // immutable receipt; a later accepted successor remains current.
+        if replay == nil {
+            guard try activePointer(workspaceID: mutation.workspaceID,
+                                    packageID: mutation.resultingPointer.packageID) == mutation.resultingPointer else {
+                throw PackageEvolutionFailureV1.divergentMutation
+            }
+        }
+        return bundle.receipt
+    }
+
+    static func validateBackupRestore(_ closure: PackageEvolutionLifecycleClosureV1) throws {
+        try closure.validate()
+    }
+
+    static func mayDelete(
+        release: PromotedPackageReleaseV1,
+        activePointers: [ActivePackageRegistryPointerV1],
+        frozenPackageReleaseIDs: Set<String>
+    ) throws -> Bool {
+        try release.validate(); try activePointers.forEach { try $0.validate() }
+        return !activePointers.contains(where: { $0.activeReleaseRecordID == release.releaseRecordID })
+            && !frozenPackageReleaseIDs.contains(release.packageRelease.packageReleaseID)
+    }
+
+    static func searchMetadata(_ receipt: PackagePromotionReceiptV1) -> [String] {
+        [receipt.receiptID.uuidString.lowercased(), receipt.promotedReleaseRecordID.uuidString.lowercased(), receipt.semanticDiffSHA256, receipt.exactHead].sorted()
+    }
+}
+
+enum PackageEvolutionFieldReferenceBoundaryV1 {
+    /// Package promotion never rewrites existing work/session bindings.
+    static let bindingUpgradePolicy = "EXPLICIT_SUPERSEDING_BINDING_ONLY"
+    static let referenceImportTransactionIsSeparate = true
+}
+
+extension PackageEvolutionLifecycleAdapterV1 {
+    static func validateClientCapabilityClosure(_ closure: ClientCapabilityLifecycleClosureV1) throws {
+        try closure.validate()
+        guard closure.decision.operation == .upgradeDraft,
+              closure.decision.admission == .readWrite else {
+            throw ClientCapabilityFailureV1.admissionDenied
+        }
+    }
+}
+
+// MARK: - C26 session lifecycle isolation
+
+extension PackageEvolutionLifecycleAdapterV1 {
+    static let surveySessionsRetainPinnedPackageRelease = true
+    static let packagePromotionNeverRewritesSurveyHistory = true
+
+    static func validateSurveySessionLifecycle(
+        _ session: SurveySessionV1,
+        definition: SurveyDefinitionReleaseV1,
+        packageRelease: InspectionPackageReleaseV1
+    ) throws {
+        guard surveySessionsRetainPinnedPackageRelease,
+              packagePromotionNeverRewritesSurveyHistory else {
+            throw SurveySessionFailureV1.invalidTransition
+        }
+        try PackageEvolutionCoordinatorV1.validateSurveySessionPin(
+            session,
+            definition: definition,
+            packageRelease: packageRelease
+        )
+    }
+}
+
+// MARK: - C25 survey-definition lifecycle adapter
+
+struct SurveyDefinitionPackageLifecycleMetadataV1: Codable, Equatable, Sendable {
+    let definitionID: String
+    let releaseID: String
+    let releaseRevision: UInt64
+    let activityKind: ActivityKindV1
+    let lifecycleState: SurveyDefinitionLifecycleStateV1
+    let releaseSHA256: String
+    let importDisposition: String
+
+    init(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws {
+        try release.validate()
+        definitionID = release.definitionID.uuidString.lowercased()
+        releaseID = release.releaseID.uuidString.lowercased()
+        releaseRevision = release.revision
+        activityKind = release.activityKind
+        self.lifecycleState = lifecycleState
+        releaseSHA256 = release.releaseSHA256
+        importDisposition = SurveyDefinitionPackageEvolutionConsumerPolicyV1.importDisposition
+        try validate()
+    }
+
+    func validate() throws {
+        guard SurveyDefinitionConsumerPolicyV1.validID(definitionID),
+              SurveyDefinitionConsumerPolicyV1.validID(releaseID),
+              releaseRevision > 0,
+              SurveyDefinitionConsumerPolicyV1.validDigest(releaseSHA256),
+              importDisposition == "QUARANTINE_THEN_NEW_DRAFT_IDENTITY" else {
+            throw SurveyDefinitionConsumerFailureV1.invalidValue
+        }
+    }
+}
+
+extension PackageEvolutionLifecycleAdapterV1 {
+    static func surveyDefinitionLifecycleMetadata(
+        release: SurveyDefinitionReleaseV1,
+        lifecycleState: SurveyDefinitionLifecycleStateV1
+    ) throws -> SurveyDefinitionPackageLifecycleMetadataV1 {
+        try SurveyDefinitionPackageLifecycleMetadataV1(
+            release: release,
+            lifecycleState: lifecycleState
+        )
+    }
+
+    static let surveyDefinitionLifecycleEventsAreCanonical = true
+    static let surveyDefinitionImportCreatesNewDraftIdentity = true
+    static let surveyDefinitionPreviewIsNonpersistent = true
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Packs_PackageEvolutionLifecycleAdapterV1_swift {
+    static let integrationRole = "PACKAGE_LIFECYCLE_REUSE"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+}
+
+extension PackageEvolutionLifecycleAdapterV1 {
+    enum ActivityWorkflowReleaseV2: Equatable, Sendable {
+        case installation(InstallationWorkflowDefinitionReleaseV1)
+        case punch(PunchReviewWorkflowDefinitionReleaseV1)
+    }
+
+    func activityWorkflowRelease(
+        kind: ActivityKindV2,
+        use: ActivityWorkflowReleaseUseV2,
+        registry: InspectionPackageRegistryV2,
+        workspaceID: WorkspaceID
+    ) throws -> ActivityWorkflowReleaseV2 {
+        let packageID = ShippingIlluminatedSignAdapterV1.packageID
+        if use == .start {
+            let lifecycleState = try currentActivityWorkflowPackageState(
+                workspaceID: workspaceID, packageID: packageID
+            )
+            guard lifecycleState == .active || lifecycleState == .deprecated else {
+                throw InspectionPackageFailureV2.incompatiblePackage
+            }
+        }
+        let selection = try registry.bundledActivityWorkflowRelease(
+            kind: kind, packageID: packageID, workspaceID: workspaceID
+        )
+        _ = try ActivityWorkflowReleasePublicationV2(registry: registry, selection: selection)
+        switch selection.release {
+        case let .installation(value): return .installation(value)
+        case let .punch(value): return .punch(value)
+        }
+    }
+
+    /// Resolves an activity basis against the immutable promoted release it
+    /// recorded. Historic reads must not be redirected through today's active
+    /// pointer; only a new start requires that the exact bytes are still the
+    /// current start-eligible release.
+    static func resolveActivityWorkflowRelease(
+        reference: ActivityWorkflowReleaseReferenceV2,
+        kind: ActivityKindV2,
+        forStart: Bool,
+        modelContext: ModelContext
+    ) throws -> ActivityWorkflowReleaseResolutionContextV2 {
+        try reference.validate()
+        guard reference.packageID == ShippingIlluminatedSignAdapterV1.packageID else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        let workspaceID = reference.targetWorkspaceID
+        let workspace = workspaceID.rawValue
+        let packageID = reference.packageID
+        let promotedRows = try modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>(
+            predicate: #Predicate { $0.workspaceID == workspace }
+        ))
+        var exactReleases: [(promoted: PromotedPackageReleaseV1, package: InspectionPackageV2)] = []
+        for row in promotedRows {
+            let promoted = try row.value()
+            guard promoted.packageRelease.packageID == packageID,
+                  promoted.packageRelease.packageContentVersion == reference.packageContentVersion,
+                  promoted.packageRelease.packageSHA256 == reference.packageSHA256 else { continue }
+            let package = try InspectionPackageCanonicalCodecV2.decode(
+                promoted.packageRelease.canonicalPackageBytes
+            )
+            guard package.packageID == reference.packageID,
+                  package.contentVersion == reference.packageContentVersion,
+                  KernelCanonicalHashV1.sha256(promoted.packageRelease.canonicalPackageBytes)
+                    == reference.packageSHA256 else {
+                throw InspectionPackageFailureV2.incompatiblePackage
+            }
+            exactReleases.append((promoted, package))
+        }
+        guard let exact = exactReleases.first,
+              exactReleases.allSatisfy({ $0.package == exact.package }),
+              Set(exactReleases.map { $0.promoted.packageRelease.workflowSHA256 }).count == 1,
+              Set(exactReleases.map { $0.promoted.packageRelease.canonicalWorkflowBytes }).count == 1 else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+
+        let registry = try InspectionPackageRegistryV2(packages: [exact.package])
+        let selection = try registry.bundledActivityWorkflowRelease(
+            kind: kind, packageID: packageID, workspaceID: workspaceID
+        )
+        _ = try ActivityWorkflowReleasePublicationV2(registry: registry, selection: selection)
+
+        let pointerRows = try modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>(
+            predicate: #Predicate { $0.workspaceID == workspace && $0.packageID == packageID }
+        ))
+        let pointers = try pointerRows.map { try $0.value() }.sorted { $0.revision < $1.revision }
+        guard Set(pointers.map(\.revision)).count == pointers.count else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        for pair in zip(pointers, pointers.dropFirst()) {
+            try pair.1.validateSuccessor(of: pair.0, expectedRevision: pair.0.revision)
+        }
+
+        var disposition: ActivityWorkflowFamilyAvailabilityDispositionV2 = .historicReadExportOnly
+        if let pointer = pointers.last,
+           let active = exactReleases.first(where: {
+               $0.promoted.releaseRecordID == pointer.activeReleaseRecordID
+           }) {
+            guard active.promoted.packageRelease.packageReleaseID == pointer.activePackageReleaseID,
+                  active.promoted.releaseRecordSHA256 == pointer.activeReleaseRecordSHA256 else {
+                throw InspectionPackageFailureV2.incompatiblePackage
+            }
+            let packageReleaseID = active.promoted.packageRelease.packageReleaseID
+            let rows = try modelContext.fetch(FetchDescriptor<PackageLifecycleDispositionRow>(
+                predicate: #Predicate {
+                    $0.workspaceID == workspace && $0.packageReleaseID == packageReleaseID
+                }
+            ))
+            let values = try rows.map {
+                try $0.value(release: active.promoted.packageRelease)
+            }.sorted { $0.revision < $1.revision }
+            guard Set(values.map(\.revision)).count == values.count else {
+                throw InspectionPackageFailureV2.incompatiblePackage
+            }
+            for pair in zip(values, values.dropFirst()) {
+                try pair.1.validateSuccessor(of: pair.0, release: active.promoted.packageRelease)
+            }
+            let state = values.last?.state ?? .active
+            if state == .active || state == .deprecated {
+                disposition = .availableForStart
+            }
+        }
+        if forStart, disposition != .availableForStart {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        let availability = try ActivityWorkflowFamilyAvailabilityV2(
+            reference: reference, disposition: disposition
+        )
+        switch selection.release {
+        case let .installation(release):
+            return try ActivityWorkflowReleaseResolutionContextV2(
+                reference: reference, installation: release,
+                package: exact.package, availability: availability
+            )
+        case let .punch(release):
+            return try ActivityWorkflowReleaseResolutionContextV2(
+                reference: reference, punchReview: release,
+                package: exact.package, availability: availability
+            )
+        }
+    }
+
+    /// Re-queries the exact active package release and its latest canonical
+    /// lifecycle disposition for every operation. The active registry pointer
+    /// is authoritative when no later lifecycle disposition has been recorded.
+    func currentActivityWorkflowPackageState(
+        workspaceID: WorkspaceID,
+        packageID: String
+    ) throws -> PackageLifecycleStateV1 {
+        guard let pointer = try activePointer(workspaceID: workspaceID, packageID: packageID) else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        let releaseID = pointer.activeReleaseRecordID
+        let releaseRows = try context.fetch(FetchDescriptor<PromotedPackageReleaseRow>(
+            predicate: #Predicate { $0.releaseRecordID == releaseID }
+        ))
+        guard releaseRows.count == 1, let promoted = try releaseRows.first?.value(),
+              promoted.workspaceID == workspaceID,
+              promoted.packageRelease.packageID == packageID,
+              promoted.packageRelease.packageReleaseID == pointer.activePackageReleaseID,
+              promoted.releaseRecordSHA256 == pointer.activeReleaseRecordSHA256 else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        let rawWorkspaceID = workspaceID.rawValue
+        let packageReleaseID = promoted.packageRelease.packageReleaseID
+        let rows = try context.fetch(FetchDescriptor<PackageLifecycleDispositionRow>(
+            predicate: #Predicate {
+                $0.workspaceID == rawWorkspaceID && $0.packageReleaseID == packageReleaseID
+            }
+        ))
+        let values = try rows.map { try $0.value(release: promoted.packageRelease) }
+            .sorted { $0.revision < $1.revision }
+        guard Set(values.map(\.revision)).count == values.count else {
+            throw InspectionPackageFailureV2.incompatiblePackage
+        }
+        for pair in zip(values, values.dropFirst()) {
+            try pair.1.validateSuccessor(of: pair.0, release: promoted.packageRelease)
+        }
+        return values.last?.state ?? .active
+    }
+
+    static let activityWorkflowReleaseSource = "BUNDLED_LOCAL_FIRST"
+    static let withdrawnStartDisposition = "REJECTED"
+    static let withdrawnExportDisposition = "READ_ONLY"
+    static let callerSuppliedLifecycleStateIsAuthority = false
+    static let currentPackageLifecycleIsRequeriedAtOperationTime = true
+    static let interruptionRecoveryRemainsReadOnly = true
+    static let activityFamiliesAreSelectedIndependently = true
+}

@@ -1,0 +1,130 @@
+{
+  "$id": "https://assetrounds.invalid/v23/FindingV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "categoryID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "findingID": {
+      "maxLength": 128,
+      "pattern": "^[a-z0-9._-]+$",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "severity": {
+      "additionalProperties": false,
+      "properties": {
+        "severityID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        },
+        "severityScaleReleaseID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        },
+        "severityScaleSHA256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "severityID",
+        "severityScaleReleaseID",
+        "severityScaleSHA256"
+      ],
+      "type": "object"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "evidenceRevisionIDs": {
+          "items": {
+            "maxLength": 128,
+            "pattern": "^[a-z0-9._-]+$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "kind": {
+          "enum": [
+            "INSPECTION_RESPONSE",
+            "INSPECTION_OBSERVATION",
+            "HUMAN_OBSERVATION",
+            "IMPORTED_RECORD"
+          ],
+          "type": "string"
+        },
+        "sourceID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        },
+        "sourceRevision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "sourceID",
+        "sourceRevision",
+        "evidenceRevisionIDs"
+      ],
+      "type": "object"
+    },
+    "subject": {
+      "additionalProperties": false,
+      "properties": {
+        "subjectID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        },
+        "subjectKindID": {
+          "maxLength": 128,
+          "pattern": "^[a-z0-9._-]+$",
+          "type": "string"
+        },
+        "subjectRevision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "subjectKindID",
+        "subjectID",
+        "subjectRevision"
+      ],
+      "type": "object"
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "findingID",
+    "revision",
+    "severity",
+    "categoryID",
+    "subject",
+    "source",
+    "summary"
+  ],
+  "title": "FindingV1",
+  "type": "object"
+}

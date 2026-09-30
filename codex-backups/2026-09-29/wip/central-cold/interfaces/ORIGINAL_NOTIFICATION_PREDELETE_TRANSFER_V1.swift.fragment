@@ -1,0 +1,263 @@
+    /// Transfer the exact actual OS-owned IDs before their mapping/control
+    /// sources disappear. The original first-P roster remains authority for
+    /// existing leaves; a genuine empty present/created root has no sources
+    /// only when those exact original-P leaves are positively absent.
+    private func publishOriginalSchema2SurvivingNotificationUnderHeldRemoval(
+        absence: OriginalEraseNotificationOSAbsenceReceiptV1,
+        marker: OriginalEraseNotificationMarkerPublicationReceiptV1,
+        control: AppLockNotificationControlStoreV1,
+        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        firstNodes: [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode],
+        support: Int32, io: EraseAbortCheckedSnapshotIOV1,
+        removalPermit: OriginalEraseNotificationRemovalPermitV1,
+        reproveOutside: @MainActor () throws -> Void
+    ) throws {
+        guard let router,
+              let subject = try router.originalEraseRecoverySubject(self),
+              originalNotificationOSAbsence === absence,
+              originalNotificationRemovalInFlight,
+              !originalNotificationRemovalUncertain,
+              originalNotificationRemovalIO === io,
+              originalAuxiliaryStore === store,
+              originalExclusion === exclusion,
+              preparationRegistry === registry,
+              let admission = originalAuxiliaryRosterAdmission,
+              let firstIntent = originalAuxiliaryFirstIntent,
+              let preparation = originalAuxiliaryFirstPreparation,
+              let originalP = originalAuxiliaryFirstPhysicalRoster,
+              let pointerAuthority = originalPointerAuthority,
+              let pointer = originalCurrentPointerReceipt,
+              firstIntent.schemaVersion == 2,
+              firstIntent.phase == .emptyGenerationPrepared,
+              preparation.matches(firstIntent),
+              subject.eraseID == firstIntent.eraseID,
+              subject.newGenerationID == firstIntent.newGenerationID,
+              marker.checkedSettled,
+              marker.revocation == absence.revocation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let pTree = originalP.record.trees.first {
+            $0.key == "support/FieldEvidenceOperations"
+        }
+        guard let pTree, pTree.state == "present", let pNodes = pTree.nodes else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let rootName = AppLockNotificationControlStoreV1.rootName
+        let sourceNames = [AppLockNotificationControlStoreV1.mappingName,
+            AppLockNotificationControlStoreV1.recordName].sorted()
+        let nodes = firstNodes.filter { sourceNames.contains($0.path) }
+        let pSources = pNodes.filter { sourceNames.contains(
+            String($0.path.dropFirst(rootName.count + 1)))
+            && $0.path.hasPrefix(rootName + "/") }
+        guard nodes.count == pSources.count,
+              Set(nodes.map(\.path)) == Set(pSources.map {
+                  String($0.path.dropFirst(rootName.count + 1))
+              }),
+              Set((absence.mapping?.ownedRequestIDs ?? []) +
+                  (absence.journal?.projections.map(\.requestID) ?? []))
+                == absence.ownedRequestIDs,
+              !NotificationAddDrainV1.isActive(root: control.notificationRootIdentity)
+        else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+
+        func nineFields(_ full: String) throws -> String {
+            let fields = full.split(separator: "|", omittingEmptySubsequences: false)
+            guard fields.count == 11 else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return ([fields[0], fields[1], fields[2]] + Array(fields[5...]))
+                .map(String.init).joined(separator: "|")
+        }
+        @MainActor func currentSources() throws
+            -> [EraseSchema2ColdSurvivingNotificationProvenanceV1.Source] {
+            try removalPermit.requireHeld()
+            try reproveOutside()
+            try absence.requireBound(control: control, revocation: marker.revocation)
+            try marker.requireBound(control: control, operation: self,
+                store: store, registry: registry, exclusion: exclusion,
+                activity: activity)
+            return try io.withOpen(parent: support,
+                name: "FieldEvidenceOperations", flags: O_RDONLY | O_DIRECTORY
+            ) { operations in
+                try io.withOpen(parent: operations, name: rootName,
+                    flags: O_RDONLY | O_DIRECTORY
+                ) { root in
+                    var namedRoot = stat(), heldRoot = stat()
+                    guard Darwin.fstat(root, &heldRoot) == 0,
+                          Darwin.fstatat(operations, rootName, &namedRoot,
+                            AT_SYMLINK_NOFOLLOW) == 0,
+                          EraseSchema2ColdCleanupGrammarV1.fullFact(
+                            EraseColdControlLeafFactV1(heldRoot))
+                            == marker.projectedRootFact,
+                          EraseColdControlLeafFactV1(namedRoot)
+                            == EraseColdControlLeafFactV1(heldRoot) else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    let names = try io.names(in: root)
+                    guard names == Set(firstNodes.filter { !$0.path.isEmpty }
+                        .map(\.path)).union([AppLockNotificationControlStoreV1.eraseName])
+                        .sorted() else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    var result: [EraseSchema2ColdSurvivingNotificationProvenanceV1.Source] = []
+                    for name in sourceNames {
+                        guard let node = nodes.first(where: { $0.path == name }) else {
+                            var absent = stat()
+                            guard Darwin.fstatat(root, name, &absent,
+                                    AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT,
+                                  name != AppLockNotificationControlStoreV1.mappingName
+                                    || absence.mapping == nil,
+                                  name != AppLockNotificationControlStoreV1.recordName
+                                    || absence.journal == nil else {
+                                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                            }
+                            continue
+                        }
+                        guard let original = pSources.first(where: {
+                                $0.path == rootName + "/" + name
+                              }), original.kind == "regular",
+                              try nineFields(node.fullFact) == original.fact,
+                              node.contentSHA256 == original.sha256,
+                              let expectedSHA = node.contentSHA256 else {
+                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                        }
+                        var before = stat(), after = stat()
+                        guard Darwin.fstatat(root, name, &before,
+                            AT_SYMLINK_NOFOLLOW) == 0,
+                              EraseSchema2ColdCleanupGrammarV1.fullFact(
+                                EraseColdControlLeafFactV1(before)) == node.fullFact
+                        else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                        let bytes = try io.control(parent: root, name: name,
+                            maximum: AppLockNotificationControlStoreV1.maximumRecordBytes).0
+                        guard StoreMigrationCanonicalJSONV1.sha256(bytes) == expectedSHA else {
+                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                        }
+                        if name == AppLockNotificationControlStoreV1.mappingName {
+                            let value = try JSONDecoder().decode(
+                                NotificationPrivateMappingV1.self, from: bytes)
+                            guard value == absence.mapping,
+                                  try CompatibilityCanonicalV1.encode(value) == bytes else {
+                                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                            }
+                        } else {
+                            let value = try JSONDecoder().decode(
+                                AppLockNotificationControlV1.self, from: bytes)
+                            guard value.journal == absence.journal,
+                                  try CompatibilityCanonicalV1.encode(value) == bytes else {
+                                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                            }
+                        }
+                        let url = subject.applicationSupportURL
+                            .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
+                            .appendingPathComponent(rootName, isDirectory: true)
+                            .appendingPathComponent(name)
+                        let policy = try ProtectedFilePolicyV1
+                            .observeTemporalPolicyWithCheckedClose(.journal, at: url,
+                                retainUncertainDescriptor: { io.retainUncertainDescriptor($0) })
+                        guard policy == node.policy,
+                              Darwin.fstatat(root, name, &after,
+                                AT_SYMLINK_NOFOLLOW) == 0,
+                              EraseColdControlLeafFactV1(after)
+                                == EraseColdControlLeafFactV1(before) else {
+                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                        }
+                        result.append(.init(path: rootName + "/" + name,
+                            fullFact: node.fullFact, sha256: expectedSHA))
+                    }
+                    guard try io.names(in: root) == names,
+                          Darwin.fstat(root, &heldRoot) == 0,
+                          EraseSchema2ColdCleanupGrammarV1.fullFact(
+                            EraseColdControlLeafFactV1(heldRoot)) == marker.projectedRootFact
+                    else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                    try removalPermit.requireHeld()
+                    try reproveOutside()
+                    return result.sorted { $0.path < $1.path }
+                }
+            }
+        }
+        let sources = try currentSources()
+        let pointerSHA = try pointer.currentPointerSHA256(
+            authority: pointerAuthority, operation: self)
+        let value = EraseSchema2ColdSurvivingNotificationProvenanceV1(
+            schemaVersion: 1, eraseID: firstIntent.eraseID.uuidString.lowercased(),
+            preparationSHA256: StoreMigrationCanonicalJSONV1.sha256(
+                try ErasePreparationCodecV2.encode(preparation)),
+            originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256,
+            targetPointerSHA256: pointerSHA, originalSources: sources,
+            markerIdentity: marker.canonicalLeafFact,
+            revocationIdentity: StoreMigrationCanonicalJSONV1.sha256(
+                try CompatibilityCanonicalV1.encode(marker.revocation)),
+            ownedIDs: absence.ownedRequestIDs.sorted())
+        @MainActor func requireActualCut() throws {
+            guard self.originalNotificationOSAbsence === absence,
+                  self.originalNotificationRemovalInFlight,
+                  !self.originalNotificationRemovalUncertain,
+                  self.originalAuxiliaryStore === store,
+                  self.originalExclusion === exclusion,
+                  self.originalAuxiliaryRosterAdmission === admission,
+                  try currentSources() == sources,
+                  try pointer.currentPointerSHA256(authority: pointerAuthority,
+                    operation: self) == pointerSHA else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try admission.receipt.requireBound(store: store,
+                operation: self, seal: admission.seal)
+        }
+        func withControlEffect<Value>(_ effect: EraseSchema2ColdControlEffectV1,
+            _ body: (EraseSchema2ColdControlPermitV1) throws -> Value
+        ) throws -> Value {
+            let permit = EraseSchema2ColdControlPermitV1(effect: effect,
+                requireActualCut: requireActualCut, retainUncertainty: {
+                    removalPermit.poisonOnUncertainEffect()
+                    self.failOriginalEraseNotificationRemoval()
+                })
+            defer { permit.revoke() }
+            try permit.requireHeld()
+            let result = try body(permit)
+            try permit.requireHeld()
+            return result
+        }
+        if let retained = originalSchema2SurvivingNotificationObservation {
+            guard originalSchema2SurvivingNotificationStore === store,
+                  retained.value == value else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        } else {
+            let register = try EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+                kind: .registerOriginalScope,
+                inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(admission.receipt.canonicalBytes),
+                    StoreMigrationCanonicalJSONV1.sha256(try EraseIntentCodecV1.encode(firstIntent)),
+                    value.preparationSHA256])
+            try withControlEffect(register) { permit in
+                try store.registerOriginalSchema2CleanupControlScope(operation: self,
+                    roster: admission.receipt, intent: firstIntent,
+                    preparation: preparation, permit: permit)
+            }
+            let publish = try EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+                kind: .publishNotification,
+                inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(try value.canonicalBytes())],
+                path: EraseSchema2ColdCleanupGrammarV1.notificationName)
+            let observation = try withControlEffect(publish) { permit in
+                try store.publishSchema2ColdSurvivingNotificationProvenance(value,
+                    permit: permit)
+            }
+            originalSchema2SurvivingNotificationObservation = observation
+            originalSchema2SurvivingNotificationStore = store
+        }
+        guard let observation = originalSchema2SurvivingNotificationObservation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let readback = try EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .requireNotification,
+            inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(observation.bytes)],
+            path: EraseSchema2ColdCleanupGrammarV1.notificationName)
+        let checked = try withControlEffect(readback) { permit in
+            try store.requireSchema2ColdSurvivingNotificationProvenance(
+                observation, permit: permit)
+        }
+        guard checked == value else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        try io.requireSettled()
+        try requireActualCut()
+    }
+

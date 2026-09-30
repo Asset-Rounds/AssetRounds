@@ -1,0 +1,38 @@
+[
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "configuration": "nonDEBUG",
+    "exitCode": 0,
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "configuration": "DEBUG",
+    "exitCode": 0,
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "configuration": "nonDEBUG",
+    "exitCode": 0,
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "configuration": "DEBUG",
+    "exitCode": 0,
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "configuration": "nonDEBUG",
+    "exitCode": 0,
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "configuration": "DEBUG",
+    "exitCode": 0,
+    "stderr": ""
+  }
+]

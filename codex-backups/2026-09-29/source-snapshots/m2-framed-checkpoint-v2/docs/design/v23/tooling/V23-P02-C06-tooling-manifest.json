@@ -1,0 +1,342 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "acceptanceOrReleaseClaimed": false,
+  "adoptionEnabled": false,
+  "artifactCount": 26,
+  "artifactDigest": "9c98c7cc49870cb121e7e2ec8675e30129354684233c108250b55d93d6964270",
+  "artifactSetDigest": "2b3e128065bd6efed4f1805fbddf92f1c5ce2a84a054ea84de35bb1f376e7d94",
+  "artifacts": [
+    {
+      "bytes": 1434,
+      "path": "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+      "sha256": "661317701c08567a925c089f4b85344ab8cd8c46ac24cdf1b9a94398be5e0c1f"
+    },
+    {
+      "bytes": 5799,
+      "path": "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+      "sha256": "b6ee38fca2651cea1f1f4c4b8ed3c476354e45aa51357f90c6a29d2ad9f738e5"
+    },
+    {
+      "bytes": 23229,
+      "path": "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+      "sha256": "c453c7ccaa2dc233bc5a7052960e8aa0005e9a8da2a253a74f4701605a5ce06a"
+    },
+    {
+      "bytes": 23030,
+      "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+      "sha256": "adb7358bd7c424240af9fb45266eacfc8a989ecb8bc3094f4a58efc330b2cd4e"
+    },
+    {
+      "bytes": 1260,
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+      "sha256": "430d76f7e694df0bf5713f33cef9e073a90fee8d4cd1eff98fa07ea1cc3ba1de"
+    },
+    {
+      "bytes": 7591,
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "sha256": "a21278e2e0eb8f03ac108b6d134dbe6c6c35163b6892b3ed3cfa334261924db6"
+    },
+    {
+      "bytes": 18226,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+      "sha256": "8ce813980a1b2601ea5db9aec13a6f469156a96b4680d61ac2d60095bf3f15eb"
+    },
+    {
+      "bytes": 15976,
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+      "sha256": "22ec6aaf1a4fb82f86eed4713aab8bed5bbb4346309b3194df875813bf089025"
+    },
+    {
+      "bytes": 37298,
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+      "sha256": "d85c57d97318aaf08d65e6fbabbe1c5ac84c41e5e9fc13386e1fd886b8032f98"
+    },
+    {
+      "bytes": 50043,
+      "path": "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+      "sha256": "e2823d4b8e8bfede41b207fa01fbc3540198602bd5ae383ebd9a80cb16ec6bdc"
+    },
+    {
+      "bytes": 6689,
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+      "sha256": "641c2bdf4ef7ffb11a16cfcaaa05745032c86044814bd6423c5b812b122f89c5"
+    },
+    {
+      "bytes": 19414,
+      "path": "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "sha256": "510e917b84f81d1927a100473810a1b96bf2d8f221f5a279e55cb649d06f9094"
+    },
+    {
+      "bytes": 3493,
+      "path": "FieldEvidenceApp/Infrastructure/System/DeviceTimeSemanticsV1.swift",
+      "sha256": "6883fff469a400d8aa703baecd9c8473e0ff3c669c4fa4bcf824325d5d81644b"
+    },
+    {
+      "bytes": 58573,
+      "path": "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift",
+      "sha256": "fdb93da37ce54c12e28fe4a87a96b0a317a6b78ea7481db9d2d188156e6b2836"
+    },
+    {
+      "bytes": 1368,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C06LifecycleBoundaryCorpusV1.json",
+      "sha256": "d899bc449ff1dc5160dae2101af8db094671a66cd856d4cfc56156f8a0b28a82"
+    },
+    {
+      "bytes": 35907,
+      "path": "Scripts/v23/p02_c06_contracts.py",
+      "sha256": "b08e29139e3282ce257a81be78e96c9a8992a068407af77b0580ca3bbfa33be3"
+    },
+    {
+      "bytes": 1342,
+      "path": "Scripts/v23/generate_p02_c06_contracts.py",
+      "sha256": "b61442103829252f76728a52f7669fd0adb22ede7b830b5a7ac53bc2c442f927"
+    },
+    {
+      "bytes": 29545,
+      "path": "Scripts/v23/verify_p02_c06_contracts.py",
+      "sha256": "c06cb9c65a4a14c3703586b4fc6e569f2b4beeeff990e97099c92ab5f0199531"
+    },
+    {
+      "bytes": 48577,
+      "path": "Scripts/v23/device-lifecycle-boundary.schema.json",
+      "sha256": "c1479b81cdefc04e68c862f8c5b2247e21d900d46436f00a180bea3164933b5c"
+    },
+    {
+      "bytes": 25141,
+      "path": "Scripts/v23/owned-storage-ledger.schema.json",
+      "sha256": "69e1be8f847a6dc84888b9d36a39f0d3aa24ddbd74c56a50d6e86338f1c89b62"
+    },
+    {
+      "bytes": 22041,
+      "path": "Scripts/v23/device-time-semantics.schema.json",
+      "sha256": "e4b0dd0b7f3d58c73e0c3556063520080d0c94ee49b54346d0a4257b5fd3e87f"
+    },
+    {
+      "bytes": 29244,
+      "path": "Scripts/v23/lifecycle-boundary-corpus.schema.json",
+      "sha256": "b9132672d7da8e8063c0f93cf710e58731bb69497f01f40dc6a25549e5a620ee"
+    },
+    {
+      "bytes": 16381,
+      "path": "docs/design/v23/tooling/V23P02C06DeviceLifecycleBoundaryContractV1.json",
+      "sha256": "de8898a08b29fcc0f1f9dd15f32ff3ead79c4a077431079e2a78ca14802f0eef"
+    },
+    {
+      "bytes": 9035,
+      "path": "docs/design/v23/tooling/V23P02C06OwnedStorageLedgerContractV1.json",
+      "sha256": "ecc36d3a25f8deb29c10dfb5c31d112c598669a63ea6a1bcd867f093bcdb48da"
+    },
+    {
+      "bytes": 7994,
+      "path": "docs/design/v23/tooling/V23P02C06DeviceTimeSemanticsContractV1.json",
+      "sha256": "080640a1c5e417a852b8c03a1dc489e8d6fd248b976e1989745d7df544cf1863"
+    },
+    {
+      "bytes": 10047,
+      "path": "docs/design/v23/tooling/V23P02C06LifecycleBoundaryCorpusManifestV1.json",
+      "sha256": "45d632badb71f56191818fa0082662b895fd0f5d663cf1f2e15144ad632a5cc5"
+    }
+  ],
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "0272a8ffc24af98343fdfbc0b51e5063bd3e1134",
+    "appBaseTree": "d603f733609dd5d8214ff59bca0b172bb4c770d2",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C06",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "862112f0903b8f78834332ef9f089dd91907a8a39b32748ee055c749dd660f86",
+    "coordinationAuthorityHead": "9cf025a2b8a99d2aed2822824b245fa84916f0b8",
+    "coordinationAuthorityTree": "6dea1d96e3d1fe9cf6656682b6e6b62b2e3ac6bb",
+    "coordinationCASSequence": 104,
+    "coordinationLedgerDigest": "f867bd6467c7287683fbf86a9049dd8609e0c70fa24d2d8b68e1b03f7b87b492",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C06-G01",
+      "V23-P02-C06-A01",
+      "V23-P02-C06-H01",
+      "V23-P02-C06-I01",
+      "V23-P02-C06-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C05"
+    ],
+    "dossierDigest": "74cb5ad75992718658327f60b44ab752e2aa4bda09119ddeaf06c7ec1353f443",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "6c10ad0d12d106c1e3ed09ed731afb143a914acc1595772a3088ad18a09b4d44",
+    "hydrationTransitionDigest": "dbbb09e0cadda8c20dfc64e3dd79e64862b531714538028952f1bf0f416b1c8c",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "0a7f64772e37775628a9721a280be83c7c0cb389d234672b4f4d7f39861cf7d5",
+    "invalidationConsumers": [
+      "V23-P02-C07"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C06",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "b90723f324e2126e5fe04878e5016adb6c07e18b9972684415c692203d953f5a",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "ca153b318446a7aead005e8f4c510a1c384b093c622efc8d0fb444d003d8e1b0",
+    "registerOrdinal": 26,
+    "registerRowDigest": "ce7cb0a63873f41df355e4ec13c2869c98e70438cb42f2a029e2fed7bf6605ea",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Protected-data lifecycle, storage pressure, and device-time semantics"
+  },
+  "cardID": "V23-P02-C06",
+  "evidenceIDs": [
+    "V23-P02-C06-G01",
+    "V23-P02-C06-A01",
+    "V23-P02-C06-H01",
+    "V23-P02-C06-I01",
+    "V23-P02-C06-R01"
+  ],
+  "existingPaths": [
+    "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+    "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+    "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+    "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+    "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift"
+  ],
+  "fenceProof": {
+    "activeS10Overlap": false,
+    "activeS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "allowedDeletePaths": [],
+    "allowedRenamePaths": [],
+    "authorizedPriorFenceOverlapCount": 15,
+    "baseHead": "0272a8ffc24af98343fdfbc0b51e5063bd3e1134",
+    "baseTree": "d603f733609dd5d8214ff59bca0b172bb4c770d2",
+    "pathFenceDigest": "b90723f324e2126e5fe04878e5016adb6c07e18b9972684415c692203d953f5a",
+    "priorFenceOverlapCount": 15,
+    "unauthorizedPriorFenceOverlapCount": 0
+  },
+  "generatedPaths": [
+    "Scripts/v23/device-lifecycle-boundary.schema.json",
+    "Scripts/v23/owned-storage-ledger.schema.json",
+    "Scripts/v23/device-time-semantics.schema.json",
+    "Scripts/v23/lifecycle-boundary-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C06DeviceLifecycleBoundaryContractV1.json",
+    "docs/design/v23/tooling/V23P02C06OwnedStorageLedgerContractV1.json",
+    "docs/design/v23/tooling/V23P02C06DeviceTimeSemanticsContractV1.json",
+    "docs/design/v23/tooling/V23P02C06LifecycleBoundaryCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C06-tooling-manifest.json"
+  ],
+  "generator": {
+    "seed": 230206,
+    "version": "p02-c06-contracts-v1"
+  },
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": false,
+  "nativeCompileRan": false,
+  "nativeOrHostedEvidenceClaimed": false,
+  "newPaths": [
+    "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+    "FieldEvidenceApp/Infrastructure/System/DeviceTimeSemanticsV1.swift",
+    "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C06LifecycleBoundaryCorpusV1.json",
+    "Scripts/v23/p02_c06_contracts.py",
+    "Scripts/v23/generate_p02_c06_contracts.py",
+    "Scripts/v23/verify_p02_c06_contracts.py",
+    "Scripts/v23/device-lifecycle-boundary.schema.json",
+    "Scripts/v23/owned-storage-ledger.schema.json",
+    "Scripts/v23/device-time-semantics.schema.json",
+    "Scripts/v23/lifecycle-boundary-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C06DeviceLifecycleBoundaryContractV1.json",
+    "docs/design/v23/tooling/V23P02C06OwnedStorageLedgerContractV1.json",
+    "docs/design/v23/tooling/V23P02C06DeviceTimeSemanticsContractV1.json",
+    "docs/design/v23/tooling/V23P02C06LifecycleBoundaryCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C06-tooling-manifest.json"
+  ],
+  "noDeletionForSpace": true,
+  "noPersistedMonotonicTicks": true,
+  "pathFence": [
+    "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+    "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+    "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+    "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+    "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+    "FieldEvidenceApp/Infrastructure/System/DeviceTimeSemanticsV1.swift",
+    "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C06LifecycleBoundaryCorpusV1.json",
+    "Scripts/v23/p02_c06_contracts.py",
+    "Scripts/v23/generate_p02_c06_contracts.py",
+    "Scripts/v23/verify_p02_c06_contracts.py",
+    "Scripts/v23/device-lifecycle-boundary.schema.json",
+    "Scripts/v23/owned-storage-ledger.schema.json",
+    "Scripts/v23/device-time-semantics.schema.json",
+    "Scripts/v23/lifecycle-boundary-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C06DeviceLifecycleBoundaryContractV1.json",
+    "docs/design/v23/tooling/V23P02C06OwnedStorageLedgerContractV1.json",
+    "docs/design/v23/tooling/V23P02C06DeviceTimeSemanticsContractV1.json",
+    "docs/design/v23/tooling/V23P02C06LifecycleBoundaryCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C06-tooling-manifest.json"
+  ],
+  "pathFenceCount": 27,
+  "persistentChangeMode": "CONTENT_ONLY",
+  "persistentSchemaActivatedByTooling": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23-P02-C06-tooling-manifest",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "sourcePathCount": 15,
+  "sourcePaths": [
+    "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+    "FieldEvidenceApp/Application/Ports/ResumableLocalJobPortV1.swift",
+    "FieldEvidenceApp/Domain/Mutation/WorkspaceMutationContractsV1.swift",
+    "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+    "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift",
+    "FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/DeviceLifecycleCoordinatorV1.swift",
+    "FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+    "FieldEvidenceApp/Infrastructure/System/DeviceTimeSemanticsV1.swift",
+    "FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/Lifecycle/V21P02C06LifecycleBoundaryCorpusV1.json"
+  ],
+  "toolingPathCount": 12,
+  "toolingPaths": [
+    "Scripts/v23/p02_c06_contracts.py",
+    "Scripts/v23/generate_p02_c06_contracts.py",
+    "Scripts/v23/verify_p02_c06_contracts.py",
+    "Scripts/v23/device-lifecycle-boundary.schema.json",
+    "Scripts/v23/owned-storage-ledger.schema.json",
+    "Scripts/v23/device-time-semantics.schema.json",
+    "Scripts/v23/lifecycle-boundary-corpus.schema.json",
+    "docs/design/v23/tooling/V23P02C06DeviceLifecycleBoundaryContractV1.json",
+    "docs/design/v23/tooling/V23P02C06OwnedStorageLedgerContractV1.json",
+    "docs/design/v23/tooling/V23P02C06DeviceTimeSemanticsContractV1.json",
+    "docs/design/v23/tooling/V23P02C06LifecycleBoundaryCorpusManifestV1.json",
+    "docs/design/v23/tooling/V23-P02-C06-tooling-manifest.json"
+  ]
+}

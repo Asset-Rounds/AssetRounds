@@ -1,0 +1,7 @@
+# Physical pending request successor handoff
+
+GPT-6.1 Sol xhigh. Unique ignored successor over immutable V6BINDING539f. Factory exactV6; Observer additive actual pending-boundary consumer only. Full tracked1206 baseline, prior sealed packets and functional Notification/Search succession remain untouched.
+
+Actual requireComplete now consumes the genuine private Ledger ProducerRequest, positively reproofing its actual durable canonical pending Store binding at each scanner/raw-IO/output/callback edge. Initial no-request PREPARING is preserved; no future authority is required before pending publication. Finite plan/step/ordinal/slot/path/payload checks supplement existing full namespace/current tuple/partial-cut proof. No new partial path, publisher syscall, source/OS/close success or request is manufactured.
+
+PARTIAL/NONINSTALLABLE. Real central pending issuer/Store readback implementation and Ledger publisher/controller exact ordering, fresh current scope and work budgets remain coupled prerequisites. StoreREAD7028 direct bounded Progress/target/projection commitment adapter is pinned but still separately unimplemented. Every V6/V5 generic/Registry/firstcapture/capacity/compact primitive/semantic/final-origin/full B/runtime obligation remains due. Root alone performs semantic compiler/build/native/independent review/gates/integration/Git; actual DEBUG/nonDEBUG syntax only is recorded. No compiler/native/Products/test/CI/settings/S10/Release/signing effect.

@@ -1,0 +1,10 @@
+{
+  "liveFunctionalFirstObserverSHA256": "ad95d26b481a864a3f5f6b45a5f2917d790f703af59cbb0f742e85c0d6d40d1b",
+  "onlyCandidatePaths": [
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+  ],
+  "parentBindingSHA256": "539f6f5b71f4d5ed5f15ee3df3d715bcb519e241f14db88241d0749aacd9aa10",
+  "requestConsumer": "authentic already-durable pending private getter; no pre-pending future authority",
+  "sourceInputs": 1206
+}

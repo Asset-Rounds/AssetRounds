@@ -1,0 +1,134 @@
+{
+  "schema": "V22P03C23FieldReferencePackCorpusV1",
+  "schemaVersion": 1,
+  "corpusID": "c23-field-reference-pack-v1",
+  "cardID": "V23-P03-C23",
+  "records": 21,
+  "recordsSchemaVersion": 21,
+  "persistentSchemaVersion": 22,
+  "persistentModelCount": 84,
+  "evidenceIDs": [
+    "G01",
+    "A01",
+    "H01",
+    "I01",
+    "R01"
+  ],
+  "evidenceSelectors": [
+    {
+      "id": "G01",
+      "selector": "G01",
+      "focus": "canonical release and binding identity with offline-only content"
+    },
+    {
+      "id": "A01",
+      "selector": "A01",
+      "focus": "expiry, revocation, supersession, staleness and explicit availability"
+    },
+    {
+      "id": "H01",
+      "selector": "H01",
+      "focus": "forged bytes, wrong bindings, restricted provenance and immutable subjects"
+    },
+    {
+      "id": "I01",
+      "selector": "I01",
+      "focus": "separate import and bind interruption, cleanup and idempotent retry"
+    },
+    {
+      "id": "R01",
+      "selector": "R01",
+      "focus": "V22 migration, backup, restore, export, replay, delete and Erase boundaries"
+    }
+  ],
+  "referenceKinds": [
+    "SOP",
+    "MANUAL",
+    "DRAWING",
+    "SPECIFICATION"
+  ],
+  "provenanceKinds": [
+    "LICENSED",
+    "SYNTHETIC"
+  ],
+  "licenseScopes": [
+    "LOCAL_USE_ONLY",
+    "CITATION_ALLOWED",
+    "CITATION_AND_EXPORT_ALLOWED",
+    "RESTRICTED"
+  ],
+  "releaseDispositions": [
+    "ACTIVE",
+    "REVOKED"
+  ],
+  "subjectKinds": [
+    "WORK_PACKET",
+    "ROUND_SESSION"
+  ],
+  "subjectStates": [
+    "ACTIVE",
+    "FINALIZED"
+  ],
+  "availabilityStates": [
+    "READY_OFFLINE",
+    "MISSING_BYTES",
+    "EXPIRED",
+    "REVOKED",
+    "SUPERSEDED",
+    "STALE_BINDING",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "UNAVAILABLE"
+  ],
+  "interruptionBoundaries": [
+    "IMPORT_BEFORE_PERSIST",
+    "IMPORT_AFTER_PERSIST_BEFORE_READBACK",
+    "IMPORT_AFTER_READBACK_BEFORE_RELEASE_RECEIPT",
+    "BIND_BEFORE_READINESS",
+    "BIND_AFTER_READINESS_BEFORE_RECEIPT",
+    "RETRY_AFTER_PARTIAL_EFFECT"
+  ],
+  "hostileCases": [
+    "forged-observation",
+    "missing-bytes",
+    "wrong-workspace",
+    "wrong-release",
+    "stale-locator",
+    "duplicate-release-or-binding-id",
+    "reused-mutation-id",
+    "finalized-subject-upgrade",
+    "restricted-authority-claim",
+    "revoked-or-expired-release",
+    "external-fetch-or-account-claim"
+  ],
+  "lifecycleConsumers": [
+    "V22 schema migration",
+    "backup encode and decode",
+    "restore identity rebound",
+    "governed delete and Erase",
+    "export and replay history",
+    "offline search and openability",
+    "idempotent import and bind retry"
+  ],
+  "privacyExclusions": [
+    "provider identity",
+    "account or credential identity",
+    "external copy availability",
+    "network fetch",
+    "customer content"
+  ],
+  "forbiddenClaims": [
+    "remote provider availability",
+    "DRM or account requirement",
+    "external copy availability",
+    "silent active or finalized upgrade",
+    "live destructive restore",
+    "cloud or network durability"
+  ],
+  "immutableOriginals": true,
+  "externalCopyAvailabilityClaimed": false,
+  "runtimeFetchingAllowed": false,
+  "drmOrAccountRequired": false,
+  "currentProjectionPersistent": false,
+  "noSecondWriter": true,
+  "noSecondStore": true
+}

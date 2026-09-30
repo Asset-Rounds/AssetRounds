@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Use the camera to add sign photos to reports stored on this iPhone.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to unlock your locally stored inspection and service records.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record short audio evidence or transcribe voice details only when you choose those actions. Audio evidence stays on this iPhone unless you explicitly export or share it; voice-detail audio is temporary and not archived.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Transcribe user-triggered voice details on this iPhone into reviewable structured-work suggestions. You can type instead; voice audio is not archived or sent to a cloud recognition service.</string>
+	<key>FieldEvidenceIncumbentFileAdapterStatus</key>
+	<string>DISABLED_NO_SELECTED_PROFILE</string>
+	<key>FieldEvidenceIncumbentFileAdapterDeclaresProviderType</key>
+	<false/>
+	<key>FieldEvidenceIncumbentFileAdapterPersistsSecurityBookmarks</key>
+	<false/>
+	<!-- C49 durable work-resource facts use schema V37 / records V36. -->
+	<key>FieldEvidenceWorkResourcePersistentSchemaVersion</key>
+	<integer>37</integer>
+	<key>FieldEvidenceWorkResourceRecordsSchemaVersion</key>
+	<integer>36</integer>
+	<key>FieldEvidenceWorkResourceDirectCostIsEmbedded</key>
+	<true/>
+	<key>FieldEvidenceWorkResourceLocalPartReferenceIsSnapshot</key>
+	<true/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
+			<key>UTTypeIdentifier</key>
+			<string>com.palatis3.fieldrecordbackup</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>fieldrecordbackup</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeIdentifier</key>
+			<string>com.assetrounds.review-request</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>arreviewrequest</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeIdentifier</key>
+			<string>com.assetrounds.review-response</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>arreviewresponse</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>AssetRounds Encrypted Envelope</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.assetrounds.encrypted-envelope</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>arenvelope</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/vnd.assetrounds.encrypted-envelope</string>
+			</dict>
+		</dict>
+	</array>
+	<key>C52ServiceRequestBoundary_InfoPlist</key>
+	<dict>
+		<key>AcceptedRecordsUseCanonicalWorkspaceLifecycle</key>
+		<true/>
+		<key>CloneOrForkInvalidatesActiveCapabilities</key>
+		<true/>
+		<key>DuplicateProjectionIsDerived</key>
+		<true/>
+		<key>RawCapabilityOrUnverifiedAssertionsInReportsDiagnostics</key>
+		<false/>
+		<key>SharedPortableFilesAreRecallable</key>
+		<false/>
+		<key>AutomaticWorkNetworkSLAOrAIClaimsPermitted</key>
+		<false/>
+	</dict>
+</dict>
+</plist>

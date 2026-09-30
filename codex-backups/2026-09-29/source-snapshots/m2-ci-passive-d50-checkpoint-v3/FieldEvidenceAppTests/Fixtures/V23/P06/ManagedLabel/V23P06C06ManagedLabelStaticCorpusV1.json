@@ -1,0 +1,59 @@
+{
+  "cardID": "V23-P06-C06",
+  "cases": [
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C06-G01",
+      "kind": "golden"
+    },
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C06-A01",
+      "kind": "accessibility"
+    },
+    {
+      "expected": "REJECT_DAMAGED",
+      "id": "V23-P06-C06-H01-DAMAGED",
+      "input": "damaged label",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_DUPLICATE",
+      "id": "V23-P06-C06-H01-DUPLICATE",
+      "input": "duplicate label",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_FOREIGN",
+      "id": "V23-P06-C06-H01-FOREIGN",
+      "input": "foreign label",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_REVOKED",
+      "id": "V23-P06-C06-H01-REVOKED",
+      "input": "revoked label",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_REPLACED",
+      "id": "V23-P06-C06-H01-REPLACED",
+      "input": "replaced label",
+      "kind": "hostile"
+    },
+    {
+      "expected": "NO_RUNTIME_CLAIM",
+      "id": "V23-P06-C06-I01",
+      "kind": "interruption"
+    },
+    {
+      "expected": "RECONCILE_OR_DISCARD",
+      "id": "V23-P06-C06-R01",
+      "kind": "recovery"
+    }
+  ],
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "realTerminalValidationResult": false,
+  "schema": "V23P06C06ManagedLabelStaticCorpusV1",
+  "syntheticOnly": true
+}

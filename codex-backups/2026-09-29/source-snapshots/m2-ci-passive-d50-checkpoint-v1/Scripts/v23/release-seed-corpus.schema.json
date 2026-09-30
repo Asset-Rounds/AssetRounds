@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "release-seed-corpus.schema.json",
+  "title": "ReleaseSeedCorpusV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "manifest",
+    "seal",
+    "syntheticOnly",
+    "licensedFixturesOnly",
+    "containsCustomerData",
+    "containsSecrets"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "manifest": { "$ref": "compatibility-corpus-manifest.schema.json" },
+    "seal": { "$ref": "release-seed-corpus-seal.schema.json" },
+    "syntheticOnly": { "const": true },
+    "licensedFixturesOnly": { "const": true },
+    "containsCustomerData": { "const": false },
+    "containsSecrets": { "const": false }
+  }
+}

@@ -1,0 +1,52 @@
+    /// The borrowed Journal is created only while the genuine incumbent
+    /// target reader/session and same physical EX are still held. Its owner
+    /// remains Manifest; after actual drain/transfer the Journal must switch
+    /// to the real retirement proof, never reconstruct this admission.
+    func requireSchema2ColdBorrowedManifestJournalAdmission(
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        binding: EraseRetirementBindingV1, intent: EraseIntentV1
+    ) throws {
+        try requireServiceAccess()
+        guard !admissionSealed, !detached, retirement == nil,
+              exclusion == nil, schema2ColdRetirementTransfer == nil,
+              schema2ColdManifestOwner === manifest,
+              !schema2ColdManifestOwnerClosed,
+              let store = schema2ColdIntentStore,
+              !schema2ColdIntentStoreClosed,
+              intent.schemaVersion == 2, intent.phase == .sessionActivated,
+              try store.load() == intent,
+              let preparation = try store.loadPreparation(),
+              preparation.matches(intent), preparation.c05JobDrainV3 == nil,
+              let session = schema2ColdActivatedTargetSession,
+              let reader = schema2ColdTargetReaderHandle,
+              let registry, let activity = schema2ColdActivity,
+              let physical = schema2ColdPhysicalExclusion,
+              let identity = schema2ColdSupportIdentity,
+              !schema2ColdPhysicalExclusionClosed,
+              let executor = schema2ColdDeletionExecutor,
+              schema2ColdDeletionSourcesClosed,
+              binding.operationID == operationID, binding.ownerMint == ownerMint,
+              binding.subject.eraseID == intent.eraseID,
+              binding.subject.newGenerationID == intent.newGenerationID,
+              binding.subject.applicationSupportURL
+                == factory.restoreApplicationSupportURL.standardizedFileURL,
+              binding.subject.applicationSupportDevice == Int64(identity.device),
+              binding.subject.applicationSupportInode == UInt64(identity.inode),
+              session.generationID == intent.newGenerationID,
+              session.generationEpoch == binding.generationEpoch,
+              session.workspaceIdentity == binding.workspaceIdentity,
+              session.readerLeaseToken == reader.token,
+              reader.token.role == .reader,
+              reader.token.epoch == binding.generationEpoch,
+              try executor.nextStep() == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireSchema2ColdOriginalAuthority()
+        try requireSchema2ColdTargetReaderTokenCensus(registry: registry)
+        try requireSchema2ColdNotificationDrained(store: store)
+        try registry.requireEraseSchema2ColdExcluded(operation: self, activity: activity)
+        try physical.requireHeld(expectedDevice: identity.device, expectedInode: identity.inode)
+        try manifest.requireSchema2ColdFinalPointerCut(intent: intent, operation: self)
+        try requireServiceAccess()
+    }
+

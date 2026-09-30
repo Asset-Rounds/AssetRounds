@@ -1,0 +1,567 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "b5928c51219f3b9fb1bbf303d8854edc07258a7f255dfe9336cfd9048cc125cd",
+  "authority": {
+    "acceptanceCredit": false,
+    "acceptanceEnabled": false,
+    "adoptionEnabled": false,
+    "appBaseHead": "716f3d049c443725fdf4ce4572e7aecb241a39d8",
+    "appBaseTree": "d8a94fd319db84e804b755ea770ffd96804b3cc4",
+    "attemptID": 1,
+    "backupBehaviorDelta": true,
+    "cardID": "V23-P03-C11",
+    "contextDigest": "c7f893ea349af7bf9ece0f55d2c3c6031339c33441b096eeafa44e718c1b0987",
+    "coordinationCASSequence": 167,
+    "coordinationLedgerDigest": "fd8af3b70448dde967df5de8863f9b585cb92e606cd29a063a92ca5480ad521f",
+    "deleteBehaviorDelta": true,
+    "dossierDigest": "9db3cd172ee34cb66eca678983ab545591aff1a045d98588e7688800ae945426",
+    "downgradeDisposition": "CONTENT_ROLLBACK_ONLY",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "exportBehaviorDelta": true,
+    "fenceDigest": "c5a789b3ecc2e550050309673115ac8190239af5efcc63bacec0ea20262aa9d1",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hostedDispatchEnabled": false,
+    "inheritedV21BlockDigest": "4c46417e297587999b92472bd41a0e4912bf71025e723faafea189ec2b6406dc",
+    "migrationBehaviorDelta": false,
+    "nativeCompileRan": false,
+    "persistentChangeMode": "CONTENT_ONLY",
+    "persistentContractSchema": "NOT_APPLICABLE",
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidenceComplete": false,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "provisionalPrerequisiteDigest": "3bc4ace9cd38872122e28a23621891297e6d4c3a9e01f2d30be4bd47856e4d2c",
+    "registerRowDigest": "53dea30dc0ea14eefa15c411a42421e8df4fcd8c411f66f4c67be5826a105118",
+    "registerSectionDigest": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "releaseCredit": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "restoreBehaviorDelta": true,
+    "schemaBehaviorDelta": false,
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    }
+  },
+  "cardID": "V23-P03-C11",
+  "codableProjection": {
+    "decodePolicy": "EXACT_CODING_KEYS_AND_DECODE_IF_PRESENT_FOR_NULLABLE_OPTIONALS",
+    "enums": [
+      {
+        "knownValues": [
+          "ELIGIBLE",
+          "ALREADY_REVERSED",
+          "SUPERSEDED",
+          "IRREVERSIBLE",
+          "ERASED"
+        ],
+        "policy": "CLOSED",
+        "typeID": "PortableReversalEligibilityV1",
+        "version": 1
+      },
+      {
+        "knownValues": [
+          "APPLIED",
+          "ALREADY_APPLIED",
+          "DEFERRED_GAP",
+          "DEFERRED_CONTENT",
+          "UNRESOLVED_CONFLICT",
+          "DELETE_WON",
+          "DERIVED_REBUILD",
+          "LOCAL_ONLY_EXCLUDED",
+          "REJECTED"
+        ],
+        "policy": "CLOSED",
+        "typeID": "ChangeReplayDispositionV1",
+        "version": 1
+      }
+    ],
+    "optionalFields": [
+      "ChangeCursorV1.previousBatchSHA256",
+      "ReversalEligibilitySnapshotV1.portablePlan",
+      "ReversalEligibilitySnapshotV1.reversingMutationID",
+      "ReversalEligibilitySnapshotV1.basisSHA256",
+      "EntityChangeV1.conflictIdentity",
+      "JournalChangeV1.reversalBasis",
+      "JournalChangeV1.portableReversalPlan",
+      "JournalChangeV1.semanticReversalReceipt",
+      "MutationReplayDispositionV1.conflictIdentity",
+      "MutationReplayDispositionV1.reasonCode"
+    ],
+    "types": [
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "maximumChangesPerBatch",
+          "maximumBatchBytes",
+          "maximumEntitiesPerCheckpoint",
+          "maximumContentEntriesPerCheckpoint",
+          "maximumReplicaFrontiers",
+          "maximumConflicts"
+        ],
+        "typeID": "ChangeJournalLimitsV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "replicaID",
+          "localSequence"
+        ],
+        "typeID": "ReplicaRevisionFrontierV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "workspaceRevision",
+          "replicas",
+          "entityRevisionSHA256",
+          "observedMutationSetSHA256"
+        ],
+        "typeID": "ChangeJournalFrontierV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "workspaceID",
+          "consumerReplicaID",
+          "checkpointID",
+          "frontierSHA256",
+          "nextOrdinal",
+          "previousBatchSHA256"
+        ],
+        "typeID": "ChangeCursorV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "packageID",
+          "packageSchemaVersion",
+          "contentVersion",
+          "packageSHA256"
+        ],
+        "typeID": "CheckpointPackageDigestV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "workspaceID",
+          "sourceReplicaID",
+          "sourceGenerationID",
+          "persistentSchemaVersion",
+          "persistentSchemaSHA256",
+          "recordSchemaVersion",
+          "recordSchemaSHA256",
+          "packages",
+          "frontier",
+          "normalizedRecordsSHA256",
+          "tombstonesSHA256",
+          "contentManifestSHA256",
+          "reversalEligibilitySHA256",
+          "checkpointID",
+          "manifestSHA256"
+        ],
+        "typeID": "WorkspaceSnapshotManifestV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "reference",
+          "archiveRelativePath"
+        ],
+        "typeID": "CheckpointContentEntryV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "targetMutationID",
+          "targetReceiptIdentity",
+          "expectedRevision",
+          "planDigest",
+          "compensatingCommands"
+        ],
+        "typeID": "PortableReversalPlanV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "targetMutationID",
+          "eligibility",
+          "portablePlan",
+          "reversingMutationID",
+          "basisSHA256"
+        ],
+        "typeID": "ReversalEligibilitySnapshotV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "manifest",
+          "normalizedRecordData",
+          "tombstoneIdentities",
+          "contentEntries",
+          "reversalEligibility"
+        ],
+        "typeID": "WorkspaceCheckpointContentV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "identity",
+          "postImage",
+          "conflictPolicy",
+          "conflictIdentity"
+        ],
+        "typeID": "EntityChangeV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "envelope",
+          "receipt",
+          "entityChanges",
+          "reversalBasis",
+          "portableReversalPlan",
+          "semanticReversalReceipt",
+          "contentReferences"
+        ],
+        "typeID": "JournalChangeV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "workspaceID",
+          "sourceReplicaID",
+          "checkpointID",
+          "beforeCursor",
+          "afterCursor",
+          "changes",
+          "batchSHA256"
+        ],
+        "typeID": "ChangeBatchV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "mutationID",
+          "disposition",
+          "missingContentIDs",
+          "conflictIdentity",
+          "reasonCode"
+        ],
+        "typeID": "MutationReplayDispositionV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "workspaceID",
+          "destinationReplicaID",
+          "destinationGenerationID",
+          "batchSHA256",
+          "resultingFrontier",
+          "dispositions",
+          "semanticProjectionSHA256",
+          "receiptSHA256"
+        ],
+        "typeID": "ChangeReplayReceiptV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "workspaceID",
+          "destinationReplicaID",
+          "destinationGenerationID",
+          "checkpointID",
+          "manifestSHA256",
+          "activatedFrontier",
+          "semanticProjectionSHA256",
+          "contentDispositionSHA256",
+          "receiptSHA256"
+        ],
+        "typeID": "CheckpointActivationReceiptV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "workspaceID",
+          "sourceReplicaID",
+          "checkpointID",
+          "checkpointManifestSHA256",
+          "compactedThrough",
+          "preservedReceiptSetSHA256",
+          "preservedReversalBasisSetSHA256",
+          "removedChangeCount",
+          "canonicalHistoryDeleted",
+          "receiptSHA256"
+        ],
+        "typeID": "ChangeJournalCompactionReceiptV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "workspaceID",
+          "canonicalSnapshotSHA256",
+          "tombstoneIdentities",
+          "unresolvedConflictIdentities",
+          "contentDispositionSHA256",
+          "observedMutationIDs",
+          "semanticSHA256"
+        ],
+        "typeID": "SemanticConvergenceProjectionV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "relativePath",
+          "byteCount",
+          "sha256"
+        ],
+        "typeID": "CheckpointArchiveEntryDigestV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "preparationID",
+          "manifest",
+          "entries",
+          "preparationSHA256"
+        ],
+        "typeID": "WorkspaceCheckpointPreparationV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      },
+      {
+        "codingKeys": [
+          "schemaVersion",
+          "preparationID",
+          "workspaceID",
+          "checkpointID",
+          "packageRelativePath",
+          "packageByteCount",
+          "packageSHA256",
+          "manifestSHA256",
+          "exportSHA256"
+        ],
+        "typeID": "WorkspaceCheckpointExportV1",
+        "unknownFieldPolicy": "REJECT",
+        "version": 1
+      }
+    ]
+  },
+  "evidenceIDs": [
+    "V23-P03-C11-G01",
+    "V23-P03-C11-A01",
+    "V23-P03-C11-H01",
+    "V23-P03-C11-I01",
+    "V23-P03-C11-R01"
+  ],
+  "failureCases": [
+    "DUPLICATE_BATCH",
+    "OUT_OF_ORDER_BATCH",
+    "TRUNCATED_BATCH",
+    "TAMPERED_BATCH",
+    "FUTURE_VERSION_BATCH",
+    "MISSING_CONTENT",
+    "CORRUPT_CONTENT",
+    "MANIFEST_MISMATCH",
+    "CHECKPOINT_INTERRUPTION",
+    "PAGE_INTERRUPTION",
+    "REPLAY_INTERRUPTION",
+    "ACTIVATION_INTERRUPTION",
+    "COMPACTION_INTERRUPTION",
+    "OLD_BACKUP_RESURRECTION",
+    "DELETE_VERSUS_UPDATE",
+    "SAME_FIELD_CONFLICT",
+    "FOREIGN_WORKSPACE",
+    "STALE_CURSOR",
+    "REUSED_REPLICA_ID",
+    "CANCELLATION",
+    "LOW_STORAGE"
+  ],
+  "fixtureArtifact": {
+    "bytes": 10169,
+    "path": "FieldEvidenceAppTests/Fixtures/V21/ChangeJournal/V21P03C11ChangeJournalCheckpointReplayCorpusV1.json",
+    "sha256": "dba67aa58504e6f86397a09c37dffc0e941f9d3e297af788c3c7fc3ab6770dc7"
+  },
+  "fixturePath": "FieldEvidenceAppTests/Fixtures/V21/ChangeJournal/V21P03C11ChangeJournalCheckpointReplayCorpusV1.json",
+  "generatedPaths": [
+    "Scripts/v23/change-journal-checkpoint-replay.schema.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayContractV1.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C11-tooling-manifest.json"
+  ],
+  "hostedDispatchEnabled": false,
+  "includedInvariants": [
+    "CHECKPOINT_BINDS_WORKSPACE_SCHEMA_GENERATION_PACKAGE_HASHES_AND_EXACT_REVISION_FRONTIER",
+    "BATCHES_ARE_BOUNDED_WORKSPACE_SCOPED_IMMUTABLE_RECEIPT_PAGES",
+    "CURSORS_REJECT_FOREIGN_WORKSPACE_UNKNOWN_REPLICA_STALE_AND_DISCONTINUOUS_INPUT",
+    "CHECKPOINT_FIRST_BOOTSTRAP_THEN_POST_FRONTIER_REPLAY_RECONSTRUCTS_CANONICAL_STATE",
+    "COMPACTION_REQUIRES_COMPLETE_VERIFIED_CHECKPOINT_AND_RETAINS_REVERSAL_AND_CONTENT_BASIS",
+    "REPLAY_USES_THE_SAME_WORKSPACE_WRITER_AND_IGNORES_EXACT_DUPLICATES",
+    "DELIVERY_ORDER_AND_DESTINATION_RECEIPT_ORDER_NEVER_ENTER_SEMANTIC_IDENTITY",
+    "DELETE_WINS_NEVER_RESURRECTS_AND_MANUAL_CONFLICTS_REMAIN_STABLE_UNTIL_RESOLUTION",
+    "MISSING_OR_CORRUPT_CONTENT_DEFERS_OR_QUARANTINES_WITH_VERIFIED_RESUME",
+    "INCOMPLETE_DERIVED_STATE_IS_DISCARDABLE_BUT_CANONICAL_RECEIPTS_ARE_IMMUTABLE"
+  ],
+  "nativeCompileRan": false,
+  "optionalFieldSemantics": {
+    "missingAndNullAccepted": [
+      "ChangeCursorV1.previousBatchSHA256",
+      "ReversalEligibilitySnapshotV1.portablePlan",
+      "ReversalEligibilitySnapshotV1.reversingMutationID",
+      "ReversalEligibilitySnapshotV1.basisSHA256",
+      "EntityChangeV1.conflictIdentity",
+      "JournalChangeV1.reversalBasis",
+      "JournalChangeV1.portableReversalPlan",
+      "JournalChangeV1.semanticReversalReceipt",
+      "MutationReplayDispositionV1.conflictIdentity",
+      "MutationReplayDispositionV1.reasonCode"
+    ],
+    "nonOptionalMissingRejected": true,
+    "nullForNonNullableRejected": true,
+    "unknownObjectFieldsRejected": true
+  },
+  "pathFence": [
+    "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+    "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/ChangeJournal/V21P03C11ChangeJournalCheckpointReplayCorpusV1.json",
+    "Scripts/v23/p03_c11_contracts.py",
+    "Scripts/v23/generate_p03_c11_contracts.py",
+    "Scripts/v23/verify_p03_c11_contracts.py",
+    "Scripts/v23/change-journal-checkpoint-replay.schema.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayContractV1.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C11-tooling-manifest.json"
+  ],
+  "pathFenceCount": 13,
+  "phase10PollingDuringParallelExecution": false,
+  "releaseCredit": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P03C11ChangeJournalCheckpointReplayContractV1",
+  "schemaPath": "Scripts/v23/change-journal-checkpoint-replay.schema.json",
+  "schemaVersion": 1,
+  "semanticScope": {
+    "activationPolicy": "PROVISIONAL_STATIC_CONTRACT_FIXTURE_AND_TEST_SEAMS_ONLY_NATIVE_HOSTED_ADOPTION_ACCEPTANCE_RELEASE_AND_PHASE10_POLLING_DEFERRED_PENDING_ACCEPTED_S10_6_RECONCILIATION",
+    "backupPolicy": "BACKUP_RESTORE_CLONE_FORK_DELETE_ERASE_AND_OPEN_EXPORT_PRESERVE_OR_EXPLICITLY_DISPOSE_JOURNAL_CHECKPOINT_AND_COMPACTION_STATE",
+    "checkpointPolicy": "CHECKPOINT_FIRST_BOOTSTRAP_USES_VERIFIED_WORKSPACE_SNAPSHOT_MANIFEST_V1_THEN_INCREMENTAL_PAGES_FROM_THE_EXACT_BOUND_CURSOR",
+    "compactionPolicy": "BOUNDED_COMPACTION_IS_ALLOWED_ONLY_AFTER_A_COMPLETE_VERIFIED_CHECKPOINT_AND_PRESERVES_REPLAY_REVERSAL_AND_CONTENT_DEPENDENCIES",
+    "convergencePolicy": "TWO_WORKSPACE_ISOLATION_AND_TEST_ONLY_A_B_AND_A_B_C_REPLICA_SCENARIOS_PROVE_DETERMINISTIC_CONVERGENCE_WITHOUT_CROSS_WORKSPACE_EFFECTS",
+    "deliveryNeutralPolicy": "NO_PROVIDER_OUTBOX_NETWORK_BACKEND_ACCOUNT_TENANCY_REMOTE_SYNC_OR_DELIVERY_STATUS_IS_CREATED_OR_CLAIMED",
+    "durableOwner": [
+      "ChangeJournalContractsV1",
+      "LocalChangeJournalV1",
+      "WorkspaceSnapshotManifestV1",
+      "ChangeBatchV1"
+    ],
+    "journalPolicy": "IMMUTABLE_DELIVERY_NEUTRAL_WORKSPACE_SCOPED_CHANGE_RECEIPTS_WITH_STABLE_REPLICA_CURSOR_AND_BOUNDED_CHANGE_BATCHES",
+    "persistencePolicy": "CONTENT_ONLY_NO_SCHEMA_OR_MIGRATION_DELTA_AND_DOWNGRADE_IS_CONTENT_ROLLBACK_ONLY",
+    "replayPolicy": "ISOLATED_LOCAL_REPLAY_USES_THE_SAME_WORKSPACE_WRITER_AND_FAILS_CLOSED_FOR_DUPLICATES_REORDERING_INTERRUPTION_MISSING_CONTENT_AND_RESTART",
+    "s10Policy": "CARD_PATH_FENCE_HAS_ZERO_S10_RESERVED_PATH_OVERLAP_AND_CARRIES_NO_C08_RESERVED_OWNER_OR_RAW_WRITE_DEBT"
+  },
+  "sourceArtifacts": [
+    {
+      "bytes": 41966,
+      "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+      "sha256": "76e939a5c137f1a86b7cd34a32f6ee7f8d965d5dbd91a8f49e39ede4e62ec6c0"
+    },
+    {
+      "bytes": 97547,
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "sha256": "6106a4012cb3e8a7397eda6605f8a314e08ddaddb8a9904c988e5bc444ee284b"
+    },
+    {
+      "bytes": 77023,
+      "path": "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+      "sha256": "9c3a721bc7d0e778f078addc7b2c8ac5b217c4b76382a9c0a13b0d2d3abaaa8a"
+    },
+    {
+      "bytes": 68969,
+      "path": "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+      "sha256": "8e46143c470c994b4745039ccd15920dcae195eab1044561a0bec20bf4c7f047"
+    },
+    {
+      "bytes": 35105,
+      "path": "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+      "sha256": "55f9ce98556bf94680c5e586dea7420e48c5551db17079b06c5b51838d61169a"
+    },
+    {
+      "bytes": 10169,
+      "path": "FieldEvidenceAppTests/Fixtures/V21/ChangeJournal/V21P03C11ChangeJournalCheckpointReplayCorpusV1.json",
+      "sha256": "dba67aa58504e6f86397a09c37dffc0e941f9d3e297af788c3c7fc3ab6770dc7"
+    }
+  ],
+  "sourcePaths": [
+    "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+    "FieldEvidenceApp/Domain/Replication/ChangeJournalContractsV1.swift",
+    "FieldEvidenceApp/Infrastructure/Replication/LocalChangeJournal/LocalChangeJournalV1.swift",
+    "FieldEvidenceAppTests/V9_ChangeJournalCheckpointReplayTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V21/ChangeJournal/V21P03C11ChangeJournalCheckpointReplayCorpusV1.json"
+  ],
+  "testMethods": [
+    {
+      "evidenceID": "V23-P03-C11-G01",
+      "method": "testV9_ChangeJournalCheckpointReplayG01CheckpointThenPostRIsSemanticallyExact"
+    },
+    {
+      "evidenceID": "V23-P03-C11-A01",
+      "method": "testV9_ChangeJournalCheckpointReplayA01BoundedSchedulesContentResumeAndScale"
+    },
+    {
+      "evidenceID": "V23-P03-C11-H01",
+      "method": "testV9_ChangeJournalCheckpointReplayH01HostileContentConflictsAndReleaseAbsence"
+    },
+    {
+      "evidenceID": "V23-P03-C11-I01",
+      "method": "testV9_ChangeJournalCheckpointReplayI01CrashMatrixIsRestartSafeAtEveryBoundary"
+    },
+    {
+      "evidenceID": "V23-P03-C11-R01",
+      "method": "testV9_ChangeJournalCheckpointReplayR01ReplicaConvergenceReversalRollbackAndCompaction"
+    }
+  ],
+  "title": "Delivery-neutral change journal, WorkspaceSnapshotManifestV1 checkpoints, bounded compaction, and deterministic isolated replay",
+  "toolPaths": [
+    "Scripts/v23/p03_c11_contracts.py",
+    "Scripts/v23/generate_p03_c11_contracts.py",
+    "Scripts/v23/verify_p03_c11_contracts.py",
+    "Scripts/v23/change-journal-checkpoint-replay.schema.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayContractV1.json",
+    "docs/design/v23/tooling/V23P03C11ChangeJournalCheckpointReplayEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23-P03-C11-tooling-manifest.json"
+  ],
+  "verificationMode": "STATIC_ONLY"
+}

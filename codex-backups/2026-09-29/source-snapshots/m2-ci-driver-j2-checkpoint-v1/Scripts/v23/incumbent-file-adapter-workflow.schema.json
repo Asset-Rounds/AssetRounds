@@ -1,0 +1,428 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "allocationDigest": {
+          "const": "6f10fa9ffd35e180f8780ed9623fc77904a921f45626d28d8d141b4f11e12663"
+        },
+        "appBaseHead": {
+          "const": "2576e34fd399fa9800f696a82cc945ad8fa3b2d9"
+        },
+        "appBaseTree": {
+          "const": "2687b0f59764f9fc8836e643768df8b2d6dac66b"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorizedOverlapCount": {
+          "const": 0
+        },
+        "cardID": {
+          "const": "V23-P04-C37"
+        },
+        "contextDigest": {
+          "const": "4f73c1c6b4009340df653eb0a4c61d50ebf764cc0f30008bdc33dd1c8e8da9dd"
+        },
+        "coordinationHead": {
+          "const": "f0f3c599e3ec851e1f8b34a6bce808c2c192554c"
+        },
+        "coordinationTree": {
+          "const": "5b7a0e436be6bbe88802f21465cae8dbf63319f3"
+        },
+        "existingPathCount": {
+          "const": 0
+        },
+        "fencePathCount": {
+          "const": 13
+        },
+        "finalHashesSealed": {
+          "const": false
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "ledgerDigest": {
+          "const": "3ab274727f36594fb651d9c61e61d39a0ce8e91cebf356509364c764ec74dcf5"
+        },
+        "newPathCount": {
+          "const": 13
+        },
+        "orderedPathFence": {
+          "const": [
+            "FieldEvidenceApp/Application/Integrations/IncumbentFileAdapterWorkflowCoordinatorV1.swift",
+            "FieldEvidenceApp/Features/Integrations/IncumbentFileAdapterWorkflowView.swift",
+            "FieldEvidenceAppTests/V9_100IncumbentFileAdapterWorkflowTests.swift",
+            "FieldEvidenceAppTests/Fixtures/V23/IncumbentExchange/V23P04C37IncumbentFileAdapterWorkflowCorpusV1.json",
+            "FieldEvidenceAppUITests/V23_P04_C37IncumbentFileAdapterWorkflowUITests.swift",
+            "Scripts/v23/p04_c37_contracts.py",
+            "Scripts/v23/generate_p04_c37_contracts.py",
+            "Scripts/v23/verify_p04_c37_contracts.py",
+            "Scripts/v23/incumbent-file-adapter-workflow.schema.json",
+            "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowContractV1.json",
+            "docs/design/v23/tooling/V23P04C37IncumbentFileAdapterWorkflowEvidenceReceiptV1.json",
+            "docs/design/v23/tooling/V23P04C37BrandImpactManifestV1.json",
+            "docs/design/v23/tooling/V23-P04-C37-tooling-manifest.json"
+          ],
+          "type": "array"
+        },
+        "pathFenceDigest": {
+          "const": "e273fb7e28d72993006a3bcae1478fb8d38523b4dc3a1a9826bcd2d31bb5e972"
+        },
+        "prerequisiteDigest": {
+          "const": "fe9c955636d805f0c2fe1f235156e70725a1e3d0c2d398f947f46b5d53780734"
+        },
+        "productTestUIFixturePathCount": {
+          "const": 5
+        },
+        "projectionDigest": {
+          "const": "bfddef3867d94bd22d11aba022806ac9303072cb00569b68cd13f190bc0cc215"
+        },
+        "registerOrdinal": {
+          "const": 122
+        },
+        "s10ReservationOverlapCount": {
+          "const": 0
+        },
+        "sequence": {
+          "const": 546
+        },
+        "sourcePins": {
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "title": {
+          "const": "Evidence-selected first incumbent flat-file adapter with dry-run mapping and deterministic exchange"
+        },
+        "toolingPathCount": {
+          "const": 8
+        },
+        "transitionDigest": {
+          "const": "c15a5d798078bc59952c0cba8ded6710c7171a266fa60ee2289be5600d21ac17"
+        },
+        "unauthorizedOverlapCount": {
+          "const": 0
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationHead",
+        "coordinationTree",
+        "sequence",
+        "allocationDigest",
+        "prerequisiteDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "transitionDigest",
+        "ledgerDigest",
+        "projectionDigest",
+        "fencePathCount",
+        "existingPathCount",
+        "newPathCount",
+        "productTestUIFixturePathCount",
+        "toolingPathCount",
+        "authorizedOverlapCount",
+        "unauthorizedOverlapCount",
+        "s10ReservationOverlapCount",
+        "frozenS10ReservationDigest",
+        "orderedPathFence",
+        "sourcePins",
+        "finalHashesSealed"
+      ],
+      "type": "object"
+    },
+    "flags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "acceptanceCredit": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "adoptionEvidence": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "hostedAcceptance": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "nativeAcceptance": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalDevice": {
+          "const": false
+        },
+        "physicalEvidence": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        },
+        "releaseReadiness": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "physicalDevice",
+        "adoption",
+        "acceptance",
+        "release",
+        "nativeAcceptance",
+        "hostedAcceptance",
+        "physicalEvidence",
+        "adoptionEvidence",
+        "acceptanceCredit",
+        "releaseReadiness",
+        "phase10PollingDuringParallelExecution"
+      ],
+      "type": "object"
+    },
+    "independence": {
+      "additionalProperties": false,
+      "properties": {
+        "c08ReadOnly": {
+          "const": true
+        },
+        "c16ReadOnly": {
+          "const": true
+        },
+        "c50ReadOnly": {
+          "const": true
+        },
+        "credentials": {
+          "const": false
+        },
+        "login": {
+          "const": false
+        },
+        "network": {
+          "const": false
+        },
+        "newBackend": {
+          "const": false
+        },
+        "newImporter": {
+          "const": false
+        },
+        "newRenderer": {
+          "const": false
+        },
+        "newStore": {
+          "const": false
+        },
+        "newWriter": {
+          "const": false
+        },
+        "profileSpecificStrings": {
+          "const": false
+        },
+        "providerSuccessClaim": {
+          "const": false
+        },
+        "sdk": {
+          "const": false
+        },
+        "selectedProfileCount": {
+          "const": 0
+        },
+        "selectionDisposition": {
+          "const": "DISABLED_NO_SELECTED_PROFILE"
+        }
+      },
+      "required": [
+        "selectedProfileCount",
+        "selectionDisposition",
+        "c50ReadOnly",
+        "c08ReadOnly",
+        "c16ReadOnly",
+        "network",
+        "sdk",
+        "login",
+        "credentials",
+        "profileSpecificStrings",
+        "providerSuccessClaim",
+        "newImporter",
+        "newStore",
+        "newWriter",
+        "newRenderer",
+        "newBackend"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "newDurableFamilyCount": {
+          "const": 0
+        },
+        "newMigrationCount": {
+          "const": 0
+        },
+        "newModelCount": {
+          "const": 0
+        },
+        "newSchemaCount": {
+          "const": 0
+        },
+        "newStoreCount": {
+          "const": 0
+        },
+        "newWriterCount": {
+          "const": 0
+        },
+        "persistence": {
+          "const": "NONPERSISTENT"
+        },
+        "readOnlyOwners": {
+          "const": [
+            "V23-P03-C50",
+            "V23-P04-C08",
+            "V23-P04-C16"
+          ]
+        },
+        "selectedProfileCount": {
+          "const": 0
+        },
+        "status": {
+          "const": "DISABLED_NO_SELECTED_PROFILE"
+        }
+      },
+      "required": [
+        "status",
+        "selectedProfileCount",
+        "persistence",
+        "readOnlyOwners",
+        "newDurableFamilyCount",
+        "newModelCount",
+        "newSchemaCount",
+        "newMigrationCount",
+        "newStoreCount",
+        "newWriterCount"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sourceRow": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "SOURCE_PRESENT",
+            "SOURCE_MISSING"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "cardID": {
+      "const": "V23-P04-C37"
+    },
+    "contract": {
+      "type": "string"
+    },
+    "finalHashesSealed": {
+      "const": false
+    },
+    "flags": {
+      "$ref": "#/$defs/flags"
+    },
+    "independence": {
+      "$ref": "#/$defs/independence"
+    },
+    "lifecycle": {
+      "$ref": "#/$defs/lifecycle"
+    },
+    "ordinal": {
+      "const": 122
+    },
+    "receipt": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "object"
+    },
+    "scenarioEvidenceIDs": {
+      "const": [
+        "V23-P04-C37-G01",
+        "V23-P04-C37-A01",
+        "V23-P04-C37-H01",
+        "V23-P04-C37-I01",
+        "V23-P04-C37-R01"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V23P04C37IncumbentFileAdapterWorkflowToolingV1"
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "sourceRows": {
+      "items": {
+        "$ref": "#/$defs/sourceRow"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "ordinal",
+    "authority",
+    "sourceRows",
+    "sourceReady",
+    "flags",
+    "finalHashesSealed",
+    "lifecycle",
+    "independence"
+  ],
+  "title": "V23P04C37IncumbentFileAdapterWorkflowToolingV1",
+  "type": "object"
+}

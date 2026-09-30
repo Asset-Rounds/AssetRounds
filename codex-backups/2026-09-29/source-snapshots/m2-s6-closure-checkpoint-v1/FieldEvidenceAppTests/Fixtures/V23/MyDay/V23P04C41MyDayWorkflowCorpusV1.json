@@ -1,0 +1,82 @@
+{
+  "schema": "V23P04C41MyDayWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C41",
+  "testOnly": true,
+  "synthetic": true,
+  "evidenceIDs": [
+    "V23-P04-C41-G01",
+    "V23-P04-C41-A01",
+    "V23-P04-C41-H01",
+    "V23-P04-C41-I01",
+    "V23-P04-C41-R01"
+  ],
+  "selectors": ["G01", "A01", "H01", "I01", "R01"],
+  "eligibleReferenceKinds": [
+    "WORK_PACKET",
+    "ROUND_SESSION",
+    "SCHEDULE_OCCURRENCE",
+    "RESUMABLE_DRAFT"
+  ],
+  "sourceStates": [
+    "ACTIVE",
+    "COMPLETED",
+    "CANCELLED",
+    "RETIRED",
+    "MISSING",
+    "STALE",
+    "REOPENED"
+  ],
+  "readinessStates": ["READY", "NOT_READY", "BLOCKED", "UNAVAILABLE"],
+  "summaryFields": [
+    "SELECTED_COUNT",
+    "READY_COUNT",
+    "BLOCKED_COUNT",
+    "UNAVAILABLE_COUNT",
+    "DUE_COUNT",
+    "ESTIMATED_MINUTES"
+  ],
+  "carryover": {
+    "explicitOnly": true,
+    "eligibleStates": ["ACTIVE", "REOPENED"],
+    "excludedStates": ["COMPLETED", "CANCELLED", "RETIRED", "MISSING", "STALE"],
+    "preservesMembershipIdentity": true,
+    "preservesManualOrder": true,
+    "preservesOptionalEstimate": true
+  },
+  "hostileCases": [
+    "STALE_PLAN_FRONTIER",
+    "WRONG_WORKSPACE_REFERENCE",
+    "DUPLICATE_REFERENCE",
+    "DUPLICATE_MEMBERSHIP_ID",
+    "NONCONTIGUOUS_MANUAL_ORDER",
+    "AUTOMATIC_SORT_ATTEMPT",
+    "SOURCE_SCHEDULE_MUTATION_ATTEMPT",
+    "DIVERGENT_SAME_MUTATION_ID",
+    "FORGED_SOURCE_DIGEST",
+    "CROSS_DATE_NATURAL_KEY_COLLISION"
+  ],
+  "interruptionBoundaries": [
+    "BEFORE_EFFECT",
+    "AFTER_EFFECT_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_RETURN"
+  ],
+  "lifecycle": {
+    "replaceRestorePreservesExactPlans": true,
+    "configurationCloneOmitsPlans": true,
+    "workspaceForkRetainsNonactiveHistoryOnly": true,
+    "erasePurgesMyDayTruth": true,
+    "sourceNamespacesRemainIndependent": true,
+    "sourceHistoryIsNeverRewritten": true
+  },
+  "claims": {
+    "automaticCarryover": false,
+    "automaticSorting": false,
+    "automaticScheduling": false,
+    "sourceMutation": false,
+    "storedReadinessProjection": false,
+    "storedSummaryProjection": false,
+    "estimatedDurationIsActualDuration": false,
+    "hostedDependency": false
+  }
+}

@@ -1,0 +1,11077 @@
+#!/usr/bin/env python3
+"""Native-route protocol tests using disposable facts, never native PASS evidence."""
+import ast
+import collections
+import copy
+import base64
+import hashlib
+import io
+import os
+import subprocess
+import sys
+import time
+import importlib.util
+import json
+import re
+import shlex
+from pathlib import Path
+import shutil
+import tarfile
+import tempfile
+import unittest
+from unittest import mock
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location("native_ci", ROOT / "Scripts/v23-native-ci.py")
+CI = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(CI)
+ACTIVITY_CODEC_SELECTORS = ['FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyEnvelopeArchiveSnapshotBytesRemainExact', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyMutationCommandRequestBytesRemainExact', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyEnvelopeRowsRejectCorruptMirrorsAndBytes', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testSchema3RoundTripBindsSeparateTypedAndFileDigests', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testClosedFileReferenceRejectsUnknownFieldsVersionsAndNoncanonicalIdentity', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testEnvelopeRejectsUnknownSchemasReservedLegacyFieldAndIncompleteSchema3', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testOnlyUnfinishedSchema2CanFinalizeIntoSchema3', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testSchema3SupersessionRetainsWholeReferenceAndRejectsDowngrade', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyMutationAndGenericCommandRejectSchema3EvenWithRecomputedMutationHash', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyAndSchema3ForkRepeatForkPreserveSourceAndFileIdentity', 'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests/testLegacyUnknownKindRemainsReadableButNotWritable']
+
+HEAD = "1" * 40
+UDID = "00000000-0000-0000-0000-000000000001"
+UNIT = "FieldEvidenceAppTests/NativeFixtureTests/testActualMethod"
+UI = "FieldEvidenceAppUITests/NativeJourneyTests/testContinuousJourney"
+
+
+D50_JOB_CAP_EXPRESSION = "${{ (inputs.native_selection_id == 'c36-live-host-no-index-build30m' || inputs.native_selection_id == 'c36-round-item-mount-no-index-build30m' || inputs.native_selection_id == 'c36-startup-retirement-no-index-build30m' || inputs.native_selection_id == 'v23-dev-batch-no-index-d50') && 120 || 90 }}"
+
+
+SHARED_ROUTE = 'v23-shared-coverage-d50x'
+# The shared route runs in its own small reusable worker; the ordinary worker is
+# byte-identical to its last pre-shared-route commit.
+SHARED_WORKER_PATH = '.github/workflows/ios-ci-shared-worker.yml'
+SHARED_WORKER_SCRIPT = 'Scripts/v23-shared-worker.sh'
+ORDINARY_WORKER_BASE_COMMIT = 'aaf21a16e48129e2072c67c64326e6047c4ae087'
+SHARED_WORKER_MAX_BYTES = 100 * 1024
+CALLED_TEMPLATE_MAX_BYTES = int(5.75 * 1024 * 1024)
+# The slim worker's job cap: D90S (total 6,000 s) gets 120 minutes, every other role 90.
+SHARED_WORKER_TIMEOUT = ("\njobs:\n  verify:\n    runs-on: macos-26\n"
+                         "    # D90S (6,000 s total budget) runs one known-slow method; every other role keeps 90.\n"
+                         "    timeout-minutes: ${{ inputs.v23_partition_tier == 'D90S' && 120 || 90 }}\n")
+# Owner decision 16 (2026-09-25): development originals of the two per-head routes get
+# per-head concurrency groups through the v23_run_kind input, and each consumer passes
+# its partition tier (D50C, or D90S for one known-slow method) to the slim worker.
+DEVELOPMENT_PER_HEAD_TERM = ("${{ github.event.inputs.v23_run_kind == 'development' && "
+                             "(github.event.inputs.native_selection_id == 'v23-dev-batch-no-index-d50' || "
+                             "github.event.inputs.native_selection_id == 'v23-shared-coverage-d50x') && "
+                             "format('-development-{0}', github.sha) || '' }}")
+RUN_KIND_INPUT_BLOCK = ('      v23_run_kind:\n'
+                        '        description: V23 run kind; development gives the dev-batch and shared-coverage routes '
+                        'per-head concurrency groups\n'
+                        '        required: false\n        default: gate\n        type: choice\n        options:\n'
+                        '          - gate\n          - development\n')
+PHASE1_PLAN_INPUT_BLOCK = ('      v23_phase1_gate_plan:\n'
+                          '        description: Reserved canonical Phase 1 gate plan; admission remains disabled pending end-to-end review\n'
+                          '        required: false\n        default: ""\n        type: string\n')
+PARTITION_TIERS_OUTPUT = ('      native_shared_partition_tiers: '
+                          '${{ steps.native_selection.outputs.native_shared_partition_tiers }}\n')
+CONSUMER_TIER_INPUT = ("      v23_partition_tier: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partition_tiers "
+                       "|| '{}')[matrix.partition_id] }}\n")
+PARALLEL_DEVELOPMENT_REPLACEMENTS = (
+    (RUN_KIND_INPUT_BLOCK, ''),
+    (DEVELOPMENT_PER_HEAD_TERM + '\n  cancel-in-progress: false\n', '\n  cancel-in-progress: false\n'),
+    (PARTITION_TIERS_OUTPUT, ''),
+    (CONSUMER_TIER_INPUT, ''),
+)
+
+
+RUI1_WORKER_BRANCH = '          if test "${NATIVE_SELECTION_ID:-none}" = v23-ui-batch-rui1; then\n            bash Scripts/run-with-timeout.sh "$CI_UI_TIMEOUT_SECONDS" \\\n              bash Scripts/v23-ui-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/ui-smoke.log"\n            exit 0\n          fi\n'
+
+
+def workflow_before_parallel_development(raw):
+    """Reverse the exact RUI1 choice and owner-decision-16 caller additions."""
+    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    # The new optional input does not change any old dispatch route. Remove only
+    # its exact independently reviewed block when comparing historical bytes.
+    text = remove_exactly_once(text, PHASE1_PLAN_INPUT_BLOCK)
+    text = remove_exactly_once(text, '          - v23-ui-batch-rui1\n')
+    for old, new in PARALLEL_DEVELOPMENT_REPLACEMENTS:
+        text = remove_exactly_once(text, old, new)
+    return text.encode('utf-8') if isinstance(raw, bytes) else text
+
+
+def worker_before_parallel_development(raw):
+    """Reverse the exact RUI1 branch and per-head development concurrency term."""
+    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    text = remove_exactly_once(text, RUI1_WORKER_BRANCH)
+    text = remove_exactly_once(text, DEVELOPMENT_PER_HEAD_TERM + '\n  cancel-in-progress: false\n',
+                               '\n  cancel-in-progress: false\n')
+    return text.encode('utf-8') if isinstance(raw, bytes) else text
+
+
+SHARED_DISPATCH_REPLACEMENTS = (
+    ('          - ' + SHARED_ROUTE + '\n', ''),
+    ('      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}\n', ''),
+    (" && inputs.native_selection_id != '" + SHARED_ROUTE + "' }}", ' }}'),
+)
+
+
+def remove_exactly_once(text, old, new=''):
+    if text.count(old) != 1:
+        raise AssertionError('expected one shared-coverage hunk: ' + old[:80])
+    return text.replace(old, new)
+
+
+def workflow_before_shared_coverage(raw):
+    """Reverse exactly the shared-coverage dispatcher additions (choice, output, two jobs)."""
+    text = raw.decode('utf-8') if isinstance(raw, bytes) else raw
+    text = workflow_before_parallel_development(text)
+    for old, new in SHARED_DISPATCH_REPLACEMENTS:
+        text = remove_exactly_once(text, old, new)
+    start = text.index('\n  v23-shared-producer:\n')
+    end = text.index('\n  getmac-shard:\n')
+    if text[start:end].count('\n  v23-shared-consumer:\n') != 1:
+        raise AssertionError('expected exactly the two shared-coverage jobs')
+    text = text[:start] + text[end:]
+    return text.encode('utf-8') if isinstance(raw, bytes) else text
+
+
+SHARED_TEST_SMOKE_GUARD = '''# V23 shared coverage: a consumer tests the producer's restored products unchanged
+# through the ordinary scheme command; a producer never runs tests.
+v23_shared_role="${V23_SHARED_ROLE:-none}"
+v23_require_no_local_build() {
+  test "$shared_build_mode" = none
+  test "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = v23.integration.current-native.v1
+  test -d "$derived_data_path/Build/Products"
+  test ! -e "$CI_ARTIFACT_DIR/build-smoke.log"
+  test ! -e "$CI_ARTIFACT_DIR/Build.xcresult"
+  test ! -e "$CI_ARTIFACT_DIR/no-index-build-command.json"
+}
+v23_require_no_build_evidence() {
+  v23_require_no_local_build
+  test ! -e "$derived_data_path/Logs/Build"
+  test ! -e "$derived_data_path/Build/Intermediates.noindex"
+}
+# After the tests the scheme command may leave build bookkeeping (Logs, XCBuildData);
+# only compiler outputs fail here. The after fingerprint applies the full rule
+# (activity logs and the test log too) and lists every new DerivedData entry.
+v23_require_no_compile_outputs() {
+  v23_require_no_local_build
+  test -z "$(find "$derived_data_path/Build" -mindepth 1 -maxdepth 1 -name 'Intermediates*' -type l -print)"
+  test -z "$(find "$derived_data_path/Build" -mindepth 1 -maxdepth 1 -name 'Intermediates*' -exec \\
+    find {} \\( -name '*.o' -o -name '*.swiftmodule' -o -name '*.swiftdeps' -o -name '*.dia' \\) -print -quit \\;)"
+}
+case "$v23_shared_role" in
+  none) ;;
+  consumer) v23_require_no_build_evidence ;;
+  *) printf 'invalid V23 shared coverage test role\\n' >&2; exit 65 ;;
+esac
+
+'''
+SHARED_TEST_SMOKE_POST = '''  if [ "$v23_shared_role" = consumer ]; then
+    v23_require_no_compile_outputs
+  fi
+'''
+
+
+def test_smoke_before_shared_coverage(raw):
+    text = remove_exactly_once(raw.decode('utf-8'), SHARED_TEST_SMOKE_GUARD)
+    return remove_exactly_once(text, SHARED_TEST_SMOKE_POST).encode('utf-8')
+
+
+def evidence_before_shared_coverage(raw):
+    text = raw.decode('utf-8')
+    start = text.index('v23_shared_role="${V23_SHARED_ROLE:-none}"\n')
+    end_marker = 'elif test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then\n'
+    end = text.index(end_marker, start) + len(end_marker)
+    block = text[start:end]
+    if block.count('if test "$v23_shared_role" = producer; then\n') != 1 or 'elif test "$v23_shared_role" = consumer; then\n' not in block:
+        raise AssertionError('expected exactly the shared-coverage evidence branches')
+    return (text[:start] + 'if test "$CI_S10_4_SHARED_BUILD_MODE" = consumer; then\n' + text[end:]).encode('utf-8')
+
+
+SHARED_BUILD_SMOKE_LINE = '   [ "${NATIVE_SELECTION_ID:-none}" = ' + SHARED_ROUTE + ' ] || \\\n'
+
+
+def before_shared_coverage_bytes(relative, raw):
+    if relative == '.github/workflows/ios-ci.yml':
+        return workflow_before_shared_coverage(raw)
+    if relative == '.github/workflows/ios-ci-worker.yml':
+        return worker_before_parallel_development(raw)
+    if relative == 'Scripts/build-smoke.sh':
+        text = remove_exactly_once(raw.decode('utf-8'), '   [ "${NATIVE_SELECTION_ID:-none}" = v23-ui-batch-rui1 ] || \\\n')
+        return remove_exactly_once(text, SHARED_BUILD_SMOKE_LINE).encode('utf-8')
+    if relative == 'Scripts/test-smoke.sh':
+        return test_smoke_before_shared_coverage(raw)
+    if relative == 'Scripts/validate-required-evidence.sh':
+        return evidence_before_shared_coverage(raw)
+    return raw
+
+
+def worker_before_live_host_d50(test_case, raw):
+    # Reverse only the owner-approved D50 job cap (live-host, its two rebound questions
+    # and the reusable development batch); every other worker byte must still match its
+    # historical boundary.
+    raw = worker_before_parallel_development(raw)
+    changed = b"    timeout-minutes: " + D50_JOB_CAP_EXPRESSION.encode() + b"\n"
+    test_case.assertEqual(raw.count(changed), 1)
+    return raw.replace(changed, b"    timeout-minutes: 90\n")
+
+
+def worker_before_interruption_build_order(test_case, raw):
+    # Reverse only the two qualified ordering predicates; every other
+    # worker byte must still match the historical enrollment boundary.
+    replacements = (
+        (b"&& (inputs.native_selection_id == 'c36-destination-discard-build-before-boot' || inputs.native_selection_id == 'notification-interruption-no-index-build30m') }}",
+         b"&& inputs.native_selection_id == 'c36-destination-discard-build-before-boot' }}"),
+        (b"&& inputs.native_selection_id != 'c36-destination-discard-build-before-boot' && inputs.native_selection_id != 'notification-interruption-no-index-build30m' }}",
+         b"&& inputs.native_selection_id != 'c36-destination-discard-build-before-boot' }}"),
+    )
+    raw = worker_before_live_host_d50(test_case, raw)
+    for changed, original in replacements:
+        test_case.assertEqual(raw.count(changed), 1)
+        raw = raw.replace(changed, original)
+    return raw
+
+
+def selection(tier="N8"):
+    return {"schemaVersion": 1, "taskID": CI.TASK, "tier": tier, "runUISmoke": tier != "N8",
+            **dict(zip(CI.BUDGET_KEYS, CI.TIERS[tier])), "unitTestSelectors": [UNIT],
+            "uiTestSelectors": [] if tier == "N8" else [UI]}
+
+
+def environment(provider="github", tier="N8"):
+    lane = next(name for name, binding in CI.LANES.items() if binding[0] == provider)
+    return {
+        "GITHUB_REPOSITORY": CI.REPOSITORY, "GITHUB_REF": sorted(CI.REFS)[0],
+        "GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_EVENT_NAME": "workflow_dispatch", "SHARED_LANE": lane,
+        "SHARED_SHARD": "none", "SHARED_SEGMENT": "none", "SMOKE_ID": "none",
+        "SHARED_SOURCE_RUN": "", "SHARED_SOURCE_MAP": "", "SHARED_UI": str(tier != "N8").lower(),
+        "CI_NATIVE_ACCEPTANCE_CONTRACT": CI.CONTRACT, "CI_RUNNER_PROVIDER": provider,
+        "CI_RUNNER_LABEL": CI.LANES[lane][1], "DISPATCH_RUN_UI_SMOKE": str(tier != "N8").lower(),
+        "DISPATCH_NATIVE_SELECTION_ID": CI.DEFAULT_SELECTION_ID,
+        "DISPATCH_NATIVE_SELECTION_SHA256": CI.sha256(CI.canonical(selection(tier))),
+        "DISPATCH_NATIVE_SELECTION_MAP_SHA256": "",
+        "DISPATCH_S10_4_SHARD_ID": "none", "DISPATCH_S10_4_SEGMENT_ID": "none",
+        "DISPATCH_S10_4_EXECUTION_ROLE": "independent", "DISPATCH_S10_4_PILOT_MODE": "false",
+        "DISPATCH_S10_4_UNIT_ONLY": "false", "DISPATCH_S10_4_PAYLOAD_ARTIFACT_NAME": "",
+        "DISPATCH_S10_4_DIAGNOSTIC_PROBE_ID": "none",
+        "DISPATCH_S10_4_DIAGNOSTIC_EXECUTION_LANE": "none", "CI_S10_4_SHARED_BUILD_MODE": "none",
+        "CI_S10_4_SHARED_PAYLOAD_RUN_ID": "", "WORKER_S10_4_MINIMUM_SEGMENT_ID": "none",
+        "WORKER_S10_4_SHARED_MATRIX_ID": "", "WORKER_S10_4_MINIMUM_CORE_SMOKE_ID": "none",
+        "WORKER_S10_4_SEGMENT_SOURCE_RUN_IDS": "", "NATIVE_PRIOR_JOB_STATUS": "success",
+        "CI_NATIVE_CREATED_SIMULATOR_UDID": UDID,
+    }
+
+
+def native_tree(method=UNIT, ui=False):
+    bundle = "FieldEvidenceAppUITests" if ui else "FieldEvidenceAppTests"
+    return {"testNodes": [{"nodeType": "Test Plan", "children": [
+        {"nodeType": "UI test bundle" if ui else "Unit test bundle", "name": bundle, "children": [
+            {"nodeType": "Test Suite", "children": [
+                {"nodeType": "Test Case", "nodeIdentifier": method[len(bundle) + 1:] + "()",
+                 "result": "Passed"}]}]}]}]}
+
+
+def leaf(tree):
+    return tree["testNodes"][0]["children"][0]["children"][0]["children"][0]
+
+
+def step(source, name):
+    marker = "      - name: " + name + "\n"
+    if source.count(marker) != 1:
+        raise AssertionError("expected one source step: " + name)
+    return source.split(marker, 1)[1].split("\n      - name:", 1)[0]
+
+
+def diagnostic_line(base_kind="database", **changes):
+    backup, directory = CI.OWNED_FILE_DISPOSITIONS[base_kind]
+    values = {
+        "policyID": CI.SIMULATOR_DIAGNOSTIC_POLICY_ID,
+        "disposition": CI.SIMULATOR_DIAGNOSTIC_DISPOSITION,
+        "kind": base_kind,
+        "request": "complete",
+        "capabilityBefore": "false",
+        "capabilityAfter": "false",
+        "urlProtection": CI.SIMULATOR_FALLBACK_PROTECTION,
+        "backupExcluded": str(backup).lower(),
+        "expectsDirectory": str(directory).lower(),
+        "identityUnchanged": "true",
+    }
+    values.update(changes)
+    return CI.SIMULATOR_DIAGNOSTIC_PREFIX + " " + " ".join(
+        key + "=" + values[key] for key in CI.SIMULATOR_DIAGNOSTIC_FIELDS) + "\n"
+
+
+def diagnostic_summary_line(base_kind="database", occurrences="1", **changes):
+    exact = diagnostic_line(base_kind, **changes)
+    return (CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " " + exact.split(" ", 1)[1][:-1]
+            + " occurrences=" + str(occurrences) + "\n")
+
+
+def diagnostic_frame(stream_id, sequence, payload):
+    raw = payload.encode("utf-8") if isinstance(payload, str) else payload
+    return (json.dumps({
+        "schema": CI.SIMULATOR_DIAGNOSTIC_FRAME_SCHEMA,
+        "streamID": stream_id,
+        "sequence": sequence,
+        "payloadBase64": base64.b64encode(raw).decode("ascii"),
+        "payloadByteCount": len(raw),
+        "payloadSHA256": CI.sha256(raw),
+    }, separators=(",", ":")) + "\n").encode()
+
+
+def diagnostic_transport(artifact, streams=(), status=None, **changes):
+    simulator = artifact / "simulator-selection.txt"
+    if not simulator.exists():
+        simulator.write_text(
+            "runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\n"
+            f"udid={UDID}\ninitial_state=Shutdown\n")
+    directory = artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY
+    files = []
+    if streams:
+        directory.mkdir()
+    for stream_id, payloads in streams:
+        raw = b"".join(diagnostic_frame(stream_id, index, payload)
+                       for index, payload in enumerate(payloads, 1))
+        name = stream_id + ".jsonl"
+        (directory / name).write_bytes(raw)
+        files.append({"name": name, "bytes": len(raw), "sha256": CI.sha256(raw)})
+    files.sort(key=lambda value: value["name"])
+    value = {
+        "schema": CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_SCHEMA,
+        "status": status or ("AVAILABLE" if files else "ZERO_USE"),
+        "simulatorUDID": UDID,
+        "appBundleID": CI.SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID,
+        "appRelativeDirectory": CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY,
+        "sourcePath": CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+        "sourceSHA256": CI.SIMULATOR_DIAGNOSTIC_SOURCE_SHA256,
+        "files": files,
+        "fileCount": len(files),
+        "totalBytes": sum(item["bytes"] for item in files),
+        "inventorySHA256": CI.sha256(CI.canonical(files)),
+        "collectionBoundSeconds": 3 if status == "INTERRUPTED" else 30,
+        "collectionMode": "interrupted" if status == "INTERRUPTED" else "completed",
+    }
+    value.update(changes)
+    (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).write_bytes(CI.canonical(value))
+    return value
+
+
+def rebind_diagnostic_transport(artifact, status="AVAILABLE", **changes):
+    directory = artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY
+    files = []
+    if directory.exists():
+        for path in sorted(directory.iterdir(), key=lambda value: value.name):
+            if path.is_file() and not path.is_symlink():
+                raw = path.read_bytes()
+                files.append({"name": path.name, "bytes": len(raw), "sha256": CI.sha256(raw)})
+    value = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+    value.update({"status": status, "files": files, "fileCount": len(files),
+                  "totalBytes": sum(item["bytes"] for item in files),
+                  "inventorySHA256": CI.sha256(CI.canonical(files)), **changes})
+    (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).write_bytes(CI.canonical(value))
+    return value
+
+
+
+# Exact inverse used only by historical admission checks. Actual partition checks
+# below read the committed candidates directly through CI.read_json.
+REPORT_PARTITION_ALIASES = {'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterCommitsOriginalTimeAndReplaysWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterCommitsOriginalTimeAndReplaysWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRecoversSavedTimeZoneBeforeRecheckDraft': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRecoversSavedTimeZoneBeforeRecheckDraft', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsReceiptBodyTimeAndRevisionChangesWithoutQuarantine': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsReceiptBodyTimeAndRevisionChangesWithoutQuarantine', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterUsesFreshWorkspaceCASButRejectsStaleTarget': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterUsesFreshWorkspaceCASButRejectsStaleTarget', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsMissingOrChangedTimeZoneProofBeforeDraft': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsMissingOrChangedTimeZoneProofBeforeDraft', 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginWriterTests/testFrozenBeginWriterRejectsDirtyAndRetiredSessionsWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testFrozenBeginWriterRejectsDirtyAndRetiredSessionsWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginRejectsChangedSiteAndInitialPostimage': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginRejectsChangedSiteAndInitialPostimage', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts', 'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess': 'FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess'}
+REPORT_PARTITION_GROUPS = [{'id': 'c36-checkrunner-foundations', 'classes': ['V23CheckRunnerEditableFieldValuesTests', 'V23CheckRunnerBeginHistoryTests'], 'methodCount': 14}, {'id': 'c36-frozen-begin-preparation', 'classes': ['V23CheckRunnerFrozenBeginPreparationTests'], 'methodCount': 6}, {'id': 'c36-frozen-begin-writer', 'classes': ['V23CheckRunnerFrozenBeginWriterTests'], 'methodCount': 6}, {'id': 'c36-durable-begin', 'classes': ['V23CheckRunnerDurableInitialBeginTests'], 'methodCount': 9}, {'id': 'c36-field-contracts', 'classes': ['V23CheckRunnerItemFieldContractsTests'], 'methodCount': 49}]
+DURABLE_PARTITION_CHOICES = ['c36-durable-begin-lifecycle', 'c36-durable-begin-guards']
+SOURCE_GRAPH_PARTITION_CHOICES = ['c36-source-graph-regular', 'c36-source-graph-compact-maximum', 'c36-source-graph-complete-maximum']
+PREPARTITION_REPORT = {'id': 'report-camera-recovery', 'classes': ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests', 'V23CheckRunnerEditableFieldValuesTests', 'V23CheckRunnerBeginHistoryTests', 'V23CheckRunnerFrozenBeginPreparationTests', 'V23CheckRunnerItemFieldContractsTests'], 'methodCount': 110}
+RAW_PHOTO_POOL_SHA256 = '62673E1257EE72462439FA8770F3D3CFB50ED2FB06F0674C7C9E8D5FE2FDBEBB'
+RAW_PHOTO_MAP_SHA256 = '77E605D5BE168687CC9EB81C4F695806C6A6E2FCD619411C64AA7E251676CEAC'
+
+PAIR_STARTUP_POOL_SHA256 = '62F78130A529F9BDAE378F9A9A152E32E178CC5F132BEC1FDEF37D2CAAAAE722'
+PAIR_STARTUP_MAP_SHA256 = '70D3F3C4C034D82397564BA554425A2FFB93E51A345B1075CBD72F82610FF110'
+PHOTO_BACKUP_PARTITION_CHOICES = ['c36-photo-backup-transport', 'c36-photo-backup-restore']
+
+
+EXPECTED_PARENT_FINALIZATION_PARTITIONS = [['c36-parent-finalization-check-no-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-check-visible-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckVisibleIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-check-could-not-verify', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckCouldNotVerifyUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-resolved', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckResolvedUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-still-visible', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckStillVisibleUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-different-issue', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckDifferentIssueUsesOriginalFiveSagaHistory'], ['c36-parent-finalization-recheck-could-not-verify', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationRecheckCouldNotVerifyUsesOriginalFiveSagaHistory']]
+
+EXPECTED_DESTINATION_SELECTORS = [
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testIterativeLineageComposesFortyHopsAcrossRepeatedWorkspacesWithoutPayloadGrowth",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testLineageBindsLaterCheckpointPrefixAndRejectsBranchPayloadDriftAndUnreviewedActivation",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testLineageRejectsRehashedPredecessorClaimsAndCannotReuseValidationForDifferentHistory",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testForeignLiveLineageReadPreservesAllOriginalsAndDeniesDirtyAncestorQuarantineAndRetirement",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstCreateReceiptAuthenticatesRetainedSourceAndPreservesOriginalBytes",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testSelfConsistentCreateReceiptCannotAuthenticateChangedMappingOrGeneration",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testForeignLiveReviewReadDeniesTamperQuarantineDirtyAndRetiredReadersWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstReviewDerivesCompleteReplacementAndForkRelationsWithoutChangingOriginals",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testFirstReviewRetryUsesGenerationBoundFreshIdentities",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testRehashedPlausibleRelationsStillRequireExactSourceCoverage",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testClosedCodecRejectsUnknownTagsKeysNoncanonicalAndInitialStateSubstitutions",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testEachRetainedGraphGetsItsOwnReviewWithoutRevivingItsDisposition",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationReviewTests/testPredecessorShapeIsClosedAndDoesNotAuthenticateAnAncestor",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testContinueUsesActualWriterReceiptAndPreservesRoundSourceAndReplay",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testRebaseRequiresAnAdvancedMappedRoundAndGrantsNoReadinessOrRoundEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testDiscardBindsAbsentAndArchivedTargetsWithoutLosingHistoryOrRevivingWork",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testClosedTargetContractRejectsUnboundClaimsAndWrongRoundDigestWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testPreparedProofRejectsContextCommandAndLateRoundChangesAndCannotBeReused",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testResolutionRechecksDirtyCorruptMissingQuarantinedAndRetiredSourceWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationResolutionTests/testReplacementThenForkRetainsOriginalNamespaceAndRequiresFreshReviewReceipt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testConfirmedTerminalUsesActualAtomicReceiptForAbsentAndArchivedTargetsAndExactReplay",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalRecoveryAfterReopenReadsStoredOriginalWithoutAllocatingAnotherAttempt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalRequiresExplicitPendingDiscardAndRejectsWrongPlanTimePayloadAndKnownIDs",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testPreparedTerminalProofIsSingleUseContextBoundAndRechecksCompetingWrites",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testOwnedContentAndUnboundStageWritesDenyDiscardBeforeAnyEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testTerminalAdmissionRejectsDirtyCorruptMissingQuarantinedAndRetiredHistoryWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationDiscardTests/testOriginalWriterInterruptionBoundariesRollbackOrRecoverExactlyOneTerminal",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testSeparateContinuationBindsActualResolutionAndPreservesOneSourceAcrossRereview",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testLegacyCommandBytesStayExactAndClosedBindingTamperingHasNoEffect",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testPreparedContinuationIsSingleUseContextBoundAndRechecksCurrentRoundAndReview",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testColdOriginalRecoverySurvivesArchivedRoundAndRejectsMissingSourceReceipt",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testDirtyCorruptQuarantinedAndPreemptedSourceStateDeniesWithoutEffects",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testRealWriterFaultBoundariesRollbackOrRecoverExactlyOneContinuation",
+    "FieldEvidenceAppTests/V23RepetitiveCaptureDestinationContinuationTests/testProductionServiceRecoversBeforePreparationAndRejectsForeignOrRetiredOwners",
+    "FieldEvidenceAppTests/V9_30FieldDraftResilienceTests/testReviewedTargetCarrierPreservesLegacyMyDayCanonicalResolutionBytes"
+]
+DESTINATION_GROUP_IDS = ['c36-destination-review', 'c36-destination-resolution', 'c36-destination-discard', 'c36-destination-continuation']
+PRODUCTION_DESTINATION_SELECTORS = [
+    'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/' + method for method in (
+        'testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs',
+        'testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects',
+        'testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects',
+        'testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement',
+    )
+]
+
+RESTORE_REVIEW_SELECTORS = ['FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPhysicalForkCreatesReviewReceiptAndSecondHopSurvivesOriginalPackageRemoval', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPopulatedCrossWorkspaceReplacementCreatesOnlyReviewAndRetainsOriginalHistory', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testSameWorkspaceReplacementPreservesCheckpointAndOriginalReceiptBytes', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPrepublicationInterruptionReconcilesToUnchangedPopulatedGeneration', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testPhysicalForkKeepsTerminalHistoryAndUnrelatedDraftOwners', 'FieldEvidenceAppTests/V23RepetitiveCaptureRestoreReviewTests/testReviewPlanRejectsMissingOrChangedOwnedRowsWithoutConsumingUnrelatedDrafts', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testWrongContextIdentityAndGenerationHaveNoEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedBindingDeniesAdmissionAndCommitWithoutEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedCommandAndEnvelopeAreDeniedBeforeEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testChangedCommandOrEnvelopeCannotCommitAfterExactAdmission', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testGenericWriterCommandReachesAdmissionAndIsDeniedWithoutEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testRecoveryBodyNeverRunsAndHasNoEffects', 'FieldEvidenceAppTests/V23RestoreReviewAuthorityTests/testSynchronousRevocationDeniesReadAdmissionAndPreviouslyAdmittedCommit']
+
+REMINDER_PRODUCTION_SELECTORS = ['FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C37TypedPoseContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C29TypedPlanContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C34PackageDestinationRegistrationRemainsNonAutomatic', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testAbortedEraseAdmissionRestoresFreshDisabledAccessAndPreservesOriginalOwners', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testAbortedEraseAdmissionPreservesEnabledConfigurationAndRequiresFreshUnlock', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testAbortedEraseAdmissionRejectsConfigurationABAAndCannotReleaseDurableIntent', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testFullEraseReservationSurvivesBackgroundAndRejectsConfigurationBypasses', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testCompletedErasePreservesProtectedDataAndRequiresFreshActiveStartup', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testCompletedEraseRetainsReceiptUntilFreshSettingsAndAllNotificationLeavesAreEmpty', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testCompletedEraseRejectsOriginalAuthorizationABAAndReceiptReplayAfterConfigurationCycle', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testFullEraseAdmissionExcludesConfigurationWhileAdoptionAllowsBackgroundEvents', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testContentReadReferenceBlocksRevocationAndRejectsRevokedEpochABA', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testRuntimeProtectedDataLossRevokesDisabledAndEnabledCapabilitiesUntilVerifiedRecovery', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testRuntimeProtectedDataLossCancelsPendingAuthenticationAndRejectsUnverifiedRecovery', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConcreteAppLockSettingReadRequiresFreshProtectedDataAvailability', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testProtectedDataRecoveryGenerationRejectsNewLossDuringRecovery', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationAuthenticationSettlesBothCallbackAndActiveOrderings', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testConfigurationAuthenticationPendingActiveIsPreemptedByRevocation', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testRecoveryCompletionRejectsPendingConfigurationAttemptWithoutStrandingCancellation', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testSavedDetailedPolicyUsesAuthenticatedKindsAndReplacesChangedPayloads', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testAppLockEnableProjectsGenericAndDisableUsesCurrentDetailedConsent', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testExpiredDetailedRequestIsRemovedOnPrivacyDowngradeWithoutReadding', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testExpiredUnobservedGenericReminderStillFailsWithoutEffects', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testPermissionDenialStillRemovesForbiddenDetailWithoutClaimingDelivery', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testSavedReconciliationCannotRenewRevokedOriginalProof', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testNotificationCopySourcesBindExactReleaseAndEffectiveBasis', 'FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testGenericPolicyRejectsDetailedDurableMappingWithoutSystemEffects', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testUnboundAndRetiredOwnersCannotMintOrRebind', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testDisabledForegroundEditAndFreshAuthorityReplayPreserveExactBytes', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testEnabledPolicyRequiresUnlockAndOldCommandCannotSurviveRelock', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testCommandsCannotTransferAcrossAdaptersOrGateIssuers', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testReplacementOwnerAcceptsOnlyFreshCommandsAndRetirementIsMonotonic', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testProtectedDataAndConfigurationTransitionsRevokeHeldEditsWithoutEffects', 'FieldEvidenceAppTests/V23ReminderPolicyEditTests/testActualPreferenceWriteSerializesWithRevocationAndRetirement', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionReconciliationRetryKeepsSavedRevisionAndNeverPrompts', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionSettingsReadDoesNotPromptAndDeniedEnablePersistsExplicitChoice', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionDetailChoiceWhileDisabledDoesNotPromptAndRejectsStaleEdit', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionAppLockRequiresUnlockAndOldSettingsPublicationStaysRevoked', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionPermissionReplyAfterBackgroundCannotSaveConsent', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testProductionCompletedEraseReplacesOwnersAndRejectsPendingPermissionEdit', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testPermissionReadNeverPromptsAndExplicitRequestNeverWritesConsent', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testInactiveDisabledAndLockedEnabledStatesCannotPrompt', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testRevocationDuringAuthorizationReadPreventsPrompt', 'FieldEvidenceAppTests/V23ReminderProductionSettingsTests/testPermissionReplyAfterRevocationCannotRenewForegroundOrConsent', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testGenericEncodingAndReadbackRetainExactLegacyShape', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testBothKindsUseApprovedCopyAndTokenOnlySystemPayload', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testFrozenZoneAndEffectiveInstantDistinguishDSTFold', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testDetailedReadbackRejectsUnapprovedCopyAndAncillaryFields', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testNumericZoneFallbackUsesExplicitOffsetWithoutDeviceDefaults', 'FieldEvidenceAppTests/V23DetailedReminderDeliveryTests/testFrozenOffsetCopyDoesNotResolveCurrentTimeZoneRules', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testIncompleteEnableAndDisableRemainAvailableForAuthenticatedRecovery', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testEnabledAndCompletedDisabledEditsReopenWithoutReplayingPolicyOrOSEffects', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testSecondEditRollsContinuationAndRejectsOldOperationAndAuthenticationSubject', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testInterruptedPreferenceAndPendingPublicationRecoverMetadataExactlyOnce', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testInterruptedPolicyEditRejectsOldSubjectBeforeNewToggleSourceOrOSEffects', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testDivergentPendingBlocksSettlementAndSecondPolicyWriteWithoutDiscardingEvidence', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testUnstampedResetEraseAndChangedStampCannotRepairControl', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testForeignPreferencesControlBindingAndChangedSettingDenyBeforePolicyWrite', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testMissingDisabledControlWithStampOrPendingIsNotReady', 'FieldEvidenceAppTests/V23ReminderControlContinuationTests/testNilContinuationPreservesLegacyCanonicalControlAndSubjectBytes', 'FieldEvidenceAppTests/S6_3BackupValidationTests/testImportPreservesSupportedSchemaPairsAndRejectsForeignPairs', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testRoundArchiveStagingPreservesVersionAndAuthorityBoundaries', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testEmptyStockProjectionPreservesUnrelatedOriginalHistories', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testEmptyStockRowsCannotHideOwnedCommandHistory', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundAppendUsesDestinationPrefixAndPreservesEveryOriginal', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundBindingsAndSourceHistoryMustMatchExactly', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundAppendPreservesIncumbentQuarantineAndForeignFrontier', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testEarlierTargetRoundCannotBeHiddenByLastReceiptFrontier', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundMetadataIsRetainedAndUnresolvedCausationIsDenied', 'FieldEvidenceAppTests/V23RoundRestoreHistoryTests/testRoundReversalClosureCannotBorrowArchivedStockPlanException']
+REMINDER_PRODUCTION_GROUPS = [{'classes': ['V23ReminderPolicyEditTests'], 'id': 'reminder-policy-edit', 'methodCount': 7}, {'classes': ['V23ReminderProductionSettingsTests'], 'id': 'reminder-production-settings', 'methodCount': 10}, {'classes': ['V23DetailedReminderDeliveryTests'], 'id': 'reminder-detailed-delivery', 'methodCount': 6}, {'classes': ['V23ReminderControlContinuationTests'], 'id': 'reminder-control-continuation', 'methodCount': 10}, {'classes': ['V23RoundRestoreHistoryTests'], 'id': 'round-restore-history', 'methodCount': 6}]
+
+SETTINGS_COMPATIBILITY_SELECTORS = ['FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C45CompatibilityKeepsOutputActivationExplicitAndBounded', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testV23P03C51RuntimeAndCheckRunnerStayLocalExplicitAndDerived', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testTypedEvidenceContextContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC31TypedLightingPackageContractAnchor', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC33V914SettingsCapabilityLifecycleCompatibilityBindsTypedTemporalEvidenceToItsOwner', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC32V914SettingsCapabilityLifecycleCompatibilityKeepsProposalAtExplicitReviewBoundary', 'FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests/testC46SettingsCannotActivateAutomaticHandoff']
+
+SNAPSHOT_FAMILY_SELECTORS = ['FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests/testReportCorrectionRequiresExactV2ObservationAndTemporalSourceValues', 'FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed']
+
+REPLACEMENT_HISTORY_EXTRA_SELECTORS = ['FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPureRuleCreatesOnlyCurrentOnlyTombstonesAndRejectsCollisions', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testCancelRemovesOnlyOwnedStageAndDirtyCurrentFailsClosed', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testPacketCollisionFailsBeforeGenerationOrJournalMutation', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRecoveryPreservesReplacementUnionAcrossEveryJournalPhase', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testRestoreIntentTimestampUsesOneCanonicalMillisecondDomain', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C18RegistryPointerBindsPromotionReceiptIdentity', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C05Records42ReplacementUnionsPredecessorClosedMetadata', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C36ReplacementRecordRetainsCanonicalOperationalIdentity', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testC21ClientCapabilityLifecycleAnchor', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testV23P03C34PackageRouteUsesOneShellAndNoWriter', 'FieldEvidenceAppTests/S6_5ReplacementUnionTests/testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback']
+
+ACTIVITY_COMPLETED_GROUPS = [{'id': 'activity-completed-manifest', 'classes': ['V23ActivityCompletedManifestEvolutionTests'], 'methodCount': 13}, {'id': 'activity-completed-file', 'classes': ['V23ActivityCompletedFileTests'], 'methodCount': 21}, {'id': 'activity-completed-production', 'classes': ['V23ActivityCompletedProductionTests'], 'methodCount': 12}, {'id': 'activity-evidence-projection', 'classes': ['V23ActivityEvidenceProjectionTests'], 'methodCount': 7}, {'id': 'activity-completed-release', 'classes': ['V23ActivityCompletedReportReleaseTests'], 'methodCount': 9}]
+ACTIVITY_COMPLETED_SELECTORS = [
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testPublishedV1ManifestRoundTripPreservesCanonicalBytesAndOmitsExtensions',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testUnsignedBoundsRoundTripPreservesEntireUInt64Domain',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testSignedDomainAndMixedWrongKindOrInvertedBounds',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testManifestVersionsRequireMatchingCodecAndReader',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testExtendedScalarAndArrayKindsRequireManifestTwo',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testManifestDecoderRejectsInvalidNumericBoundsWithoutRounding',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testManifestDecoderRejectsUnknownMalformedAndExplicitNullFields',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testCodecTwoKeepsExistingRulesAndClosesVersionSpecificTimeMetadata',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testPreservedStringAndStringMapMetadataRoundTripWithoutInventedCountLimit',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testStringMapMetadataRejectsInvalidBoundsShapesAndArrayUse',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testNumericEnumMetadataPreservesExactSourceRotationWireValues',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testNumericEnumMetadataRejectsMixedMalformedAndLegacyDefinitions',
+    'FieldEvidenceAppTests/V23ActivityCompletedManifestEvolutionTests/testClosedEmptyObjectMetadataRequiresSchemaTwoAndMatchesPoseWire',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testClosedCompletedFileRoundTripPreservesRealNestedV2AndSeparateHashes',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCaptureUsesActivityRevisionsAndKeepsWorkspaceFrontierPortable',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCaptureRejectsStaleActivityRevisionAndInvalidTransitionOrderingOrStateChain',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCaptureRejectsOverflowAndNonfiniteOrResampledTime',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testFileRejectsWrongFamilyVersionOutputAndUnknownFields',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testTypedPayloadTamperFailsEvenWithRecomputedWholeFileHash',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testWholeFileTamperFailsEvenWhenNestedSnapshotIsUnchanged',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCapturedAbsenceRequiresEveryClosedQueryAtExactFrontier',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testFullFrozenProfileAndManifestAreBoundToSnapshot',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testExplicitSelectionUsesCanonicalObjectsAndClosedKeys',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testStandalonePunchDoesNotManufactureInstallationOrAccountabilityAbsence',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testLegacyPredecessorOwnerKeepsUUIDPathAndWholeFileDigestDistinct',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testCrossActivityCorrectionOwnsNewOriginalForLegacyAndClosedPredecessors',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testUnfinishedAmendmentRetainsActualPriorWithoutInventingCompletedOutput',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testApprovedMediaRequiresExactBytesLengthWorkspaceAndOutputScope',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testPlacementSourcesRetainExactPoseAndPhysicalAncestors',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testPlacementSourcesRejectMissingForeignAndUnselectedValues',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testReviewedEvidenceFreezesPlanProjectionAndSeparateFieldMediaHashes',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testReviewedEvidenceRejectsMissingTamperedAndForeignSources',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testNewProvenanceArraysAreRequiredClosedWireFields',
+    'FieldEvidenceAppTests/V23ActivityCompletedFileTests/testLegacy32CorpusPreservesLiteralBytesAndBareV2Codec',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testRealWriterReadsPopulatedInstallationAndEntireSelectedProfileWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testCaptureFreezesExactPromotedPackageAndSourceWorkflow',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testHistoricalCompletionRetainsRecordedPackageWithoutCurrentStartPointer',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testMissingRecordedPackageRejectsCaptureAndOldFrameWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testCaptureUsesActualActivityRevisionTransitionsIncludingTaskAndAsBuiltGaps',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testWrongWorkspaceMissingActivityAndUnavailableSelectedProfileRejectWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testCommittedProfileChangeRejectsOldSelectionAndFrameWithoutAdoptingNewProfile',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testWriterInvalidationAndGenerationChangeRejectPreviouslyReadFrameWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testSameFrontierTaskReplacementAndFamilyInsertionOrRemovalRejectWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testSameFrontierAcceptedReceiptTamperRejectsWithoutEffects',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testSameRevisionRehashedProfileCannotReplaceAcceptedBytesEvenWhenSelectedByNewReference',
+    'FieldEvidenceAppTests/V23ActivityCompletedProductionTests/testQuarantinedActivityOrProfileReceiptCannotAuthorizeSourceRead',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionAcceptsDistinctFieldAndApprovedMediaDigests',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsUnapprovedAndMixedMedia',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsOriginalAndMissingOutputReferences',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsWrongWorkspaceAndAudience',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsMissingRejectedStaleAndChangedSource',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRejectsSemanticCardTampering',
+    'FieldEvidenceAppTests/V23ActivityEvidenceProjectionTests/testV23P03C20CompletedProjectionRebuildsMarkupWithoutChangingReviewedPlan',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testActualAppBundleAdmitsExactCompleteManifestAndBothSchemas',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testPublishedDefinitionsAndSevenSectionRegistryRemainExactButOldReleaseIsExcluded',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testActualBundleLookupSupportsFlattenedAndPreservedResourceLayouts',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testMissingAndRenamedResourcesCannotFallBackToAnotherBundle',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testDuplicateResourceIdentityFailsEvenWhenBothCopiesAreAuthentic',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testTruncatedOversizedAndSameSizeTamperedResourcesFailAtRealLoader',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testSchemaResourceIdentityCannotBeSwappedAndManifestIdentityCannotBeRewritten',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testSymlinkedResourceIsNotAnAppOwnedResource',
+    'FieldEvidenceAppTests/V23ActivityCompletedReportReleaseTests/testFrozenReadbackRejectsWrongIdentityVersionReaderRegistryAndIncompleteCatalog',
+]
+
+FINDING_PROFILE_FIXTURES_GROUPS = [
+    {'id': 'finding-owner-selection', 'classes': ['V23FindingOwnerSelectionContractsTests'], 'methodCount': 18},
+    {'id': 'finding-owner-record', 'classes': ['V23FindingOwnerContractTests'], 'methodCount': 29},
+    {'id': 'finding-owner-persistence', 'classes': ['V23FindingOwnerPersistenceTests'], 'methodCount': 5},
+    {'id': 'finding-owner-mutation', 'classes': ['V23FindingOwnerMutationContractTests'], 'methodCount': 18},
+    {'id': 'shop-profile-open-handoff', 'classes': ['V9_69ShopProfileOpenHandoffTests'], 'methodCount': 11},
+    {'id': 'advanced-recurrence-workflow', 'classes': ['V9_101AdvancedRecurrenceWorkflowTests'], 'methodCount': 5},
+]
+FINDING_PROFILE_FIXTURES_SELECTORS = [
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testNineValuesRoundTripAndExposeExactClosedFields',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testLegalNonUUIDStringsStayExactAndIncumbentIDGrammarIsNotBroadened',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testOptionalFieldsMustBeAbsentRatherThanExplicitNull',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testWrongVersionKindWorkspaceAndNilIdentitiesAreRejected',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testEmptySelectionMatchesIndependentLiteralBytesAndHash',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testNestedLegacyValueGroupsAreClosedOnlyAtTheNewBoundary',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testRevisionBoundariesPreserveUInt64AndIntWithoutNarrowingOrOverflow',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testDuplicateAndConflictingFindingOwnerAndRelationshipIdentitiesReject',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testCanonicalOrderingIsUTF8AndRelationshipOwnerTupleOrder',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testDigestsRejectMalformedValuesAndSelectionTampering',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testExactRecheckOwnerKindRevisionAndDigestAreRequired',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testTypedFindingC14AndRecheckBindingsRejectIndependentlyValidWrongFacts',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testOriginalAndSelectedProvenanceRemainDistinctWithoutAuthenticityClaims',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testConflictingAcceptanceAndSourceIdentitiesCannotBeMerged',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testCanonicalCodecRejectsDuplicateWireKeysNoncanonicalBytesAndOversizeInput',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testCompleteSelectionByteLimitAppliesBeforePublication',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testNilAndCrossWorkspaceSourceC14AndFrontierIdentitiesReject',
+    'FieldEvidenceAppTests/V23FindingOwnerSelectionContractsTests/testMappedSourceAndC14PairsKeepExactFieldsAndSeparateAcceptances',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testBothOwnerKindsRoundTripWithIndependentGoldenDigests',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testSemanticReferencesStayDistinctFromTransportHashesAndBindConsumers',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testHumanAndImportedSourcesNeedNoFabricatedActivityBinding',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testOwnerRevisionAdvancesWithoutChangingFindingRevision',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testHistoricalValueClassificationDoesNotGrantRetryAcceptance',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testSuccessorCannotRewriteDropOrReplaceOldFacts',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testLifecycleTransitionPreservesOriginalFieldsAndRevisionLaw',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testWorkspaceOwnerAndKernelIdentityCensusRejectsConflicts',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testC14SupportRequiresOriginalGenuineActionAndRetainsUnlinkedHistory',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testDirectFindingEndpointsAllowRevisionZeroWithoutCorrection',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testRealC14NonFindingSourceAndMixedEndpointsAreSupported',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testRelationshipHistoryPreservesConfirmationAndExplicitRemoval',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testRelationshipBasisRolesKindsAndSingleOwnershipAreClosed',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testAffectedClosureRejectsCrossStreamReversePairsCyclesAndDomainAmbiguity',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testEndpointOwnerTokensAndAcceptanceIdentitiesCannotConflict',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testPredecessorOriginActorAndTimeAreExact',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testHistoryRejectsReusedMutationAndSkippedOwnerRevision',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testUInt64AndIntEdgesRejectWithoutInvokingUnsafeLegacyArithmetic',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testRecordAndEndpointUnionKeysNullsAndDigestsAreClosed',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testCanonicalTransportRejectsUnknownNestedFieldsDuplicateKeysAndOversize',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testCompleteRecordByteBoundIncludesRetainedSupportReferences',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testAppendOnlyRetentionUsesExactBytesAndGroupedEventIdentity',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2OwnerRevisionFactsAcrossRelationshipsIncludeBothReferenceSides',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2ActualRecordAndPredecessorReferencesJoinFactCensus',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2RetainedC14ActionRevisionRejectsChangedEventAndDigestOnBothSides',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2RetainedC14EventIdentityRejectsRevisionReuseAndAllowsDifferentEvents',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2C14EndpointEventActionConflictsReachRelationshipAndCombinedHeads',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2ActivityRevisionFactsRejectKindAndDigestConflictsOnBothSides',
+    'FieldEvidenceAppTests/V23FindingOwnerContractTests/testR2ActivityScopesReceiptsRevisionsAndWorkspacesStayIndependent',
+    'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testBothKindsBindCanonicalBytesAndDistinctRowIdentity',
+    'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testEveryDuplicatedColumnRejectsMismatchForBothKinds',
+    'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testPredecessorDigestCannotBeDroppedOrReplaced',
+    'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testMalformedAndValidDivergentCanonicalPayloadsAreRejected',
+    'FieldEvidenceAppTests/V23FindingOwnerPersistenceTests/testFileBackedSwiftDataReopenRetainsBothKindsAndRevisions',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testFreshHumanCreationDerivesOnlyItsOriginalFacts',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCanonicalCreationMatchesIndependentCommandAndRecordExpectations',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testLegalKernelStringsAndUnicodeTextBytesRemainExact',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCreationOptionalClassificationAndActivityNeverBecomeUniversalIDGates',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCreationRejectsSubstitutedScaleSubjectWorkspaceAndAttribution',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testTransitionDerivesOneRevisionWithoutReplacingAnyOtherFact',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCorrectiveLinkAndRemovalPreserveFindingRevisionAndOriginalSupport',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCorrectiveOperationsRejectWrongRolesRevisionsMissingReadsAndStaleBasis',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testExactPredecessorAndMutationMetadataCannotBeSubstituted',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testVerifiedResolutionRequiresTheExactRetainedPassedRecheck',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCanonicalCommandBindsDependenciesAndAttributionWithoutClaimingAuthenticity',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testClosedCommandAndOperationWireRejectReplacementSourceAndProofFields',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testNestedUnknownFieldsAndNoncanonicalBytesRejectThroughActualCodec',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testRevisionBoundsRejectBeforeLegacyIncrementAndPreserveAssetZero',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testFrontierDuplicateConflictsUnknownIdentitiesAndMissingDependencyFailClosed',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testWholeWorkspaceFrontierExceedsRegistryCountAndRetainsCanonicalByteLimit',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCommandAcceptanceCensusRejectsEveryPredecessorAndSupportOverlap',
+    'FieldEvidenceAppTests/V23FindingOwnerMutationContractTests/testCommandAcceptanceCensusAllowsExactOverlapAndDistinctKeysThroughDerivation',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testOpenEvidenceManifestCanonicalRoundTripNormalizesArtifactsAndRejectsTampering',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testHandoffPresentationRequiresExactSavedProfileAndRemainsDefaultOff',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04G01DeterministicProfilePresetAndConfirmationBytes',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04A01CustomerSafePackagingAndAccessibleOutputs',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04H01RejectsCorruptStaleUnsafeAndSecondRendererInputs',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04I01InterruptionLeavesZeroOrRecoverableCanonicalEffect',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testV23P04C04R01RestoreCloneForkAndHistoricExportImmutability',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveExactRetryReturnsOriginalReceipt',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveHistoricExactRetryAfterSuccessorReturnsOriginalReceipt',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveDivergentMutationReuseRejectsWithoutChanges',
+    'FieldEvidenceAppTests/V9_69ShopProfileOpenHandoffTests/testShopProfileSaveNewStaleMutationRejectsWithoutChanges',
+    'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38G01PatternsOverridesAndHistoryProjectDeterministically',
+    'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38A01LeapMonthEndLastWeekdayAndScopesPreview',
+    'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38H01InvalidRulesStalePreviewAndIdentityDriftHaveNoEffects',
+    'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38I01DSTClockReminderAndEffectBeforeReceiptRetryExactlyOnce',
+    'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38R01CompletionScheduleChangeReplayAndRestoreRemainStable',
+]
+
+EXPECTED_LIVE_HOST_RUNTIME = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldOperationAuthoritySurvivesSuspensionAndRecoversOriginalReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardPreparationReopensOriginalPendingReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testPhotoDiscardValuesRetainOriginalStagesAndRejectCommit', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testDurablePreflightSubmitsConfirmedEnteredTimeZoneWithoutRewritingSavedInput', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesCanonicalNamesAndRejectsStaleOrReplacedPlans', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementRejectsMalformedNamesAndUnsafeFileKinds', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testStartupPrivateRetirementPreservesInterruptedFinalizationAndReachesEraseAdmission', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveFinalizationUsesOriginalReceiptAndRejectsRetiredOperation', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLivePhotoRejectsRetiredPublicationAndRecoversOriginalCommitReceipt', 'FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests/testLiveItemFactoryAndEditorKeepOriginalPublicationWithoutCreatingStaging', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testPreparedImmutableOriginalRejectsSubstitutionAndCancellation', 'FieldEvidenceAppTests/S8_2GoldenAccessibilityTests/testGoldenFlowAccessibilitySpineAndControlMetricsAreExact']
+
+EXPECTED_ROUND_ITEM_MOUNT = ['FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueLaunchesEntersOnceOpensDurableHostAndColdReopenAddsNoWrites', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueDeniesDraftPausedAndCompetingSourcesWithoutEffects', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testForeignCanonicalDraftDeniesEntryBeforeAnyWrite', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testContinueRecoversSourceAndEntryAcknowledgementLossWithOneOfEach', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testPendingEffectForAnotherItemIsNotSettledByAnOutOfOrderTap', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testRevisionPinnedRouteRetargetsThenReusesEntryAndBegunParentReopens', 'FieldEvidenceAppTests/V23ProductionRoundItemMountingTests/testInterruptedPreparedBeginReopensForExplicitRecoveryAndCompletesOnce']
+EXPECTED_STARTUP_RETIREMENT = [s for s in EXPECTED_LIVE_HOST_RUNTIME if '/testStartupPrivateRetirement' in s]
+EXPECTED_ROUND_ITEM_COMPLETION = ['FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testCouldNotVerifyFinishRecordsOneReportAndOneCompleteThenShowsNextItem', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testLostFinalizationAndCompleteAcknowledgementsResumeOriginalsOnce', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testDeferAndKeepOpenRetainParentsAndAdvanceOnce', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testRetiredSceneDeniesFinishAndAdvanceWithoutEffects', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testTwoPhotoJourneyCommitsEachSlotOnceRecoversAndFinishes', 'FieldEvidenceAppTests/V23ProductionRoundItemCompletionTests/testStoragePublicationAcceptsFreeByteDriftOnlyWithTheSameVerdict']
+EXPECTED_ROUND_READINESS = ['FieldEvidenceAppTests/V23ProductionRoundReadinessTests/' + m for m in (
+    'testActualRoundRoutesReadEveryWriterFrontierWithoutStartingOrResuming',
+    'testActualRoundReadinessPublishesExactSessionAndRejectsWriterAndFinalCoverRaces',
+    'testActualRoundFinalPublicationRejectsChangedNilRevisionFrontier',
+    'testActualNativeRoundRouteAndBackPreserveReportsWithoutAutomaticWork',
+    'testActualRoundOldPublicationCannotReadAfterFreshSceneActivation',
+    'testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation')]
+
+
+def preround_item_completion_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) != 1091:
+        raise AssertionError('changed round item completion pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.ROUND_ITEM_COMPLETION_POOL_SHA256, CI.ROUND_ITEM_COMPLETION_MAP_SHA256):
+        raise AssertionError('changed round item completion generated inputs')
+    if default['unitTestSelectors'][1085:] != EXPECTED_ROUND_ITEM_COMPLETION:
+        raise AssertionError('changed exact round item completion append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:1085]
+    if mapping['groups'].pop() != {'id': 'c36-round-item-completion', 'classes': ['V23ProductionRoundItemCompletionTests'], 'methodCount': 6}:
+        raise AssertionError('changed round item completion class group')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.ROUND_ITEM_MOUNT_POOL_SHA256, CI.ROUND_ITEM_MOUNT_MAP_SHA256):
+        raise AssertionError('changed historical round item mount profile')
+    return default, mapping
+
+
+def preround_item_mount_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) == 1091:
+        default, mapping = preround_item_completion_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) != 1085:
+        raise AssertionError('changed round item mount pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.ROUND_ITEM_MOUNT_POOL_SHA256, CI.ROUND_ITEM_MOUNT_MAP_SHA256):
+        raise AssertionError('changed round item mount generated inputs')
+    if default['unitTestSelectors'][1078:] != EXPECTED_ROUND_ITEM_MOUNT:
+        raise AssertionError('changed exact round item mount append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:1078]
+    if mapping['groups'].pop() != {'id': 'c36-round-item-mount', 'classes': ['V23ProductionRoundItemMountingTests'], 'methodCount': 7}:
+        raise AssertionError('changed round item mount class group')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.LIVE_HOST_POOL_SHA256, CI.LIVE_HOST_MAP_SHA256):
+        raise AssertionError('changed historical live host profile')
+    return default, mapping
+
+
+def prelive_host_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) in (1085, 1091):
+        default, mapping = preround_item_mount_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) != 1078:
+        raise AssertionError('changed live host pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.LIVE_HOST_POOL_SHA256, CI.LIVE_HOST_MAP_SHA256):
+        raise AssertionError('changed live host generated inputs')
+    if default['unitTestSelectors'][1064:] != EXPECTED_LIVE_HOST_RUNTIME:
+        raise AssertionError('changed exact live host append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:1064]
+    if mapping['groups'].pop() != {'id': 'c36-live-host', 'classes': ['V23ProductionCheckRunnerItemHostTests'], 'methodCount': 9}:
+        raise AssertionError('changed live host class group')
+    for group in mapping['groups']:
+        group['methodCount'] -= sum(CI.selection_class(s) in group['classes'] for s in EXPECTED_LIVE_HOST_RUNTIME)
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+        raise AssertionError('changed historical saved fields profile')
+    return default, mapping
+
+
+def prefield_edit_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) in (1078, 1085, 1091):
+        default, mapping = prelive_host_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) != 1064:
+        raise AssertionError('changed field edit pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.GENERATED_SELECTION_POOL_SHA256, CI.GENERATED_SELECTION_MAP_SHA256):
+        raise AssertionError('changed field edit generated inputs')
+    if tuple(default['unitTestSelectors'][-5:]) != CI.FIELD_EDIT_SELECTORS or mapping['groups'][-1] != {
+            'id': 'c36-field-edit', 'classes': ['V23CheckRunnerItemFieldEditingTests'], 'methodCount': 5}:
+        raise AssertionError('changed field edit append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:-5]
+    mapping['groups'] = mapping['groups'][:-1]
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.SAVED_REVIEW_POOL_SHA256, CI.SAVED_REVIEW_MAP_SHA256):
+        raise AssertionError('changed historical saved review profile')
+    return default, mapping
+
+
+def presaved_review_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) in (1064, 1078, 1085, 1091):
+        default, mapping = prefield_edit_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) != 1059:
+        raise AssertionError('changed saved review pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.SAVED_REVIEW_POOL_SHA256, CI.SAVED_REVIEW_MAP_SHA256):
+        raise AssertionError('changed saved review generated inputs')
+    if tuple(default['unitTestSelectors'][-5:]) != CI.SAVED_REVIEW_NEW_SELECTORS:
+        raise AssertionError('changed exact saved review append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:-5]
+    for group in mapping['groups']:
+        group['methodCount'] -= {'c36-production-destination': 4, 'app-myday-production': 1}.get(group['id'], 0)
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.PRE_SAVED_REVIEW_POOL_SHA256, CI.PRE_SAVED_REVIEW_MAP_SHA256):
+        raise AssertionError('changed historical finding profile')
+    return default, mapping
+
+
+def prefinding_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) in (1059, 1064, 1078, 1085, 1091):
+        default, mapping = presaved_review_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) != 1054:
+        raise AssertionError('changed finding pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (CI.PRE_SAVED_REVIEW_POOL_SHA256, CI.PRE_SAVED_REVIEW_MAP_SHA256):
+        raise AssertionError('changed finding generated inputs')
+    if default['unitTestSelectors'][-86:] != FINDING_PROFILE_FIXTURES_SELECTORS or mapping['groups'][-6:] != FINDING_PROFILE_FIXTURES_GROUPS:
+        raise AssertionError('changed exact finding append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:-86]
+    mapping['groups'] = mapping['groups'][:-6]
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('40858D4EF21C001627E6F94FF4A35E3EE17F257E792B210A6B5A854CD296C6B9', '5B858FD1BD73930B155AF7CA823553A62F7AD040B9BDA75839EA5222BD873ADB'):
+        raise AssertionError('changed historical completed-source profile')
+    return default, mapping
+
+
+def precompleted_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064, 1078, 1085, 1091):
+        default, mapping = prefinding_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) != 968:
+        raise AssertionError('changed completed-source pool count')
+    if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('40858D4EF21C001627E6F94FF4A35E3EE17F257E792B210A6B5A854CD296C6B9', '5B858FD1BD73930B155AF7CA823553A62F7AD040B9BDA75839EA5222BD873ADB'):
+        raise AssertionError('changed completed-source generated inputs')
+    if default['unitTestSelectors'][-62:] != ACTIVITY_COMPLETED_SELECTORS or mapping['groups'][-5:] != ACTIVITY_COMPLETED_GROUPS:
+        raise AssertionError('changed exact completed-source append')
+    default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+    default['unitTestSelectors'] = default['unitTestSelectors'][:-62]
+    mapping['groups'] = mapping['groups'][:-5]
+    return default, mapping
+
+
+def prepartition_values(default, mapping):
+    if len(default.get('unitTestSelectors', [])) in (1054, 1059, 1064, 1078, 1085, 1091):
+        default, mapping = prefinding_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) == 968:
+        default, mapping = precompleted_values(default, mapping)
+    if len(default.get('unitTestSelectors', [])) == 906:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('148CA7FF50E4100B0AD0272CB40A64DA34D38842499A317EE4EB2128A408E857', 'EC7CF71ED309E4CCC55C439DAAB2E9B22F5D4A1A2F4AB3137A20071E3C766040'):
+            raise AssertionError('changed activity-codec generated inputs')
+        if default['unitTestSelectors'][-11:] != ACTIVITY_CODEC_SELECTORS or mapping['groups'][-1:] != [
+                {'id': 'activity-codec-evolution', 'classes': ['V23ActivityEnvelopeCodecEvolutionTests'], 'methodCount': 11}]:
+            raise AssertionError('changed exact activity-codec append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-11]
+        mapping['groups'] = mapping['groups'][:-1]
+    if len(default.get('unitTestSelectors', [])) == 895:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('CAC57003CD7FFFA77BB4213C7132C62F2B74F16BBF12F4F6017D65372E293C06', 'ED7B55ACCE7622188EFC8DCE634F8ADC621EA384BD791E2397D3A568E74340D7'):
+            raise AssertionError('changed replacement-history generated inputs')
+        if default['unitTestSelectors'][-11:] != REPLACEMENT_HISTORY_EXTRA_SELECTORS:
+            raise AssertionError('changed exact replacement-history append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-11]
+        group = next(g for g in mapping['groups'] if g['id'] == 'replacement-packet-union')
+        if group['methodCount'] != 12:
+            raise AssertionError('changed replacement-history group')
+        group['methodCount'] = 1
+    if len(default.get('unitTestSelectors', [])) == 884:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('C4A8E689048D865A789F6B3A05CFB8373DD98736048F5596E9057A95AA1E2BCA', '78A280FF3A2EF1302BF2E800F77C3C2411C3F9475717D90A3D4008E65E586D08'):
+            raise AssertionError('changed snapshot-family generated inputs')
+        if default['unitTestSelectors'][-2:] != SNAPSHOT_FAMILY_SELECTORS:
+            raise AssertionError('changed exact snapshot-family append')
+        if mapping['groups'][-1:] != [{'id':'activity-contracts', 'classes':['V9_54ActivityContractFamiliesTests'], 'methodCount':1}]:
+            raise AssertionError('changed snapshot-family group')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-2]
+        mapping['groups'].pop()
+        group = next(g for g in mapping['groups'] if g['id'] == 'observation-temporal')
+        group['methodCount'] -= 1
+    if len(default.get('unitTestSelectors', [])) == 882:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('C3E8641F51A9EEFF34D0E4E65198C35E9AD18DA030B8FED4CB57026BD6D86930', '33C107349D7CA40E9F47B8391CE11A7C16DD800A3C5DD7754A96807248472DA7'):
+            raise AssertionError('changed handoff generated inputs')
+        extra = [
+            'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery',
+            'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption',
+        ]
+        if default['unitTestSelectors'][-2:] != extra:
+            raise AssertionError('changed exact handoff append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-2]
+        group = next(g for g in mapping['groups'] if g['id'] == 'notification-schedule-erase')
+        if group['methodCount'] != 28:
+            raise AssertionError('changed handoff group')
+        group['methodCount'] -= 2
+    if len(default.get('unitTestSelectors', [])) == 880:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('74C22D3BC39737E08CE20331DD429724EF4DDBC5574B2346C4754FBDEAB94D27', '714083DCC599E6D6A3F58B1B0D91C1E990B66327A60E3F500F1E68CDC5368840'):
+            raise AssertionError('changed erase generated inputs')
+        if default['unitTestSelectors'][-11:-2] != list(CI.ERASE_LEASE_SELECTORS) or mapping['groups'][-1:] != [
+                {'id': 'erase-lease-lifecycle', 'classes': ['S2PersistenceLedgerTests'], 'methodCount': 9}]:
+            raise AssertionError('changed exact erase append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-11]
+        mapping['groups'] = mapping['groups'][:-1]
+        for group in mapping['groups']:
+            if group['id'] == 'app-myday-production':group['methodCount'] -= 2
+    if len(default.get('unitTestSelectors', [])) == 869:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('C46A725BF7F425DACBB8DEFEBC31F2543354E6366958C385198DB48C22E9A978', 'AC74ED40BF913D6CAC95195935FC142C261478DD4413188891026218231EB556'):
+            raise AssertionError('changed restore history generated inputs')
+        if default['unitTestSelectors'][-1:] != [CI.RESTORE_HISTORY_PACKET_SELECTOR] or mapping['groups'][-1:] != [
+                {'id': 'replacement-packet-union', 'classes': ['S6_5ReplacementUnionTests'], 'methodCount': 1}]:
+            raise AssertionError('changed exact packet append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-1]
+        mapping['groups'] = mapping['groups'][:-1]
+    if len(default.get('unitTestSelectors', [])) == 868:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('63394DBA6A8D5EF9C18C556473C5B3B28BE8178D3C9BEAC5032B611CA797A72A', '73A11321226C73B195635CB75DD3046F0B49AE5BA8671D3B5A8255DA4D58A0D1'):
+            raise AssertionError('changed generated Settings compatibility inputs')
+        if default['unitTestSelectors'][861:] != SETTINGS_COMPATIBILITY_SELECTORS:
+            raise AssertionError('changed exact Settings compatibility append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:861]
+        for group in mapping['groups']:
+            group['methodCount'] = sum(CI.selection_class(item) in group['classes'] for item in default['unitTestSelectors'])
+    if len(default.get('unitTestSelectors', [])) == 861:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('5484325202957B1DFF6BCD00918273A7792D6D2E5280D32BFEE1368D67CBAE70', '38554B50BAE48ED14098ED2B243B1D19497EB98EBA480A274741BDF6B6416B04'):
+            raise AssertionError('changed generated reminder production inputs')
+        if default['unitTestSelectors'][790:] != REMINDER_PRODUCTION_SELECTORS or mapping['groups'][48:] != REMINDER_PRODUCTION_GROUPS:
+            raise AssertionError('changed exact reminder production append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:790]
+        mapping['groups'] = mapping['groups'][:48]
+        for group in mapping['groups']:
+            group['methodCount'] = sum(CI.selection_class(item) in group['classes'] for item in default['unitTestSelectors'])
+    if len(default.get("unitTestSelectors", [])) == 790:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != ('658B54FBAA5E5907778892FD8F6B07BA5DEE82E5542580AC20723DC711E33584', '143C205A5011FDBF1688CDF885B047070F192471AEDC5BF5B06FBFC20517DB98'):
+            raise AssertionError("changed generated restore review inputs")
+        if default["unitTestSelectors"][777:] != RESTORE_REVIEW_SELECTORS:
+            raise AssertionError("changed exact restore review append")
+        if mapping["groups"][46:] != [{"id": "c36-restore-review", "classes": ["V23RepetitiveCaptureRestoreReviewTests"], "methodCount": 6}, {"id": "c36-restore-authority", "classes": ["V23RestoreReviewAuthorityTests"], "methodCount": 7}]:
+            raise AssertionError("changed restore review groups")
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default["unitTestSelectors"] = default["unitTestSelectors"][:777]
+        mapping["groups"] = mapping["groups"][:46]
+    if len(default.get('unitTestSelectors', [])) == 777:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                'C82EBC63F02BA3B0A6957A09859C41B4686340402C6D8113A6A45040FFFBEDB5', '732FBF8DC385F248761064F8073AD44C9F057A00CEE02140E0285874896C5F76'):
+            raise AssertionError('changed generated production destination inputs')
+        if default['unitTestSelectors'][773:] != PRODUCTION_DESTINATION_SELECTORS:
+            raise AssertionError('changed exact production destination append')
+        if mapping['groups'][45:] != [{'id': 'c36-production-destination',
+                'classes': ['V23ProductionDestinationReviewTests'], 'methodCount': 4}]:
+            raise AssertionError('changed production destination group')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:773]
+        mapping['groups'] = mapping['groups'][:45]
+    if len(default.get('unitTestSelectors', [])) == 773:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                '575C83D0CAC78A35C9BB240193B5AC345425175762A73C7604A2EE5AABB04A1F',
+                '86AC237B0F2A650CCB3B083DD8C8DA50F7176D76C0B9F15816EBD27FD79E5411'):
+            raise AssertionError('changed generated destination inputs')
+        if default['unitTestSelectors'][738:] != EXPECTED_DESTINATION_SELECTORS:
+            raise AssertionError('changed exact destination append')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:738]
+        if [g['id'] for g in mapping['groups'][41:]] != DESTINATION_GROUP_IDS:
+            raise AssertionError('changed destination group order')
+        mapping['groups'] = mapping['groups'][:41]
+        for group in mapping['groups']:
+            group['methodCount'] -= 1 if group['id'] == 'c36-raw-staging' else 0
+    if len(default.get('unitTestSelectors', [])) == 738:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E'):
+            raise AssertionError('changed generated parent-finalization inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        if tuple(default['unitTestSelectors'][731:]) != CI.PARENT_FINALIZATION_SELECTORS:
+            raise AssertionError('changed exact parent finalization append')
+        default['unitTestSelectors'] = default['unitTestSelectors'][:731]
+        for group in mapping['groups']:
+            group['methodCount'] -= 7 if group['id'] == 'report-camera-recovery' else 0
+    if len(default.get('unitTestSelectors', [])) == 731:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                '42337B38E49081DA1D0F9265235B3787DE105C6E695123A6F2CEB560779E2878',
+                '1891580B81536B16989FDB4976A4288FB548A18DA0280C5D7345A22AD2DD5E85'):
+            raise AssertionError('changed generated clone-retirement inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        if tuple(default['unitTestSelectors'][723:]) != CI.CLONE_RETIREMENT_SELECTORS:
+            raise AssertionError('changed exact retirement append')
+        default['unitTestSelectors'] = default['unitTestSelectors'][:723]
+        for group in mapping['groups']:
+            group['methodCount'] -= 8 if group['id'] == 'restore-acceptance' else 0
+    if len(default.get('unitTestSelectors', [])) == 723:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                'C5BFBCF739DCD2BCAF77801385CD1A16C116D6AFE07F1AD02162F0AEF9030AA0',
+                '955D579A27A62C179660C0F8A4A38FF4D91FB9241244BA3B0334A9AF1B0C7A6E'):
+            raise AssertionError('changed generated configuration-clone inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        if tuple(default['unitTestSelectors'][716:]) != CI.CONFIGURATION_CLONE_SELECTORS:
+            raise AssertionError('changed exact clone append')
+        default['unitTestSelectors'] = default['unitTestSelectors'][:716]
+        for group in mapping['groups']:
+            group['methodCount'] -= {'report-camera-recovery': 2, 'restore-acceptance': 5}.get(group['id'], 0)
+    if len(mapping.get('groups', [])) == 41:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                '930A9B3C186EDD0D09F9F630A9214A0FDD95362465B8FEFFBC735D78CF83AA5D', '5BB4E7E1FA935EE74B962F4572F9384FBF5DC4E0BFA83178547D89E0A4287248'):
+            raise AssertionError('changed generated photo-backup enrollment inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        if tuple(default['unitTestSelectors'][-15:]) != CI.PHOTO_BACKUP_PARENT_SELECTORS:
+            raise AssertionError('changed exact photo backup append')
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-15]
+        if mapping['groups'][-1] != {'id': 'backup-capacity',
+                                    'classes': ['S4_1DeterministicRendererTests'], 'methodCount': 1}:
+            raise AssertionError('changed capacity group')
+        mapping['groups'] = mapping['groups'][:-1]
+        increments = {'report-camera-recovery': 11, 'archive-contracts': 1, 'restore-acceptance': 2}
+        for group in mapping['groups']:
+            group['methodCount'] -= increments.get(group['id'], 0)
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                PAIR_STARTUP_POOL_SHA256, PAIR_STARTUP_MAP_SHA256):
+            raise AssertionError('changed historical701/40 output')
+    if len(mapping.get('groups', [])) == 40:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                PAIR_STARTUP_POOL_SHA256, PAIR_STARTUP_MAP_SHA256):
+            raise AssertionError('changed generated pair-startup enrollment inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-4]
+        mapping['groups'] = mapping['groups'][:-1]
+        owner = next(g for g in mapping['groups'] if g['id'] == 'notification-owner')
+        if owner['methodCount'] != 77:
+            raise AssertionError('changed startup owner count')
+        owner['methodCount'] = 75
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                RAW_PHOTO_POOL_SHA256, RAW_PHOTO_MAP_SHA256):
+            raise AssertionError('changed exact raw-photo reconstruction')
+    if len(mapping.get('groups', [])) == 39:
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                RAW_PHOTO_POOL_SHA256, RAW_PHOTO_MAP_SHA256):
+            raise AssertionError('changed generated enrollment inputs')
+        default, mapping = copy.deepcopy(default), copy.deepcopy(mapping)
+        default['unitTestSelectors'] = default['unitTestSelectors'][:-5]
+        mapping['groups'] = mapping['groups'][:-2]
+        if (CI.sha256(CI.canonical(default)), CI.sha256(CI.canonical(mapping))) != (
+                CI.DURABLE_BEGIN_BASE_POOL_SHA256, CI.DURABLE_BEGIN_BASE_MAP_SHA256):
+            raise AssertionError('changed exact incumbent reconstruction')
+    if len(mapping.get('groups', [])) != 37:
+        raise AssertionError('expected actual37 report partition')
+    if mapping['groups'][32:] != REPORT_PARTITION_GROUPS:
+        raise AssertionError('changed report partition groups')
+    expected_aliases = set(REPORT_PARTITION_ALIASES)
+    if {s for s in default['unitTestSelectors'] if s.split('/')[1] in
+            ('V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests')} != expected_aliases:
+        raise AssertionError('changed report partition aliases')
+    prior, prior_map = copy.deepcopy(default), copy.deepcopy(mapping)
+    prior['unitTestSelectors'] = [REPORT_PARTITION_ALIASES.get(s,s) for s in prior['unitTestSelectors']]
+    prior_map['groups'] = prior_map['groups'][:32]
+    group = next(g for g in prior_map['groups'] if g['id']=='report-camera-recovery')
+    if group != {'id': 'report-camera-recovery', 'classes': ['S3_6CameraRecoveryTests', 'S4_5CorrectionTests', 'S6_2BackupExportTests', 'V9_18PackLifecycleIntegrationTests'], 'methodCount': 26}:
+        raise AssertionError('changed retained report group')
+    group.update(copy.deepcopy(PREPARTITION_REPORT))
+    if CI.sha256(CI.canonical(prior)) != '612FA6C2014FAEBA66E9479B39D15539740394964A46B1AC558BC159C9F48500' or CI.sha256(CI.canonical(prior_map)) != 'EB3636645D15460F179DAA1FE30AFA47BC110A3BB66A371FA69F488C54EFDF67':
+        raise AssertionError('prepartition exact source hash differs')
+    return prior, prior_map
+
+def prepartition_read_json(path):
+    prior, mapping = prepartition_values(CI.read_json(ROOT / 'Scripts/ci-selection.json'),
+                                         CI.read_json(ROOT / CI.SELECTION_MAP_PATH))
+    if path == ROOT / 'Scripts/ci-selection.json': return prior
+    if path == ROOT / CI.SELECTION_MAP_PATH: return mapping
+    raise AssertionError('foreign historical source path')
+
+def frozen_begin_suite_source():
+    return '\n'.join((ROOT / 'FieldEvidenceAppTests' / (name+'.swift')).read_text(encoding='utf-8') for name in (
+        'V23CheckRunnerFrozenBeginPreparationTests','V23CheckRunnerFrozenBeginWriterTests','V23CheckRunnerDurableInitialBeginTests'))
+
+def prepartition_workflow(workflow):
+    workflow = workflow_before_shared_coverage(workflow)
+    choice = '          - ' + CI.DEV_BATCH_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact development batch choice')
+    workflow = workflow.replace(choice, '')
+    choice = '          - ' + CI.NOTIFICATION_INTERRUPTION_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact notification interruption choice')
+    workflow = workflow.replace(choice, '')
+    for group_id in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact field edit choice')
+        workflow = workflow.replace(choice, '')
+    for group_id in [group['id'] for group in FINDING_PROFILE_FIXTURES_GROUPS] + [CI.FINDING_PROFILE_FIXTURES_SELECTION_ID]:
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact finding component choice')
+        workflow = workflow.replace(choice, '')
+    choice = '          - notification-schedule-erase-no-index-build30m\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact notification schedule erase choice')
+    workflow = workflow.replace(choice, '')
+    for group_id in [group['id'] for group in ACTIVITY_COMPLETED_GROUPS] + [CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID]:
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact completed-source choice')
+        workflow = workflow.replace(choice, '')
+    choice = '          - activity-codec-punch-no-index-build30m\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact activity-codec Punch choice')
+    workflow = workflow.replace(choice, '')
+    choice = '          - activity-codec-evolution\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact activity-codec choice')
+    workflow = workflow.replace(choice, '')
+    for group_id in ('erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, CI.ERASE_DRAIN_SELECTION_ID, CI.ERASE_REMAINDER_SELECTION_ID, 'replacement-packet-union', CI.RESTORE_HISTORY_SELECTION_ID, CI.REPLACEMENT_UNION_SELECTION_ID, CI.REPLACEMENT_REMAINDER_SELECTION_ID, CI.REPLACEMENT_REPORT_SELECTION_ID, CI.ACTIVITY_BUILD30_SELECTION_ID):
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact restore history choice')
+        workflow = workflow.replace(choice, '')
+    choice = '          - ' + CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact combined reminder choice')
+    workflow = workflow.replace(choice, '')
+    for group in REMINDER_PRODUCTION_GROUPS:
+        choice = '          - ' + group['id'] + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact reminder/restore choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all methods in the checked-in selection manifest', 'all 790 methods across 48 bounded groups')
+    choice = '          - activity-contracts\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact snapshot-family choice')
+    workflow = workflow.replace(choice, '')
+    for group_id in ("c36-restore-review", CI.NO_INDEX_SELECTION_ID,
+                     CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, "c36-restore-authority"):
+        choice = "          - " + group_id + "\n"
+        if workflow.count(choice) != 1: raise AssertionError("missing exact restore choice")
+        workflow = workflow.replace(choice, "")
+    workflow = workflow.replace("all 790 methods across 48 bounded groups", "all 777 methods across 46 bounded groups")
+    choice = '          - ' + CI.BUILD_ORDER_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact build order choice')
+    workflow = workflow.replace(choice, '')
+    choice = '          - c36-saved-review-discard\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact saved review choice')
+    workflow = workflow.replace(choice, '')
+    choice = '          - c36-production-destination\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact production destination choice')
+    workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 777 methods across 46 bounded groups',
+                                'all 773 methods across 45 bounded groups')
+    choice = '          - ' + CI.BUILD_WATCHDOG_SELECTION_ID + '\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact build watchdog choice')
+    workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 773 methods across 45 bounded groups',
+                                'all 738 methods across 41 bounded groups')
+    for group_id in DESTINATION_GROUP_IDS + ['c36-destination-legacy-bytes']:
+        workflow = workflow.replace('          - ' + group_id + '\n', '')
+    for group_id, _ in CI.PARENT_FINALIZATION_METHOD_PARTITIONS:
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact parent finalization choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 738 methods across 41 bounded groups',
+                                'all 731 methods across 41 bounded groups')
+    for group_id, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS:
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact retirement choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 731 methods across 41 bounded groups',
+                                'all 723 methods across 41 bounded groups')
+    choice = '          - c36-photo-configuration-clone\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact clone choice')
+    workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 723 methods across 41 bounded groups',
+                                'all 716 methods across 41 bounded groups')
+    for group_id in ('backup-capacity', *PHOTO_BACKUP_PARTITION_CHOICES):
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact photo backup choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 716 methods across 41 bounded groups',
+                                'all 701 methods across 40 bounded groups')
+    choice = '          - c36-startup-recovery\n'
+    if workflow.count(choice) != 1: raise AssertionError('missing exact startup group choice')
+    workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 701 methods across 40 bounded groups',
+                                'all 697 methods across 39 bounded groups')
+    for group_id in ('mutation-receipt-safety', 'c36-raw-staging'):
+        choice = '          - ' + group_id + '\n'
+        if workflow.count(choice) != 1: raise AssertionError('missing exact generated choice')
+        workflow = workflow.replace(choice, '')
+    workflow = workflow.replace('all 697 methods across 39 bounded groups',
+                                'all 692 methods across 37 bounded groups')
+    for partition_id in SOURCE_GRAPH_PARTITION_CHOICES+DURABLE_PARTITION_CHOICES:
+        choice='          - '+partition_id+'\n'
+        if workflow.count(choice)!=1: raise AssertionError('missing exact durable workflow choice')
+        workflow=workflow.replace(choice,'')
+    for group in REPORT_PARTITION_GROUPS:
+        choice='          - '+group['id']+'\n'
+        if workflow.count(choice)!=1: raise AssertionError('missing exact report workflow choice')
+        workflow=workflow.replace(choice,'')
+    workflow=workflow.replace('all 692 methods across 37 bounded groups','all 618 methods across 32 bounded groups')
+    if CI.sha256(workflow.encode()) != '2C4DF68D3A0EA8ABC3DFB72BF7197BAF83FF327DB65DA0ECA543749C42D3D14C':
+        raise AssertionError('changed prepartition workflow')
+    return workflow
+
+class GeneratedSelectionAdmissionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.root = Path(cls.temp.name).resolve()
+        manifest = CI.read_json(ROOT / 'Scripts/v23-selection-manifest.json')
+        paths = ['Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py',
+                 'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH]
+        paths += ['FieldEvidenceAppTests/' + name + '.swift' for name in sorted({
+            CI.selection_class(selector) for selector in manifest['selectorPool']})]
+        for relative in paths:
+            target = cls.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        cls.default = CI.read_json(cls.root / 'Scripts/ci-selection.json')
+        cls.mapping = CI.read_json(cls.root / CI.SELECTION_MAP_PATH)
+
+    def test_saved_review_exact_nine_actual_select_public_worker_and_original_method_evidence(self):
+        expected = PRODUCTION_DESTINATION_SELECTORS + list(CI.SAVED_REVIEW_NEW_SELECTORS)
+        e = dict(environment(), NATIVE_SELECTION_ID='c36-saved-review-discard')
+        selected, record = CI.selected_input(self.root, e)
+        self.assertEqual(selected['unitTestSelectors'], expected)
+        self.assertEqual((len(expected), len(set(expected))), (9, 9))
+        self.assertEqual(tuple(selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual((selected['tier'], selected['runUISmoke'], selected['uiTestSelectors']), ('N8', False, []))
+        self.assertNotIn(record['selectionID'], CI.NO_INDEX_ROUTES)
+        self.assertEqual(record['selectionSHA256'], CI.sha256(CI.canonical(selected)))
+        self.assertEqual(record['selectionMapSHA256'], CI.sha256((self.root / CI.SELECTION_MAP_PATH).read_bytes()))
+        e.update(DISPATCH_NATIVE_SELECTION_ID=record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+        result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                input=CI.canonical(selected), capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for stage in ('dispatch', 'worker'):
+            admitted = CI.admission(selected, e, HEAD, stage, record, ROOT)
+            self.assertEqual(admitted['selectionID'], 'c36-saved-review-discard')
+            self.assertEqual(admitted['selectionSHA256'], record['selectionSHA256'])
+            self.assertFalse(admitted['acceptance'])
+        for key in ('DISPATCH_NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_SHA256', 'DISPATCH_NATIVE_SELECTION_MAP_SHA256'):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                CI.admission(selected, dict(e, **{key: 'changed'}), HEAD, 'worker', record, ROOT)
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(choices.count(record['selectionID']), 1)
+        self.assertEqual(choices[choices.index('c36-production-destination') + 1], record['selectionID'])
+        self.assertIn('NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}', workflow)
+        self.assertIn('native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id || inputs.native_selection_id }}', workflow)
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text()
+        for key in ('NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_SHA256', 'DISPATCH_NATIVE_SELECTION_MAP_SHA256'):
+            self.assertIn(key + ':', worker)
+        tree = native_tree(expected[0])
+        cases = tree['testNodes'][0]['children'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in expected]
+        self.assertEqual(CI.executed_methods(tree, expected, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(expected))
+        for changed in (cases[:-1], cases + [cases[0]]):
+            hostile = copy.deepcopy(tree)
+            hostile['testNodes'][0]['children'][0]['children'][0]['children'] = changed
+            with self.assertRaises(ValueError):
+                CI.executed_methods(hostile, expected, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+    def test_saved_review_exact_nine_rejects_pool_map_profile_source_and_unknown_changes(self):
+        e = dict(environment(), NATIVE_SELECTION_ID=CI.SAVED_REVIEW_SELECTION_ID)
+        changes = []
+        for members in (self.default['unitTestSelectors'][:-1], self.default['unitTestSelectors'][::-1],
+                        self.default['unitTestSelectors'][:-1] + self.default['unitTestSelectors'][:1],
+                        self.default['unitTestSelectors'][:-1] + [UNIT]):
+            changes.append((self.root / 'Scripts/ci-selection.json', CI.canonical(dict(self.default, unitTestSelectors=members))))
+        changed = copy.deepcopy(self.mapping); changed['groups'][0]['classes'] += changed['groups'][1]['classes']
+        changes.append((self.root / CI.SELECTION_MAP_PATH, CI.canonical(changed)))
+        path = self.root / 'Scripts/v23-selection-manifest.json'; changed = CI.read_json(path)
+        next(p for p in changed['profiles'] if p['id'] == CI.ROUND_ITEM_COMPLETION_PROFILE)['excludedSelectors'] = [CI.SAVED_REVIEW_NEW_SELECTORS[-1]]
+        changes.append((path, CI.canonical(changed)))
+        for selector in CI.SAVED_REVIEW_NEW_SELECTORS:
+            _, name, method = selector.split('/')
+            path = self.root / 'FieldEvidenceAppTests' / (name + '.swift')
+            token = ('func ' + method + '(').encode(); raw = path.read_bytes()
+            self.assertEqual(raw.count(token), 1)
+            changes.append((path, raw.replace(token, b'func missingSavedReviewMethod(')))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            for path, changed in changes:
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(changed)
+                    result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                        env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertFalse(output.exists())
+                finally:
+                    path.write_bytes(original)
+        for suffix in ('-unknown', '-no-index-build30m', '-ui'):
+            with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+                CI.resolve_selection(self.default, self.mapping, CI.SAVED_REVIEW_SELECTION_ID + suffix)
+        for key in CI.BUDGET_KEYS:
+            changed = dict(self.default); changed[key] += 1
+            with self.assertRaises(ValueError): CI.resolve_selection(changed, self.mapping, CI.SAVED_REVIEW_SELECTION_ID)
+
+    def test_saved_review_retains_historical_1054_and_every_unchanged_public_selection(self):
+        old_pool, old_map = presaved_review_values(self.default, self.mapping)
+        report = CI.verify_generated_selection(self.root, old_pool, old_map)
+        self.assertEqual((report['selectorCount'], report['groupCount']), (1054, 68))
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(old_pool, old_map, CI.SAVED_REVIEW_SELECTION_ID)
+        pin = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
+        source = subprocess.check_output(['git', 'show', pin + ':Scripts/v23-native-ci.py'], cwd=ROOT)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'prior.py'; path.write_bytes(source)
+            spec = importlib.util.spec_from_file_location('presaved_ci', path)
+            old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+            workflow = subprocess.check_output(['git', 'show', pin + ':.github/workflows/ios-ci.yml'], cwd=ROOT).decode()
+            block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+            for identifier in re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M):
+                previous = old.resolve_selection(old_pool, old_map, identifier)
+                self.assertEqual(CI.canonical(CI.resolve_selection(old_pool, old_map, identifier)), old.canonical(previous))
+                current = CI.resolve_selection(self.default, self.mapping, identifier)
+                additions = list(CI.SAVED_REVIEW_NEW_SELECTORS + CI.FIELD_EDIT_SELECTORS) if identifier == CI.DEFAULT_SELECTION_ID else list(CI.SAVED_REVIEW_NEW_SELECTORS[:4]) if identifier == 'c36-production-destination' else list(CI.SAVED_REVIEW_NEW_SELECTORS[4:]) if identifier == 'app-myday-production' else []
+                additions += [s for s in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_ROUND_ITEM_MOUNT + EXPECTED_ROUND_ITEM_COMPLETION if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
+                self.assertEqual(current, dict(previous, unitTestSelectors=previous['unitTestSelectors'] + additions))
+
+    def test_partition_selected_input_binds_manifest_and_exact_public_worker_choice(self):
+        path = self.root / 'Scripts/v23-selection-manifest.json'
+        original = path.read_bytes()
+        try:
+            for identifier, members in (*CI.ERASE_DIAGNOSTIC_PARTITIONS, *CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS, (CI.ACTIVITY_BUILD30_SELECTION_ID, CI.ACTIVITY_CONTRACT_SELECTORS), (CI.ACTIVITY_CODEC_PUNCH_SELECTION_ID, CI.ACTIVITY_CODEC_PUNCH_SELECTORS), (CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID, CI.ACTIVITY_COMPLETED_SOURCE_SELECTORS), (CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS), (CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.FINDING_PROFILE_FIXTURES_SELECTORS)):
+                e = dict(environment(), NATIVE_SELECTION_ID=identifier)
+                selected, record = CI.selected_input(self.root, e)
+                self.assertEqual(selected['unitTestSelectors'], list(members))
+                self.assertEqual(record['selectionID'], identifier)
+            # A structurally valid different parent union must still fail this driver's closed binding.
+            changed = json.loads(original)
+            family = changed['diagnosticPartitions']['families'][0]
+            family['parentSelectors'] = family['parentSelectors'][1:] + family['parentSelectors'][:1]
+            family['partitions'][0]['selectors'] = family['parentSelectors'][:1]
+            family['partitions'][1]['selectors'] = family['parentSelectors'][1:]
+            path.write_bytes(CI.canonical(changed))
+            with self.assertRaises(ValueError):
+                CI.selected_input(self.root, dict(environment(), NATIVE_SELECTION_ID=CI.ERASE_DRAIN_SELECTION_ID))
+        finally:
+            path.write_bytes(original)
+
+    def test_current_generated_profile_admits_exact_new_groups_and_binds_protocol_sources(self):
+        report = CI.verify_generated_selection(self.root, self.default, self.mapping)
+        self.assertEqual((report['selectorCount'], report['groupCount']), (1091, 72))
+        for group_id, count in [('c36-round-item-completion', 6), ('c36-round-item-mount', 7), ('c36-live-host', 9), ('c36-field-edit', 6), ('mutation-receipt-safety', 1), ('c36-raw-staging', 5),
+                                ('notification-owner', 93), ('c36-startup-recovery', 2),
+                                ('backup-capacity', 1), ('c36-photo-backup-transport', 12),
+                                ('c36-photo-backup-restore', 3), ('c36-photo-configuration-clone', 7),
+                                ('c36-production-destination', 8), ('app-myday-production', 28), (CI.SAVED_REVIEW_SELECTION_ID, 9), ('c36-restore-review', 6), ('c36-restore-authority', 7),
+                                ('notification-schedule-erase', 28), ('activity-contracts', 1), ('replacement-packet-union', 12), ('activity-codec-evolution', 11)] + [(g['id'], g['methodCount']) for g in ACTIVITY_COMPLETED_GROUPS + FINDING_PROFILE_FIXTURES_GROUPS]:
+            e = environment()
+            e['NATIVE_SELECTION_ID'] = group_id
+            selected, record = CI.selected_input(self.root, e)
+            self.assertEqual(len(selected['unitTestSelectors']), count)
+            self.assertEqual(record['selectionID'], group_id)
+            self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        for relative in ('Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py'):
+            self.assertEqual(CI.PROTOCOL_PATHS.count(relative), 1)
+
+    def test_finding_actual_select_command_uses_exact_86_and_denies_changed_pool_map_source_and_profile(self):
+        e = dict(environment(), NATIVE_SELECTION_ID=CI.FINDING_PROFILE_FIXTURES_SELECTION_ID)
+        selected, record = CI.selected_input(self.root, e)
+        self.assertEqual(selected['unitTestSelectors'], FINDING_PROFILE_FIXTURES_SELECTORS)
+        e.update(DISPATCH_NATIVE_SELECTION_ID=record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)/'selected.json'
+            command = [sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)]
+            def run():
+                return subprocess.run(command, env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            result = run()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+            output.unlink()
+            changes = []
+            # The unadopted81 cohort is neither a current nor historical admission.
+            stale = copy.deepcopy(self.default); stale['unitTestSelectors'] = stale['unitTestSelectors'][:-5]
+            changes.append((self.root/'Scripts/ci-selection.json', CI.canonical(stale)))
+            stale_map = copy.deepcopy(self.mapping); stale_map['groups'] = stale_map['groups'][:-1]
+            changes.append((self.root/CI.SELECTION_MAP_PATH, CI.canonical(stale_map)))
+            for relative, key in [('Scripts/ci-selection.json', 'unitTestSelectors'), (CI.SELECTION_MAP_PATH, 'groups')]:
+                path = self.root/relative; value = CI.read_json(path)
+                value[key] = value[key][::-1]
+                changes.append((path, CI.canonical(value)))
+            path = self.root/'Scripts/v23-selection-manifest.json'; value = CI.read_json(path)
+            next(p for p in value['profiles'] if p['id'] == CI.ROUND_ITEM_COMPLETION_PROFILE)['excludedGroupIDs'] = ['finding-owner-selection']
+            changes.append((path, CI.canonical(value)))
+            for group in FINDING_PROFILE_FIXTURES_GROUPS:
+                name = group['classes'][0]; path = self.root/'FieldEvidenceAppTests'/(name+'.swift')
+                method = next(m.rsplit('/', 1)[1] for m in FINDING_PROFILE_FIXTURES_SELECTORS if m.split('/')[1] == name)
+                changes.append((path, path.read_bytes().replace(('func '+method+'(').encode(), b'func missingFindingMethod(')))
+            for path, changed in changes:
+                original = path.read_bytes()
+                try:
+                    path.write_bytes(changed)
+                    result = run()
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertFalse(output.exists())
+                finally:
+                    path.write_bytes(original)
+
+    def test_completed_source_actual_select_command_binds_public_worker_inputs(self):
+        e = dict(environment(), NATIVE_SELECTION_ID=CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID)
+        selected, record = CI.selected_input(self.root, e)
+        expected = ACTIVITY_COMPLETED_SELECTORS + [
+            'FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed']
+        self.assertEqual(selected['unitTestSelectors'], expected)
+        self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual(record['selectionID'], 'activity-completed-source-no-index-build30m')
+        e.update(DISPATCH_NATIVE_SELECTION_ID=record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)/'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+        for group in ACTIVITY_COMPLETED_GROUPS:
+            name = group['classes'][0]
+            source = self.root / 'FieldEvidenceAppTests' / (name + '.swift')
+            original = source.read_bytes()
+            method = next(m.rsplit('/', 1)[1] for m in ACTIVITY_COMPLETED_SELECTORS if m.split('/')[1] == name)
+            token = ('func ' + method + '(').encode()
+            self.assertEqual(original.count(token), 1)
+            try:
+                source.write_bytes(original.replace(token, b'func missingSelectedCompletedMethod('))
+                with self.assertRaisesRegex(ValueError, 'missing or duplicate source method'):
+                    CI.selected_input(self.root, e)
+            finally:
+                source.write_bytes(original)
+
+    def test_activity_codec_actual_select_command_worker_admission_and_closed_membership(self):
+        e = dict(environment(), NATIVE_SELECTION_ID='activity-codec-evolution')
+        selected, record = CI.selected_input(self.root, e)
+        self.assertEqual(selected['unitTestSelectors'], ACTIVITY_CODEC_SELECTORS)
+        self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        self.assertNotIn(record['selectionID'], CI.NO_INDEX_ROUTES)
+        e.update(DISPATCH_NATIVE_SELECTION_ID=record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        for stage in ('dispatch', 'worker'):
+            self.assertEqual(CI.admission(selected, e, HEAD, stage, record)['selectionID'], record['selectionID'])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)/'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+            worker = (ROOT/'.github/workflows/ios-ci-worker.yml').read_text()
+            command = 'jq -e -f Scripts/ci-worker-selection.jq "$CI_SELECTION_PATH" > /dev/null'
+            self.assertEqual(worker.count(command), 1)
+            bash = Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe' if os.name == 'nt' else Path(shutil.which('bash'))
+            selected_path = str(output)
+            if os.name == 'nt':
+                selected_path = subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', selected_path], text=True).strip()
+            result = subprocess.run([str(bash), '-c', command], cwd=ROOT,
+                env=dict(os.environ, CI_SELECTION_PATH=selected_path), capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        for identifier in ('activity-codec-evolution-extra', 'activity-codec-evolution-no-index-build30m'):
+            with self.assertRaises(ValueError): CI.resolve_selection(self.default, self.mapping, identifier)
+        for members in (ACTIVITY_CODEC_SELECTORS[:-1], ACTIVITY_CODEC_SELECTORS[::-1],
+                        ACTIVITY_CODEC_SELECTORS[:-1] + ACTIVITY_CODEC_SELECTORS[:1]):
+            changed = copy.deepcopy(self.default)
+            changed['unitTestSelectors'] = changed['unitTestSelectors'][:-73] + members + ACTIVITY_COMPLETED_SELECTORS
+            with self.assertRaises(ValueError): CI.resolve_selection(changed, self.mapping, record['selectionID'])
+        source = self.root/'FieldEvidenceAppTests/V23ActivityEnvelopeCodecEvolutionTests.swift'
+        original = source.read_bytes()
+        token = b'func testLegacyUnknownKindRemainsReadableButNotWritable('
+        self.assertEqual(original.count(token), 1)
+        try:
+            source.write_bytes(original.replace(token, b'func missingSelectedCodecMethod('))
+            with self.assertRaisesRegex(ValueError, 'missing or duplicate source method'):
+                CI.selected_input(self.root, e)
+        finally: source.write_bytes(original)
+
+    def test_replacement_history_complete_family_actual_input_and_admission(self):
+        e = dict(environment(), NATIVE_SELECTION_ID='replacement-packet-union')
+        selected, record = CI.selected_input(self.root, e)
+        expected = [CI.RESTORE_HISTORY_PACKET_SELECTOR] + REPLACEMENT_HISTORY_EXTRA_SELECTORS
+        self.assertEqual(selected['unitTestSelectors'], expected)
+        restore, _ = CI.selected_input(self.root, dict(e, NATIVE_SELECTION_ID=CI.RESTORE_HISTORY_SELECTION_ID))
+        self.assertEqual(tuple(restore['unitTestSelectors']), CI.RESTORE_HISTORY_SELECTORS)
+        self.assertEqual(len(restore['unitTestSelectors']), 7)
+        self.assertEqual(tuple(restore[key] for key in CI.BUDGET_KEYS), CI.TIERS['D30'])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                                    env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+        self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        e.update({'DISPATCH_NATIVE_SELECTION_ID': record['selectionID'],
+                  'DISPATCH_NATIVE_SELECTION_SHA256': record['selectionSHA256'],
+                  'DISPATCH_NATIVE_SELECTION_MAP_SHA256': record['selectionMapSHA256']})
+        for stage in ('dispatch', 'worker'):
+            self.assertEqual(CI.admission(selected, e, HEAD, stage, record)['selectionID'], 'replacement-packet-union')
+        for values in (expected[:-1], expected + [expected[-1]], expected[::-1]):
+            changed = copy.deepcopy(self.default)
+            changed['unitTestSelectors'] = changed['unitTestSelectors'][:-11] + values[1:]
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(changed, self.mapping, 'replacement-packet-union')
+        path = self.root / 'FieldEvidenceAppTests/S6_5ReplacementUnionTests.swift'
+        original = path.read_bytes()
+        token = b'func testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback('
+        self.assertEqual(original.count(token), 1)
+        try:
+            path.write_bytes(original.replace(token, b'func missingNativeCoverageMethod('))
+            with self.assertRaisesRegex(ValueError, 'missing or duplicate source method'):
+                CI.selected_input(self.root, e)
+        finally:
+            path.write_bytes(original)
+
+    def test_erase_closed13_actual_input_and_worker_admission_keep_ordinary_budget(self):
+        e = environment()
+        e['NATIVE_SELECTION_ID'] = CI.ERASE_RECOVERY_SELECTION_ID
+        selected, record = CI.selected_input(self.root, e)
+        self.assertEqual(tuple(selected['unitTestSelectors']), CI.ERASE_RECOVERY_SELECTORS)
+        self.assertEqual(len(selected['unitTestSelectors']), 13)
+        self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        self.assertNotIn(CI.ERASE_RECOVERY_SELECTION_ID, CI.NO_INDEX_ROUTES)
+        e.update({'DISPATCH_NATIVE_SELECTION_ID':record['selectionID'],
+                  'DISPATCH_NATIVE_SELECTION_SHA256':record['selectionSHA256'],
+                  'DISPATCH_NATIVE_SELECTION_MAP_SHA256':record['selectionMapSHA256']})
+        for stage in ('dispatch', 'worker'):
+            self.assertEqual(CI.admission(selected, e, HEAD, stage, record)['selectionID'], CI.ERASE_RECOVERY_SELECTION_ID)
+        for name in ('erase-recovery-extra', 'erase-recovery-no-index-build30m-retry'):
+            with self.assertRaises(ValueError): CI.resolve_selection(self.default, self.mapping, name)
+        for position in (0, 8, 12):
+            changed = copy.deepcopy(selected)
+            changed['unitTestSelectors'][position] = changed['unitTestSelectors'][(position+1)%13]
+            with self.assertRaises(ValueError):CI.validate_selection(changed)
+
+    def test_current_admission_rejects_manifest_output_and_source_declaration_drift(self):
+        path = self.root / 'Scripts/v23-selection-manifest.json'
+        original = path.read_bytes()
+        changed = CI.read_json(path)
+        current = next(profile for profile in changed['profiles'] if profile['id'] == CI.ROUND_ITEM_COMPLETION_PROFILE)
+        current['excludedGroupIDs'] = ['c36-startup-recovery']
+        try:
+            path.write_bytes(CI.canonical(changed))
+            with self.assertRaisesRegex(ValueError, 'differs from manifest/source'):
+                CI.verify_generated_selection(self.root, self.default, self.mapping)
+        finally:
+            path.write_bytes(original)
+        hostile = copy.deepcopy(self.default)
+        hostile['unitTestSelectors'][-1], hostile['unitTestSelectors'][-2] = hostile['unitTestSelectors'][-2], hostile['unitTestSelectors'][-1]
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(hostile, self.mapping, 'c36-startup-recovery')
+        source_cases = (
+            ('S6_2BackupExportTests.swift',
+             b'func testSixPhotoSameWorkspaceRestorePublishesCompositionAndColdRecoveryIsAtomic('),
+            ('S6_3BackupValidationTests.swift',
+             b'func testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored('),
+            ('S6_4AtomicRestoreTests.swift',
+             b'func testOwnedGenerationCleanupDoesNotApplyGenerationGrammarToImportPackages('),
+            ('S4_1DeterministicRendererTests.swift',
+             b'func testCapacityOverflowAndUnexpectedStageOrFinalFailClosed('),
+            ('V9_30FieldDraftResilienceTests.swift',
+             b'func testRestoreInitializationMatchesActorPublicationAndReopensExactBytes('),
+            ('V9_15AppLockLifecycleTests.swift',
+             b'func testConfigurationStartupRecoveryTokenBindsRepairOperationAndRevokes('),
+            ('S3_4ResumeRecoveryTests.swift',
+             b'func testMediaReconcileRemovesOrphansAndPreservesMismatchForMaintenance('),
+        )
+        for filename, old in source_cases:
+            source = self.root / 'FieldEvidenceAppTests' / filename
+            original = source.read_bytes()
+            self.assertEqual(original.count(old), 1)
+            try:
+                source.write_bytes(original.replace(old, b'func helperNotSelected('))
+                with self.subTest(filename=filename), self.assertRaisesRegex(
+                        ValueError, 'missing or duplicate source method'):
+                    CI.verify_generated_selection(self.root, self.default, self.mapping)
+            finally:
+                source.write_bytes(original)
+
+
+EXPECTED_RETIREMENT_PARTITIONS = [['c36-clone-retirement-old-pointer', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementOldPointerRollbackRestoresExactIncumbent'], ['c36-clone-retirement-pointer-cleanup', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementPointerLagAndPrivateCleanupResume'], ['c36-clone-retirement-terminal-metadata', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementTerminalMetadataResumesWithoutBaseIntent'], ['c36-clone-retirement-rollback', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementRollbackInterruptionsResume'], ['c36-clone-retirement-unclaimed-binding', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementUnclaimedScaffoldAndBindingTamperFailClosed'], ['c36-clone-retirement-private-hostility', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementChangedPrivateBytesAndUnknownNodesRemainUntouched'], ['c36-clone-retirement-access-cancel', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementAccessAndCancellationRetainRecoveryOwner'], ['c36-clone-retirement-inode-substitution', 'FieldEvidenceAppTests/S6_4AtomicRestoreTests/testConfigurationCloneRetirementClaimRejectsAnInodeSubstitution']]
+
+class ReportPartitionTests(unittest.TestCase):
+    def test_retirement_singletons_preserve_exact_coverage_and_budgets(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        expected = EXPECTED_RETIREMENT_PARTITIONS
+        self.assertEqual([(i, list(m)) for i, m in CI.CLONE_RETIREMENT_METHOD_PARTITIONS],
+                         [(i, [member]) for i, member in expected])
+        observed = []
+        for selection_id, member in expected:
+            selected = CI.resolve_selection(default, mapping, selection_id)
+            self.assertEqual(selected['unitTestSelectors'], [member])
+            self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
+                             {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+            bundle, klass, method = member.split('/')
+            source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'func\s+' + method + r'\s*\(', source)), 1)
+            observed.extend(selected['unitTestSelectors'])
+        self.assertEqual(observed, default['unitTestSelectors'][723:731])
+        self.assertEqual(len(observed), len(set(observed)))
+        self.assertFalse(set(observed) & set(default['unitTestSelectors'][:723]))
+
+    def test_destination_family_has_exact_closed_groups_and_legacy_pair(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(default['unitTestSelectors'][738:773], EXPECTED_DESTINATION_SELECTORS)
+        observed = []
+        for group_id, count in zip(DESTINATION_GROUP_IDS, [13, 7, 7, 7]):
+            selected = CI.resolve_selection(default, mapping, group_id)
+            self.assertEqual(len(selected['unitTestSelectors']), count)
+            self.assertEqual({k: selected[k] for k in CI.BUDGET_KEYS},
+                             {k: default[k] for k in CI.BUDGET_KEYS})
+            observed.extend(selected['unitTestSelectors'])
+        legacy = CI.resolve_selection(default, mapping, 'c36-destination-legacy-bytes')
+        self.assertEqual(legacy['unitTestSelectors'], [EXPECTED_DESTINATION_SELECTORS[-1]])
+        observed.extend(legacy['unitTestSelectors'])
+        self.assertEqual(observed, EXPECTED_DESTINATION_SELECTORS)
+        self.assertEqual(len(observed), len(set(observed)))
+        self.assertFalse(set(observed) & set(default['unitTestSelectors'][:738]))
+        for index in range(738, 773):
+            missing = copy.deepcopy(default); del missing['unitTestSelectors'][index]
+            duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'][index] = default['unitTestSelectors'][738 if index != 738 else 739]
+            foreign = copy.deepcopy(default); foreign['unitTestSelectors'][index] += 'Unknown'
+            for hostile in (missing, duplicate, foreign):
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    CI.resolve_selection(hostile, mapping, 'c36-destination-legacy-bytes')
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][738:773] = reversed(reordered['unitTestSelectors'][738:773])
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(reordered, mapping, 'c36-destination-review')
+        overlap = copy.deepcopy(mapping)
+        overlap['groups'][-1]['classes'].append(overlap['groups'][-2]['classes'][0])
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, overlap, 'c36-destination-review')
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-destination-unknown')
+
+    def test_production_destination_group_is_exact_closed_and_preserves_existing_groups(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected_id = 'c36-production-destination'
+        selected = CI.resolve_selection(default, mapping, selected_id)
+        self.assertEqual(selected['unitTestSelectors'], PRODUCTION_DESTINATION_SELECTORS + list(CI.SAVED_REVIEW_NEW_SELECTORS[:4]))
+        self.assertEqual(default['unitTestSelectors'][773:777], PRODUCTION_DESTINATION_SELECTORS)
+        self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
+                         {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+        self.assertFalse(set(selected['unitTestSelectors']) & set(default['unitTestSelectors'][:773]))
+        for index in range(773, 777):
+            missing = copy.deepcopy(default); del missing['unitTestSelectors'][index]
+            duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'][index] = default['unitTestSelectors'][773 if index != 773 else 774]
+            foreign = copy.deepcopy(default); foreign['unitTestSelectors'][index] += 'Unknown'
+            for hostile in (missing, duplicate, foreign):
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    CI.resolve_selection(hostile, mapping, selected_id)
+        changed_budget = copy.deepcopy(default); changed_budget['testTimeoutSeconds'] += 1
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(changed_budget, mapping, selected_id)
+        overlap = copy.deepcopy(mapping)
+        overlap['groups'][-1]['classes'].append(mapping['groups'][-2]['classes'][0])
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, overlap, selected_id)
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, selected_id + '-unknown')
+
+    def test_settings_compatibility_members_bind_exact_current_owner_and_reject_substitution(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(default['unitTestSelectors'][861:868], SETTINGS_COMPATIBILITY_SELECTORS)
+        self.assertEqual(len(set(SETTINGS_COMPATIBILITY_SELECTORS)), 7)
+        selected = CI.resolve_selection(default, mapping, 'notification-controls')
+        self.assertEqual(selected['unitTestSelectors'], [s for s in default['unitTestSelectors'] if CI.selection_class(s) == 'V9_14SettingsCapabilityLifecycleTests'])
+        self.assertEqual(len(selected['unitTestSelectors']), 27)
+        self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        for index in range(861, 868):
+            for kind in ('missing', 'duplicate', 'old-private-owner'):
+                changed = copy.deepcopy(default)
+                if kind == 'missing': del changed['unitTestSelectors'][index]
+                elif kind == 'duplicate': changed['unitTestSelectors'][index] = changed['unitTestSelectors'][index - 1]
+                else: changed['unitTestSelectors'][index] = changed['unitTestSelectors'][index].replace('V9_14SettingsCapabilityLifecycleTests', 'C45SettingsCapabilityCompatibilityTests')
+                with self.subTest(index=index, kind=kind), self.assertRaises(ValueError):
+                    CI.resolve_selection(changed, mapping, 'notification-controls')
+
+    def test_reminder_production_groups_bind_exact_new_members_and_reject_substitution(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(default['unitTestSelectors'][790:861], REMINDER_PRODUCTION_SELECTORS)
+        self.assertEqual(mapping['groups'][48:53], REMINDER_PRODUCTION_GROUPS)
+        self.assertEqual(len(set(REMINDER_PRODUCTION_SELECTORS)), 71)
+        for group in REMINDER_PRODUCTION_GROUPS:
+            selected = CI.resolve_selection(default, mapping, group['id'])
+            expected = [item for item in REMINDER_PRODUCTION_SELECTORS if CI.selection_class(item) in group['classes']]
+            self.assertEqual(selected['unitTestSelectors'], expected)
+            self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+            with self.assertRaises(ValueError): CI.resolve_selection(default, mapping, group['id'] + '-unknown')
+        for index in range(790, 861):
+            for kind in ('missing', 'duplicate', 'unknown'):
+                changed = copy.deepcopy(default)
+                if kind == 'missing': del changed['unitTestSelectors'][index]
+                elif kind == 'duplicate': changed['unitTestSelectors'][index] = changed['unitTestSelectors'][0]
+                else: changed['unitTestSelectors'][index] += 'Unknown'
+                with self.subTest(index=index, kind=kind), self.assertRaises(ValueError):
+                    CI.resolve_selection(changed, mapping, 'reminder-production-settings')
+        overlap = copy.deepcopy(mapping)
+        overlap['groups'][-1]['classes'].append(overlap['groups'][-2]['classes'][0])
+        with self.assertRaises(ValueError): CI.resolve_selection(default, overlap, 'reminder-production-settings')
+        prior, _ = prepartition_values(default, mapping)
+        self.assertEqual(len(prior['unitTestSelectors']), 692)
+
+    def test_restore_review_groups_bind_exact_membership_and_reject_hostile_inputs(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual(default['unitTestSelectors'][777:790], RESTORE_REVIEW_SELECTORS)
+        observed = []
+        for group_id, expected in [('c36-restore-review', RESTORE_REVIEW_SELECTORS[:6]),
+                                   ('c36-restore-authority', RESTORE_REVIEW_SELECTORS[6:])]:
+            selected = CI.resolve_selection(default, mapping, group_id)
+            self.assertEqual(selected['unitTestSelectors'], expected)
+            self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+            observed.extend(expected)
+            with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+                CI.resolve_selection(default, mapping, group_id + '-unknown')
+        self.assertEqual(len(set(observed)), 13)
+        self.assertFalse(set(observed) & set(default['unitTestSelectors'][:777]))
+        for index in range(777, 790):
+            for kind in ('missing', 'duplicate', 'unknown'):
+                changed = copy.deepcopy(default)
+                if kind == 'missing': del changed['unitTestSelectors'][index]
+                elif kind == 'duplicate': changed['unitTestSelectors'][index] = changed['unitTestSelectors'][0]
+                else: changed['unitTestSelectors'][index] += 'Unknown'
+                with self.subTest(index=index, kind=kind), self.assertRaises(ValueError):
+                    CI.resolve_selection(changed, mapping, 'c36-restore-review')
+        overlap = copy.deepcopy(mapping)
+        overlap['groups'][47]['classes'].append(overlap['groups'][46]['classes'][0])
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, overlap, 'c36-restore-review')
+        prior, prior_map = prepartition_values(default, mapping)
+        self.assertEqual(len(prior['unitTestSelectors']), 692)
+
+    def test_parent_finalization_singletons_have_exact_membership_and_unchanged_contract(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.assertEqual([(i, list(m)) for i, m in CI.PARENT_FINALIZATION_METHOD_PARTITIONS],
+                         [(i, [m]) for i, m in EXPECTED_PARENT_FINALIZATION_PARTITIONS])
+        observed = []
+        for selection_id, member in EXPECTED_PARENT_FINALIZATION_PARTITIONS:
+            selected = CI.resolve_selection(default, mapping, selection_id)
+            self.assertEqual(selected['unitTestSelectors'], [member])
+            self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
+                             {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+            e = environment(); e['NATIVE_SELECTION_ID'] = selection_id
+            admitted, record = CI.selected_input(ROOT, e)
+            self.assertEqual(admitted, selected)
+            self.assertEqual(record['selectionID'], selection_id)
+            self.assertEqual(tuple(selected[key] for key in CI.BUDGET_KEYS), CI.TIERS['N8'])
+            observed.extend(selected['unitTestSelectors'])
+        self.assertEqual(observed, default['unitTestSelectors'][731:738])
+        self.assertEqual(len(observed), len(set(observed)))
+        self.assertFalse(set(observed) & set(default['unitTestSelectors'][:731]))
+
+    def test_parent_finalization_rejects_omission_duplicate_substitution_reorder_and_unknown_route(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected_id = EXPECTED_PARENT_FINALIZATION_PARTITIONS[0][0]
+        for index in range(731, 738):
+            missing = copy.deepcopy(default); missing['unitTestSelectors'].pop(index)
+            duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'][index] = default['unitTestSelectors'][731 if index != 731 else 732]
+            substituted = copy.deepcopy(default); substituted['unitTestSelectors'][index] = default['unitTestSelectors'][0]
+            foreign = copy.deepcopy(default); foreign['unitTestSelectors'][index] += 'Unknown'
+            for hostile in (missing, duplicate, substituted, foreign):
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    CI.resolve_selection(hostile, mapping, selected_id)
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][731:738] = reversed(reordered['unitTestSelectors'][731:738])
+        changed_budget = copy.deepcopy(default); changed_budget['testTimeoutSeconds'] += 1
+        for hostile in (reordered, changed_budget):
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, selected_id)
+        changed_map = copy.deepcopy(mapping)
+        next(g for g in changed_map['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] -= 1
+        with self.assertRaises(ValueError): CI.resolve_selection(default, changed_map, selected_id)
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-parent-finalization-unknown')
+
+    def test_retirement_denies_missing_reordered_foreign_duplicate_and_unknown_inputs(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected_id = EXPECTED_RETIREMENT_PARTITIONS[0][0]
+        for index in range(723, 731):
+            missing = copy.deepcopy(default); missing['unitTestSelectors'].pop(index)
+            duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'][index] = default['unitTestSelectors'][722]
+            foreign = copy.deepcopy(default); foreign['unitTestSelectors'][index] += 'Unknown'
+            for hostile in (missing, duplicate, foreign):
+                with self.subTest(index=index), self.assertRaises(ValueError):
+                    CI.resolve_selection(hostile, mapping, selected_id)
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][723:731] = reversed(reordered['unitTestSelectors'][723:731])
+        changed_budget = copy.deepcopy(default); changed_budget['testTimeoutSeconds'] += 1
+        for hostile in (reordered, changed_budget):
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, selected_id)
+        changed_map = copy.deepcopy(mapping)
+        next(g for g in changed_map['groups'] if g['id'] == 'restore-acceptance')['methodCount'] -= 1
+        with self.assertRaises(ValueError): CI.resolve_selection(default, changed_map, selected_id)
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-clone-retirement-unknown')
+
+    def test_actual_whole_class_partition_preserves_692_methods_and_all_prior_members(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        prior, prior_map=prepartition_values(default,mapping)
+        self.assertEqual(len(default['unitTestSelectors']),1091)
+        self.assertEqual(default['unitTestSelectors'][:677],prior['unitTestSelectors'][:677])
+        seen=[]
+        for group in mapping['groups']:
+            actual=CI.resolve_selection(default,mapping,group['id'])
+            self.assertEqual({k:actual[k] for k in CI.BUDGET_KEYS},{k:prior[k] for k in CI.BUDGET_KEYS})
+            members=actual['unitTestSelectors']; seen.extend(members)
+            self.assertEqual(len(members),group['methodCount'])
+            for klass in (group['classes'] if group['id'] in [g['id'] for g in REPORT_PARTITION_GROUPS] else []):
+                source=(ROOT / 'FieldEvidenceAppTests' / (klass+'.swift')).read_text(encoding='utf-8')
+                declared=re.findall(r'^    func (test\w+)\(',source,re.M)
+                self.assertEqual({s.rsplit('/',1)[1] for s in members if s.split('/')[1]==klass},set(declared))
+            appended = [item for item in REMINDER_PRODUCTION_SELECTORS + SETTINGS_COMPATIBILITY_SELECTORS + SNAPSHOT_FAMILY_SELECTORS
+                        if CI.selection_class(item) in group['classes']]
+            appended += [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in group['classes']]
+            if group['id'] in [g['id'] for g in REMINDER_PRODUCTION_GROUPS]:
+                self.assertEqual(actual, dict(prior, unitTestSelectors=appended))
+            elif group['id'] in [g['id'] for g in FINDING_PROFILE_FIXTURES_GROUPS]:
+                self.assertEqual(actual, dict(prior, unitTestSelectors=[s for s in FINDING_PROFILE_FIXTURES_SELECTORS if CI.selection_class(s) in group['classes']]))
+            elif group['id'] in [g['id'] for g in ACTIVITY_COMPLETED_GROUPS]:
+                self.assertEqual(actual, dict(prior, unitTestSelectors=[s for s in ACTIVITY_COMPLETED_SELECTORS if CI.selection_class(s) in group['classes']]))
+            elif group['id'] == 'c36-field-edit':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=list(CI.FIELD_EDIT_SELECTORS) + EXPECTED_LIVE_HOST_RUNTIME[:1]))
+            elif group['id'] == 'c36-live-host':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=EXPECTED_LIVE_HOST_RUNTIME[1:10]))
+            elif group['id'] == 'c36-round-item-mount':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=EXPECTED_ROUND_ITEM_MOUNT))
+            elif group['id'] == 'c36-round-item-completion':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=EXPECTED_ROUND_ITEM_COMPLETION))
+            elif group['id'] == 'activity-codec-evolution':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=ACTIVITY_CODEC_SELECTORS))
+            elif group['id'] == 'activity-contracts':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=[SNAPSHOT_FAMILY_SELECTORS[1]]))
+            elif group['id'] == 'erase-lease-lifecycle':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=list(CI.ERASE_LEASE_SELECTORS)))
+            elif group['id'] == 'app-myday-production':
+                expected = CI.resolve_selection(prior, prior_map, group['id'])
+                expected['unitTestSelectors'] += appended + list(CI.ERASE_RECOVERY_SELECTORS[9:11])
+                expected['unitTestSelectors'].append(CI.SAVED_REVIEW_NEW_SELECTORS[4])
+                self.assertEqual(actual, expected)
+            elif group['id'] == 'notification-schedule-erase':
+                expected = CI.resolve_selection(prior, prior_map, group['id'])
+                expected['unitTestSelectors'] += appended + [
+                    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffPreservesExactInodeAndSupportsRepeatedConstructorRecovery',
+                    'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEraseManifestHandoffRejectsHostileSidecarsTargetsAndChangedPointerWithoutConsumption',
+                ]
+                self.assertEqual(actual, expected)
+            elif group['id'] == 'replacement-packet-union':
+                self.assertEqual(actual, dict(prior, unitTestSelectors=[CI.RESTORE_HISTORY_PACKET_SELECTOR] + REPLACEMENT_HISTORY_EXTRA_SELECTORS))
+            elif group['id'] not in DESTINATION_GROUP_IDS + ['c36-restore-review','c36-restore-authority','c36-production-destination','report-camera-recovery','notification-owner','mutation-receipt-safety','c36-raw-staging','c36-startup-recovery','archive-contracts','restore-acceptance','backup-capacity']+[g['id'] for g in REPORT_PARTITION_GROUPS]:
+                expected = CI.resolve_selection(prior, prior_map, group['id'])
+                expected['unitTestSelectors'] += appended
+                self.assertEqual(actual, expected)
+        self.assertEqual(len(seen),len(set(seen)))
+        self.assertEqual(set(seen),set(default['unitTestSelectors']))
+        report=[s for s in seen if s.split('/')[1] in {c for g in [mapping['groups'][13]]+REPORT_PARTITION_GROUPS for c in g['classes']}]
+        self.assertEqual({REPORT_PARTITION_ALIASES.get(s,s) for s in report
+                          if s not in CI.PHOTO_BACKUP_PARENT_SELECTORS + CI.CONFIGURATION_CLONE_SELECTORS + CI.PARENT_FINALIZATION_SELECTORS},
+                         set(CI.resolve_selection(prior,prior_map,'report-camera-recovery')['unitTestSelectors']))
+        workflow=(ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        prepartition_workflow(workflow)
+        field=workflow.split('      native_selection_id:\n',1)[1].split('      s10_4_minimum_core_smoke_id:',1)[0]
+        expected=[mapping['defaultSelectionID']]
+        for group in mapping['groups']:
+            expected.append(group['id'])
+            if group['id']=='c36-source-graph': expected.extend(SOURCE_GRAPH_PARTITION_CHOICES)
+            if group['id']=='c36-durable-begin': expected.extend(DURABLE_PARTITION_CHOICES)
+            if group['id']=='backup-capacity': expected.extend(PHOTO_BACKUP_PARTITION_CHOICES + [CI.CONFIGURATION_CLONE_SELECTION_ID] + [i for i, _ in CI.CLONE_RETIREMENT_METHOD_PARTITIONS] + [i for i, _ in CI.PARENT_FINALIZATION_METHOD_PARTITIONS])
+        expected.append('c36-destination-legacy-bytes')
+        expected.insert(expected.index('c36-parent-finalization-check-no-issue') + 1,
+                        CI.BUILD_WATCHDOG_SELECTION_ID)
+        expected.insert(expected.index('c36-destination-discard') + 1, CI.BUILD_ORDER_SELECTION_ID)
+        expected.insert(expected.index('c36-production-destination') + 1, CI.SAVED_REVIEW_SELECTION_ID)
+        expected.remove('c36-field-edit')
+        expected.remove('c36-live-host')
+        expected.remove('c36-round-item-mount')
+        expected.remove('c36-round-item-completion')
+        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
+        expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
+        expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
+        expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
+        expected.insert(expected.index(CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID) + 1, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
+        expected.insert(expected.index('reminder-control-continuation') + 1, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
+        expected.insert(expected.index('activity-codec-evolution') + 1, CI.ACTIVITY_CODEC_PUNCH_SELECTION_ID)
+        expected.insert(expected.index('activity-completed-release') + 1, CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID)
+        expected.insert(expected.index('advanced-recurrence-workflow') + 1, CI.FINDING_PROFILE_FIXTURES_SELECTION_ID)
+        expected.insert(expected.index('activity-contracts') + 1, CI.ACTIVITY_BUILD30_SELECTION_ID)
+        expected.insert(expected.index('replacement-packet-union') + 1, CI.RESTORE_HISTORY_SELECTION_ID)
+        expected.insert(expected.index('replacement-packet-union') + 1, CI.REPLACEMENT_UNION_SELECTION_ID)
+        offset = expected.index(CI.REPLACEMENT_UNION_SELECTION_ID) + 1
+        expected[offset:offset] = [CI.REPLACEMENT_REMAINDER_SELECTION_ID, CI.REPLACEMENT_REPORT_SELECTION_ID]
+        expected.remove('erase-lease-lifecycle')
+        offset=expected.index('replacement-packet-union')
+        expected[offset:offset]=['erase-lease-lifecycle', CI.ERASE_RECOVERY_SELECTION_ID, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, CI.ERASE_DRAIN_SELECTION_ID, CI.ERASE_REMAINDER_SELECTION_ID]
+        self.assertEqual([line.strip()[2:] for line in field.splitlines() if line.startswith('          - ')],expected)
+
+    def test_photo_backup_partitions_cover_exact_append_once_and_keep_native_contract(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        seen = []
+        for (partition_id, members), count in zip(CI.PHOTO_BACKUP_METHOD_PARTITIONS, (12, 3)):
+            actual = CI.resolve_selection(default, mapping, partition_id)
+            self.assertEqual(tuple(actual['unitTestSelectors']), members)
+            self.assertEqual(len(members), count)
+            self.assertEqual({k: v for k, v in actual.items() if k != 'unitTestSelectors'},
+                             {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+            seen.extend(members)
+        self.assertEqual(len(seen), len(set(seen)))
+        self.assertEqual(set(seen), set(default['unitTestSelectors'][701:716]))
+        self.assertEqual(tuple(default['unitTestSelectors'][701:716]), CI.PHOTO_BACKUP_PARENT_SELECTORS)
+        for selector in seen:
+            bundle, klass, method = selector.split('/')
+            source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'\bfunc\s+' + re.escape(method) + r'\s*\(', source)), 1)
+
+    def test_photo_backup_partition_hostiles_preserve_closed_membership_order_and_limits(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        cases = []
+        missing = copy.deepcopy(default); missing['unitTestSelectors'].pop(715); cases.append(missing)
+        duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'].append(default['unitTestSelectors'][715]); cases.append(duplicate)
+        foreign = copy.deepcopy(default); foreign['unitTestSelectors'][715] += 'Unknown'; cases.append(foreign)
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][715], reordered['unitTestSelectors'][714] = reordered['unitTestSelectors'][714], reordered['unitTestSelectors'][715]
+        cases.append(reordered)
+        budget = copy.deepcopy(default); budget['testTimeoutSeconds'] = 901; cases.append(budget)
+        for index, hostile in enumerate(cases):
+            with self.subTest(case=index), self.assertRaises(ValueError):
+                CI.resolve_selection(hostile, mapping, PHOTO_BACKUP_PARTITION_CHOICES[0])
+        wrong_map = copy.deepcopy(mapping); wrong_map['groups'][-1]['methodCount'] += 1
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, wrong_map, PHOTO_BACKUP_PARTITION_CHOICES[1])
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-photo-backup-unknown')
+
+    def test_configuration_clone_selection_exact_source_members_and_unchanged_native_limits(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        selected = CI.resolve_selection(default, mapping, CI.CONFIGURATION_CLONE_SELECTION_ID)
+        self.assertEqual(tuple(selected['unitTestSelectors']), CI.CONFIGURATION_CLONE_SELECTORS)
+        self.assertEqual(len(selected['unitTestSelectors']), 7)
+        self.assertEqual({k: v for k, v in selected.items() if k != 'unitTestSelectors'},
+                         {k: v for k, v in default.items() if k != 'unitTestSelectors'})
+        for selector in selected['unitTestSelectors']:
+            bundle, klass, method = selector.split('/')
+            source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'\bfunc\s+' + re.escape(method) + r'\s*\(', source)), 1)
+        self.assertFalse(set(selected['unitTestSelectors']) & set(CI.PHOTO_BACKUP_PARENT_SELECTORS))
+
+    def test_configuration_clone_rejects_omission_duplicates_order_foreign_class_and_budget_drift(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        cases = []
+        missing = copy.deepcopy(default); missing['unitTestSelectors'].pop(); cases.append(missing)
+        duplicate = copy.deepcopy(default); duplicate['unitTestSelectors'].append(default['unitTestSelectors'][-1]); cases.append(duplicate)
+        foreign = copy.deepcopy(default); foreign['unitTestSelectors'][-1] += 'Unknown'; cases.append(foreign)
+        reordered = copy.deepcopy(default)
+        reordered['unitTestSelectors'][-1], reordered['unitTestSelectors'][-2] = reordered['unitTestSelectors'][-2], reordered['unitTestSelectors'][-1]
+        cases.append(reordered)
+        budget = copy.deepcopy(default); budget['testTimeoutSeconds'] = 901; cases.append(budget)
+        for index, hostile in enumerate(cases):
+            with self.subTest(case=index), self.assertRaises(ValueError):
+                CI.resolve_selection(hostile, mapping, CI.CONFIGURATION_CLONE_SELECTION_ID)
+        wrong_map = copy.deepcopy(mapping)
+        next(g for g in wrong_map['groups'] if g['id'] == 'restore-acceptance')['classes'].append('ForeignTests')
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, wrong_map, CI.CONFIGURATION_CLONE_SELECTION_ID)
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(default, mapping, 'c36-photo-configuration-clone-unknown')
+
+    def test_actual_durable_method_partitions_are_fixed_complete_and_keep_n8_budgets(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        parent=CI.resolve_selection(default,mapping,CI.DURABLE_BEGIN_PARENT_ID)
+        self.assertEqual(tuple(parent['unitTestSelectors']),CI.DURABLE_BEGIN_PARENT_SELECTORS)
+        seen=[]
+        for partition_id,members in CI.DURABLE_BEGIN_METHOD_PARTITIONS:
+            actual=CI.resolve_selection(default,mapping,partition_id)
+            self.assertEqual(tuple(actual['unitTestSelectors']),members)
+            self.assertEqual(tuple(actual[k] for k in CI.BUDGET_KEYS),CI.TIERS['N8'])
+            seen.extend(actual['unitTestSelectors'])
+        self.assertEqual(len(seen),len(set(seen)))
+        self.assertEqual(set(seen),set(parent['unitTestSelectors']))
+        source=(ROOT/'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests.swift').read_text(encoding='utf-8')
+        declared={'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/'+name
+                  for name in re.findall(r'^    func (test\w+)\(',source,re.M)}
+        self.assertEqual(declared,set(CI.DURABLE_BEGIN_PARENT_SELECTORS))
+
+    def test_durable_method_partitions_reject_missing_duplicate_foreign_reordered_and_unknown(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        parent=list(CI.DURABLE_BEGIN_PARENT_SELECTORS)
+        cases=[]
+        missing=copy.deepcopy(default);missing['unitTestSelectors'].remove(parent[0]);cases.append(missing)
+        duplicate=copy.deepcopy(default);duplicate['unitTestSelectors'].append(parent[0]);cases.append(duplicate)
+        foreign=copy.deepcopy(default);foreign['unitTestSelectors'].append(
+            'FieldEvidenceAppTests/V23CheckRunnerDurableInitialBeginTests/testForeign');cases.append(foreign)
+        reordered=copy.deepcopy(default)
+        positions=[reordered['unitTestSelectors'].index(item) for item in parent]
+        reordered['unitTestSelectors'][positions[0]],reordered['unitTestSelectors'][positions[1]]=parent[1],parent[0]
+        cases.append(reordered)
+        for hostile in cases:
+            with self.subTest(case=cases.index(hostile)),self.assertRaises(ValueError):
+                CI.resolve_selection(hostile,mapping,DURABLE_PARTITION_CHOICES[0])
+        with self.assertRaisesRegex(ValueError,'unknown selection ID'):
+            CI.resolve_selection(default,mapping,'c36-durable-begin-unknown')
+
+    def test_durable_partitions_reject_budget_or_whole_map_changes(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        bad_budget=copy.deepcopy(default);bad_budget['testTimeoutSeconds']=1200
+        with self.assertRaisesRegex(ValueError,'budgets'):
+            CI.resolve_selection(bad_budget,mapping,DURABLE_PARTITION_CHOICES[0])
+        for mutate in (lambda m:m['groups'].pop(),
+                       lambda m:m['groups'].append(copy.deepcopy(m['groups'][-1])),
+                       lambda m:m['groups'][32]['classes'].reverse()):
+            hostile=copy.deepcopy(mapping);mutate(hostile)
+            with self.subTest(mutate=mutate),self.assertRaises(ValueError):
+                CI.resolve_selection(default,hostile,DURABLE_PARTITION_CHOICES[1])
+
+    def test_actual_source_graph_partitions_are_fixed_23_1_1_complete_and_keep_n8_budgets(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        parent=CI.resolve_selection(default,mapping,CI.SOURCE_GRAPH_PARENT_ID)
+        self.assertEqual(tuple(parent['unitTestSelectors']),CI.SOURCE_GRAPH_PARENT_SELECTORS)
+        seen=[]
+        for (partition_id,members),count in zip(CI.SOURCE_GRAPH_METHOD_PARTITIONS,(23,1,1)):
+            actual=CI.resolve_selection(default,mapping,partition_id)
+            self.assertEqual(len(actual['unitTestSelectors']),count)
+            self.assertEqual(tuple(actual['unitTestSelectors']),members)
+            self.assertEqual(tuple(actual[k] for k in CI.BUDGET_KEYS),CI.TIERS['N8'])
+            seen.extend(actual['unitTestSelectors'])
+        self.assertEqual(len(seen),len(set(seen)))
+        self.assertEqual(set(seen),set(parent['unitTestSelectors']))
+        for selector in CI.SOURCE_GRAPH_PARENT_SELECTORS:
+            bundle,klass,method=selector.split('/')
+            source=(ROOT/bundle/(klass+'.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'\bfunc\s+'+re.escape(method)+r'\s*\(',source)),1)
+
+    def test_source_graph_partitions_reject_missing_duplicate_foreign_reordered_unknown_and_map_change(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        parent=list(CI.SOURCE_GRAPH_PARENT_SELECTORS)
+        cases=[]
+        missing=copy.deepcopy(default);missing['unitTestSelectors'].remove(parent[0]);cases.append(missing)
+        duplicate=copy.deepcopy(default);duplicate['unitTestSelectors'].append(parent[0]);cases.append(duplicate)
+        foreign=copy.deepcopy(default);foreign['unitTestSelectors'].append(
+            'FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/testForeign');cases.append(foreign)
+        reordered=copy.deepcopy(default)
+        positions=[reordered['unitTestSelectors'].index(item) for item in parent[:2]]
+        reordered['unitTestSelectors'][positions[0]],reordered['unitTestSelectors'][positions[1]]=parent[1],parent[0]
+        cases.append(reordered)
+        for hostile in cases:
+            with self.subTest(case=cases.index(hostile)),self.assertRaises(ValueError):
+                CI.resolve_selection(hostile,mapping,SOURCE_GRAPH_PARTITION_CHOICES[0])
+        changed_map=copy.deepcopy(mapping);changed_map['groups'][31]['methodCount']=24
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default,changed_map,SOURCE_GRAPH_PARTITION_CHOICES[1])
+        with self.assertRaisesRegex(ValueError,'unknown selection ID'):
+            CI.resolve_selection(default,mapping,'c36-source-graph-unknown')
+
+    def test_actual_partition_rejects_missing_duplicate_foreign_and_changed_class_groups(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json'); mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        for mutate in (lambda m:m['groups'].pop(),lambda m:m['groups'].append(copy.deepcopy(m['groups'][-1])),
+                       lambda m:m['groups'][-1].update(id='foreign'),lambda m:m['groups'][-1]['classes'].pop(),
+                       lambda m:m['groups'][-1]['classes'].append('V23CheckRunnerBeginHistoryTests'),
+                       lambda m:m['groups'][-1].update(methodCount=48)):
+            hostile=copy.deepcopy(mapping); mutate(hostile)
+            with self.assertRaises(ValueError): CI.resolve_selection(default,hostile,'c36-field-contracts')
+        for mutate in (lambda p:p['unitTestSelectors'].pop(),lambda p:p['unitTestSelectors'].append(p['unitTestSelectors'][-1]),
+                       lambda p:p['unitTestSelectors'].append('FieldEvidenceAppTests/ForeignTests/testForeign')):
+            hostile=copy.deepcopy(default); mutate(hostile)
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile,mapping,'c36-durable-begin')
+
+    def test_historical_inverse_rejects_same_count_reorder_alias_and_map_substitution(self):
+        default=CI.read_json(ROOT / 'Scripts/ci-selection.json'); mapping=CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        hostile=copy.deepcopy(default)
+        hostile['unitTestSelectors'][0],hostile['unitTestSelectors'][1]=hostile['unitTestSelectors'][1],hostile['unitTestSelectors'][0]
+        with self.assertRaises(AssertionError):prepartition_values(hostile,mapping)
+        hostile=copy.deepcopy(default); hostile['unitTestSelectors'][-1]=hostile['unitTestSelectors'][-1].replace('/test','/testForeign')
+        with self.assertRaises(AssertionError):prepartition_values(hostile,mapping)
+        hostile=copy.deepcopy(mapping); hostile['groups'][0]['classes'].reverse()
+        hostile['groups'][0]['id']='foreign'
+        with self.assertRaises(AssertionError):prepartition_values(default,hostile)
+
+class AdmissionTests(unittest.TestCase):
+    def test_both_providers_and_all_supported_tiers_use_same_contract(self):
+        for provider in ("github", "bitrise"):
+            for tier in ("N8", "P12", "F25"):
+                e, s = environment(provider, tier), selection(tier)
+                for stage in ("dispatch", "worker"):
+                    with self.subTest(provider=provider, tier=tier, stage=stage):
+                        value = CI.admission(s, e, HEAD, stage)
+                        self.assertEqual(value["contractID"], CI.CONTRACT)
+                        self.assertEqual(value["runnerProvider"], provider)
+                        self.assertEqual(value["head"], HEAD)
+                        self.assertTrue(value["diagnosticOnly"])
+                        self.assertFalse(value["providerQualification"])
+                        self.assertFalse(value["acceptance"])
+                        self.assertFalse(value["releaseReady"])
+                        self.assertEqual(value["simulatorFileProtectionDiagnosticPolicy"],
+                                         CI.simulator_diagnostic_policy_binding(ROOT))
+
+    def test_allowance_source_rejects_main_caller_policy_and_promotion_inputs(self):
+        for stage in ("dispatch", "worker"):
+            main = environment()
+            main["GITHUB_REF"] = "refs/heads/main"
+            with self.subTest(stage=stage, case="main"), self.assertRaisesRegex(ValueError, "never a main route"):
+                CI.admission(selection(), main, HEAD, stage)
+            for key in ("SIMULATOR_FILE_PROTECTION_POLICY_ID",
+                        "CI_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_ONLY",
+                        "DISPATCH_SIMULATOR_FILE_PROTECTION_ACCEPTANCE"):
+                supplied = environment()
+                supplied[key] = "true"
+                with self.subTest(stage=stage, key=key), self.assertRaisesRegex(ValueError, "caller-supplied"):
+                    CI.admission(selection(), supplied, HEAD, stage)
+
+    def test_each_foreign_dispatch_input_is_rejected(self):
+        for key in ("SHARED_SHARD", "SHARED_SEGMENT", "SHARED_SOURCE_RUN", "SHARED_SOURCE_MAP", "SMOKE_ID"):
+            for value in ("foreign", None):
+                e = environment("bitrise")
+                if value is None:
+                    del e[key]
+                else:
+                    e[key] = value
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    CI.admission(selection(), e, HEAD, "dispatch")
+
+    def test_each_foreign_worker_input_and_contract_is_rejected(self):
+        valid = environment("bitrise")
+        keys = [key for key in valid if key.startswith(("DISPATCH_", "WORKER_", "CI_S10_4_"))]
+        keys += ["CI_NATIVE_ACCEPTANCE_CONTRACT", "CI_RUNNER_PROVIDER", "CI_RUNNER_LABEL"]
+        for key in keys:
+            for value in ("foreign", None):
+                e = valid.copy()
+                if value is None:
+                    del e[key]
+                else:
+                    e[key] = value
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    CI.admission(selection(), e, HEAD, "worker")
+
+    def test_repository_ref_event_and_original_identity_are_exact(self):
+        for stage in ("dispatch", "worker"):
+            for key, value in (("GITHUB_REPOSITORY", "fork/AssetRounds"), ("GITHUB_REF", "refs/heads/foreign"),
+                               ("GITHUB_EVENT_NAME", "pull_request"), ("GITHUB_SHA", "2" * 40),
+                               ("GITHUB_SHA", "1" * 39), ("GITHUB_RUN_ID", "0"), ("GITHUB_RUN_ATTEMPT", "0")):
+                e = environment()
+                e[key] = value
+                with self.subTest(stage=stage, key=key, value=value), self.assertRaises(ValueError):
+                    CI.admission(selection(), e, HEAD, stage)
+
+    def test_legacy_mode_cannot_admit_current_task_or_new_bitrise_lane(self):
+        s, e = selection(), environment()
+        e["CI_NATIVE_ACCEPTANCE_CONTRACT"] = "none"
+        with self.assertRaises(ValueError):
+            CI.admission(s, e, HEAD, "worker")
+        s["taskID"] = "S10.4"
+        self.assertIsNone(CI.admission(s, e, HEAD, "worker"))
+        self.assertIsNone(CI.admission(s, e, HEAD, "dispatch"))
+        e["SHARED_LANE"] = "bitrise-build-hub-xcode-26.6-acceptance"
+        with self.assertRaises(ValueError):
+            CI.admission(s, e, HEAD, "dispatch")
+        e["CI_NATIVE_ACCEPTANCE_CONTRACT"] = CI.CONTRACT
+        with self.assertRaises(ValueError):
+            CI.admission(s, e, HEAD, "worker")
+
+    def test_selector_shape_exact_methods_and_budgets_are_preserved(self):
+        changes = (("schemaVersion", True), ("taskID", "S10.4"), ("tier", "custom"),
+                   ("runUISmoke", True), ("buildTimeoutSeconds", 601), ("uiTimeoutSeconds", False),
+                   ("unitTestSelectors", []), ("unitTestSelectors", [UNIT, UNIT]),
+                   ("unitTestSelectors", ["FieldEvidenceAppTests/NativeFixtureTests"]),
+                   ("unitTestSelectors", [UI]), ("uiTestSelectors", [UI]), ("extra", 1))
+        for key, value in changes:
+            s = selection()
+            s[key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                CI.validate_selection(s)
+
+    def test_duplicate_json_keys_fail(self):
+        with self.assertRaises(ValueError):
+            json.loads('{"head":"a","head":"b"}', object_pairs_hook=CI.unique_pairs)
+
+
+class UpdatedBuildBudgetAdmissionTests(unittest.TestCase):
+    def test_previous_budget_cannot_dispatch_or_attest_current_policy(self):
+        current = selection()
+        previous = dict(current, buildTimeoutSeconds=600)
+        for provider in ("github", "bitrise"):
+            for stage in ("dispatch", "worker"):
+                valid = environment(provider)
+                CI.admission(current, valid, HEAD, stage)
+                stale = environment(provider)
+                stale["DISPATCH_NATIVE_SELECTION_SHA256"] = CI.sha256(CI.canonical(previous))
+                with self.assertRaises(ValueError):
+                    CI.admission(previous, stale, HEAD, stage)
+
+
+class NoIndexBuildDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID)
+        self.record = {'selectionID': CI.NO_INDEX_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.NO_INDEX_PARENT + '\n\nmessage\n').encode()
+
+    def bound_environment(self, provider='github'):
+        e = environment(provider)
+        e.update(DISPATCH_NATIVE_SELECTION_ID=self.record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=self.record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=self.record['selectionMapSHA256'])
+        return e
+
+    def git_facts(self, command, **kwargs):
+        if command[1:3] == ['cat-file', 'commit']: return self.header
+        return CI.no_index_source_trees(self.record['selectionID'])[command[-1].split(':', 1)[1]] + '\n'
+
+    def test_closed_alias_keeps_six_methods_pool_and_ordinary_budgets(self):
+        self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-restore-review'))
+        self.assertEqual(len(self.selected['unitTestSelectors']), 6)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        for suffix in ('-retry', '-parallel', '-30m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID + suffix)
+
+    def test_both_admissions_bind_original_github_parent_and_every_source_tree(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts) as read:
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertEqual(read.call_count, 5)
+            self.assertFalse(result['acceptance']); self.assertTrue(result['diagnosticOnly'])
+            wrong_route = dict(self.bound_environment(), **(
+                {'SHARED_LANE':'unknown'} if stage == 'dispatch' else {'CI_RUNNER_LABEL':'macos-latest'}))
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2'), wrong_route):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for bad in (b'tree a\n\nmessage\n', self.header.replace(CI.NO_INDEX_PARENT.encode(), b'b'*40),
+                        self.header.replace(b'\n\n', b'\nparent '+b'b'*40+b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=bad), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.NO_INDEX_TREES:
+                def changed_tree(command, **kwargs):
+                    return 'b'*40 if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=changed_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for key in CI.BUDGET_KEYS:
+                changed = dict(self.selected); changed[key] += 1
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(changed, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_source_correction_rejects_consumed_parents_and_pre_correction_trees(self):
+        for stage in ('dispatch', 'worker'):
+            for consumed_parent in ('5a0df2b7c1d50c6ad509e2d13cf50abca141a82d', '5508d03a28a39e5b65045935cc9e0b1d8cb06048',
+                                    '28a6963dea7162011894093e45af50ce04bb0968'):
+                header = self.header.replace(CI.NO_INDEX_PARENT.encode(), consumed_parent.encode())
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            prior_trees = {'FieldEvidenceApp': 'afbd988ca56a30da3bf2064ea3cbb4abd676c598',
+                           'FieldEvidenceAppTests': '6f16af532f61c7f5292bfab15b511c282216cac4'}
+            for path, prior_tree in prior_trees.items():
+                def stale_tree(command, **kwargs):
+                    return prior_tree+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=stale_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def build_fixture(self, artifact):
+        (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+        e = dict(self.bound_environment(), PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                 CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                 CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=str(artifact),
+                 RUNNER_TEMP=str(artifact.parent/'runner temp'))
+        receipt = CI.no_index_build_receipt(ROOT, artifact, self.record, e)
+        (artifact/CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(receipt))
+        argv = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + receipt['argv'][1:]
+        log = 'Command line invocation:\n    '+CI.shlex.join(argv)+'\nbuiltin-SwiftDriver -- /swiftc -module-name FieldEvidenceApp\n** TEST BUILD SUCCEEDED **\n'
+        (artifact/'build-smoke.log').write_text(log, encoding='utf-8')
+        return e, receipt, log
+
+    def test_receipt_binds_admitted_configuration_and_executed_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory); e, receipt, _ = self.build_fixture(artifact)
+            result = CI.verify_no_index_build(ROOT, artifact, self.record, e)
+            self.assertTrue(result['executedCommandExact']); self.assertFalse(result['acceptance'])
+            self.assertFalse(result['speedupEstablished'])
+            self.assertEqual(receipt['sourceTrees'], CI.no_index_source_trees(self.record['selectionID']))
+            self.assertEqual(result['unchangedSourceTrees'], receipt['sourceTrees'])
+            for key, value in {'PROJECT_PATH':'Other.xcodeproj', 'SCHEME':'Other', 'CONFIGURATION':'Release',
+                               'CODE_SIGNING_ALLOWED':'YES', 'CI_DESTINATION':'platform=iOS Simulator,name=iPhone',
+                               'CI_ARTIFACT_DIR':str(artifact/'foreign')}.items():
+                with self.assertRaises(ValueError):
+                    CI.no_index_build_receipt(ROOT, artifact, self.record, dict(e, **{key:value}))
+            with self.assertRaises(ValueError):
+                CI.no_index_build_receipt(ROOT, artifact, dict(self.record, selectionID='c36-restore-review'), e)
+            (artifact/'native-admission.json').write_bytes(CI.canonical(dict(self.record, head='a'*40)))
+            with self.assertRaises(ValueError): CI.no_index_build_receipt(ROOT, artifact, self.record, e)
+
+    def test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory); e, receipt, log = self.build_fixture(artifact)
+            variants = [log.replace('Command line invocation:', 'missing:'), log+log,
+                        log.replace('COMPILER_INDEX_STORE_ENABLE=NO', 'COMPILER_INDEX_STORE_ENABLE=YES'),
+                        log.replace('build-for-testing', 'build-for-testing EXTRA=1'),
+                        log.replace('Xcode_26.6.app', 'Xcode_Other.app'),
+                        log.replace(' -module-name', ' -index-store-path /tmp/index -module-name'),
+                        log.replace('builtin-SwiftDriver -- ', 'missing-driver '),
+                        log.replace('** TEST BUILD SUCCEEDED **', '** BUILD INTERRUPTED **')]
+            for changed in variants:
+                (artifact/'build-smoke.log').write_text(changed, encoding='utf-8')
+                with self.assertRaises(ValueError): CI.verify_no_index_build(ROOT, artifact, self.record, e)
+            (artifact/'build-smoke.log').write_text(log, encoding='utf-8')
+            for key, value in (('head','a'*40), ('argv',receipt['argv'][:-1]), ('sourceTrees',{}), ('acceptance',True)):
+                (artifact/CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(dict(receipt, **{key:value})))
+                with self.assertRaises(ValueError): CI.verify_no_index_build(ROOT, artifact, self.record, e)
+
+    def run_mock_build(self, directory, selector, receipt_exit=0, build_exit=0):
+        # Only disposable shell stand-ins execute; never a local native compiler.
+        base = Path(directory); bin_dir = base/'bin'; bin_dir.mkdir()
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        self.assertTrue(bash.is_file(), 'protocol shell tests require Bash')
+        def shell_path(path):
+            if os.name != 'nt': return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        for name, body in {
+            'python3': '#!/bin/bash\nprintf "receipt\\n" >> "$MOCK_EVENTS"\nprintf "%s\\n" "$@" > "$MOCK_RECEIPT_ARGS"\nexit "$MOCK_RECEIPT_EXIT"\n',
+            'xcodebuild': '#!/bin/bash\nprintf "build\\n" >> "$MOCK_EVENTS"\nprintf "%s\\n" "$@" > "$MOCK_BUILD_ARGS"\nif [ "$MOCK_BUILD_EXIT" != 0 ]; then exit "$MOCK_BUILD_EXIT"; fi\nmkdir -p "$CI_ARTIFACT_DIR/Build.xcresult" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app"\ntouch "$CI_ARTIFACT_DIR/Build.xcresult/result" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/fixture.xctestrun" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app/Info.plist"\n'
+        }.items():
+            path = bin_dir/name; path.write_text(body, encoding='utf-8', newline='\n'); path.chmod(0o755)
+        e = os.environ.copy()
+        # Prepend inside Bash: Windows PATH list separators must not rewrite this POSIX prefix.
+        e.update(NATIVE_SELECTION_ID=selector, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                 CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                 CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=shell_path(base/'artifact'),
+                 RUNNER_TEMP=shell_path(base/'runner temp'), CI_S10_4_SHARED_BUILD_MODE='none',
+                 MOCK_EVENTS=shell_path(base/'events'), MOCK_BUILD_ARGS=shell_path(base/'build-args'),
+                 MOCK_RECEIPT_ARGS=shell_path(base/'receipt-args'), MOCK_RECEIPT_EXIT=str(receipt_exit),
+                 MOCK_BUILD_EXIT=str(build_exit))
+        result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                 shell_path(bin_dir), shell_path(ROOT/'Scripts/build-smoke.sh')],
+                                env=e, capture_output=True, text=True)
+        events = (base/'events').read_text().splitlines() if (base/'events').exists() else []
+        args = (base/'build-args').read_text().splitlines() if (base/'build-args').exists() else []
+        return result, e, events, args
+
+    def test_mock_build_default_historical_and_experiment_vectors(self):
+        for selector in ('none', 'c36-restore-review', CI.BUILD_ORDER_SELECTION_ID, CI.NO_INDEX_SELECTION_ID):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, selector)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = ['-project','FieldEvidenceApp.xcodeproj','-scheme','FieldEvidenceApp',
+                            '-configuration','Debug','-destination','platform=iOS Simulator,id='+UDID,
+                            '-derivedDataPath',e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                            '-resultBundlePath',e['CI_ARTIFACT_DIR']+'/Build.xcresult','CODE_SIGNING_ALLOWED=NO']
+                if selector == CI.NO_INDEX_SELECTION_ID:
+                    expected.append('COMPILER_INDEX_STORE_ENABLE=NO')
+                    self.assertEqual(events, ['receipt','build'])
+                    self.assertEqual((Path(directory)/'receipt-args').read_text().splitlines(),
+                                     ['Scripts/v23-native-ci.py','record-no-index-build'])
+                else: self.assertEqual(events, ['build'])
+                self.assertEqual(args, expected+['build-for-testing'])
+
+    def test_mock_build_admission_and_compiler_failures_propagate_without_products(self):
+        for receipt_exit, build_exit, expected_events in ((79,0,['receipt']), (0,83,['receipt','build'])):
+            with tempfile.TemporaryDirectory() as directory:
+                result, _, events, _ = self.run_mock_build(directory, CI.NO_INDEX_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit)
+                self.assertEqual(events, expected_events)
+                self.assertFalse((Path(directory)/'artifact/Build.xcresult').exists())
+
+    def test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self):
+        worker = (ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        def inputs(name):
+            body = step(worker, name).split('        run:', 1)[0]
+            return dict(re.findall(r'^          (DISPATCH_[A-Z0-9_]+): (.+)$', body, re.M))
+        admitted_inputs = inputs('Validate task selection and timeout tier')
+        build_inputs = inputs('Build unsigned simulator app')
+        self.assertEqual(len(admitted_inputs), 9)
+        self.assertEqual(build_inputs, admitted_inputs)
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            e = dict(self.bound_environment(), GITHUB_WORKSPACE=str(ROOT),
+                     NATIVE_SELECTION_ID=self.record['selectionID'],
+                     PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                     CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                     CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=str(artifact),
+                     RUNNER_TEMP=str(artifact.parent/'runner temp'))
+            e['DISPATCH_NATIVE_SELECTION_MAP_SHA256'] = CI.sha256((ROOT/CI.SELECTION_MAP_PATH).read_bytes())
+            def git_facts(command, **kwargs):
+                if command == ['git','rev-parse','HEAD']: return HEAD+'\n'
+                if command == ['git','rev-parse','HEAD^{tree}']: return 'a'*40+'\n'
+                return self.git_facts(command, **kwargs)
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=git_facts):
+                selected, selection_record = CI.selected_input(ROOT, e)
+                record = CI.admission(selected, e, HEAD, 'worker', selection_record, root=ROOT)
+            record.update(CI.source_binding(ROOT)); record['gitTree'] = 'a'*40
+            (artifact/'native-admission.json').write_bytes(CI.canonical(record))
+            # The workflow job has global inputs, but these nine were previously
+            # present only in the admission/final-checkpoint steps.
+            without_step_inputs = {k:v for k,v in e.items() if k not in admitted_inputs}
+            with mock.patch.dict(os.environ, without_step_inputs, clear=True), \
+                 mock.patch('sys.argv', ['v23-native-ci.py','record-no-index-build']), \
+                 mock.patch.object(CI.subprocess, 'check_output', side_effect=git_facts), \
+                 mock.patch.object(CI.subprocess, 'run') as clean_source:
+                with self.assertRaisesRegex(ValueError, 'foreign execution inputs'): CI.main()
+                clean_source.assert_not_called()
+            self.assertFalse((artifact/CI.NO_INDEX_RECEIPT).exists())
+            with mock.patch.dict(os.environ, e, clear=True), \
+                 mock.patch('sys.argv', ['v23-native-ci.py','record-no-index-build']), \
+                 mock.patch.object(CI.subprocess, 'check_output', side_effect=git_facts), \
+                 mock.patch.object(CI.subprocess, 'run') as clean_source:
+                CI.main()
+                clean_source.assert_called_once_with(['git','diff','--exit-code','HEAD','--'],
+                    cwd=ROOT.resolve(), check=True, stdout=subprocess.DEVNULL)
+            receipt = CI.read_json(artifact/CI.NO_INDEX_RECEIPT)
+            self.assertEqual(receipt, CI.no_index_build_receipt(ROOT, artifact, record, e))
+            self.assertEqual(receipt['parent'], CI.NO_INDEX_ROUTES[self.record['selectionID']][0])
+            self.assertEqual(receipt['argv'][-2:], ['COMPILER_INDEX_STORE_ENABLE=NO','build-for-testing'])
+
+
+class RestoreBuildWatchdogDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
+        self.record = {'selectionID': CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.RESTORE_BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def test_closed_six_method_budget_extension_preserves_ordinary_selection(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'c36-restore-review')
+        self.assertEqual(self.selected, dict(ordinary, tier='D30', **dict(zip(CI.BUDGET_KEYS, (300,1800,900,0,3000)))))
+        self.assertEqual(tuple(self.selected['unitTestSelectors']), CI.RESTORE_BUILD_WATCHDOG_SELECTORS)
+        self.assertEqual(len(self.selected['unitTestSelectors']), 6)
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300,1200,900,0,2400))
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.NO_INDEX_SELECTION_ID), ordinary)
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        for suffix in ('-retry', '-parallel', '-permanent'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID + suffix)
+
+    def test_development_binding_rejects_consumed_build30_source(self):
+        self.assertEqual(CI.NO_INDEX_PARENT, '5c1e9831153e9e5feddda08e1152de06ecbaaed2')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_PARENT, '0f8bad2567c630ec07d821f31926af8eeb1a8355')
+        self.assertEqual(CI.RESTORE_BUILD_WATCHDOG_TREES['FieldEvidenceAppTests'], 'c6601753da678593a9f5b76a13da9b54b17eb485')
+        self.assertEqual(CI.NO_INDEX_TREES['FieldEvidenceAppTests'], '6ae80744a230727892ceb04617421d91fd17e53a')
+        for stage in ('dispatch', 'worker'):
+            def substituted(command, **kwargs):
+                if command[-1] == HEAD+':FieldEvidenceAppTests':
+                    return 'a2f24ecc69d04fe658094f87e7c99fc77e2b5b51\n'
+                return self.git_facts(command, **kwargs)
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=substituted), self.assertRaises(ValueError):
+                CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+        with self.assertRaises(ValueError): CI.no_index_source_trees('c36-restore-review')
+
+    def test_both_admissions_bind_diagnostic_parent_and_exact_source_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertEqual(result['selectionID'], CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance']); self.assertFalse(result['providerQualification'])
+            for path in CI.NO_INDEX_TREES:
+                def wrong_tree(command, **kwargs):
+                    return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_foreign_route_attempt_parent_budget_or_closed_method_substitution_denies(self):
+        for stage in ('dispatch', 'worker'):
+            for e in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, self.record)
+            for parent in (CI.NO_INDEX_PARENT, CI.BUILD_WATCHDOG_PARENT, '94df47d940ef3cdbc993336a157c5145d84ee812', 'f'*40):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=self.header.replace(CI.RESTORE_BUILD_WATCHDOG_PARENT.encode(), parent.encode())), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for fields in ({'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                           {'unitTestSelectors': self.selected['unitTestSelectors'][::-1]},
+                           {'unitTestSelectors': list(CI.PARENT_FINALIZATION_METHOD_PARTITIONS[0][1])},
+                           {'buildTimeoutSeconds': 1801}, {'testTimeoutSeconds': 901},
+                           {'totalBudgetSeconds': 3001}, {'tier': 'N8'}, {'runUISmoke': True}):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+            for selector in (CI.NO_INDEX_SELECTION_ID, CI.BUILD_WATCHDOG_SELECTION_ID, 'c36-restore-review'):
+                record = dict(self.record, selectionID=selector)
+                e = dict(self.bound_environment(), DISPATCH_NATIVE_SELECTION_ID=selector)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, record)
+
+    def test_new_shell_route_preserves_argv_and_propagates_receipt_or_build_failure(self):
+        for receipt_exit, build_exit in ((0,0), (79,0), (0,83)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt','build'])
+                if not receipt_exit:
+                    expected = ['-project','FieldEvidenceApp.xcodeproj','-scheme','FieldEvidenceApp',
+                                '-configuration','Debug','-destination','platform=iOS Simulator,id='+UDID,
+                                '-derivedDataPath',e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                                '-resultBundlePath',e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                                'CODE_SIGNING_ALLOWED=NO','COMPILER_INDEX_STORE_ENABLE=NO','build-for-testing']
+                    self.assertEqual(args, expected)
+                if receipt_exit or build_exit:
+                    self.assertFalse((Path(directory)/'artifact/Build.xcresult').exists())
+
+    def test_new_route_real_receipt_cli_requires_all_original_build_step_inputs(self):
+        NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+
+    def test_new_receipt_verifies_execution_and_denies_tampering(self):
+        NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+        NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_actual_worker_filter_admits_only_complete_six_method_budget(self):
+        BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+
+class ReminderBuildWatchdogDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
+        self.record = {'selectionID': CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.REMINDER_BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def test_public_dispatch_exposes_combined_reminder_selection_once(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        self.assertIn('        type: choice\n', block.group(1))
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID), 1)
+        self.assertEqual(len(options), len(set(options)))
+
+    def test_exact_ordered_union_preserves_four_ordinary_groups_and_default(self):
+        members = []
+        for group, count in zip(CI.REMINDER_BUILD_WATCHDOG_GROUPS, (7, 10, 6, 10)):
+            selected = CI.resolve_selection(self.default, self.mapping, group)
+            self.assertEqual(len(selected['unitTestSelectors']), count)
+            self.assertEqual(selected['tier'], 'N8')
+            self.assertEqual(tuple(selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+            members.extend(selected['unitTestSelectors'])
+        self.assertEqual(len(set(members)), 33)
+        self.assertEqual(tuple(members), CI.REMINDER_BUILD_WATCHDOG_SELECTORS)
+        self.assertEqual(self.selected['unitTestSelectors'], members)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertFalse(self.selected['runUISmoke'])
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
+        for suffix in ('-retry', '-parallel', '-34'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID + suffix)
+        for altered in (tuple(members[:-1]), tuple(members[::-1]), tuple(members[:-1] + members[:1])):
+            with mock.patch.object(CI, 'REMINDER_BUILD_WATCHDOG_SELECTORS', altered), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID)
+
+    def test_both_admissions_require_exact_original_github_parent_and_product_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance']); self.assertFalse(result['providerQualification'])
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for header in (b'tree a\n\nmessage\n', self.header.replace(CI.REMINDER_BUILD_WATCHDOG_PARENT.encode(), b'f'*40),
+                           self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.REMINDER_BUILD_WATCHDOG_TREES:
+                def wrong_tree(command, **kwargs):
+                    return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_budget_or_member_or_selector_substitution_denies(self):
+        for stage in ('dispatch', 'worker'):
+            changes = [{'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                       {'unitTestSelectors': self.selected['unitTestSelectors'][::-1]},
+                       {'unitTestSelectors': list(CI.RESTORE_BUILD_WATCHDOG_SELECTORS)},
+                       {'tier': 'N8'}, {'runUISmoke': True}]
+            changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+            for fields in changes:
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+            for selector in (CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, 'reminder-production-settings', 'unknown'):
+                e = dict(self.bound_environment(), DISPATCH_NATIVE_SELECTION_ID=selector)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, dict(self.record, selectionID=selector))
+
+    def test_real_shell_uses_exact_no_index_recipe_and_propagates_failures(self):
+        for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, CI.REMINDER_BUILD_WATCHDOG_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                if not receipt_exit:
+                    self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                        '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                        '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                        '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                        'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_receipt_cli_and_actual_execution_reject_omissions_and_tampering(self):
+        NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+        NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+        NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_worker_budget_filter_accepts_complete_union_only(self):
+        BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+
+class RestoreHistoryBuildWatchdogDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.RESTORE_HISTORY_SELECTION_ID)
+        self.record = {'selectionID': CI.RESTORE_HISTORY_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.RESTORE_HISTORY_PARENT + '\n\nmessage\n').encode()
+
+    def test_public_dispatch_exposes_combined_restore_history_selection_once(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        self.assertIn('        type: choice\n', block.group(1))
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.RESTORE_HISTORY_SELECTION_ID), 1)
+        self.assertEqual(len(options), len(set(options)))
+
+    def test_exact_ordered_union_remains_closed_with_expanded_ordinary_coverage(self):
+        members = []
+        for group, count in zip(CI.RESTORE_HISTORY_GROUPS, (6, 12)):
+            selected = CI.resolve_selection(self.default, self.mapping, group)
+            self.assertEqual(len(selected['unitTestSelectors']), count)
+            self.assertEqual(selected['tier'], 'N8')
+            self.assertEqual(tuple(selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+            members.extend(selected['unitTestSelectors'])
+        self.assertEqual(len(set(members)), 18)
+        self.assertEqual(members, list(CI.RESTORE_HISTORY_SELECTORS) + REPLACEMENT_HISTORY_EXTRA_SELECTORS)
+        members = members[:7]
+        self.assertEqual(len(set(members)), 7)
+        self.assertEqual(tuple(members), CI.RESTORE_HISTORY_SELECTORS)
+        self.assertEqual(self.selected['unitTestSelectors'], members)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertFalse(self.selected['runUISmoke'])
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
+        for suffix in ('-retry', '-parallel', '-8'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.RESTORE_HISTORY_SELECTION_ID + suffix)
+        for altered in (tuple(members[:-1]), tuple(members[::-1]), tuple(members[:-1] + members[:1])):
+            with mock.patch.object(CI, 'RESTORE_HISTORY_SELECTORS', altered), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.RESTORE_HISTORY_SELECTION_ID)
+
+    def test_both_admissions_require_exact_original_github_parent_and_product_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance']); self.assertFalse(result['providerQualification'])
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for header in (b'tree a\n\nmessage\n', self.header.replace(CI.RESTORE_HISTORY_PARENT.encode(), b'f'*40),
+                           self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.RESTORE_HISTORY_TREES:
+                def wrong_tree(command, **kwargs):
+                    return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_budget_or_member_or_selector_substitution_denies(self):
+        for stage in ('dispatch', 'worker'):
+            changes = [{'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                       {'unitTestSelectors': self.selected['unitTestSelectors'][::-1]},
+                       {'unitTestSelectors': list(CI.RESTORE_BUILD_WATCHDOG_SELECTORS)},
+                       {'tier': 'N8'}, {'runUISmoke': True}]
+            changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+            for fields in changes:
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+            for selector in (CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, 'reminder-production-settings', 'unknown'):
+                e = dict(self.bound_environment(), DISPATCH_NATIVE_SELECTION_ID=selector)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, dict(self.record, selectionID=selector))
+
+    def test_real_shell_uses_exact_no_index_recipe_and_propagates_failures(self):
+        for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, CI.RESTORE_HISTORY_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                if not receipt_exit:
+                    self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                        '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                        '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                        '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                        'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_receipt_cli_and_actual_execution_reject_omissions_and_tampering(self):
+        NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+        NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+        NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_worker_budget_filter_accepts_complete_union_only(self):
+        BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+
+class ReplacementUnionBuildWatchdogDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.REPLACEMENT_UNION_SELECTION_ID)
+        self.record = {'selectionID': CI.REPLACEMENT_UNION_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.REPLACEMENT_UNION_PARENT + '\n\nmessage\n').encode()
+
+    def test_public_dispatch_exposes_replacement_union_selection_once(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        self.assertIn('        type: choice\n', block.group(1))
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.REPLACEMENT_UNION_SELECTION_ID), 1)
+        self.assertEqual(len(options), len(set(options)))
+
+    def test_exact_complete_family_preserves_default_and_historical_routes(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'replacement-packet-union')
+        self.assertEqual(len(ordinary['unitTestSelectors']), 12)
+        self.assertEqual(self.selected['unitTestSelectors'], ordinary['unitTestSelectors'])
+        self.assertEqual(tuple(self.selected['unitTestSelectors']), CI.REPLACEMENT_UNION_SELECTORS)
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
+        self.assertEqual(len(CI.resolve_selection(self.default, self.mapping, CI.RESTORE_HISTORY_SELECTION_ID)['unitTestSelectors']), 7)
+        self.assertTrue(set(self.selected['unitTestSelectors']).isdisjoint(CI.REMINDER_BUILD_WATCHDOG_SELECTORS))
+        self.assertFalse(self.selected['runUISmoke'])
+        for suffix in ('-retry', '-parallel', '-13'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.REPLACEMENT_UNION_SELECTION_ID + suffix)
+        members = ordinary['unitTestSelectors']
+        for altered in (tuple(members[:-1]), tuple(members[::-1]), tuple(members[:-1] + members[:1])):
+            with mock.patch.object(CI, 'REPLACEMENT_UNION_SELECTORS', altered), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.REPLACEMENT_UNION_SELECTION_ID)
+
+    def test_both_admissions_require_exact_original_github_parent_and_product_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance']); self.assertFalse(result['providerQualification'])
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for header in (b'tree a\n\nmessage\n', self.header.replace(CI.REPLACEMENT_UNION_PARENT.encode(), b'f'*40),
+                           self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.REPLACEMENT_UNION_TREES:
+                def wrong_tree(command, **kwargs):
+                    return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_budget_or_member_or_selector_substitution_denies(self):
+        for stage in ('dispatch', 'worker'):
+            changes = [{'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                       {'unitTestSelectors': self.selected['unitTestSelectors'][::-1]},
+                       {'unitTestSelectors': list(CI.RESTORE_BUILD_WATCHDOG_SELECTORS)},
+                       {'tier': 'N8'}, {'runUISmoke': True}]
+            changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+            for fields in changes:
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+            for selector in (CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID, 'reminder-production-settings', 'unknown'):
+                e = dict(self.bound_environment(), DISPATCH_NATIVE_SELECTION_ID=selector)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, dict(self.record, selectionID=selector))
+
+    def test_real_shell_uses_exact_no_index_recipe_and_propagates_failures(self):
+        for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, CI.REPLACEMENT_UNION_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                if not receipt_exit:
+                    self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                        '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                        '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                        '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                        'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_receipt_cli_and_actual_execution_reject_omissions_and_tampering(self):
+        NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+        NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+        NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_worker_budget_filter_accepts_complete_union_only(self):
+        BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+
+class EraseBuildWatchdogDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID)
+        self.record = {'selectionID': CI.ERASE_BUILD_WATCHDOG_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.ERASE_BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def test_public_dispatch_exposes_erase_development_selection_once(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        self.assertIn('        type: choice\n', block.group(1))
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.ERASE_BUILD_WATCHDOG_SELECTION_ID), 1)
+        self.assertEqual(len(options), len(set(options)))
+
+    def test_exact_ordered_erase_selection_preserves_ordinary_and_default(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, CI.ERASE_RECOVERY_SELECTION_ID)
+        members = ordinary['unitTestSelectors']
+        self.assertEqual(tuple(members), CI.ERASE_RECOVERY_SELECTORS)
+        self.assertEqual(len(set(members)), 13)
+        self.assertEqual(ordinary['tier'], 'N8')
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertNotIn(CI.ERASE_RECOVERY_SELECTION_ID, CI.NO_INDEX_ROUTES)
+        self.assertEqual(self.selected['unitTestSelectors'], members)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertFalse(self.selected['runUISmoke'])
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.DEFAULT_SELECTION_ID), self.default)
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        for suffix in ('-retry', '-parallel', '-14'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID + suffix)
+        for altered in (tuple(members[:-1]), tuple(members[::-1]), tuple(members[:-1] + members[:1])):
+            with self.assertRaises(ValueError):
+                CI.validate_selection(dict(self.selected, unitTestSelectors=list(altered)))
+
+    def test_both_admissions_require_exact_original_github_parent_and_product_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance']); self.assertFalse(result['providerQualification'])
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for header in (b'tree a\n\nmessage\n', self.header.replace(CI.ERASE_BUILD_WATCHDOG_PARENT.encode(), b'f'*40),
+                           self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.ERASE_BUILD_WATCHDOG_TREES:
+                def wrong_tree(command, **kwargs):
+                    return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def test_budget_or_member_or_selector_substitution_denies(self):
+        for stage in ('dispatch', 'worker'):
+            changes = [{'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                       {'unitTestSelectors': self.selected['unitTestSelectors'][::-1]},
+                       {'unitTestSelectors': list(CI.RESTORE_BUILD_WATCHDOG_SELECTORS)},
+                       {'tier': 'N8'}, {'runUISmoke': True}]
+            changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+            for fields in changes:
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+            for selector in (CI.ERASE_RECOVERY_SELECTION_ID, CI.RESTORE_HISTORY_SELECTION_ID, 'unknown'):
+                e = dict(self.bound_environment(), DISPATCH_NATIVE_SELECTION_ID=selector)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, dict(self.record, selectionID=selector))
+
+    def test_real_shell_uses_exact_no_index_recipe_and_propagates_failures(self):
+        for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, receipt_exit, build_exit)
+                self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                if not receipt_exit:
+                    self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                        '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                        '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                        '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                        'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_receipt_cli_and_actual_execution_reject_omissions_and_tampering(self):
+        NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+        NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+        NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_worker_budget_filter_accepts_complete_union_only(self):
+        BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+class ErasePartitionDiagnosticTests(unittest.TestCase):
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.select(CI.ERASE_DRAIN_SELECTION_ID)
+
+    def select(self, identifier):
+        self.selected = CI.resolve_selection(self.default, self.mapping, identifier)
+        self.record = {'selectionID': identifier,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + CI.ERASE_PARTITION_PARENT + '\n\nmessage\n').encode()
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        observed = []
+        for (identifier, members), count in zip(CI.ERASE_DIAGNOSTIC_PARTITIONS, (1, 12)):
+            self.select(identifier)
+            self.assertEqual(self.selected['unitTestSelectors'], list(members))
+            self.assertEqual(len(members), count)
+            self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+            self.assertFalse(self.selected['runUISmoke'])
+            observed.extend(members)
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, identifier + '-retry')
+        self.assertEqual(observed, list(CI.ERASE_RECOVERY_SELECTORS))
+        self.assertEqual(len(set(observed)), 13)
+        for identifier, tier in ((CI.ERASE_RECOVERY_SELECTION_ID, 'N8'), (CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, 'D30')):
+            historical = CI.resolve_selection(self.default, self.mapping, identifier)
+            self.assertEqual(historical['unitTestSelectors'], observed)
+            self.assertEqual(historical['tier'], tier)
+
+    def test_both_admissions_reject_wrong_parent_provider_tree_selector_and_budget(self):
+        for identifier, members in CI.ERASE_DIAGNOSTIC_PARTITIONS:
+            self.select(identifier)
+            for stage in ('dispatch', 'worker'):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                    admitted = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                self.assertTrue(admitted['diagnosticOnly'])
+                self.assertFalse(admitted['acceptance'])
+                self.assertFalse(admitted['providerQualification'])
+                for e in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(self.selected, e, HEAD, stage, self.record)
+                for header in (self.header.replace(CI.ERASE_PARTITION_PARENT.encode(), b'f'*40),
+                               self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                    with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                for path in CI.ERASE_PARTITION_TREES:
+                    def wrong_tree(command, **kwargs):
+                        return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                changes = [{'unitTestSelectors': list(CI.ERASE_RECOVERY_SELECTORS)}, {'tier': 'N8'}, {'runUISmoke': True}]
+                changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+                for fields in changes:
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+                for other in (CI.ERASE_BUILD_WATCHDOG_SELECTION_ID, 'unknown') + tuple(k for k, _ in CI.ERASE_DIAGNOSTIC_PARTITIONS if k != identifier):
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, dict(self.record, selectionID=other))
+
+    def test_real_build_shell_uses_no_index_recipe_and_preserves_failures(self):
+        for identifier, _ in CI.ERASE_DIAGNOSTIC_PARTITIONS:
+            for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+                with tempfile.TemporaryDirectory() as directory:
+                    result, e, events, args = self.run_mock_build(directory, identifier, receipt_exit, build_exit)
+                    self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                    self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                    if not receipt_exit:
+                        self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                            '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                            '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                            '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                            'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_real_receipt_cli_and_execution_binding_for_both_partitions(self):
+        for identifier, _ in CI.ERASE_DIAGNOSTIC_PARTITIONS:
+            self.select(identifier)
+            NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+            NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+            NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_actual_worker_jq_accepts_only_exact_partition_budgets_and_members(self):
+        for identifier, _ in CI.ERASE_DIAGNOSTIC_PARTITIONS:
+            self.select(identifier)
+            BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+    def test_real_test_shell_passes_exact_ordered_methods_and_propagates_failure(self):
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        def shell_path(path):
+            if os.name != 'nt': return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        for identifier, members in CI.ERASE_DIAGNOSTIC_PARTITIONS:
+            self.select(identifier)
+            for test_exit in (0, 83):
+                with tempfile.TemporaryDirectory() as directory:
+                    base = Path(directory); binary = base/'bin'; binary.mkdir()
+                    artifact = base/'artifact'; artifact.mkdir()
+                    selected = artifact/'ci-selection.selected.json'
+                    selected.write_bytes(CI.canonical(self.selected))
+                    executable = binary/'xcodebuild'
+                    executable.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$MOCK_TEST_ARGS"\nmkdir -p "$CI_ARTIFACT_DIR/UnitTests.xcresult"\ntouch "$CI_ARTIFACT_DIR/UnitTests.xcresult/result"\nexit "$MOCK_TEST_EXIT"\n', newline='\n')
+                    executable.chmod(0o755)
+                    e = dict(os.environ, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                             CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                             CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=shell_path(artifact),
+                             CI_SELECTION_PATH=shell_path(selected), RUNNER_TEMP=shell_path(base/'runner'),
+                             CI_S10_4_SHARED_BUILD_MODE='none', CI_NATIVE_ACCEPTANCE_CONTRACT='none',
+                             MOCK_TEST_ARGS=shell_path(base/'args'), MOCK_TEST_EXIT=str(test_exit))
+                    # Actual jq and shell consume the real closed selected JSON. Only Xcode is stubbed on Windows.
+                    result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                             shell_path(binary), shell_path(ROOT/'Scripts/test-smoke.sh')],
+                                            env=e, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, test_exit, result.stderr)
+                    args = (base/'args').read_text().splitlines()
+                    self.assertEqual([arg for arg in args if arg.startswith('-only-testing:')],
+                                     ['-only-testing:'+member for member in members])
+                    self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
+
+class ReplacementPartitionDiagnosticTests(unittest.TestCase):
+    diagnostic_routes = CI.REPLACEMENT_DIAGNOSTIC_PARTITIONS
+    source_parent = CI.REPLACEMENT_UNION_PARENT
+    source_trees = CI.REPLACEMENT_UNION_TREES
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    git_facts = NoIndexBuildDiagnosticTests.git_facts
+    build_fixture = NoIndexBuildDiagnosticTests.build_fixture
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.select(self.diagnostic_routes[0][0])
+
+    def select(self, identifier):
+        self.selected = CI.resolve_selection(self.default, self.mapping, identifier)
+        self.record = {'selectionID': identifier,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping)),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+        self.header = ('tree ' + 'a'*40 + '\nparent ' + self.source_parent + '\n\nmessage\n').encode()
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        for identifier, _ in self.diagnostic_routes:
+            self.assertEqual(options.count(identifier), 1)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.REPLACEMENT_REPORT_SELECTION_ID)['unitTestSelectors'],
+                         ['FieldEvidenceAppTests/S6_5ReplacementUnionTests/testFinalizedReportBytesAndReceiptsSurviveRepeatedForkAndColdReadback'])
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        observed = []
+        for (identifier, members), count in zip(self.diagnostic_routes, (11, 1)):
+            self.select(identifier)
+            self.assertEqual(self.selected['unitTestSelectors'], list(members))
+            self.assertEqual(len(members), count)
+            self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+            self.assertFalse(self.selected['runUISmoke'])
+            observed.extend(members)
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, identifier + '-retry')
+        self.assertEqual(observed, list(CI.REPLACEMENT_UNION_SELECTORS))
+        self.assertEqual(len(set(observed)), 12)
+        for identifier, tier in (('replacement-packet-union', 'N8'), (CI.REPLACEMENT_UNION_SELECTION_ID, 'D30')):
+            historical = CI.resolve_selection(self.default, self.mapping, identifier)
+            self.assertEqual(historical['unitTestSelectors'], observed)
+            self.assertEqual(historical['tier'], tier)
+
+    def test_both_admissions_reject_wrong_parent_provider_tree_selector_and_budget(self):
+        for identifier, members in self.diagnostic_routes:
+            self.select(identifier)
+            for stage in ('dispatch', 'worker'):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts):
+                    admitted = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                self.assertTrue(admitted['diagnosticOnly'])
+                self.assertFalse(admitted['acceptance'])
+                self.assertFalse(admitted['providerQualification'])
+                for e in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(self.selected, e, HEAD, stage, self.record)
+                for header in (self.header.replace(self.source_parent.encode(), b'f'*40),
+                               self.header.replace(b'\n\n', b'\nparent '+b'f'*40+b'\n\n')):
+                    with mock.patch.object(CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                for path in self.source_trees:
+                    def wrong_tree(command, **kwargs):
+                        return 'f'*40+'\n' if command[-1] == HEAD+':'+path else self.git_facts(command, **kwargs)
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=wrong_tree), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+                changes = [{'unitTestSelectors': list(CI.REPLACEMENT_UNION_SELECTORS)}, {'tier': 'N8'}, {'runUISmoke': True}]
+                changes.extend({key: self.selected[key]+1} for key in CI.BUDGET_KEYS)
+                for fields in changes:
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(dict(self.selected, **fields), self.bound_environment(), HEAD, stage, self.record)
+                for other in (CI.REPLACEMENT_UNION_SELECTION_ID, 'unknown') + tuple(k for k, _ in self.diagnostic_routes if k != identifier):
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                        CI.admission(self.selected, self.bound_environment(), HEAD, stage, dict(self.record, selectionID=other))
+
+    def test_real_build_shell_uses_no_index_recipe_and_preserves_failures(self):
+        for identifier, _ in self.diagnostic_routes:
+            for receipt_exit, build_exit in ((0, 0), (79, 0), (0, 83)):
+                with tempfile.TemporaryDirectory() as directory:
+                    result, e, events, args = self.run_mock_build(directory, identifier, receipt_exit, build_exit)
+                    self.assertEqual(result.returncode, receipt_exit or build_exit, result.stderr)
+                    self.assertEqual(events, ['receipt'] if receipt_exit else ['receipt', 'build'])
+                    if not receipt_exit:
+                        self.assertEqual(args, ['-project', 'FieldEvidenceApp.xcodeproj', '-scheme', 'FieldEvidenceApp',
+                            '-configuration', 'Debug', '-destination', 'platform=iOS Simulator,id='+UDID,
+                            '-derivedDataPath', e['RUNNER_TEMP']+'/FieldEvidenceDerivedData',
+                            '-resultBundlePath', e['CI_ARTIFACT_DIR']+'/Build.xcresult',
+                            'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+    def test_real_receipt_cli_and_execution_binding_for_both_partitions(self):
+        for identifier, _ in self.diagnostic_routes:
+            self.select(identifier)
+            NoIndexBuildDiagnosticTests.test_receipt_cli_uses_actual_build_step_dispatch_inputs_and_fails_without_them(self)
+            NoIndexBuildDiagnosticTests.test_receipt_binds_admitted_configuration_and_executed_command(self)
+            NoIndexBuildDiagnosticTests.test_tampered_receipt_or_incomplete_indexed_or_changed_execution_is_denied(self)
+
+    def test_actual_worker_jq_accepts_only_exact_partition_budgets_and_members(self):
+        for identifier, _ in self.diagnostic_routes:
+            self.select(identifier)
+            BuildWatchdogDiagnosticTests.test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self)
+
+    def test_real_test_shell_passes_exact_ordered_methods_and_propagates_failure(self):
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        def shell_path(path):
+            if os.name != 'nt': return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        for identifier, members in self.diagnostic_routes:
+            self.select(identifier)
+            for test_exit in (0, 83):
+                with tempfile.TemporaryDirectory() as directory:
+                    base = Path(directory); binary = base/'bin'; binary.mkdir()
+                    artifact = base/'artifact'; artifact.mkdir()
+                    selected = artifact/'ci-selection.selected.json'
+                    selected.write_bytes(CI.canonical(self.selected))
+                    executable = binary/'xcodebuild'
+                    executable.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$MOCK_TEST_ARGS"\nmkdir -p "$CI_ARTIFACT_DIR/UnitTests.xcresult"\ntouch "$CI_ARTIFACT_DIR/UnitTests.xcresult/result"\nexit "$MOCK_TEST_EXIT"\n', newline='\n')
+                    executable.chmod(0o755)
+                    e = dict(os.environ, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                             CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                             CI_DESTINATION='platform=iOS Simulator,id='+UDID, CI_ARTIFACT_DIR=shell_path(artifact),
+                             CI_SELECTION_PATH=shell_path(selected), RUNNER_TEMP=shell_path(base/'runner'),
+                             CI_S10_4_SHARED_BUILD_MODE='none', CI_NATIVE_ACCEPTANCE_CONTRACT='none',
+                             MOCK_TEST_ARGS=shell_path(base/'args'), MOCK_TEST_EXIT=str(test_exit))
+                    # Actual jq and shell consume the real closed selected JSON. Only Xcode is stubbed on Windows.
+                    result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                             shell_path(binary), shell_path(ROOT/'Scripts/test-smoke.sh')],
+                                            env=e, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, test_exit, result.stderr)
+                    args = (base/'args').read_text().splitlines()
+                    self.assertEqual([arg for arg in args if arg.startswith('-only-testing:')],
+                                     ['-only-testing:'+member for member in members])
+                    self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
+
+
+class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    diagnostic_routes = ((CI.LIVE_HOST_SELECTION_ID, tuple(EXPECTED_LIVE_HOST_RUNTIME)),)
+    source_parent = CI.LIVE_HOST_PARENT
+    source_trees = CI.LIVE_HOST_TREES
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        self.assertEqual(self.selected['unitTestSelectors'], EXPECTED_LIVE_HOST_RUNTIME)
+        self.assertEqual(len(set(EXPECTED_LIVE_HOST_RUNTIME)), 14)
+        self.assertEqual(self.selected['tier'], 'D50')
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 3000, 0, 5100))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        previous, previous_map = prelive_host_values(self.default, self.mapping)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(previous, previous_map, CI.LIVE_HOST_SELECTION_ID)
+        for identifier in (CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID):
+            self.assertEqual(CI.resolve_selection(self.default, self.mapping, identifier),
+                             CI.resolve_selection(previous, previous_map, identifier))
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.LIVE_HOST_SELECTION_ID + suffix)
+        for changed in (EXPECTED_LIVE_HOST_RUNTIME[:-1], EXPECTED_LIVE_HOST_RUNTIME[::-1],
+                        EXPECTED_LIVE_HOST_RUNTIME[:-1] + EXPECTED_LIVE_HOST_RUNTIME[:1],
+                        EXPECTED_LIVE_HOST_RUNTIME + [UNIT]):
+            value = dict(self.selected, unitTestSelectors=changed)
+            with self.assertRaises(ValueError):
+                CI.validate_selection(value)
+            result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                    input=CI.canonical(value), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_d50_is_exact_to_live_host_and_every_other_route_keeps_d30(self):
+        self.assertEqual(CI.TIERS['D50'], (300, 1800, 3000, 0, 5100))
+        self.assertEqual(CI.TIERS['D30'], (300, 1800, 900, 0, 3000))
+        self.assertEqual(CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S,
+                         ('FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB',
+                          'A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139',
+                          'D18D48D5DB47DD61AD7D979414BD62A1A6798639EDA00B537DB5D6F1D517700E',
+                          '831C0FB85219183E7CA694F4F260BBB4765FFD929EBCCAE814CE7CC3D231C5B7',
+                          '4B102F6297E2AF1D02B926E79FEBDDB0362154EBD594FBD56BD929408B135D71'))
+        self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
+        self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
+                         sorted(CI.D50_SELECTION_IDS))
+        self.assertEqual(sorted(CI.D50_SELECTION_IDS), sorted([CI.LIVE_HOST_SELECTION_ID,
+                         CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID]))
+        for identifier, members in ((CI.ROUND_ITEM_MOUNT_SELECTION_ID, EXPECTED_ROUND_ITEM_MOUNT),
+                                    (CI.STARTUP_RETIREMENT_SELECTION_ID, [s for s in EXPECTED_LIVE_HOST_RUNTIME
+                                     if '/testStartupPrivateRetirement' in s])):
+            question = CI.resolve_selection(self.default, self.mapping, identifier)
+            self.assertEqual((question['tier'], question['unitTestSelectors']), ('D50', members))
+            accepted = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                      input=CI.canonical(question), capture_output=True)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        jq = ROOT / 'Scripts/ci-worker-selection.jq'
+        def rejected(value):
+            with self.assertRaises(ValueError):
+                CI.validate_selection(value)
+            result = subprocess.run(['jq', '-e', '-f', str(jq)], input=CI.canonical(value), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+        accepted = subprocess.run(['jq', '-e', '-f', str(jq)], input=CI.canonical(self.selected), capture_output=True)
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        for key in CI.BUDGET_KEYS:
+            rejected(dict(self.selected, **{key: self.selected[key] + 1}))
+        d50_budgets = dict(zip(CI.BUDGET_KEYS, CI.TIERS['D50']))
+        for identifier in (CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID,
+                           CI.ERASE_DRAIN_SELECTION_ID, CI.REPLACEMENT_UNION_SELECTION_ID):
+            other = CI.resolve_selection(self.default, self.mapping, identifier)
+            self.assertEqual(other['tier'], 'D30', identifier)
+            rejected(dict(other, tier='D50', **d50_budgets))
+        rejected(dict(self.selected, tier='D30'))
+        d30 = dict(self.selected, tier='D30', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D30'])))
+        original = self.record
+        self.record = dict(original, selectionSHA256=CI.sha256(CI.canonical(d30)))
+        try:
+            for stage in ('dispatch', 'worker'):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), \
+                        self.assertRaises(ValueError):
+                    CI.admission(d30, self.bound_environment(), HEAD, stage, self.record)
+        finally:
+            self.record = original
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        self.assertEqual(re.findall(r'^    timeout-minutes: (.+)$', worker, re.M), [D50_JOB_CAP_EXPRESSION])
+
+    def test_collection_requires_each_original_result_once_and_passed(self):
+        methods = EXPECTED_LIVE_HOST_RUNTIME
+        tree = native_tree(methods[0])
+        cases = tree['testNodes'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in methods]
+        self.assertEqual(CI.executed_methods(tree, methods, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(methods))
+        for values in (cases[:-1], cases + [cases[0]], cases[:-1] + [leaf(native_tree(UNIT))]):
+            hostile = copy.deepcopy(tree)
+            hostile['testNodes'][0]['children'][0]['children'] = values
+            with self.assertRaises(ValueError):
+                CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+        for status in ('Failed', 'Skipped', 'NotStarted'):
+            hostile = copy.deepcopy(tree)
+            hostile['testNodes'][0]['children'][0]['children'][-1]['result'] = status
+            with self.assertRaises(ValueError):
+                CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class RoundItemMountBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # Both closed D50 development questions bind one reviewed parent and trees.
+    diagnostic_routes = ((CI.ROUND_ITEM_MOUNT_SELECTION_ID, tuple(EXPECTED_ROUND_ITEM_MOUNT)),
+                         (CI.STARTUP_RETIREMENT_SELECTION_ID, tuple(EXPECTED_STARTUP_RETIREMENT)))
+    source_parent = CI.ROUND_ITEM_MOUNT_PARENT
+    source_trees = CI.ROUND_ITEM_MOUNT_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        for identifier in [k for k, _ in self.diagnostic_routes] + ['c36-round-item-mount']:
+            self.assertEqual(options.count(identifier), 1, identifier)
+        self.assertEqual(len(options), len(set(options)))
+        whole_class = CI.resolve_selection(self.default, self.mapping, 'c36-round-item-mount')
+        self.assertEqual(whole_class['unitTestSelectors'], EXPECTED_ROUND_ITEM_MOUNT)
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        self.assertEqual((len(set(EXPECTED_ROUND_ITEM_MOUNT)), len(set(EXPECTED_STARTUP_RETIREMENT))), (7, 3))
+        self.assertFalse(set(EXPECTED_ROUND_ITEM_MOUNT) & set(EXPECTED_STARTUP_RETIREMENT))
+        self.assertEqual(self.default['unitTestSelectors'][1078:1085], EXPECTED_ROUND_ITEM_MOUNT)
+        live = CI.resolve_selection(self.default, self.mapping, CI.LIVE_HOST_SELECTION_ID)['unitTestSelectors']
+        self.assertEqual([s for s in live if s in EXPECTED_STARTUP_RETIREMENT], EXPECTED_STARTUP_RETIREMENT)
+        for identifier, members in self.diagnostic_routes:
+            self.select(identifier)
+            self.assertEqual(self.selected['unitTestSelectors'], list(members))
+            self.assertEqual(self.selected['tier'], 'D50')
+            self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 3000, 0, 5100))
+            self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+            self.assertEqual(CI.NO_INDEX_ROUTES[identifier], (CI.ROUND_ITEM_MOUNT_PARENT, 'D50'))
+            self.assertEqual(CI.no_index_source_trees(identifier), CI.ROUND_ITEM_MOUNT_TREES)
+            for suffix in ('-retry', '-parallel', '-45m'):
+                with self.assertRaises(ValueError):
+                    CI.resolve_selection(self.default, self.mapping, identifier + suffix)
+            for changed in (list(members[:-1]), list(members[::-1]), list(members) + [UNIT],
+                            list(members[:-1]) + list(members[:1])):
+                value = dict(self.selected, unitTestSelectors=changed)
+                with self.assertRaises(ValueError):
+                    CI.validate_selection(value)
+                result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                        input=CI.canonical(value), capture_output=True)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+        previous, previous_map = preround_item_mount_values(self.default, self.mapping)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(previous, previous_map, CI.ROUND_ITEM_MOUNT_SELECTION_ID)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(previous, previous_map, 'c36-round-item-mount')
+        # validate_selection accepts every closed D50 list; admission binds each
+        # route ID to its own members, so swapped members are denied at both stages.
+        for identifier, members in self.diagnostic_routes:
+            self.select(identifier)
+            other = [m for k, m in self.diagnostic_routes if k != identifier][0]
+            value = dict(self.selected, unitTestSelectors=list(other))
+            record = dict(self.record, selectionSHA256=CI.sha256(CI.canonical(value)))
+            original, self.record = self.record, record
+            try:
+                # The environment carries the swapped digest, so only the binding can deny.
+                for stage in ('dispatch', 'worker'):
+                    with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts),                             self.assertRaisesRegex(ValueError, 'selector/method binding'):
+                        CI.admission(value, self.bound_environment(), HEAD, stage, record)
+            finally:
+                self.record = original
+
+    def test_collection_requires_each_original_result_once_and_passed(self):
+        for _, members in self.diagnostic_routes:
+            methods = list(members)
+            tree = native_tree(methods[0])
+            cases = tree['testNodes'][0]['children'][0]['children']
+            cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in methods]
+            self.assertEqual(CI.executed_methods(tree, methods, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(methods))
+            for values in (cases[:-1], cases + [cases[0]], cases[:-1] + [leaf(native_tree(UNIT))]):
+                hostile = copy.deepcopy(tree)
+                hostile['testNodes'][0]['children'][0]['children'] = values
+                with self.assertRaises(ValueError):
+                    CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+            for status in ('Failed', 'Skipped', 'NotStarted'):
+                hostile = copy.deepcopy(tree)
+                hostile['testNodes'][0]['children'][0]['children'][-1]['result'] = status
+                with self.assertRaises(ValueError):
+                    CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class RoundItemCompletionBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # One closed D30 question: the new completion class, then the enrolled Round readiness methods.
+    diagnostic_routes = ((CI.ROUND_ITEM_COMPLETION_SELECTION_ID,
+                          tuple(EXPECTED_ROUND_ITEM_COMPLETION + EXPECTED_ROUND_READINESS)),)
+    source_parent = CI.ROUND_ITEM_MOUNT_PARENT
+    source_trees = CI.ROUND_ITEM_MOUNT_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        for identifier in (CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion'):
+            self.assertEqual(options.count(identifier), 1, identifier)
+        self.assertEqual(len(options), len(set(options)))
+        whole_class = CI.resolve_selection(self.default, self.mapping, 'c36-round-item-completion')
+        self.assertEqual(whole_class['unitTestSelectors'], EXPECTED_ROUND_ITEM_COMPLETION)
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        members = EXPECTED_ROUND_ITEM_COMPLETION + EXPECTED_ROUND_READINESS
+        self.assertEqual(len(set(members)), len(members))
+        self.assertEqual(self.default['unitTestSelectors'][1085:], EXPECTED_ROUND_ITEM_COMPLETION)
+        self.assertTrue(set(EXPECTED_ROUND_READINESS) <= set(self.default['unitTestSelectors'][:1085]))
+        self.select(CI.ROUND_ITEM_COMPLETION_SELECTION_ID)
+        self.assertEqual(self.selected['unitTestSelectors'], members)
+        self.assertEqual(self.selected['tier'], 'D30')
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        self.assertEqual(CI.NO_INDEX_ROUTES[CI.ROUND_ITEM_COMPLETION_SELECTION_ID], (CI.ROUND_ITEM_MOUNT_PARENT, 'D30'))
+        for identifier in (CI.ROUND_ITEM_COMPLETION_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID,
+                           CI.STARTUP_RETIREMENT_SELECTION_ID):
+            self.assertEqual(CI.no_index_source_trees(identifier), CI.ROUND_ITEM_MOUNT_TREES)
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.ROUND_ITEM_COMPLETION_SELECTION_ID + suffix)
+        for changed in (members[:-1], members[::-1], members + [UNIT], members[:-1] + members[:1],
+                        EXPECTED_ROUND_ITEM_COMPLETION, EXPECTED_ROUND_READINESS):
+            value = dict(self.selected, unitTestSelectors=list(changed))
+            with self.assertRaises(ValueError):
+                CI.validate_selection(value)
+            result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                    input=CI.canonical(value), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+        previous, previous_map = preround_item_completion_values(self.default, self.mapping)
+        for identifier in (CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(previous, previous_map, identifier)
+        # The rebound mount and startup questions keep their exact members and D50.
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.ROUND_ITEM_MOUNT_SELECTION_ID)
+                         ['unitTestSelectors'], EXPECTED_ROUND_ITEM_MOUNT)
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.STARTUP_RETIREMENT_SELECTION_ID)
+                         ['unitTestSelectors'], EXPECTED_STARTUP_RETIREMENT)
+
+    def test_collection_requires_each_original_result_once_and_passed(self):
+        methods = EXPECTED_ROUND_ITEM_COMPLETION + EXPECTED_ROUND_READINESS
+        tree = native_tree(methods[0])
+        cases = tree['testNodes'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in methods]
+        self.assertEqual(CI.executed_methods(tree, methods, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(methods))
+        for values in (cases[:-1], cases + [cases[0]], cases[:-1] + [leaf(native_tree(UNIT))]):
+            hostile = copy.deepcopy(tree)
+            hostile['testNodes'][0]['children'][0]['children'] = values
+            with self.assertRaises(ValueError):
+                CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+        for status in ('Failed', 'Skipped', 'NotStarted'):
+            hostile = copy.deepcopy(tree)
+            hostile['testNodes'][0]['children'][0]['children'][-1]['result'] = status
+            with self.assertRaises(ValueError):
+                CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    diagnostic_routes = ((CI.FIELD_AUTOSAVE_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTORS),)
+    source_parent = CI.FIELD_AUTOSAVE_PARENT
+    source_trees = CI.FIELD_AUTOSAVE_TREES
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        expected = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt']
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertIn(expected[0], CI.resolve_selection(self.default, self.mapping, 'c36-field-edit')['unitTestSelectors'])
+        combined = CI.resolve_selection(self.default, self.mapping, CI.SAVED_REVIEW_FIELDS_SELECTION_ID)
+        self.assertEqual(len(combined['unitTestSelectors']), 14)
+        for changed in ((), tuple(expected * 2), (UNIT,), tuple(combined['unitTestSelectors'])):
+            with mock.patch.object(CI, 'FIELD_AUTOSAVE_SELECTORS', changed), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.FIELD_AUTOSAVE_SELECTION_ID)
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.FIELD_AUTOSAVE_SELECTION_ID + suffix)
+
+    def test_all_parent_inputs_and_named_routes_are_preserved(self):
+        original = subprocess.check_output(['git', 'show', self.source_parent + ':Scripts/v23-native-ci.py'], cwd=ROOT)
+        old = {'__name__': 'field_autosave_parent'}
+        exec(compile(original, 'field-autosave-parent.py', 'exec'), old)
+        self.assertEqual(set(CI.NO_INDEX_ROUTES), set(old['NO_INDEX_ROUTES']) | {CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID,
+                         CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID,
+                         CI.ROUND_ITEM_COMPLETION_SELECTION_ID})
+        self.assertEqual(CI.NO_INDEX_ROUTES[CI.FIELD_AUTOSAVE_SELECTION_ID], (self.source_parent, 'D30'))
+        self.assertEqual(CI.no_index_source_trees(CI.FIELD_AUTOSAVE_SELECTION_ID), self.source_trees)
+        for identifier, binding in old['NO_INDEX_ROUTES'].items():
+            if identifier == CI.FIELD_AUTOSAVE_SELECTION_ID:
+                continue  # Only the exact reviewed causal route is rebound.
+            self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding, identifier)
+            self.assertEqual(CI.no_index_source_trees(identifier), old['no_index_source_trees'](identifier), identifier)
+        for path in ('Scripts/v23-selection-generator.py',
+                     '.github/workflows/ios-ci-worker.yml', 'Scripts/test-smoke.sh'):
+            current_bytes = (ROOT / path).read_bytes()
+            if path == '.github/workflows/ios-ci-worker.yml':
+                current_bytes = worker_before_live_host_d50(self, current_bytes)
+            elif path == 'Scripts/test-smoke.sh':
+                current_bytes = test_smoke_before_shared_coverage(current_bytes)
+            historical_bytes = subprocess.check_output(
+                ['git', 'show', self.source_parent + ':' + path], cwd=ROOT)
+            if path == 'Scripts/v23-selection-generator.py':
+                # Brace-span amendment: exact new bytes and unchanged historic
+                # baseline are pinned; all route/output comparisons below remain.
+                self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
+                    '4A987864E3046E165C35BB8AF1278A693C83A4BB90D2D398E81D528CFF2C1C2A',
+                    '6142626CDA16B75E051D463F124AB584F1E32CD87F7829AFE2A43AFC8DF3789F'), path)
+            else:
+                self.assertEqual(current_bytes, historical_bytes, path)
+        identifiers = re.findall(r'^          - ([a-z0-9.-]+)$', re.search(
+            r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)',
+            (ROOT / '.github/workflows/ios-ci.yml').read_text()).group(1), re.M)
+        previous, previous_map = prelive_host_values(self.default, self.mapping)
+        # RUI1 is a later standalone file-bound route, checked by RUI1RouteTests.
+        self.assertEqual(identifiers.count(CI.UI_BATCH_SELECTION_ID), 1)
+        with self.assertRaises(ValueError):
+            old['resolve_selection'](previous, previous_map, CI.UI_BATCH_SELECTION_ID)
+        for identifier in identifiers:
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
+                continue
+            self.assertEqual(CI.resolve_selection(previous, previous_map, identifier),
+                             old['resolve_selection'](previous, previous_map, identifier), identifier)
+
+    def test_collection_requires_the_original_complete_autosave_method(self):
+        methods = list(CI.FIELD_AUTOSAVE_SELECTORS)
+        tree = native_tree(methods[0])
+        self.assertEqual(CI.executed_methods(tree, methods, 'FieldEvidenceAppTests', 'Unit test bundle'), methods)
+        for status in ('Failed', 'Skipped', 'NotStarted'):
+            hostile = copy.deepcopy(tree)
+            leaf(hostile)['result'] = status
+            with self.assertRaises(ValueError):
+                CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+        with self.assertRaises(ValueError):
+            CI.executed_methods(native_tree(UNIT), methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    diagnostic_routes = ((CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTORS),)
+    source_parent = CI.SAVED_REVIEW_FIELDS_PARENT
+    source_trees = CI.SAVED_REVIEW_FIELDS_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(choices.count(CI.SAVED_REVIEW_FIELDS_SELECTION_ID), 1)
+        self.assertEqual(choices.count('c36-field-edit'), 1)
+        self.assertEqual(len(choices), len(set(choices)))
+        self.assertIn('NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}', workflow)
+        self.assertIn('native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id || inputs.native_selection_id }}', workflow)
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text()
+        for key in ('NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_ID', 'DISPATCH_NATIVE_SELECTION_SHA256', 'DISPATCH_NATIVE_SELECTION_MAP_SHA256'):
+            self.assertIn(key + ':', worker)
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        expected = ['FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual((len(expected), len(set(expected))), (14, 14))
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        old_pool, old_map = prefield_edit_values(self.default, self.mapping)
+        ordinary = CI.resolve_selection(self.default, self.mapping, CI.SAVED_REVIEW_SELECTION_ID)
+        self.assertEqual(ordinary, CI.resolve_selection(old_pool, old_map, CI.SAVED_REVIEW_SELECTION_ID))
+        self.assertEqual(ordinary['unitTestSelectors'], expected[:9])
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, 'c36-field-edit')['unitTestSelectors'], expected[9:] + EXPECTED_LIVE_HOST_RUNTIME[:1])
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertNotIn(CI.SAVED_REVIEW_SELECTION_ID, CI.NO_INDEX_ROUTES)
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError): CI.resolve_selection(self.default, self.mapping, self.record['selectionID'] + suffix)
+        for changed in (expected[:-1], expected[::-1], expected[:-1] + expected[:1], expected + [UNIT]):
+            with mock.patch.object(CI, 'SAVED_REVIEW_FIELDS_SELECTORS', tuple(changed)), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, self.record['selectionID'])
+            value = dict(self.selected, unitTestSelectors=changed)
+            with self.assertRaises(ValueError): CI.validate_selection(value)
+            result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')], input=CI.canonical(value), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+        with self.assertRaises(ValueError): CI.resolve_selection(old_pool, old_map, self.record['selectionID'])
+
+    def test_every_prior_named_selection_remains_exact(self):
+        old_pool, old_map = prefield_edit_values(self.default, self.mapping)
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        choices = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        # Preserve every old-map comparison; RUI1 has separate closed-route checks.
+        self.assertEqual(choices.count(CI.UI_BATCH_SELECTION_ID), 1)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(old_pool, old_map, CI.UI_BATCH_SELECTION_ID)
+        for identifier in choices:
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+                continue
+            previous = CI.resolve_selection(old_pool, old_map, identifier)
+            additions = [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
+            self.assertEqual(CI.resolve_selection(self.default, self.mapping, identifier), dict(previous, unitTestSelectors=previous['unitTestSelectors'] + additions), identifier)
+
+    def test_collection_requires_all_fourteen_original_results(self):
+        methods = ['FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionFreezesOneChoiceAndRecoversOriginalWithoutNewIDs', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionResolutionRejectsStaleTargetAndRetiredOwnerWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardRequiresConfirmationThenReplaysOriginalWithoutConfirmationOrEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testProductionDiscardCanCompleteReviewWithoutOperationalRoundAndRejectsRetirement', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceAuthenticatesCurrentPendingAndTerminalOriginalsWithoutReadEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsEverySubstitutedFieldAndNonDraftWithoutEffects', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceReturnsUnsupportedOnlyAfterAuthenticCurrentReceipt', 'FieldEvidenceAppTests/V23ProductionDestinationReviewTests/testSavedReviewReferenceRejectsDirtyCorruptQuarantinedAndRetiredHistoryWithoutEffects', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testPhysicalRestoredReviewDiscardUsesProductionAccessAndColdOriginalReadback', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditsPersistIncompleteValuesAndColdReopenWithoutEffects', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditCASPreservesBeginAndPhotoSlotsAndRejectsFrozenOrForeignState', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldEditAcknowledgementLossRecoversOriginalBeforeNewerEdits', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldAutosaveUsesTrailingMaximumAndRetainsFailedAttempt', 'FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests/testFieldFlushDrainsEditsArrivingDuringAwaitAndAuthenticatesReadback']
+        tree = native_tree(methods[0])
+        cases = tree['testNodes'][0]['children'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in methods]
+        self.assertEqual(CI.executed_methods(tree, methods, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(methods))
+        for bad in (cases[:-1], cases + [cases[0]], cases[:-1] + [copy.deepcopy(leaf(native_tree(UNIT)))]):
+            hostile = copy.deepcopy(tree)
+            hostile['testNodes'][0]['children'][0]['children'][0]['children'] = bad
+            with self.assertRaises(ValueError): CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+        for status in ('Failed', 'Skipped', 'NotStarted'):
+            hostile = copy.deepcopy(tree)
+            leaf(hostile)['result'] = status
+            with self.assertRaises(ValueError): CI.executed_methods(hostile, methods, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class ActivityBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # Exercise the same real build/receipt/test commands, actual worker filter and
+    # admission boundary with the one existing H01 selector. No assertion bypass.
+    diagnostic_routes = ((CI.ACTIVITY_BUILD30_SELECTION_ID, CI.ACTIVITY_CONTRACT_SELECTORS),)
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.ACTIVITY_BUILD30_SELECTION_ID), 1)
+        self.assertEqual(options.count('activity-contracts'), 1)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(CI.ACTIVITY_CONTRACT_SELECTORS,
+                         ('FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed',))
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'activity-contracts')
+        self.assertEqual(self.selected, dict(ordinary, tier='D30', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D30']))))
+        self.assertEqual(self.selected['unitTestSelectors'], list(CI.ACTIVITY_CONTRACT_SELECTORS))
+        self.assertEqual(ordinary['tier'], 'N8')
+        self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), CI.TIERS['N8'])
+        self.assertNotIn('activity-contracts', CI.NO_INDEX_ROUTES)
+        self.assertFalse(self.selected['runUISmoke'])
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.ACTIVITY_BUILD30_SELECTION_ID + suffix)
+
+
+class ActivityCodecPunchDiagnosticTests(ReplacementPartitionDiagnosticTests):
+    diagnostic_routes = ((CI.ACTIVITY_CODEC_PUNCH_SELECTION_ID, CI.ACTIVITY_CODEC_PUNCH_SELECTORS),)
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'activity-codec-evolution')
+        expected_punch = ['FieldEvidenceAppTests/V9_97PunchReviewWorkflowTests/testV23P04C34G01StandalonePreparationDecisionCorrectionRecheckCloseoutAndReport', 'FieldEvidenceAppTests/V9_97PunchReviewWorkflowTests/testV23P04C34H01StaleWrongAssetConflictingRecheckAndUnresolvedCountFailWithoutEffect', 'FieldEvidenceAppTests/V9_97PunchReviewWorkflowTests/testV23P04C34I01EffectBeforeReceiptInterruptionRecoversExactlyOnce', 'FieldEvidenceAppTests/V9_97PunchReviewWorkflowTests/testV23P04C34R01ReopenRetryImmutableHistoryAndDeterministicReportReconstruction']
+        self.assertEqual(CI.ACTIVITY_CODEC_SELECTORS, tuple(ACTIVITY_CODEC_SELECTORS))
+        self.assertEqual(list(CI.PUNCH_CONTEXT_SELECTORS), expected_punch)
+        expected = ACTIVITY_CODEC_SELECTORS + expected_punch + list(CI.ACTIVITY_CONTRACT_SELECTORS)
+        self.assertEqual(len(expected), len(set(expected)))
+        self.assertEqual(len(expected), 16)
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual(ordinary['unitTestSelectors'], ACTIVITY_CODEC_SELECTORS)
+        self.assertEqual(ordinary['tier'], 'N8')
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertFalse(self.selected['runUISmoke'])
+        self.assertEqual(CI.resolve_selection(self.default, self.mapping, CI.ACTIVITY_BUILD30_SELECTION_ID)['unitTestSelectors'],
+                         list(CI.ACTIVITY_CONTRACT_SELECTORS))
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.ACTIVITY_CODEC_PUNCH_SELECTION_ID + suffix)
+        for changed in (expected[:-1], expected[::-1], expected[:-1] + expected[:1]):
+            with self.assertRaises(ValueError): CI.validate_selection(dict(self.selected, unitTestSelectors=changed))
+
+
+class ActivityCompletedSourceDiagnosticTests(ReplacementPartitionDiagnosticTests):
+    diagnostic_routes = ((CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID, CI.ACTIVITY_COMPLETED_SOURCE_SELECTORS),)
+    source_parent = CI.ACTIVITY_COMPLETED_SOURCE_PARENT
+    source_trees = CI.ACTIVITY_COMPLETED_SOURCE_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        expected = [group['id'] for group in ACTIVITY_COMPLETED_GROUPS] + [
+            'activity-completed-source-no-index-build30m']
+        start = options.index(expected[0])
+        self.assertEqual(options[start:start + len(expected)], expected)
+        self.assertEqual(len(options), len(set(options)))
+        for identifier in expected:
+            self.assertEqual(options.count(identifier), 1)
+        self.assertEqual(CI.ACTIVITY_COMPLETED_SOURCE_PARENT, '422a9a18ad5736ea24bd3e06b50bc1b3862b0849')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': 'b0e15d6aff470235bac00758b26f367c7863354d', 'FieldEvidenceAppTests': '9373278bf3f1eef592b248c746cb1033ad5acab2', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        prior, prior_map = precompleted_values(self.default, self.mapping)
+        self.assertEqual((len(prior['unitTestSelectors']), len(prior_map['groups'])), (906, 57))
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '148CA7FF50E4100B0AD0272CB40A64DA34D38842499A317EE4EB2128A408E857')
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), 'EC7CF71ED309E4CCC55C439DAAB2E9B22F5D4A1A2F4AB3137A20071E3C766040')
+        actual_groups = [(identifier, list(members)) for identifier, members in CI.ACTIVITY_COMPLETED_SOURCE_GROUPS]
+        expected_groups = [(group['id'], [m for m in ACTIVITY_COMPLETED_SELECTORS if m.split('/')[1] in group['classes']])
+                           for group in ACTIVITY_COMPLETED_GROUPS]
+        self.assertEqual(actual_groups, expected_groups)
+        expected = ACTIVITY_COMPLETED_SELECTORS + [
+            'FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests/testV23P03C47H01CrossFamilyClaimsInvalidTransitionsAndStaleInputsFailClosed']
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual(len(expected), len(set(expected)))
+        self.assertEqual(len(expected), 63)
+        self.assertFalse(set(ACTIVITY_COMPLETED_SELECTORS) & set(prior['unitTestSelectors']))
+        self.assertEqual(tuple(self.selected[key] for key in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertFalse(self.selected['runUISmoke'])
+        for group, members in expected_groups:
+            ordinary = CI.resolve_selection(self.default, self.mapping, group)
+            self.assertEqual(ordinary['unitTestSelectors'], members)
+            self.assertEqual(ordinary['tier'], 'N8')
+            self.assertNotIn(group, CI.NO_INDEX_ROUTES)
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.ACTIVITY_COMPLETED_SOURCE_SELECTION_ID + suffix)
+        for changed in (expected[:-1], expected[::-1], expected[:-1] + expected[:1], expected + [UNIT]):
+            with self.assertRaises(ValueError): CI.validate_selection(dict(self.selected, unitTestSelectors=changed))
+            result = subprocess.run(['jq', '-e', '-f', str(ROOT/'Scripts/ci-worker-selection.jq')],
+                                    input=CI.canonical(dict(self.selected, unitTestSelectors=changed)), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_every_historical_public_selection_retains_exact_members_and_budgets(self):
+        pin = '90304b1802296dca7a56f85ce96787f341bd8f03'
+        presaved, presaved_map = presaved_review_values(self.default, self.mapping)
+        prior, prior_map = precompleted_values(presaved, presaved_map)
+        raw = subprocess.check_output(['git', 'show', pin + ':Scripts/v23-native-ci.py'], cwd=ROOT)
+        workflow = subprocess.check_output(['git', 'show', pin + ':.github/workflows/ios-ci.yml'], cwd=ROOT, text=True)
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)/'prior_native.py'; source.write_bytes(raw)
+            spec = importlib.util.spec_from_file_location('prior_native_ci', source)
+            old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+            for identifier in options:
+                if identifier == CI.DEFAULT_SELECTION_ID:
+                    continue  # The pool grows; every named historical question remains exact.
+                self.assertEqual(CI.resolve_selection(presaved, presaved_map, identifier),
+                                 old.resolve_selection(prior, prior_map, identifier), identifier)
+            for identifier, value in old.NO_INDEX_ROUTES.items():
+                self.assertEqual(CI.NO_INDEX_ROUTES[identifier], value)
+                self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
+
+    def test_collection_requires_all_63_methods_once_and_passed(self):
+        expected = self.selected['unitTestSelectors']
+        tree = native_tree(expected[0])
+        cases = tree['testNodes'][0]['children'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in expected]
+        self.assertEqual(CI.executed_methods(tree, expected, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(expected))
+        for mutation in ('missing', 'duplicate', 'unexpected', 'failed', 'skipped'):
+            changed = copy.deepcopy(tree)
+            leaves = changed['testNodes'][0]['children'][0]['children'][0]['children']
+            if mutation == 'missing': leaves.pop()
+            elif mutation == 'duplicate': leaves.append(copy.deepcopy(leaves[0]))
+            elif mutation == 'unexpected': leaves.append(copy.deepcopy(leaf(native_tree(UNIT))))
+            elif mutation == 'failed': leaves[-1]['result'] = 'Failed'
+            else: leaves[-1]['result'] = 'Skipped'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                CI.executed_methods(changed, expected, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class NotificationScheduleEraseBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # Reuse the real build/test shells, receipt CLI and strict original admission
+    # against the full existing group; this route enrolls no additional method.
+    diagnostic_routes = ((CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID,
+                          CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS),)
+    source_parent = CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_PARENT
+    source_trees = CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        identifier = CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID
+        self.assertEqual(options.count(identifier), 1)
+        self.assertEqual(options[options.index('notification-schedule-erase') + 1], identifier)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(self.source_parent, 'ea0f890edf7abc3e2b08c04c97ca87ef657d463c')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '12653533bdfdf89dcf322a0c69266bc623b74999', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
+        expected = ordinary['unitTestSelectors']
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual(len(expected), 28)
+        self.assertEqual(len(set(expected)), 28)
+        self.assertEqual(tuple(self.selected[key] for key in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual(tuple(ordinary[key] for key in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        self.assertNotIn('notification-schedule-erase', CI.NO_INDEX_ROUTES)
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, self.record['selectionID'] + suffix)
+        # Omission (including an eight-only shortcut), reordering, duplication and
+        # foreign additions must fail both source resolution and the actual jq filter.
+        for changed in (expected[:-1], expected[18:26], expected[::-1], expected[:-1] + expected[:1], expected + [UNIT]):
+            with self.subTest(members=changed):
+                with mock.patch.object(CI, 'NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTORS', tuple(changed)), self.assertRaises(ValueError):
+                    CI.resolve_selection(self.default, self.mapping, self.record['selectionID'])
+                value = dict(self.selected, unitTestSelectors=changed)
+                with self.assertRaises(ValueError): CI.validate_selection(value)
+                result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                        input=CI.canonical(value), capture_output=True)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_every_prior_public_selection_and_source_binding_remains_byte_exact(self):
+        # The complete immutable predecessor, including default968 and every D30
+        # route, is replayed independently of the new alias constants.
+        pin = '6b227c1dca605cfa92e3d49d9cba9eefce9a4b86'
+        def frozen(path):
+            return subprocess.check_output(['git', 'show', pin + ':' + path], cwd=ROOT)
+        prior = json.loads(frozen('Scripts/ci-selection.json'))
+        prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
+        presaved, presaved_map = presaved_review_values(self.default, self.mapping)
+        self.assertEqual(prefinding_values(presaved, presaved_map), (prior, prior_map))
+        workflow = frozen('.github/workflows/ios-ci.yml').decode('utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'prior_native.py'
+            source.write_bytes(frozen('Scripts/v23-native-ci.py'))
+            spec = importlib.util.spec_from_file_location('prior_notification_native_ci', source)
+            old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+            for identifier in options:
+                if identifier == CI.DEFAULT_SELECTION_ID:
+                    continue  # The full pool grows; named prior questions stay exact.
+                self.assertEqual(CI.canonical(CI.resolve_selection(presaved, presaved_map, identifier)),
+                                 old.canonical(old.resolve_selection(prior, prior_map, identifier)), identifier)
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES), {CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, self.record['selectionID'], CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID})
+            for identifier, binding in old.NO_INDEX_ROUTES.items():
+                self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding)
+                self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier))
+        choice = ('          - ' + self.record['selectionID'] + '\n').encode()
+        current_workflow = workflow_before_shared_coverage((ROOT / '.github/workflows/ios-ci.yml').read_bytes())
+        self.assertEqual(current_workflow.count(choice), 1)
+        current_workflow = current_workflow.replace(choice, b'')
+        for identifier in [g['id'] for g in FINDING_PROFILE_FIXTURES_GROUPS] + [CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID]:
+            addition = ('          - ' + identifier + '\n').encode()
+            self.assertEqual(current_workflow.count(addition), 1)
+            current_workflow = current_workflow.replace(addition, b'')
+        saved_review_choice = ('          - ' + CI.SAVED_REVIEW_SELECTION_ID + '\n').encode()
+        self.assertEqual(current_workflow.count(saved_review_choice), 1)
+        current_workflow = current_workflow.replace(saved_review_choice, b'')
+        for identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            choice = ('          - ' + identifier + '\n').encode()
+            self.assertEqual(current_workflow.count(choice), 1)
+            current_workflow = current_workflow.replace(choice, b'')
+        self.assertEqual(current_workflow, workflow.encode())
+        for path in ('Scripts/v23-selection-generator.py', '.github/workflows/ios-ci-worker.yml'):
+            current_bytes = (ROOT / path).read_bytes()
+            if path == '.github/workflows/ios-ci-worker.yml':
+                current_bytes = worker_before_interruption_build_order(self, current_bytes)
+            historical_bytes = frozen(path)
+            if path == 'Scripts/v23-selection-generator.py':
+                # Brace-span amendment: exact new bytes and unchanged historic
+                # baseline are pinned; all route/output comparisons below remain.
+                self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
+                    '4A987864E3046E165C35BB8AF1278A693C83A4BB90D2D398E81D528CFF2C1C2A',
+                    '6142626CDA16B75E051D463F124AB584F1E32CD87F7829AFE2A43AFC8DF3789F'), path)
+            else:
+                self.assertEqual(current_bytes, historical_bytes, path)
+
+    def test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail(self):
+        for stage in ('dispatch', 'worker'):
+            cases = [dict(self.bound_environment(), **{key: value}) for key, value in (
+                ('GITHUB_SHA', 'f' * 40), ('GITHUB_REF', 'refs/heads/main'),
+                ('GITHUB_REPOSITORY', 'foreign/AssetRounds'), ('GITHUB_EVENT_NAME', 'push'),
+                ('GITHUB_RUN_ATTEMPT', '2'), ('GITHUB_RUN_ID', '0'))]
+            if stage == 'worker':
+                cases += [dict(self.bound_environment(), **{key: value}) for key, value in (
+                    ('CI_RUNNER_LABEL', 'macos-15'), ('CI_NATIVE_ACCEPTANCE_CONTRACT', 'none'),
+                    ('DISPATCH_NATIVE_SELECTION_ID', 'notification-schedule-erase'),
+                    ('DISPATCH_NATIVE_SELECTION_SHA256', 'F' * 64),
+                    ('DISPATCH_NATIVE_SELECTION_MAP_SHA256', 'F' * 64))]
+            for e in cases:
+                with self.subTest(stage=stage, environment=e), mock.patch.object(
+                        CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, e, HEAD, stage, self.record)
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                CI.admission(self.selected, self.bound_environment(), 'f' * 40, stage, self.record)
+
+    def test_collection_requires_all_28_methods_once_and_passed(self):
+        expected = self.selected['unitTestSelectors']
+        tree = native_tree(expected[0])
+        cases = tree['testNodes'][0]['children'][0]['children'][0]['children']
+        cases[:] = [copy.deepcopy(leaf(native_tree(method))) for method in expected]
+        self.assertEqual(CI.executed_methods(tree, expected, 'FieldEvidenceAppTests', 'Unit test bundle'), sorted(expected))
+        for mutation in ('missing', 'duplicate', 'unexpected', 'failed', 'skipped'):
+            changed = copy.deepcopy(tree)
+            leaves = changed['testNodes'][0]['children'][0]['children'][0]['children']
+            if mutation == 'missing': leaves.pop()
+            elif mutation == 'duplicate': leaves.append(copy.deepcopy(leaves[0]))
+            elif mutation == 'unexpected': leaves.append(copy.deepcopy(leaf(native_tree(UNIT))))
+            elif mutation == 'failed': leaves[-1]['result'] = 'Failed'
+            else: leaves[-1]['result'] = 'Skipped'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                CI.executed_methods(changed, expected, 'FieldEvidenceAppTests', 'Unit test bundle')
+
+
+class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTests):
+    # Inherit real build/test shells, receipt CLI, worker jq and admission checks.
+    diagnostic_routes = ((CI.NOTIFICATION_INTERRUPTION_SELECTION_ID, CI.NOTIFICATION_INTERRUPTION_SELECTORS),)
+    source_parent = CI.NOTIFICATION_INTERRUPTION_PARENT
+    source_trees = CI.NOTIFICATION_INTERRUPTION_TREES
+
+    def run_mock_build(self, directory, selector, receipt_exit=0, build_exit=0):
+        # The passive observer must run its real admission and command path;
+        # historical routes retain their existing shell stand-ins.
+        path = ROOT / 'Scripts/test-v23-compiler-timing.py'
+        spec = importlib.util.spec_from_file_location('interruption_observer_fixture', path)
+        timing = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(timing)
+        # The real observer fixture archives source_parent, whose generated map
+        # precedes C36 enrollment. Bind dispatch to those actual fixture bytes.
+        fixture_case = copy.copy(self)
+        fixture_case.default, fixture_case.mapping = [json.loads(subprocess.check_output(
+            ['git', 'show', self.source_parent + ':' + relative], cwd=ROOT))
+            for relative in ('Scripts/ci-selection.json', CI.SELECTION_MAP_PATH)]
+        self.assertEqual((fixture_case.default, fixture_case.mapping),
+                         presaved_review_values(self.default, self.mapping))
+        fixture_case.select(selector)
+        self.assertEqual(fixture_case.selected, self.selected)
+        return timing.run_passive_build_fixture(fixture_case, CI, directory, selector, receipt_exit, build_exit)
+
+    def test_command_vector_is_nonempty_under_bash32_nounset(self):
+        # Static compatibility guard: newer local Bash cannot reproduce the
+        # hosted Bash 3.2 empty-array nounset behavior. The paired shell tests
+        # separately execute both command paths and check their exact argv.
+        source = (ROOT / 'Scripts/build-smoke.sh').read_text(encoding='utf-8')
+
+        def assert_nonempty_command_vectors(text):
+            self.assertIn('set -euo pipefail', text)
+            invocations = list(re.finditer(r'^"\$\{([A-Za-z_][A-Za-z0-9_]*)\[@\]\}"([^\r\n]*)$', text, re.M))
+            self.assertEqual(len(invocations), 1)
+            invocation = invocations[0]
+            name = invocation.group(1)
+            # The vector contains the executable; there is no empty optional
+            # prefix expanded ahead of a separate command token.
+            self.assertEqual(invocation.group(2).strip(), '\\')
+            assignments = list(re.finditer(r'^([ \t]*)' + re.escape(name) + r'=\(([^)\r\n]*)\)[ \t]*$', text, re.M))
+            self.assertEqual(len(assignments), 2)
+            self.assertEqual(assignments[0].group(1), '')
+            self.assertLess(assignments[-1].end(), invocation.start())
+            self.assertEqual(len(re.findall(r'\b' + re.escape(name) + r'\s*\+?=', text)), 2)
+            self.assertNotRegex(text, r'(?m)^\s*unset\b[^\n]*\b' + re.escape(name) + r'\b')
+            for assignment in assignments:
+                words = shlex.split(assignment.group(2))
+                self.assertTrue(words, 'Bash 3.2 nounset cannot expand an empty command array')
+                self.assertTrue(all(word and '$' not in word for word in words),
+                                'Every closed command vector must contain nonempty literal arguments')
+            return assignments
+
+        assignments = assert_nonempty_command_vectors(source)
+        # Reintroduce the evidenced defect on either route, including a quoted
+        # empty first argument, and require this guard to reject each mutation.
+        for assignment in assignments:
+            for unsafe in ('', '""'):
+                changed = source[:assignment.start(2)] + unsafe + source[assignment.end(2):]
+                with self.subTest(assignment=assignment.group(0), unsafe=unsafe), self.assertRaises(AssertionError):
+                    assert_nonempty_command_vectors(changed)
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        self.assertIsNotNone(block)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.NOTIFICATION_INTERRUPTION_SELECTION_ID), 1)
+        self.assertEqual(options[options.index(CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID) + 1],
+                         CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(self.source_parent, 'cf357a4e75dce1a9bff56f4b72af60989d3df643')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        expected = [
+            'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testRetainedLiveContextDefersCleanupUntilColdRecovery',
+            'FieldEvidenceAppTests/S6_6EraseRecoveryTests/testEveryInterruptionRecoversOldOrFullyErasedNew',
+        ]
+        ordinary = CI.resolve_selection(self.default, self.mapping, 'notification-schedule-erase')
+        parent = CI.resolve_selection(self.default, self.mapping, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
+        self.assertEqual((len(self.default['unitTestSelectors']), len(self.mapping['groups'])), (1091, 72))
+        historical_pool, historical_map = presaved_review_values(self.default, self.mapping)
+        self.assertEqual((len(historical_pool['unitTestSelectors']), len(historical_map['groups'])), (1054, 68))
+        self.assertEqual([method for method in ordinary['unitTestSelectors'] if method in expected], expected)
+        self.assertEqual(self.selected['unitTestSelectors'], expected)
+        self.assertEqual(tuple(CI.NOTIFICATION_INTERRUPTION_SELECTORS), tuple(expected))
+        self.assertEqual(self.selected, dict(parent, unitTestSelectors=expected))
+        self.assertEqual(len(parent['unitTestSelectors']), 28)
+        self.assertEqual(parent['unitTestSelectors'], ordinary['unitTestSelectors'])
+        self.assertEqual(tuple(self.selected[key] for key in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual(tuple(ordinary[key] for key in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, self.record['selectionID'] + suffix)
+        for changed in (expected[:1], expected[::-1], [expected[0], expected[0]], expected + [UNIT],
+                        [expected[0], UNIT], parent['unitTestSelectors']):
+            with self.subTest(members=changed):
+                # A different approved D30 group is still denied for this alias.
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(dict(self.selected, unitTestSelectors=changed), self.bound_environment(), HEAD, 'worker', self.record)
+                if changed != parent['unitTestSelectors']:
+                    with self.assertRaises(ValueError): CI.validate_selection(dict(self.selected, unitTestSelectors=changed))
+                    result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                                            input=CI.canonical(dict(self.selected, unitTestSelectors=changed)), capture_output=True)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    with mock.patch.object(CI, 'NOTIFICATION_INTERRUPTION_SELECTORS', tuple(changed)), self.assertRaises(ValueError):
+                        CI.resolve_selection(self.default, self.mapping, self.record['selectionID'])
+        for mutate in ('duplicate', 'overlap', 'unknown'):
+            mapping = copy.deepcopy(self.mapping)
+            if mutate == 'duplicate': mapping['groups'].append(copy.deepcopy(mapping['groups'][0]))
+            elif mutate == 'overlap': mapping['groups'][-1]['classes'].append(mapping['groups'][0]['classes'][0])
+            else: mapping['groups'][-1]['classes'].append('UnknownInterruptionTests')
+            with self.subTest(mapping=mutate), self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, mapping, self.record['selectionID'])
+
+    def test_every_parent_public_route_source_binding_and_manifest_remains_byte_exact(self):
+        pin = '1ea75748b17006490bab5aa0e11d4a9267af8aaa'
+        def frozen(path):
+            return subprocess.check_output(['git', 'show', pin + ':' + path], cwd=ROOT)
+        for path in ('Scripts/ci-selection.json', CI.SELECTION_MAP_PATH, 'Scripts/v23-selection-manifest.json',
+                     'Scripts/v23-selection-generator.py', '.github/workflows/ios-ci-worker.yml', 'Scripts/test-smoke.sh'):
+            current_bytes = (ROOT / path).read_bytes()
+            if path == '.github/workflows/ios-ci-worker.yml':
+                current_bytes = worker_before_interruption_build_order(self, current_bytes)
+            elif path == 'Scripts/test-smoke.sh':
+                current_bytes = test_smoke_before_shared_coverage(current_bytes)
+            elif path in ('Scripts/ci-selection.json', CI.SELECTION_MAP_PATH):
+                projected = presaved_review_values(self.default, self.mapping)
+                current_bytes = CI.canonical(projected[0 if path == 'Scripts/ci-selection.json' else 1])
+            elif path == 'Scripts/v23-selection-manifest.json':
+                manifest = json.loads(current_bytes)
+                self.assertEqual(manifest['selectorPool'][1085:], EXPECTED_ROUND_ITEM_COMPLETION)
+                manifest['selectorPool'] = manifest['selectorPool'][:1085]
+                self.assertEqual(manifest['groups'].pop(), {'id': 'c36-round-item-completion', 'classes': ['V23ProductionRoundItemCompletionTests']})
+                self.assertEqual(manifest['profiles'].pop(), {'id': 'round-item-completion-v1', 'excludedGroupIDs': []})
+                for profile in manifest['profiles']:
+                    self.assertEqual(profile['excludedGroupIDs'].count('c36-round-item-completion'), 1)
+                    profile['excludedGroupIDs'].remove('c36-round-item-completion')
+                self.assertEqual(manifest['selectorPool'][1078:], EXPECTED_ROUND_ITEM_MOUNT)
+                manifest['selectorPool'] = manifest['selectorPool'][:1078]
+                self.assertEqual(manifest['groups'].pop(), {'id': 'c36-round-item-mount', 'classes': ['V23ProductionRoundItemMountingTests']})
+                self.assertEqual(manifest['profiles'].pop(), {'id': 'round-item-mount-v1', 'excludedGroupIDs': []})
+                for profile in manifest['profiles']:
+                    self.assertEqual(profile['excludedGroupIDs'].count('c36-round-item-mount'), 1)
+                    profile['excludedGroupIDs'].remove('c36-round-item-mount')
+                self.assertEqual(manifest['selectorPool'][1064:], EXPECTED_LIVE_HOST_RUNTIME)
+                manifest['selectorPool'] = manifest['selectorPool'][:1064]
+                self.assertEqual(manifest['groups'].pop(), {'id': 'c36-live-host', 'classes': ['V23ProductionCheckRunnerItemHostTests']})
+                self.assertEqual(manifest['profiles'].pop(), {'id': 'live-host-v1', 'excludedGroupIDs': []})
+                for profile in manifest['profiles']:
+                    self.assertEqual(profile['excludedGroupIDs'].count('c36-live-host'), 1)
+                    profile['excludedGroupIDs'].remove('c36-live-host')
+                    profile['excludedSelectors'] = [v for v in profile.get('excludedSelectors', []) if v not in EXPECTED_LIVE_HOST_RUNTIME]
+                additions = list(CI.SAVED_REVIEW_NEW_SELECTORS) + list(CI.FIELD_EDIT_SELECTORS)
+                self.assertEqual(manifest['selectorPool'][-10:], additions)
+                manifest['selectorPool'] = manifest['selectorPool'][:-10]
+                self.assertEqual(manifest['groups'][-1], {'id': 'c36-field-edit', 'classes': ['V23CheckRunnerItemFieldEditingTests']})
+                manifest['groups'] = manifest['groups'][:-1]
+                self.assertEqual([p['id'] for p in manifest['profiles'][-2:]],
+                                 ['saved-review-discard-v1', 'saved-review-fields-v1'])
+                manifest['profiles'] = manifest['profiles'][:-2]
+                for profile in manifest['profiles']:
+                    self.assertEqual(profile['excludedGroupIDs'].count('c36-field-edit'), 1)
+                    profile['excludedGroupIDs'].remove('c36-field-edit')
+                    profile['excludedSelectors'] = [v for v in profile['excludedSelectors'] if v not in additions]
+                    original_profile = next(p for p in json.loads(frozen(path))['profiles'] if p['id'] == profile['id'])
+                    if 'excludedSelectors' not in original_profile:
+                        self.assertEqual(profile['excludedSelectors'], [])
+                        del profile['excludedSelectors']
+                current_bytes = CI.canonical(manifest)
+            historical_bytes = frozen(path)
+            if path == 'Scripts/v23-selection-generator.py':
+                # Brace-span amendment: exact new bytes and unchanged historic
+                # baseline are pinned; all route/output comparisons below remain.
+                self.assertEqual((CI.sha256(current_bytes), CI.sha256(historical_bytes)), (
+                    '4A987864E3046E165C35BB8AF1278A693C83A4BB90D2D398E81D528CFF2C1C2A',
+                    '6142626CDA16B75E051D463F124AB584F1E32CD87F7829AFE2A43AFC8DF3789F'), path)
+            else:
+                self.assertEqual(current_bytes, historical_bytes, path)
+        prior = json.loads(frozen('Scripts/ci-selection.json'))
+        prior_map = json.loads(frozen(CI.SELECTION_MAP_PATH))
+        workflow = frozen('.github/workflows/ios-ci.yml')
+        choice = ('          - ' + self.record['selectionID'] + '\n').encode()
+        current = workflow_before_shared_coverage((ROOT / '.github/workflows/ios-ci.yml').read_bytes())
+        self.assertEqual(current.count(choice), 1)
+        for added in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            added_choice = ('          - ' + added + '\n').encode()
+            self.assertEqual(current.count(added_choice), 1)
+            current = current.replace(added_choice, b'')
+        self.assertEqual(current.replace(choice, b''), workflow)
+        block = re.search(rb'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(rb'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'prior_native.py'
+            source.write_bytes(frozen('Scripts/v23-native-ci.py'))
+            spec = importlib.util.spec_from_file_location('prior_interruption_native_ci', source)
+            old = importlib.util.module_from_spec(spec); spec.loader.exec_module(old)
+            for option in options:
+                identifier = option.decode()
+                historical = old.resolve_selection(prior, prior_map, identifier)
+                self.assertEqual(CI.canonical(CI.resolve_selection(prior, prior_map, identifier)),
+                                 old.canonical(historical), identifier)
+                expected_current = copy.deepcopy(historical)
+                if identifier == CI.DEFAULT_SELECTION_ID:
+                    expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS) + list(CI.FIELD_EDIT_SELECTORS)
+                elif identifier == 'c36-production-destination':
+                    expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS[:4])
+                elif identifier == 'app-myday-production':
+                    expected_current['unitTestSelectors'] += list(CI.SAVED_REVIEW_NEW_SELECTORS[4:])
+                expected_current['unitTestSelectors'] += [v for v in EXPECTED_LIVE_HOST_RUNTIME + EXPECTED_ROUND_ITEM_MOUNT + EXPECTED_ROUND_ITEM_COMPLETION if identifier == CI.DEFAULT_SELECTION_ID or CI.selection_class(v) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
+                self.assertEqual(CI.canonical(CI.resolve_selection(self.default, self.mapping, identifier)),
+                                 CI.canonical(expected_current), identifier)
+            self.assertEqual(set(CI.NO_INDEX_ROUTES) - set(old.NO_INDEX_ROUTES),
+                         {self.record['selectionID'], CI.SAVED_REVIEW_FIELDS_SELECTION_ID, CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID,
+                          CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID,
+                          CI.ROUND_ITEM_COMPLETION_SELECTION_ID})
+            for identifier, binding in old.NO_INDEX_ROUTES.items():
+                self.assertEqual(CI.NO_INDEX_ROUTES[identifier], binding, identifier)
+                self.assertEqual(CI.no_index_source_trees(identifier), old.no_index_source_trees(identifier), identifier)
+
+    def test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail(self):
+        NotificationScheduleEraseBuild30DiagnosticTests.test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail(self)
+
+    def test_collection_requires_exact_two_methods_once_and_passed(self):
+        NotificationScheduleEraseBuild30DiagnosticTests.test_collection_requires_all_28_methods_once_and_passed(self)
+
+    def test_selected_input_binds_real_manifest_and_worker_choice(self):
+        selected, record = CI.selected_input(ROOT, dict(environment(), NATIVE_SELECTION_ID=self.record['selectionID']))
+        self.assertEqual(selected, self.selected)
+        self.assertEqual(record['selectionID'], self.record['selectionID'])
+        self.assertEqual(record['selectionSHA256'], self.record['selectionSHA256'])
+        self.assertEqual(record['selectionMapSHA256'], self.record['selectionMapSHA256'])
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            paths = ['Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py',
+                     'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH]
+            paths += ['FieldEvidenceAppTests/' + name + '.swift' for name in sorted({
+                CI.selection_class(selector) for selector in self.default['unitTestSelectors']})]
+            for relative in paths:
+                target = fixture / relative; target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / relative).read_bytes())
+            output = fixture / 'selected.json'
+            e = dict(os.environ, **self.bound_environment(), NATIVE_SELECTION_ID=self.record['selectionID'],
+                     GITHUB_WORKSPACE=str(fixture))
+            def run():
+                return subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                                      env=e, capture_output=True)
+            result = run()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+            output.unlink()
+            # select emits the closed source selection; admission/receipt entry
+            # checks above separately reject foreign dispatch hashes and inputs.
+            for key, value in [('NATIVE_SELECTION_ID', self.record['selectionID'] + '-retry')]:
+                original = e[key]
+                try:
+                    e[key] = value
+                    self.assertNotEqual(run().returncode, 0)
+                    self.assertFalse(output.exists())
+                finally: e[key] = original
+            changes = []
+            for key, changed in [('unitTestSelectors', self.default['unitTestSelectors'][::-1]),
+                                 ('unitTestSelectors', self.default['unitTestSelectors'] + self.default['unitTestSelectors'][:1])]:
+                changes.append(('Scripts/ci-selection.json', CI.canonical(dict(self.default, **{key: changed}))))
+            mapping = copy.deepcopy(self.mapping)
+            mapping['groups'][-1]['classes'].append(mapping['groups'][0]['classes'][0])
+            changes.append((CI.SELECTION_MAP_PATH, CI.canonical(mapping)))
+            relative = 'FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift'
+            source = (fixture / relative).read_bytes()
+            for member in CI.NOTIFICATION_INTERRUPTION_SELECTORS:
+                method = member.rsplit('/', 1)[1]
+                changes.append((relative, source.replace(('func ' + method + '(').encode(), b'func missingInterruptionMethod(')))
+            for relative, changed in changes:
+                path = fixture / relative; original = path.read_bytes()
+                try:
+                    path.write_bytes(changed)
+                    result = run()
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertFalse(output.exists())
+                finally: path.write_bytes(original)
+
+
+class FindingProfileFixturesDiagnosticTests(ReplacementPartitionDiagnosticTests):
+    def test_real_git_admission_build_receipt_and_shell_only_mock_xcode(self):
+        # Private object store/index: no ref, index, or source mutation in ROOT.
+        import io
+        import zipfile
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        def shell_path(path):
+            if os.name != 'nt': return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve(); checkout = base/'checkout'; checkout.mkdir()
+            repository = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=ROOT, text=True).strip()
+            archive = subprocess.check_output(['git', 'archive', '--format=zip', self.source_parent], cwd=repository)
+            zipfile.ZipFile(io.BytesIO(archive)).extractall(checkout)
+            owned = ['Scripts/v23-selection-manifest.json', 'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH,
+                     'Scripts/test-v23-selection-generator.py', 'Scripts/v23-native-ci.py', 'Scripts/test-v23-native-ci.py',
+                     'Scripts/ci-worker-selection.jq', 'Scripts/build-smoke.sh', '.github/workflows/ios-ci.yml']
+            owned += ['FieldEvidenceAppTests/'+g['classes'][0]+'.swift' for g in FINDING_PROFILE_FIXTURES_GROUPS]
+            owned += ['FieldEvidenceApp/Domain/'+p for p in (
+                'InspectionKernel/FindingOwnerSelectionContractsV1.swift', 'InspectionKernel/FindingOwnerContractsV1.swift',
+                'Models/FindingOwnerPersistenceModelsV1.swift', 'InspectionKernel/FindingOwnerMutationContractsV1.swift')]
+            owned.append('FieldEvidenceApp/Infrastructure/Reporting/ShopReportProfileLifecycleAdapterV1.swift')
+            for relative in owned:
+                target = checkout/relative; target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT/relative, target)
+            # Replay the authentic pre-C36 generated contract against the frozen
+            # Finding86 product trees. Current declarations belong to a later tree.
+            historical_pin = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
+            for relative in ('Scripts/v23-selection-manifest.json', 'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH):
+                raw = subprocess.check_output(['git', 'show', historical_pin + ':' + relative], cwd=ROOT)
+                (checkout/relative).write_bytes(raw)
+            historical_default = CI.read_json(checkout/'Scripts/ci-selection.json')
+            historical_map = CI.read_json(checkout/CI.SELECTION_MAP_PATH)
+            self.assertEqual((historical_default, historical_map), presaved_review_values(self.default, self.mapping))
+            self.assertEqual(CI.sha256((checkout/'Scripts/v23-selection-manifest.json').read_bytes()),
+                             '17E1E8CB27769BE245CD90AC62D68ACCF13591EECC997B6E03870ABD3C3048C0')
+            report = CI.verify_generated_selection(checkout, historical_default, historical_map)
+            self.assertEqual((report['selectorCount'], report['groupCount']), (1054, 68))
+            self.assertEqual(CI.resolve_selection(historical_default, historical_map, self.record['selectionID']), self.selected)
+            subprocess.run(['git', 'init', '-q', str(checkout)], check=True)
+            common = subprocess.check_output(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], cwd=ROOT, text=True).strip()
+            (checkout/'.git/objects/info/alternates').write_text((Path(common)/'objects').as_posix()+'\n', encoding='utf-8', newline='\n')
+            def git(*args, data=None):
+                return subprocess.check_output(['git', *args], cwd=checkout, input=data)
+            git('config', 'core.autocrlf', 'false')
+            git('read-tree', self.source_parent)
+            for relative in owned:
+                info = git('ls-tree', self.source_parent, '--', relative).split()
+                mode = info[0].decode() if info else '100644'
+                blob = git('hash-object', '-w', '--stdin', data=(checkout/relative).read_bytes()).decode().strip()
+                git('update-index', '--add', '--cacheinfo', mode, blob, relative)
+            tree = git('write-tree').decode().strip()
+            # ZipFile extraction loses executable bits. Materialize the final
+            # private index so both frozen modes and the owned bytes are exact.
+            git('checkout-index', '--all', '--force')
+            identity = dict(os.environ, GIT_AUTHOR_NAME='Protocol fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                            GIT_COMMITTER_NAME='Protocol fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid')
+            def commit(parent):
+                return subprocess.check_output(['git', 'commit-tree', tree, '-p', parent, '-m', 'Disposable protocol fixture; no native evidence'],
+                                               cwd=checkout, env=identity, text=True).strip()
+            head = commit(self.source_parent); git('update-ref', 'HEAD', head)
+            for path, expected in self.source_trees.items():
+                self.assertEqual(git('rev-parse', head+':'+path).decode().strip(), expected)
+            diff = subprocess.run(['git', 'diff', '--exit-code', '--stat', 'HEAD', '--'], cwd=checkout, capture_output=True)
+            self.assertEqual(diff.returncode, 0, diff.stdout.decode(errors='replace'))
+            binary = base/'bin'; binary.mkdir()
+            # This shim runs the real interpreter; it does not emulate its contract.
+            python = binary/'python3'; python.write_text('#!/bin/bash\nexec "'+shell_path(Path(sys.executable))+'" "$@"\n', newline='\n'); python.chmod(0o755)
+            xcode = binary/'xcodebuild'
+            xcode.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$MOCK_BUILD_ARGS"\nif [ "$MOCK_BUILD_EXIT" != 0 ]; then exit "$MOCK_BUILD_EXIT"; fi\nmkdir -p "$CI_ARTIFACT_DIR/Build.xcresult" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app"\ntouch "$CI_ARTIFACT_DIR/Build.xcresult/result" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/fixture.xctestrun" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app/Info.plist"\n', newline='\n')
+            xcode.chmod(0o755)
+            selected = self.selected
+            base_env = dict(os.environ, **self.bound_environment(), GITHUB_WORKSPACE=str(checkout))
+            base_env.update(GITHUB_SHA=head, NATIVE_SELECTION_ID=self.record['selectionID'],
+                            DISPATCH_NATIVE_SELECTION_MAP_SHA256=CI.sha256(CI.canonical(historical_map)),
+                            PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp', CONFIGURATION='Debug',
+                            CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID, CI_DESTINATION='platform=iOS Simulator,id='+UDID)
+            cli = [sys.executable, str(checkout/'Scripts/v23-native-ci.py')]
+            if os.name != 'nt':
+                # A real mode-only edit must still fail the production guard.
+                executable = checkout/'Scripts/build-smoke.sh'
+                original_mode, original_bytes = executable.stat().st_mode, executable.read_bytes()
+                self.assertTrue(original_mode & 0o111)
+                artifact = base/'mode-change'; artifact.mkdir()
+                try:
+                    executable.chmod(original_mode & ~0o111)
+                    self.assertEqual(executable.read_bytes(), original_bytes)
+                    self.assertEqual(git('diff', '--summary', 'HEAD', '--').decode().strip(),
+                                     'mode change 100755 => 100644 Scripts/build-smoke.sh')
+                    result = subprocess.run(cli+['admit'],
+                                            env=dict(base_env, CI_ARTIFACT_DIR=str(artifact)), capture_output=True)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn(b"'diff', '--exit-code', 'HEAD', '--'", result.stderr)
+                    self.assertFalse((artifact/'native-admission.json').exists())
+                finally:
+                    executable.chmod(original_mode)
+                self.assertEqual(git('diff', 'HEAD', '--'), b'')
+            for label, changes in [('wrong-head', {'GITHUB_SHA':'f'*40}), ('attempt', {'GITHUB_RUN_ATTEMPT':'2'}),
+                                   ('provider', {'CI_RUNNER_PROVIDER':'bitrise'}), ('map', {'DISPATCH_NATIVE_SELECTION_MAP_SHA256':'F'*64})]:
+                artifact = base/label; artifact.mkdir()
+                result = subprocess.run(cli+['admit'], env=dict(base_env, CI_ARTIFACT_DIR=str(artifact), **changes), capture_output=True)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertFalse((artifact/'native-admission.json').exists())
+            wrong = commit(head); git('update-ref', 'HEAD', wrong)
+            artifact = base/'wrong-parent'; artifact.mkdir()
+            result = subprocess.run(cli+['admit'], env=dict(base_env, GITHUB_SHA=wrong, CI_ARTIFACT_DIR=str(artifact)), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn(b'exact approved parent', result.stderr)
+            git('update-ref', 'HEAD', head)
+            for label, build_exit, changed_input in [('success', 0, False), ('compiler-failure', 83, False), ('receipt-failure', 0, True)]:
+                artifact = base/label; artifact.mkdir(); runner = base/(label+'-runner')
+                e = dict(base_env, CI_ARTIFACT_DIR=str(artifact), RUNNER_TEMP=str(runner))
+                result = subprocess.run(cli+['admit'], env=e, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                admitted = CI.read_json(artifact/'native-admission.json')
+                self.assertEqual((admitted['head'], admitted['selectionID']), (head, self.record['selectionID']))
+                self.assertFalse(admitted['acceptance'])
+                self.assertFalse(admitted['providerQualification'])
+                if changed_input: e['DISPATCH_NATIVE_SELECTION_SHA256'] = 'F'*64
+                # Bash exports Windows paths unchanged for real Python; path
+                # arguments sent to xcodebuild are compared with the same receipt.
+                e.update(MOCK_BUILD_ARGS=shell_path(artifact/'argv'), MOCK_BUILD_EXIT=str(build_exit))
+                result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash Scripts/build-smoke.sh', '_', shell_path(binary)],
+                                        cwd=checkout, env=e, capture_output=True)
+                if changed_input:
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertFalse((artifact/CI.NO_INDEX_RECEIPT).exists())
+                    self.assertFalse((artifact/'argv').exists())
+                    continue
+                self.assertEqual(result.returncode, build_exit, result.stderr)
+                receipt = CI.read_json(artifact/CI.NO_INDEX_RECEIPT)
+                self.assertEqual(receipt['sourceTrees'], self.source_trees)
+                actual = (artifact/'argv').read_text().splitlines()
+                expected = receipt['argv'][1:]
+                if os.name == 'nt':
+                    # Windows Path and Bash spell separators differently. Only
+                    # the two already bound filesystem operands are normalized.
+                    for index in (9, 11):
+                        actual[index] = Path(actual[index]).as_posix()
+                        expected[index] = Path(expected[index]).as_posix()
+                self.assertEqual(actual, expected)
+                self.assertEqual(actual[-2:], ['COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+
+
+    diagnostic_routes = ((CI.FINDING_PROFILE_FIXTURES_SELECTION_ID, CI.FINDING_PROFILE_FIXTURES_SELECTORS),)
+    source_parent = CI.FINDING_PROFILE_FIXTURES_PARENT
+    source_trees = CI.FINDING_PROFILE_FIXTURES_TREES
+
+    def test_public_choices_and_report_boundary_are_exact(self):
+        workflow = (ROOT/'.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        expected = [g['id'] for g in FINDING_PROFILE_FIXTURES_GROUPS] + ['finding-profile-fixtures-no-index-build30m']
+        self.assertNotIn('finding-owner-components-no-index-build30m', options)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(self.default, self.mapping, 'finding-owner-components-no-index-build30m')
+        start = options.index(expected[0])
+        self.assertEqual(options[start:start+7], expected)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertEqual(self.source_parent, '803a3d495191333da7c5753064220a901417e910')
+        self.assertEqual(self.source_trees, {'FieldEvidenceApp': '19bf6a35bfcc725bf1358c1e01f57afa2bb6702c', 'FieldEvidenceAppTests': 'ab493b1146c525be2f39425a3b7fab0fc87e9a62', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'})
+
+    def test_exact_disjoint_ordered_union_and_historical_routes(self):
+        prior, mapping = prefinding_values(self.default, self.mapping)
+        self.assertEqual((len(prior['unitTestSelectors']), len(mapping['groups'])), (968, 62))
+        self.assertEqual(self.selected['unitTestSelectors'], FINDING_PROFILE_FIXTURES_SELECTORS)
+        self.assertEqual(len(set(FINDING_PROFILE_FIXTURES_SELECTORS)), 86)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((self.selected['runUISmoke'], self.selected['uiTestSelectors']), (False, []))
+        self.assertFalse(set(prior['unitTestSelectors']) & set(FINDING_PROFILE_FIXTURES_SELECTORS))
+        observed = []
+        for group in FINDING_PROFILE_FIXTURES_GROUPS:
+            ordinary = CI.resolve_selection(self.default, self.mapping, group['id'])
+            expected = [m for m in FINDING_PROFILE_FIXTURES_SELECTORS if m.split('/')[1] in group['classes']]
+            self.assertEqual(ordinary['unitTestSelectors'], expected)
+            self.assertEqual(len(expected), group['methodCount'])
+            self.assertEqual(tuple(ordinary[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+            self.assertNotIn(group['id'], CI.NO_INDEX_ROUTES)
+            observed += expected
+        self.assertEqual(observed, FINDING_PROFILE_FIXTURES_SELECTORS)
+        self.assertEqual([g['methodCount'] for g in FINDING_PROFILE_FIXTURES_GROUPS], [18, 29, 5, 18, 11, 5])
+        self.assertEqual(observed[81:], ['FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38G01PatternsOverridesAndHistoryProjectDeterministically', 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38A01LeapMonthEndLastWeekdayAndScopesPreview', 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38H01InvalidRulesStalePreviewAndIdentityDriftHaveNoEffects', 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38I01DSTClockReminderAndEffectBeforeReceiptRetryExactlyOnce', 'FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests/testV23P04C38R01CompletionScheduleChangeReplayAndRestoreRemainStable'])
+        self.assertEqual(hashlib.sha256(json.dumps(observed[:81], separators=(',', ':')).encode()).hexdigest(),
+                         '3377e3cd421b7aa514bdef914f4296c1d31eba4cf0e22da7bbbc2bb7253038a8')
+        for suffix in ('-retry', '-parallel', '-45m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, self.record['selectionID']+suffix)
+        for changed in (observed[:81], observed[:-5]+observed[:5], observed[:-1], observed[::-1], observed[:-1]+observed[:1], observed+[UNIT]):
+            value = dict(self.selected, unitTestSelectors=changed)
+            with self.assertRaises(ValueError): CI.validate_selection(value)
+            result = subprocess.run(['jq', '-e', '-f', str(ROOT/'Scripts/ci-worker-selection.jq')], input=CI.canonical(value), capture_output=True)
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail = NotificationScheduleEraseBuild30DiagnosticTests.test_foreign_checkout_original_identity_and_worker_dispatch_inputs_fail
+    test_collection_requires_all_86_methods_once_and_passed = ActivityCompletedSourceDiagnosticTests.test_collection_requires_all_63_methods_once_and_passed
+
+
+class BuildOrderDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID)
+        self.record = {'selectionID': CI.BUILD_ORDER_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping))}
+        self.header = ('tree ' + 'a' * 40 + '\nparent ' + CI.BUILD_ORDER_PARENT + '\n\nmessage\n').encode()
+
+    def bound_environment(self, provider='github'):
+        e = environment(provider)
+        e.update(DISPATCH_NATIVE_SELECTION_ID=self.record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=self.record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=self.record['selectionMapSHA256'])
+        return e
+
+    def git_facts(self, command, **kwargs):
+        if command[1:3] == ['cat-file', 'commit']:
+            return self.header
+        return CI.BUILD_ORDER_TREES[command[-1].split(':', 1)[1]] + '\n'
+
+    def test_closed_alias_preserves_all_seven_methods_and_ordinary_budgets(self):
+        self.assertEqual(self.selected, CI.resolve_selection(self.default, self.mapping, 'c36-destination-discard'))
+        self.assertEqual(len(self.selected['unitTestSelectors']), 7)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        for suffix in ('-retry', '-parallel', '-30m'):
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(self.default, self.mapping, CI.BUILD_ORDER_SELECTION_ID + suffix)
+        self.assertEqual(len(self.default['unitTestSelectors']), 1091)
+        self.assertEqual(len(self.mapping['groups']), 72)
+
+    def test_both_admission_stages_require_original_github_parent_and_all_four_source_trees(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts) as read:
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            self.assertEqual(read.call_count, 5)
+            self.assertFalse(result['acceptance'])
+            self.assertTrue(result['diagnosticOnly'])
+            for changed in (self.bound_environment('bitrise'), dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2')):
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=self.git_facts), self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record)
+            for bad_header in (b'tree a\n\nmessage\n', self.header.replace(CI.BUILD_ORDER_PARENT.encode(), b'b'*40),
+                               self.header.replace(b'\n\n', b'\nparent ' + b'b'*40 + b'\n\n')):
+                with mock.patch.object(CI.subprocess, 'check_output', return_value=bad_header), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            for path in CI.BUILD_ORDER_TREES:
+                def changed_tree(command, **kwargs):
+                    return 'b'*40 if command[-1] == HEAD + ':' + path else self.git_facts(command, **kwargs)
+                with mock.patch.object(CI.subprocess, 'check_output', side_effect=changed_tree), self.assertRaises(ValueError):
+                    CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+
+    def devices(self, state='Shutdown'):
+        return CI.canonical({'devices': {'com.apple.CoreSimulator.SimRuntime.iOS-26-2': [
+            {'udid': UDID, 'state': state, 'isAvailable': True}]}})
+
+    def test_device_samples_reject_missing_duplicate_unavailable_malformed_and_oversized_inventory(self):
+        self.assertEqual(CI.build_order_device_state(self.devices(), UDID)['selectedState'], 'Shutdown')
+        value = json.loads(self.devices())
+        members = next(iter(value['devices'].values()))
+        members.append(dict(members[0]))
+        for raw in (CI.canonical(value), b'{"devices":{}}', b'{"devices":{},"devices":{}}',
+                    b'x'*(2*1024*1024+1), self.devices().replace(b'00000000-', b'zzzzzzzz-'),
+                    self.devices().replace(b'true', b'false'), b'not JSON'):
+            with self.subTest(prefix=raw[:50]), self.assertRaises(ValueError):
+                CI.build_order_device_state(raw, UDID)
+
+    def run_observer(self, artifact, code=0, during='Shutdown', unavailable=False):
+        (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+        e = {'CI_BUILD_TIMEOUT_SECONDS': '1200', 'CI_SIMULATOR_UDID': UDID,
+             'CI_NATIVE_CREATED_SIMULATOR_UDID': UDID, 'CI_SIMULATOR_INITIAL_STATE': 'Shutdown'}
+        child = mock.Mock(pid=4321)
+        child.wait.side_effect = [subprocess.TimeoutExpired('build', 60), code]
+        middle = subprocess.TimeoutExpired('simctl', 5) if unavailable else mock.Mock(stdout=self.devices(during))
+        with mock.patch.object(CI.subprocess, 'run', side_effect=[mock.Mock(stdout=self.devices()), middle,
+                                                               mock.Mock(stdout=self.devices())]) as sample, \
+             mock.patch.object(CI.subprocess, 'Popen', return_value=child) as launch:
+            result = CI.observe_build_before_boot(ROOT, artifact, self.record, e)
+        launch.assert_called_once_with(['bash', 'Scripts/build-smoke.sh'], cwd=ROOT)
+        self.assertEqual(child.wait.call_args_list, [mock.call(timeout=60), mock.call(timeout=60)])
+        for call in sample.call_args_list:
+            self.assertEqual(call, mock.call(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'],
+                                            cwd=ROOT, capture_output=True, timeout=5, check=True))
+        return result
+
+    def test_unchanged_build_exit_and_signal_codes_propagate_and_failed_build_never_passes_evidence(self):
+        for code, expected in ((0, 0), (65, 65), (-15, 143), (-9, 137)):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                self.assertEqual(self.run_observer(artifact, code), expected)
+                if code == 0:
+                    result = CI.build_order_observations(artifact, self.record, UDID)
+                    self.assertTrue(result['selectedSimulatorObservedShutdownThroughout'])
+                    self.assertFalse(result['continuousStateProof'])
+                    self.assertFalse(result['performanceImprovementProven'])
+                else:
+                    with self.assertRaises(ValueError): CI.build_order_observations(artifact, self.record, UDID)
+
+    def test_implicit_boot_and_unavailable_samples_are_retained_without_claiming_shutdown_or_speedup(self):
+        for during, unavailable, status in (('Booted', False, 'COMPLETE'), ('Shutdown', True, 'INCONCLUSIVE')):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                self.assertEqual(self.run_observer(artifact, during=during, unavailable=unavailable), 0)
+                result = CI.build_order_observations(artifact, self.record, UDID)
+                self.assertEqual(result['observationStatus'], status)
+                self.assertFalse(result['selectedSimulatorObservedShutdownThroughout'])
+                if not unavailable: self.assertIn('Booted', result['observedSelectedStates'])
+
+    def test_wrong_admission_device_precondition_and_existing_evidence_deny_before_child_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+            e = {'CI_BUILD_TIMEOUT_SECONDS': '1200', 'CI_SIMULATOR_UDID': UDID,
+                 'CI_NATIVE_CREATED_SIMULATOR_UDID': UDID, 'CI_SIMULATOR_INITIAL_STATE': 'Shutdown'}
+            for changed in ({'CI_BUILD_TIMEOUT_SECONDS': '1800'}, {'CI_SIMULATOR_UDID': 'foreign'},
+                            {'CI_NATIVE_CREATED_SIMULATOR_UDID': 'foreign'}, {'CI_SIMULATOR_INITIAL_STATE': 'Booted'}):
+                with mock.patch.object(CI.subprocess, 'Popen') as launch, self.assertRaises(ValueError):
+                    CI.observe_build_before_boot(ROOT, artifact, self.record, dict(e, **changed))
+                launch.assert_not_called()
+            for result in (mock.Mock(stdout=self.devices('Booted')), subprocess.TimeoutExpired('simctl', 5)):
+                with mock.patch.object(CI.subprocess, 'run', side_effect=[result]), \
+                     mock.patch.object(CI.subprocess, 'Popen') as launch, self.assertRaises(ValueError):
+                    CI.observe_build_before_boot(ROOT, artifact, self.record, e)
+                launch.assert_not_called()
+                (artifact/CI.BUILD_ORDER_OBSERVATIONS).unlink()
+            (artifact/CI.BUILD_ORDER_OBSERVATIONS).write_bytes(b'owned prefix\n')
+            with mock.patch.object(CI.subprocess, 'Popen') as launch, self.assertRaises(ValueError):
+                CI.observe_build_before_boot(ROOT, artifact, self.record, e)
+            launch.assert_not_called()
+            self.assertEqual((artifact/CI.BUILD_ORDER_OBSERVATIONS).read_bytes(), b'owned prefix\n')
+
+    def test_changed_truncated_reordered_or_false_success_evidence_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory); self.run_observer(artifact)
+            path = artifact/CI.BUILD_ORDER_OBSERVATIONS
+            raw = path.read_bytes(); events = [json.loads(line) for line in raw.splitlines()]
+            variants = [raw[:-1], b''.join(CI.canonical(e) for e in events[:-1])]
+            for index, updates in ((0, {'admissionSHA256': '0'*64}), (0, {'command': ['different']}),
+                                   (1, {'selectedState': 'Booted'}), (2, {'kind': 'completed'}),
+                                   (-1, {'returnCode': False}), (-1, {'elapsedSeconds': 1201}),
+                                   (3, {'elapsedSeconds': -1})):
+                changed = copy.deepcopy(events); changed[index].update(updates)
+                variants.append(b''.join(CI.canonical(e) for e in changed))
+            for changed in variants:
+                path.write_bytes(changed)
+                with self.assertRaises(ValueError): CI.build_order_observations(artifact, self.record, UDID)
+
+    def test_workflow_diagnostic_and_ordinary_paths_preserve_commands_order_and_failure_gates(self):
+        worker = (ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        names = ['Build unsigned simulator app before boot (diagnostic)', 'Boot selected Simulator',
+                 'Await selected Simulator boot', 'Build unsigned simulator app', 'Prepare S10.4 shared build payload']
+        positions = [worker.index('      - name: '+name+'\n') for name in names]
+        self.assertEqual(positions, sorted(positions))
+        early = worker[positions[0]:positions[1]]
+        self.assertIn("inputs.native_acceptance_contract == 'v23.integration.current-native.v1' && (inputs.native_selection_id == '"+CI.BUILD_ORDER_SELECTION_ID+"' || inputs.native_selection_id == '"+CI.NOTIFICATION_INTERRUPTION_SELECTION_ID+"')", early)
+        self.assertIn('bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS"', early)
+        self.assertIn('python3 Scripts/v23-native-ci.py observe-build-before-boot', early)
+        self.assertNotIn('continue-on-error', early)
+        boot = worker[positions[1]:positions[2]]
+        wait = worker[positions[2]:positions[3]]
+        self.assertNotIn('if:', boot); self.assertNotIn('if:', wait)
+        self.assertIn('wait: simulator_boot', wait)
+        self.assertIn('xcrun simctl bootstatus "$CI_SIMULATOR_UDID" -b', boot)
+        normal = worker[positions[3]:positions[4]]
+        self.assertIn("inputs.s10_4_execution_role != 'payload-consumer' && inputs.native_selection_id != '"+CI.BUILD_ORDER_SELECTION_ID+"'", normal)
+        self.assertIn('bash Scripts/build-smoke.sh 2>&1 | tee "$CI_ARTIFACT_DIR/build-smoke.log"', normal)
+        self.assertNotIn('continue-on-error', normal)
+
+
+class InterruptionBuildOrderTests(unittest.TestCase):
+    devices = BuildOrderDiagnosticTests.devices
+
+    def setUp(self):
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(default, mapping, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
+        self.record = {'selectionID': CI.NOTIFICATION_INTERRUPTION_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(mapping))}
+
+    def environment(self):
+        return {'CI_BUILD_TIMEOUT_SECONDS': '1800', 'CI_SIMULATOR_UDID': UDID,
+                'CI_NATIVE_CREATED_SIMULATOR_UDID': UDID, 'CI_SIMULATOR_INITIAL_STATE': 'Shutdown'}
+
+    def observe(self, artifact, code=0, middle='Shutdown', unavailable=False, waits=1):
+        (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+        child = mock.Mock(pid=4321)
+        child.wait.side_effect = [subprocess.TimeoutExpired('build', 60)] * waits + [code]
+        middle_sample = subprocess.TimeoutExpired('simctl', 5) if unavailable else mock.Mock(stdout=self.devices(middle))
+        observations = [mock.Mock(stdout=self.devices())] + [middle_sample] * min(waits, 34) + [mock.Mock(stdout=self.devices())]
+        with mock.patch.object(CI.subprocess, 'run', side_effect=observations) as sampler, \
+             mock.patch.object(CI.subprocess, 'Popen', return_value=child) as launch:
+            result = CI.observe_build_before_boot(ROOT, artifact, self.record, self.environment())
+        launch.assert_called_once_with(['bash', 'Scripts/build-smoke.sh'], cwd=ROOT)
+        self.assertEqual(child.wait.call_args_list, [mock.call(timeout=60)] * (waits+1))
+        for call in sampler.call_args_list:
+            self.assertEqual(call, mock.call(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'],
+                                            cwd=ROOT, capture_output=True, timeout=5, check=True))
+        return result
+
+    def test_exact_current_two_methods_and_both_closed_budgets(self):
+        self.assertEqual(self.selected['unitTestSelectors'], list(CI.NOTIFICATION_INTERRUPTION_SELECTORS))
+        self.assertEqual(len(self.selected['unitTestSelectors']), 2)
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), CI.TIERS['D30'])
+        self.assertEqual(CI.build_order_limits(CI.BUILD_ORDER_SELECTION_ID), (1200, 24))
+        self.assertEqual(CI.build_order_limits(CI.NOTIFICATION_INTERRUPTION_SELECTION_ID), (1800, 34))
+        for unknown in ('default', '', 'notification-schedule-erase-no-index-build30m'):
+            with self.assertRaises(ValueError): CI.build_order_limits(unknown)
+
+    def test_current_observer_preserves_build_failures_signals_and_bounded_sampling(self):
+        for code, expected in ((0, 0), (65, 65), (-15, 143), (-9, 137)):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                self.assertEqual(self.observe(artifact, code=code, waits=35), expected)
+                rows = [json.loads(line) for line in (artifact/CI.BUILD_ORDER_OBSERVATIONS).read_bytes().splitlines()]
+                self.assertEqual(len(rows), 39)
+                self.assertEqual(rows[0]['watchdogSeconds'], 1800)
+                if code == 0:
+                    result = CI.build_order_observations(artifact, self.record, UDID)
+                    self.assertTrue(result['selectedSimulatorObservedShutdownThroughout'])
+                    self.assertFalse(result['performanceImprovementProven'])
+                else:
+                    with self.assertRaises(ValueError): CI.build_order_observations(artifact, self.record, UDID)
+
+    def test_current_admission_budget_device_and_owned_prefix_fail_before_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact=Path(directory)
+            (artifact/'native-admission.json').write_bytes(CI.canonical(self.record))
+            for delta in ({'CI_BUILD_TIMEOUT_SECONDS':'1200'}, {'CI_BUILD_TIMEOUT_SECONDS':'2400'},
+                          {'CI_SIMULATOR_UDID':'foreign'}, {'CI_NATIVE_CREATED_SIMULATOR_UDID':'foreign'},
+                          {'CI_SIMULATOR_INITIAL_STATE':'Booted'}):
+                with mock.patch.object(CI.subprocess,'Popen') as launch, self.assertRaises(ValueError):
+                    CI.observe_build_before_boot(ROOT,artifact,self.record,dict(self.environment(),**delta))
+                launch.assert_not_called()
+            wrong=dict(self.record,selectionSHA256='0'*64)
+            with mock.patch.object(CI.subprocess,'Popen') as launch, self.assertRaises(ValueError):
+                CI.observe_build_before_boot(ROOT,artifact,wrong,self.environment())
+            launch.assert_not_called()
+            for observed in (mock.Mock(stdout=self.devices('Booted')), subprocess.TimeoutExpired('simctl',5)):
+                with mock.patch.object(CI.subprocess,'run',side_effect=[observed]), \
+                     mock.patch.object(CI.subprocess,'Popen') as launch, self.assertRaises(ValueError):
+                    CI.observe_build_before_boot(ROOT,artifact,self.record,self.environment())
+                launch.assert_not_called()
+                (artifact/CI.BUILD_ORDER_OBSERVATIONS).unlink()
+            path=artifact/CI.BUILD_ORDER_OBSERVATIONS;path.write_bytes(b'owned prefix\n')
+            with mock.patch.object(CI.subprocess,'Popen') as launch, self.assertRaises(ValueError):
+                CI.observe_build_before_boot(ROOT,artifact,self.record,self.environment())
+            launch.assert_not_called();self.assertEqual(path.read_bytes(),b'owned prefix\n')
+
+    def test_current_evidence_enforces_1800_and_source_bound_header(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact=Path(directory);self.observe(artifact)
+            path=artifact/CI.BUILD_ORDER_OBSERVATIONS
+            events=[json.loads(line) for line in path.read_bytes().splitlines()]
+            events[-1]['elapsedSeconds']=1800
+            path.write_bytes(b''.join(CI.canonical(x) for x in events))
+            self.assertEqual(CI.build_order_observations(artifact,self.record,UDID)['elapsedSeconds'],1800)
+            for index,updates in ((-1,{'elapsedSeconds':1801}), (0,{'watchdogSeconds':1200}),
+                                  (0,{'admissionSHA256':'0'*64}), (-1,{'returnCode':False})):
+                altered=copy.deepcopy(events);altered[index].update(updates)
+                path.write_bytes(b''.join(CI.canonical(x) for x in altered))
+                with self.assertRaises(ValueError):CI.build_order_observations(artifact,self.record,UDID)
+            path.write_bytes(b''.join(CI.canonical(x) for x in events[:-1]))
+            with self.assertRaises(ValueError):CI.build_order_observations(artifact,self.record,UDID)
+
+    def test_current_implicit_boot_and_missing_observation_never_claim_shutdown(self):
+        for state,unavailable in (('Booted',False),('Shutdown',True)):
+            with self.subTest(state=state),tempfile.TemporaryDirectory() as directory:
+                artifact=Path(directory);self.observe(artifact,middle=state,unavailable=unavailable)
+                result=CI.build_order_observations(artifact,self.record,UDID)
+                self.assertFalse(result['selectedSimulatorObservedShutdownThroughout'])
+                self.assertFalse(result['continuousStateProof']);self.assertFalse(result['acceptance'])
+                self.assertEqual(result['observationStatus'],'INCONCLUSIVE' if unavailable else 'COMPLETE')
+
+    def test_actual_worker_predicates_environment_and_success_only_order(self):
+        import ast
+        worker=(ROOT/'.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        names=['Build unsigned simulator app before boot (diagnostic)','Boot selected Simulator',
+               'Await selected Simulator boot','Build unsigned simulator app','Prepare S10.4 shared build payload']
+        positions=[worker.index('      - name: '+name+'\n') for name in names]
+        self.assertEqual(positions,sorted(positions))
+        early,boot,wait,normal=[worker[positions[i]:positions[i+1]] for i in range(4)]
+        def predicate(block,contract,selection,role=''):
+            expression=re.search(r'if: \$\{\{ (.*?) \}\}',block).group(1)
+            for name,value in {'native_acceptance_contract':contract,'native_selection_id':selection,'s10_4_execution_role':role}.items():
+                expression=expression.replace('inputs.'+name,json.dumps(value))
+            expression=expression.replace('&&','and').replace('||','or')
+            parsed=ast.parse(expression,mode='eval')
+            allowed=(ast.Expression,ast.BoolOp,ast.Compare,ast.Constant,ast.And,ast.Or,ast.Eq,ast.NotEq)
+            self.assertTrue(all(isinstance(n,allowed) for n in ast.walk(parsed)))
+            return eval(compile(parsed,'actual-worker-predicate','eval'),{'__builtins__':{}})
+        for selection in (CI.BUILD_ORDER_SELECTION_ID,CI.NOTIFICATION_INTERRUPTION_SELECTION_ID):
+            self.assertTrue(predicate(early,CI.CONTRACT,selection))
+            self.assertFalse(predicate(normal,CI.CONTRACT,selection))
+        self.assertFalse(predicate(early,CI.CONTRACT,'notification-schedule-erase-no-index-build30m'))
+        self.assertTrue(predicate(normal,CI.CONTRACT,'notification-schedule-erase-no-index-build30m'))
+        self.assertFalse(predicate(early,'','ordinary'))
+        self.assertFalse(predicate(normal,'','ordinary','payload-consumer'))
+        # The shared route never reaches this worker; its own worker gates its build.
+        self.assertNotIn('v23_shared_role',worker)
+        pattern=r'^\s+(DISPATCH_\w+): \$\{\{ inputs\.(\w+) \}\}$'
+        self.assertEqual(dict(re.findall(pattern,early,re.M)),dict(re.findall(pattern,normal,re.M)))
+        self.assertEqual(len(re.findall(pattern,early,re.M)),9)
+        self.assertIn('set -euo pipefail',early)
+        self.assertIn('python3 Scripts/v23-native-ci.py observe-build-before-boot',early)
+        self.assertIn('bash Scripts/run-with-timeout.sh "$CI_BUILD_TIMEOUT_SECONDS"',early)
+        self.assertNotIn('if:',boot);self.assertNotIn('if:',wait)
+        for block in (early,boot,wait,normal):self.assertNotIn('continue-on-error',block)
+
+
+class BuildWatchdogDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        self.mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        self.selected = CI.resolve_selection(self.default, self.mapping, CI.BUILD_WATCHDOG_SELECTION_ID)
+        self.record = {'selectionID': CI.BUILD_WATCHDOG_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256(CI.canonical(self.mapping))}
+        self.header = ('tree ' + 'a' * 40 + '\nparent ' + CI.BUILD_WATCHDOG_PARENT + '\n\nmessage\n').encode()
+
+    def bound_environment(self, provider='github'):
+        e = environment(provider)
+        e.update(DISPATCH_NATIVE_SELECTION_ID=self.record['selectionID'],
+                 DISPATCH_NATIVE_SELECTION_SHA256=self.record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=self.record['selectionMapSHA256'])
+        return e
+
+    def test_closed_diagnostic_retains_exact_method_pool_and_ordinary_budgets(self):
+        self.assertEqual(self.selected['unitTestSelectors'], [
+            'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testParentFinalizationCheckNoIssueUsesOriginalFiveSagaHistory'])
+        self.assertEqual(tuple(self.selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 900, 0, 3000))
+        self.assertEqual((self.selected['tier'], self.selected['runUISmoke'], self.selected['uiTestSelectors']),
+                         ('D30', False, []))
+        for name in [CI.DEFAULT_SELECTION_ID, 'c36-parent-finalization-check-no-issue'] + [g['id'] for g in self.mapping['groups']]:
+            old = CI.resolve_selection(self.default, self.mapping, name)
+            self.assertEqual(tuple(old[k] for k in CI.BUDGET_KEYS), (300, 1200, 900, 0, 2400))
+        self.assertEqual(CI.sha256(CI.canonical(self.default)), CI.ROUND_ITEM_COMPLETION_POOL_SHA256)
+        self.assertEqual(CI.sha256(CI.canonical(self.mapping)), CI.ROUND_ITEM_COMPLETION_MAP_SHA256)
+        previous, previous_map = prelive_host_values(self.default, self.mapping)
+        self.assertEqual(CI.sha256(CI.canonical(previous)), CI.GENERATED_SELECTION_POOL_SHA256)
+        self.assertEqual(CI.sha256(CI.canonical(previous_map)), CI.GENERATED_SELECTION_MAP_SHA256)
+
+    def test_diagnostic_rejects_other_methods_tiers_budgets_and_ids(self):
+        for fields in ({'unitTestSelectors': [UNIT]}, {'unitTestSelectors': self.selected['unitTestSelectors'] * 2},
+                       {'tier': 'N8'}, {'buildTimeoutSeconds': 1801}, {'testTimeoutSeconds': 901},
+                       {'setupArtifactTimeoutSeconds': 301}, {'totalBudgetSeconds': 3001},
+                       {'runUISmoke': True}, {'uiTestSelectors': [UI]}):
+            with self.subTest(fields=fields), self.assertRaises(ValueError):
+                CI.validate_selection(dict(self.selected, **fields))
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(self.default, self.mapping, CI.BUILD_WATCHDOG_SELECTION_ID + '-retry')
+
+    def test_both_admission_stages_bind_original_github_attempt_and_approved_parent(self):
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output', return_value=self.header) as read:
+                result = CI.admission(self.selected, self.bound_environment(), HEAD, stage, self.record)
+            read.assert_called_once_with(['git', 'cat-file', 'commit', HEAD], cwd=ROOT)
+            self.assertEqual(result['selectionID'], CI.BUILD_WATCHDOG_SELECTION_ID)
+            self.assertTrue(result['diagnosticOnly'])
+            self.assertFalse(result['acceptance'])
+            self.assertFalse(result['providerQualification'])
+
+    def test_admission_denies_foreign_provider_rerun_parent_and_selector_substitution(self):
+        for stage in ('dispatch', 'worker'):
+            for e, record, selected, header in (
+                (self.bound_environment('bitrise'), self.record, self.selected, self.header),
+                (dict(self.bound_environment(), GITHUB_RUN_ATTEMPT='2'), self.record, self.selected, self.header),
+                (self.bound_environment(), self.record, self.selected, b'tree a\n\nmessage\n'),
+                (self.bound_environment(), self.record, self.selected, self.header.replace(CI.BUILD_WATCHDOG_PARENT.encode(), b'b' * 40)),
+                (self.bound_environment(), self.record, self.selected, self.header.replace(b'\n\n', b'\nparent ' + b'b' * 40 + b'\n\n')),
+                (self.bound_environment(), dict(self.record, selectionID='c36-parent-finalization-check-no-issue'), self.selected, self.header),
+                (self.bound_environment(), self.record, CI.resolve_selection(self.default, self.mapping, 'c36-parent-finalization-check-no-issue'), self.header),
+            ):
+                with self.subTest(stage=stage, provider=e['CI_RUNNER_PROVIDER']), mock.patch.object(
+                        CI.subprocess, 'check_output', return_value=header), self.assertRaises(ValueError):
+                    CI.admission(selected, e, HEAD, stage, record)
+
+    def test_actual_worker_budget_filter_accepts_only_exact_diagnostic_and_retains_ordinary_tiers(self):
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        command = 'jq -e -f Scripts/ci-worker-selection.jq "$CI_SELECTION_PATH" > /dev/null'
+        self.assertEqual(worker.count(command), 1)
+        self.assertNotIn('def tier_values_match:', worker)
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        cases = [(self.selected, True)] + [(selection(tier), True) for tier in ('N8', 'P12', 'F25')]
+        cases += [(dict(self.selected, **fields), False) for fields in (
+            {'buildTimeoutSeconds': 1200}, {'totalBudgetSeconds': 2400}, {'testTimeoutSeconds': 901},
+            {'unitTestSelectors': [UNIT]}, {'taskID': 'S10.4'}, {'runUISmoke': True})]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                with tempfile.TemporaryDirectory() as directory:
+                    selected = Path(directory)/'selected.json'
+                    selected.write_text(json.dumps(value), encoding='utf-8')
+                    selected_path = str(selected)
+                    if os.name == 'nt':
+                        selected_path = subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', selected_path], text=True).strip()
+                    # Execute the exact workflow command with real jq, file input and exit status.
+                    result = subprocess.run([str(bash), '-c', command], cwd=ROOT,
+                                            env=dict(os.environ, CI_SELECTION_PATH=selected_path),
+                                            text=True, capture_output=True, check=False)
+                self.assertEqual(result.returncode == 0, expected, result.stderr)
+
+    def test_actual_worker_filter_fails_closed_when_filter_or_selection_is_missing(self):
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        command = 'jq -e -f Scripts/ci-worker-selection.jq "$CI_SELECTION_PATH" > /dev/null'
+        self.assertEqual(worker.count(command), 1)
+        bash = (Path(shutil.which('git')).resolve().parents[1]/'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        with tempfile.TemporaryDirectory() as directory:
+            # Missing filter, then missing input: neither may be mistaken for valid selection.
+            for cwd in (Path(directory), ROOT):
+                result = subprocess.run([str(bash), '-c', command], cwd=cwd,
+                                        env=dict(os.environ, CI_SELECTION_PATH='absent-selection.json'),
+                                        text=True, capture_output=True, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, '')
+
+
+
+class ResultTests(unittest.TestCase):
+    def test_original_runtime_warning_annotation_preserves_pass_and_raw_evidence(self):
+        # Exact annotation from original35658625756's passing preference test.
+        warning = {
+            "name": "Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+            "nodeType": "Runtime Warning",
+        }
+        for method, bundle, kind, ui in (
+            (UNIT, "FieldEvidenceAppTests", "Unit test bundle", False),
+            (UI, "FieldEvidenceAppUITests", "UI test bundle", True),
+        ):
+            tree = native_tree(method, ui)
+            leaf(tree)["children"] = [copy.deepcopy(warning)]
+            original = copy.deepcopy(tree)
+            self.assertEqual(CI.executed_methods(tree, [method], bundle, kind), [method])
+            self.assertEqual(tree, original)
+            leaf(tree)["result"] = "Failed"
+            with self.assertRaises(ValueError):
+                CI.executed_methods(tree, [method], bundle, kind)
+
+    def test_warning_annotation_cannot_hide_execution_or_unknown_metadata(self):
+        good = {"nodeType": "Runtime Warning", "name": "Retained runtime warning"}
+        invalid = [
+            None, "Runtime Warning", {},
+            dict(good, nodeType="Test Case"), dict(good, nodeType="Warning"),
+            {"nodeType": "Runtime Warning"},
+            dict(good, name=""), dict(good, name="  "), dict(good, name=None),
+            dict(good, name=1), dict(good, name=[]),
+            dict(good, children=[]), dict(good, children=[leaf(native_tree())]),
+            dict(good, result="Passed"), dict(good, nodeIdentifier=UNIT),
+        ]
+        for annotation in invalid:
+            tree = native_tree()
+            leaf(tree)["children"] = [annotation]
+            with self.subTest(annotation=annotation), self.assertRaises(ValueError):
+                CI.executed_methods(tree, [UNIT], "FieldEvidenceAppTests", "Unit test bundle")
+
+    def test_real_tree_shape_normalizes_only_method_parentheses(self):
+        tree = native_tree()
+        self.assertEqual(CI.executed_methods(tree, [UNIT], "FieldEvidenceAppTests", "Unit test bundle"), [UNIT])
+        leaf(tree)["nodeIdentifier"] = UNIT
+        self.assertEqual(CI.executed_methods(tree, [UNIT], "FieldEvidenceAppTests", "Unit test bundle"), [UNIT])
+        self.assertEqual(CI.executed_methods(native_tree(UI, True), [UI], "FieldEvidenceAppUITests", "UI test bundle"), [UI])
+
+    def test_failed_skipped_expected_failure_and_missing_status_are_rejected(self):
+        for result in ("Failed", "Skipped", "Expected Failure", "Not Run", None):
+            tree = native_tree()
+            leaf(tree)["result"] = result
+            with self.subTest(result=result), self.assertRaises(ValueError):
+                CI.executed_methods(tree, [UNIT], "FieldEvidenceAppTests", "Unit test bundle")
+
+    def test_duplicate_unexpected_missing_and_nested_test_cases_are_rejected(self):
+        duplicate = native_tree()
+        duplicate["testNodes"][0]["children"][0]["children"][0]["children"].append(copy.deepcopy(leaf(duplicate)))
+        unexpected = native_tree()
+        leaf(unexpected)["nodeIdentifier"] = "NativeFixtureTests/testOther"
+        missing = native_tree()
+        missing["testNodes"][0]["children"][0]["children"] = []
+        nested = native_tree()
+        leaf(nested)["children"] = [copy.deepcopy(leaf(nested))]
+        for name, tree in (("duplicate", duplicate), ("unexpected", unexpected), ("missing", missing), ("nested", nested)):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                CI.executed_methods(tree, [UNIT], "FieldEvidenceAppTests", "Unit test bundle")
+
+    def test_wrong_or_duplicate_bundles_and_unowned_cases_are_rejected(self):
+        wrong = native_tree()
+        wrong["testNodes"][0]["children"][0]["name"] = "OtherBundle"
+        duplicate = native_tree()
+        duplicate["testNodes"][0]["children"].append(copy.deepcopy(duplicate["testNodes"][0]["children"][0]))
+        unowned = {"testNodes": [copy.deepcopy(leaf(native_tree()))]}
+        for tree in (wrong, duplicate, unowned):
+            with self.assertRaises(ValueError):
+                CI.executed_methods(tree, [UNIT], "FieldEvidenceAppTests", "Unit test bundle")
+
+
+class SimulatorDiagnosticEvidenceTests(unittest.TestCase):
+    def test_policy_binding_is_derived_from_exact_tracked_policy_and_allowance_source(self):
+        binding = CI.simulator_diagnostic_policy_binding(ROOT)
+        self.assertEqual(binding["policySHA256"], CI.SIMULATOR_DIAGNOSTIC_POLICY_SHA256)
+        self.assertEqual(binding["policyID"], CI.SIMULATOR_DIAGNOSTIC_POLICY_ID)
+        self.assertTrue(binding["diagnosticOnly"])
+        self.assertFalse(binding["countsAsPerKindProtectionSuccess"])
+        self.assertFalse(binding["providerQualification"])
+        self.assertEqual(binding["allowanceSourceSHA256"],
+                         CI.sha256((ROOT / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH).read_bytes()))
+        native_source = (ROOT / "Scripts/v23-native-ci.py").read_text()
+        self.assertEqual(native_source.count(CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH), 1)
+        swift_source = (ROOT / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH).read_text()
+        emission = swift_source.split('let facts = "' + CI.SIMULATOR_DIAGNOSTIC_PREFIX + '"', 1)[1].split(
+            "diagnosticWriter.write(facts)", 1)[0]
+        field_offsets = [emission.index(" " + field + "=") for field in CI.SIMULATOR_DIAGNOSTIC_FIELDS]
+        self.assertEqual(field_offsets, sorted(field_offsets))
+        self.assertNotIn(" path=", emission)
+        self.assertEqual(swift_source.count('"' + CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + '"'), 1)
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-policy-") as directory:
+            root = Path(directory)
+            for relative in (CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH):
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, target)
+            self.assertEqual(CI.simulator_diagnostic_policy_binding(root), binding)
+            with mock.patch.object(CI, "SIMULATOR_DIAGNOSTIC_SOURCE_SHA256",
+                                   "2B2F3D7DD16E97357DE5816613AAE2C0F7F4E3F1F1B53E83B0A8D53E578AC27F"):
+                with self.assertRaisesRegex(ValueError, "reviewed source digest"):
+                    CI.simulator_diagnostic_policy_binding(root)
+            (root / CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH).write_bytes(b"{}\n")
+            with self.assertRaisesRegex(ValueError, "policy digest"):
+                CI.simulator_diagnostic_policy_binding(root)
+            shutil.copyfile(ROOT / CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH,
+                            root / CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH)
+            source = root / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH
+            source.write_text(source.read_text().replace(CI.SIMULATOR_DIAGNOSTIC_PREFIX, "foreign", 1))
+            with self.assertRaisesRegex(ValueError, "reviewed source digest"):
+                CI.simulator_diagnostic_policy_binding(root)
+            original_source = (ROOT / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH).read_bytes()
+            weakened_source = original_source.replace(b'readback.volumeSupportsProtection == false',
+                                                       b'readback.volumeSupportsProtection != true', 1)
+            self.assertNotEqual(weakened_source, original_source)
+            self.assertIn(CI.SIMULATOR_DIAGNOSTIC_PREFIX.encode(), weakened_source)
+            self.assertIn(b'#if DEBUG && os(iOS) && targetEnvironment(simulator)', weakened_source)
+            source.write_bytes(weakened_source)
+            with self.assertRaisesRegex(ValueError, "reviewed source digest"):
+                CI.simulator_diagnostic_policy_binding(root)
+            source.unlink()
+            with self.assertRaisesRegex(ValueError, "allowance source"):
+                CI.simulator_diagnostic_policy_binding(root)
+
+    def test_closed_owned_kind_dispositions_match_swift_enum_and_policy_switch(self):
+        source = (ROOT / CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH).read_text()
+        enum_body = source.split("enum OwnedFileKindV1:", 1)[1].split("\n}", 1)[0]
+        swift_kinds = set(re.findall(r"^\s*case\s+([A-Za-z][A-Za-z0-9]*)\s*$", enum_body, re.MULTILINE))
+        self.assertEqual(set(CI.OWNED_FILE_DISPOSITIONS), swift_kinds)
+        self.assertEqual(len(swift_kinds), 31)
+        for kind in swift_kinds:
+            event = CI.parse_simulator_diagnostic_line(diagnostic_line(kind))
+            self.assertEqual((event["backupExcluded"], event["expectsDirectory"]),
+                             CI.OWNED_FILE_DISPOSITIONS[kind])
+
+    def test_exact_events_retain_order_and_duplicates_without_protection_credit(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-events-") as directory:
+            artifact = Path(directory)
+            lines = [diagnostic_line("database"), diagnostic_line("scratch"),
+                     diagnostic_line("database")]
+            log = "ordinary output\nfinished\n"
+            (artifact / "test-smoke.log").write_bytes(log.encode("utf-8"))
+            diagnostic_transport(artifact, [
+                ("00000000-0000-0000-0000-000000000010", lines)
+            ])
+            evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+            self.assertIsNone(error)
+            self.assertEqual([item["kind"] for item in evidence["events"]],
+                             ["database", "scratch", "database"])
+            self.assertEqual(evidence["eventCount"], 3)
+            self.assertFalse(evidence["zeroUseObserved"])
+            self.assertFalse(evidence["countsAsPerKindProtectionSuccess"])
+            self.assertEqual(evidence["testLog"]["sha256"], CI.sha256(log.encode()))
+
+    def test_malformed_duplicate_unknown_and_hostile_event_values_fail_closed(self):
+        variants = []
+        for field, value in (
+            ("policyID", "foreign"), ("disposition", "VERIFIED_COMPLETE"),
+            ("kind", "foreignKind"), ("request", "none"),
+            ("capabilityBefore", "true"), ("capabilityAfter", "unknown"),
+            ("urlProtection", "complete"),
+            ("backupExcluded", "true"), ("expectsDirectory", "true"),
+            ("identityUnchanged", "false"),
+        ):
+            variants.append((field, diagnostic_line("database", **{field: value})))
+        valid = diagnostic_line().strip()
+        variants += [
+            ("old-v1-marker", valid.replace(CI.SIMULATOR_DIAGNOSTIC_PREFIX,
+                                             "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V1", 1) + "\n"),
+            ("removed-file-manager-field", valid.replace(
+                " backupExcluded=", " fileManagerProtection=completeUntilFirstUserAuthentication backupExcluded=", 1) + "\n"),
+            ("duplicate", valid + " kind=database\n"),
+            ("missing", valid.rsplit(" ", 1)[0] + "\n"),
+            ("reordered", valid.replace(" policyID=", " PLACEHOLDER=").replace(
+                " disposition=", " policyID=").replace(" PLACEHOLDER=", " disposition=") + "\n"),
+            ("prefixed", "x " + valid + "\n"),
+            ("duplicate-marker", valid + " " + CI.SIMULATOR_DIAGNOSTIC_PREFIX + "\n"),
+            ("interleaved-policy-write", diagnostic_line("stagingDirectory").replace(
+                "urlProtection=", "urlPProtectedFilePolicy resource-value-mismatch "
+                "protectionMatches=false backupMatches=true\nrotection=", 1)),
+        ]
+        for name, line in variants:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                CI.parse_simulator_diagnostic_line(line)
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        for marker in ("V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V1",
+                       "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_FOREIGN"):
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory(
+                    prefix="v23-simulator-stale-marker-") as directory:
+                artifact = Path(directory)
+                (artifact / "test-smoke.log").write_text(
+                    diagnostic_line().replace(CI.SIMULATOR_DIAGNOSTIC_PREFIX, marker, 1),
+                    encoding="utf-8")
+                diagnostic_transport(artifact)
+                with self.assertRaisesRegex(ValueError, "transport parse"):
+                    CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+                retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+                self.assertEqual(retained["parseStatus"], "INVALID")
+                self.assertFalse(retained["zeroUseObserved"])
+                self.assertEqual(retained["events"], [])
+
+    def test_summaries_count_repeats_only_of_kinds_with_an_exact_first_event(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        event, occurrences = CI.parse_simulator_diagnostic_summary_line(diagnostic_summary_line("scratch", 7))
+        self.assertEqual((event, occurrences), (CI.parse_simulator_diagnostic_line(diagnostic_line("scratch")), 7))
+        # A rotated stream may hold summaries whose exact first event is in an earlier stream.
+        streams = [
+            ("00000000-0000-0000-0000-000000000041",
+             [diagnostic_line("database"), diagnostic_line("scratch"),
+              diagnostic_summary_line("database", 5), diagnostic_summary_line("scratch", 2)]),
+            ("00000000-0000-0000-0000-000000000042", [diagnostic_summary_line("database", 3)]),
+        ]
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-summaries-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text("ordinary output\n")
+            diagnostic_transport(artifact, streams)
+            evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+            self.assertIsNone(error)
+            self.assertEqual([item["kind"] for item in evidence["events"]], ["database", "scratch"])
+            self.assertEqual([(item["kind"], item["occurrences"]) for item in evidence["summaries"]],
+                             [("database", 5), ("scratch", 2), ("database", 3)])
+            self.assertEqual((evidence["eventCount"], evidence["occurrenceCount"]), (2, 12))
+            self.assertEqual(len(evidence["rawRecords"]), 5)
+            self.assertFalse(evidence["countsAsPerKindProtectionSuccess"])
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-orphan-summary-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text("ordinary output\n")
+            diagnostic_transport(artifact, [("00000000-0000-0000-0000-000000000043", [
+                diagnostic_line("database"), diagnostic_summary_line("journal", 4)])])
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(retained["parseStatus"], "INVALID")
+            self.assertIn("summary without exact first event", retained["parseError"])
+            self.assertEqual((retained["eventCount"], retained["occurrenceCount"]), (1, 5))
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-console-summary-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text(diagnostic_summary_line("database", 2))
+            diagnostic_transport(artifact)
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+
+    def test_malformed_summary_values_fail_closed(self):
+        valid = diagnostic_summary_line("database", 3).strip()
+        variants = [("occurrences-" + str(value), diagnostic_summary_line("database", value))
+                    for value in ("0", "-1", "01", "+3", "1000000001", "3.0", "three", "")]
+        variants += [(field, diagnostic_summary_line("database", 3, **{field: value})) for field, value in (
+            ("policyID", "foreign"), ("disposition", "VERIFIED_COMPLETE"), ("kind", "foreignKind"),
+            ("capabilityAfter", "true"), ("urlProtection", "complete"), ("backupExcluded", "true"),
+            ("identityUnchanged", "false"))]
+        variants += [
+            ("missing-count", valid.rsplit(" ", 1)[0] + "\n"),
+            ("extra-field", valid + " extra=1\n"),
+            ("duplicate-count", valid + " occurrences=3\n"),
+            ("count-first", valid.replace(CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " ",
+                                          CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " occurrences=3 ", 1)
+             .rsplit(" ", 1)[0] + "\n"),
+            ("embedded-exact-marker", valid + " " + CI.SIMULATOR_DIAGNOSTIC_PREFIX + "\n"),
+            ("exact-marker-with-count", diagnostic_line("database")[:-1] + " occurrences=3\n"),
+        ]
+        for name, line in variants:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                if line.startswith(CI.SIMULATOR_DIAGNOSTIC_SUMMARY_PREFIX + " "):
+                    CI.parse_simulator_diagnostic_summary_line(line)
+                else:
+                    CI.parse_simulator_diagnostic_line(line)
+        self.assertEqual(CI.parse_simulator_diagnostic_summary_line(
+            diagnostic_summary_line("database", CI.SIMULATOR_DIAGNOSTIC_MAX_SUMMARY_OCCURRENCES))[1],
+            CI.SIMULATOR_DIAGNOSTIC_MAX_SUMMARY_OCCURRENCES)
+
+    def test_absent_log_is_unavailable_and_malformed_log_is_persisted_before_failure(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-persist-") as directory:
+            artifact = Path(directory)
+            diagnostic_transport(artifact)
+            evidence = CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            self.assertEqual(evidence["testLog"]["availability"], "UNAVAILABLE")
+            self.assertEqual(evidence["parseStatus"], "PASS")
+            self.assertTrue(evidence["zeroUseObserved"])
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-invalid-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text(diagnostic_line(kind="database", capabilityAfter="true"))
+            diagnostic_transport(artifact)
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(retained["testLog"]["availability"], "AVAILABLE")
+            self.assertEqual(retained["parseStatus"], "INVALID")
+            self.assertEqual(retained["events"], [])
+            self.assertFalse(retained["zeroUseObserved"])
+
+    def test_valid_prefix_events_survive_a_later_malformed_marker(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-partial-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text("ordinary output\n")
+            diagnostic_transport(artifact, [
+                ("00000000-0000-0000-0000-000000000011", [
+                    diagnostic_line("database"),
+                    diagnostic_line("scratch", identityUnchanged="false"),
+                ])
+            ])
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(retained["parseStatus"], "INVALID")
+            self.assertEqual([event["kind"] for event in retained["events"]], ["database"])
+            self.assertEqual(retained["eventCount"], 1)
+            self.assertFalse(retained["zeroUseObserved"])
+
+    def test_framed_streams_preserve_process_order_raw_bindings_and_semantic_duplicates(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        streams = [
+            ("00000000-0000-0000-0000-000000000021",
+             [diagnostic_line("database"), diagnostic_line("database")]),
+            ("00000000-0000-0000-0000-000000000022",
+             [diagnostic_line("scratch")]),
+        ]
+        with tempfile.TemporaryDirectory(prefix="v23-framed-diagnostics-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").write_text("XCTest output stays separate\n")
+            diagnostic_transport(artifact, streams)
+            evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+            self.assertIsNone(error)
+            self.assertEqual([item["kind"] for item in evidence["events"]],
+                             ["database", "database", "scratch"])
+            self.assertEqual([(item["streamID"], item["sequence"])
+                              for item in evidence["rawRecords"]], [
+                (streams[0][0], 1), (streams[0][0], 2), (streams[1][0], 1)])
+            self.assertEqual(evidence["transport"]["inventorySHA256"],
+                             CI.sha256(CI.canonical(evidence["transport"]["files"])))
+
+    def test_framed_transport_rejects_structural_binding_and_availability_hostiles(self):
+        stream = "00000000-0000-0000-0000-000000000031"
+        cases = []
+        valid = diagnostic_frame(stream, 1, diagnostic_line())
+        duplicate_key = valid.replace(b'"sequence":1', b'"sequence":1,"sequence":1')
+        cases.extend([
+            ("duplicate-key", duplicate_key),
+            ("truncated", valid[:-1]),
+            ("sequence-gap", diagnostic_frame(stream, 2, diagnostic_line())),
+            ("wrong-stream", diagnostic_frame(
+                "00000000-0000-0000-0000-000000000032", 1, diagnostic_line())),
+            ("embedded-cr", valid.replace(b"}\n", b"}\r\n")),
+        ])
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        for name, raw in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory(
+                    prefix="v23-frame-hostile-") as directory:
+                artifact = Path(directory)
+                (artifact / "test-smoke.log").write_text("ordinary\n")
+                diagnostic_transport(artifact, [(stream, [diagnostic_line()])])
+                path = artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (stream + ".jsonl")
+                path.write_bytes(raw)
+                rebind_diagnostic_transport(artifact)
+                evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+                self.assertIsNotNone(error)
+                self.assertEqual(evidence["parseStatus"], "INVALID")
+                self.assertEqual(evidence["transport"]["files"][0]["sha256"], CI.sha256(raw))
+        for status in ("UNAVAILABLE", "UNSAFE", "INTERRUPTED"):
+            with self.subTest(status=status), tempfile.TemporaryDirectory(
+                    prefix="v23-frame-status-") as directory:
+                artifact = Path(directory)
+                (artifact / "test-smoke.log").write_text("ordinary\n")
+                diagnostic_transport(artifact, status=status, error="retained failure")
+                evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+                self.assertIsNotNone(error)
+                self.assertEqual(evidence["transport"]["status"], status)
+                self.assertFalse(evidence["zeroUseObserved"])
+
+        malformed_inventories = [
+            ["not-an-object"],
+            [{"name": "00000000-0000-0000-0000-000000000031.jsonl", "bytes": True,
+              "sha256": "0" * 64}],
+        ]
+        for files in malformed_inventories:
+            with self.subTest(files=files), tempfile.TemporaryDirectory(
+                    prefix="v23-frame-inventory-") as directory:
+                artifact = Path(directory)
+                diagnostic_transport(
+                    artifact, status="UNSAFE", error="retained failure", files=files,
+                    fileCount=len(files), totalBytes=0,
+                    inventorySHA256=CI.sha256(CI.canonical(files)))
+                evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+                self.assertIsInstance(error, ValueError)
+                self.assertEqual(evidence["parseStatus"], "INVALID")
+
+    def test_collector_binds_fresh_simulator_and_retains_available_zero_interrupted_and_unsafe(self):
+        def fixture(directory, app_entries=(), interrupted=False, returncode=0,
+                    monotonic=time.monotonic, read_chunk=None, lookup_seconds=0):
+            root = Path(directory)
+            artifact = root / "artifact"
+            container = root / "container"
+            artifact.mkdir()
+            container.mkdir()
+            (artifact / "simulator-selection.txt").write_text(
+                "runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\n"
+                f"udid={UDID}\ninitial_state=Shutdown\n")
+            leaf = container / CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+            if app_entries:
+                leaf.mkdir(parents=True)
+                for name, raw in app_entries:
+                    (leaf / name).write_bytes(raw)
+            calls = []
+            def fake_run(arguments, **keywords):
+                calls.append((arguments, keywords))
+                if lookup_seconds > keywords["timeout"]:
+                    raise subprocess.TimeoutExpired(arguments, keywords["timeout"])
+                return subprocess.CompletedProcess(
+                    arguments, returncode,
+                    stdout=(str(container) + "\n") if returncode == 0 else "",
+                    stderr="" if returncode == 0 else "missing app\n")
+            e = {"CI_SIMULATOR_UDID": UDID, "CI_NATIVE_CREATED_SIMULATOR_UDID": UDID}
+            status = CI.collect_simulator_diagnostic_transport(
+                ROOT, artifact, e, interrupted=interrupted, run=fake_run,
+                monotonic=monotonic, read_chunk=read_chunk)
+            self.assertEqual(calls[0][0], [
+                "xcrun", "simctl", "get_app_container", UDID,
+                CI.SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID, "data"])
+            self.assertEqual(calls[0][1]["timeout"], 2 if interrupted else 10)
+            self.assertEqual(status["collectionMode"], "interrupted" if interrupted else "completed")
+            self.assertEqual(status["collectionBoundSeconds"], 3 if interrupted else 30)
+            self.assertEqual(CI.read_json(
+                artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS), status)
+            return artifact, status
+
+        stream = "00000000-0000-0000-0000-000000000041"
+        raw = diagnostic_frame(stream, 1, diagnostic_line())
+        for interrupted, duration, expected in (
+                (False, 4, "AVAILABLE"), (False, 11, "UNSAFE"), (True, 4, "INTERRUPTED")):
+            with self.subTest(interrupted=interrupted, duration=duration), tempfile.TemporaryDirectory(
+                    prefix="v23-collect-lookup-bound-") as directory:
+                _, status = fixture(directory, [(stream + ".jsonl", raw)],
+                                    interrupted=interrupted, lookup_seconds=duration)
+                self.assertEqual(status["status"], expected)
+                if duration > (2 if interrupted else 10):
+                    self.assertIn("timed out", status["error"])
+                    self.assertEqual(status["files"], [])
+        with tempfile.TemporaryDirectory(prefix="v23-collect-available-") as directory:
+            artifact, status = fixture(directory, [(stream + ".jsonl", raw)])
+            self.assertEqual(status["status"], "AVAILABLE")
+            self.assertEqual(status["fileCount"], 1)
+            self.assertEqual((artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY /
+                              (stream + ".jsonl")).read_bytes(), raw)
+        with tempfile.TemporaryDirectory(prefix="v23-collect-zero-") as directory:
+            _, status = fixture(directory)
+            self.assertEqual(status["status"], "ZERO_USE")
+        with tempfile.TemporaryDirectory(prefix="v23-collect-empty-original-") as directory:
+            artifact, status = fixture(directory, [(stream + ".jsonl", b"")])
+            self.assertEqual(status["status"], "AVAILABLE")
+            self.assertEqual(status["files"], [{
+                "name": stream + ".jsonl", "bytes": 0, "sha256": CI.sha256(b""),
+            }])
+            self.assertEqual((artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY /
+                              (stream + ".jsonl")).read_bytes(), b"")
+            (artifact / "test-smoke.log").write_text("ordinary\n")
+            record = CI.admission(selection(), environment(), HEAD, "worker")
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            evidence = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(evidence["transport"]["files"], status["files"])
+            self.assertEqual(evidence["parseStatus"], "INVALID")
+            self.assertFalse(evidence["zeroUseObserved"])
+        with tempfile.TemporaryDirectory(prefix="v23-collect-interrupted-") as directory:
+            _, status = fixture(directory, [(stream + ".jsonl", raw)], interrupted=True)
+            self.assertEqual(status["status"], "INTERRUPTED")
+            self.assertEqual(status["error"], "native command interrupted")
+            self.assertEqual(status["files"][0]["sha256"], CI.sha256(raw))
+        with tempfile.TemporaryDirectory(prefix="v23-collect-unavailable-") as directory:
+            _, status = fixture(directory, returncode=1)
+            self.assertEqual(status["status"], "UNAVAILABLE")
+        with tempfile.TemporaryDirectory(prefix="v23-collect-unsafe-") as directory:
+            _, status = fixture(directory, [("foreign.txt", b"raw original\n")])
+            self.assertEqual(status["status"], "UNSAFE")
+        with tempfile.TemporaryDirectory(prefix="v23-collect-deadline-") as directory:
+            clock = [0.0]
+            def monotonic():
+                return clock[0]
+            def slow_read(source, count):
+                chunk = source.read(count)
+                clock[0] = CI.SIMULATOR_DIAGNOSTIC_WORK_SECONDS + 0.01
+                return chunk
+            artifact, status = fixture(
+                directory, [(stream + ".jsonl", raw)], monotonic=monotonic,
+                read_chunk=slow_read)
+            self.assertEqual(status["status"], "UNSAFE")
+            self.assertIn("deadline", status["error"])
+            self.assertEqual(status["files"], [{
+                "name": stream + ".jsonl", "bytes": len(raw), "sha256": CI.sha256(raw),
+            }])
+            self.assertLess(clock[0], CI.SIMULATOR_DIAGNOSTIC_COLLECTION_SECONDS)
+            self.assertFalse((artifact / (CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS + ".next")).exists())
+
+        with tempfile.TemporaryDirectory(prefix="v23-collect-interrupted-deadline-") as directory:
+            clock = [0.0]
+            def monotonic():
+                return clock[0]
+            def slow_read(source, count):
+                chunk = source.read(count)
+                clock[0] = CI.SIMULATOR_DIAGNOSTIC_INTERRUPTED_WORK_SECONDS + 0.01
+                return chunk
+            artifact, status = fixture(directory, [(stream + ".jsonl", raw)],
+                interrupted=True, monotonic=monotonic, read_chunk=slow_read)
+            self.assertEqual(status["status"], "INTERRUPTED")
+            self.assertIn("deadline", status["error"])
+            self.assertEqual(status["files"][0]["sha256"], CI.sha256(raw))
+            self.assertLess(clock[0], CI.SIMULATOR_DIAGNOSTIC_INTERRUPTED_COLLECTION_SECONDS)
+
+    def test_transport_versions_bind_modes_and_preserve_exact_legacy_interpretation(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        for legacy in (False, True):
+            for change in (None, "wrong-bound", "mode-mismatch", "unknown-schema", "boolean-bound"):
+                with self.subTest(legacy=legacy, change=change), tempfile.TemporaryDirectory(
+                        prefix="v23-transport-version-") as directory:
+                    artifact = Path(directory)
+                    (artifact / "test-smoke.log").write_text("ordinary\n")
+                    value = diagnostic_transport(artifact)
+                    if legacy:
+                        value["schema"] = CI.SIMULATOR_DIAGNOSTIC_LEGACY_TRANSPORT_SCHEMA
+                        value["collectionBoundSeconds"] = 3
+                        del value["collectionMode"]
+                    if change == "wrong-bound":
+                        value["collectionBoundSeconds"] = 30 if legacy else 3
+                    elif change == "mode-mismatch":
+                        value["collectionMode"] = "interrupted"
+                    elif change == "unknown-schema":
+                        value["schema"] = "v23-simulator-file-protection-transport-v999"
+                    elif change == "boolean-bound":
+                        value["collectionBoundSeconds"] = True
+                    (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).write_bytes(CI.canonical(value))
+                    evidence, error = CI.simulator_diagnostic_observations(ROOT, artifact, record)
+                    if change is None:
+                        self.assertIsNone(error)
+                        self.assertTrue(evidence["zeroUseObserved"])
+                        self.assertEqual(evidence["transport"], value)
+                    else:
+                        self.assertIsInstance(error, ValueError)
+                        self.assertEqual(evidence["parseStatus"], "INVALID")
+                        self.assertFalse(evidence["zeroUseObserved"])
+
+    def test_smoke_collection_trap_preserves_all_three_native_command_vectors(self):
+        source = (ROOT / "Scripts/test-smoke.sh").read_text()
+        commands = [source.split("  shared_unit_command=(\n", 1)[1].split("  )\n", 1)[0]]
+        commands.extend(re.findall(
+            r"(?m)^  xcodebuild \\\n(?:    .*\n)+?    test-without-building\n", source))
+        self.assertEqual(len(commands), 3)
+        self.assertEqual(
+            hashlib.sha256("\0".join(commands).encode()).hexdigest().upper(),
+            "22FA5DD494FE30A677F8F013F829919EDC4D0F67BC2223C1DEA9DA76C56FAB9C",
+        )
+        trap = 'if [ "${CI_NATIVE_ACCEPTANCE_CONTRACT:-none}" = "v23.integration.current-native.v1" ]; then'
+        self.assertEqual(source.count(trap), 1)
+        self.assertLess(source.index(trap), source.index("only_testing_args=()"))
+        self.assertEqual(source.count('python3 Scripts/v23-native-ci.py "${collector_args[@]}"'), 1)
+
+    def test_forged_admission_promotion_is_rejected_even_with_exact_policy_and_log(self):
+        for field, promoted in (("diagnosticOnly", False), ("providerQualification", True),
+                                ("acceptance", True), ("releaseReady", True)):
+            record = CI.admission(selection(), environment(), HEAD, "worker")
+            record[field] = promoted
+            with tempfile.TemporaryDirectory(prefix="v23-simulator-promotion-") as directory:
+                artifact = Path(directory)
+                (artifact / "test-smoke.log").write_bytes(b"no diagnostic use\n")
+                diagnostic_transport(artifact)
+                with self.subTest(field=field), self.assertRaisesRegex(ValueError, "admission classification"):
+                    CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+
+    def test_unsafe_log_shape_is_persisted_as_invalid_before_rejection(self):
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory(prefix="v23-simulator-unsafe-") as directory:
+            artifact = Path(directory)
+            (artifact / "test-smoke.log").mkdir()
+            diagnostic_transport(artifact)
+            with self.assertRaisesRegex(ValueError, "transport parse"):
+                CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+            retained = CI.read_json(artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+            self.assertEqual(retained["testLog"]["availability"], "UNSAFE")
+            self.assertEqual(retained["transport"]["status"], "ZERO_USE")
+            self.assertEqual(retained["parseStatus"], "INVALID")
+            self.assertFalse(retained["zeroUseObserved"])
+
+
+class CheckpointTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="v23-native-protocol-")
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name)
+
+    def fixture(self, provider="github", tier="N8"):
+        diagnostic = self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT
+        if diagnostic.exists():
+            diagnostic.unlink()
+        transport_status = self.path / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS
+        if transport_status.exists():
+            transport_status.unlink()
+        transport_directory = self.path / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY
+        if transport_directory.exists():
+            shutil.rmtree(transport_directory)
+        e, s = environment(provider, tier), selection(tier)
+        record = CI.admission(s, e, HEAD, "worker")
+        (self.path / "native-admission.json").write_bytes(CI.canonical(record))
+        (self.path / "ci-selection.selected.json").write_bytes(CI.canonical(s))
+        directory = ("/Applications/Xcode-26.6.0.app/Contents/Developer" if provider == "bitrise"
+                     else "/Applications/Xcode_26.6.app/Contents/Developer")
+        (self.path / "runner-provider.txt").write_text(
+            f"provider={provider}\nlabel={record['runnerLabel']}\nrunner_architecture=ARM64\n"
+            f"uname_architecture=arm64\ndeveloper_dir={directory}\nmacos_product_version=26.6.1\n")
+        (self.path / "xcode-version.txt").write_text("Xcode 26.6\nBuild version 17F113\n")
+        (self.path / "native-sdk.txt").write_text("sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n")
+        (self.path / "simulator-selection.txt").write_text(
+            f"runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n")
+        (self.path / "unit-test-results.json").write_bytes(CI.canonical(native_tree()))
+        (self.path / "test-smoke.log").write_text("native fixture completed\n", encoding="utf-8")
+        diagnostic_transport(self.path)
+        if tier != "N8":
+            (self.path / "ui-test-results.json").write_bytes(CI.canonical(native_tree(UI, True)))
+            (self.path / "ui-final.png").write_bytes(b"\x89PNG\r\n\x1a\nprotocol-fixture-only")
+        if provider == "bitrise":
+            for name in ("bitrise-build-cache-cli-verification.txt", "bitrise-build-cache-wrapper-paths.txt"):
+                (self.path / name).write_text("verified-source-fixture\n")
+            (self.path / "bitrise-build-cache-activation.log").write_text(
+                "activation_exit=0\ncache=true\ncache_push=true\nbenchmark_phase=established\n")
+        return e, s, record
+
+    def verify(self, fixture):
+        e, s, record = fixture
+        return CI.verify_checkpoint(ROOT, self.path, record, s, e)
+
+    def test_native_checkpoint_is_not_whole_app_or_human_acceptance(self):
+        result = self.verify(self.fixture())
+        self.assertEqual(result["executedUnitMethods"], [UNIT])
+        self.assertFalse(result["wholeAppAcceptance"])
+        self.assertFalse(result["humanReviewComplete"])
+        self.assertTrue(result["diagnosticOnly"])
+        self.assertFalse(result["providerQualification"])
+        self.assertEqual(result["simulatorFileProtectionDiagnostics"]["events"], [])
+        self.assertTrue(result["simulatorFileProtectionDiagnostics"]["zeroUseObserved"])
+
+    def test_cached_bitrise_ui_checkpoint_requires_actual_tests(self):
+        result = self.verify(self.fixture("bitrise", "P12"))
+        self.assertEqual(result["executedUIMethods"], [UI])
+        (self.path / "unit-test-results.json").unlink()
+        with self.assertRaises(ValueError):
+            self.verify((environment("bitrise", "P12"), selection("P12"),
+                         CI.admission(selection("P12"), environment("bitrise", "P12"), HEAD, "worker")))
+
+    def test_upstream_failure_cannot_be_repaired_by_present_results(self):
+        fixture = self.fixture()
+        fixture[0]["NATIVE_PRIOR_JOB_STATUS"] = "failure"
+        with self.assertRaises(ValueError):
+            self.verify(fixture)
+        retained = CI.read_json(self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+        self.assertEqual(retained["testLog"]["availability"], "AVAILABLE")
+        self.assertEqual(retained["parseStatus"], "PASS")
+        self.assertTrue(retained["zeroUseObserved"])
+
+    def test_failure_before_units_retains_explicitly_unavailable_log_not_zero_use(self):
+        fixture = self.fixture()
+        fixture[0]["NATIVE_PRIOR_JOB_STATUS"] = "failure"
+        (self.path / "test-smoke.log").unlink()
+        with self.assertRaisesRegex(ValueError, "earlier job failure"):
+            self.verify(fixture)
+        retained = CI.read_json(self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT)
+        self.assertEqual(retained["testLog"],
+                         {"availability": "UNAVAILABLE", "path": "test-smoke.log", "sha256": None})
+        self.assertEqual(retained["parseStatus"], "PASS")
+        self.assertTrue(retained["zeroUseObserved"])
+        self.assertEqual(retained["events"], [])
+
+    def test_successful_checkpoint_retains_all_ordered_diagnostic_events(self):
+        fixture = self.fixture()
+        (self.path / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).unlink()
+        diagnostic_transport(self.path, [
+            ("00000000-0000-0000-0000-000000000012", [
+                diagnostic_line("database"), diagnostic_line("scratch"),
+                diagnostic_line("database"),
+            ])
+        ])
+        result = self.verify(fixture)
+        evidence = result["simulatorFileProtectionDiagnostics"]
+        self.assertEqual(CI.read_json(self.path / CI.SIMULATOR_DIAGNOSTIC_OUTPUT), evidence)
+        self.assertEqual([event["kind"] for event in evidence["events"]],
+                         ["database", "scratch", "database"])
+        self.assertEqual(evidence["eventCount"], 3)
+        self.assertFalse(evidence["zeroUseObserved"])
+        self.assertFalse(result["providerQualification"])
+        self.assertFalse(result["acceptance"])
+        self.assertFalse(result["releaseReady"])
+
+    def test_substituted_admission_sdk_runtime_or_simulator_fails(self):
+        for name, replacement in (("native-admission.json", "{}"),
+                                  ("ci-selection.selected.json", "{}"),
+                                  ("native-sdk.txt", "sdk=iphonesimulator\nversion=26.4\nbuild=23F81a\n"),
+                                  ("simulator-selection.txt", f"runtime=iOS 26.2\nruntime_build=wrong\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n")):
+            fixture = self.fixture()
+            (self.path / name).write_text(replacement)
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.verify(fixture)
+
+    def test_unowned_or_warm_simulator_and_unexpected_ui_fail(self):
+        fixture = self.fixture()
+        fixture[0]["CI_NATIVE_CREATED_SIMULATOR_UDID"] = "another"
+        with self.assertRaises(ValueError):
+            self.verify(fixture)
+        fixture = self.fixture()
+        path = self.path / "simulator-selection.txt"
+        path.write_text(path.read_text().replace("Shutdown", "Booted"))
+        with self.assertRaises(ValueError):
+            self.verify(fixture)
+        fixture = self.fixture()
+        (self.path / "ui-final.png").write_bytes(b"unexpected")
+        with self.assertRaises(ValueError):
+            self.verify(fixture)
+
+    def test_cache_provenance_cannot_replace_successful_activation(self):
+        fixture = self.fixture("bitrise")
+        (self.path / "bitrise-build-cache-activation.log").write_text("activation_exit=1\ncache=true\n")
+        with self.assertRaises(ValueError):
+            self.verify(fixture)
+
+    def test_named_group_rejects_tampered_map_artifact_before_result_credit(self):
+        e = environment()
+        e["NATIVE_SELECTION_ID"] = "rating-eligibility"
+        selected, record = CI.selected_input(ROOT, e)
+        e.update({"DISPATCH_NATIVE_SELECTION_ID": record["selectionID"],
+                  "DISPATCH_NATIVE_SELECTION_SHA256": record["selectionSHA256"],
+                  "DISPATCH_NATIVE_SELECTION_MAP_SHA256": record["selectionMapSHA256"]})
+        CI.admission(selected, e, HEAD, "worker", record)
+        (self.path / "native-admission.json").write_bytes(CI.canonical(record))
+        (self.path / "ci-selection.selected.json").write_bytes(CI.canonical(selected))
+        (self.path / "ci-selection-map.json").write_text("{}\n")
+        with self.assertRaises(ValueError):
+            CI.verify_checkpoint(ROOT, self.path, record, selected, e)
+
+
+class WorkflowWiringTests(unittest.TestCase):
+    def compact_reference_append(self):
+        return ['FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/' + name for name in [
+            'testCompactReferenceAuthenticatesSourceAndAllOriginalCurrentFrontiers',
+            'testCompactReferenceRejectsCanonicalRecomputedSourceAndFrontierSubstitutions',
+            'testCompactReferencePreservesDisposedStateAndSeparateRoundFrontiers',
+            'testCompactReferenceSeparatesGraphsAndIgnoresUnrelatedHistory',
+            'testCompactReferenceMaximumGraphFitsPayloadBound',
+            'testCompactReferenceLongLifecycleKeepsBoundedPayloadAndCompleteHistory',
+        ]]
+
+    def durable_initial_begin_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/' + name for name in ['testDurableInitialBeginPersistsRawParentWithoutWorkflowOrBeginEffects', 'testDurableInitialBeginPersistsPreparedBeforeTargetsAndBindsCheck', 'testDurableInitialBeginRecoversSavedTimeZoneBeforeRecheck', 'testDurableInitialBeginRecoversWorkflowAndBoundAcknowledgementLoss', 'testDurableInitialBeginRejectsSourceAdvanceBeforeEitherTargetEffect', 'testDurableInitialBeginRejectsChangedCommandAndForeignWorkflowWithoutEffects', 'testDurableInitialBeginRejectsChangedSiteAndInitialPostimage', 'testDurableInitialBeginColdReopenReusesPreparedAttemptAndOriginalReceipts', 'testDurableInitialBeginUsesOriginalCreationReceiptForContinuationAccess']]
+
+    def prior_durable_begin_pool(self, default):
+        self.assertEqual(len(default['unitTestSelectors']), 692)
+        self.assertEqual(default['unitTestSelectors'][683:], self.durable_initial_begin_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:683]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '98F484B4B3A4158ADC9B0D289A4C83A88196A0693AEF3782B784B4A26F9F6F42')
+        return prior
+
+    def prior_durable_begin_map(self, mapping):
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 110)
+        group['methodCount'] = 101
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'A3C6FFF48031FDA76F49E5B644CD5A3461F14888E545F0B6356B92E5E685EAA4')
+        return prior
+
+    def test_durable_initial_begin_admission_preserves_every_prior_selector_and_group(self):
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
+        prior, prior_map = self.prior_durable_begin_pool(default), self.prior_durable_begin_map(mapping)
+        appended = self.durable_initial_begin_append()
+        source = frozen_begin_suite_source()
+        declared = re.findall(r'^    func (test\w+)\(', source, re.M)
+        self.assertEqual([name for name in declared if name.startswith('testDurableInitialBegin')],
+                         [name.rsplit('/', 1)[1] for name in appended])
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        hostile = copy.deepcopy(default)
+        hostile['unitTestSelectors'][0], hostile['unitTestSelectors'][1] = hostile['unitTestSelectors'][1], hostile['unitTestSelectors'][0]
+        with self.assertRaises(AssertionError): self.prior_durable_begin_pool(hostile)
+        for mutate in (lambda g: g.update(methodCount=109), lambda g: g['classes'].pop(),
+                       lambda g: g['classes'].append('V23CheckRunnerFrozenBeginPreparationTests')):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def frozen_begin_writer_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/' + name for name in ['testFrozenBeginWriterCommitsOriginalTimeAndReplaysWithoutEffects', 'testFrozenBeginWriterRecoversSavedTimeZoneBeforeRecheckDraft', 'testFrozenBeginWriterRejectsReceiptBodyTimeAndRevisionChangesWithoutQuarantine', 'testFrozenBeginWriterUsesFreshWorkspaceCASButRejectsStaleTarget', 'testFrozenBeginWriterRejectsMissingOrChangedTimeZoneProofBeforeDraft', 'testFrozenBeginWriterRejectsDirtyAndRetiredSessionsWithoutEffects']]
+
+    def prior_2197d6d_pool(self, default):
+        if len(default['unitTestSelectors']) == 692:
+            default = self.prior_durable_begin_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 683)
+        self.assertEqual(default['unitTestSelectors'][677:], self.frozen_begin_writer_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:677]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'ED924EF87843A6B7EAE8FEFD272623FB27745708FC6073F2310684549B7B5A4A')
+        return prior
+
+    def prior_2197d6d_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 110:
+            mapping = self.prior_durable_begin_map(mapping)
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 101)
+        group['methodCount'] = 95
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '11970E5F7F8A198F3A4044EE420117D30C014C2749AD49314E510DD68AC3C1FB')
+        return prior
+
+    def test_frozen_begin_writer_admission_preserves_every_prior_selector_and_group(self):
+        default = self.prior_durable_begin_pool(prepartition_read_json(ROOT / 'Scripts/ci-selection.json'))
+        mapping = self.prior_durable_begin_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
+        prior, prior_map = self.prior_2197d6d_pool(default), self.prior_2197d6d_map(mapping)
+        appended = self.frozen_begin_writer_append()
+        source = frozen_begin_suite_source()
+        declared = re.findall(r'^    func (test\w+)\(', source, re.M)
+        self.assertEqual([name for name in declared if name.startswith('testFrozenBeginWriter')],
+                         [name.rsplit('/', 1)[1] for name in appended])
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        hostile = copy.deepcopy(default)
+        hostile['unitTestSelectors'][0], hostile['unitTestSelectors'][1] = hostile['unitTestSelectors'][1], hostile['unitTestSelectors'][0]
+        with self.assertRaises(AssertionError): self.prior_2197d6d_pool(hostile)
+        for mutate in (lambda g: g.update(methodCount=100), lambda g: g['classes'].pop(),
+                       lambda g: g['classes'].append('V23CheckRunnerFrozenBeginPreparationTests')):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def frozen_finalization_revision_append(self):
+        return ['FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/' + name for name in ['testFrozenFinalizationRevisionAllowsUnrelatedWorkspaceAdvance', 'testFrozenFinalizationRevisionRejectsStaleAttemptBeforeAnyEffect', 'testFrozenFinalizationReplayRequiresOriginalExpectedRevision', 'testFrozenFinalizationRevisionRejectsInterveningEvidenceAcceptance']]
+
+    def prior_f020a32_pool(self, default):
+        if len(default['unitTestSelectors']) in (683, 692):
+            default = self.prior_2197d6d_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 677)
+        self.assertEqual(default['unitTestSelectors'][673:], self.frozen_finalization_revision_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:673]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '948149139AC3A31E6EE4F7041843A86EBAA5F5C44383808A1EA393FF8891291D')
+        return prior
+
+    def prior_f020a32_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (101, 110):
+            mapping = self.prior_2197d6d_map(mapping)
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 95)
+        group['methodCount'] = 91
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '6565EB3400B3C07391DAA1B34FC39599FE042EE8D0DE2F769B3A92B758D5608E')
+        return prior
+
+    def test_frozen_finalization_revision_admission_preserves_every_prior_selector_and_group(self):
+        default = self.prior_2197d6d_pool(prepartition_read_json(ROOT / 'Scripts/ci-selection.json'))
+        mapping = self.prior_2197d6d_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
+        prior, prior_map = self.prior_f020a32_pool(default), self.prior_f020a32_map(mapping)
+        appended = self.frozen_finalization_revision_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift').read_text(encoding='utf-8')
+        declared = re.findall(r'^    func (test\w+)\(', source, re.M)
+        for name in appended:
+            self.assertEqual(declared.count(name.rsplit('/', 1)[1]), 1)
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        hostile = copy.deepcopy(default)
+        hostile['unitTestSelectors'][0], hostile['unitTestSelectors'][1] = hostile['unitTestSelectors'][1], hostile['unitTestSelectors'][0]
+        with self.assertRaises(AssertionError): self.prior_f020a32_pool(hostile)
+        for mutate in (
+            lambda g: g.update(methodCount=94),
+            lambda g: g['classes'].pop(),
+            lambda g: g['classes'].append('V9_18PackLifecycleIntegrationTests'),
+            lambda g: g['classes'].append('V23CheckRunnerBeginReceiptReferenceTests'),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def commit_reconstruction_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name for name in [
+            'testParentCommitReconstructionDerivesExactOutputsForAllSevenOutcomes',
+            'testParentCommitReconstructionReusesFrozenSagasAndRowMutationsAfterColdDecode',
+            'testParentCommitReconstructionRejectsUnpreparedAndNonCommittingCheckpoints',
+            'testParentCommitReconstructionRejectsUnusableTerminalRevisionTimeAndMutation',
+            'testParentCommitReconstructionRequiresExactPackageAndPreparedOutcome',
+            'testPhotoCommitReconstructionBindsBothStepsAndFrozenReadyStage',
+            'testPhotoCommitReconstructionReusesFrozenSagasRowsAndCommandsAfterColdDecode',
+            'testPhotoCommitReconstructionRejectsIncompletePhasesAndNonCommittingStates',
+            'testPhotoCommitReconstructionRejectsRehashedEnvelopeAndUnusableTerminalInputs',
+            'testCommitReconstructionDerivesHashesFromTheEnclosingCheckpointWithoutRewritingPayload',
+        ]]
+
+    def prior_29fbcbc_pool(self, default):
+        if len(default['unitTestSelectors']) in (677, 683, 692):
+            default = self.prior_f020a32_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 673)
+        self.assertEqual(default['unitTestSelectors'][663:], self.commit_reconstruction_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:663]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'BBFBF0FF5B833CDEE3F9124624BEB25510A9C0694EDB5B490862F672DBA62688')
+        return prior
+
+    def prior_29fbcbc_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (95, 101, 110):
+            mapping = self.prior_f020a32_map(mapping)
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 91)
+        group['methodCount'] = 81
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '8DF851FA1F1FFAB265DF84E4E84E5145EEFEFCF485F33D2E1C9659162295851A')
+        return prior
+
+    def test_commit_reconstruction_admission_preserves_prior_pool_map_and_complete_source_class(self):
+        default = self.prior_f020a32_pool(prepartition_read_json(ROOT / 'Scripts/ci-selection.json'))
+        mapping = self.prior_f020a32_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
+        prior, prior_map = self.prior_29fbcbc_pool(default), self.prior_29fbcbc_map(mapping)
+        appended = self.commit_reconstruction_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
+        actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
+                  for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
+        self.assertEqual(actual, self.parent_field_append() + self.parent_payload_append() + self.child_payload_append() + self.codec_definitions_append() + appended)
+        self.assertEqual(len(actual), 49)
+        self.assertEqual(len(actual), len(set(actual)))
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        for selectors in (
+            [prior['unitTestSelectors'][1], prior['unitTestSelectors'][0]] + prior['unitTestSelectors'][2:] + appended,
+            prior['unitTestSelectors'][:5] + appended + prior['unitTestSelectors'][5:],
+        ):
+            hostile = copy.deepcopy(default); hostile['unitTestSelectors'] = selectors
+            with self.assertRaises(AssertionError): self.prior_29fbcbc_pool(hostile)
+        for mutate in (
+            lambda g: g.update(methodCount=90),
+            lambda g: g['classes'].pop(),
+            lambda g: g['classes'].append('V23CheckRunnerItemFieldContractsTests'),
+            lambda g: g['classes'].append('V23CheckRunnerBeginReceiptReferenceTests'),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def codec_definitions_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name for name in [
+            'testCodecDefinitionsBindTheCombinedGrammarAndRequiredPhotoProfile',
+            'testCodecPurposeAuthorityRejectsWrongPurposesAndEveryModifiedReleaseComponent',
+            'testReleasedCodecsPreservePayloadBytesAndRejectCrossRoleOrNoncanonicalInput',
+            'testReleasedCodecLimitsUseCompleteUTF8PayloadBytes',
+            'testParentCodecCheckpointBindsPreBeginScopeBaseAndAllSemanticAnchors',
+            'testParentCodecRejectsRehashedEnvelopeSubstitutionsAndPhotoRole',
+            'testPhotoCodecCheckpointBindsBothStepsAndAllFourDurablePhases',
+            'testPhotoCodecRejectsRehashedIdentityScopeBaseAnchorStageAndRoleSubstitutions',
+            'testCodecEnvelopeValidationPreservesRecoveryStateWithoutGrantingLifecycleAuthority',
+        ]]
+
+    def prior_b0d4f96_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 663)
+        self.assertEqual(default['unitTestSelectors'][654:], self.codec_definitions_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:654]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '8C7DD11EAB5F915190B800D2580A7F032572E87C2A8A45AF6D8F19B366904543')
+        return prior
+
+    def prior_b0d4f96_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 81)
+        group['methodCount'] = 72
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '1EC2E66DFA5E0915AABE3ED3D125D1EDDA757349B0E82637C5C7D041050E4ECD')
+        return prior
+
+    def test_codec_definitions_admission_preserves_prior_pool_map_and_complete_source_class(self):
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_29fbcbc_pool(default), self.prior_29fbcbc_map(mapping)
+        prior, prior_map = self.prior_b0d4f96_pool(default), self.prior_b0d4f96_map(mapping)
+        appended = self.codec_definitions_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
+        actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
+                  for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
+        self.assertEqual(actual, self.parent_field_append() + self.parent_payload_append() + self.child_payload_append() + appended + self.commit_reconstruction_append())
+        self.assertEqual(len(actual), len(set(actual)))
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        for selectors in (
+            [prior['unitTestSelectors'][1], prior['unitTestSelectors'][0]] + prior['unitTestSelectors'][2:] + appended,
+            prior['unitTestSelectors'][:5] + appended + prior['unitTestSelectors'][5:],
+        ):
+            hostile = copy.deepcopy(default); hostile['unitTestSelectors'] = selectors
+            with self.assertRaises(AssertionError): self.prior_b0d4f96_pool(hostile)
+        for mutate in (
+            lambda g: g.update(methodCount=80),
+            lambda g: g['classes'].pop(),
+            lambda g: g['classes'].append('V23CheckRunnerItemFieldContractsTests'),
+            lambda g: g['classes'].append('V23CheckRunnerBeginReceiptReferenceTests'),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def child_payload_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name for name in [
+            'testPhotoChildAllFourPhasesRoundTripAcrossRoutesStagesAndSteps',
+            'testPhotoChildClosedPhaseGrammarRejectsUnknownMissingAndPrematureValues',
+            'testPhotoChildSourceProfileAndInspectionEnforceAllSourceBounds',
+            'testPhotoChildValidatesRawStageAndProvenanceValueJoins',
+            'testPhotoChildPairBoundsPathsAndDerivativeProfileAreClosed',
+            'testPhotoChildPairMarkerBindsParentChildRawAndBothOutputs',
+            'testPhotoChildPreparedAttemptPreservesEveryFrozenIdentityAndTime',
+            'testPhotoChildPreparedAttemptRejectsAliasesWrongOutputsAndTimeRegressions',
+            'testPhotoChildParentCorrespondenceRequiresExactBeginSourceAndSlot',
+            'testPhotoChildPreparationTimeBoundariesReuseFrozenInputs',
+            'testPhotoChildCanonicalCodecRejectsOversizeNoncanonicalAndNestedUnknownBytes',
+            'testPhotoChildCommittedParentRequiresPreparedTerminalValues',
+        ]]
+
+    def prior_55e4655_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        if len(default['unitTestSelectors']) == 663:
+            default = self.prior_b0d4f96_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 654)
+        self.assertEqual(default['unitTestSelectors'][642:], self.child_payload_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:642]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '7AB37216D6F642EFFC2B17D40332A69EEE91D1AA519A77B4E502993C40D2FEE6')
+        return prior
+
+    def prior_55e4655_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] == 81:
+            mapping = self.prior_b0d4f96_map(mapping)
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 72)
+        group['methodCount'] = 60
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'C04093189DB621B35A0BE41FEB50277CA7E3C67BD20E914D8F2B2BE46C5CAD8C')
+        return prior
+
+    def test_child_payload_admission_preserves_prior_pool_map_and_complete_source_class(self):
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_b0d4f96_pool(default), self.prior_b0d4f96_map(mapping)
+        prior, prior_map = self.prior_55e4655_pool(default), self.prior_55e4655_map(mapping)
+        appended = self.child_payload_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
+        actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
+                  for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
+        self.assertEqual(actual, self.parent_field_append() + self.parent_payload_append() + appended + self.codec_definitions_append() + self.commit_reconstruction_append())
+        self.assertEqual(len(actual), len(set(actual)))
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        for selectors in (
+            [prior['unitTestSelectors'][1], prior['unitTestSelectors'][0]] + prior['unitTestSelectors'][2:] + appended,
+            prior['unitTestSelectors'][:5] + appended + prior['unitTestSelectors'][5:],
+        ):
+            hostile = copy.deepcopy(default); hostile['unitTestSelectors'] = selectors
+            with self.assertRaises(AssertionError): self.prior_55e4655_pool(hostile)
+        for mutate in (
+            lambda g: g.update(methodCount=71),
+            lambda g: g['classes'].pop(),
+            lambda g: g['classes'].append('V23CheckRunnerItemFieldContractsTests'),
+            lambda g: g['classes'].append('V23CheckRunnerBeginReceiptReferenceTests'),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def parent_payload_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name for name in [
+            'testParentPayloadBeginStatesRoundTripAndBindAllReceiptFields',
+            'testParentPayloadRejectsSingleFieldBeginReferenceAndSourceForgeries',
+            'testParentPayloadPreservesRawEditableBytesAnchorsAndSlots',
+            'testEditingParentPayloadUsesClosedCanonicalPhaseShape',
+            'testParentPayloadEnforcesActualTwoMiBBoundaryByEncodedUTF8Bytes',
+            'testPreparedParentPayloadValidatesAllSevenOutcomeMediaRowsAgainstShippingRelease',
+            'testPreparedParentPayloadRoundTripsAllFrozenValuesWithoutSelfDigests',
+            'testPreparedParentPayloadRejectsZeroAliasesAndCausalRegressions',
+            'testPreparedParentPayloadRejectsFieldSourceOutcomeProfileDriftAndNestedUnknownKeys',
+        ]]
+
+    def prior_1d4a731_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        if len(default['unitTestSelectors']) in (654, 663):
+            default = self.prior_55e4655_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 642)
+        self.assertEqual(default['unitTestSelectors'][633:], self.parent_payload_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:633]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '63306B8152662442681195637D61DF3800CA6348424BCA29E1CD08677D882E6E')
+        return prior
+
+    def prior_1d4a731_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (72, 81):
+            mapping = self.prior_55e4655_map(mapping)
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 60)
+        group['methodCount'] = 51
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'C3043546189762CFBAE83C53A3B418E8C8DBB010C80254773101D8485B46C129')
+        return prior
+
+    def test_parent_payload_admission_preserves_prior_pool_map_and_complete_source_class(self):
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_55e4655_pool(default), self.prior_55e4655_map(mapping)
+        prior, prior_map = self.prior_1d4a731_pool(default), self.prior_1d4a731_map(mapping)
+        appended = self.parent_payload_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
+        actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
+                  for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
+        self.assertEqual(actual, self.parent_field_append() + appended + self.child_payload_append() + self.codec_definitions_append() + self.commit_reconstruction_append())
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        hostile = copy.deepcopy(default)
+        hostile['unitTestSelectors'][0], hostile['unitTestSelectors'][1] = hostile['unitTestSelectors'][1], hostile['unitTestSelectors'][0]
+        with self.assertRaises(AssertionError): self.prior_1d4a731_pool(hostile)
+        for mutate in (
+            lambda g: g.update(methodCount=59),
+            lambda g: g['classes'].pop(),
+            lambda g: g['classes'].append('V23CheckRunnerItemFieldContractsTests'),
+            lambda g: g['classes'].append('V23CheckRunnerBeginReceiptReferenceTests'),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def parent_field_append(self):
+        return ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name for name in [
+            'testAllSixSnapshotsUseShippingResolverAndCheckRecheckMatrix',
+            'testSnapshotsHaveExactCanonicalRoundTripAndResolverInverse',
+            'testInverseRejectsEveryStaleDisplayKeyVersionAndNoncanonicalNoteClaim',
+            'testPrepareProjectsRawNotesWithoutMutatingEditorOrIrrelevantFields',
+            'testPendingAndCommittedSlotsValidateExactPurposeAndSameChildReplacement',
+            'testTwoSlotsRequireDistinctChildAndEvidenceIdentitiesAndValidLinkage',
+            'testClosedSnapshotDecoderRejectsUnknownTagKeyAssociatedMissingAndType',
+            'testClosedPhotoSlotDecoderRejectsUnknownTagKeyAssociatedMissingAndType',
+            'testAllSemanticAnchorsProduceExactResumeAnchorStrings',
+        ]]
+
+    def prior_83def91_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        if len(default['unitTestSelectors']) in (642, 654, 663):
+            default = self.prior_1d4a731_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 633)
+        self.assertEqual(default['unitTestSelectors'][624:], self.parent_field_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:624]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '84ACB41C376A984B63A084C3D5B6575C9E00FC89DBD483F442F910E73F085468')
+        return prior
+
+    def prior_83def91_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (60, 72, 81):
+            mapping = self.prior_1d4a731_map(mapping)
+        prior = copy.deepcopy(mapping)
+        group = next(g for g in prior['groups'] if g['id'] == 'report-camera-recovery')
+        self.assertEqual(group['methodCount'], 51)
+        self.assertEqual(group['classes'].pop(), 'V23CheckRunnerItemFieldContractsTests')
+        group['methodCount'] = 42
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '227423ABFFD531551C55711ED7B8307E70D16278D7BEE9E66B21EBB3E7A5205E')
+        return prior
+
+    def test_parent_field_admission_preserves_prior_pool_map_and_complete_source_class(self):
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_1d4a731_pool(default), self.prior_1d4a731_map(mapping)
+        prior, prior_map = self.prior_83def91_pool(default), self.prior_83def91_map(mapping)
+        appended = self.parent_field_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests.swift').read_text(encoding='utf-8')
+        actual = ['FieldEvidenceAppTests/V23CheckRunnerItemFieldContractsTests/' + name
+                  for name in re.findall(r'^    func (test\w+)\(', source, re.M)]
+        self.assertEqual(actual, appended + self.parent_payload_append() + self.child_payload_append() + self.codec_definitions_append() + self.commit_reconstruction_append())
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'report-camera-recovery': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]],
+                        appended + ['FieldEvidenceAppTests/ForeignTests/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'report-camera-recovery')
+        for mutate in (
+            lambda g: g.update(methodCount=50),
+            lambda g: g['classes'].pop(),
+            lambda g: g['classes'].append('V23CheckRunnerItemFieldContractsTests'),
+            lambda g: g['classes'].append('V23CheckRunnerBeginReceiptReferenceTests'),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(next(g for g in hostile['groups'] if g['id'] == 'report-camera-recovery'))
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'report-camera-recovery')
+
+    def prior_4977aa4_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        if len(default['unitTestSelectors']) in (633, 642, 654, 663):
+            default = self.prior_83def91_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 624)
+        self.assertEqual(default['unitTestSelectors'][618:], self.compact_reference_append())
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:618]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'F5F33EAD1F1FF485A686F60D0EFAB37C012ADDD7953AF55BAB6D3440F3E907F3')
+        return prior
+
+    def prior_4977aa4_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (51, 60, 72, 81):
+            mapping = self.prior_83def91_map(mapping)
+        prior = copy.deepcopy(mapping)
+        self.assertEqual(len(prior['groups']), 32)
+        self.assertEqual(prior['groups'][-1], {
+            'id': 'c36-source-graph', 'classes': ['V23RepetitiveCaptureSourcePackageTests',
+                'V23RepetitiveCaptureSourceGraphReviewTests'], 'methodCount': 25})
+        prior['groups'][-1]['methodCount'] = 19
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '21818651B2031F06DA47DB194A40D6349F28EC380D5740CF0BF5590E5035E876')
+        return prior
+
+    def test_compact_reference_admission_preserves_all_prior_methods_and_full_source_pairs(self):
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_83def91_pool(default), self.prior_83def91_map(mapping)
+        prior, prior_map = self.prior_4977aa4_pool(default), self.prior_4977aa4_map(mapping)
+        appended = self.compact_reference_append()
+        source = (ROOT / 'FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests.swift').read_text(encoding='utf-8')
+        names = re.findall(r'^    func (test\w+)\(', source, re.M)
+        self.assertEqual(len(names), 21)
+        self.assertEqual(len(names), len(set(names)))
+        actual = ['FieldEvidenceAppTests/V23RepetitiveCaptureSourceGraphReviewTests/' + n for n in names]
+        retained = [s for s in prior['unitTestSelectors'] if '/V23RepetitiveCaptureSourceGraphReviewTests/' in s]
+        self.assertEqual(actual, retained + appended)
+        for group in mapping['groups']:
+            expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+            if group['id'] == 'c36-source-graph': expected['unitTestSelectors'].extend(appended)
+            self.assertEqual(CI.resolve_selection(default, mapping, group['id']), expected)
+        for changed in (appended[:-1], appended + [appended[0]], appended + ['FieldEvidenceAppTests/Foreign/testForeign']):
+            hostile = copy.deepcopy(default)
+            hostile['unitTestSelectors'] = prior['unitTestSelectors'] + changed
+            with self.assertRaises(ValueError): CI.resolve_selection(hostile, mapping, 'c36-source-graph')
+        hostile_map = copy.deepcopy(mapping)
+        hostile_map['groups'][-1]['methodCount'] = 24
+        with self.assertRaises(ValueError): CI.resolve_selection(default, hostile_map, 'c36-source-graph')
+
+    def diagnostic_authority_append(self):
+        return ['FieldEvidenceAppTests/V9_02FileAuthorityTests/' + name for name in [
+            'testSimulatorDiagnosticClassifierRejectsEveryNonexactFact',
+            'testSimulatorUnsupportedFileAndDirectoryRemainExplicitAcrossVerification',
+            'testOwnedFileKindMatrixIsClosedAndHasExplicitDispositions',
+            'testTemporaryFileSystemAppliesAndReadsBackEveryOwnedKind',
+            'testRelativePathTraversalAndLinkEscapesFailClosed',
+            'testHardLinkedOwnedFileIsRejectedBeforeAttributeMutation',
+            'testMissingInvalidTypeAndAuthorityOrderingFailClosed',
+            'testJournalMediaReportAndDiagnosticsKindsUseTargetedPolicy',
+            'testOptionalSQLiteSidecarVerificationRejectsDanglingLinks',
+        ]]
+
+    def prior_d97bc81_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        if len(default['unitTestSelectors']) in (624, 633, 642, 654, 663):
+            default = self.prior_4977aa4_pool(default)
+        self.assertEqual(len(default['unitTestSelectors']), 618)
+        prior = copy.deepcopy(default)
+        prior['unitTestSelectors'] = prior['unitTestSelectors'][:590]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '81E40479A5C2F9CEDE66FA167BA542EA375AB317CD5F1C7A6B7D688153978603')
+        return prior
+
+    def prior_d97bc81_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        if mapping['groups'][-1]['methodCount'] == 25:
+            mapping = self.prior_4977aa4_map(mapping)
+        prior = copy.deepcopy(mapping)
+        self.assertEqual(len(prior['groups']), 32)
+        self.assertEqual(prior['groups'].pop(), {
+            'id': 'c36-source-graph', 'classes': ['V23RepetitiveCaptureSourcePackageTests',
+                'V23RepetitiveCaptureSourceGraphReviewTests'], 'methodCount': 19})
+        catalog = next(g for g in prior['groups'] if g['id'] == 'catalog-file-authority')
+        self.assertEqual(catalog['methodCount'], 26)
+        catalog['methodCount'] = 17
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '0D2DC926B9DFA19394FC55039E22FEAA4576A1899CD36F658150572071555838')
+        return prior
+
+    def prior_d97bc81_workflow(self, workflow):
+        workflow = prepartition_workflow(workflow)
+        self.assertEqual(workflow.count('          - c36-source-graph\n'), 1)
+        prior = workflow.replace('          - c36-source-graph\n', '').replace(
+            'all 618 methods across 32 bounded groups', 'all 590 methods across 31 bounded groups')
+        self.assertEqual(CI.sha256(prior.encode()), '198044448ECA007328282839AB8F8BE5B9EFAB7CED7C2171F49D24897B6C8ED3')
+        return prior
+
+    def test_simulator_and_source_graph_admission_retains_exact_prior_and_full_pairs(self):
+        default = prepartition_read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)
+        default, mapping = self.prior_4977aa4_pool(default), self.prior_4977aa4_map(mapping)
+        prior, prior_map = self.prior_d97bc81_pool(default), self.prior_d97bc81_map(mapping)
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        self.prior_d97bc81_workflow(workflow)
+        authority, graphs = self.diagnostic_authority_append(), []
+        for klass, count in [('V23RepetitiveCaptureSourcePackageTests', 4),
+                             ('V23RepetitiveCaptureSourceGraphReviewTests', 15)]:
+            source = (ROOT / 'FieldEvidenceAppTests' / (klass + '.swift')).read_text(encoding='utf-8')
+            names = re.findall(r'^    func (test\w+)\(', source, re.M)
+            names = [name for name in names if 'FieldEvidenceAppTests/' + klass + '/' + name
+                     not in self.compact_reference_append()]
+            self.assertEqual(len(names), count)
+            self.assertEqual(len(names), len(set(names)))
+            graphs.extend('FieldEvidenceAppTests/' + klass + '/' + name for name in names)
+        self.assertEqual(default['unitTestSelectors'], prior['unitTestSelectors'] + authority + graphs)
+        for selector in authority + graphs:
+            bundle, klass, method = selector.split('/')
+            source = (ROOT / bundle / (klass + '.swift')).read_text(encoding='utf-8')
+            self.assertEqual(len(re.findall(r'\bfunc\s+' + re.escape(method) + r'\s*\(', source)), 1)
+        choice_field = prepartition_workflow(workflow).split('      native_selection_id:\n', 1)[1].split(
+            '      s10_4_minimum_core_smoke_id:', 1)[0]
+        choices = [line.strip()[2:] for line in choice_field.splitlines() if line.startswith('          - ')]
+        self.assertEqual(choices, [mapping['defaultSelectionID']] + [g['id'] for g in mapping['groups']])
+        for group in mapping['groups']:
+            selected = CI.resolve_selection(default, mapping, group['id'])
+            if group['id'] == 'c36-source-graph':
+                expected = {**prior, 'unitTestSelectors': graphs}
+            else:
+                expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+                if group['id'] == 'catalog-file-authority': expected['unitTestSelectors'].extend(authority)
+            self.assertEqual(selected, expected)
+        for mutate in (
+            lambda m: m['groups'].pop(),
+            lambda m: m['groups'].append(copy.deepcopy(m['groups'][-1])),
+            lambda m: m['groups'][-1].update(id='foreign-graph'),
+            lambda m: m['groups'][-1].update(methodCount=18),
+            lambda m: m['groups'][-1]['classes'].reverse(),
+            lambda m: m['groups'][-2].update(methodCount=29),
+        ):
+            hostile = copy.deepcopy(mapping); mutate(hostile)
+            with self.assertRaises(ValueError): CI.resolve_selection(default, hostile, 'c36-source-graph')
+
+    def prior_aa94e7f_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        if len(default['unitTestSelectors']) in (618, 624, 633, 642, 654, 663):
+            default = self.prior_d97bc81_pool(default)
+        self.assertEqual(len(default["unitTestSelectors"]), 590)
+        prior = copy.deepcopy(default)
+        prior["unitTestSelectors"] = prior["unitTestSelectors"][:560]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'D4F805826CA5F12715A8D8426792874178BB101821F172BD89FE2DB1154538B6')
+        return prior
+
+    def prior_aa94e7f_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        if len(mapping['groups']) == 32:
+            mapping = self.prior_d97bc81_map(mapping)
+        prior = copy.deepcopy(mapping)
+        self.assertEqual(len(prior["groups"]), 31)
+        self.assertEqual(prior["groups"][-1], {'id': 'c36-restore-correspondence', 'classes': ['V23CheckRunnerRestoreCorrespondenceTests', 'V23CheckRunnerRestoreBeginCorrespondenceTests', 'V23CheckRunnerBeginReceiptReferenceTests'], 'methodCount': 30})
+        del prior["groups"][-1]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '73DFB5EE3FAE668F41E15B8888562098619066A77DED904164C5857D24F01FFD')
+        return prior
+
+    def test_c36_correspondence_admission_preserves_prior_pool_map_and_shared_chain_pairs(self):
+        workflow = self.prior_d97bc81_workflow((ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8'))
+        self.assertEqual(workflow.count('          - c36-restore-correspondence\n'), 1)
+        prior_workflow = workflow.replace('          - c36-restore-correspondence\n', '').replace(
+            'all 590 methods across 31 bounded groups', 'all 426 methods across 30 bounded groups')
+        self.assertEqual(CI.sha256(prior_workflow.encode()), '468D3740CDAF6866AD8214C0D5C21BB61EE2AEA25EE0FA01DB63AE9A5DD1F846')
+        default = self.prior_d97bc81_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))
+        mapping = self.prior_d97bc81_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
+        choice_field = workflow.split('      native_selection_id:\n', 1)[1].split(
+            '      s10_4_minimum_core_smoke_id:', 1)[0]
+        choices = [line.strip()[2:] for line in choice_field.splitlines()
+                   if line.startswith('          - ')]
+        self.assertEqual(choices, [mapping['defaultSelectionID']]
+                         + [group['id'] for group in mapping['groups']])
+        prior = self.prior_aa94e7f_pool(default)
+        prior_map = self.prior_aa94e7f_map(mapping)
+        methods = {'V23CheckRunnerRestoreCorrespondenceTests': ['testAllIdentityKindsUseFixedNamespacesAndLiteralForkVectors', 'testActualRestoreDecisionModesProduceOnlyTheAuthorizedIdentityDisposition', 'testCanonicalSortingDigestRoundTripCoverageAndBidirectionalLookup', 'testConstructorsDeclaredCoverageAndLookupMissesFailClosed', 'testClosedCanonicalDecodingRejectsMalformedKeysAndRehashedSemanticAttacks'], 'V23CheckRunnerRestoreBeginCorrespondenceTests': ['testDependencyStateSeparatesPresenceFromZeroAndMaximumRevision', 'testDependencyStateRejectsInvalidDigestAndHostileClosedShapes', 'testDestinationDependencyRetainsIndependentStatesAndValidatesMappingRoles', 'testDestinationDependencyRejectsKindsNestedIdentityCorruptionAndUnknownKeys', 'testExpectedSourceEvidenceRoundTripsAuthenticCanonicalHistoryWithoutLosingProvenance', 'testExpectedSourceEvidenceRejectsForeignKeyMalformedMismatchAndNoncanonicalBytes', 'testDestinationBindingPreservesSourceBytesAndMapsOnlyOperationalMutationIDs', 'testDestinationBindingRequiresExactDependencyCardinalityAndPresentReferents', 'testDestinationBindingRejectsTimeZoneOptionalAndBasisDivergence', 'testDestinationBindingClosedDecodeAndFullCorrespondenceRejectHostileChanges', 'testBeginMutationCorrespondenceCoversEveryModeAndBothRolesWithWrappedHashes', 'testBeginMutationExactEvidenceRequiresFrozenRevisionSubsetAndAllowsUnrelatedRows', 'testBeginMutationFreshSourceReadSeparatesSameKeyCandidateFromExactEquality', 'testBeginMutationDestinationEvidenceAuthenticatesEveryReferenceField', 'testBeginMutationTimeZoneAbsenceRejectsDiscardedProvidedHistory', 'testBeginMutationClosedDecodeRejectsHostileRoleKeysHashesTimesAndReferences', 'testParentChildCorrespondenceCanonicalizesDependencyUnionAndDigestInEveryMode', 'testParentChildCorrespondenceRejectsParallelMapBindingSourceAndDigestDrift', 'testParentChildCorrespondencePhaseValidationIsStrictlyShapeBased', 'testChildCheckpointCorrespondenceDerivesExactProjectionAndPreservesHistoricalRevision', 'testChildTargetReceiptCorrespondenceBindsResultDigestAndOriginalTimes', 'testParentChildCorrespondenceRejectsChildCollisionsAndClonePublishesNoOperationalValue'], 'V23CheckRunnerBeginReceiptReferenceTests': ['testBothBeginRolesDeriveEveryReferenceFieldFromOriginalReceipt', 'testShapeValidSubstitutionsCannotReplaceExactBeginProvenance', 'testClosedReferenceRejectsMalformedShapeAndNestedIdentityKeys']}
+        appended = ['FieldEvidenceAppTests/' + klass + '/' + method
+                    for klass, names in methods.items() for method in names]
+        self.assertEqual(len(appended), 30)
+        self.assertEqual(default['unitTestSelectors'], prior['unitTestSelectors'] + appended)
+        for klass, names in methods.items():
+            source = (ROOT / 'FieldEvidenceAppTests' / (klass + '.swift')).read_text(encoding='utf-8')
+            self.assertEqual(re.findall(r"\bfunc\s+(test\w+)\s*\(", source), names)
+        self.assertEqual({k: v for k, v in default.items() if k != 'unitTestSelectors'},
+                         {k: v for k, v in prior.items() if k != 'unitTestSelectors'})
+        for group in mapping['groups']:
+            with self.subTest(group=group['id']):
+                actual = CI.resolve_selection(default, mapping, group['id'])
+                if group['id'] == 'c36-restore-correspondence':
+                    expected = copy.deepcopy(default)
+                    expected['unitTestSelectors'] = appended
+                else:
+                    expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+                if group['id'] == 'capture-payload-codec':
+                    self.assertEqual(len(actual['unitTestSelectors']), 20)
+                    self.assertEqual(sum('/V23RepetitiveCaptureProgressDraftPayloadV2Tests/' in x
+                                         for x in actual['unitTestSelectors']), 13)
+                self.assertEqual(actual, expected)
+
+        for mutate in (
+            lambda m: m['groups'].pop(),
+            lambda m: m['groups'].append(copy.deepcopy(m['groups'][-1])),
+            lambda m: m['groups'][-1].update(id='foreign-correspondence'),
+            lambda m: m['groups'][-1].update(methodCount=29),
+            lambda m: m['groups'][-1]['classes'].reverse(),
+        ):
+            hostile = copy.deepcopy(mapping)
+            mutate(hostile)
+            with self.assertRaises(ValueError):
+                CI.resolve_selection(default, hostile, 'c36-restore-correspondence')
+
+    def prior_63409d1_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        self.assertEqual(len(default["unitTestSelectors"]), 560)
+        prior = copy.deepcopy(default)
+        prior["unitTestSelectors"] = prior["unitTestSelectors"][:554]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '8751EF4B036EB35E6D1FD91C83A13287EC8C62F9FC96F35D435CBD58720EFC14')
+        return prior
+
+    def prior_63409d1_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = copy.deepcopy(mapping)
+        self.assertEqual(len(prior["groups"]), 30)
+        group = next(g for g in prior["groups"] if g["id"] == 'report-camera-recovery')
+        self.assertEqual(group["methodCount"], 42)
+        self.assertEqual(group["classes"].pop(), 'V23CheckRunnerFrozenBeginPreparationTests')
+        group["methodCount"] = 36
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '43DAE7A70FFF7713ABB0F27F2A2D32FF88F3F09B1BEB8713804020B2146819E2')
+        return prior
+
+    def test_frozen_begin_preparation_preserves_exact_prior_pool_map_and_pairs(self):
+        default = self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))
+        mapping = self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))
+        prior = self.prior_63409d1_pool(default)
+        prior_map = self.prior_63409d1_map(mapping)
+        methods = ['testCaptureSourceUsesAuthenticatedEntryAndClosedCanonicalRoundTripWithoutEffects', 'testPrepareCheckFreezesStoredZoneCompleteCommandAndSourceCASWithoutEffects', 'testPrepareRecheckFreezesExplicitIssueParentAndOptionalZoneCommandWithoutEffects', 'testInvalidPreflightRequestPackageAndAccessAllocateNoIDsOrEffects', 'testChangedSourceForeignOwnerDirtyContextCompatibilityAndInvalidSessionFailWithoutPreparationEffects', 'testFrozenContractsRejectMalformedClosedBytesAndEncodeNoDestinationAuthority']
+        appended = ['FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests/' + method for method in methods]
+        self.assertEqual(default['unitTestSelectors'], prior['unitTestSelectors'] + appended)
+        source = frozen_begin_suite_source()
+        self.assertEqual(re.findall(r"\bfunc\s+(test\w+)\s*\(", source), methods + [name.rsplit("/", 1)[1] for name in self.frozen_begin_writer_append() + self.durable_initial_begin_append()])
+        self.assertEqual({k: v for k, v in default.items() if k != 'unitTestSelectors'},
+                         {k: v for k, v in prior.items() if k != 'unitTestSelectors'})
+        for group in mapping['groups']:
+            with self.subTest(group=group['id']):
+                actual = CI.resolve_selection(default, mapping, group['id'])
+                expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+                if group['id'] == 'report-camera-recovery':
+                    expected['unitTestSelectors'].extend(appended)
+                self.assertEqual(actual, expected)
+
+    def prior_d3be307_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        self.assertEqual(len(default["unitTestSelectors"]), 554)
+        prior = copy.deepcopy(default)
+        prior["unitTestSelectors"] = prior["unitTestSelectors"][:547]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'B3C4F982514ABB0AE884F001DEED4748DFAE8ADB5BC0110A67DCB2E5DB3D3B52')
+        return prior
+
+    def prior_d3be307_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = copy.deepcopy(mapping)
+        self.assertEqual(len(prior["groups"]), 30)
+        group = next(g for g in prior["groups"] if g["id"] == 'report-camera-recovery')
+        self.assertEqual(group["methodCount"], 36)
+        self.assertEqual(group["classes"].pop(), 'V23CheckRunnerBeginHistoryTests')
+        group["methodCount"] = 29
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '019B1D20AD36A0D782027EED7F803B303968FED681A5B18E871F765BB5A32963')
+        return prior
+
+    def test_begin_history_admission_preserves_exact_prior_pool_map_and_pairs(self):
+        default = self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json")))
+        mapping = self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH)))
+        prior = self.prior_d3be307_pool(default)
+        prior_map = self.prior_d3be307_map(mapping)
+        methods = ['testShippingBeginReturnsExactTimeZoneAndDraftHistoryWithoutCollapsingRevisionSnapshot', 'testExplicitWorkspaceNamespaceDistinguishesSameMutationIDAndReturnsAbsence', 'testDirtyContextDeniesHistoricalPresenceWithoutChangingRows', 'testInvalidatedWriterDeniesHistoricalRead', 'testSelectedQuarantineDeniesHistoricalPresenceWithoutChangingHistory', 'testWholeJournalCorruptionDeniesSelectedPresenceAndAbsenceWithoutWriting', 'testTypedEvidenceRejectsUnsupportedMismatchedAndGenericValidWrongEffects']
+        appended = ['FieldEvidenceAppTests/V23CheckRunnerBeginHistoryTests/' + method for method in methods]
+        self.assertEqual(default['unitTestSelectors'], prior['unitTestSelectors'] + appended)
+        source = (ROOT / 'FieldEvidenceAppTests/V23CheckRunnerBeginHistoryTests.swift').read_text(encoding='utf-8')
+        self.assertEqual(re.findall(r"\bfunc\s+(test\w+)\s*\(", source), methods)
+        self.assertEqual({k: v for k, v in default.items() if k != 'unitTestSelectors'},
+                         {k: v for k, v in prior.items() if k != 'unitTestSelectors'})
+        for group in mapping['groups']:
+            with self.subTest(group=group['id']):
+                actual = CI.resolve_selection(default, mapping, group['id'])
+                expected = copy.deepcopy(CI.resolve_selection(prior, prior_map, group['id']))
+                if group['id'] == 'report-camera-recovery':
+                    expected['unitTestSelectors'].extend(appended)
+                self.assertEqual(actual, expected)
+
+    def prior_ag2_stock_method_inventory(self, declared):
+        # Reviewed AG2 adds exactly these two witnesses at indices 1 and 4.
+        # Match the complete ordered class before reconstructing historical15.
+        self.assertEqual(declared, ['testEmptyStockProjectionPreservesUnrelatedOriginalHistories', 'testEmptyStockProjectionBindsRevisionToTargetNamespaceAndRetainsBaselines', 'testEmptyStockRowsCannotHideOwnedCommandHistory', 'testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock', 'testEmptyStockCrossWorkspaceReplacementRetainsHistoryAndAllocatesTargetSuccessor', 'testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming', 'testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory', 'testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates', 'testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection', 'testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor', 'testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork', 'testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder', 'testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord', 'testOriginalMembershipAndBindingHostilesFailBeforeProjection', 'testIncomingOtherFamilyOriginalsAndCausalTargetHistoryArePreserved'])
+        return declared[:1] + declared[2:4] + declared[5:]
+
+    def prior_bf6_stock_method_inventory(self, declared):
+        ag2_methods = ['testEmptyStockProjectionBindsRevisionToTargetNamespaceAndRetainsBaselines', 'testEmptyStockCrossWorkspaceReplacementRetainsHistoryAndAllocatesTargetSuccessor']
+        if any(name in declared for name in ag2_methods):
+            declared = self.prior_ag2_stock_method_inventory(declared)
+        new_methods = ['testEmptyStockProjectionPreservesUnrelatedOriginalHistories',
+                       'testEmptyStockRowsCannotHideOwnedCommandHistory']
+        if any(name in declared for name in new_methods):
+            self.assertEqual(declared[:2], new_methods)
+            declared = declared[2:]
+        self.assertEqual(declared, ['testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock', 'testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming', 'testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory', 'testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates', 'testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection', 'testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor', 'testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork', 'testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder', 'testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord', 'testOriginalMembershipAndBindingHostilesFailBeforeProjection', 'testIncomingOtherFamilyOriginalsAndCausalTargetHistoryArePreserved'])
+        prior = [name for name in declared if name not in ['testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates', 'testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection']]
+        self.assertEqual(prior, ['testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock', 'testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming', 'testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory', 'testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor', 'testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork', 'testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder', 'testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord', 'testOriginalMembershipAndBindingHostilesFailBeforeProjection', 'testIncomingOtherFamilyOriginalsAndCausalTargetHistoryArePreserved'])
+        return prior
+
+    def test_empty_stock_regressions_preserve_exact_historical_inventory(self):
+        source = (ROOT / 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift').read_text(encoding='utf-8')
+        declared = re.findall(r"\bfunc\s+(test\w+)\s*\(", source)
+        declared = self.prior_ag2_stock_method_inventory(declared)
+        added = ['testEmptyStockProjectionPreservesUnrelatedOriginalHistories',
+                 'testEmptyStockRowsCannotHideOwnedCommandHistory']
+        self.assertEqual(declared[:2], added)
+        legacy = declared[2:]
+        expected = self.prior_bf6_stock_method_inventory(legacy)
+        self.assertEqual(self.prior_bf6_stock_method_inventory(declared), expected)
+        for hostile in (added[:1] + legacy, added[1:] + legacy,
+                        added[::-1] + legacy, added + added + legacy,
+                        added + ['testUnknownExtraCase'] + legacy):
+            with self.subTest(hostile=hostile[:4]), self.assertRaises(AssertionError):
+                self.prior_bf6_stock_method_inventory(hostile)
+
+    def test_ag2_stock_regressions_preserve_exact_prior_inventories_and_reject_drift(self):
+        source = (ROOT / 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift').read_text(encoding='utf-8')
+        declared = re.findall(r"\bfunc\s+(test\w+)\s*\(", source)
+        prior15 = self.prior_ag2_stock_method_inventory(declared)
+        self.assertEqual(len(prior15), 15)
+        prior13 = prior15[2:]
+        self.assertEqual(len(prior13), 13)
+        prior11 = self.prior_bf6_stock_method_inventory(prior13)
+        self.assertEqual(len(prior11), 11)
+        self.assertEqual(self.prior_bf6_stock_method_inventory(prior15), prior11)
+        self.assertEqual(self.prior_bf6_stock_method_inventory(declared), prior11)
+        swapped = declared.copy()
+        swapped[1], swapped[4] = swapped[4], swapped[1]
+        prior_reordered = declared.copy()
+        prior_reordered[5], prior_reordered[6] = prior_reordered[6], prior_reordered[5]
+        hostiles = (
+            declared[:1] + declared[2:],  # Missing the first addition.
+            declared[:4] + declared[5:],  # Missing the second addition.
+            prior15,  # Both absent: valid historical input, not current AG2.
+            declared[:2] + [declared[1]] + declared[2:],
+            declared[:5] + [declared[4]] + declared[5:],
+            swapped, prior_reordered,
+            declared[:1] + declared[2:4] + [declared[1]] + declared[4:],
+            declared[:1] + ['testUnknownExtraCase'] + declared[2:],
+            declared + ['testUnknownExtraCase'],
+        )
+        for index, hostile in enumerate(hostiles):
+            with self.subTest(index=index), self.assertRaises(AssertionError):
+                self.prior_ag2_stock_method_inventory(hostile)
+            if hostile != prior15:
+                with self.subTest(index=index, historical=True), self.assertRaises(AssertionError):
+                    self.prior_bf6_stock_method_inventory(hostile)
+
+    def prior_bf6a1bc_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        prior = copy.deepcopy(default)
+        prior["unitTestSelectors"] = prior["unitTestSelectors"][:535]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'FFFD1AC00969457253334D778FFAD6159D52EC0C6CF47772A77094B3B3D6AB12')
+        return prior
+
+    def prior_bf6a1bc_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = copy.deepcopy(mapping)
+        self.assertEqual(len(prior["groups"]), 30)
+        for group_id, old_count, new_count, klass in [('archive-contracts', 44, 47, 'V23StoreSemanticValidationTests'), ('mutation-command-codec', 32, 34, None), ('report-camera-recovery', 22, 29, 'V23CheckRunnerEditableFieldValuesTests')]:
+            group = next(g for g in prior["groups"] if g["id"] == group_id)
+            self.assertEqual(group["methodCount"], new_count)
+            group["methodCount"] = old_count
+            if klass is not None:
+                self.assertEqual(group["classes"].pop(), klass)
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'D4EE2F55B57E568CA60623460476943EB2D146800712D1F5710AA05832CE7671')
+        return prior
+
+    def test_bf6_semantic_validation_stock_and_editable_fields_preserve_prior_pool_and_map(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        prior = self.prior_bf6a1bc_pool(default)
+        prior_map = self.prior_bf6a1bc_map(mapping)
+        fields, stock, semantic = ['FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testAllSelectionCasesHaveLiveInverseAndExactCanonicalBytes', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testClosedDecodingRejectsUnknownAssociatedMissingTagChoiceAndTypes', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testRawEditableStringsRoundTripWithoutBlanketFieldCapsOrNormalization', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testPreflightDefaultsAndIncumbentSnapshotInitialValuesRemainExact', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testIncumbentInitialAndPrimaryCategoryTraceMatchesEditableValue', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testIncumbentCouldNotVerifyCallbacksPreserveHighlightAndRawOverflow', 'FieldEvidenceAppTests/V23CheckRunnerEditableFieldValuesTests/testEveryIncumbentRecheckNoteCallbackIncludingIrrelevantAndNilSelection'], ['FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPopulatedC55CanonicalBackupRoundTripsNumericDatesAndRejectsStringDates', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testC52IdentityPolicyRejectsForeignEmptyC55AndAcceptsRestoredTargetProjection'], ['FieldEvidenceAppTests/V23StoreSemanticValidationTests/testCurrentV53ValidationTraversesEveryLayerWithoutRetainingPredecessorBytesAndColdReopens', 'FieldEvidenceAppTests/V23StoreSemanticValidationTests/testEarlyAndLatestCanonicalRowCorruptionKeepTypedFailureAndColdOpenTargetMismatchWithoutRepair', 'FieldEvidenceAppTests/V23StoreSemanticValidationTests/testLowReleaseCanonicalProjectionsRetainExactNestedPredecessorBytes']
+        self.assertEqual(default["unitTestSelectors"], prior["unitTestSelectors"] + fields + stock + semantic)
+        changed = {"archive-contracts": (semantic, 47),
+                   "mutation-command-codec": (stock, 34),
+                   "report-camera-recovery": (fields, 29)}
+        for group in mapping["groups"]:
+            selected = CI.resolve_selection(default, mapping, group["id"])
+            original = CI.resolve_selection(prior, prior_map, group["id"])
+            if group["id"] in changed:
+                appended, count = changed[group["id"]]
+                self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + appended)
+                self.assertEqual(len(selected["unitTestSelectors"]), count)
+                for key in selected:
+                    if key != "unitTestSelectors":
+                        self.assertEqual(selected[key], original[key])
+            else:
+                self.assertEqual(selected, original)
+        # O/Q added these four witnesses after the closed BF6 selection. Keep
+        # that historical selection exact and bind the complete current class
+        # separately, with every later witness enrolled in the full sweep.
+        later_semantic = ['FieldEvidenceAppTests/V23StoreSemanticValidationTests/' + method for method in (
+            'testReleasedV1UpgradeCompletesBothLaunchesWithinBoundedTimeAndMemory',
+            'testPartsStockCommitUnderSubMillisecondClockReportsSuccess',
+            'testMutableSemanticCheckpointCoversEveryJournaledKind',
+            'testOutOfWriterTamperMatrixRecordsDetectionMechanism')]
+        current_semantic = semantic[:1] + later_semantic + semantic[1:]
+        for klass, expected in (("V23CheckRunnerEditableFieldValuesTests", fields),
+                                ("V23StoreSemanticValidationTests", current_semantic)):
+            source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text(encoding="utf-8")
+            self.assertEqual(re.findall(r"^    func (test\w+)\(", source, re.M),
+                             [s.rsplit("/", 1)[1] for s in expected])
+        # shared_selection validates the partition inventory against all source
+        # methods and rejects omissions, overlaps and unknown selectors.
+        complete_sweep = CI.shared_selection(ROOT)['unitTestSelectors']
+        for selector in current_semantic:
+            self.assertEqual(complete_sweep.count(selector), 1, selector)
+        for selector in fields + stock + current_semantic:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_b69a7ed_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        prior = self.prior_bf6a1bc_pool(default)
+        prior["unitTestSelectors"] = prior["unitTestSelectors"][:524]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '8E4C8E00E1368725B0298AEA9348D588642AACC47E80B9B482E15B55AA772515')
+        return prior
+
+    def prior_b69a7ed_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_bf6a1bc_map(mapping)
+        self.assertEqual(len(prior["groups"]), 30)
+        archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
+        self.assertEqual(archive["classes"].pop(), "V23FieldDraftReadyStagePublicationTests")
+        for group_id, current, original in (("archive-contracts", 44, 34),
+                                           ("app-myday-production", 25, 24)):
+            group = next(g for g in prior["groups"] if g["id"] == group_id)
+            self.assertEqual(group["methodCount"], current)
+            group["methodCount"] = original
+        self.assertEqual(CI.sha256(CI.canonical(prior)), 'CB74ED6465F862E761B69A2D7632CA27C321BF9FDAA4FCCF7B24E2FB60750684')
+        return prior
+
+    def test_b69_atomic_publication_admission_retains_exact_prior_pool_map_and_pairs(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        prior = self.prior_b69a7ed_pool(default)
+        prior_map = self.prior_b69a7ed_map(mapping)
+        default = self.prior_bf6a1bc_pool(default)
+        mapping = self.prior_bf6a1bc_map(mapping)
+        kernel = ['FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testBundleCanonicalRoundTripAndPluralMutationMappingsPreserveIncumbentCase', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testBundleRejectsUnknownSchemaAndMalformedAtomicPairs', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testRealCoordinatorPublishesOnePairAndReplaysAfterSuccessorHotAndCold', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testPublicationReceiptRejectsExtraExpectedAndResultIdentity', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testOccupiedStageStalePredecessorAndDivergentRetryPreserveCommittedPair', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testInjectedFailureAfterStageInsertRollsBackBothRowsAndReceipt', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testReadbackRejectsDirtyContextAndInvalidatedWriter', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testReadbackRejectsSavedMissingHalfAndUnreceiptedPairWithoutWrites', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testAtomicPublicationBackupValidatesRejectsMissingHalvesAndRestoresSameWorkspaceCold', 'FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests/testEveryIncumbentFieldDraftPayloadCaseStillCanonicalRoundTrips']
+        myday = ['FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayAuthorizedDraftWriterRejectsReadyStageBeforeActiveOrRevokedAccessEffects']
+        self.assertEqual(default["unitTestSelectors"][524:], kernel + myday)
+        for group_id, appended, count in (("archive-contracts", kernel, 44),
+                                           ("app-myday-production", myday, 25)):
+            selected = CI.resolve_selection(default, mapping, group_id)
+            original = CI.resolve_selection(prior, prior_map, group_id)
+            self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + appended)
+            self.assertEqual(len(selected["unitTestSelectors"]), count)
+        for group in mapping["groups"]:
+            if group["id"] not in ("archive-contracts", "app-myday-production"):
+                self.assertEqual(CI.resolve_selection(default, mapping, group["id"]),
+                                 CI.resolve_selection(prior, prior_map, group["id"]))
+        source = (ROOT / "FieldEvidenceAppTests/V23FieldDraftReadyStagePublicationTests.swift").read_text(encoding="utf-8")
+        self.assertEqual(re.findall(r"^    func (test\w+)\(", source, re.M),
+                         [s.rsplit("/", 1)[1] for s in kernel])
+        for selector in kernel + myday:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_05b38c1_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        prior = self.prior_b69a7ed_pool(default)
+        prior["unitTestSelectors"] = prior["unitTestSelectors"][:514]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '49396D1F0A6B5CBB36EB9965E26B5DE3291F7F550DBF2C4E346A07329C1CD3B8')
+        return prior
+
+    def prior_05b38c1_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_b69a7ed_map(mapping)
+        self.assertEqual(len(prior["groups"]), 30)
+        archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
+        self.assertEqual(archive["classes"].pop(), "S3_2MediaPipelineTests")
+        for group_id, current, original in (("archive-contracts", 34, 25),
+                                           ("report-camera-recovery", 22, 21)):
+            group = next(g for g in prior["groups"] if g["id"] == group_id)
+            self.assertEqual(group["methodCount"], current)
+            group["methodCount"] = original
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '3DB5B3DA2DC0EBDC9595B0DF2F7925580152EF995E6635FCFDA529F382A1C40F')
+        return prior
+
+    def test_05b_media_and_precision_admission_preserves_exact_pool_map_and_methods(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        prior = self.prior_05b38c1_pool(default)
+        prior_map = self.prior_05b38c1_map(mapping)
+        default = self.prior_b69a7ed_pool(default)
+        mapping = self.prior_b69a7ed_map(mapping)
+        media = ['FieldEvidenceAppTests/S3_2MediaPipelineTests/testSourceInspectionRetainsOriginalFactsAndExactNormalizedOutputs', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testSourceInspectionPreservesInvalidInputFailurePrecedence', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testNormalizerAndStoragePreflightEnforceTheFrozenMediaContract', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testRepresentativeInvalidSourcesFailClosedAndAlphaOrientationNormalize', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testTamperedStagingBundleWithExtraFileFailsPromotionClosed', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testCapacityUnavailableStopsBeforeFilesRowsOrDraftStepMutation', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testWideCloseAcceptanceAndRetakePersistExactRowsStepsAndBundlesAcrossReopen', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testC36AttachmentPreflightAccountsForScratchAndDurableStage', 'FieldEvidenceAppTests/S3_2MediaPipelineTests/testV23P03C34SceneResumeDoesNotStartMediaWork']
+        precision = ['FieldEvidenceAppTests/S4_5CorrectionTests/testSubmillisecondProductionDateCanonicalizesOnceAndColdRecoveryAcceptsIt']
+        self.assertEqual(default["unitTestSelectors"][514:], media + precision)
+        for group_id, appended, count in (("archive-contracts", media, 34),
+                                           ("report-camera-recovery", precision, 22)):
+            selected = CI.resolve_selection(default, mapping, group_id)
+            original = CI.resolve_selection(prior, prior_map, group_id)
+            self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + appended)
+            self.assertEqual(len(selected["unitTestSelectors"]), count)
+        for group in mapping["groups"]:
+            if group["id"] not in ("archive-contracts", "report-camera-recovery"):
+                self.assertEqual(CI.resolve_selection(default, mapping, group["id"]),
+                                 CI.resolve_selection(prior, prior_map, group["id"]))
+        source = (ROOT / "FieldEvidenceAppTests/S3_2MediaPipelineTests.swift").read_text(encoding="utf-8")
+        prepared_methods = [
+            "testPreparedImmutableOriginalPublishesOnceAndRetainsAuthenticRetryReceipt",
+            "testPreparedImmutableOriginalRejectsTargetAppearingAfterPreparation",
+            "testPreparedImmutableOriginalRejectsSubstitutionAndCancellation",
+        ]
+        # Retain the historical nine-method admission and assert the new
+        # prepared-media methods are now enrolled exactly once in the live pool.
+        self.assertEqual(re.findall(r"^    func (test\w+)\(", source, re.M),
+                         prepared_methods + [s.rsplit("/", 1)[1] for s in media])
+        current_pool = json.loads((ROOT / "Scripts/ci-selection.json").read_text(encoding="utf-8"))
+        for method in prepared_methods:
+            selector = "FieldEvidenceAppTests/S3_2MediaPipelineTests/" + method
+            self.assertEqual(current_pool["unitTestSelectors"].count(selector), 1)
+            self.assertIn(selector, EXPECTED_LIVE_HOST_RUNTIME[10:13])
+            self.assertNotIn(selector, default["unitTestSelectors"])
+        for selector in media + precision:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def af2_c55_supplemental_selectors(self):
+        return ['FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testCurrentRecordsProjectEmptyAndNonemptyC55SnapshotsWithoutWritesAndRejectForeignRows', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testDeletionWinningPlanAcceptsDeclaredC55SchemasAndRejectsMalformedAuthority', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testActorSnapshotRequiresExistingPartyButAcceptsExplicitUnlinkedActor']
+
+    def prior_af2df5f_pool(self, default):
+        if len(default['unitTestSelectors']) in (673, 677, 683, 692):
+            default = self.prior_29fbcbc_pool(default)
+        prior = self.prior_05b38c1_pool(default)
+        prior["unitTestSelectors"] = prior["unitTestSelectors"][:504]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '42333C57BC5A301D897D9C74C39B7A1AD99A70393EE2F155B584A659DA65A333')
+        return prior
+
+    def prior_af2df5f_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_05b38c1_map(mapping)
+        self.assertEqual(len(prior["groups"]), 30)
+        for group_id, current, original in (("mutation-command-codec", 32, 29),
+                                             ("report-camera-recovery", 21, 14)):
+            group = next(g for g in prior["groups"] if g["id"] == group_id)
+            self.assertEqual(group["methodCount"], current)
+            group["methodCount"] = original
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '1F9A49FB295691F50AB532970D5878C7D6FC5E92C7177A4E5F37CD049DEB2B7A')
+        return prior
+
+    def test_af2_corrections_preserve_exact_pool_map_and_complete_resolver_c55_pairs(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        prior = self.prior_af2df5f_pool(default)
+        prior_map = self.prior_af2df5f_map(mapping)
+        default = self.prior_05b38c1_pool(default)
+        mapping = self.prior_05b38c1_map(mapping)
+        resolver = ['FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testEditableNoteProjectionPreservesIncumbentRawTextBoundaries', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testEditableNoteProjectionFeedsEveryStrictNoteBearingOutcome', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testOutcomeResolverNormalizesAllShippingAndAlternateOutcomesExactly', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testOutcomeResolverPreservesCheckLabelTrimAndRecheckStrictLabelRules', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testOutcomeResolverAppliesIncumbentCNVAndRecheckNoteBoundaries', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testOutcomeResolverValidatesActualCNVRegistryAndUniqueOutcomeDisplay', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testOutcomeResolverEvaluatesLazyProfileAtEachRequiredLookupAndPreservesErrors']
+        c55 = self.af2_c55_supplemental_selectors()
+        self.assertEqual(default["unitTestSelectors"][504:], resolver + c55)
+        for group_id, appended, count in (("report-camera-recovery", resolver, 21),
+                                           ("mutation-command-codec", c55, 32)):
+            selected = CI.resolve_selection(default, mapping, group_id)
+            original = CI.resolve_selection(prior, prior_map, group_id)
+            self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + appended)
+            self.assertEqual(len(selected["unitTestSelectors"]), count)
+        for group in mapping["groups"]:
+            if group["id"] not in ("report-camera-recovery", "mutation-command-codec"):
+                self.assertEqual(CI.resolve_selection(default, mapping, group["id"]),
+                                 CI.resolve_selection(prior, prior_map, group["id"]))
+        resolver_source = (ROOT / "FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift").read_text(encoding="utf-8")
+        declared = re.findall(r"^    func (test(?:OutcomeResolver|EditableNoteProjection)\w+)\(", resolver_source, re.M)
+        self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in resolver])
+        c55_source = (ROOT / "FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift").read_text(encoding="utf-8")
+        declared = re.findall(r"^    func (test\w+)\(", c55_source, re.M)
+        declared = self.prior_bf6_stock_method_inventory(declared)
+        original = [s.rsplit("/", 1)[1] for s in prior["unitTestSelectors"]
+                    if CI.selection_class(s) == "V23PartsStockReplacementHistoryTests"]
+        self.assertEqual(len(original), 8)
+        self.assertEqual(declared, original[:3] + [s.rsplit("/", 1)[1] for s in c55] + original[3:])
+        for selector in resolver + c55:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_47d433e_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_af2df5f_map(mapping)
+        group = next(g for g in prior["groups"] if g["id"] == "report-camera-recovery")
+        self.assertEqual(group["methodCount"], 14)
+        self.assertEqual(group["classes"].pop(), "V9_18PackLifecycleIntegrationTests")
+        group["methodCount"] = 3
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '0E5745A8430315B2C09B1382ACEB2EA8244EE27ABA5F7860550417CFC3615D88')
+        return prior
+
+    def test_finalization_readback_preserves_exact_47d_pool_and_complete_new_methods(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior = copy.deepcopy(default)
+        prior["unitTestSelectors"] = prior["unitTestSelectors"][:493]
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '3B30E1B98324AEBCDF0B85D2E313680BD7A789A508416C63437A7C790D43C391')
+        prior_map = self.prior_47d433e_map(mapping)
+        default = self.prior_af2df5f_pool(default)
+        mapping = self.prior_af2df5f_map(mapping)
+        expected = ['FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testFinalizationWorkflowBranchesMatchNativeOutcomeAndEvidenceRules', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testRealCheckCompletionsBindKnownAndPartialEvidenceOutcomes', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testRealRecheckCompletionsRetainEveryNativeOutcomeAndOriginalHistory', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testReadCommittedFinalizationReturnsActualCheckAndCNVReceiptsWithoutWrites', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testReadCommittedFinalizationCoversEveryRecheckOutcomeAndCurrentEvidenceMembership', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testReadCommittedFinalizationDistinguishesStableAbsenceFromOneSidedAuthority', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testReadCommittedFinalizationRejectsEveryChangedFrozenInputField', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testReadCommittedFinalizationRejectsRetiredWriterAndSurvivesColdReopen', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testReadCommittedFinalizationRejectsSnapshotCorruptionAndRestoresFixtureSafely', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testPackFinalizationReadbackRequiresExactPackageBindingAndDurableReceiptIdentity', 'FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests/testCleanupFailureAfterSavedEffectReadsActualCommitBeforeAndAfterRecovery']
+        self.assertEqual(default["unitTestSelectors"][493:504], expected)
+        selected = CI.resolve_selection(default, mapping, "report-camera-recovery")
+        original = CI.resolve_selection(prior, prior_map, "report-camera-recovery")
+        self.assertEqual(len(original["unitTestSelectors"]), 3)
+        self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + expected)
+        self.assertEqual(len(selected["unitTestSelectors"]), 14)
+        for group_id in ("archive-contracts", "mutation-command-codec"):
+            self.assertEqual(CI.resolve_selection(default, mapping, group_id),
+                             CI.resolve_selection(prior, prior_map, group_id))
+        source = (ROOT / "FieldEvidenceAppTests/V9_18PackLifecycleIntegrationTests.swift").read_text()
+        added = source.split("// MARK: - C36 authenticated finalization readback", 1)[1].split(
+            "private enum C47ActivityContractCompatibility_", 1)[0]
+        declared = re.findall(r"^    func (test\w+)\(", added, re.M)
+        self.assertEqual(len(declared), len(set(declared)))
+        self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in expected[3:] + self.frozen_finalization_revision_append()])
+        for selector in expected:
+            method = selector.rsplit("/", 1)[1]
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_0e90d6c_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_47d433e_map(mapping)
+        archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
+        self.assertEqual(archive["methodCount"], 25)
+        self.assertEqual(archive["classes"][-2:], ["V23FieldDraftAsyncCommitTests", "V23BackupManifestMemberTests"])
+        archive["classes"] = archive["classes"][:-2]
+        archive["methodCount"] = 11
+        self.assertEqual(CI.sha256(CI.canonical(prior)), '62BA7A780325B00F54EA9D7DFA8FB46B2F19BB0BF6994A0D4BFD3C8470F5ACC9')
+        return prior
+
+    def test_archive_async_admission_preserves_exact_0e_pool_and_complete_pairs(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:479]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), 'D42D177B2983DDC48BF7D906A96C5C8E24BCF7E83E40887BFB317CD217442D65')
+        prior_map = self.prior_0e90d6c_map(mapping)
+        default = self.prior_05b38c1_pool(default)
+        mapping = self.prior_05b38c1_map(mapping)
+        expected = ['FieldEvidenceAppTests/V23FieldDraftAsyncCommitTests/testAsyncTargetSuccessUsesExactReceiptAndOneIncumbentSagaBody', 'FieldEvidenceAppTests/V23FieldDraftAsyncCommitTests/testContentSuspensionRequiresSameCurrentCommittingCheckpointBeforeFurtherWrites', 'FieldEvidenceAppTests/V23FieldDraftAsyncCommitTests/testTargetSuspensionRequiresSameCurrentCommittingCheckpointBeforeReadBackOrSagaAdvance', 'FieldEvidenceAppTests/V23FieldDraftAsyncCommitTests/testAsyncTargetRejectsWrongMutationAndWorkspaceReceiptsBeforeReadBack', 'FieldEvidenceAppTests/V23FieldDraftAsyncCommitTests/testAsyncTargetSaveThenThrowRetainsEffectAndExactRetryCompletesOnce', 'FieldEvidenceAppTests/V23FieldDraftAsyncCommitTests/testAsyncTargetCancellationAfterSaveRetainsEffectAndExactRetryCompletesOnce', 'FieldEvidenceAppTests/V23FieldDraftAsyncCommitTests/testSynchronousTargetInitializersPreserveExistingOrderingAndFailureBehavior', 'FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testPublicPackageValidatorAcceptsAsyncTargetReceiptFromExistingWriter', 'FieldEvidenceAppTests/V23BackupManifestMemberTests/testDraftStagingMemberUsesTypedUUIDsAndHonorsSchemaFloor', 'FieldEvidenceAppTests/V23BackupManifestMemberTests/testTemporalOriginalUsesOwnerConstructorAndHonorsSchemaFloor', 'FieldEvidenceAppTests/V23BackupManifestMemberTests/testC05DerivativeOwnerConstructorsAdmitMarkerAndOriginalAtCurrentSchema', 'FieldEvidenceAppTests/V23BackupManifestMemberTests/testTypedMemberPathsAndMIMEsRejectMalformedVariantsWithValidControls', 'FieldEvidenceAppTests/V23BackupManifestMemberTests/testTypedMembersRetainManifestHashOrderTotalSourceAndSchemaPredicates', 'FieldEvidenceAppTests/V23BackupManifestMemberTests/testDecoderRoundTripsTypedMembersAndRejectsUnknownFields']
+        self.assertEqual(default["unitTestSelectors"][479:493], expected)
+        selected = CI.resolve_selection(default, mapping, "archive-contracts")
+        original = CI.resolve_selection(prior_pool, prior_map, "archive-contracts")
+        self.assertEqual(len(original["unitTestSelectors"]), 11)
+        self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + expected)
+        self.assertEqual(len(selected["unitTestSelectors"]), 25)
+        for klass in ["V23FieldDraftAsyncCommitTests", "V23BackupManifestMemberTests"]:
+            source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text()
+            declared = re.findall(r"^    func (test\w+)\(", source, re.M)
+            self.assertEqual(len(declared), len(set(declared)))
+            self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in expected if CI.selection_class(s) == klass])
+        for selector in expected:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_ff8ae4c_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_0e90d6c_map(mapping)
+        codec = next(g for g in prior["groups"] if g["id"] == "mutation-command-codec")
+        self.assertEqual(codec["methodCount"], 29)
+        self.assertEqual(codec["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests", "V23PartsStockReplacementHistoryTests", "V23PartsStockReplacementProjectionTests"])
+        codec["classes"] = codec["classes"][:2]
+        codec["methodCount"] = 14
+        return prior
+
+    def test_c55_admission_preserves_exact_ff8_pool_and_complete_paired_classes(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:464]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), 'B6F713A9889C43E4C3F82C94A970726678AFB229D80C0FFA04A325F51A583179')
+        prior_map = self.prior_ff8ae4c_map(mapping)
+        default = self.prior_af2df5f_pool(default)
+        mapping = self.prior_af2df5f_map(mapping)
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), 'FF9568F96A872B357D55BBF3DA7DEF0FC152CC6CFACB18B6B5920C278DCA09C4')
+        expected = ['FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPublicReplacementAndColdReadbackPreserveEmptyIncomingOverEmptyStock', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPublicReplacementAndColdReadbackRemoveNonemptyCurrentStockForEmptyIncoming', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testPublicReplacementAndColdReadbackPreserveMixedIncomingOriginalHistory', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testAlternatingC49C55ProjectionIsDeterministicAndRetainsUnrelatedCurrentWork', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testReceiptIdentityExportOrderAndShuffleUseGlobalRevisionOrder', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testForeignRawMutationIDCollisionUsesActiveSourceKindAndPreservesRecord', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testOriginalMembershipAndBindingHostilesFailBeforeProjection', 'FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests/testIncomingOtherFamilyOriginalsAndCausalTargetHistoryArePreserved', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testProjectsAllMutationCasesAndSnapshotFamiliesDeterministically', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testCursorStagesExternalPredecessorAndMatchesOneShotFold', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testBindingBoundaryFailsClosed', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testSameWorkspaceInvalidOrderAndLossyHistoryAreRejected', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testExplicitCatalogBaselinesPreserveStrictlyValidatedValuesAndMissingRevisionOne', 'FieldEvidenceAppTests/V23PartsStockReplacementProjectionTests/testCatalogBaselineProofRejectsMissingForgedMismatchedAndForbiddenFamily', 'FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/testHistoricReversalBasisRebindPreservesOpaquePlanAndClosesTargetReceipt']
+        self.assertEqual(default["unitTestSelectors"][464:479], expected)
+        selected = CI.resolve_selection(default, mapping, "mutation-command-codec")
+        original = CI.resolve_selection(prior_pool, prior_map, "mutation-command-codec")
+        self.assertEqual(len(original["unitTestSelectors"]), 14)
+        self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + expected)
+        self.assertEqual(len(selected["unitTestSelectors"]), 29)
+        for klass in ["V23PartsStockReplacementHistoryTests", "V23PartsStockReplacementProjectionTests"]:
+            source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text()
+            declared = re.findall(r"^    func (test\w+)\(", source, re.M)
+            self.assertEqual(len(declared), len(set(declared)))
+            if klass == "V23PartsStockReplacementHistoryTests":
+                declared = self.prior_bf6_stock_method_inventory(declared)
+                supplemental = [s.rsplit("/", 1)[1] for s in self.af2_c55_supplemental_selectors()]
+                self.assertEqual([name for name in declared if name in supplemental], supplemental)
+                declared = [name for name in declared if name not in supplemental]
+            self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in expected if CI.selection_class(s) == klass])
+        for selector in expected:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_f86664a_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_ff8ae4c_map(mapping)
+        reference = next(g for g in prior["groups"] if g["id"] == "reference-owner-replacement")
+        self.assertEqual(reference["methodCount"], 51)
+        self.assertEqual(reference["classes"].pop(), "V23ReferenceOwnerReplacementCommandPlanTests")
+        reference["methodCount"] = 40
+        return prior
+
+    def test_command_plan_admission_preserves_exact_f86664a_pool_and_map(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:453]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), '41E5A2751BD53DEEE4D968A86016EC278FE88CA9E096E1B992ADEB92EC1AA2A2')
+        prior_map = self.prior_f86664a_map(mapping)
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), 'ED133A6747F235ADECE6C4B39A1FBD365C6CF7284D75336BADB480E52CE0D365')
+        expected = ['FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testMixedPlanHasExactSourceOrderCoverageAndHistoricalTargets', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testCoverageIsIndependentOfReceiptStorageOrder', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testEmptyAndSingleFamilyPlansRemainExplicit', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testNonselectedAuthenticatedEntryAndFullSourceHistoryRemainExact', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testExternalProducerObligationsRetainAuthenticatedSourceAndSuppliedTarget', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsMissingForeignAndTargetCollisionProducerBindings', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testAtomicGenerationImagesAndFrontierEvidenceAreExact', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testDependenciesMapExactProducersAndRejectIncompleteExternalProducerCoverage', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testGenuineCausationAndReversalMetadataMapToOneSelectedPredecessor', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsGenuineForwardCausationAndReversalPair', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsAuthenticatedCausationToNonselectedGuidedOwner']
+        self.assertEqual(default["unitTestSelectors"][453:464], expected)
+        selected = CI.resolve_selection(default, mapping, "reference-owner-replacement")
+        original = CI.resolve_selection(prior_pool, prior_map, "reference-owner-replacement")
+        self.assertEqual(selected["unitTestSelectors"], original["unitTestSelectors"] + expected)
+        self.assertEqual(len(selected["unitTestSelectors"]), 51)
+        source = (ROOT / "FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests.swift").read_text()
+        declared = re.findall(r"^    func (test\w+)\(", source, re.M)
+        self.assertEqual(len(declared), len(set(declared)))
+        self.assertEqual(declared, [s.rsplit("/", 1)[1] for s in expected])
+
+    def prior_12e5742_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_f86664a_map(mapping)
+        archive = next(g for g in prior["groups"] if g["id"] == "archive-contracts")
+        self.assertEqual(archive["methodCount"], 11)
+        self.assertEqual(archive["classes"].pop(), "V23FieldDraftStageDigestBackupTests")
+        archive["methodCount"] = 8
+        return prior
+
+    def test_stage_digest_admission_preserves_exact_12e5742_pool_and_map(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:450]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), '37C46812503287DCEE72EAC00EC8A143D8A38CDF058777C96A0C2C75A5C2F4EA')
+        prior_map = self.prior_12e5742_map(mapping)
+        default = self.prior_05b38c1_pool(default)
+        mapping = self.prior_05b38c1_map(mapping)
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), 'FE7FDFCB15875FE158DEB96448028B465087772FC279742A51FA8AEA50A1CD44')
+        expected = ['FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testPublicPackageValidatorAcceptsNonemptyProducerStageSHA256Commit', 'FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testContentDigestSubstitutionIsFullyRehashedButRejectedByBothProducersAndPackage', 'FieldEvidenceAppTests/V23FieldDraftStageDigestBackupTests/testSameOriginalBytesWithDifferentCanonicalStageMetadataCannotSatisfyPlan']
+        self.assertEqual(default["unitTestSelectors"][450:453], expected)
+        selected = CI.resolve_selection(default, mapping, "archive-contracts")
+        original = CI.resolve_selection(prior_pool, prior_map, "archive-contracts")
+        self.assertEqual(selected["unitTestSelectors"][:11], original["unitTestSelectors"] + expected)
+        self.assertEqual(len(selected["unitTestSelectors"]), 25)
+        for selector in expected:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text(encoding="utf-8")
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def prior_bea52c7_map(self, mapping):
+        if next(g for g in mapping['groups'] if g['id'] == 'report-camera-recovery')['methodCount'] in (91, 95, 101, 110):
+            mapping = self.prior_29fbcbc_map(mapping)
+        prior = self.prior_12e5742_map(mapping)
+        app = next(g for g in prior["groups"] if g["id"] == "app-myday-production")
+        self.assertEqual(app["methodCount"], 24)
+        self.assertEqual(app["classes"].pop(), "V23NativeScreenObservationTests")
+        app["methodCount"] = 20
+        round_group = next(g for g in prior["groups"] if g["id"] == "round-readiness-production")
+        self.assertEqual(round_group["methodCount"], 6)
+        round_group["methodCount"] = 5
+        return prior
+
+    def test_native_observation_admission_preserves_exact_bea52c7_pool_and_map(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:445]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), 'F075564395571E8C149E7E3FED45D9E769C2BDEE26AF00BC5792F7854EB1AF3A')
+        self.assertEqual(CI.sha256(CI.canonical(self.prior_bea52c7_map(mapping))), 'D6E6BDB9DF2430F717C923897D7A57B65C966DFDACF05544784D4A1D73E19859')
+        expected = ['FieldEvidenceAppTests/V23NativeScreenObservationTests/testRealSwiftUIBranchMountUnmountAndWindowScope', 'FieldEvidenceAppTests/V23NativeScreenObservationTests/testSelectedTabAndNativeBackRejectRetainedScreens', 'FieldEvidenceAppTests/V23NativeScreenObservationTests/testPresentedNativeControllerMasksCoveredHostAndDismissalRestoresIt', 'FieldEvidenceAppTests/V23NativeScreenObservationTests/testWitnessHasNoLayoutInteractionOrAccessibilityRoleAndClearsOnDismantle', 'FieldEvidenceAppTests/V23ProductionRoundReadinessTests/testReadinessPreFinalHookRejectionDoesNotCarryHookOrWriteIntoNextOperation']
+        self.assertEqual(default["unitTestSelectors"][445:450], expected)
+        for selector in expected:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+        default = self.prior_b69a7ed_pool(default)
+        mapping = self.prior_b69a7ed_map(mapping)
+        app = CI.resolve_selection(default, mapping, "app-myday-production")
+        self.assertEqual(app["unitTestSelectors"][-4:], expected[:4])
+        round_group = CI.resolve_selection(default, mapping, "round-readiness-production")
+        self.assertEqual(round_group["unitTestSelectors"][-1:], expected[-1:])
+
+    def prior_821f_groups(self, mapping, count=17):
+        """Retain historical hash proofs after validating the two additive counts."""
+        groups = self.prior_bea52c7_map(mapping)["groups"][:17]
+        for group_id, current, prior in (("app-myday-production", 20, 13),
+                                         ("mutation-command-codec", 14, 13)):
+            group = next(item for item in groups if item["id"] == group_id)
+            self.assertEqual(group["methodCount"], current)
+            group["methodCount"] = prior
+        return groups[:count]
+
+    def test_reference_owner_admission_preserves_exact_698_pool_and_adds_complete_classes(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:405]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), '0FAF6BDA92295FE5D342E47DD997079384F4019AC130F91FA1EB797B4DE41122')
+        prior_map = self.prior_bea52c7_map(mapping)
+        prior_map["groups"] = prior_map["groups"][:29]
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), '13816E50720D2F60B42E54656C02346578953A7D22B9011A5093B57C2B756BE2')
+        expected = ['FieldEvidenceAppTests/V23ReferenceOwnerReplacementSourceTests/testAuthenticatedMixedHistoryRetainsExactOriginalsAndOrdersOwnFourFamilies', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementSourceTests/testWrongOwnerMutationAndExpectedFrontierFailClosed', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementSourceTests/testReceiptBodyMismatchAndDuplicateQualifiedMutationFailClosed', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementSourceTests/testRelevantQuarantineIsDeniedAfterSnapshotAuthentication', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testReplacementMutationNamespacesAreDeterministicAndDisjoint', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testReplacementMutationNamespacesBindSourceOwnerAndTargetGeneration', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testProjectsAllSevenPayloadsFromAuthenticatedHistoryWithoutRewritingContent', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testHistoricalManifestLookupUsesExactOlderReferenceDespiteNewerSnapshotFrontier', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testProjectionMapsOnlyRealDependenciesAndRetainsAuthenticatedReceiptOrder', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testProjectedCommandsProduceValidTypedTargetReceiptsAndEquivalentConflictEvidence', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testMissingManifestClaimLeaseAndReleaseDependenciesFailClosed', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testDuplicateHistoricalIdentityAndMappedMutationCollisionFailClosed', 'FieldEvidenceAppTests/V23WorkPacketReplacementCommandProjectionTests/testProjectionRejectsDifferentSourceOwnerAndNonReplacementIdentity', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testFiveReplacementMutationNamespacesAreDeterministicDisjointAndIdentityBound', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testAuthenticatedSourceClassifiesRoundDistinctFromGuidedSurveyAndRetainsForeignHistory', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testSourceRejectsRelevantQuarantineAndTypedRoundReceiptMismatch', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testProjectsCompleteHistoricalTransitionChainAndPreservesLiteralFacts', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testExactOlderAndNewerReferencesResolveDespiteNewerSnapshotFrontierAndRecordOrder', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testMissingDuplicateAndForkedHistoricalPredecessorsFailClosed', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testWrongOwnerAndMappedMutationCollisionFailClosedWhileForeignRoundIsIgnored', 'FieldEvidenceAppTests/V23RoundSessionReplacementCommandProjectionTests/testProjectedCommandsProduceValidTypedTargetReceiptsWithoutStorageClaim']
+        expected += ['FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testProjectsAllSixPayloadsWithExactGraphAndAtomicGeneration', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testPreservesLiteralFieldsAndRebindsWorkPacketAndRoundReferences', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testExactHistoricalLookupsIncludeOldReleaseCalendarOverrideAndOccurrenceAnchor', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testEveryProjectedCommandBuildsCanonicalTypedTargetReceipt', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testProjectionIsIndependentOfStoredReceiptOrder', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testRejectsMissingExternalBindingsAndWrongIdentity', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testBaselineBindingsAndPluralPromotionDependenciesUseExactReceiptPrefix', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testRejectsMissingDuplicateForeignAndCollidingExternalProducerPairs', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testAddedOccurrenceReferencesAndOverrideFrontiersRecomputeFromExactOwners', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testUnknownProvenanceFailsClosedAfterAuthenticatedSourceConstruction', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testAllDaysTimeBasisRemainsLiteralWithTypedTargetReceipts', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testRetiredExceptionMapsAddedReplacementAcrossIdentityNamespaces', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testExceptionRecomputesPriorEffectiveDigestAndOverrideProvenance', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testUnknownCompletionAndDifferentSourceProjectionsFailClosed', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testRejectsConstructorValidMismatchedEmbeddedHistoricalRelease', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testHistoricalLookupRejectsUnknownDigestAndForeignAnchor', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testRejectsRelevantQuarantineAndDuplicateAuthenticatedMutation', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testRejectsConstructorValidForkedReleaseHistory', 'FieldEvidenceAppTests/V23ScheduleReplacementCommandProjectionTests/testRejectsMissingCalendarProducerAndDuplicateDefinitionBindings']
+        self.assertEqual(default["unitTestSelectors"][405:445], expected)
+        expected += ['FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testMixedPlanHasExactSourceOrderCoverageAndHistoricalTargets', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testCoverageIsIndependentOfReceiptStorageOrder', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testEmptyAndSingleFamilyPlansRemainExplicit', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testNonselectedAuthenticatedEntryAndFullSourceHistoryRemainExact', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testExternalProducerObligationsRetainAuthenticatedSourceAndSuppliedTarget', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsMissingForeignAndTargetCollisionProducerBindings', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testAtomicGenerationImagesAndFrontierEvidenceAreExact', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testDependenciesMapExactProducersAndRejectIncompleteExternalProducerCoverage', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testGenuineCausationAndReversalMetadataMapToOneSelectedPredecessor', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsGenuineForwardCausationAndReversalPair', 'FieldEvidenceAppTests/V23ReferenceOwnerReplacementCommandPlanTests/testRejectsAuthenticatedCausationToNonselectedGuidedOwner']
+        group = mapping["groups"][-1]
+        self.assertEqual(group, {'id': 'reference-owner-replacement', 'classes': ['V23ReferenceOwnerReplacementSourceTests', 'V23WorkPacketReplacementCommandProjectionTests', 'V23RoundSessionReplacementCommandProjectionTests', 'V23ScheduleReplacementCommandProjectionTests', 'V23ReferenceOwnerReplacementCommandPlanTests'], 'methodCount': 51})
+        resolved = CI.resolve_selection(default, mapping, group["id"])
+        self.assertEqual(resolved["unitTestSelectors"], expected)
+        for klass in group["classes"]:
+            source = (ROOT / "FieldEvidenceAppTests" / (klass + ".swift")).read_text()
+            declared = re.findall(r"^    func (test\w+)\(", source, re.M)
+            selected = [s.rsplit("/", 1)[1] for s in expected if CI.selection_class(s) == klass]
+            self.assertEqual(len(declared), len(set(declared)), klass)
+            self.assertEqual(declared, selected, klass)
+
+    def test_schedule_admission_preserves_exact_4d_pool_and_map(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(len(mapping["groups"]), 30)
+        prior_pool = copy.deepcopy(default)
+        prior_pool["unitTestSelectors"] = prior_pool["unitTestSelectors"][:426]
+        self.assertEqual(CI.sha256(CI.canonical(prior_pool)), '3564DC8CCA165D269AC18B2F90F98E7EEF0E1D4C2D6985C72F21536BC99813D1')
+        prior_map = self.prior_bea52c7_map(mapping)
+        group = prior_map["groups"][-1]
+        self.assertEqual(group["id"], "reference-owner-replacement")
+        self.assertEqual(group["methodCount"], 40)
+        self.assertEqual(group["classes"].pop(), "V23ScheduleReplacementCommandProjectionTests")
+        group["methodCount"] = 21
+        self.assertEqual(CI.sha256(CI.canonical(prior_map)), '718D0A2573BDE2DCD581DEBF178FD54718387A22560D94E4EC81363A13A71A0F')
+
+    def test_work_round_capture_and_descriptor_admission_preserves_821f_pool(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        self.assertEqual(len(default["unitTestSelectors"]), 547)
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:298])),
+                         "5ABC2B0E9AD06346872CEFE60223FAD2E2AC775AAB2C691A6EAC98F026EDFB0C")
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][298:405])),
+                         "BC86EB9A4C01F799C151D7E78281A0B9D6046956C6A8E6C885C57DE2875F24A8")
+        prior = copy.deepcopy(mapping)
+        prior["groups"] = self.prior_821f_groups(mapping)
+        self.assertEqual(CI.sha256(CI.canonical(prior)),
+                         "5B20EF37267EC8FC25A5ABB66D025FCA7D5126ECB72913C590C8DEE483ADE75C")
+        expected = [
+            ("work-asset-production", ["V23ProductionWorkAssetTests"], 5),
+            ("round-readiness-production", ["V23ProductionRoundReadinessTests"], 6),
+            ("round-draft-ordering", ["V23ProductionRoundDraftOrderingTests"], 7),
+            ("round-draft-ordering-presentation", ["V23ProductionRoundDraftOrderingPresentationTests"], 8),
+            ("round-session-transition", ["V23ProductionRoundSessionTransitionTests"], 8),
+            ("round-session-transition-presentation", ["V23ProductionRoundSessionTransitionPresentationTests"], 6),
+            ("round-item-production", ["V23ProductionRoundItemTests"], 8),
+            ("capture-progress-production", ["V23ProductionCaptureProgressTests"], 7),
+            ("capture-recovery-production", ["V23ProductionCaptureRecoveryTests"], 7),
+            ("scene-navigation-production", ["V23ProductionSceneNavigationTests"], 12),
+            ("capture-payload-codec", ["V23RepetitiveCaptureDraftPayloadTests",
+                                       "V23RepetitiveCaptureProgressDraftPayloadV2Tests"], 20),
+            ("store-control-descriptor-ownership", ["V23StoreControlDescriptorOwnershipTests"], 6),
+        ]
+        self.assertEqual(mapping["groups"][17:29],
+                         [dict(id=i, classes=c, methodCount=n) for i, c, n in expected])
+        added_classes = {CI.selection_class(s) for s in default["unitTestSelectors"][298:405]}
+        historical_pin = '8a4672e15ddf340a63f2edc3c5245de4b22cc6ce'
+        current_default = CI.read_json(ROOT / "Scripts/ci-selection.json")
+        for klass in added_classes:
+            relative = "FieldEvidenceAppTests/" + klass + ".swift"
+            source = subprocess.check_output(['git', 'show', historical_pin + ':' + relative], cwd=ROOT).decode('utf-8')
+            declarations = re.findall(r"^    func (test\w+)\(", source, re.M)
+            selected = [s.rsplit("/", 1)[1] for s in default["unitTestSelectors"]
+                        if CI.selection_class(s) == klass]
+            self.assertEqual(len(declarations), len(set(declarations)), klass)
+            self.assertEqual(set(declarations), set(selected), klass)
+            current_source = (ROOT / relative).read_text(encoding='utf-8')
+            current_declarations = re.findall(r"^    func (test\w+)\(", current_source, re.M)
+            current_selected = [s.rsplit("/", 1)[1] for s in current_default["unitTestSelectors"]
+                                if CI.selection_class(s) == klass]
+            self.assertEqual(len(current_declarations), len(set(current_declarations)), klass)
+            self.assertEqual(set(current_declarations), set(current_selected), klass)
+        source = (ROOT / "FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift").read_text()
+        base = source.split("class V23ProductionFourRootShellTestSupport: XCTestCase {", 1)[1].split(
+            "final class V23ProductionFourRootShellTests:", 1)[0]
+        self.assertNotRegex(base, r"\bfunc\s+test\w+\(")
+        for group_id, _, _ in expected:
+            selected = CI.resolve_selection(default, mapping, group_id)
+            for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
+                self.assertEqual(selected[key], default[key])
+        missing = copy.deepcopy(default)
+        missing["unitTestSelectors"].pop()
+        with self.assertRaisesRegex(ValueError, "selection group members"):
+            CI.resolve_selection(missing, mapping, expected[-1][0])
+        override = copy.deepcopy(mapping)
+        override["groups"][-1]["selectors"] = [UNIT]
+        with self.assertRaisesRegex(ValueError, "selection group shape"):
+            CI.resolve_selection(default, override, expected[-1][0])
+
+    def test_required_evidence_extraction_retains_original_literal_body(self):
+        body = evidence_before_shared_coverage((ROOT / "Scripts/validate-required-evidence.sh").read_bytes())
+        allowed_prefix = (b'selection_path="${CI_SELECTION_PATH:-Scripts/ci-selection.json}"\n'
+                          b'case "$selection_path" in\n'
+                          b'  Scripts/ci-selection.json | "${CI_ARTIFACT_DIR:?}/ci-selection.selected.json") ;;\n'
+                          b"  *) printf 'invalid closed selection path\\n' >&2; exit 65 ;;\n"
+                          b'esac\n'
+                          b'test -f "$selection_path"\n')
+        preserved = body.replace(allowed_prefix, b"", 1).replace(
+            b"' \"$selection_path\" > /dev/null", b"' Scripts/ci-selection.json > /dev/null").replace(
+            b'"$selection_path" | awk', b'Scripts/ci-selection.json | awk')
+        self.assertEqual(CI.sha256(preserved),
+                         "76728F2ACA67ED1C77295F5FAF207E2CE3A8192CCE4F0D924B7C9991E6690FAE")
+        source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
+        self.assertEqual(step(source, "Validate required build and test evidence").strip(),
+                         "id: validate_required_evidence\n"
+                         "        if: ${{ always() && inputs.s10_4_pilot_mode == false && (inputs.runner_provider != 'bitrise' || inputs.s10_4_segment_id == 'none') }}\n"
+                         "        shell: bash\n"
+                         "        run: |\n"
+                         "          bash --noprofile --norc -e -o pipefail Scripts/validate-required-evidence.sh")
+
+    def test_extracted_required_evidence_is_bound_to_native_source_identity(self):
+        relative = "Scripts/validate-required-evidence.sh"
+        self.assertEqual(CI.PROTOCOL_PATHS.count(relative), 1)
+        original = CI.source_binding(ROOT)
+        self.assertEqual(original["protocolSources"][relative],
+                         CI.sha256((ROOT / relative).read_bytes()))
+        with tempfile.TemporaryDirectory(prefix="v23-native-source-binding-") as directory:
+            root = Path(directory)
+            for path in (*CI.PROTOCOL_PATHS, "Scripts/ci-selection.json", CI.SELECTION_MAP_PATH,
+                         CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / path, target)
+            self.assertEqual(CI.source_binding(root), original)
+            helper = root / relative
+            helper.write_bytes(helper.read_bytes() + b"# source substitution fixture\n")
+            changed = CI.source_binding(root)
+            self.assertNotEqual(changed["protocolSources"][relative], original["protocolSources"][relative])
+            self.assertNotEqual(changed["protocolSHA256"], original["protocolSHA256"])
+            helper.unlink()
+            with self.assertRaises(ValueError):
+                CI.source_binding(root)
+
+    def test_extracted_worker_filter_is_bound_to_native_source_identity(self):
+        relative = "Scripts/ci-worker-selection.jq"
+        self.assertEqual(CI.PROTOCOL_PATHS.count(relative), 1)
+        original = CI.source_binding(ROOT)
+        self.assertEqual(original["protocolSources"][relative],
+                         CI.sha256((ROOT / relative).read_bytes()))
+        with tempfile.TemporaryDirectory(prefix="v23-native-source-binding-") as directory:
+            root = Path(directory)
+            for path in (*CI.PROTOCOL_PATHS, "Scripts/ci-selection.json", CI.SELECTION_MAP_PATH,
+                         CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH):
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / path, target)
+            self.assertEqual(CI.source_binding(root), original)
+            helper = root / relative
+            helper.write_bytes(helper.read_bytes() + b"# source substitution fixture\n")
+            changed = CI.source_binding(root)
+            self.assertNotEqual(changed["protocolSources"][relative], original["protocolSources"][relative])
+            self.assertNotEqual(changed["protocolSHA256"], original["protocolSHA256"])
+            helper.unlink()
+            with self.assertRaises(ValueError):
+                CI.source_binding(root)
+
+    def test_closed_selection_map_partitions_default_without_overrides(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        groups = [CI.resolve_selection(default, mapping, group["id"])
+                  for group in mapping["groups"]]
+        self.assertEqual(sum(len(group["unitTestSelectors"]) for group in groups), 547)
+        self.assertEqual({item for group in groups for item in group["unitTestSelectors"]},
+                         set(default["unitTestSelectors"]))
+        self.assertEqual(CI.resolve_selection(default, mapping, CI.DEFAULT_SELECTION_ID), default)
+        bad = copy.deepcopy(mapping)
+        bad["groups"][0]["methodCount"] += 1
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, bad, "notification-controls")
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, mapping, "../../arbitrary")
+        overlap = copy.deepcopy(mapping)
+        overlap["groups"][0]["classes"].append("V9_15AppLockLifecycleTests")
+        overlap["groups"][0]["methodCount"] += mapping["groups"][1]["methodCount"]
+        with self.assertRaisesRegex(ValueError, "overlapping selection group"):
+            CI.resolve_selection(default, overlap, "notification-controls")
+        omission = copy.deepcopy(mapping)
+        omission["groups"].pop()
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(default, omission, "notification-controls")
+
+    def test_app_myday_selection_is_additive_and_preserves_original_partition(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        selected = CI.resolve_selection(default, mapping, "app-myday-production")
+        expected = ['FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactorySettingTransactionsCompleteAndReopenWithoutRepair', 'FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactoryKeepsStartupUnopenedAndBindsItsExactGateOnce', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testActualNativeShellRestoresEachPersistedRootAndPreservesAcceptedTabIdentities', 'FieldEvidenceAppTests/V23ProductionFourRootShellTests/testActualStartupRestoresReadyReportIntoExistingDetailAndBackPersistsThroughScenePort', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testProductionSavePersistsExactCommitRowsReceiptsAndNoContentReservations', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testPlanningRequiresItsExactGateAndSessionBeforeAnyDraftWrite', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testTodayEditorAddsOrdersEstimatesRemovesAndSavesWithoutChangingSourceWork', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testPostEffectSaveFailureRetainsExactAttemptWithoutPublishingSuccessAndRetriesOnce', 'FieldEvidenceAppTests/V23MyDayPlanningEditorTests/testCarryoverConflictEditorReviewsActualActiveAndPreTargetSavePrefixesThenSavesSameDraft', 'FieldEvidenceAppTests/V23SearchReconciliationTests/testGuardedProjectionDropRejectsRevokedAndWrongConsumerTokensWithoutChangingBytes', 'FieldEvidenceAppTests/V23SearchReconciliationTests/testActualRebuildRevocationBeforeProjectionDropPreservesOldBytesAndFreshRetryCompletes']
+        location = 'FieldEvidenceAppTests/V9_08GenerationLeaseTests/testReplacementLocationHistoryRetainsCurrentSchemaValidationAndRejectsInvalidReferences'
+        self.assertEqual(selected["unitTestSelectors"][:11], expected)
+        self.assertEqual(default["unitTestSelectors"][259:270], expected)
+        self.assertEqual(default["unitTestSelectors"][270:271], [location])
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:259])),
+                         "E8F942EDCE2B513FFC66A01BF5D7003FDD885CD8B1F9EDF7F6D38426E1031400")
+        historical_groups = self.prior_12e5742_map(mapping)["groups"][:15]
+        owner = next(group for group in historical_groups if group["id"] == "notification-owner")
+        self.assertEqual(owner["methodCount"], 75)
+        owner["methodCount"] = 63
+        generation = next(group for group in historical_groups
+                          if group["id"] == "generation-leases-migration")
+        self.assertEqual(generation["methodCount"], 5)
+        generation["methodCount"] = 4
+        resolved_generation = CI.resolve_selection(default, mapping, "generation-leases-migration")
+        original_generation = [selector for selector in default["unitTestSelectors"][:259]
+                               if selector.split("/")[1] in generation["classes"]]
+        self.assertEqual(resolved_generation["unitTestSelectors"], original_generation + [location])
+        self.assertEqual(CI.sha256(CI.canonical(historical_groups)),
+                         "9CFA63307F86B2F88570672F8C4D35348CB97357893F68A37B3A70859224D66D")
+        self.assertEqual(len(mapping["groups"]), 30)
+        for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
+            self.assertEqual(selected[key], default[key])
+        for selector in expected + [location]:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+        duplicate = copy.deepcopy(mapping)
+        duplicate["groups"].append(copy.deepcopy(duplicate["groups"][-1]))
+        with self.assertRaisesRegex(ValueError, "selection group count"):
+            CI.resolve_selection(default, duplicate, "app-myday-production")
+
+    def test_command_codec_selection_retains_original_pool_and_closed_partition(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        selected = CI.resolve_selection(default, mapping, "mutation-command-codec")
+        names = ['testV10_02G01CanonicalEnvelopeReceiptBytesAndAtomicCommit', 'testCanonicalWorkAuthorityRoundTripsAndRequiresOriginalV53Source', 'testCanonicalWorkImportRejectsResealedEnvelopeAndUnchangedSourceRevisionForgery', 'testCanonicalWorkRejectsHostileCommandAndAuthorityBytes', 'testFinalizationLegacyEnvelopeAndSchemaOneIntentRoundTripWithoutWriterBinding', 'testFinalizationSchemaTwoAdmitsMigratedBaselineAndRejectsHostileBindings', 'testReviewedDraftEnvelopeRetainsExactPortableLocksAndCanonicalBytes', 'testMutationEnvelopeByteGateRejectsOversizeBeforeDecodeAndAdmitsBoundaryToDecoder', 'testFinalizationInspectionBindingPreservesAbsentBytesAndRejectsHostileCoding', 'testWorkspaceCommandDecoderDispatchesEveryCaseAndRejectsHostileGrammar', 'testFinalizationCorrectionBindingPreservesCanonicalDecodeAndEncoderReentry']
+        expected = ["FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests/" + name for name in names]
+        self.assertEqual(selected["unitTestSelectors"][:11], expected)
+        self.assertEqual(default["unitTestSelectors"][271:282], expected)
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:271])), "FEDC559AC2140B8C69C4B37F09E921FCDB60292263969A5E65558AE647647DC5")
+        original_groups = self.prior_821f_groups(mapping, 16)
+        owner = next(group for group in original_groups if group["id"] == "notification-owner")
+        self.assertEqual(owner["methodCount"], 75)
+        owner["methodCount"] = 63
+        app = next(group for group in original_groups if group["id"] == "app-myday-production")
+        self.assertEqual(app["methodCount"], 13)
+        app["methodCount"] = 11
+        self.assertEqual(CI.sha256(CI.canonical(original_groups)), "A347A6AFB64B7E532720C87FFE17363E3396AC42AC1FB87497BC8647CBA5AF95")
+        for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
+            self.assertEqual(selected[key], default[key])
+        source = (ROOT / "FieldEvidenceAppTests/V10_02MutationEnvelopeReceiptTests.swift").read_text()
+        for name in names:
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(name) + r"\s*\(", source)), 1)
+
+    def test_ingress_regressions_extend_exact_owner_and_preserve_prior_pool(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        names = ['testPhysicalIngressResumedEraseRejectsUnrelatedControlBeforeFrozenEffects', 'testPhysicalIngressFrozenEraseTerminalReplayNeverOpensDeletedPayload', 'testPhysicalIngressResumedEraseRejectsWellFormedMismatchedTerminalBeforeOtherTargetDeletion', 'testPhysicalIngressFrozenEraseRejectsReplacedTargetPayloadBeforeDeletion', 'testPhysicalIngressReplaceAdmitsWholeRootBeforeTargetPayloadHash']
+        appended = ["FieldEvidenceAppTests/V9_15AppLockLifecycleTests/" + name for name in names]
+        self.assertEqual(default["unitTestSelectors"][282:287], appended)
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:282])), "28FC5CB6FBA869E43A6BEB6F7080486039AA07DF56AFE1729B146F2E4A02F620")
+        selected = CI.resolve_selection(default, mapping, "notification-owner")
+        self.assertEqual(len(selected["unitTestSelectors"]), 75)
+        self.assertEqual(selected["unitTestSelectors"][63:68], appended)
+        self.assertEqual(CI.sha256(CI.canonical(selected["unitTestSelectors"][:63])), "778C7B884583C58410EAC2DA4CC6D462824F01E8AAD72B6E218B0A606509FC4B")
+        original_groups = self.prior_821f_groups(mapping)
+        owner = next(group for group in original_groups if group["id"] == "notification-owner")
+        self.assertEqual(owner["methodCount"], 75)
+        owner["methodCount"] = 63
+        app = next(group for group in original_groups if group["id"] == "app-myday-production")
+        self.assertEqual(app["methodCount"], 13)
+        app["methodCount"] = 11
+        codec = next(group for group in original_groups if group["id"] == "mutation-command-codec")
+        self.assertEqual(codec["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests"])
+        self.assertEqual(codec["methodCount"], 13)
+        codec["classes"] = ["V10_02MutationEnvelopeReceiptTests"]
+        codec["methodCount"] = 11
+        self.assertEqual(CI.sha256(CI.canonical(original_groups)), "BE3B0FDB49FA19ADF3B3ADDED0CE809B9C6961F36180D1C416C5BEB551E0C027")
+        for key in ("schemaVersion", "taskID", "tier", "runUISmoke", "uiTestSelectors", *CI.BUDGET_KEYS):
+            self.assertEqual(selected[key], default[key])
+        source = (ROOT / "FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift").read_text()
+        for name in names:
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(name) + r"\s*\(", source)), 1)
+
+    def test_runtime_receipt_and_inventory_regressions_extend_exact_prior_pool(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        appended = ['FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterQuantizesFractionalCommitClockAndReplaysExactJournalTime', 'FieldEvidenceAppTests/V23ProductionMyDayCommitTests/testMyDayWriterRejectsInvalidCommitClockBeforeAnyCanonicalEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressInitialAdmissionSnapshotUsesFixedControlInventories', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFinalInventoryRejectsLateUnrelatedControlAndPreservesExistingReadyIntent']
+        self.assertEqual(default["unitTestSelectors"][287:291], appended)
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:287])), "89A305B5914EA4747B0FF7D992BF976BF99B6A4B502419A2B020079DDDBDE29E")
+        original_groups = self.prior_821f_groups(mapping)
+        for group_id, old_count, suffix in (("app-myday-production", 11, appended[:2]),
+                                            ("notification-owner", 68, appended[2:])):
+            group = next(item for item in original_groups if item["id"] == group_id)
+            self.assertEqual(group["methodCount"], old_count + (7 if group_id == "notification-owner" else 2))
+            group["methodCount"] = old_count
+            selected = CI.resolve_selection(default, mapping, group_id)
+            original = [item for item in default["unitTestSelectors"][:287]
+                        if CI.selection_class(item) in group["classes"]]
+            self.assertEqual(selected["unitTestSelectors"][:old_count + 2], original + suffix)
+            self.assertEqual(len(original), old_count)
+        codec = next(group for group in original_groups if group["id"] == "mutation-command-codec")
+        self.assertEqual(codec["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests"])
+        self.assertEqual(codec["methodCount"], 13)
+        codec["classes"] = ["V10_02MutationEnvelopeReceiptTests"]
+        codec["methodCount"] = 11
+        self.assertEqual(CI.sha256(CI.canonical(original_groups)), "7FC16500C4791E32D5869140D6B86E08E4ACF514F0CE4920A91205D9ED810FBB")
+        for selector in appended:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def test_first_sign_and_unpublished_recovery_extend_exact_f4_pool(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        appended = ['FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignQuantizesGeneratedClockAndColdReplayPreservesExactBytes', 'FieldEvidenceAppTests/V23FirstSignReceiptClockTests/testLocalFirstSignRejectsInvalidGeneratedClockWithoutCanonicalEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressMissingClaimedDirectoryWithoutEraseRecordRemainsDenied', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressInterruptedUnpublishedEraseRejectsReplacementOriginalDirectory', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressMalformedUnrelatedControlBlocksResumedEraseBeforeFirstEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressChangedFrozenPublicationBlocksBeforeUnpublishedEraseEffect', 'FieldEvidenceAppTests/V9_15AppLockLifecycleTests/testPhysicalIngressFrozenMismatchPreflightDoesNotSettleEarlierRecoverableStates']
+        self.assertEqual(default["unitTestSelectors"][291:298], appended)
+        self.assertEqual(CI.sha256(CI.canonical(default["unitTestSelectors"][:291])), "F3207A7DE463625F01D239D2F2AAE394F31880AB12A2E089C3881FF46B6AC0CA")
+        self.assertEqual(CI.sha256(CI.canonical({k: v for k, v in default.items() if k != "unitTestSelectors"})), "B13327745368CB0A522E9C3DFE13A99F555F686C7D35B11C1E0B4EE1FBAE0555")
+        original_mapping = copy.deepcopy(mapping)
+        original_mapping["groups"] = self.prior_821f_groups(mapping)
+        for group_id, old_count, suffix in (("mutation-command-codec", 11, appended[:2]),
+                                            ("notification-owner", 70, appended[2:])):
+            group = next(item for item in original_mapping["groups"] if item["id"] == group_id)
+            self.assertEqual(group["methodCount"], old_count + len(suffix))
+            selected = CI.resolve_selection(default, mapping, group_id)
+            original = [item for item in default["unitTestSelectors"][:291]
+                        if CI.selection_class(item) in group["classes"]]
+            self.assertEqual(selected["unitTestSelectors"][:old_count + len(suffix)], original + suffix)
+            self.assertEqual(len(original), old_count)
+            group["methodCount"] = old_count
+            if group_id == "mutation-command-codec":
+                self.assertEqual(group["classes"], ["V10_02MutationEnvelopeReceiptTests", "V23FirstSignReceiptClockTests"])
+                group["classes"] = ["V10_02MutationEnvelopeReceiptTests"]
+        self.assertEqual(CI.sha256(CI.canonical(original_mapping)), "4D2BB00E3151DE86EF6C2033A4951974E47E5043692F8CACE385DE5BA100904F")
+        self.assertEqual(len(mapping["groups"]), 30)
+        for selector in appended:
+            bundle, klass, method = selector.split("/")
+            source = (ROOT / bundle / (klass + ".swift")).read_text()
+            self.assertEqual(len(re.findall(r"\bfunc\s+" + re.escape(method) + r"\s*\(", source)), 1)
+
+    def test_closed_map_rejects_unselected_classes_and_workflow_choices_match(self):
+        default = self.prior_d3be307_pool(self.prior_63409d1_pool(self.prior_aa94e7f_pool(prepartition_read_json(ROOT / "Scripts/ci-selection.json"))))
+        mapping = self.prior_d3be307_map(self.prior_63409d1_map(self.prior_aa94e7f_map(prepartition_read_json(ROOT / CI.SELECTION_MAP_PATH))))
+        unknown = copy.deepcopy(mapping)
+        unknown["groups"][0]["classes"].append("UnselectedAuthorityTests")
+        with self.assertRaisesRegex(ValueError, "selection group contains unselected class"):
+            CI.resolve_selection(default, unknown, "notification-controls")
+        workflow = self.prior_d97bc81_workflow((ROOT / ".github/workflows/ios-ci.yml").read_text(encoding='utf-8'))
+        field = workflow.split("      native_selection_id:\n", 1)[1].split(
+            "      s10_4_minimum_core_smoke_id:", 1)[0]
+        choices = [line.strip()[2:] for line in field.splitlines()
+                   if line.startswith("          - ")]
+        self.assertEqual(choices.pop(), 'c36-restore-correspondence')
+        self.assertEqual(choices, [mapping["defaultSelectionID"]]
+                         + [group["id"] for group in mapping["groups"]])
+
+    def test_selected_input_binds_the_checked_in_map_and_requested_id(self):
+        e = environment()
+        e["NATIVE_SELECTION_ID"] = "rating-eligibility"
+        selected, record = CI.selected_input(ROOT, e)
+        self.assertEqual(record["selectionID"], "rating-eligibility")
+        self.assertEqual(len(selected["unitTestSelectors"]), 6)
+        self.assertRegex(record["selectionSHA256"], r"^[0-9A-F]{64}$")
+        self.assertEqual(record["selectionMapSHA256"],
+                         CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes()))
+
+    def test_named_group_dispatcher_and_worker_reject_mismatched_bindings(self):
+        e = environment()
+        e["NATIVE_SELECTION_ID"] = "rating-eligibility"
+        selected, record = CI.selected_input(ROOT, e)
+        e.update({"DISPATCH_NATIVE_SELECTION_ID": record["selectionID"],
+                  "DISPATCH_NATIVE_SELECTION_SHA256": record["selectionSHA256"],
+                  "DISPATCH_NATIVE_SELECTION_MAP_SHA256": record["selectionMapSHA256"]})
+        self.assertEqual(CI.admission(selected, e, HEAD, "dispatch", record)["selectionID"], "rating-eligibility")
+        self.assertEqual(CI.admission(selected, e, HEAD, "worker", record)["selectionSHA256"], record["selectionSHA256"])
+        for key in ("DISPATCH_NATIVE_SELECTION_ID", "DISPATCH_NATIVE_SELECTION_SHA256", "DISPATCH_NATIVE_SELECTION_MAP_SHA256"):
+            bad = e.copy()
+            bad[key] = "bad"
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                CI.admission(selected, bad, HEAD, "worker", record)
+
+    def test_dispatcher_admits_both_providers_before_worker(self):
+        source = (ROOT / ".github/workflows/ios-ci.yml").read_text()
+        native = step(source, "Validate ordinary V23 native acceptance selection")
+        self.assertIn("github-xcode-26.6-acceptance", native)
+        self.assertIn("bitrise-build-hub-xcode-26.6-acceptance", native)
+        self.assertIn("python3 Scripts/v23-native-ci.py admit --stage dispatch", native)
+        self.assertIn("NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}", native)
+        self.assertIn("native_selection_map_sha256", source)
+        self.assertEqual(source.count("native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract || 'none' }}"), 2)
+        self.assertIn("v23-bitrise-", source)
+        self.assertIn("cancel-in-progress: false", source)
+
+    def test_worker_orders_admission_native_evidence_and_secret_scan(self):
+        source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
+        self.assertIn("python3 Scripts/v23-native-ci.py admit --stage worker",
+                      step(source, "Validate task selection and timeout tier"))
+        selection = step(source, "Validate task selection and timeout tier")
+        self.assertIn("python3 Scripts/v23-native-ci.py select --output", selection)
+        self.assertIn("CI_SELECTION_PATH", selection)
+        checkpoint = step(source, "Validate exact ordinary integration native checkpoint")
+        self.assertIn("NATIVE_PRIOR_JOB_STATUS: ${{ job.status }}", checkpoint)
+        self.assertIn("python3 Scripts/v23-native-ci.py verify", checkpoint)
+        self.assertLess(source.index("- name: Validate required build and test evidence"),
+                        source.index("- name: Validate exact ordinary integration native checkpoint"))
+        self.assertLess(source.index("- name: Validate exact ordinary integration native checkpoint"),
+                        source.index("- name: Verify Bitrise evidence contains no cache credentials"))
+        self.assertLess(source.index("- name: Verify Bitrise evidence contains no cache credentials"),
+                        source.index("- name: Hash collected evidence"))
+
+    def test_development_modes_remain_nonaccepting_and_upload_stays_secret_gated(self):
+        source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
+        for name in ("Finalize Bitrise development-only shard evidence", "Fail closed after Bitrise development-only evidence"):
+            self.assertIn("inputs.native_acceptance_contract != 'v23.integration.current-native.v1'", step(source, name))
+        self.assertIn("exit 1", step(source, "Fail closed after Bitrise development-only evidence"))
+        upload = step(source, "Upload build evidence")
+        self.assertIn("steps.bitrise_credential_scan.outputs.safe_to_upload == 'true'", upload)
+        self.assertIn("ios-ci-native-{0}-{1}-{2}-{3}", upload)
+        self.assertIn("format('ios-ci-s10-4-diagnostic-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, inputs.s10_4_shard_id, inputs.s10_4_diagnostic_probe_id)", upload)
+        self.assertIn("format('v23-{0}-{1}-', inputs.runner_provider, inputs.native_selection_id)", source)
+        self.assertIn("cancel-in-progress: false", source)
+
+    def test_owned_native_simulator_and_sdk_are_observed_not_assumed(self):
+        source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
+        setup = step(source, "Verify pinned toolchain, shared scheme, and simulator")
+        self.assertIn("xcrun --sdk iphonesimulator --show-sdk-version", setup)
+        self.assertIn("xcrun --sdk iphonesimulator --show-sdk-build-version", setup)
+        self.assertIn("CI_NATIVE_CREATED_SIMULATOR_UDID=%s", setup)
+        cleanup = step(source, "Remove owned isolated Simulator")
+        self.assertIn('pilot_simulator_udid="${CI_NATIVE_CREATED_SIMULATOR_UDID:-}"', cleanup)
+        self.assertIn('xcrun simctl delete "$pilot_simulator_udid"', cleanup)
+        self.assertIn("native-simulator-lifecycle.txt", cleanup)
+
+
+class SetupFailureEvidenceTests(unittest.TestCase):
+    @staticmethod
+    def failure_environment(provider="github"):
+        return {
+            "RUNTIME_SETUP_OUTCOME": "failure",
+            "CI_TASK_ID": "V23-INTEGRATION-20260910",
+            "CI_NATIVE_ACCEPTANCE_CONTRACT": CI.CONTRACT,
+            "CI_RUNNER_PROVIDER": provider,
+            "CI_RUNNER_LABEL": "macos-26" if provider == "github" else "bitrise-runner-Asset Roundddd",
+            "CI_S10_4_SHARED_BUILD_MODE": "none",
+            "CI_S10_4_SHARED_PAYLOAD_RUN_ID": "",
+            "CI_S10_4_EXECUTION_ROLE": "independent",
+            "CI_S10_4_PILOT_MODE": "false",
+            "CI_S10_4_SHARD_ID": "none",
+            "CI_S10_4_SEGMENT_ID": "none",
+            "WORKER_S10_4_DIAGNOSTIC_PROBE_ID": "none",
+        }
+
+    def execute_hash_step(self, overrides):
+        source = (ROOT / ".github/workflows/ios-ci-worker.yml").read_text()
+        hash_step = step(source, "Hash collected evidence")
+        self.assertIn("always() && (inputs.runner_provider != 'bitrise' || inputs.s10_4_execution_role == 'payload-consumer' || steps.bitrise_credential_scan.outputs.safe_to_upload == 'true')", hash_step)
+        run_body = hash_step.split("        run: |\n", 1)[1]
+        body = "\n".join(line[10:] if line.startswith("          ") else line for line in run_body.splitlines()) + "\n"
+        self.assertNotIn("${{", body)
+        # Windows' system bash may be WSL. Use Git Bash for this POSIX fixture.
+        bash = str(Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Git/bin/bash.exe") if os.name == "nt" else shutil.which("bash")
+        self.assertTrue(bash and Path(bash).is_file(), "a local Bash shell is required for evidence protocol tests")
+        with tempfile.TemporaryDirectory(prefix="v23 hash evidence ") as directory:
+            temporary = Path(directory)
+            artifact = temporary / "artifacts"
+            artifact.mkdir()
+            (artifact / "nested").mkdir()
+            originals = {"./native-setup.log": b"runtime missing\nprovision_exit=124\n", "./nested/original bytes.log": b"\x00retained original bytes\xff\n"}
+            for name, data in originals.items():
+                (artifact / name).write_bytes(data)
+            (artifact / "SHA256SUMS.txt").write_text("stale manifest must be replaced\n")
+            shell_file = temporary / "actual-hash-step.sh"
+            shell_file.write_bytes(body.encode())
+            shim = temporary / "bin"
+            shim.mkdir()
+            # Git for Windows provides sha256sum, but may omit Perl's shasum.
+            # Adapt only the interface; execute the real SHA256 and check tools.
+            shell_environment = {key: value for key, value in os.environ.items()
+                                 if not key.startswith(("CI_", "WORKER_", "RUNTIME_SETUP_"))}
+            available = subprocess.run([bash, "-c", "command -v shasum"], env=shell_environment, capture_output=True, text=True, timeout=15)
+            if available.returncode:
+                adapter = shim / "shasum"
+                adapter.write_bytes(b'#!/usr/bin/env bash\nset -euo pipefail\ntest "$1:$2" = -a:256\nshift 2\nexec sha256sum "$@"\n')
+                adapter.chmod(0o755)
+            shell_environment.update(overrides)
+            shell_environment.update({"CI_ARTIFACT_DIR": artifact.as_posix(), "RUNNER_TEMP": temporary.as_posix()})
+            result = subprocess.run([bash, "-c", 'fixture_bin="$(cd "$1" && pwd)"; export PATH="$fixture_bin:$PATH"; exec bash "$2"', "fixture", shim.as_posix(), shell_file.as_posix()],
+                                    env=shell_environment, capture_output=True, text=True, timeout=15)
+            files = {"./" + path.relative_to(artifact).as_posix(): path.read_bytes() for path in artifact.rglob("*") if path.is_file()}
+            for name, data in originals.items():
+                self.assertEqual(files[name], data, result.stderr)
+            return result, files
+
+    def assert_verified_manifest(self, result, files):
+        self.assertIn("./SHA256SUMS.txt", files, result.stderr)
+        actual = {}
+        for line in files["./SHA256SUMS.txt"].decode().splitlines():
+            match = re.fullmatch(r"([0-9a-f]{64}) [ *](.+)", line)
+            self.assertIsNotNone(match, line)
+            digest, name = match.groups()
+            self.assertNotIn(name, actual)
+            actual[name] = digest
+        expected = {name: hashlib.sha256(data).hexdigest() for name, data in files.items() if name != "./SHA256SUMS.txt"}
+        self.assertEqual(actual, expected)
+        self.assertEqual(list(actual), sorted(actual))
+        self.assertNotIn("FAILED", result.stdout + result.stderr)
+        for name in actual:
+            self.assertIn(name + ": OK", result.stdout)
+
+    def test_ordinary_setup_failure_retains_verified_originals_for_both_providers_and_stays_failed(self):
+        for provider in ("github", "bitrise"):
+            with self.subTest(provider=provider):
+                result, files = self.execute_hash_step(self.failure_environment(provider))
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assert_verified_manifest(result, files)
+                self.assertEqual(files["./v23-setup-failure-evidence.txt"], b"setup_elapsed_seconds=unavailable\nsetup_artifact_elapsed_seconds=unavailable\nacceptance_eligible=false\nreason=setup-failed-before-accounting\n")
+                self.assertNotIn("./artifact-budget.txt", files)
+                self.assertNotIn("./s10-4-setup-failure-evidence.txt", files)
+
+    def test_ineligible_outcomes_modes_and_unknown_bindings_cannot_enter_failure_retention(self):
+        variants = [
+            {"RUNTIME_SETUP_OUTCOME": outcome} for outcome in ("success", "cancelled", "skipped", "", "unknown")
+        ] + [
+            {"CI_TASK_ID": "S10.4"}, {"CI_NATIVE_ACCEPTANCE_CONTRACT": "none"},
+            {"CI_RUNNER_PROVIDER": "unknown"}, {"CI_RUNNER_LABEL": "macos-latest"},
+            {"CI_RUNNER_PROVIDER": "bitrise"}, {"CI_S10_4_SHARED_BUILD_MODE": "consumer"},
+            {"CI_S10_4_SHARED_PAYLOAD_RUN_ID": "123"}, {"CI_S10_4_EXECUTION_ROLE": "payload-consumer"},
+            {"CI_S10_4_PILOT_MODE": "true"}, {"CI_S10_4_SHARD_ID": "a-shard"},
+            {"CI_S10_4_SEGMENT_ID": "a-segment"}, {"WORKER_S10_4_DIAGNOSTIC_PROBE_ID": "a-probe"},
+        ]
+        variants += [{key: None} for key in self.failure_environment() if key != "CI_S10_4_SHARED_PAYLOAD_RUN_ID"]
+        for changed in variants:
+            with self.subTest(changed=changed):
+                values = self.failure_environment()
+                values.update(changed)
+                values = {key: value for key, value in values.items() if value is not None}
+                result, files = self.execute_hash_step(values)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(set(files), {"./native-setup.log", "./nested/original bytes.log"})
+
+    def test_accounted_setup_preserves_original_budget_manifest_and_over_budget_failure(self):
+        for outcome, budget, expected_returncode in (("success", 600, 0), ("failure", 600, 0), ("success", 0, 1)):
+            with self.subTest(outcome=outcome, budget=budget):
+                values = self.failure_environment()
+                values.update({"RUNTIME_SETUP_OUTCOME": outcome, "CI_SETUP_ELAPSED_SECONDS": "17",
+                               "CI_ARTIFACT_START_EPOCH": str(int(time.time())), "CI_SETUP_ARTIFACT_TIMEOUT_SECONDS": str(budget)})
+                result, files = self.execute_hash_step(values)
+                self.assertEqual(result.returncode, expected_returncode, result.stderr)
+                self.assert_verified_manifest(result, files)
+                self.assertNotIn("./v23-setup-failure-evidence.txt", files)
+                accounting = dict(line.split("=", 1) for line in files["./artifact-budget.txt"].decode().splitlines())
+                self.assertEqual(int(accounting["setup_elapsed_seconds"]), 17)
+                self.assertGreaterEqual(int(accounting["artifact_elapsed_seconds"]), 0)
+                self.assertEqual(int(accounting["setup_artifact_elapsed_seconds"]), 17 + int(accounting["artifact_elapsed_seconds"]))
+                self.assertEqual(int(accounting["setup_artifact_budget_seconds"]), budget)
+
+
+# The reusable development batch route was added on this exact incumbent head.
+DEV_BATCH_BASE_COMMIT = 'fca18b79379363e6f70f0d4fc5c73d9ff8cd2f0a'
+DEV_BATCH_FIXTURE = 'FieldEvidenceAppTests/DevBatchFixtureTests/'
+DEV_BATCH_FIXTURE_SOURCES = {
+    'FieldEvidenceAppTests/DevBatchFixtureTests.swift': '''import XCTest
+
+final class DevBatchFixtureTests: XCTestCase {
+    let note = "XCUIApplication is only text here; func testInString() {}"
+    func testRunnable() throws {}
+    @MainActor func testSecondRunnable() async throws {}
+    // func testLineComment() {}
+    /* func testBlockComment() {} */
+    struct Nested {
+        func testNestedType() {}
+    }
+    func testWithArgument(_ value: Int) {}
+    private func testPrivate() {}
+    static func testStatic() {}
+    func helper() {
+        func testLocal() {}
+    }
+#if false
+    func testInactive() {}
+#endif
+}
+
+final class DevBatchOtherTests: XCTestCase {
+    func testElsewhere() {}
+}
+
+extension DevBatchFixtureTests {
+    func testInExtension() {}
+}
+''',
+    'FieldEvidenceAppTests/DevBatchWideTests.swift': 'import XCTest\n\nfinal class DevBatchWideTests: XCTestCase {\n'
+        + ''.join('    func testM%03d() {}\n' % index for index in range(151)) + '}\n',
+    'FieldEvidenceAppTests/DevBatchPlainTests.swift': 'final class DevBatchPlainTests {\n    func testPlain() {}\n}\n',
+    'FieldEvidenceAppTests/DevBatchObjectTests.swift':
+        'import Foundation\n\nfinal class DevBatchObjectTests: NSObject {\n    func testObject() {}\n}\n',
+    'FieldEvidenceAppTests/DevBatchInterfaceTests.swift':
+        'import XCTest\n\nfinal class DevBatchInterfaceTests: XCTestCase {\n    func testLaunch() {\n'
+        '        XCUIApplication().launch()\n    }\n}\n',
+    'FieldEvidenceAppTests/DevBatchCollisionTests.swift':
+        'import XCTest\n\nfinal class DevBatchCollisionTests: XCTestCase {\n    func testCollision() {}\n}\n',
+    'FieldEvidenceAppUITests/DevBatchCollisionTests.swift':
+        'import XCTest\n\nfinal class DevBatchCollisionTests: XCTestCase {\n    func testCollision() {}\n}\n',
+}
+
+
+class DevelopmentBatchRouteTests(unittest.TestCase):
+    """The reusable D50 route takes its exact ordered list only from the committed file."""
+    bound_environment = NoIndexBuildDiagnosticTests.bound_environment
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix='v23-dev-batch-')
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.root = Path(cls.temp.name).resolve()
+        cls.original = (ROOT / CI.DEV_BATCH_PATH).read_bytes()
+        manifest = CI.read_json(ROOT / 'Scripts/v23-selection-manifest.json')
+        classes = {CI.selection_class(s) for s in manifest['selectorPool']}
+        classes |= {CI.selection_class(s) for s in json.loads(cls.original)['tests']}
+        paths = ['Scripts/v23-selection-manifest.json', 'Scripts/v23-selection-generator.py',
+                 'Scripts/ci-selection.json', CI.SELECTION_MAP_PATH, CI.DEV_BATCH_PATH, 'Scripts/build-smoke.sh',
+                 CI.SIMULATOR_DIAGNOSTIC_POLICY_PATH, CI.SIMULATOR_DIAGNOSTIC_SOURCE_PATH,
+                 'FieldEvidenceAppUITests/S0LaunchUITests.swift']
+        paths += ['FieldEvidenceAppTests/' + name + '.swift' for name in sorted(classes)]
+        for relative in paths:
+            target = cls.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        for relative, text in DEV_BATCH_FIXTURE_SOURCES.items():
+            (cls.root / relative).write_bytes(text.encode('utf-8'))
+        (cls.root / 'FieldEvidenceAppTests/DevBatchLatinTests.swift').write_bytes(
+            b'import XCTest\n// caf\xe9\nfinal class DevBatchLatinTests: XCTestCase {\n    func testLatin() {}\n}\n')
+        (cls.root / 'FieldEvidenceAppTests/DevBatchDirectoryTests.swift').mkdir()
+
+    def setUp(self):
+        path = self.root / CI.DEV_BATCH_PATH
+        path.write_bytes(self.original)
+        self.addCleanup(path.write_bytes, self.original)
+        self.selected = CI.development_batch_selection(self.root)
+        self.record = {'selectionID': CI.DEV_BATCH_SELECTION_ID,
+                       'selectionSHA256': CI.sha256(CI.canonical(self.selected)),
+                       'selectionMapSHA256': CI.sha256((self.root / CI.SELECTION_MAP_PATH).read_bytes()),
+                       'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+
+    def batch(self, tests, **changes):
+        return dict({'schema': CI.DEV_BATCH_SCHEMA, 'question': 'Protocol fixture question',
+                     'tests': list(tests)}, **changes)
+
+    def write_batch(self, value):
+        raw = value if isinstance(value, bytes) else (json.dumps(value, indent=2) + '\n').encode('utf-8')
+        (self.root / CI.DEV_BATCH_PATH).write_bytes(raw)
+        return raw
+
+    def jq(self, value, selection_id=CI.DEV_BATCH_SELECTION_ID):
+        e = dict(os.environ)
+        e.pop('NATIVE_SELECTION_ID', None)
+        if selection_id is not None:
+            e['NATIVE_SELECTION_ID'] = selection_id
+        return subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                              input=CI.canonical(value), capture_output=True, env=e).returncode
+
+    def test_committed_batch_resolves_exact_ordered_d50_no_index_selection(self):
+        committed = json.loads(self.original)
+        e = dict(environment(), NATIVE_SELECTION_ID=CI.DEV_BATCH_SELECTION_ID)
+        selected, record = CI.selected_input(self.root, e)
+        self.assertEqual(selected, self.selected)
+        self.assertEqual(selected['unitTestSelectors'], committed['tests'])
+        self.assertEqual((selected['tier'], selected['runUISmoke'], selected['uiTestSelectors']), ('D50', False, []))
+        self.assertEqual(tuple(selected[k] for k in CI.BUDGET_KEYS), (300, 1800, 3000, 0, 5100))
+        self.assertEqual(selected['devBatch'], {
+            'path': 'Scripts/v23-dev-batch.json', 'schema': 'v23-dev-batch.v1',
+            'sha256': CI.sha256(self.original), 'question': committed['question'],
+            'developmentOnly': True, 'acceptance': False})
+        self.assertEqual(record, {'selectionID': CI.DEV_BATCH_SELECTION_ID,
+                                  'selectionSHA256': CI.sha256(CI.canonical(selected)),
+                                  'selectionMapSHA256': CI.sha256((self.root / CI.SELECTION_MAP_PATH).read_bytes())})
+        # The repository file itself is valid at this checkout (LF-only is enforced).
+        self.assertEqual(CI.development_batch_selection(ROOT), self.selected)
+        # The worker and the local dispatcher resolve through the same select command.
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                                    env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_bytes(), CI.canonical(selected))
+        # Any order is kept exactly; a later question needs only a file edit.
+        tests = [DEV_BATCH_FIXTURE + 'testInExtension', *reversed(committed['tests']),
+                 DEV_BATCH_FIXTURE + 'testSecondRunnable', DEV_BATCH_FIXTURE + 'testRunnable']
+        raw = self.write_batch(self.batch(tests, question='C57-1 café — later question'))
+        changed = CI.development_batch_selection(self.root)
+        self.assertEqual(changed['unitTestSelectors'], tests)
+        self.assertEqual(changed['devBatch']['sha256'], CI.sha256(raw))
+        self.assertEqual(changed['devBatch']['question'], 'C57-1 café — later question')
+        self.assertEqual(self.jq(changed), 0)
+        # The maximum of 150 direct methods is accepted by both gates.
+        wide = ['FieldEvidenceAppTests/DevBatchWideTests/testM%03d' % index for index in range(150)]
+        self.write_batch(self.batch(wide))
+        self.assertEqual(CI.development_batch_selection(self.root)['unitTestSelectors'], wide)
+        self.assertEqual(self.jq(CI.development_batch_selection(self.root)), 0)
+        # The route is not a map group: only the committed file can name its methods.
+        with self.assertRaisesRegex(ValueError, 'unknown selection ID'):
+            CI.resolve_selection(CI.read_json(ROOT / 'Scripts/ci-selection.json'),
+                                 CI.read_json(ROOT / CI.SELECTION_MAP_PATH), CI.DEV_BATCH_SELECTION_ID)
+
+    def test_hostile_batch_files_and_methods_are_rejected(self):
+        runnable = DEV_BATCH_FIXTURE + 'testRunnable'
+        valid = self.batch([runnable])
+        self.write_batch(valid)
+        self.assertEqual(CI.development_batch_selection(self.root)['unitTestSelectors'], [runnable])
+        cases = {
+            'extra key': dict(valid, extra=1),
+            'missing question': {k: v for k, v in valid.items() if k != 'question'},
+            'wrong schema': dict(valid, schema='v23-dev-batch.v2'),
+            'schema type': dict(valid, schema=1),
+            'empty question': dict(valid, question=''),
+            'blank question': dict(valid, question='   '),
+            'too-long question': dict(valid, question='q' * 501),
+            'control question': dict(valid, question='line\nbreak'),
+            'question type': dict(valid, question=['q']),
+            'zero tests': dict(valid, tests=[]),
+            '151 tests': dict(valid, tests=['FieldEvidenceAppTests/DevBatchWideTests/testM%03d' % i for i in range(151)]),
+            'tests type': dict(valid, tests=runnable),
+            'duplicate test': dict(valid, tests=[runnable, runnable]),
+            'non-string test': dict(valid, tests=[1]),
+            'UI bundle': dict(valid, tests=['FieldEvidenceAppUITests/S0LaunchUITests/testLaunch']),
+            'no test prefix': dict(valid, tests=[DEV_BATCH_FIXTURE + 'checkRunnable']),
+            'bare test': dict(valid, tests=[DEV_BATCH_FIXTURE + 'test']),
+            'trailing newline': dict(valid, tests=[runnable + '\n']),
+            'extra segment': dict(valid, tests=[DEV_BATCH_FIXTURE + 'Nested/testNestedType']),
+            'traversal': dict(valid, tests=['FieldEvidenceAppTests/../FieldEvidenceAppUITests/testLaunch']),
+            'encoded traversal': dict(valid, tests=['FieldEvidenceAppTests/..%2FScripts/testRunnable']),
+            'missing class file': dict(valid, tests=['FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testPlaceholder']),
+            'class in another file': dict(valid, tests=['FieldEvidenceAppTests/DevBatchOtherTests/testElsewhere']),
+            'directory class file': dict(valid, tests=['FieldEvidenceAppTests/DevBatchDirectoryTests/testRunnable']),
+            'method absent': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testAbsent']),
+            'line comment': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testLineComment']),
+            'block comment': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testBlockComment']),
+            'string literal': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testInString']),
+            'nested type': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testNestedType']),
+            'argument': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testWithArgument']),
+            'private': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testPrivate']),
+            'static': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testStatic']),
+            'local function': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testLocal']),
+            'inactive branch': dict(valid, tests=[DEV_BATCH_FIXTURE + 'testInactive']),
+            'not XCTest': dict(valid, tests=['FieldEvidenceAppTests/DevBatchPlainTests/testPlain']),
+            'foreign superclass': dict(valid, tests=['FieldEvidenceAppTests/DevBatchObjectTests/testObject']),
+            'UI automation class': dict(valid, tests=['FieldEvidenceAppTests/DevBatchInterfaceTests/testLaunch']),
+            'UI target class name': dict(valid, tests=['FieldEvidenceAppTests/DevBatchCollisionTests/testCollision']),
+            'non-UTF-8 source': dict(valid, tests=['FieldEvidenceAppTests/DevBatchLatinTests/testLatin']),
+            'one hostile member': dict(valid, tests=[runnable, DEV_BATCH_FIXTURE + 'testNestedType']),
+        }
+        good = (json.dumps(valid, indent=2) + '\n').encode('utf-8')
+        raw_cases = {
+            'empty file': b'',
+            'non-UTF-8 file': b'\xff\xfe' + good,
+            'non-UTF-8 question': good.replace(b'Protocol fixture question', b'caf\xe9'),
+            'byte order mark': b'\xef\xbb\xbf' + good,
+            'CRLF': good.replace(b'\n', b'\r\n'),
+            'duplicate JSON key': good[:-2] + b',\n  "tests": ["' + runnable.encode() + b'"]\n}\n',
+            'not an object': b'[]\n',
+            'invalid JSON': b'{\n',
+            'oversize': good + b' ' * CI.DEV_BATCH_MAX_BYTES,
+        }
+        for name, value in [*cases.items(), *raw_cases.items()]:
+            with self.subTest(name=name):
+                self.write_batch(value)
+                with self.assertRaises(ValueError):
+                    CI.development_batch_selection(self.root)
+        path = self.root / CI.DEV_BATCH_PATH
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, 'development batch file'):
+            CI.development_batch_selection(self.root)
+        try:
+            os.symlink(self.root / 'Scripts/ci-selection.json', path)
+        except (OSError, NotImplementedError):
+            pass
+        else:
+            with self.assertRaisesRegex(ValueError, 'development batch file'):
+                CI.development_batch_selection(self.root)
+            path.unlink()
+        # The placeholder for a class that has not landed denies the actual select command.
+        self.write_batch(dict(valid, tests=[runnable, 'FieldEvidenceAppTests/V23MyDayReplacementProjectionTests/testPlaceholder']))
+        e = dict(environment(), NATIVE_SELECTION_ID=CI.DEV_BATCH_SELECTION_ID)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'selected.json'
+            result = subprocess.run([sys.executable, str(Path(CI.__file__)), 'select', '--output', str(output)],
+                                    env=dict(os.environ, **e, GITHUB_WORKSPACE=str(self.root)), capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b'V23MyDayReplacementProjectionTests', result.stderr)
+            self.assertFalse(output.exists())
+
+    def test_admission_binds_committed_list_without_pins_and_is_never_acceptance_eligible(self):
+        e = self.bound_environment()
+        for stage in ('dispatch', 'worker'):
+            with mock.patch.object(CI.subprocess, 'check_output') as git:
+                admitted = CI.admission(self.selected, e, HEAD, stage, self.record, self.root)
+            git.assert_not_called()
+            self.assertEqual((admitted['selectionID'], admitted['selectionSHA256']),
+                             (CI.DEV_BATCH_SELECTION_ID, self.record['selectionSHA256']))
+            self.assertEqual((admitted['diagnosticOnly'], admitted['providerQualification'],
+                              admitted['acceptance'], admitted['releaseReady']), (True, False, False, False))
+            for changed in (self.bound_environment('bitrise'), dict(e, GITHUB_RUN_ATTEMPT='2')):
+                with self.assertRaises(ValueError):
+                    CI.admission(self.selected, changed, HEAD, stage, self.record, self.root)
+        self.assertEqual((self.selected['devBatch']['developmentOnly'], self.selected['devBatch']['acceptance']),
+                         (True, False))
+        self.assertNotIn(CI.DEV_BATCH_SELECTION_ID, CI.NO_INDEX_ROUTES)
+        self.assertNotIn(CI.DEV_BATCH_SELECTION_ID, CI.D50_SELECTION_IDS)
+        mount = CI.resolve_selection(CI.read_json(ROOT / 'Scripts/ci-selection.json'),
+                                     CI.read_json(ROOT / CI.SELECTION_MAP_PATH), CI.ROUND_ITEM_MOUNT_SELECTION_ID)
+        units = self.selected['unitTestSelectors']
+        binding = self.selected['devBatch']
+        substitutions = [
+            (CI.DEV_BATCH_SELECTION_ID, dict(self.selected, unitTestSelectors=units[::-1])),
+            (CI.DEV_BATCH_SELECTION_ID, dict(self.selected, unitTestSelectors=units + [DEV_BATCH_FIXTURE + 'testRunnable'])),
+            (CI.DEV_BATCH_SELECTION_ID, dict(self.selected, devBatch=dict(binding, sha256='0' * 64))),
+            (CI.DEV_BATCH_SELECTION_ID, dict(self.selected, devBatch=dict(binding, question='another question'))),
+            (CI.DEV_BATCH_SELECTION_ID, mount),
+            (CI.ROUND_ITEM_MOUNT_SELECTION_ID, self.selected),
+            (CI.DEFAULT_SELECTION_ID, self.selected),
+        ]
+        if len(units) > 1:
+            substitutions.append((CI.DEV_BATCH_SELECTION_ID, dict(self.selected, unitTestSelectors=units[:-1])))
+        for identifier, value in substitutions:
+            record = dict(self.record, selectionID=identifier, selectionSHA256=CI.sha256(CI.canonical(value)))
+            # The environment carries the substituted digest, so only the binding can deny.
+            changed = dict(e, DISPATCH_NATIVE_SELECTION_ID=identifier,
+                           DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'])
+            for stage in ('dispatch', 'worker'):
+                with self.subTest(identifier=identifier, stage=stage), \
+                        mock.patch.object(CI.subprocess, 'check_output', return_value=b''), \
+                        self.assertRaises(ValueError):
+                    CI.admission(value, changed, HEAD, stage, record, self.root)
+        for fields in ({'tier': 'D30', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D30']))}, {'testTimeoutSeconds': 3001},
+                       {'runUISmoke': True}, {'devBatch': dict(binding, acceptance=True)},
+                       {'devBatch': dict(binding, developmentOnly=False)}):
+            with self.subTest(fields=fields), self.assertRaises(ValueError):
+                CI.validate_selection(dict(self.selected, **fields))
+        # A different committed list at the worker checkout denies the dispatched selection.
+        self.write_batch(self.batch([DEV_BATCH_FIXTURE + 'testRunnable']))
+        with self.assertRaisesRegex(ValueError, 'development batch selector/committed list binding'):
+            CI.admission(self.selected, e, HEAD, 'worker', self.record, self.root)
+
+    def checkpoint_fixture(self, artifact, methods):
+        for name in (CI.SIMULATOR_DIAGNOSTIC_OUTPUT, CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS):
+            if (artifact / name).exists():
+                (artifact / name).unlink()
+        e = dict(self.bound_environment(), PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                 CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                 CI_DESTINATION='platform=iOS Simulator,id=' + UDID, CI_ARTIFACT_DIR=str(artifact),
+                 RUNNER_TEMP=str(artifact.parent / 'runner temp'))
+        record = CI.admission(self.selected, e, HEAD, 'worker', self.record, self.root)
+        (artifact / 'native-admission.json').write_bytes(CI.canonical(record))
+        (artifact / 'ci-selection.selected.json').write_bytes(CI.canonical(self.selected))
+        shutil.copyfile(self.root / CI.SELECTION_MAP_PATH, artifact / 'ci-selection-map.json')
+        (artifact / 'runner-provider.txt').write_text(
+            'provider=github\nlabel=macos-26\nrunner_architecture=ARM64\nuname_architecture=arm64\n'
+            'developer_dir=/Applications/Xcode_26.6.app/Contents/Developer\n')
+        (artifact / 'xcode-version.txt').write_text('Xcode 26.6\nBuild version 17F113\n')
+        (artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
+        (artifact / 'simulator-selection.txt').write_text(
+            f'runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n')
+        tree = native_tree(methods[0])
+        tree['testNodes'][0]['children'][0]['children'][0]['children'] = [
+            copy.deepcopy(leaf(native_tree(method))) for method in methods]
+        (artifact / 'unit-test-results.json').write_bytes(CI.canonical(tree))
+        (artifact / 'test-smoke.log').write_text('native fixture completed\n', encoding='utf-8')
+        diagnostic_transport(artifact)
+        receipt = CI.no_index_build_receipt(self.root, artifact, record, e)
+        (artifact / CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(receipt))
+        argv = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + receipt['argv'][1:]
+        (artifact / 'build-smoke.log').write_text(
+            'Command line invocation:\n    ' + shlex.join(argv) + '\nbuiltin-SwiftDriver -- /swiftc -module-name '
+            'FieldEvidenceApp\n** TEST BUILD SUCCEEDED **\n', encoding='utf-8')
+        return e, record, receipt
+
+    def test_checkpoint_requires_no_index_build_and_each_listed_result_exactly_once(self):
+        units = self.selected['unitTestSelectors']
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / 'artifact'
+            artifact.mkdir()
+            e, record, receipt = self.checkpoint_fixture(artifact, units)
+            self.assertEqual((receipt['parent'], receipt['sourceTrees']), (None, None))
+            self.assertEqual(receipt['argv'][-2:], ['COMPILER_INDEX_STORE_ENABLE=NO', 'build-for-testing'])
+            self.assertEqual(receipt['admissionSHA256'], CI.sha256(CI.canonical(record)))
+            result = CI.verify_checkpoint(self.root, artifact, record, self.selected, e)
+            self.assertEqual(result['executedUnitMethods'], sorted(units))
+            self.assertIsNone(result['noIndexBuildDiagnostic']['unchangedSourceTrees'])
+            self.assertTrue(result['noIndexBuildDiagnostic']['compilerIndexEmissionDisabled'])
+            self.assertEqual((result['acceptance'], result['wholeAppAcceptance'], result['providerQualification'],
+                              result['releaseReady'], result['diagnosticOnly']), (False, False, False, False, True))
+            for methods in (units[:-1], units + units[:1], units + [DEV_BATCH_FIXTURE + 'testRunnable'], [UNIT]):
+                with self.subTest(methods=methods):
+                    e, record, _ = self.checkpoint_fixture(artifact, methods)
+                    with self.assertRaises(ValueError):
+                        CI.verify_checkpoint(self.root, artifact, record, self.selected, e)
+            e, record, _ = self.checkpoint_fixture(artifact, units)
+            results = CI.read_json(artifact / 'unit-test-results.json')
+            leaf(results)['result'] = 'Failed'
+            (artifact / 'unit-test-results.json').write_bytes(CI.canonical(results))
+            with self.assertRaises(ValueError):
+                CI.verify_checkpoint(self.root, artifact, record, self.selected, e)
+            e, record, _ = self.checkpoint_fixture(artifact, units)
+            (artifact / 'build-smoke.log').write_text('** TEST BUILD SUCCEEDED **\n', encoding='utf-8')
+            with self.assertRaises(ValueError):
+                CI.verify_checkpoint(self.root, artifact, record, self.selected, e)
+
+    def test_build_shell_job_cap_choice_and_worker_filter_accept_exactly_the_new_id(self):
+        source = (ROOT / 'Scripts/build-smoke.sh').read_text(encoding='utf-8')
+        self.assertEqual(source.count('[ "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50 ]'), 1)
+        for identifier, indexed in ((CI.DEV_BATCH_SELECTION_ID, True), (CI.DEV_BATCH_SELECTION_ID + '-retry', False),
+                                    ('v23-dev-batch', False)):
+            with tempfile.TemporaryDirectory() as directory:
+                result, e, events, args = self.run_mock_build(directory, identifier)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(events, ['receipt', 'build'] if indexed else ['build'])
+                self.assertEqual('COMPILER_INDEX_STORE_ENABLE=NO' in args, indexed)
+                self.assertEqual(args[-1], 'build-for-testing')
+                if indexed:
+                    self.assertEqual((Path(directory) / 'receipt-args').read_text().splitlines(),
+                                     ['Scripts/v23-native-ci.py', 'record-no-index-build'])
+        worker = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        caps = re.findall(r'^    timeout-minutes: (.+)$', worker, re.M)
+        self.assertEqual(caps, [D50_JOB_CAP_EXPRESSION])
+        self.assertEqual(sorted(re.findall(r"inputs\.native_selection_id == '([^']+)'", caps[0])),
+                         sorted(CI.D50_SELECTION_IDS + (CI.DEV_BATCH_SELECTION_ID,)))
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(CI.DEV_BATCH_SELECTION_ID), 1)
+        self.assertEqual(len(options), len(set(options)))
+        # The worker filter accepts the file-bound shape only under this exact route ID.
+        self.assertEqual(self.jq(self.selected), 0)
+        for other in (None, '', CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID + '-retry'):
+            self.assertNotEqual(self.jq(self.selected, other), 0, other)
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+        for identifier in CI.D50_SELECTION_IDS:
+            closed = CI.resolve_selection(default, mapping, identifier)
+            self.assertEqual((self.jq(closed, identifier), self.jq(closed, None)), (0, 0))
+            self.assertNotEqual(self.jq(closed), 0)
+            self.assertNotEqual(self.jq(dict(closed, devBatch=self.selected['devBatch']), identifier), 0)
+        units = self.selected['unitTestSelectors']
+        binding = self.selected['devBatch']
+        hostile = [dict(self.selected, extra=1), {k: v for k, v in self.selected.items() if k != 'devBatch'},
+                   dict(self.selected, devBatch=dict(binding, extra=1)),
+                   dict(self.selected, devBatch=dict(binding, sha256=binding['sha256'].lower())),
+                   dict(self.selected, devBatch=dict(binding, sha256=binding['sha256'] + '\n')),
+                   dict(self.selected, devBatch=dict(binding, acceptance=True)),
+                   dict(self.selected, devBatch=dict(binding, developmentOnly=False)),
+                   dict(self.selected, devBatch=dict(binding, path='Scripts/other.json')),
+                   dict(self.selected, devBatch=dict(binding, schema='v23-dev-batch.v2')),
+                   dict(self.selected, devBatch=dict(binding, question='')),
+                   dict(self.selected, devBatch=dict(binding, question='q' * 501)),
+                   dict(self.selected, devBatch=dict(binding, question='a\nb')),
+                   dict(self.selected, devBatch=dict(binding, question=1)),
+                   dict(self.selected, unitTestSelectors=[]),
+                   dict(self.selected, unitTestSelectors=['FieldEvidenceAppTests/DevBatchWideTests/testM%03d' % i
+                                                          for i in range(151)]),
+                   dict(self.selected, unitTestSelectors=['FieldEvidenceAppUITests/S0LaunchUITests/testLaunch']),
+                   dict(self.selected, unitTestSelectors=[units[0] + '\n']),
+                   dict(self.selected, unitTestSelectors=units + units[:1]),
+                   dict(self.selected, tier='D30', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D30']))),
+                   dict(self.selected, testTimeoutSeconds=3001), dict(self.selected, runUISmoke=True),
+                   dict(self.selected, taskID='S10.4')]
+        for value in hostile:
+            with self.subTest(value={k: v for k, v in value.items() if k != 'unitTestSelectors'}):
+                self.assertNotEqual(self.jq(value), 0)
+        wide = dict(self.selected, unitTestSelectors=['FieldEvidenceAppTests/DevBatchWideTests/testM%03d' % i
+                                                      for i in range(150)])
+        self.assertEqual(self.jq(wide), 0)
+        # The exact worker command, executed by Bash with the job's route variable.
+        command = 'jq -e -f Scripts/ci-worker-selection.jq "$CI_SELECTION_PATH" > /dev/null'
+        self.assertEqual(worker.count(command), 1)
+        bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        with tempfile.TemporaryDirectory() as directory:
+            selected = Path(directory) / 'selected.json'
+            selected.write_bytes(CI.canonical(self.selected))
+            selected_path = str(selected)
+            if os.name == 'nt':
+                selected_path = subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', selected_path], text=True).strip()
+            for identifier, expected in ((CI.DEV_BATCH_SELECTION_ID, 0), (CI.ROUND_ITEM_MOUNT_SELECTION_ID, 1)):
+                result = subprocess.run([str(bash), '-c', command], cwd=ROOT, text=True, capture_output=True,
+                                        env=dict(os.environ, CI_SELECTION_PATH=selected_path, NATIVE_SELECTION_ID=identifier))
+                self.assertEqual(result.returncode == 0, expected == 0, result.stderr)
+
+    def test_real_test_shell_passes_the_exact_file_order(self):
+        bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+        def shell_path(path):
+            if os.name != 'nt': return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        tests = [DEV_BATCH_FIXTURE + 'testSecondRunnable', *json.loads(self.original)['tests'],
+                 DEV_BATCH_FIXTURE + 'testInExtension', DEV_BATCH_FIXTURE + 'testRunnable']
+        self.write_batch(self.batch(tests))
+        selection_value = CI.development_batch_selection(self.root)
+        for test_exit in (0, 83):
+            with tempfile.TemporaryDirectory() as directory:
+                base = Path(directory); binary = base / 'bin'; binary.mkdir()
+                artifact = base / 'artifact'; artifact.mkdir()
+                selected = artifact / 'ci-selection.selected.json'
+                selected.write_bytes(CI.canonical(selection_value))
+                executable = binary / 'xcodebuild'
+                executable.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$MOCK_TEST_ARGS"\nmkdir -p "$CI_ARTIFACT_DIR/UnitTests.xcresult"\ntouch "$CI_ARTIFACT_DIR/UnitTests.xcresult/result"\nexit "$MOCK_TEST_EXIT"\n', newline='\n')
+                executable.chmod(0o755)
+                e = dict(os.environ, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                         CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                         CI_DESTINATION='platform=iOS Simulator,id=' + UDID, CI_ARTIFACT_DIR=shell_path(artifact),
+                         CI_SELECTION_PATH=shell_path(selected), RUNNER_TEMP=shell_path(base / 'runner'),
+                         CI_S10_4_SHARED_BUILD_MODE='none', CI_NATIVE_ACCEPTANCE_CONTRACT='none',
+                         MOCK_TEST_ARGS=shell_path(base / 'args'), MOCK_TEST_EXIT=str(test_exit))
+                result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                         shell_path(binary), shell_path(ROOT / 'Scripts/test-smoke.sh')],
+                                        env=e, capture_output=True, text=True)
+                self.assertEqual(result.returncode, test_exit, result.stderr)
+                args = (base / 'args').read_text().splitlines()
+                self.assertEqual([arg for arg in args if arg.startswith('-only-testing:')],
+                                 ['-only-testing:' + member for member in tests])
+                self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
+
+    def test_existing_selections_resolve_admit_and_record_identically_to_the_base_head(self):
+        source = subprocess.check_output(['git', 'show', DEV_BATCH_BASE_COMMIT + ':Scripts/v23-native-ci.py'], cwd=ROOT)
+        base_workflow = subprocess.check_output(['git', 'show', DEV_BATCH_BASE_COMMIT + ':.github/workflows/ios-ci.yml'],
+                                                cwd=ROOT).decode('utf-8')
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'base.py'
+            path.write_bytes(source)
+            spec = importlib.util.spec_from_file_location('predev_batch_ci', path)
+            base = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(base)
+        self.assertFalse(hasattr(base, 'DEV_BATCH_SELECTION_ID'))
+        # The reviewed Simulator diagnostic source digest is an allowlist that changes
+        # independently of route behaviour (2026-09-25); give the base head the same
+        # allowlist so that only route resolution, admission and records are compared.
+        base.SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = CI.SIMULATOR_DIAGNOSTIC_SOURCE_SHA256
+        base.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S
+
+        def choices(text):
+            block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', text)
+            return re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        current_choices = choices((ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8'))
+        base_choices = choices(base_workflow)
+        self.assertEqual([item for item in current_choices if item not in (CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE)],
+                         base_choices)
+        # Each shell/workflow file differs from the base head only by the new route ID.
+        def base_bytes(relative):
+            return subprocess.check_output(['git', 'show', DEV_BATCH_BASE_COMMIT + ':' + relative], cwd=ROOT)
+        startup = b'c36-startup-retirement-no-index-build30m'
+        for relative, before, after in (
+                ('.github/workflows/ios-ci.yml', b'          - ' + startup + b'\n',
+                 b'          - ' + startup + b'\n          - v23-dev-batch-no-index-d50\n'),
+                ('.github/workflows/ios-ci-worker.yml',
+                 b"inputs.native_selection_id == '" + startup + b"') && 120",
+                 b"inputs.native_selection_id == '" + startup
+                 + b"' || inputs.native_selection_id == 'v23-dev-batch-no-index-d50') && 120"),
+                ('Scripts/build-smoke.sh', b'   [ "${NATIVE_SELECTION_ID:-none}" = ' + startup + b' ] || \\\n',
+                 b'   [ "${NATIVE_SELECTION_ID:-none}" = ' + startup + b' ] || \\\n'
+                 b'   [ "${NATIVE_SELECTION_ID:-none}" = v23-dev-batch-no-index-d50 ] || \\\n')):
+            with self.subTest(relative=relative):
+                previous = base_bytes(relative)
+                self.assertEqual(previous.count(before), 1)
+                self.assertEqual(before_shared_coverage_bytes(relative, (ROOT / relative).read_bytes()),
+                                 previous.replace(before, after))
+        default = CI.read_json(ROOT / 'Scripts/ci-selection.json')
+        mapping = CI.read_json(ROOT / CI.SELECTION_MAP_PATH)
+
+        def outcome(module, call):
+            try:
+                return 'ok', module.canonical(call(module))
+            except ValueError as error:
+                return 'error', str(error)
+
+        def git_facts(identifier):
+            parent = {CI.BUILD_ORDER_SELECTION_ID: CI.BUILD_ORDER_PARENT,
+                      CI.BUILD_WATCHDOG_SELECTION_ID: CI.BUILD_WATCHDOG_PARENT}.get(
+                identifier, CI.NO_INDEX_ROUTES.get(identifier, ('f' * 40,))[0])
+            trees = (CI.BUILD_ORDER_TREES if identifier == CI.BUILD_ORDER_SELECTION_ID else
+                     CI.no_index_source_trees(identifier) if identifier in CI.NO_INDEX_ROUTES else {})
+            header = ('tree ' + 'a' * 40 + '\nparent ' + parent + '\n\nmessage\n').encode()
+
+            def check_output(command, **kwargs):
+                if command[1:3] == ['cat-file', 'commit']:
+                    return header
+                return trees.get(command[-1].split(':', 1)[1], 'f' * 40) + '\n'
+            return check_output
+        admitted = 0
+        for identifier in base_choices:
+            with self.subTest(identifier=identifier):
+                resolved = outcome(CI, lambda m: m.resolve_selection(default, mapping, identifier))
+                self.assertEqual(resolved, outcome(base, lambda m: m.resolve_selection(default, mapping, identifier)))
+                self.assertEqual(resolved[0], 'ok')
+                value = json.loads(resolved[1])
+                record = {'selectionID': identifier, 'selectionSHA256': CI.sha256(resolved[1]),
+                          'selectionMapSHA256': CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes())}
+                e = dict(environment(), DISPATCH_NATIVE_SELECTION_ID=identifier,
+                         DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                         DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+                for stage in ('dispatch', 'worker'):
+                    with mock.patch.object(subprocess, 'check_output', side_effect=git_facts(identifier)):
+                        current = outcome(CI, lambda m: m.admission(value, e, HEAD, stage, record, ROOT))
+                        previous = outcome(base, lambda m: m.admission(value, e, HEAD, stage, record, ROOT))
+                    self.assertEqual(current, previous)
+                    admitted += current[0] == 'ok'
+        self.assertEqual(admitted, 2 * len(base_choices))
+        for identifier in (CI.DEFAULT_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.NO_INDEX_SELECTION_ID):
+            e = dict(environment(), NATIVE_SELECTION_ID=identifier)
+            self.assertEqual(outcome(CI, lambda m: m.selected_input(ROOT, e)),
+                             outcome(base, lambda m: m.selected_input(ROOT, e)))
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            for identifier in CI.NO_INDEX_ROUTES:
+                with self.subTest(receipt=identifier):
+                    record = {'selectionID': identifier, 'head': HEAD, 'runID': '123', 'runAttempt': '1'}
+                    (artifact / 'native-admission.json').write_bytes(CI.canonical(record))
+                    e = dict(environment(), PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                             CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                             CI_DESTINATION='platform=iOS Simulator,id=' + UDID, CI_ARTIFACT_DIR=str(artifact),
+                             RUNNER_TEMP=str(artifact / 'runner temp'))
+                    receipt = outcome(CI, lambda m: m.no_index_build_receipt(ROOT, artifact, record, e))
+                    self.assertEqual(receipt, outcome(base, lambda m: m.no_index_build_receipt(ROOT, artifact, record, e)))
+                    self.assertEqual(receipt[0], 'ok')
+                    (artifact / CI.NO_INDEX_RECEIPT).write_bytes(receipt[1])
+                    argv = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + json.loads(receipt[1])['argv'][1:]
+                    (artifact / 'build-smoke.log').write_text(
+                        'Command line invocation:\n    ' + shlex.join(argv) + '\nbuiltin-SwiftDriver -- /swiftc\n'
+                        '** TEST BUILD SUCCEEDED **\n', encoding='utf-8')
+                    verified = outcome(CI, lambda m: m.verify_no_index_build(ROOT, artifact, record, e))
+                    self.assertEqual(verified, outcome(base, lambda m: m.verify_no_index_build(ROOT, artifact, record, e)))
+                    self.assertEqual(verified[0], 'ok')
+            with self.assertRaises(ValueError):
+                base.no_index_build_receipt(ROOT, artifact, dict(record, selectionID=CI.DEV_BATCH_SELECTION_ID), e)
+
+
+SHARED_FIXTURE_SOURCE = '''import XCTest
+
+class SharedCoverageBaseTests: XCTestCase {
+    func testInheritedByEverySubclass() {}
+}
+
+final class SharedCoverageChildTests: SharedCoverageBaseTests {
+    func testChildOwn() async throws {}
+    // func testCommented() {}
+    let note = "func testInString() {}"
+    private func testPrivateHelper() {}
+    static func testStaticHelper() {}
+    func testWithArgument(_ value: Int) {}
+    struct Nested {
+        func testNestedType() {}
+    }
+}
+
+extension SharedCoverageChildTests {
+    func testFromExtension() {}
+}
+'''
+SHARED_FIXTURE_OTHER_FILE = '''import XCTest
+
+extension SharedCoverageChildTests {
+    func testFromOtherFile() {}
+}
+'''
+SHARED_FIXTURE_EXPECTED = ['FieldEvidenceAppTests/' + item for item in (
+    'SharedCoverageBaseTests/testInheritedByEverySubclass', 'SharedCoverageChildTests/testChildOwn',
+    'SharedCoverageChildTests/testFromExtension', 'SharedCoverageChildTests/testFromOtherFile',
+    'SharedCoverageChildTests/testInheritedByEverySubclass')]
+SHARED_XCTESTRUN = {'FieldEvidenceAppTests': {
+    'TestHostPath': '__TESTROOT__/Debug-iphonesimulator/FieldEvidenceApp.app',
+    'TestBundlePath': '__TESTHOST__/PlugIns/FieldEvidenceAppTests.xctest'}}
+
+
+def git_bash():
+    return (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+
+
+def posix_path(path):
+    if os.name != 'nt':
+        return str(path)
+    return subprocess.check_output([str(git_bash()), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+
+
+def called_template_bytes(workflow_text, size_of):
+    """Caller bytes plus each local reusable workflow's bytes, once per calling job.
+
+    GitHub rejected d2c1c4b ("Maximum object size exceeded") when this reached about 6 MiB."""
+    calls = re.findall(r'^    uses: \./(\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml)$', workflow_text, re.M)
+    if len(calls) != len(re.findall(r'uses:\s*["\']?\./', workflow_text)):
+        raise AssertionError('every local call must be one job-level reusable workflow call')
+    return len(workflow_text.encode('utf-8')) + sum(size_of(path) for path in calls), calls
+
+
+def workflow_steps(text):
+    """(name, if-expression or None, body) for each step, in order."""
+    steps = []
+    for chunk in text.split('\n      - name: ')[1:]:
+        name, _, body = chunk.partition('\n')
+        condition = re.search(r'^        if: (.+)$', body, re.M)
+        steps.append((name, condition.group(1) if condition else None, body))
+    return steps
+
+
+def shared_worker_job_env(text, inputs):
+    """The slim worker's job-level env with ${{ inputs.X }} resolved from the caller's inputs."""
+    block = text.split('\n    env:\n', 1)[1].split('\n\n    steps:\n', 1)[0]
+    env = {}
+    for line in block.splitlines():
+        if line.strip().startswith('#'):
+            continue
+        key, value = re.fullmatch(r'      ([A-Za-z][A-Za-z0-9_]*): (.*)', line).groups()
+        if len(value) >= 2 and value[0] == value[-1] == '"':
+            value = value[1:-1]
+        reference = re.fullmatch(r'\$\{\{ inputs\.([a-z0-9_]+) \}\}', value)
+        value = inputs[reference.group(1)] if reference else value
+        if '${{' in value or key in env:
+            raise AssertionError('unexpected job environment line: ' + line)
+        env[key] = value
+    return env
+
+
+def load_partition_script():
+    spec = importlib.util.spec_from_file_location('v23_coverage_partitions', ROOT / 'Scripts/v23-coverage-partitions.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class SharedCoverageRouteTests(unittest.TestCase):
+    """Development-only shared build: one producer plan, closed consumer partitions."""
+    run_mock_build = NoIndexBuildDiagnosticTests.run_mock_build
+
+    @classmethod
+    def setUpClass(cls):
+        cls.temp = tempfile.TemporaryDirectory(prefix='v23-shared-coverage-')
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.root = Path(cls.temp.name).resolve()
+        for relative in ('Scripts/v23-selection-generator.py', CI.SHARED_PARTITIONS_PATH, CI.UNIT_PROJECT_PATH):
+            target = cls.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        shutil.copytree(ROOT / 'FieldEvidenceAppTests', cls.root / 'FieldEvidenceAppTests')
+        cls.partitions = (ROOT / CI.SHARED_PARTITIONS_PATH).read_bytes()
+        cls.discovered = CI.discover_unit_test_methods(ROOT)
+        cls.plan = CI.shared_selection(ROOT)
+        cls.kernel = dict(CI.load_payload_kernel(ROOT))
+        # Local fixtures are not Mach-O and Windows paths use backslashes; the real kernel
+        # helpers still collect, inventory, archive, extract and validate the .xctestrun.
+        cls.kernel['product_compatibility'] = lambda products, xctestrun: [
+            {'path': 'Debug-iphonesimulator/FieldEvidenceApp.app/FieldEvidenceApp', 'fixture': True}]
+        cls.kernel['normalize_xctestrun'] = lambda root, source: None
+
+    def setUp(self):
+        path = self.root / CI.SHARED_PARTITIONS_PATH
+        path.write_bytes(self.partitions)
+        self.addCleanup(path.write_bytes, self.partitions)
+
+    def value(self):
+        return json.loads(self.partitions)
+
+    def write_partitions(self, value):
+        raw = value if isinstance(value, bytes) else (json.dumps(value, indent=2) + '\n').encode('utf-8')
+        (self.root / CI.SHARED_PARTITIONS_PATH).write_bytes(raw)
+
+    def shared_environment(self, role='none', partition='', payload=None, provider='github'):
+        e = environment(provider)
+        if payload is None:
+            payload = '' if role == 'none' else 'v23-shared-payload-123-1-' + HEAD
+        e.update(NATIVE_SELECTION_ID=SHARED_ROUTE, V23_SHARED_ROLE=role, V23_PARTITION_ID=partition,
+                 V23_PAYLOAD_ARTIFACT_NAME=payload)
+        selection = CI.shared_selection(ROOT, partition or None) if role == 'consumer' else self.plan
+        record = {'selectionID': SHARED_ROUTE, 'selectionSHA256': CI.sha256(CI.canonical(selection)),
+                  'selectionMapSHA256': CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes()),
+                  CI.SHARED_KEY: CI.shared_record_binding(ROOT, e, self.plan)}
+        e.update(DISPATCH_NATIVE_SELECTION_ID=SHARED_ROUTE,
+                 DISPATCH_NATIVE_SELECTION_SHA256=record[CI.SHARED_KEY]['planSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        return e, selection, record
+
+    def jq(self, value, **environment_values):
+        e = dict(os.environ)
+        for key in ('NATIVE_SELECTION_ID', 'V23_SHARED_ROLE', 'V23_PARTITION_ID'):
+            e.pop(key, None)
+        e.update(environment_values)
+        return subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                              input=CI.canonical(value), capture_output=True, env=e).returncode
+
+    def test_partitions_cover_every_runnable_method_once_in_sweep_order(self):
+        value, digest = CI.load_coverage_partitions(ROOT)
+        self.assertEqual(digest, CI.sha256(self.partitions))
+        self.assertNotIn(b'\r', self.partitions)
+        owners = [selector for partition in value['partitions'] for selector in partition['selectors']]
+        self.assertEqual(len(owners), len(set(owners)))
+        self.assertEqual(sorted(owners), sorted(self.discovered))
+        self.assertLessEqual(len(value['partitions']), CI.SHARED_MAX_PARTITIONS)
+        self.assertEqual(len(self.discovered), len(set(self.discovered)))
+        by_id = {partition['id']: partition['selectors'] for partition in value['partitions']}
+        self.assertEqual(self.plan['tier'], 'D40P')
+        self.assertEqual(tuple(self.plan[key] for key in CI.BUDGET_KEYS), (300, 2400, 0, 0, 3000))
+        self.assertEqual(self.plan['unitTestSelectors'],
+                         [selector for identifier in value['sweepOrder'] for selector in by_id[identifier]])
+        self.assertEqual(self.plan[CI.SHARED_KEY], {
+            'partitionsPath': CI.SHARED_PARTITIONS_PATH, 'partitionsSHA256': digest,
+            'partitionIDs': value['sweepOrder'], 'partitionID': None,
+            'developmentOnly': True, 'acceptance': False})
+        tiers = {partition['id']: partition['tier'] for partition in value['partitions']}
+        # Owner decision 16: only a one-method partition heavier than the packing target is D90S.
+        self.assertIn('D90S', tiers.values())
+        for partition in value['partitions']:
+            solo = len(partition['selectors']) == 1 and partition['estimatedSeconds'] > load_partition_script().TARGET_SECONDS
+            self.assertEqual(partition['tier'], 'D90S' if solo else 'D50C', partition['id'])
+        for identifier in value['sweepOrder']:
+            consumer = CI.shared_selection(ROOT, identifier)
+            self.assertEqual((consumer['tier'], consumer['runUISmoke'], consumer['uiTestSelectors']),
+                             (tiers[identifier], False, []))
+            self.assertEqual(tuple(consumer[key] for key in CI.BUDGET_KEYS),
+                             (300, 0, 5400, 0, 6000) if tiers[identifier] == 'D90S' else (300, 0, 3000, 0, 3600))
+            self.assertEqual(consumer['unitTestSelectors'], by_id[identifier])
+            self.assertEqual(consumer[CI.SHARED_KEY], dict(self.plan[CI.SHARED_KEY], partitionID=identifier))
+        with self.assertRaisesRegex(ValueError, 'unknown coverage partition'):
+            CI.shared_selection(ROOT, 'S99')
+        # The checked-in file is exactly what the deterministic script regenerates from itself,
+        # apart from generatedAtHead, which always records the checkout's current HEAD.
+        head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'partitions.json'
+            for _ in range(2):
+                result = subprocess.run([sys.executable, str(ROOT / 'Scripts/v23-coverage-partitions.py'),
+                                         '--source', str(ROOT / CI.SHARED_PARTITIONS_PATH), '--output', str(output)],
+                                        capture_output=True, cwd=ROOT)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_bytes(), load_partition_script().encode(dict(value, generatedAtHead=head)))
+        self.assertEqual(list(value)[:3], ['schema', 'sourceCensusHead', 'generatedAtHead'])
+        # Dispatch resolves the plan; each worker record binds the same plan digest.
+        e = dict(environment(), NATIVE_SELECTION_ID=SHARED_ROUTE)
+        selected, record = CI.selected_input(ROOT, e)
+        self.assertEqual(selected, self.plan)
+        self.assertEqual(record[CI.SHARED_KEY], {'role': 'none', 'partitionID': None, 'payloadArtifactName': None,
+                                                 'planSHA256': CI.sha256(CI.canonical(self.plan)),
+                                                 'partitionsSHA256': digest})
+        consumer_e = dict(e, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27',
+                          V23_PAYLOAD_ARTIFACT_NAME='v23-shared-payload-123-1-' + HEAD)
+        selected, consumer_record = CI.selected_input(ROOT, consumer_e)
+        self.assertEqual(selected, CI.shared_selection(ROOT, 'S27'))
+        self.assertEqual(consumer_record['selectionSHA256'], CI.sha256(CI.canonical(selected)))
+        self.assertEqual(consumer_record[CI.SHARED_KEY]['planSHA256'], record['selectionSHA256'])
+        for changed in ({'V23_PARTITION_ID': ''}, {'V23_SHARED_ROLE': 'observer'},
+                        {'V23_SHARED_ROLE': 'producer'}, {'V23_PAYLOAD_ARTIFACT_NAME': ''}):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                CI.selected_input(ROOT, dict(consumer_e, **changed))
+
+    def test_stale_overlapping_unknown_and_oversized_partition_files_fail_closed(self):
+        CI.load_coverage_partitions(self.root)
+        base = self.value()
+        first = base['partitions'][0]['selectors'][0]
+        # Layout-independent donors: measured-time repacking can leave single-method partitions.
+        donor = next(index for index, partition in enumerate(base['partitions']) if len(partition['selectors']) > 1)
+        removed = base['partitions'][donor]['selectors'][0]
+        solo = next(index for index, partition in enumerate(base['partitions']) if partition['tier'] == 'D90S')
+        self.assertEqual(base['partitions'][donor]['tier'], 'D50C')
+
+        def case(mutate):
+            value = copy.deepcopy(base)
+            mutate(value)
+            return value
+        cases = [
+            ('overlap: ' + re.escape(first), case(lambda v: v['partitions'][donor]['selectors'].append(first))),
+            (r'1 missing \[' + re.escape(repr(removed)), case(lambda v: v['partitions'][donor]['selectors'].remove(removed))),
+            (r'1 extra \[.*NoSuchTests/testNothing', case(lambda v: v['partitions'][donor]['selectors'].append(
+                'FieldEvidenceAppTests/NoSuchTests/testNothing'))),
+            ('coverage partition count', case(lambda v: v.update(partitions=v['partitions'] + [
+                {'id': 'S%02d' % index, 'tier': 'D50C', 'estimatedSeconds': 1, 'selectors': []}
+                for index in range(CI.SHARED_MAX_PARTITIONS + 1 - len(v['partitions']))]))),
+            ('coverage partition ID', case(lambda v: v['partitions'][1].update(id=v['partitions'][0]['id']))),
+            ('coverage partition ID', case(lambda v: v['partitions'][0].update(id='P01'))),
+            ('coverage sweep order', case(lambda v: v['sweepOrder'].pop())),
+            ('coverage sweep order', case(lambda v: v['sweepOrder'].append(v['sweepOrder'][0]))),
+            ('fit the test budget', case(lambda v: v['partitions'][donor].update(estimatedSeconds=3001))),
+            ('fit the test budget', case(lambda v: v['partitions'][donor].update(estimatedSeconds=0))),
+            ('fit the test budget', case(lambda v: v['partitions'][solo].update(estimatedSeconds=5401))),
+            ('fit the test budget', case(lambda v: v['partitions'][solo].update(tier='D50C', estimatedSeconds=3001))),
+            ('solo tier needs exactly one method', case(lambda v: v['partitions'][donor].update(tier='D90S'))),
+            ('solo tier needs exactly one method', case(lambda v: v['partitions'][solo]['selectors'].append(removed))),
+            ('coverage partition tier', case(lambda v: v['partitions'][donor].update(tier='D50'))),
+            ('coverage partition tier', case(lambda v: v['partitions'][solo].update(tier=None))),
+            ('coverage partition keys', case(lambda v: v['partitions'][donor].pop('tier'))),
+            ('coverage partition method count', case(lambda v: v['partitions'][0].update(selectors=[]))),
+            ('coverage partition method count', case(lambda v: v['partitions'][1].update(
+                selectors=[first] * (CI.SHARED_MAX_PARTITION_METHODS + 1)))),
+            ('coverage partition selector', case(lambda v: v['partitions'][donor]['selectors'].append(
+                'FieldEvidenceAppUITests/S0LaunchUITests/testLaunch'))),
+            ('coverage partition selector', case(lambda v: v['partitions'][donor]['selectors'].append(first + '\n'))),
+            ('coverage partitions keys', case(lambda v: v.update(extra=1))),
+            ('coverage partitions keys', case(lambda v: v.pop('sourceCensusHead'))),
+            ('coverage partitions keys', case(lambda v: v.pop('generatedAtHead'))),
+            ('coverage partitions keys', case(lambda v: v.update(censusHead=v['sourceCensusHead']))),
+            ('coverage partitions schema', case(lambda v: v.update(schema='v23-coverage-partitions.v1'))),
+            ('coverage partitions schema', case(lambda v: v.update(schema='v23-coverage-partitions.v3'))),
+            ('coverage partitions head: sourceCensusHead', case(lambda v: v.update(sourceCensusHead='HEAD'))),
+            ('coverage partitions head: generatedAtHead', case(lambda v: v.update(generatedAtHead='A' * 40))),
+            ('coverage partition keys', case(lambda v: v['partitions'][0].update(owner='x'))),
+        ]
+        for pattern, value in cases:
+            with self.subTest(pattern=pattern):
+                self.write_partitions(value)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    CI.load_coverage_partitions(self.root)
+        good = (json.dumps(base, indent=2) + '\n').encode()
+        for pattern, raw in (('LF line endings', good.replace(b'\n', b'\r\n')),
+                             ('UTF-8 JSON', b'\xff' + good), ('UTF-8 JSON', b'{'),
+                             ('duplicate JSON key', good[:-2] + b',\n  "schema": "x"\n}\n')):
+            with self.subTest(pattern=pattern):
+                self.write_partitions(raw)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    CI.load_coverage_partitions(self.root)
+        # A checkout that gained or lost methods makes the unchanged file stale by name.
+        self.write_partitions(base)
+        added = self.root / 'FieldEvidenceAppTests/SharedCoverageFixtureTests.swift'
+        other = self.root / 'FieldEvidenceAppTests/SharedCoverageOtherFileTests.swift'
+        added.write_bytes(SHARED_FIXTURE_SOURCE.encode())
+        other.write_bytes(SHARED_FIXTURE_OTHER_FILE.encode())
+        try:
+            with self.assertRaisesRegex(ValueError, r'5 missing .*SharedCoverageChildTests/testChildOwn'):
+                CI.load_coverage_partitions(self.root)
+            script = load_partition_script()
+            refreshed = script.regenerate(CI, self.root, base, 'c' * 40)
+            self.assertEqual(refreshed, script.regenerate(CI, self.root, base, 'c' * 40))
+            # The census head is carried over; the generation head names this checkout.
+            self.assertEqual((refreshed['sourceCensusHead'], refreshed['generatedAtHead']),
+                             (base['sourceCensusHead'], 'c' * 40))
+            owners = {selector: partition['id'] for partition in refreshed['partitions'] for selector in partition['selectors']}
+            self.assertTrue(set(SHARED_FIXTURE_EXPECTED) <= set(owners))
+            self.write_partitions(script.encode(refreshed))
+            CI.load_coverage_partitions(self.root)
+        finally:
+            added.unlink()
+            other.unlink()
+        with self.assertRaisesRegex(ValueError, r'5 extra .*SharedCoverageChildTests/testChildOwn'):
+            CI.load_coverage_partitions(self.root)
+
+    def test_discovery_counts_extensions_and_inheritance_and_fails_closed_on_unusual_tests(self):
+        fixture = self.root / 'FieldEvidenceAppTests/SharedCoverageFixtureTests.swift'
+        other = self.root / 'FieldEvidenceAppTests/SharedCoverageOtherFileTests.swift'
+        try:
+            fixture.write_bytes(SHARED_FIXTURE_SOURCE.encode())
+            other.write_bytes(SHARED_FIXTURE_OTHER_FILE.encode())
+            found = CI.discover_unit_test_methods(self.root)
+            self.assertEqual(sorted(set(found) - set(self.discovered)), SHARED_FIXTURE_EXPECTED)
+            hostile = {
+                'nested XCTestCase subclass': SHARED_FIXTURE_SOURCE.replace(
+                    '    struct Nested {', '    final class NestedTests: XCTestCase { func testNested() {} }\n    struct Nested {'),
+                'unsupported test method signature': SHARED_FIXTURE_SOURCE.replace(
+                    'func testChildOwn() async throws {}', 'func testChildOwn() -> Int { 0 }'),
+                'duplicate unit test class declaration': SHARED_FIXTURE_SOURCE + '\nfinal class SharedCoverageBaseTests {}\n',
+            }
+            for pattern, source in hostile.items():
+                with self.subTest(pattern=pattern):
+                    fixture.write_bytes(source.encode())
+                    with self.assertRaisesRegex(ValueError, pattern):
+                        CI.discover_unit_test_methods(self.root)
+        finally:
+            fixture.unlink()
+            other.unlink()
+        self.assertEqual(CI.discover_unit_test_methods(self.root), self.discovered)
+
+    def test_discovery_requires_the_plain_synchronized_unit_test_group(self):
+        path = self.root / CI.UNIT_PROJECT_PATH
+        original = path.read_text(encoding='utf-8')
+        self.addCleanup(path.write_text, original, encoding='utf-8', newline='\n')
+        test_group = ('A00000000000000000000005 /* FieldEvidenceAppTests */ = {\n'
+                      '\t\t\tisa = PBXFileSystemSynchronizedRootGroup;\n')
+        end_exceptions = '/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */\n'
+        test_exceptions = ('\t\tA00000000000000000000045 /* Exceptions in FieldEvidenceAppTests */ = {\n'
+                           '\t\t\tisa = PBXFileSystemSynchronizedBuildFileExceptionSet;\n'
+                           '\t\t\tmembershipExceptions = (\n\t\t\t\tSharedCoverageFixtureTests.swift,\n\t\t\t);\n'
+                           '\t\t\ttarget = A00000000000000000000031 /* FieldEvidenceAppTests */;\n\t\t};\n')
+        phase_exceptions = ('\t\tA00000000000000000000046 /* Build phase exceptions */ = {\n'
+                            '\t\t\tisa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;\n'
+                            '\t\t\tbuildPhase = A00000000000000000000027 /* Sources */;\n'
+                            '\t\t\tmembershipExceptions = (\n\t\t\t\tShared.swift,\n\t\t\t);\n\t\t};\n')
+        test_sources = ('A00000000000000000000027 /* Sources */ = {\n\t\t\tisa = PBXSourcesBuildPhase;\n'
+                        '\t\t\tbuildActionMask = 2147483647;\n\t\t\tfiles = (\n')
+        test_target_groups = ('\t\t\t\tA00000000000000000000005 /* FieldEvidenceAppTests */,\n'
+                              '\t\t\t);\n\t\t\tname = FieldEvidenceAppTests;\n')
+        hostile = {
+            'unit test synchronized group has membership exceptions': remove_exactly_once(
+                remove_exactly_once(original, test_group, test_group + '\t\t\texceptions = (\n'
+                                    '\t\t\t\tA00000000000000000000045 /* Exceptions in FieldEvidenceAppTests */,\n\t\t\t);\n'),
+                end_exceptions, test_exceptions + end_exceptions),
+            'membership exception set applies to the unit test target: A00000000000000000000044': remove_exactly_once(
+                original, '\t\t\ttarget = A00000000000000000000030 /* FieldEvidenceApp */;\n\t\t};\n' + end_exceptions,
+                '\t\t\ttarget = A00000000000000000000031 /* FieldEvidenceAppTests */;\n\t\t};\n' + end_exceptions),
+            'membership exception set applies to the unit test target: A00000000000000000000046': remove_exactly_once(
+                original, end_exceptions, phase_exceptions + end_exceptions),
+            'unit test target has explicit source files': remove_exactly_once(
+                original, test_sources, test_sources + '\t\t\t\tA00000000000000000000014 /* FieldEvidence.storekit */,\n'),
+            'unit test target synchronized groups': remove_exactly_once(
+                original, test_target_groups, '\t\t\t\tA00000000000000000000004 /* FieldEvidenceApp */,\n' + test_target_groups),
+            'unit test synchronized root group': remove_exactly_once(
+                original, '\t\t\tpath = FieldEvidenceAppTests;\n', '\t\t\tpath = OtherTests;\n'),
+            'unit test project': original[:-12],
+        }
+        for pattern, text in hostile.items():
+            with self.subTest(pattern=pattern):
+                path.write_text(text, encoding='utf-8', newline='\n')
+                with self.assertRaisesRegex(ValueError, re.escape(pattern)):
+                    CI.discover_unit_test_methods(self.root)
+        # The admitted partitions path runs the same check before any selection exists.
+        path.write_text(hostile['unit test synchronized group has membership exceptions'], encoding='utf-8', newline='\n')
+        with self.assertRaisesRegex(ValueError, 'membership exceptions'):
+            CI.load_coverage_partitions(self.root)
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, 'unit test target project file'):
+            CI.discover_unit_test_methods(self.root)
+        path.write_text(original, encoding='utf-8', newline='\n')
+        self.assertEqual(CI.discover_unit_test_methods(self.root), self.discovered)
+        CI.load_coverage_partitions(self.root)
+
+    def test_role_gating_budgets_and_bindings_are_closed(self):
+        for stage, role, partition in (('dispatch', 'none', ''), ('worker', 'producer', ''), ('worker', 'consumer', 'S27')):
+            e, selection, record = self.shared_environment(role, partition)
+            with mock.patch.object(CI.subprocess, 'check_output') as git:
+                admitted = CI.admission(selection, e, HEAD, stage, record, ROOT)
+            git.assert_not_called()
+            self.assertEqual(admitted[CI.SHARED_KEY]['role'], role)
+            self.assertEqual((admitted['diagnosticOnly'], admitted['providerQualification'], admitted['acceptance'],
+                              admitted['releaseReady']), (True, False, False, False))
+        e, consumer, record = self.shared_environment('consumer', 'S27')
+        s25 = CI.shared_selection(ROOT, 'S25')
+
+        def rebound(changed):
+            # A self-consistent record for the changed inputs, so only the named check can deny.
+            return dict(record, **{CI.SHARED_KEY: CI.shared_record_binding(ROOT, changed, self.plan)})
+        wrong_name = dict(e, V23_PAYLOAD_ARTIFACT_NAME='v23-shared-payload-123-2-' + HEAD)
+        second_attempt = dict(e, GITHUB_RUN_ATTEMPT='2', V23_PAYLOAD_ARTIFACT_NAME='v23-shared-payload-123-2-' + HEAD)
+        denied = [
+            ('dispatcher selection digest', consumer, record, dict(e, DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'])),
+            ('shared coverage payload artifact name', consumer, rebound(wrong_name), wrong_name),
+            ('shared coverage record binding', consumer, record, dict(e, V23_PARTITION_ID='S25')),
+            ('shared coverage role/partition selection binding', s25,
+             dict(record, selectionSHA256=CI.sha256(CI.canonical(s25))), e),
+            ('shared coverage role/partition selection binding', self.plan, record, e),
+            ('shared coverage GitHub route only', consumer, record, dict(e, **{
+                key: value for key, value in environment('bitrise').items() if key.startswith(('CI_RUNNER', 'SHARED_LANE'))})),
+            ('shared coverage original attempt only', consumer, rebound(second_attempt), second_attempt),
+        ]
+        for pattern, selection, bound, changed in denied:
+            with self.subTest(pattern=pattern), self.assertRaisesRegex(ValueError, pattern):
+                CI.admission(selection, changed, HEAD, 'worker', bound, ROOT)
+        e, plan, record = self.shared_environment('producer')
+        for changed in (dict(e, V23_SHARED_ROLE='none'), dict(e, V23_PARTITION_ID='S27'), dict(e, V23_SHARED_ROLE='observer')):
+            with self.assertRaises(ValueError):
+                CI.admission(plan, changed, HEAD, 'worker', record, ROOT)
+        # Shared inputs never reach another route, and the shared shape never leaves this one.
+        mount = CI.resolve_selection(CI.read_json(ROOT / 'Scripts/ci-selection.json'),
+                                     CI.read_json(ROOT / CI.SELECTION_MAP_PATH), CI.ROUND_ITEM_MOUNT_SELECTION_ID)
+        with self.assertRaisesRegex(ValueError, 'V23 shared inputs outside the shared route'):
+            CI.selected_input(ROOT, dict(environment(), NATIVE_SELECTION_ID=CI.ROUND_ITEM_MOUNT_SELECTION_ID,
+                                         V23_SHARED_ROLE='producer'))
+        for identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.DEFAULT_SELECTION_ID):
+            with self.assertRaises(ValueError):
+                CI.admission(plan, e, HEAD, 'worker', dict(record, selectionID=identifier), ROOT)
+        with self.assertRaises(ValueError):
+            CI.admission(mount, e, HEAD, 'worker', dict(record, selectionSHA256=CI.sha256(CI.canonical(mount))), ROOT)
+        # Tiers and bindings are closed.
+        self.assertEqual((CI.TIERS['D40P'], CI.TIERS['D50C'], CI.TIERS['D90S']),
+                         ((300, 2400, 0, 0, 3000), (300, 0, 3000, 0, 3600), (300, 0, 5400, 0, 6000)))
+        self.assertEqual(CI.SHARED_CONSUMER_TIERS, ('D50C', 'D90S'))
+        solo_id = next(x for x, tier in CI.shared_partition_tiers(ROOT).items() if tier == 'D90S')
+        solo = CI.shared_selection(ROOT, solo_id)
+        self.assertEqual(len(solo['unitTestSelectors']), 1)
+        CI.validate_selection(solo)
+        d90s = dict(zip(CI.BUDGET_KEYS, CI.TIERS['D90S']))
+        for value in (dict(consumer, tier='D90S', **d90s),  # more than one method
+                      dict(solo, testTimeoutSeconds=5401), dict(solo, tier='D50C'),
+                      dict(mount, tier='D90S', **d90s),  # never outside the shared route
+                      dict(solo, **{CI.SHARED_KEY: dict(solo[CI.SHARED_KEY], partitionID=None)})):
+            with self.subTest(value=value['tier']), self.assertRaises(ValueError):
+                CI.validate_selection(value)
+        route = {'NATIVE_SELECTION_ID': SHARED_ROUTE}
+        self.assertEqual(self.jq(solo, V23_SHARED_ROLE='consumer', V23_PARTITION_ID=solo_id, **route), 0)
+        for value in (dict(consumer, tier='D90S', **d90s), dict(solo, testTimeoutSeconds=3000),
+                      dict(solo, tier='D50C', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D50C'])), unitTestSelectors=[])):
+            with self.subTest(jq=value['tier']):
+                self.assertNotEqual(self.jq(value, V23_SHARED_ROLE='consumer',
+                                            V23_PARTITION_ID=value[CI.SHARED_KEY]['partitionID'], **route), 0)
+        self.assertNotEqual(self.jq(solo, V23_SHARED_ROLE='producer', **route), 0)
+        binding = consumer[CI.SHARED_KEY]
+        for value in (dict(mount, tier='D40P', **dict(zip(CI.BUDGET_KEYS, CI.TIERS['D40P']))),
+                      dict(consumer, testTimeoutSeconds=3001), dict(consumer, runUISmoke=True),
+                      dict(consumer, **{CI.SHARED_KEY: dict(binding, acceptance=True)}),
+                      dict(consumer, **{CI.SHARED_KEY: dict(binding, developmentOnly=False)}),
+                      dict(consumer, **{CI.SHARED_KEY: dict(binding, partitionID='S99')}),
+                      dict(consumer, **{CI.SHARED_KEY: dict(binding, partitionID=None)}),
+                      dict(self.plan, **{CI.SHARED_KEY: dict(self.plan[CI.SHARED_KEY], partitionID='S27')}),
+                      dict(consumer, unitTestSelectors=self.plan['unitTestSelectors'][:501])):
+            with self.assertRaises(ValueError):
+                CI.validate_selection(value)
+        # The worker filter admits each shape only under the matching route, role and partition.
+        route = {'NATIVE_SELECTION_ID': SHARED_ROUTE}
+        self.assertEqual(self.jq(self.plan, V23_SHARED_ROLE='producer', **route), 0)
+        self.assertEqual(self.jq(consumer, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27', **route), 0)
+        for value, env in ((self.plan, {}), (self.plan, dict(route, V23_SHARED_ROLE='consumer')),
+                           (self.plan, dict(route, V23_SHARED_ROLE='producer', V23_PARTITION_ID='S27')),
+                           (consumer, dict(route, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S25')),
+                           (consumer, dict(route, V23_SHARED_ROLE='producer')),
+                           (mount, dict(route, V23_SHARED_ROLE='producer')),
+                           (dict(consumer, testTimeoutSeconds=3001), dict(route, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27')),
+                           (dict(consumer, **{CI.SHARED_KEY: dict(binding, acceptance=True)}),
+                            dict(route, V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27'))):
+            with self.subTest(env=env):
+                self.assertNotEqual(self.jq(value, **env), 0)
+        self.assertEqual(self.jq(mount), 0)
+
+    def producer_fixture(self, temp):
+        import plistlib
+        artifact = temp / 'FieldEvidenceCI'
+        artifact.mkdir()
+        products = temp / 'FieldEvidenceDerivedData/Build/Products'
+        app = products / 'Debug-iphonesimulator/FieldEvidenceApp.app'
+        (app / 'PlugIns/FieldEvidenceAppTests.xctest').mkdir(parents=True)
+        (app / 'FieldEvidenceApp').write_bytes(b'fixture app executable')
+        (app / 'Info.plist').write_bytes(b'fixture plist')
+        (app / 'PlugIns/FieldEvidenceAppTests.xctest/FieldEvidenceAppTests').write_bytes(b'fixture test bundle')
+        with (products / 'FieldEvidenceApp_iphonesimulator26.5-arm64.xctestrun').open('wb') as stream:
+            plistlib.dump(SHARED_XCTESTRUN, stream)
+        e, selection, record = self.shared_environment('producer')
+        e.update(PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp', CONFIGURATION='Debug',
+                 CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID, CI_DESTINATION='platform=iOS Simulator,id=' + UDID,
+                 CI_ARTIFACT_DIR=str(artifact), RUNNER_TEMP=str(temp))
+        with mock.patch.object(CI.subprocess, 'check_output'):
+            record = CI.admission(selection, e, HEAD, 'worker', record, ROOT)
+        record['gitTree'] = 'a' * 40
+        (artifact / 'native-admission.json').write_bytes(CI.canonical(record))
+        (artifact / 'xcode-version.txt').write_text('Xcode 26.6\nBuild version 17F113\n')
+        (artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
+        receipt = CI.no_index_build_receipt(ROOT, artifact, record, e)
+        (artifact / CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(receipt))
+        argv = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + receipt['argv'][1:]
+        (artifact / 'build-smoke.log').write_text('Command line invocation:\n    ' + shlex.join(argv)
+                                                   + '\nbuiltin-SwiftDriver -- /swiftc\n** TEST BUILD SUCCEEDED **\n')
+        (artifact / 'Build.xcresult').mkdir()
+        (artifact / 'Build.xcresult/result').write_bytes(b'fixture')
+        return e, selection, record, artifact
+
+    def consumer_fixture(self, temp, transport, partition='S09', **record_changes):
+        artifact = temp / 'FieldEvidenceCI'
+        artifact.mkdir()
+        download = temp / CI.SHARED_DOWNLOAD_DIRECTORY
+        download.mkdir()
+        for name in (CI.SHARED_TAR, CI.SHARED_TAR_DIGEST):
+            shutil.copyfile(transport / name, download / name)
+        e, selection, record = self.shared_environment('consumer', partition)
+        e.update(RUNNER_TEMP=str(temp), CI_ARTIFACT_DIR=str(artifact), CI_SIMULATOR_UDID=UDID, CONFIGURATION='Debug')
+        with mock.patch.object(CI.subprocess, 'check_output'):
+            record = CI.admission(selection, e, HEAD, 'worker', record, ROOT)
+        record.update({'gitTree': 'a' * 40, **record_changes})
+        (artifact / 'native-admission.json').write_bytes(CI.canonical(record))
+        (artifact / 'xcode-version.txt').write_text('Xcode 26.6\nBuild version 17F113\n')
+        (artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
+        return e, selection, record, artifact
+
+    def phase1_live_fixture(self, base):
+        """Synthetic dormant hook tests, never root/API-authenticated originals."""
+        import gzip
+        gate = CI.load_phase1_gates(ROOT)
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="a" * 40, selection=gate.SHARED,
+            resolved_bytes=CI.canonical(self.plan), sources={p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES},
+            requested_at="2026-09-26T12:00:00Z")
+        binding = {"schema": gate.EVENT_SCHEMA, "plan": plan, "planSHA256": gate.sha(gate.canonical(plan)),
+                   "runID": "123", "runAttempt": "1", "functionalQualification": gate.PENDING}
+        producer = base / "producer"
+        producer.mkdir()
+        e, _, record, artifact = self.producer_fixture(producer)
+        record["phase1Gate"] = binding
+        (artifact / "native-admission.json").write_bytes(CI.canonical(record))
+        (artifact / CI.NO_INDEX_RECEIPT).write_bytes(CI.canonical(CI.no_index_build_receipt(ROOT, artifact, record, e)))
+        CI.shared_seal(ROOT, artifact, record, e, self.kernel)
+        producer_facts = (e, record, artifact)
+        consumer = base / "consumer"
+        consumer.mkdir()
+        e, _, record, artifact = self.consumer_fixture(consumer, producer / CI.SHARED_TRANSPORT_DIRECTORY)
+        record["phase1Gate"] = binding
+        (artifact / "native-admission.json").write_bytes(CI.canonical(record))
+        CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+        CI.shared_fingerprint(ROOT, artifact, record, e, "before", self.kernel)
+        log = consumer / "FieldEvidenceDerivedData/Logs/Build/bookkeeping.xcactivitylog"
+        log.parent.mkdir(parents=True)
+        log.write_bytes(gzip.compress(b"test session bookkeeping only"))
+        (artifact / "test-smoke.log").write_text("** TEST EXECUTE SUCCEEDED **\n")
+        CI.shared_fingerprint(ROOT, artifact, record, e, "after", self.kernel)
+        return producer_facts, (e, record, artifact), binding
+
+    def test_phase1_live_observations_recompute_relocated_facts_without_payload_or_live_filesystem(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            base = Path(directory).resolve()
+            producer, consumer, binding = self.phase1_live_fixture(base)
+            for label, (_, record, artifact) in (("producer", producer), ("consumer", consumer)):
+                relocated = base / (label + "-retained")
+                shutil.copytree(artifact, relocated)
+                shutil.rmtree(artifact.parent)
+                proof = CI.phase1_retained_shared_facts(ROOT, relocated, record, binding)
+                self.assertEqual(proof["status"], "COMPLETE_RETAINED_SHARED_OBSERVATIONS")
+                self.assertFalse(proof["offlineFilesystemReplay"])
+                self.assertFalse(proof["payloadArchiveRetained"])
+                self.assertFalse(proof["liveChecksIndependentlyReexecuted"])
+                self.assertEqual(proof["functionalQualification"], CI.load_phase1_gates(ROOT).PENDING)
+                self.assertEqual(proof["physicalProtection"], "UNVERIFIED/DEFERRED")
+                self.assertFalse(proof["releaseReady"])
+
+    def test_phase1_live_callers_refuse_denied_source_staged_restored_and_derived_subtrees(self):
+        # Actual seal/restore/fingerprint hooks; only the underlying child scan
+        # is denied. A readable sibling remains, so partial closure looks valid.
+        cases = (("producer/FieldEvidenceDerivedData/Build/Products", 1, "Debug-iphonesimulator"),
+                 ("producer/FieldEvidenceDerivedData/Build/Products", 2, "Debug-iphonesimulator"),
+                 ("producer/" + CI.SHARED_PAYLOAD_DIRECTORY + "/" + self.kernel["ROOT_LABEL"], 1, "Debug-iphonesimulator"),
+                 ("consumer/FieldEvidenceDerivedData/Build/Products", 1, "Debug-iphonesimulator"),
+                 ("consumer/FieldEvidenceDerivedData", 1, "Build"),
+                 ("consumer/FieldEvidenceDerivedData", 2, "Logs/Build"),
+                 ("consumer/FieldEvidenceDerivedData", 3, "Logs/Build"))
+        original_inventory, original_scan = CI.phase1_live_inventory, CI.os.scandir
+        for relative, occurrence, child in cases:
+            with self.subTest(relative=relative, occurrence=occurrence), tempfile.TemporaryDirectory() as directory:
+                base, hits, denied = Path(directory).resolve(), [], []
+                def inventory(root, kernel, **kwargs):
+                    if root == base / relative:
+                        hits.append(root)
+                    if root != base / relative or len(hits) != occurrence:
+                        return original_inventory(root, kernel, **kwargs)
+                    def scan(path):
+                        if Path(path) == root / child:
+                            denied.append(Path(path))
+                            raise PermissionError("test-only denied live subtree")
+                        return original_scan(path)
+                    with mock.patch.object(CI.os, "scandir", side_effect=scan):
+                        return original_inventory(root, kernel, **kwargs)
+                with mock.patch.object(CI, "phase1_live_inventory", side_effect=inventory), \
+                        mock.patch.object(CI.platform, "machine", return_value="arm64"), \
+                        self.assertRaisesRegex(PermissionError, "test-only denied"):
+                    self.phase1_live_fixture(base)
+                self.assertEqual(len(hits), occurrence)
+                self.assertEqual(denied, [base / relative / child])
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            _, (_, record, artifact), binding = self.phase1_live_fixture(Path(directory).resolve())
+            facts = CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+            self.assertFalse(facts["offlineFilesystemReplay"])
+
+    def test_phase1_live_census_denied_child_and_restoration_preserve_original_schema(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            child = root / "denied"
+            child.mkdir()
+            (root / "readable").write_bytes(b"readable sibling")
+            (child / "original").write_bytes(b"required original")
+            expected = self.kernel["inventory"](root)
+            original_scan, visited = CI.os.scandir, []
+            def scan(path):
+                visited.append(Path(path))
+                if Path(path) == child:
+                    raise PermissionError("test-only denied census child")
+                return original_scan(path)
+            with mock.patch.object(CI.os, "scandir", side_effect=scan):
+                # Reproduce the old kernel's omission, then show the gate fails.
+                partial = self.kernel["inventory"](root)
+                self.assertNotEqual(partial, expected)
+                for products in (False, True):
+                    with self.subTest(products=products), self.assertRaises(PermissionError):
+                        CI.phase1_live_inventory(root, self.kernel, products=products)
+            self.assertIn(child, visited)
+            self.assertEqual(CI.phase1_product_inventory(root, self.kernel), expected)
+            self.assertEqual(CI.phase1_derived_inventory(root, self.kernel), CI.shared_derived_inventory(root))
+
+    def test_phase1_live_census_rejects_links_specials_bounds_and_legacy_omission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "original").write_bytes(b"original")
+            with mock.patch.object(CI, "PHASE1_WITNESS_ENTRIES", 0), self.assertRaisesRegex(ValueError, "bound"):
+                CI.phase1_live_inventory(root, self.kernel)
+            with self.assertRaisesRegex(ValueError, "byte bound"):
+                CI.phase1_product_inventory(root, dict(self.kernel, MAX_ARCHIVE_BYTES=1))
+            with self.assertRaisesRegex(ValueError, "differs from kernel"):
+                CI.phase1_product_inventory(root, dict(self.kernel, inventory=lambda path: []))
+            with mock.patch.object(CI, "shared_derived_inventory", return_value={}), \
+                    self.assertRaisesRegex(ValueError, "differs from fingerprint"):
+                CI.phase1_derived_inventory(root, self.kernel)
+            link = root / "link"
+            link.symlink_to(root / "original")
+            with self.assertRaisesRegex(ValueError, "nonregular"):
+                CI.phase1_live_inventory(root, self.kernel)
+            link.unlink()
+            with self.assertRaises(FileNotFoundError):
+                CI.phase1_live_inventory(link, self.kernel)
+            (root / "original").chmod(0o4755)
+            with self.assertRaisesRegex(ValueError, "special permissions"):
+                CI.phase1_product_inventory(root, self.kernel)
+            os.mkfifo(link)
+            with self.assertRaisesRegex(ValueError, "nonregular"):
+                CI.phase1_live_inventory(root, self.kernel)
+
+    def test_phase1_shared_execution_distinguishes_build_only_and_test_only_actual_facts(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            producer, consumer, _ = self.phase1_live_fixture(Path(directory).resolve())
+            for label, (e, record, artifact) in (("producer", producer), ("S09", consumer)):
+                selected = self.plan if label == "producer" else self.shared_environment("consumer", label)[1]
+                provider = {"provider": "github", "label": "macos-26", "runner_architecture": "ARM64", "uname_architecture": "arm64",
+                            "developer_dir": "/Applications/Xcode_26.6.app/Contents/Developer"}
+                simulator = {"runtime": "iOS 26.2", "runtime_build": "23C54", "name": "iPhone 17", "initial_state": "Shutdown", "udid": UDID}
+                for name, values in (("runner-provider.txt", provider), ("simulator-selection.txt", simulator)):
+                    (artifact / name).write_text("".join(k + "=" + v + "\n" for k, v in values.items()))
+                setup_elapsed = 100 if label == "producer" else 110
+                (artifact / "setup-budget.txt").write_text("setup_elapsed_seconds=100\nsetup_budget_seconds=300\n")
+                (artifact / "artifact-budget.txt").write_text("setup_elapsed_seconds=%d\nartifact_elapsed_seconds=20\nsetup_artifact_elapsed_seconds=%d\nsetup_artifact_budget_seconds=300\n" % (setup_elapsed, setup_elapsed + 20))
+                if label != "producer":
+                    (artifact / "v23-shared-restore-budget.txt").write_text("shared_restore_setup_elapsed_seconds=110\n")
+                    argv = [provider["developer_dir"] + "/usr/bin/xcodebuild", "-project", "FieldEvidenceApp.xcodeproj", "-scheme", "FieldEvidenceApp",
+                            "-configuration", "Debug", "-destination", "platform=iOS Simulator,id=" + UDID,
+                            "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
+                            "-resultBundlePath", str(artifact / "UnitTests.xcresult"),
+                            *["-only-testing:" + v for v in selected["unitTestSelectors"]], "CODE_SIGNING_ALLOWED=NO", "test-without-building"]
+                    (artifact / "test-smoke.log").write_text("Command line invocation:\n    " + shlex.join(argv) + "\n** TEST EXECUTE SUCCEEDED **\n")
+                    (artifact / "unit-test-results.json").write_bytes(CI.canonical({"testNodes": [{"nodeType": "Unit test bundle", "name": "FieldEvidenceAppTests",
+                        "children": [{"nodeType": "Test Case", "nodeIdentifier": v, "result": "Passed"} for v in selected["unitTestSelectors"]]}]}))
+                checkpoint = dict(record, recordType="validated-native-checkpoint", provider=provider, simulator=simulator,
+                    sdk={"sdk": "iphonesimulator", "version": "26.5", "build": "23F81a"}, releaseReady=False, acceptance=False,
+                    executedUnitMethods=[] if label == "producer" else sorted(selected["unitTestSelectors"]), executedUIMethods=[])
+                (artifact / "native-checkpoint.json").write_bytes(CI.canonical(checkpoint))
+                env = dict(zip(("CI_SETUP_ARTIFACT_TIMEOUT_SECONDS", "CI_BUILD_TIMEOUT_SECONDS", "CI_TEST_TIMEOUT_SECONDS",
+                                "CI_UI_TIMEOUT_SECONDS", "CI_TOTAL_BUDGET_SECONDS"), (str(selected[k]) for k in CI.BUDGET_KEYS)))
+                env.update(CI_ARTIFACT_DIR=str(artifact), NATIVE_SELECTION_ID=record["selectionID"], CONFIGURATION="Debug", DEVELOPER_DIR=provider["developer_dir"])
+                names = ["Recheck evidence-finalization budget", "Verify selected total budget before upload", "Validate required build and test evidence",
+                         "Validate exact ordinary integration native checkpoint", "Build unsigned simulator app" if label == "producer" else "Run targeted tests"]
+                job = {"jobID": 1, "jobLogSHA256": "A" * 64, "commands": [{"step": name, "environment": dict(env),
+                    "numericFacts": {"elapsed_seconds": "200", "total_budget_seconds": str(selected["totalBudgetSeconds"])} if name == names[1] else {}} for name in names]}
+                def verify():
+                    return CI.phase1_worker_execution_facts(ROOT, artifact, record, selected, label, job)
+                proof = verify()
+                self.assertEqual(proof["unitCommand"] is None, label == "producer")
+                self.assertEqual(proof["build"] is not None, label == "producer")
+                forbidden = artifact / ("test-smoke.log" if label == "producer" else "build-smoke.log")
+                forbidden.write_bytes(b"unexpected role execution")
+                with self.assertRaisesRegex(ValueError, "unexpected role"):
+                    verify()
+                forbidden.unlink()
+                if label != "producer":
+                    budget = artifact / "v23-shared-restore-budget.txt"
+                    budget.write_text("shared_restore_setup_elapsed_seconds=99\n")
+                    with self.assertRaisesRegex(ValueError, "restore setup budget"):
+                        verify()
+                    budget.write_text("shared_restore_setup_elapsed_seconds=110\n")
+                self.assertEqual(verify(), proof)
+
+    def test_phase1_retained_live_witness_rejects_census_identity_and_activity_substitution(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            _, (_, record, artifact), binding = self.phase1_live_fixture(Path(directory).resolve())
+            path = artifact / "phase1-shared-live-after.json"
+            original = path.read_bytes()
+            for name, mutation in (
+                ("identity", lambda v: v.update(runAttempt="2")),
+                ("closed", lambda v: v.update(approved=True)),
+                ("products", lambda v: v["productInventory"].pop()),
+                ("derived", lambda v: v["derivedDataInventory"].pop()),
+                ("activity", lambda v: v["activityLogs"].clear()),
+                ("path", lambda v: v["activityLogs"][0].update(retainedPath="../escaped")),
+                ("duplicate", lambda v: v["derivedDataInventory"].append(v["derivedDataInventory"][0])),
+            ):
+                with self.subTest(name=name):
+                    value = json.loads(original)
+                    mutation(value)
+                    path.write_bytes(CI.canonical(value))
+                    with self.assertRaises(ValueError):
+                        CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+            path.write_bytes(original)
+            log = artifact / "phase1-activity-logs/000000.xcactivitylog"
+            original_log = log.read_bytes()
+            log.write_bytes(b"substituted")
+            with self.assertRaisesRegex(ValueError, "activity scan"):
+                CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+            log.write_bytes(original_log)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError):
+                CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+
+    def test_phase1_complete_inventory_rejects_links_duplicates_and_overflow(self):
+        for entries in ([{"path": "../escape", "type": "directory"}],
+                        [{"path": "safe", "type": "symlink", "target": "elsewhere"}],
+                        [{"path": "a", "type": "directory"}, {"path": "a", "type": "directory"}],
+                        [{"path": "A", "type": "directory"}, {"path": "a", "type": "directory"}],
+                        [{"path": "a", "type": "file", "size": True, "sha256": "A" * 64}]):
+            with self.subTest(entries=entries), self.assertRaises(ValueError):
+                CI.phase1_inventory(entries)
+        with mock.patch.object(CI, "PHASE1_WITNESS_ENTRIES", 1), self.assertRaisesRegex(ValueError, "bound"):
+            CI.phase1_inventory([{"path": "a", "type": "directory"}, {"path": "b", "type": "directory"}])
+        with mock.patch.object(CI, "PHASE1_WITNESS_BYTES", 1), self.assertRaisesRegex(ValueError, "bound"):
+            CI.phase1_inventory([{"path": "a", "type": "directory"}])
+
+    def test_phase1_payload_census_rejects_missing_extra_or_unsafe_member(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, "machine", return_value="arm64"):
+            (_, record, artifact), _, binding = self.phase1_live_fixture(Path(directory).resolve())
+            path = artifact / "phase1-shared-live-seal.json"
+            raw = path.read_bytes()
+            for mutation in (lambda v: v["archiveMemberCensus"].pop(),
+                             lambda v: v["archiveMemberCensus"][0].update(path="../escape"),
+                             lambda v: v["archiveMemberCensus"][0].update(type="symlink"),
+                             lambda v: v.update(testsExecuted=True),
+                             lambda v: v.update(sourceUnchangedDuringSeal=False)):
+                value = json.loads(raw)
+                mutation(value)
+                path.write_bytes(CI.canonical(value))
+                with self.assertRaises(ValueError):
+                    CI.phase1_retained_shared_facts(ROOT, artifact, record, binding)
+
+    def test_seal_restore_and_fingerprints_bind_one_exact_payload(self):
+        self.assertTrue(all(callable(self.kernel[name]) for name in (
+            'collect', 'inventory', 'copy_tree', 'extract_tar', 'sha256_file', 'object_sha')))
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, 'machine', return_value='arm64'):
+            base = Path(directory).resolve()
+            temp = base / 'producer'
+            temp.mkdir()
+            e, _, record, artifact = self.producer_fixture(temp)
+            receipt = CI.shared_seal(ROOT, artifact, record, e, self.kernel)
+            self.assertEqual(CI.verify_shared_producer(ROOT, artifact, record, e)['archive'], receipt['archive'])
+            # The archive is deterministic: the same payload root yields identical bytes.
+            again = CI.shared_payload_archive(self.kernel, temp / CI.SHARED_PAYLOAD_DIRECTORY, base / 'again.tar')
+            self.assertEqual(again['sha256'], receipt['archive']['sha256'])
+            transport = temp / CI.SHARED_TRANSPORT_DIRECTORY
+            with open(transport / CI.SHARED_TAR, 'ab') as stream:
+                stream.write(b'x')
+            with self.assertRaisesRegex(ValueError, 'sealed payload archive changed'):
+                CI.verify_shared_producer(ROOT, artifact, record, e)
+            with open(transport / CI.SHARED_TAR, 'rb+') as stream:
+                stream.truncate(receipt['archive']['bytes'])
+            CI.verify_shared_producer(ROOT, artifact, record, e)
+            self.assertEqual(sorted(item.name for item in transport.iterdir()), [CI.SHARED_TAR, CI.SHARED_TAR_DIGEST])
+            metadata = CI.read_json(artifact / CI.SHARED_PAYLOAD_METADATA)
+            self.assertEqual((metadata['head'], metadata['workspace'], metadata['payloadArtifactName'],
+                              metadata['developmentOnly'], metadata['acceptance']),
+                             (HEAD, str(ROOT), 'v23-shared-payload-123-1-' + HEAD, True, False))
+            with self.assertRaisesRegex(ValueError, 'shared seal is producer-only'):
+                CI.shared_seal(ROOT, artifact, dict(record, **{CI.SHARED_KEY: dict(record[CI.SHARED_KEY], role='consumer')}),
+                               e, self.kernel)
+            # Consumer: exact restore, then unchanged products before and after tests.
+            consumer = base / 'consumer'
+            consumer.mkdir()
+            e, selection, record, artifact = self.consumer_fixture(consumer, transport)
+            restore = CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            self.assertEqual(restore['productsTreeSHA256'], metadata['products']['treeSHA256'])
+            self.assertTrue((consumer / 'FieldEvidenceDerivedData/Build/Products').is_dir())
+            (artifact / 'test-smoke.log').write_text('** TEST EXECUTE SUCCEEDED **\n', encoding='utf-8')
+            for phase in ('before', 'after'):
+                self.assertTrue(CI.shared_fingerprint(ROOT, artifact, record, e, phase, self.kernel)['matchesProducer'])
+            self.assertEqual(CI.verify_shared_consumer(ROOT, artifact, record, selection, dict(
+                e, CI_NATIVE_CREATED_SIMULATOR_UDID=UDID))['partitionID'], 'S09')
+            # A rebuild or a changed product after tests is retained, then fails closed.
+            objects = consumer / 'FieldEvidenceDerivedData/Build/Intermediates.noindex/FieldEvidenceAppTests.build/arm64'
+            objects.mkdir(parents=True)
+            (objects / 'SharedCoverage.o').write_bytes(b'object')
+            for name in ('v23-shared-fingerprint-after.json', CI.SHARED_DERIVED_DATA_DELTA):
+                (artifact / name).unlink()
+            with self.assertRaisesRegex(ValueError, 'build evidence present'):
+                CI.shared_fingerprint(ROOT, artifact, record, e, 'after', self.kernel)
+            self.assertEqual(CI.read_json(artifact / 'v23-shared-fingerprint-after.json')['buildEvidence'],
+                             ['DerivedData/Build/Intermediates.noindex/FieldEvidenceAppTests.build/arm64/SharedCoverage.o'])
+            shutil.rmtree(consumer / 'FieldEvidenceDerivedData/Build/Intermediates.noindex')
+            for name in ('v23-shared-fingerprint-after.json', CI.SHARED_DERIVED_DATA_DELTA):
+                (artifact / name).unlink()
+            (consumer / 'FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app/Info.plist').write_bytes(b'changed')
+            with self.assertRaisesRegex(ValueError, "differ from the producer's"):
+                CI.shared_fingerprint(ROOT, artifact, record, e, 'after', self.kernel)
+            # Hostile downloads and bindings are refused before any product is restored.
+            hostile = {
+                'digest or size': lambda t, a: (t / CI.SHARED_DOWNLOAD_DIRECTORY / CI.SHARED_TAR_DIGEST).write_bytes(
+                    b'0' * 64 + b' 1 FieldEvidencePayload.tar\n'),
+                'download members': lambda t, a: (t / CI.SHARED_DOWNLOAD_DIRECTORY / 'extra').write_bytes(b''),
+                'restored, never built': lambda t, a: (a / 'build-smoke.log').write_text('built\n'),
+            }
+            for index, (pattern, mutate) in enumerate(hostile.items()):
+                temp = base / ('hostile-%d' % index)
+                temp.mkdir()
+                e, _, record, artifact = self.consumer_fixture(temp, transport)
+                mutate(temp, artifact)
+                with self.subTest(pattern=pattern), self.assertRaisesRegex(ValueError, pattern):
+                    CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+                self.assertFalse((temp / 'FieldEvidenceDerivedData').exists())
+            for index, (pattern, changes) in enumerate((('binding differs: gitTree', {'gitTree': 'b' * 40}),
+                                                        ('binding differs: runID', {'runID': '124'}))):
+                temp = base / ('binding-%d' % index)
+                temp.mkdir()
+                e, _, record, artifact = self.consumer_fixture(temp, transport, **changes)
+                with self.subTest(pattern=pattern), self.assertRaisesRegex(ValueError, pattern):
+                    CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            # A traversal member is refused by the kernel extractor even with a matching digest.
+            temp = base / 'traversal'
+            temp.mkdir()
+            e, _, record, artifact = self.consumer_fixture(temp, transport)
+            tar = temp / CI.SHARED_DOWNLOAD_DIRECTORY / CI.SHARED_TAR
+            tar.unlink()
+            with tarfile.open(tar, 'x', format=tarfile.PAX_FORMAT) as archive:
+                info = tarfile.TarInfo('FieldEvidencePayload/../escape')
+                info.size = 1
+                archive.addfile(info, io.BytesIO(b'x'))
+            (temp / CI.SHARED_DOWNLOAD_DIRECTORY / CI.SHARED_TAR_DIGEST).write_bytes(
+                ('%s %d %s\n' % (CI.sha256(tar.read_bytes()), tar.stat().st_size, CI.SHARED_TAR)).encode())
+            with self.assertRaises(ValueError):
+                CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            self.assertFalse((temp / 'escape').exists())
+
+    def test_after_tests_only_compile_or_link_evidence_fails_and_new_entries_are_listed(self):
+        import gzip
+
+        def activity(*strings):
+            # SLF-style body: each string is its decimal length, a quote, then its bytes.
+            return gzip.compress(b'SLF010#' + b''.join(b'%d"%s' % (len(item), item) for item in strings), mtime=0)
+        passing_log = ('Command line invocation:\n    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'
+                       ' -project FieldEvidenceApp.xcodeproj test-without-building\n'
+                       "Test Case '-[FieldEvidenceAppTests.SharedCoverageTests testLdAndCompileSwiftNames]' passed.\n"
+                       '    note: no clang or swiftc invocation\n** TEST EXECUTE SUCCEEDED **\n')
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, 'machine', return_value='arm64'):
+            base = Path(directory).resolve()
+            producer = base / 'producer'
+            producer.mkdir()
+            e, _, record, artifact = self.producer_fixture(producer)
+            CI.shared_seal(ROOT, artifact, record, e, self.kernel)
+            consumer = base / 'consumer'
+            consumer.mkdir()
+            e, selection, record, artifact = self.consumer_fixture(consumer, producer / CI.SHARED_TRANSPORT_DIRECTORY)
+            derived = consumer / 'FieldEvidenceDerivedData'
+            CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            before = CI.shared_fingerprint(ROOT, artifact, record, e, 'before', self.kernel)
+            self.assertEqual(before['derivedDataEntries'], [{'path': 'Build', 'type': 'directory'}])
+
+            def after(files, log=passing_log):
+                for name in ('v23-shared-fingerprint-after.json', CI.SHARED_DERIVED_DATA_DELTA, 'test-smoke.log'):
+                    if (artifact / name).exists():
+                        (artifact / name).unlink()
+                for name in ('Logs', 'Build/Intermediates.noindex', 'info.plist'):
+                    if (derived / name).is_dir():
+                        shutil.rmtree(derived / name)
+                    elif (derived / name).exists():
+                        (derived / name).unlink()
+                for relative, data in files.items():
+                    (derived / relative).parent.mkdir(parents=True, exist_ok=True)
+                    (derived / relative).write_bytes(data)
+                if log is not None:
+                    (artifact / 'test-smoke.log').write_text(log, encoding='utf-8')
+                return lambda: CI.shared_fingerprint(ROOT, artifact, record, e, 'after', self.kernel)
+            # Bookkeeping the scheme command may write passes and every new entry is listed.
+            bookkeeping = {
+                'Logs/Build/LogStoreManifest.plist': b'<plist/>',
+                'Logs/Build/0A1B.xcactivitylog': activity(b'Prepare build', b'Computing target dependency graph'),
+                'Logs/Test/LogStoreManifest.plist': b'<plist/>',
+                'Build/Intermediates.noindex/XCBuildData/build.db': b'database',
+                'Build/Intermediates.noindex/XCBuildData/PIFCache/project/PROJECT@v11.json': b'{}',
+                'info.plist': b'<plist/>',
+            }
+            value = after(bookkeeping)()
+            self.assertEqual((value['buildEvidence'], value['matchesBefore'], value['matchesProducer']), ([], True, True))
+            raw = (artifact / CI.SHARED_DERIVED_DATA_DELTA).read_bytes()
+            delta = CI.read_json(artifact / CI.SHARED_DERIVED_DATA_DELTA)
+            self.assertEqual({item['path']: item for item in delta['added'] if item['type'] == 'file'}, {
+                relative: {'path': relative, 'type': 'file', 'size': len(data), 'sha256': CI.sha256(data)}
+                for relative, data in bookkeeping.items()})
+            self.assertEqual(sorted(item['path'] for item in delta['added'] if item['type'] == 'directory'), [
+                'Build/Intermediates.noindex', 'Build/Intermediates.noindex/XCBuildData',
+                'Build/Intermediates.noindex/XCBuildData/PIFCache', 'Build/Intermediates.noindex/XCBuildData/PIFCache/project',
+                'Logs', 'Logs/Build', 'Logs/Test'])
+            self.assertEqual((delta['addedCount'], delta['changedCount'], delta['removedCount'], delta['compileEvidence'],
+                              delta['excludedSubtree'], delta['developmentOnly'], delta['acceptance']),
+                             (13, 0, 0, [], 'Build/Products', True, False))
+            self.assertEqual(value['derivedDataDelta'], {'path': CI.SHARED_DERIVED_DATA_DELTA, 'sha256': CI.sha256(raw),
+                                                         'addedCount': 13, 'changedCount': 0, 'removedCount': 0})
+            verified = CI.verify_shared_consumer(ROOT, artifact, record, selection, dict(e, CI_NATIVE_CREATED_SIMULATOR_UDID=UDID))
+            self.assertEqual(verified['derivedDataDelta'], value['derivedDataDelta'])
+            (artifact / CI.SHARED_DERIVED_DATA_DELTA).write_bytes(raw.replace(b'"addedCount":13', b'"addedCount":12'))
+            with self.assertRaisesRegex(ValueError, 'shared DerivedData delta record'):
+                CI.verify_shared_consumer(ROOT, artifact, record, selection, dict(e, CI_NATIVE_CREATED_SIMULATOR_UDID=UDID))
+            # Compiler outputs, compile/link steps in activity logs and compile/link lines in
+            # the test log fail closed, and the evidence is retained in both records.
+            objects = 'Build/Intermediates.noindex/FieldEvidenceApp.build/Debug-iphonesimulator/FieldEvidenceAppTests.build/arm64/'
+            failing = [(dict(bookkeeping, **{objects + name: b'x'}), passing_log, 'DerivedData/' + objects + name)
+                       for name in ('SharedCoverage.o', 'FieldEvidenceAppTests.swiftmodule',
+                                    'SharedCoverage.swiftdeps', 'SharedCoverage.dia')]
+            failing += [
+                ({'Logs/Build/0A1C.xcactivitylog': activity(b'SwiftCompile normal arm64 /w/A.swift')}, passing_log,
+                 'DerivedData/Logs/Build/0A1C.xcactivitylog: SwiftCompile step'),
+                ({'Logs/Build/0A1C.xcactivitylog': activity(b'Ld /w/FieldEvidenceApp.debug.dylib normal')}, passing_log,
+                 'DerivedData/Logs/Build/0A1C.xcactivitylog: Ld step'),
+                ({'Logs/Build/0A1C.xcactivitylog': b'not gzip'}, passing_log,
+                 'DerivedData/Logs/Build/0A1C.xcactivitylog: unreadable activity log'),
+                ({}, passing_log + "SwiftCompile normal arm64 /w/A.swift (in target 'FieldEvidenceAppTests')\n",
+                 'test-smoke.log:6: SwiftCompile normal arm64'),
+                ({}, passing_log + 'Ld /w/FieldEvidenceApp.debug.dylib normal (in target)\n', 'test-smoke.log:6: Ld '),
+                ({}, passing_log + '    builtin-swiftTaskExecution -- /x/swift-frontend -frontend -c\n',
+                 'test-smoke.log:6: builtin-swiftTaskExecution'),
+                ({}, passing_log + '    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain'
+                     '/usr/bin/clang -Xlinker -dynamiclib\n', 'test-smoke.log:6: /Applications/'),
+                ({}, passing_log + '** TEST BUILD SUCCEEDED **\n', 'test-smoke.log:6: ** TEST BUILD SUCCEEDED **'),
+                ({}, None, 'test-smoke.log: unavailable for the compile scan'),
+            ]
+            for files, log, expected in failing:
+                with self.subTest(expected=expected):
+                    run = after(files, log)
+                    with self.assertRaisesRegex(ValueError, 'build evidence present'):
+                        run()
+                    evidence = CI.read_json(artifact / 'v23-shared-fingerprint-after.json')['buildEvidence']
+                    self.assertTrue(any(item.startswith(expected) for item in evidence), evidence)
+                    self.assertEqual(CI.read_json(artifact / CI.SHARED_DERIVED_DATA_DELTA)['compileEvidence'], evidence)
+            # Any change to the products fingerprint fails, even with no compile evidence.
+            app = derived / 'Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app'
+            plist = (app / 'Info.plist').read_bytes()
+            for mutate, undo in ((lambda: (app / 'Info.plist').write_bytes(b'changed'),
+                                  lambda: (app / 'Info.plist').write_bytes(plist)),
+                                 (lambda: (app / 'Added.txt').write_bytes(b'new'), lambda: (app / 'Added.txt').unlink())):
+                run = after(bookkeeping)
+                mutate()
+                try:
+                    with self.assertRaisesRegex(ValueError, "differ from the producer's"):
+                        run()
+                    value = CI.read_json(artifact / 'v23-shared-fingerprint-after.json')
+                    self.assertEqual((value['buildEvidence'], value['matchesProducer'], value['matchesBefore']), ([], False, False))
+                finally:
+                    undo()
+            after(bookkeeping)()
+
+    def facts(self, artifact):
+        (artifact / 'runner-provider.txt').write_text(
+            'provider=github\nlabel=macos-26\nrunner_architecture=ARM64\nuname_architecture=arm64\n'
+            'developer_dir=/Applications/Xcode_26.6.app/Contents/Developer\n')
+        (artifact / 'simulator-selection.txt').write_text(
+            f'runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid={UDID}\ninitial_state=Shutdown\n')
+
+    def test_checkpoints_are_role_exact_and_never_acceptance(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(CI.platform, 'machine', return_value='arm64'):
+            base = Path(directory).resolve()
+            producer = base / 'producer'
+            producer.mkdir()
+            e, plan, record, artifact = self.producer_fixture(producer)
+            CI.shared_seal(ROOT, artifact, record, e, self.kernel)
+            (artifact / 'ci-selection.selected.json').write_bytes(CI.canonical(plan))
+            shutil.copyfile(ROOT / CI.SELECTION_MAP_PATH, artifact / 'ci-selection-map.json')
+            self.facts(artifact)
+            result = CI.verify_checkpoint(ROOT, artifact, record, plan, e)
+            self.assertEqual((result['executedUnitMethods'], result['simulatorFileProtectionDiagnostics']), ([], None))
+            self.assertEqual(result['sharedCoverageEvidence']['testsExecuted'], 0)
+            self.assertEqual(result['sharedCoverageEvidence']['workerSources'], {
+                relative: CI.sha256((ROOT / relative).read_bytes()) for relative in (SHARED_WORKER_PATH, SHARED_WORKER_SCRIPT)})
+            self.assertEqual((result['acceptance'], result['providerQualification'], result['diagnosticOnly']),
+                             (False, False, True))
+            (artifact / 'test-smoke.log').write_text('unexpected\n')
+            with self.assertRaisesRegex(ValueError, 'shared producer test evidence'):
+                CI.verify_checkpoint(ROOT, artifact, record, plan, e)
+            consumer = base / 'consumer'
+            consumer.mkdir()
+            e, selection, record, artifact = self.consumer_fixture(consumer, producer / CI.SHARED_TRANSPORT_DIRECTORY)
+            e['CI_NATIVE_CREATED_SIMULATOR_UDID'] = UDID
+            CI.shared_restore(ROOT, artifact, record, e, self.kernel)
+            (artifact / 'test-smoke.log').write_text('native fixture completed\n', encoding='utf-8')
+            for phase in ('before', 'after'):
+                CI.shared_fingerprint(ROOT, artifact, record, e, phase, self.kernel)
+            (artifact / 'ci-selection.selected.json').write_bytes(CI.canonical(selection))
+            shutil.copyfile(ROOT / CI.SELECTION_MAP_PATH, artifact / 'ci-selection-map.json')
+            self.facts(artifact)
+            diagnostic_transport(artifact)
+            methods = selection['unitTestSelectors']
+            for executed, accepted in ((methods, True), (methods + [UNIT], False), ([UNIT], False)):
+                if (artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT).exists():
+                    (artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT).unlink()
+                tree = native_tree(executed[0])
+                tree['testNodes'][0]['children'][0]['children'][0]['children'] = [
+                    copy.deepcopy(leaf(native_tree(method))) for method in executed]
+                (artifact / 'unit-test-results.json').write_bytes(CI.canonical(tree))
+                with self.subTest(executed=len(executed)):
+                    if accepted:
+                        result = CI.verify_checkpoint(ROOT, artifact, record, selection, e)
+                        self.assertEqual(result['executedUnitMethods'], sorted(methods))
+                        self.assertEqual(result['sharedCoverageEvidence']['partitionID'], 'S09')
+                        self.assertFalse(result['acceptance'])
+                    else:
+                        with self.assertRaises(ValueError):
+                            CI.verify_checkpoint(ROOT, artifact, record, selection, e)
+            (artifact / CI.SIMULATOR_DIAGNOSTIC_OUTPUT).unlink()
+            (artifact / 'build-smoke.log').write_text('built\n')
+            with self.assertRaises(ValueError):
+                CI.verify_checkpoint(ROOT, artifact, record, selection, e)
+
+    def test_workflow_jobs_call_the_slim_worker_with_role_and_partition_exact_names(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
+        options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
+        self.assertEqual(options.count(SHARED_ROUTE), 1)
+        self.assertEqual(len(options), len(set(options)))
+        self.assertIn('      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}\n', workflow)
+        jobs = workflow.split('\n  v23-shared-producer:\n', 1)[1].split('\n  getmac-shard:\n', 1)[0]
+        producer, consumer = jobs.split('\n  v23-shared-consumer:\n')
+        # The collector matches "<caller job name> / verify"; the caller names are unchanged.
+        self.assertIn('    name: V23 shared coverage producer · build-for-testing (development only)\n', producer)
+        self.assertIn('    name: V23 shared coverage consumer · ${{ matrix.partition_id }} (development only)\n', consumer)
+        bound = ('    uses: ./' + SHARED_WORKER_PATH + '\n    with:\n'
+                 '      native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract }}\n'
+                 '      native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}\n'
+                 '      native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}\n'
+                 '      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}\n')
+        payload = '      v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}\n'
+        self.assertTrue(producer.endswith(bound + '      v23_shared_role: producer\n' + payload), producer)
+        self.assertTrue(consumer.endswith(bound + '      v23_shared_role: consumer\n'
+                                          '      v23_partition_id: ${{ matrix.partition_id }}\n'
+                                          + CONSUMER_TIER_INPUT + payload), consumer)
+        self.assertNotIn('v23_partition_tier', producer)
+        self.assertIn(PARTITION_TIERS_OUTPUT, workflow)
+        for text in (producer, consumer):
+            self.assertIn("inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == '" + SHARED_ROUTE + "'", text)
+            self.assertNotIn('ios-ci-worker.yml', text)
+        self.assertIn('    needs: shared-selection\n', producer)
+        self.assertIn('    needs: [shared-selection, v23-shared-producer]\n', consumer)
+        self.assertIn("needs.v23-shared-producer.result == 'success'", consumer)
+        self.assertIn('    strategy:\n      fail-fast: false\n      max-parallel: 5\n      matrix:\n'
+                      "        partition_id: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partitions || '[\"none\"]') }}\n",
+                      consumer)
+        shard = workflow.split('\n  github-shard:\n', 1)[1].split('\n  v23-shared-producer:\n', 1)[0]
+        self.assertIn("&& inputs.native_selection_id != '" + SHARED_ROUTE + "' }}", shard)
+        # Dispatch publishes the ordered matrix from the committed partition file.
+        head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'github-output'
+            output.write_text('')
+            e = dict(os.environ, **environment())
+            e.update(NATIVE_SELECTION_ID=SHARED_ROUTE, GITHUB_SHA=head, GITHUB_WORKSPACE=str(ROOT), GITHUB_OUTPUT=str(output))
+            for key in ('V23_SHARED_ROLE', 'V23_PARTITION_ID', 'V23_PAYLOAD_ARTIFACT_NAME', 'CI_NATIVE_ACCEPTANCE_CONTRACT'):
+                e.pop(key, None)
+            result = subprocess.run([sys.executable, str(ROOT / 'Scripts/v23-native-ci.py'), 'admit', '--stage', 'dispatch'],
+                                    env=e, capture_output=True, cwd=ROOT)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            outputs = dict(line.split('=', 1) for line in output.read_text().splitlines())
+        self.assertEqual(json.loads(outputs['native_shared_partitions']), self.plan[CI.SHARED_KEY]['partitionIDs'])
+        # Each consumer's tier comes from its partition, keyed in sweep order.
+        tiers = json.loads(outputs['native_shared_partition_tiers'])
+        self.assertEqual(list(tiers), self.plan[CI.SHARED_KEY]['partitionIDs'])
+        self.assertEqual(tiers, {x: CI.shared_selection(ROOT, x)['tier'] for x in tiers})
+        self.assertEqual(tiers, CI.shared_partition_tiers(ROOT))
+        self.assertEqual(outputs['native_selection_sha256'], CI.sha256(CI.canonical(self.plan)))
+        # The ordinary worker is byte-identical to its pre-shared-route commit apart from the
+        # owner-decision-16 per-head development term (ending its concurrency group).
+        self.assertEqual(worker_before_parallel_development((ROOT / '.github/workflows/ios-ci-worker.yml').read_bytes()),
+                         subprocess.check_output(['git', 'show', ORDINARY_WORKER_BASE_COMMIT
+                                                  + ':.github/workflows/ios-ci-worker.yml'], cwd=ROOT))
+
+    def test_slim_worker_declares_closed_inputs_steps_names_and_the_unchanged_admission_environment(self):
+        worker = (ROOT / SHARED_WORKER_PATH).read_text(encoding='utf-8')
+        ordinary = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text(encoding='utf-8')
+        self.assertNotIn('\r', worker)
+        inputs_block = worker.split('    inputs:\n', 1)[1].split('\n\nconcurrency:', 1)[0]
+        self.assertEqual(re.findall(r'^      ([a-z0-9_]+):$', inputs_block, re.M), [
+            'native_acceptance_contract', 'native_selection_id', 'native_selection_sha256',
+            'native_selection_map_sha256', 'v23_shared_role', 'v23_partition_id', 'v23_partition_tier',
+            'v23_payload_artifact_name'])
+        self.assertNotIn('secrets', worker)
+        self.assertIn(SHARED_WORKER_TIMEOUT, worker)
+        self.assertIn('  group: v23-github-${{ inputs.native_selection_id }}-${{ inputs.v23_shared_role }}-'
+                      '${{ inputs.v23_partition_id }}-${{ github.run_id }}\n  cancel-in-progress: false\n', worker)
+        # Every action is one the ordinary worker already pins by commit.
+        actions = re.findall(r'^        uses: (.+)$', worker, re.M)
+        self.assertEqual(len(actions), 4)
+        for action in actions:
+            self.assertRegex(action, r'^actions/[a-z-]+@[0-9a-f]{40} # v[0-9.]+$')
+            self.assertIn('        uses: ' + action + '\n', ordinary)
+        steps = workflow_steps(worker)
+        names = [name for name, _, _ in steps]
+        self.assertEqual(len(names), len(set(names)))
+
+        def runs(condition, role):
+            if condition is None:
+                return True
+            expression = condition.removeprefix('${{ ').removesuffix(' }}')
+            expression = expression.replace('inputs.v23_shared_role', json.dumps(role)).replace('always()', 'True')
+            parsed = ast.parse(expression.replace('&&', 'and'), mode='eval')
+            self.assertTrue(all(isinstance(node, (ast.Expression, ast.BoolOp, ast.Compare, ast.Constant, ast.And, ast.Eq))
+                                for node in ast.walk(parsed)), condition)
+            return eval(compile(parsed, 'slim-worker-predicate', 'eval'), {'__builtins__': {}})
+        common_start = ['Prepare evidence directory', 'Check out the exact revision', 'Validate task selection and timeout tier',
+                        'Verify pinned toolchain, shared scheme, and simulator', 'Verify setup budget before build']
+        common_end = ['Begin evidence-finalization budget', 'Validate required build and test evidence',
+                      'Validate exact ordinary integration native checkpoint', 'Remove owned isolated Simulator',
+                      'Hash collected evidence', 'Recheck evidence-finalization budget',
+                      'Verify selected total budget before upload', 'Upload build evidence']
+        boot = ['Boot selected Simulator', 'Await selected Simulator boot']
+        self.assertEqual([name for name, condition, _ in steps if runs(condition, 'producer')], common_start + boot + [
+            'Build unsigned simulator app', 'Seal V23 shared coverage payload', 'Upload V23 shared coverage payload'] + common_end)
+        self.assertEqual([name for name, condition, _ in steps if runs(condition, 'consumer')], common_start + [
+            'Download V23 shared coverage payload', 'Verify and restore V23 shared coverage payload',
+            'Recheck setup budget after V23 shared payload restore', 'Boot selected Simulator',
+            'Fingerprint V23 shared products before tests', 'Await selected Simulator boot', 'Run targeted tests',
+            'Fingerprint V23 shared products after tests'] + common_end)
+        by_name = {name: (condition, body) for name, condition, body in steps}
+        # Evidence is retained and checked whatever an earlier step did.
+        for name in common_end + ['Fingerprint V23 shared products after tests']:
+            self.assertTrue(by_name[name][0].startswith(('always()', '${{ always() &&')), name)
+        commands = {name: re.search(r'^        run: (.+)$', body, re.M) for name, (_, body) in by_name.items()}
+        script = (ROOT / SHARED_WORKER_SCRIPT).read_text(encoding='utf-8')
+        declared = re.findall(r'^  ([a-z-]+)\) ', script.split('\ncase "${1:-}" in\n', 1)[1], re.M)
+        used = [match.group(1).split()[-1] for match in commands.values()
+                if match and match.group(1).startswith('bash Scripts/v23-shared-worker.sh ')]
+        self.assertEqual(sorted(used), sorted(declared))
+        self.assertEqual(commands['Verify and restore V23 shared coverage payload'].group(1),
+                         'python3 Scripts/v23-native-ci.py shared-restore')
+        self.assertEqual(commands['Seal V23 shared coverage payload'].group(1), 'python3 Scripts/v23-native-ci.py shared-seal')
+        for phase in ('before', 'after'):
+            self.assertEqual(commands['Fingerprint V23 shared products %s tests' % phase].group(1),
+                             'python3 Scripts/v23-native-ci.py shared-fingerprint --phase ' + phase)
+        self.assertEqual(commands['Validate exact ordinary integration native checkpoint'].group(1),
+                         'python3 Scripts/v23-native-ci.py verify')
+        self.assertIn('NATIVE_PRIOR_JOB_STATUS: ${{ job.status }}', by_name['Validate exact ordinary integration native checkpoint'][1])
+        self.assertEqual(commands['Validate required build and test evidence'].group(1),
+                         'bash --noprofile --norc -e -o pipefail Scripts/validate-required-evidence.sh')
+        self.assertIn('RUNTIME_SETUP_OUTCOME: ${{ steps.runtime_setup.outcome }}', by_name['Hash collected evidence'][1])
+        self.assertIn('        id: runtime_setup\n', by_name['Verify pinned toolchain, shared scheme, and simulator'][1])
+        self.assertIn('        id: simulator_boot\n        background: true\n', by_name['Boot selected Simulator'][1])
+        self.assertIn('        wait: simulator_boot', by_name['Await selected Simulator boot'][1])
+        # The restored-payload fingerprint overlaps boot, but both must finish
+        # before tests. GitHub wait steps always join, including after a failed
+        # fingerprint; neither failure can be masked or bypassed by test guards.
+        self.assertIsNone(by_name['Await selected Simulator boot'][0])
+        self.assertIsNone(by_name['Boot selected Simulator'][0])
+        for name in ('Fingerprint V23 shared products before tests', 'Run targeted tests'):
+            self.assertEqual(by_name[name][0], "${{ inputs.v23_shared_role == 'consumer' }}")
+            self.assertNotIn('background:', by_name[name][1])
+        for name in ('Boot selected Simulator', 'Fingerprint V23 shared products before tests',
+                     'Await selected Simulator boot', 'Run targeted tests'):
+            self.assertNotIn('continue-on-error', by_name[name][1])
+        # The build and test commands are the ordinary worker's, under the selected budgets.
+        for name, script_name, budget in (('Build unsigned simulator app', 'build-smoke', 'BUILD'),
+                                          ('Run targeted tests', 'test-smoke', 'TEST')):
+            text = ('          bash Scripts/run-with-timeout.sh "$CI_%s_TIMEOUT_SECONDS" \\\n'
+                    '            bash Scripts/%s.sh 2>&1 | tee "$CI_ARTIFACT_DIR/%s.log"\n' % (budget, script_name, script_name))
+            self.assertIn(text, by_name[name][1])
+            self.assertIn(text, step(ordinary, name))
+        self.assertIn('          name: ${{ inputs.v23_payload_artifact_name }}\n          path: ${{ runner.temp }}/V23SharedPayloadDownload',
+                      by_name['Download V23 shared coverage payload'][1])
+        self.assertIn('          name: ${{ inputs.v23_payload_artifact_name }}\n          path: ${{ runner.temp }}/V23SharedPayloadTransport\n'
+                      '          if-no-files-found: error\n          retention-days: 3', by_name['Upload V23 shared coverage payload'][1])
+        self.assertIn("          name: ${{ format('ios-ci-native-github-{0}-{1}{2}-{3}-{4}', inputs.native_selection_id, "
+                      "inputs.v23_shared_role, inputs.v23_partition_id != '' && format('-{0}', inputs.v23_partition_id) || '', "
+                      "github.run_id, github.run_attempt) }}\n          path: ${{ runner.temp }}/FieldEvidenceCI\n"
+                      '          if-no-files-found: error\n          retention-days: 14', by_name['Upload build evidence'][1])
+        names = {role + partition: 'ios-ci-native-github-{0}-{1}{2}-{3}-{4}'.format(
+                     SHARED_ROUTE, role, '-' + partition if partition else '', '123', '1')
+                 for role, partition in (('producer', ''), ('consumer', 'S27'))}
+        self.assertEqual(names, {'producer': 'ios-ci-native-github-' + SHARED_ROUTE + '-producer-123-1',
+                                 'consumerS27': 'ios-ci-native-github-' + SHARED_ROUTE + '-consumer-S27-123-1'})
+        # The job environment satisfies the unchanged worker admission for each role.
+        for role, partition in (('producer', ''), ('consumer', 'S27')):
+            e, selection, record = self.shared_environment(role, partition)
+            job = shared_worker_job_env(worker, {
+                'native_acceptance_contract': CI.CONTRACT, 'native_selection_id': SHARED_ROUTE,
+                'native_selection_sha256': e['DISPATCH_NATIVE_SELECTION_SHA256'],
+                'native_selection_map_sha256': e['DISPATCH_NATIVE_SELECTION_MAP_SHA256'],
+                'v23_shared_role': role, 'v23_partition_id': partition,
+                'v23_partition_tier': CI.shared_selection(ROOT, partition)['tier'] if partition else '',
+                'v23_payload_artifact_name': e['V23_PAYLOAD_ARTIFACT_NAME']})
+            for key in set(job) & set(e):
+                self.assertEqual(job[key], e[key], key)
+            actual = {key: value for key, value in e.items() if key.startswith('GITHUB_')}
+            actual.update(job)
+            with mock.patch.object(CI.subprocess, 'check_output') as git:
+                admitted = CI.admission(selection, actual, HEAD, 'worker', record, ROOT)
+            git.assert_not_called()
+            self.assertEqual((admitted[CI.SHARED_KEY]['role'], admitted['acceptance']), (role, False))
+            self.assertFalse(any('SIMULATOR_FILE_PROTECTION' in key or key.startswith('TEST_RUNNER_') for key in job))
+            with self.assertRaisesRegex(ValueError, 'foreign execution inputs'):
+                CI.admission(selection, dict(actual, DISPATCH_S10_4_PILOT_MODE='true'), HEAD, 'worker', record, ROOT)
+
+    def run_shared_worker(self, base, command, environment_values, cwd=ROOT, mocks=(), preamble=''):
+        """Run one Scripts/v23-shared-worker.sh subcommand under Git Bash with mock tools."""
+        binary = base / 'bin'
+        binary.mkdir(exist_ok=True)
+        for name, body in mocks:
+            (binary / name).write_text('#!/bin/bash\n' + body, newline='\n')
+            (binary / name).chmod(0o755)
+        github_env = base / 'github-env'
+        if not github_env.exists():
+            github_env.write_text('')
+        e = dict(os.environ, GITHUB_ENV=posix_path(github_env), **environment_values)
+        result = subprocess.run([str(git_bash()), '-c', preamble + 'export PATH="$1:$PATH"; exec bash "$2" "$3"', '_',
+                                 posix_path(binary), posix_path(ROOT / SHARED_WORKER_SCRIPT), command],
+                                env=e, capture_output=True, text=True, cwd=cwd)
+        values = dict(line.split('=', 1) for line in github_env.read_text().splitlines() if line)
+        return result, values
+
+    def test_slim_worker_admit_binds_role_tier_budgets_and_selection(self):
+        mock_python = ('case "$1 $2" in\n'
+                       '  "Scripts/v23-native-ci.py admit") test "$3 $4" = "--stage worker"; echo admitted >> "$MOCK_LOG" ;;\n'
+                       '  "Scripts/v23-native-ci.py select") test "$3" = --output; test ! -e "$4"; cp "$MOCK_SELECTION" "$4" ;;\n'
+                       '  *) exit 97 ;;\nesac\n')
+        consumer = CI.shared_selection(ROOT, 'S27')
+        solo_id = next(x for x, tier in CI.shared_partition_tiers(ROOT).items() if tier == 'D90S')
+        solo = CI.shared_selection(ROOT, solo_id)
+        # The caller-passed tier (it set the job timeout) must equal the partition's own tier.
+        cases = [('producer', '', self.plan, {}, 0, ('D40P', '300', '2400', '0', '0', '3000')),
+                 ('consumer', 'S27', consumer, {}, 0, ('D50C', '300', '0', '3000', '0', '3600')),
+                 ('consumer', solo_id, solo, {}, 0, ('D90S', '300', '0', '5400', '0', '6000')),
+                 ('consumer', solo_id, solo, {'V23_PARTITION_TIER': 'D50C'}, 65, None),
+                 ('consumer', 'S27', consumer, {'V23_PARTITION_TIER': 'D90S'}, 65, None),
+                 ('consumer', 'S27', consumer, {'V23_PARTITION_TIER': ''}, 65, None),
+                 ('consumer', 'S27', consumer, {'V23_PARTITION_TIER': 'D50'}, 65, None),
+                 ('producer', '', self.plan, {'V23_PARTITION_TIER': 'D50C'}, 65, None),
+                 ('consumer', 'S27', self.plan, {}, 1, None),
+                 ('consumer', 'S27', consumer, {'DISPATCH_RUN_UI_SMOKE': 'true'}, 1, None),
+                 ('consumer', 'S27', consumer, {'CI_RUNNER_LABEL': 'macos-15'}, 1, None),
+                 ('consumer', '', consumer, {}, 65, None), ('producer', 'S27', self.plan, {}, 65, None),
+                 ('observer', '', self.plan, {}, 65, None)]
+        for role, partition, selected, changes, expected, budgets in cases:
+            with self.subTest(role=role, partition=partition, changes=changes), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                artifact = base / 'artifact'
+                artifact.mkdir()
+                (base / 'selection.json').write_bytes(CI.canonical(selected))
+                values = dict(CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26', CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
+                              NATIVE_SELECTION_ID=SHARED_ROUTE, DISPATCH_NATIVE_SELECTION_ID=SHARED_ROUTE,
+                              V23_SHARED_ROLE=role, V23_PARTITION_ID=partition, DISPATCH_RUN_UI_SMOKE='false',
+                              V23_PARTITION_TIER=selected['tier'] if role == 'consumer' and selected is not self.plan
+                              else ('D50C' if role == 'consumer' else ''),
+                              CI_ARTIFACT_DIR=posix_path(artifact), MOCK_SELECTION=posix_path(base / 'selection.json'),
+                              MOCK_LOG=posix_path(base / 'log'))
+                values.update(changes)
+                result, env = self.run_shared_worker(base, 'admit', values, mocks=[('python3', mock_python)])
+                self.assertEqual(result.returncode, expected, result.stderr)
+                if expected:
+                    continue
+                self.assertEqual((base / 'log').read_text(), 'admitted\n')
+                self.assertEqual((artifact / 'ci-selection.selected.json').read_bytes(), CI.canonical(selected))
+                self.assertEqual((artifact / 'ci-selection-map.json').read_bytes(), (ROOT / CI.SELECTION_MAP_PATH).read_bytes())
+                self.assertEqual((artifact / 'ci-selection.json').read_bytes(), (ROOT / 'Scripts/ci-selection.json').read_bytes())
+                self.assertEqual(env['CI_SELECTION_PATH'], posix_path(artifact) + '/ci-selection.selected.json')
+                self.assertEqual(tuple(env[key] for key in ('CI_TIER', 'CI_SETUP_ARTIFACT_TIMEOUT_SECONDS', 'CI_BUILD_TIMEOUT_SECONDS',
+                                                            'CI_TEST_TIMEOUT_SECONDS', 'CI_UI_TIMEOUT_SECONDS',
+                                                            'CI_TOTAL_BUDGET_SECONDS')), budgets)
+                self.assertEqual((env['CI_TASK_ID'], env['CI_RUN_UI_SMOKE'], env['CI_SELECTOR_RUN_UI_SMOKE'],
+                                  env['SIMULATOR_RUNTIME_BUILD']), (CI.TASK, 'false', 'false', '23C54'))
+                self.assertIn('v23_shared_role=%s\nv23_partition_id=%s\n' % (role, partition),
+                              (artifact / 'ci-selection-validation.txt').read_text())
+
+    def test_slim_worker_toolchain_boot_and_cleanup_write_the_checkpoint_facts(self):
+        created = '11111111-2222-3333-4444-555555555555'
+        runtimes = json.dumps({'runtimes': [
+            {'name': 'iOS 26.2', 'buildversion': '23C53', 'isAvailable': True, 'identifier': 'runtime.old'},
+            {'name': 'iOS 26.2', 'buildversion': '23C54', 'isAvailable': True, 'identifier': 'runtime.exact'}]})
+        device_types = json.dumps({'devicetypes': [{'name': 'iPhone 17', 'identifier': 'device.iphone17'}]})
+
+        def tools(state='Shutdown', sdk_build='23F81a', deployment='18.0', boot_exit=0):
+            devices = json.dumps({'devices': {'runtime.exact': [{'udid': created, 'state': state, 'name': 'iPhone 17'}]}})
+            xcrun = '\n'.join([
+                'case "$*" in',
+                '  "--sdk iphonesimulator --show-sdk-version") echo 26.5 ;;',
+                '  "--sdk iphonesimulator --show-sdk-build-version") echo %s ;;' % sdk_build,
+                "  \"simctl list runtimes -j\") printf '%%s\\n' '%s' ;;" % runtimes,
+                "  \"simctl list devicetypes -j\") printf '%%s\\n' '%s' ;;" % device_types,
+                '  "simctl create iPhone 17 device.iphone17 runtime.exact") echo %s ;;' % created,
+                "  \"simctl list devices available -j\") printf '%%s\\n' '%s' ;;" % devices,
+                '  "simctl bootstatus %s -b") echo booted; exit %d ;;' % (created, boot_exit),
+                '  "simctl shutdown %s") ;;' % created,
+                '  "simctl delete %s") ;;' % created,
+                "  \"simctl list devices -j\") printf '%s\\n' '{\"devices\":{}}' ;;",
+                '  *) exit 97 ;;', 'esac', ''])
+            xcodebuild = '\n'.join([
+                'case "$1" in',
+                '  -version) printf "Xcode 26.6\\nBuild version 17F113\\n" ;;',
+                "  -list) printf '%s\\n' '{\"project\":{\"schemes\":[\"FieldEvidenceApp\"]}}' ;;",
+                '  -showBuildSettings) printf "    IPHONEOS_DEPLOYMENT_TARGET = %s\\n" ;;' % deployment,
+                '  *) exit 97 ;;', 'esac', ''])
+            sw_vers = ('case "$1" in\n  -productVersion) echo 26.6.2 ;;\n  -productName) echo macOS ;;\n'
+                       '  -buildVersion) echo 25G83 ;;\nesac\n')
+            return [('xcodebuild', xcodebuild), ('xcrun', xcrun), ('sw_vers', sw_vers), ('uname', 'echo arm64\n')]
+        developer = '/Applications/Xcode_26.6.app/Contents/Developer'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'Scripts').mkdir()
+            (root / 'Scripts/run-with-timeout.sh').write_text('shift\nexec "$@"\n', newline='\n')
+            (root / 'FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes').mkdir(parents=True)
+            (root / 'FieldEvidenceApp.xcodeproj/project.pbxproj').write_text('fixture')
+            (root / 'FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme').write_text('fixture')
+
+            def run(name, command, tool_changes=None, **changes):
+                base = root / name
+                base.mkdir()
+                artifact = base / 'artifact'
+                artifact.mkdir()
+                values = dict(CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26', CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
+                              NATIVE_SELECTION_ID=SHARED_ROUTE, DISPATCH_NATIVE_SELECTION_ID=SHARED_ROUTE,
+                              V23_SHARED_ROLE='consumer', V23_PARTITION_ID='S27', V23_PARTITION_TIER='D50C',
+                              CI_ARTIFACT_DIR=posix_path(artifact),
+                              RUNNER_NAME='GitHub Actions 7', RUNNER_ARCH='ARM64', RUNNER_TEMP=posix_path(base),
+                              DEVELOPER_DIR=developer, EXPECTED_XCODE_VERSION='Xcode 26.6',
+                              EXPECTED_XCODE_BUILD='Build version 17F113', EXPECTED_MINIMUM_IOS='18.0',
+                              PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp', CONFIGURATION='Debug',
+                              SIMULATOR_RUNTIME='iOS 26.2', SIMULATOR_RUNTIME_BUILD='23C54', SIMULATOR_NAME='iPhone 17',
+                              GITHUB_REPOSITORY=CI.REPOSITORY, GITHUB_REF=sorted(CI.REFS)[0], GITHUB_SHA=HEAD,
+                              GITHUB_RUN_ID='123', GITHUB_RUN_ATTEMPT='1', CI_SIMULATOR_BOOT_TIMEOUT_SECONDS='900',
+                              CI_SIMULATOR_UDID=created, CI_SIMULATOR_INITIAL_STATE='Shutdown',
+                              CI_NATIVE_CREATED_SIMULATOR_UDID=created, CI_BUDGET_START_EPOCH='1')
+                values.update(changes)
+                # Windows has no /Applications: only that one directory test is answered here.
+                present = ('test() { if [ "$*" = "-d %s" ]; then return 0; fi; builtin test "$@"; }; export -f test; '
+                           % values['DEVELOPER_DIR'] if values['DEVELOPER_DIR'] == developer else '')
+                result, env = self.run_shared_worker(base, command, values, cwd=root, mocks=tools(**(tool_changes or {})),
+                                                     preamble=present)
+                return result, env, artifact
+            result, env, artifact = run('toolchain', 'toolchain')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((env['CI_NATIVE_CREATED_SIMULATOR_UDID'], env['CI_SIMULATOR_UDID'], env['CI_DESTINATION'],
+                              env['CI_SIMULATOR_INITIAL_STATE']),
+                             (created, created, 'platform=iOS Simulator,id=' + created, 'Shutdown'))
+            # The files are exactly what the checkpoint reads.
+            provider = CI.key_values(artifact / 'runner-provider.txt')
+            self.assertEqual({key: provider[key] for key in ('provider', 'label', 'runner_architecture', 'uname_architecture',
+                                                              'developer_dir', 'macos_product_version')},
+                             {'provider': 'github', 'label': 'macos-26', 'runner_architecture': 'ARM64',
+                              'uname_architecture': 'arm64', 'developer_dir': developer, 'macos_product_version': '26.6.2'})
+            self.assertEqual(CI.key_values(artifact / 'native-sdk.txt'), {'sdk': 'iphonesimulator', 'version': '26.5', 'build': '23F81a'})
+            self.assertEqual((artifact / 'xcode-version.txt').read_text().splitlines(), ['Xcode 26.6', 'Build version 17F113'])
+            self.assertEqual(CI.key_values(artifact / 'simulator-selection.txt'), {
+                'runtime': 'iOS 26.2', 'runtime_build': '23C54', 'name': 'iPhone 17', 'udid': created, 'initial_state': 'Shutdown'})
+            for name, tool_changes, changes in (('booted', {'state': 'Booted'}, {}), ('sdk', {'sdk_build': '23F80'}, {}),
+                                                ('target', {'deployment': '17.0'}, {}),
+                                                ('developer', None, {'DEVELOPER_DIR': '/Applications/Xcode.app/Contents/Developer'}),
+                                                ('runtime', None, {'SIMULATOR_RUNTIME_BUILD': '23C53'})):
+                with self.subTest(name=name):
+                    self.assertNotEqual(run(name, 'toolchain', tool_changes, **changes)[0].returncode, 0)
+            result, env, artifact = run('boot', 'boot')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('action=boot\nbudget_seconds=900\n', (artifact / 'simulator-boot-start.log').read_text())
+            log = (artifact / 'simulator-boot.log').read_text()
+            self.assertIn('bootstatus_exit=0\ntee_exit=0\n', log)
+            self.assertIn('ready_udid=' + created, log)
+            self.assertEqual(env['CI_SIMULATOR_READY_UDID'], created)
+            result, _, artifact = run('boot-failed', 'boot', {'boot_exit': 3})
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('bootstatus_exit=3\n', (artifact / 'simulator-boot.log').read_text())
+            self.assertNotEqual(run('boot-booted', 'boot', CI_SIMULATOR_INITIAL_STATE='Booted')[0].returncode, 0)
+            result, _, artifact = run('remove', 'remove-simulator')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((artifact / 'native-simulator-lifecycle.txt').read_text(),
+                             'isolated=true\ndeleted=true\nudid=%s\n' % created)
+            self.assertNotEqual(run('remove-none', 'remove-simulator', CI_NATIVE_CREATED_SIMULATOR_UDID='')[0].returncode, 0)
+
+    def test_slim_worker_budget_and_hash_accounting_matches_the_selected_tier(self):
+        shasum = 'test "$1 $2" = "-a 256" || exit 97\nshift 2\nexec sha256sum "$@"\n'
+        now = int(time.time())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def run(name, command, **changes):
+                base = root / name
+                base.mkdir()
+                artifact = base / 'artifact'
+                artifact.mkdir()
+                (artifact / 'evidence.txt').write_text('fixture\n', newline='\n')
+                values = dict(CI_ARTIFACT_DIR=posix_path(artifact), RUNNER_TEMP=posix_path(base), V23_SHARED_ROLE='consumer',
+                              CI_BUDGET_START_EPOCH=str(now - 100), CI_SETUP_ARTIFACT_TIMEOUT_SECONDS='300',
+                              CI_TOTAL_BUDGET_SECONDS='3600', CI_ARTIFACT_START_EPOCH=str(now - 10),
+                              CI_SETUP_ELAPSED_SECONDS='120', CI_TASK_ID=CI.TASK, CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
+                              CI_RUNNER_PROVIDER='github', CI_RUNNER_LABEL='macos-26')
+                values.update(changes)
+                result, env = self.run_shared_worker(base, command, values, mocks=[('shasum', shasum)])
+                return result, env, artifact
+            result, env, artifact = run('setup', 'setup-budget')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('setup_budget_seconds=300\n', (artifact / 'setup-budget.txt').read_text())
+            self.assertTrue(100 <= int(env['CI_SETUP_ELAPSED_SECONDS']) <= 160)
+            self.assertNotEqual(run('setup-over', 'setup-budget', CI_BUDGET_START_EPOCH=str(now - 400))[0].returncode, 0)
+            result, env, artifact = run('restore', 'restore-budget')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((artifact / 'v23-shared-restore-budget.txt').read_text().startswith('shared_restore_setup_elapsed_seconds='))
+            self.assertNotEqual(run('restore-producer', 'restore-budget', V23_SHARED_ROLE='producer')[0].returncode, 0)
+            self.assertEqual(run('total', 'total-budget')[0].returncode, 0)
+            self.assertNotEqual(run('total-over', 'total-budget', CI_BUDGET_START_EPOCH=str(now - 3700))[0].returncode, 0)
+            self.assertEqual(run('final', 'finalization-budget')[0].returncode, 0)
+            self.assertNotEqual(run('final-over', 'finalization-budget', CI_SETUP_ELAPSED_SECONDS='295')[0].returncode, 0)
+            result, _, artifact = run('hash', 'hash')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            sums = (artifact / 'SHA256SUMS.txt').read_text().splitlines()
+            self.assertEqual([line.split()[-1].lstrip('*') for line in sums], ['./artifact-budget.txt', './evidence.txt'])
+            self.assertEqual(sums[1].split()[0], hashlib.sha256(b'fixture\n').hexdigest())
+            budget = CI.key_values(artifact / 'artifact-budget.txt')
+            self.assertEqual((budget['setup_elapsed_seconds'], budget['setup_artifact_budget_seconds']), ('120', '300'))
+            # Over budget: the checksums are still written, then the step fails.
+            result, _, artifact = run('hash-over', 'hash', CI_SETUP_ELAPSED_SECONDS='299')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue((artifact / 'SHA256SUMS.txt').is_file())
+            # A setup failure is retained without inventing timing, and still fails.
+            result, _, artifact = run('hash-setup', 'hash', RUNTIME_SETUP_OUTCOME='failure', CI_SETUP_ELAPSED_SECONDS='')
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn('reason=setup-failed-before-accounting\n', (artifact / 'v23-setup-failure-evidence.txt').read_text())
+            self.assertIn('v23-setup-failure-evidence.txt', (artifact / 'SHA256SUMS.txt').read_text())
+            self.assertFalse((artifact / 'artifact-budget.txt').exists())
+            self.assertNotEqual(run('unknown', 'rerun')[0].returncode, 0)
+
+    def test_consumer_evidence_names_unexecuted_selectors_before_failing(self):
+        bash = git_bash()
+        selectors = ['FieldEvidenceAppTests/EvidenceFixtureTests/test%02d' % index for index in range(25)]
+
+        def results(executed):
+            cases = [{'nodeType': 'Test Case', 'nodeIdentifier': 'EvidenceFixtureTests/%s()' % name.split('/')[-1],
+                      'result': 'Passed'} for name in executed]
+            return {'testNodes': [{'nodeType': 'Unit test bundle', 'name': 'FieldEvidenceAppTests', 'children': [
+                {'nodeType': 'Test Suite', 'name': 'EvidenceFixtureTests', 'children': cases}]}]}
+        # (selectors, executed or None when xcresulttool fails, exit status, expected stderr lines)
+        cases = [
+            (selectors[:3], selectors[:3], 0, []),
+            (selectors[:3], selectors[:1], 1, ['unexecuted selectors: 1 tests executed; 3 selectors; 2 missing',
+                                               '  missing: ' + selectors[1], '  missing: ' + selectors[2]]),
+            (selectors, [], 1, ['unexecuted selectors: 0 tests executed; 25 selectors; 25 missing']
+             + ['  missing: ' + item for item in selectors[:20]] + ['  ... 5 more']),
+            (selectors[:2], None, 3, ['unexecuted selectors: 0 tests executed; 2 selectors; 2 missing',
+                                      '  missing: ' + selectors[0], '  missing: ' + selectors[1]]),
+        ]
+        for wanted, executed, expected, lines in cases:
+            with self.subTest(wanted=len(wanted), executed=executed), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory) / 'artifacts'
+                tools = Path(directory) / 'bin'
+                artifact.mkdir()
+                tools.mkdir()
+                for name in ('simulator-boot-start.log', 'simulator-boot.log', 'runner-provider.txt',
+                             'v23-shared-restore.json', 'v23-shared-fingerprint-before.json',
+                             'v23-shared-fingerprint-after.json', 'v23-shared-deriveddata-delta.json', 'test-smoke.log'):
+                    (artifact / name).write_text('fixture\n')
+                (artifact / 'UnitTests.xcresult').mkdir()
+                (artifact / 'UnitTests.xcresult/result').write_text('fixture\n')
+                (artifact / 'ci-selection.selected.json').write_text(json.dumps({'unitTestSelectors': wanted}))
+                (Path(directory) / 'results.json').write_text(json.dumps(results(executed or [])))
+                xcrun = tools / 'xcrun'
+                xcrun.write_bytes(b'#!/bin/sh\n' + (b'exit 3\n' if executed is None else
+                                                    b'cat "$V23_FIXTURE_RESULTS"\n'))
+                xcrun.chmod(0o755)
+                e = dict(os.environ, CI_ARTIFACT_DIR=posix_path(artifact), V23_SHARED_ROLE='consumer',
+                         CI_S10_4_SHARED_BUILD_MODE='none', CI_RUN_UI_SMOKE='false',
+                         CI_SELECTION_PATH=posix_path(artifact) + '/ci-selection.selected.json',
+                         V23_FIXTURE_RESULTS=posix_path(Path(directory) / 'results.json'),
+                         PATH=str(tools) + os.pathsep + os.environ['PATH'])
+                result = subprocess.run([str(bash), '--noprofile', '--norc', '-e', '-o', 'pipefail',
+                                         posix_path(ROOT / 'Scripts/validate-required-evidence.sh')],
+                                        cwd=ROOT, env=e, capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                reported = [line for line in result.stderr.splitlines()
+                            if line.startswith(('unexecuted selectors:', '  missing: ', '  ... '))]
+                self.assertEqual(reported, lines, result.stderr)
+
+    def test_discovery_rejects_private_and_fileprivate_test_classes_by_name(self):
+        fixture = self.root / 'FieldEvidenceAppTests/SharedCoverageFixtureTests.swift'
+        try:
+            for source, name in (
+                    ('private final class HiddenFixtureTests: XCTestCase {\n    func testHidden() {}\n}\n',
+                     'HiddenFixtureTests'),
+                    ('@MainActor\nfileprivate class HiddenFixtureTests: SharedCoverageBaseTests {}\n',
+                     'HiddenFixtureTests'),
+                    ('private class SharedCoverageMiddleTests: XCTestCase {}\n', 'SharedCoverageMiddleTests')):
+                with self.subTest(source=source):
+                    fixture.write_bytes((SHARED_FIXTURE_SOURCE + '\n' + source).encode())
+                    with self.assertRaisesRegex(ValueError, re.escape(
+                            'unselectable private XCTestCase: FieldEvidenceAppTests/SharedCoverageFixtureTests.swift/'
+                            + name)):
+                        CI.discover_unit_test_methods(self.root)
+            # Private helpers that are not XCTestCase descendants, and private methods, stay allowed.
+            fixture.write_bytes((SHARED_FIXTURE_SOURCE + '\nprivate final class HelperBox {}\n'
+                                 'private class HelperSubclass: NSObject {}\n').encode())
+            found = CI.discover_unit_test_methods(self.root)
+            self.assertEqual(sorted(set(found) - set(self.discovered)),
+                             [item for item in SHARED_FIXTURE_EXPECTED if 'OtherFile' not in item])
+        finally:
+            fixture.unlink()
+        self.assertEqual(CI.discover_unit_test_methods(self.root), self.discovered)
+
+    def test_repack_splits_heavy_classes_by_measured_time_and_covers_every_method_once(self):
+        script = load_partition_script()
+        base = self.value()
+        heavy = sorted((selector for selector in self.discovered if selector.split('/')[1] == 'S6_2BackupExportTests'))
+        self.assertGreater(len(heavy), 3)
+        timings = {'schema': script.TIMINGS_SCHEMA, 'defaultSeconds': 60,
+                   'seconds': dict({selector: 5.0 for selector in self.discovered},
+                                   **{selector: 700.0 for selector in heavy}, **{self.discovered[0]: 2900.0}),
+                   'provenance': {'head': 'e' * 40, 'runID': '1'}}
+        value = script.regenerate(CI, self.root, base, 'c' * 40, timings, True)
+        self.assertEqual(value, script.regenerate(CI, self.root, base, 'c' * 40, timings, True))
+        self.assertEqual((value['sourceCensusHead'], value['generatedAtHead']), ('e' * 40, 'c' * 40))
+        owners = [selector for partition in value['partitions'] for selector in partition['selectors']]
+        self.assertEqual(sorted(owners), sorted(self.discovered))
+        self.assertEqual(len(owners), len(set(owners)))
+        self.assertLessEqual(len(value['partitions']), CI.SHARED_MAX_PARTITIONS)
+        self.assertEqual(value['sweepOrder'], ['S%02d' % index for index in range(1, len(value['partitions']) + 1)])
+        loads = [partition['estimatedSeconds'] for partition in value['partitions']]
+        self.assertEqual(loads, sorted(loads, reverse=True))
+        # The one method heavier than the target runs alone as a known-slow D90S solo; every
+        # other partition fits the target and keeps D50C.
+        self.assertEqual(value['partitions'][0]['selectors'], [self.discovered[0]])
+        self.assertEqual([row['tier'] for row in value['partitions']],
+                         ['D90S'] + ['D50C'] * (len(value['partitions']) - 1))
+        self.assertTrue(all(load <= script.TARGET_SECONDS for load in loads[1:]))
+        # The heavy class is split: at most two of its 700 s methods share a 1500 s partition.
+        holders = collections.Counter(partition['id'] for partition in value['partitions']
+                                      for selector in partition['selectors'] if selector in heavy)
+        self.assertGreater(len(holders), 1)
+        self.assertLessEqual(max(holders.values()), 2)
+        self.write_partitions(script.encode(value))
+        CI.load_coverage_partitions(self.root)
+        # The sticky mode keeps the repacked assignment, and bounds hold.
+        sticky = script.regenerate(CI, self.root, value, 'c' * 40, timings)
+        self.assertEqual([(row['id'], row['selectors']) for row in sticky['partitions']],
+                         [(row['id'], row['selectors']) for row in value['partitions']])
+        self.assertEqual(sticky['sweepOrder'], value['sweepOrder'])
+        with self.assertRaisesRegex(SystemExit, 'repacking needs .* partitions at target 60 s'):
+            script.regenerate(CI, self.root, base, 'c' * 40, timings, True, 60.0)
+        # A solo may test for up to 5,400 s (D90S); beyond that the generator fails closed.
+        longer = script.regenerate(CI, self.root, base, 'c' * 40, dict(timings, seconds=dict(
+            timings['seconds'], **{self.discovered[0]: 5400.0})), True)
+        self.assertEqual((longer['partitions'][0]['tier'], longer['partitions'][0]['estimatedSeconds']), ('D90S', 5400.0))
+        with self.assertRaisesRegex(SystemExit, 'fit the test budget'):
+            script.regenerate(CI, self.root, base, 'c' * 40, dict(timings, seconds=dict(timings['seconds'], **{self.discovered[0]: 5401.0})), True)
+        with self.assertRaisesRegex(SystemExit, 'packing target'):
+            script.regenerate(CI, self.root, base, 'c' * 40, timings, True, 3001.0)
+        for bad in (dict(timings, extra=1), dict(timings, provenance=[]), dict(timings, provenance={'head': 'HEAD'})):
+            with self.subTest(bad=bad), self.assertRaisesRegex(SystemExit, 'invalid timings'):
+                script.regenerate(CI, self.root, base, 'c' * 40, bad, True)
+        # The committed timings are measured development evidence with named provenance.
+        committed = json.loads((ROOT / 'Scripts/v23-coverage-timings.json').read_text(encoding='utf-8'))
+        self.assertEqual(committed['provenance']['runID'], '36218186328')
+        self.assertEqual(committed['provenance']['head'], '27388c99647eff4e786bda786d20a80521b3180f')
+        self.assertTrue(committed['provenance']['developmentOnly'])
+        self.assertTrue(set(committed['seconds']) <= set(self.discovered))
+        script.read_timings(committed)
+        # A new class heavier than the target is split in sticky mode as well.
+        units = script.class_units(CI, heavy, lambda selector: 700.0, 1500.0)
+        self.assertEqual([len(unit) for unit in units][:-1], [2] * (len(units) - 1))
+        self.assertEqual(sum(units, []), heavy)
+
+    def test_known_slow_solo_tier_is_derived_kept_alone_and_read_from_legacy_sources(self):
+        script = load_partition_script()
+        base = self.value()
+        solo = next(row for row in base['partitions'] if row['tier'] == 'D90S')
+        # The rule: one method whose written estimate exceeds the packing target.
+        self.assertEqual(script.partition_tier(CI, ['x'], 1500.1, 1500.0), 'D90S')
+        self.assertEqual(script.partition_tier(CI, ['x'], 1500.0, 1500.0), 'D50C')
+        self.assertEqual(script.partition_tier(CI, ['x', 'y'], 2900.0, 1500.0), 'D50C')
+        # A legacy v1 source (no tiers) regenerates to the same v2 file.
+        legacy = copy.deepcopy(base)
+        legacy['schema'] = 'v23-coverage-partitions.v1'
+        for row in legacy['partitions']:
+            row.pop('tier')
+        self.assertEqual(script.regenerate(CI, self.root, legacy, base['generatedAtHead']), base)
+        # Sticky mode: a new method of a known-slow solo's class is placed elsewhere.
+        class_name = solo['selectors'][0].split('/')[1]
+        added = self.root / 'FieldEvidenceAppTests/SharedCoverageSoloExtensionTests.swift'
+        added.write_bytes(('import XCTest\n\nextension %s {\n    func testSharedCoverageAddedBesideSolo() {}\n}\n'
+                           % class_name).encode())
+        try:
+            refreshed = script.regenerate(CI, self.root, base, 'c' * 40)
+        finally:
+            added.unlink()
+        rows = {row['id']: row for row in refreshed['partitions']}
+        self.assertEqual((rows[solo['id']]['selectors'], rows[solo['id']]['tier']), (solo['selectors'], 'D90S'))
+        new = 'FieldEvidenceAppTests/%s/testSharedCoverageAddedBesideSolo' % class_name
+        owner = next(row for row in refreshed['partitions'] if new in row['selectors'])
+        # Here no packed partition has room, so it opens a small partition: not known-slow, D50C.
+        self.assertNotEqual(owner['id'], solo['id'])
+        self.assertEqual(owner['tier'], 'D50C')
+        self.assertLessEqual(owner['estimatedSeconds'], script.TARGET_SECONDS)
+
+    def test_every_consumer_tier_is_watched_inside_its_job_timeout(self):
+        # Owner decision 16 keeps the watchdogs: the test command runs under the tier's
+        # test timeout, the total budget is checked before upload, and the job cap exceeds both.
+        worker = (ROOT / SHARED_WORKER_PATH).read_text(encoding='utf-8')
+        self.assertIn(SHARED_WORKER_TIMEOUT, worker)
+        caps = {'D90S': 120, 'D50C': 90, 'D40P': 90}
+        for tier, minutes in caps.items():
+            setup, build, test, ui, total = CI.TIERS[tier]
+            with self.subTest(tier=tier):
+                self.assertLess(setup + build + test + ui, total + 1)
+                self.assertLess(total, minutes * 60)
+        self.assertEqual(CI.TIERS['D90S'][2], 5400)
+        self.assertIn('bash Scripts/run-with-timeout.sh "$CI_TEST_TIMEOUT_SECONDS"', worker)
+        self.assertIn('run: bash Scripts/v23-shared-worker.sh total-budget', worker)
+
+    def test_consumer_shell_tests_restored_products_and_evidence_is_role_exact(self):
+        bash = (Path(shutil.which('git')).resolve().parents[1] / 'bin/bash.exe') if os.name == 'nt' else Path(shutil.which('bash'))
+
+        def shell_path(path):
+            if os.name != 'nt':
+                return str(path)
+            return subprocess.check_output([str(bash), '-c', 'cygpath -u "$1"', '_', str(path)], text=True).strip()
+        consumer = CI.shared_selection(ROOT, 'S27')
+        objects = 'Build/Intermediates.noindex/FieldEvidenceAppTests.build/arm64/'
+        bookkeeping = 'Logs/Build/LogStoreManifest.plist Logs/Build/0A1B.xcactivitylog Build/Intermediates.noindex/XCBuildData/build.db'
+        # (role, prepared before tests, written by the test command, exit status, command ran)
+        for role, prepare, written, expected, ran_expected in (
+                ('consumer', None, '', 0, True), ('consumer', None, bookkeeping, 0, True),
+                ('consumer', None, bookkeeping + ' ' + objects + 'SharedCoverage.o', 1, True),
+                ('consumer', None, objects + 'FieldEvidenceAppTests.swiftmodule', 1, True),
+                ('consumer', None, 'Build/Intermediates.noindex/x/SharedCoverage.swiftdeps', 1, True),
+                ('consumer', None, 'Build/Intermediates.noindex/x/SharedCoverage.dia', 1, True),
+                ('consumer', 'Build/Intermediates.noindex', '', 1, False),
+                ('consumer', 'artifact:build-smoke.log', '', 1, False), ('producer', None, '', 65, False)):
+            with self.subTest(role=role, prepare=prepare, written=written), tempfile.TemporaryDirectory() as directory:
+                base = Path(directory)
+                binary = base / 'bin'
+                binary.mkdir()
+                artifact = base / 'artifact'
+                artifact.mkdir()
+                derived = base / 'runner/FieldEvidenceDerivedData'
+                (derived / 'Build/Products').mkdir(parents=True)
+                selected = artifact / 'ci-selection.selected.json'
+                selected.write_bytes(CI.canonical(consumer))
+                if prepare == 'Build/Intermediates.noindex':
+                    (derived / prepare).mkdir()
+                elif prepare:
+                    (artifact / prepare.split(':', 1)[1]).write_text('built\n')
+                for name, body in (('xcodebuild', '#!/bin/bash\nprintf "%s\\n" "$@" > "$MOCK_TEST_ARGS"\n'
+                                    'mkdir -p "$CI_ARTIFACT_DIR/UnitTests.xcresult"\ntouch "$CI_ARTIFACT_DIR/UnitTests.xcresult/result"\n'
+                                    'for item in $MOCK_DERIVED_WRITES; do\n'
+                                    '  mkdir -p "$(dirname "$RUNNER_TEMP/FieldEvidenceDerivedData/$item")"\n'
+                                    '  touch "$RUNNER_TEMP/FieldEvidenceDerivedData/$item"\ndone\n'),
+                                   ('python3', '#!/bin/bash\nexit 0\n')):
+                    (binary / name).write_text(body, newline='\n')
+                    (binary / name).chmod(0o755)
+                e = dict(os.environ, PROJECT_PATH='FieldEvidenceApp.xcodeproj', SCHEME='FieldEvidenceApp',
+                         CONFIGURATION='Debug', CODE_SIGNING_ALLOWED='NO', CI_SIMULATOR_UDID=UDID,
+                         CI_DESTINATION='platform=iOS Simulator,id=' + UDID, CI_ARTIFACT_DIR=shell_path(artifact),
+                         CI_SELECTION_PATH=shell_path(selected), RUNNER_TEMP=shell_path(base / 'runner'),
+                         CI_S10_4_SHARED_BUILD_MODE='none', CI_NATIVE_ACCEPTANCE_CONTRACT=CI.CONTRACT,
+                         V23_SHARED_ROLE=role, MOCK_TEST_ARGS=shell_path(base / 'args'), MOCK_DERIVED_WRITES=written)
+                result = subprocess.run([str(bash), '-c', 'export PATH="$1:$PATH"; exec bash "$2"', '_',
+                                         shell_path(binary), shell_path(ROOT / 'Scripts/test-smoke.sh')],
+                                        env=e, capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                ran = (base / 'args').exists()
+                self.assertEqual(ran, ran_expected)
+                for item in written.split():
+                    self.assertTrue((derived / item).is_file(), item)
+                if ran:
+                    args = (base / 'args').read_text().splitlines()
+                    self.assertEqual([arg for arg in args if arg.startswith('-only-testing:')],
+                                     ['-only-testing:' + member for member in consumer['unitTestSelectors']])
+                    self.assertEqual(args[-2:], ['CODE_SIGNING_ALLOWED=NO', 'test-without-building'])
+                    self.assertIn('-scheme', args)
+        # The required-evidence script: producer needs build evidence and forbids tests.
+        producer_files = ('build-smoke.log', 'no-index-build-command.json', 'v23-shared-payload.json',
+                          'v23-shared-payload-receipt.json')
+        for role, files, expected in (('producer', producer_files, 0),
+                                      ('producer', producer_files + ('test-smoke.log',), 1),
+                                      ('producer', producer_files[:2], 1),
+                                      ('consumer', ('build-smoke.log',), 1), ('observer', (), 65)):
+            with self.subTest(role=role, files=files), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                for name in ('simulator-boot-start.log', 'simulator-boot.log', 'runner-provider.txt') + files:
+                    (artifact / name).write_text('fixture\n')
+                (artifact / 'Build.xcresult').mkdir()
+                (artifact / 'Build.xcresult/result').write_text('fixture\n')
+                e = dict(os.environ, CI_ARTIFACT_DIR=shell_path(artifact), V23_SHARED_ROLE=role,
+                         CI_S10_4_SHARED_BUILD_MODE='none', CI_RUN_UI_SMOKE='false')
+                e.pop('CI_SELECTION_PATH', None)
+                result = subprocess.run([str(bash), '--noprofile', '--norc', '-e', '-o', 'pipefail',
+                                         shell_path(ROOT / 'Scripts/validate-required-evidence.sh')],
+                                        cwd=ROOT, env=e, capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
+
+
+class CoverageTimingsFromLogsTests(unittest.TestCase):
+    """Scripts/dev/v23-coverage-timings.py: measured per-method seconds with lower bounds for interruptions."""
+
+    def test_largest_attempt_and_interruption_lower_bounds_are_recorded(self):
+        prefix = 'FieldEvidenceAppTests/TimingFixtureTests/'
+        log = '\n'.join((
+            '﻿2026-09-25T13:00:00.0000000Z Current runner version',
+            "2026-09-25T13:00:00.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testA]' started.",
+            "2026-09-25T13:00:02.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testA]' failed (2.000 seconds).",
+            "2026-09-25T13:00:02.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testA]' started.",
+            "2026-09-25T13:00:07.5000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testA]' passed (5.500 seconds).",
+            "2026-09-25T13:00:08.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testCrash]' started.",
+            '2026-09-25T13:00:18.2500000Z Restarting after unexpected exit, crash, or test timeout; summary will include totals',
+            "2026-09-25T13:00:20.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testSkipped]' skipped (0.001 seconds).",
+            "2026-09-25T13:00:20.0000000Z Test Case '-[FieldEvidenceAppTests.TimingFixtureTests testHung]' started.",
+            '2026-09-25T13:50:20.0000000Z ** BUILD INTERRUPTED **',
+            "2026-09-25T13:50:21.0000000Z Test Case '-[FieldEvidenceAppTests.OtherTests testUnknown]' passed (1.000 seconds).",
+            "2026-09-25T13:50:21.0000000Z Test Case '-[FieldEvidenceAppTests.(unknown context at $1).HiddenTests testHidden]' passed (1.000 seconds).",
+        )) + '\n'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'S01.log').write_text(log, encoding='utf-8')
+            (root / 'partitions.json').write_text(json.dumps({'partitions': [{'selectors': [
+                prefix + name for name in ('testA', 'testCrash', 'testSkipped', 'testHung', 'testNeverStarted')]}]}))
+            output = root / 'timings.json'
+            result = subprocess.run([sys.executable, str(ROOT / 'Scripts/dev/v23-coverage-timings.py'),
+                                     '--run-id', '42', '--head', 'a' * 40, '--partitions', str(root / 'partitions.json'),
+                                     '--output', str(output), str(root / 'S01.log')], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            value = json.loads(output.read_text(encoding='utf-8'))
+        self.assertEqual(value['seconds'], {prefix + 'testA': 5.5, prefix + 'testCrash': 10.25,
+                                            prefix + 'testHung': 3000.0, prefix + 'testSkipped': 0.001})
+        self.assertEqual(value['provenance']['lowerBoundMethods'], [prefix + 'testCrash', prefix + 'testHung'])
+        self.assertEqual((value['provenance']['runID'], value['provenance']['head'],
+                          value['provenance']['unknownMethodsDropped']), ('42', 'a' * 40, 1))
+        load_partition_script().read_timings(value)
+
+
+class RUI1RouteTests(unittest.TestCase):
+    """Synthetic protocol artifacts only: these never count as screenshots or native evidence."""
+    @classmethod
+    def setUpClass(cls):
+        cls.ui = CI.load_ui_evidence(ROOT)
+        cls.selected = cls.ui.selection(ROOT)
+        cls.catalogue = cls.ui.read(ROOT / cls.ui.CATALOGUE)
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='rui1-protocol-')
+        self.addCleanup(temporary.cleanup)
+        self.artifact = Path(temporary.name).resolve()
+        self.export = self.artifact / 'rui1-original-attachments'
+        self.export.mkdir()
+        for name in ('Build.xcresult', 'UnitTests.xcresult', 'UISmoke.xcresult'):
+            bundle = self.artifact / name
+            (bundle / 'Data').mkdir(parents=True)
+            (bundle / 'Info.plist').write_bytes(b'PROTOCOL FIXTURE, NOT XCRESULT')
+            (bundle / 'Data/original').write_bytes(b'non-native protocol payload')
+        self.record = {'head': HEAD, 'runID': '123', 'runAttempt': '1', 'selectionID': self.ui.ROUTE,
+                       'selectionSHA256': self.ui.sha(self.ui.canonical(self.selected)),
+                       'rui1ProtocolSources': self.ui.protocol_sources(ROOT)}
+        self.env = {'PROJECT_PATH': 'FieldEvidenceApp.xcodeproj', 'SCHEME': 'FieldEvidenceApp',
+                    'CONFIGURATION': 'Debug', 'CODE_SIGNING_ALLOWED': 'NO', 'CI_SIMULATOR_UDID': UDID,
+                    'CI_DESTINATION': 'platform=iOS Simulator,id=' + UDID, 'RUNNER_TEMP': '/runner/temp'}
+        groups = {m: {'testIdentifier': self.ui.UI_CLASS + '/' + m + '()', 'attachments': []}
+                  for m in self.ui.METHODS}
+        for state in self.catalogue['states']:
+            png = self.ui.PNG + b'NOT A REAL SCREENSHOT: PROTOCOL FIXTURE ' + state['id'].encode()
+            audit = {'schemaVersion': 1, 'stateID': state['id'],
+                     'testName': '-[FieldEvidenceAppUITests.' + self.ui.UI_CLASS + ' ' + state['method'] + ']',
+                     'ordinalInMethod': state['orderInMethod'], 'pngSHA256': self.ui.sha(png).lower(),
+                     'pngByteCount': len(png), 'auditTypes': ['contrast', 'dynamicType', 'textClipped'],
+                     'issuesFailTest': True, 'humanReviewRequired': True, 'issueCount': 0, 'issues': [],
+                     'auditError': None, 'applicationFrame': '{{0, 0}, {402, 874}}'}
+            for kind, ext, raw in [('state', 'png', png), ('ax', 'json', self.ui.canonical(audit))]:
+                name = state['id'] + '.' + ext
+                (self.export / name).write_bytes(raw)
+                groups[state['method']]['attachments'].append({'exportedFileName': name,
+                    'suggestedHumanReadableName': 'P1 ' + kind + ' ' + state['id'], 'isAssociatedWithFailure': False})
+        self.manifest = list(groups.values())
+        self.put('rui1-original-attachments/manifest.json', self.manifest)
+        self.tree = native_tree(self.ui.UI[0], True)
+        self.cases = self.tree['testNodes'][0]['children'][0]['children'][0]['children']
+        self.cases[:] = [leaf(native_tree(m, True)) for m in self.ui.UI]
+        self.put('ui-test-results.json', self.tree)
+        self.receipt = {'schema': 'v23-rui1-command.v1', **{k: self.record[k] for k in ('head','runID','runAttempt')},
+            'admissionSHA256': CI.sha256(CI.canonical(self.record)), 'argv': self.ui.command(self.artifact, self.env),
+            'runnerEnvironment': {'TEST_RUNNER_V23_P1_AX_AUDIT_STRICT': '1'}, 'acceptance': False, 'releaseReady': False}
+        self.put('rui1-command.json', self.receipt)
+        (self.artifact / 'ui-final.png').write_bytes(png)
+        # Manifest/source binding has its own real-source checks below. Artifact
+        # mutation tests cache that immutable input to keep protocol checks fast.
+        patch = mock.patch.object(self.ui, 'selection', return_value=self.selected)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def put(self, name, value):
+        (self.artifact / name).write_bytes(self.ui.canonical(value))
+
+    def verify(self):
+        return self.ui.verify(ROOT, self.artifact, self.record, self.selected, CI)
+
+    def test_exact_original_census_and_nonaccepting_owner_package(self):
+        proof = self.verify()
+        self.assertEqual(len(proof['states']), 27)
+        self.assertEqual(proof['uiMethods'], sorted(self.ui.UI))
+        self.assertEqual(proof['attachmentManifestSHA256'], CI.sha256((self.export / 'manifest.json').read_bytes()))
+        for field in ('acceptance', 'releaseReady', 'providerQualification', 'humanReviewCompleted'):
+            self.assertIs(proof[field], False)
+        page = self.ui.review_page(ROOT, self.artifact, proof).decode()
+        self.assertEqual(page.count('<img '), 27)
+        self.assertEqual(page.count('Original accessibility audit'), 27)
+        self.assertIn('No human approval or acceptance', page)
+        self.assertEqual(len(self.receipt['argv']), 20)
+        self.assertEqual(self.receipt['argv'][-1], 'test-without-building')
+        self.assertEqual([a for a in self.receipt['argv'] if a.startswith('-only-testing:')],
+                         ['-only-testing:' + x for x in self.ui.UI])
+        self.assertNotIn('-retry-tests-on-failure', self.receipt['argv'])
+
+    def test_audits_must_complete_strictly_and_bind_original_png(self):
+        state = self.catalogue['states'][0]
+        name = 'rui1-original-attachments/' + state['id'] + '.json'
+        original = self.ui.read(self.artifact / name)
+        for changes in ({'issuesFailTest': False}, {'auditError': 'incomplete'}, {'issues': ['contrast']},
+                        {'issueCount': 1}, {'pngSHA256': '0'*64}, {'pngByteCount': 1},
+                        {'ordinalInMethod': 2}, {'testName': 'Other/test'}, {'humanReviewRequired': False},
+                        {'auditTypes': ['contrast']}, {'stateID': 'foreign'}, {'schemaVersion': 2}):
+            with self.subTest(changes=changes):
+                self.put(name, dict(original, **changes))
+                with self.assertRaises(ValueError): self.verify()
+        self.put(name, original)
+        self.verify()
+
+    def test_attachment_missing_duplicate_foreign_and_wrong_owner_are_denied(self):
+        original = copy.deepcopy(self.manifest)
+        for kind in ('missing', 'duplicate', 'foreign', 'wrongOwner', 'failure', 'extraGroup'):
+            value = copy.deepcopy(original)
+            if kind == 'missing': value[0]['attachments'].pop()
+            elif kind == 'duplicate': value[0]['attachments'].append(value[0]['attachments'][0])
+            elif kind == 'foreign': value[0]['attachments'][0]['suggestedHumanReadableName'] = 'P1 state unknown'
+            elif kind == 'wrongOwner': value[1]['attachments'].append(value[0]['attachments'].pop())
+            elif kind == 'failure': value[0]['attachments'][0]['isAssociatedWithFailure'] = True
+            else: value.append(copy.deepcopy(value[0]))
+            with self.subTest(kind=kind):
+                self.put('rui1-original-attachments/manifest.json', value)
+                with self.assertRaises(ValueError): self.verify()
+        self.put('rui1-original-attachments/manifest.json', original)
+        self.verify()
+
+    def test_export_suffix_is_bounded_and_files_cannot_escape_or_alias(self):
+        original = copy.deepcopy(self.manifest)
+        entry = self.manifest[0]['attachments'][0]
+        entry['suggestedHumanReadableName'] += '_1_' + UDID + '.png'
+        self.put('rui1-original-attachments/manifest.json', self.manifest)
+        self.verify()
+        for filename in ('../outside.png', '/outside.png', 'nested/file.png', '.', '..'):
+            value = copy.deepcopy(original)
+            value[0]['attachments'][0]['exportedFileName'] = filename
+            self.put('rui1-original-attachments/manifest.json', value)
+            with self.subTest(filename=filename), self.assertRaises(ValueError): self.verify()
+        self.put('rui1-original-attachments/manifest.json', original)
+        path = self.export / original[0]['attachments'][0]['exportedFileName']
+        raw = path.read_bytes()
+        path.unlink()
+        outside = self.artifact / 'outside.png'
+        outside.write_bytes(raw)
+        path.symlink_to(outside)
+        with self.assertRaises(ValueError): self.verify()
+        path.unlink()
+        path.write_bytes(raw)
+        (self.export / 'unlisted.png').write_bytes(raw)
+        with self.assertRaises(ValueError): self.verify()
+
+    def test_structured_results_never_accept_skip_retry_missing_or_foreign_method(self):
+        original = copy.deepcopy(self.cases)
+        for kind in ('skipped', 'failed', 'duplicate', 'missing', 'foreign'):
+            cases = copy.deepcopy(original)
+            if kind in ('skipped','failed'): cases[0]['result'] = kind.title()
+            elif kind == 'duplicate': cases.append(copy.deepcopy(cases[0]))
+            elif kind == 'missing': cases.pop()
+            else: cases[0]['nodeIdentifier'] = 'Other/testForeign()'
+            self.cases[:] = cases
+            self.put('ui-test-results.json', self.tree)
+            with self.subTest(kind=kind), self.assertRaises(ValueError): self.verify()
+        self.cases[:] = original
+        self.put('ui-test-results.json', self.tree)
+        self.verify()
+
+    def test_rui1_command_uses_default_single_execution_and_rejects_repeat_controls(self):
+        # Xcode26.6/17F113 rejected -test-iterations1 before running any test.
+        # Omission selects normal single execution; it does not enable retries.
+        command = self.ui.command(self.artifact, self.env)
+        self.assertEqual(command[command.index('-parallel-testing-enabled') + 1], 'NO')
+        self.assertEqual(command[-1], 'test-without-building')
+        self.assertEqual([arg for arg in command if arg.startswith('-only-testing:')],
+                         ['-only-testing:' + method for method in self.ui.UI])
+        for flag in ('-test-iterations', '-retry-tests-on-failure', '-run-tests-until-failure',
+                     '-maximum-test-execution-time-allowance'):
+            self.assertNotIn(flag, command)
+        self.assertEqual(self.selected['uiTimeoutSeconds'], 900)
+        self.assertEqual(self.selected['totalBudgetSeconds'], 3900)
+        original = copy.deepcopy(self.receipt)
+        for controls in (['-test-iterations', '1'], ['-test-iterations', '2'],
+                         ['-retry-tests-on-failure'], ['-run-tests-until-failure']):
+            changed = copy.deepcopy(original)
+            changed['argv'][-1:-1] = controls
+            self.put('rui1-command.json', changed)
+            with self.subTest(controls=controls), self.assertRaises(ValueError):
+                self.verify()
+        self.put('rui1-command.json', original)
+        self.verify()
+
+    def test_command_head_audit_override_and_final_image_tampering_fail(self):
+        original = copy.deepcopy(self.receipt)
+        mutations = [dict(original, head='2'*40), dict(original, runAttempt='2'),
+                     dict(original, runnerEnvironment={}), dict(original, acceptance=True)]
+        changed = copy.deepcopy(original)
+        changed['argv'][-1] = 'test'
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed['argv'].insert(-1, '-skip-testing:' + self.ui.UI[0])
+        mutations.append(changed)
+        for receipt in mutations:
+            self.put('rui1-command.json', receipt)
+            with self.assertRaises(ValueError): self.verify()
+        self.put('rui1-command.json', original)
+        self.verify()
+        (self.artifact / 'ui-final.png').write_bytes(self.ui.PNG + b'wrong image')
+        with self.assertRaises(ValueError): self.verify()
+
+    def test_closed_selection_native_and_jq_reject_mutated_budgets_bindings_and_methods(self):
+        CI.validate_selection(self.selected)
+        for changes in ({'tier': 'P12'}, {'uiTimeoutSeconds': 901}, {'runUISmoke': False},
+                        {'uiTestSelectors': self.selected['uiTestSelectors'][:1]},
+                        {'unitTestSelectors': self.selected['unitTestSelectors'][:-1]},
+                        {'uiBatch': dict(self.selected['uiBatch'], acceptance=True)},
+                        {'uiBatch': dict(self.selected['uiBatch'], sha256='wrong')}):
+            value = dict(self.selected, **changes)
+            with self.subTest(changes=changes):
+                with self.assertRaises(ValueError): CI.validate_selection(value)
+                result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                    input=CI.canonical(value), env=dict(os.environ, NATIVE_SELECTION_ID=self.ui.ROUTE), capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+        for route, passes in ((self.ui.ROUTE, True), (CI.DEV_BATCH_SELECTION_ID, False), ('none', False)):
+            result = subprocess.run(['jq', '-e', '-f', str(ROOT / 'Scripts/ci-worker-selection.jq')],
+                input=CI.canonical(self.selected), env=dict(os.environ, NATIVE_SELECTION_ID=route), capture_output=True)
+            self.assertEqual(result.returncode == 0, passes)
+
+    def test_dispatch_and_worker_admit_only_exact_original_github_route(self):
+        record = dict(self.record, selectionMapSHA256=CI.sha256((ROOT / CI.SELECTION_MAP_PATH).read_bytes()))
+        e = dict(environment(tier='N8'), NATIVE_SELECTION_ID=self.ui.ROUTE, SHARED_UI='true',
+                 DISPATCH_RUN_UI_SMOKE='true', DISPATCH_NATIVE_SELECTION_ID=self.ui.ROUTE,
+                 DISPATCH_NATIVE_SELECTION_SHA256=record['selectionSHA256'],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record['selectionMapSHA256'])
+        for stage in ('dispatch','worker'):
+            self.assertIsNotNone(CI.admission(self.selected, e, HEAD, stage, record, ROOT))
+            for changes in ({'GITHUB_RUN_ATTEMPT':'2'}, {'GITHUB_SHA':'2'*40},
+                            {'SHARED_UI':'false','DISPATCH_RUN_UI_SMOKE':'false'}):
+                with self.subTest(stage=stage, changes=changes), self.assertRaises(ValueError):
+                    CI.admission(self.selected, dict(e, **changes), HEAD, stage, record, ROOT)
+        for provider in ('bitrise','getmac'):
+            other = dict(e, CI_RUNNER_PROVIDER=provider, CI_RUNNER_LABEL='foreign-runner')
+            with self.assertRaises(ValueError): CI.admission(self.selected, other, HEAD, 'worker', record, ROOT)
+
+    def test_real_runner_argv_forwards_strict_audit_and_preserves_native_failure(self):
+        from types import SimpleNamespace
+        native = SimpleNamespace(selected_input=lambda root, environment: (self.selected, self.record),
+                                 canonical=CI.canonical)
+        for override in (False, True):
+            out = self.artifact / ('override' if override else 'failure')
+            out.mkdir()
+            (out / 'ci-selection.selected.json').write_bytes(CI.canonical(self.selected))
+            (out / 'native-admission.json').write_bytes(CI.canonical(self.record))
+            e = dict(self.env, GITHUB_SHA=HEAD, CI_SELECTION_PATH=str(out / 'ci-selection.selected.json'))
+            if override: e['TEST_RUNNER_V23_P1_AX_AUDIT_STRICT'] = '0'
+            with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(self.ui, 'load', return_value=native), \
+                    mock.patch.object(self.ui.subprocess, 'run', return_value=subprocess.CompletedProcess([], 42)) as run:
+                if override:
+                    with self.assertRaisesRegex(ValueError, 'caller UI audit overrides'): self.ui.run(ROOT, out)
+                    run.assert_not_called()
+                else:
+                    with self.assertRaises(SystemExit) as error: self.ui.run(ROOT, out)
+                    self.assertEqual(error.exception.code, 42)
+                    run.assert_called_once()
+                    self.assertEqual(run.call_args.args[0], self.ui.command(out, e))
+                    self.assertEqual(run.call_args.kwargs['env']['TEST_RUNNER_V23_P1_AX_AUDIT_STRICT'], '1')
+                self.assertFalse((out / 'rui1-review.json').exists())
+                self.assertFalse((out / 'ui-final.png').exists())
+
+    def test_real_source_manifest_binding_rejects_missing_methods_and_catalogue_drift(self):
+        root = self.artifact / 'checkout'
+        module = CI.load_ui_evidence(ROOT)  # Independent instance: not the cached selection fixture.
+        paths = (module.PATH, module.CATALOGUE, module.UI_SOURCE, module.UNIT_SOURCE,
+                 'FieldEvidenceAppTests/V23ProductionFourRootShellTests.swift', 'Scripts/v23-selection-generator.py')
+        for relative in paths:
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / relative).read_bytes())
+        self.assertEqual(module.selection(root), self.selected)
+        for relative, old, new in ((module.UI_SOURCE, module.METHODS[0], 'notATest'),
+                                  (module.UNIT_SOURCE, module.UNITS[0].split('/')[-1], 'notATest'),
+                                  (module.CATALOGUE, 'PROVISIONAL_NOT_RUN', 'DRIFT')):
+            path = root / relative
+            original = path.read_bytes()
+            self.assertIn(old.encode(), original)
+            path.write_bytes(original.replace(old.encode(), new.encode()))
+            with self.subTest(relative=relative), self.assertRaises((ValueError, module.load(root,
+                    'Scripts/v23-selection-generator.py', 'rui_test_generator').ManifestError)):
+                module.selection(root)
+            path.write_bytes(original)
+        self.assertEqual(module.selection(root), self.selected)
+
+    def collector_fixture(self):
+        self.record.update(CI.source_binding(ROOT))
+        self.record.update(runnerProvider='github', runnerLabel='macos-26', acceptance=False,
+                           releaseReady=False, providerQualification=False, diagnosticOnly=True)
+        self.env.update(CI_ARTIFACT_DIR=str(self.artifact), CI_NATIVE_CREATED_SIMULATOR_UDID=UDID,
+                        NATIVE_PRIOR_JOB_STATUS='success')
+        self.receipt['admissionSHA256'] = CI.sha256(CI.canonical(self.record))
+        self.put('rui1-command.json', self.receipt)
+        self.put('native-admission.json', self.record)
+        self.put('ci-selection.selected.json', self.selected)
+        (self.artifact / 'ci-selection-map.json').write_bytes((ROOT / CI.SELECTION_MAP_PATH).read_bytes())
+        (self.artifact / 'runner-provider.txt').write_text(
+            'provider=github\nlabel=macos-26\nrunner_architecture=ARM64\nuname_architecture=arm64\n'
+            'developer_dir=/Applications/Xcode_26.6.app/Contents/Developer\nmacos_product_version=26.6.1\n')
+        (self.artifact / 'xcode-version.txt').write_text('Xcode 26.6\nBuild version 17F113\n')
+        (self.artifact / 'native-sdk.txt').write_text('sdk=iphonesimulator\nversion=26.5\nbuild=23F81a\n')
+        (self.artifact / 'test-smoke.log').write_text('non-native protocol fixture\n')
+        diagnostic_transport(self.artifact)
+        build = CI.no_index_build_receipt(ROOT, self.artifact, self.record, self.env)
+        self.put(CI.NO_INDEX_RECEIPT, build)
+        executed = ['/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild'] + build['argv'][1:]
+        (self.artifact / 'build-smoke.log').write_text('Command line invocation:\n    ' + shlex.join(executed)
+            + '\nbuiltin-SwiftDriver -- /swiftc -module-name ProtocolFixture\n** TEST BUILD SUCCEEDED **\n')
+        proof = self.verify()
+        self.put('rui1-review.json', proof)
+        page = self.ui.review_page(ROOT, self.artifact, proof)
+        (self.artifact / 'rui1-review.html').write_bytes(page)
+        units = native_tree(self.ui.UNITS[0])
+        units['testNodes'][0]['children'][0]['children'][0]['children'] = [leaf(native_tree(m)) for m in self.ui.UNITS]
+        self.put('unit-test-results.json', units)
+        # Positive now passes the real worker verifier with every retained fact,
+        # then collection recomputes it read-only from the same original bytes.
+        checkpoint = CI.verify_checkpoint(ROOT, self.artifact, self.record, self.selected, self.env)
+        self.put('native-checkpoint.json', checkpoint)
+        return proof, checkpoint, page
+
+    def collect_fixture(self, head=HEAD, run='123'):
+        return self.ui.collected_review(ROOT, self.artifact, CI, head, run)
+
+    def phase1_worker_execution_fixture(self):
+        self.collector_fixture()
+        e = self.env
+        original_artifact = str(self.artifact)
+        unit_argv = ["/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild", "-project", "FieldEvidenceApp.xcodeproj",
+                    "-scheme", "FieldEvidenceApp", "-configuration", "Debug", "-destination", e["CI_DESTINATION"],
+                    "-derivedDataPath", str(Path(e["RUNNER_TEMP"]) / "FieldEvidenceDerivedData"),
+                    "-resultBundlePath", str(self.artifact / "UnitTests.xcresult"),
+                    *["-only-testing:" + v for v in self.selected["unitTestSelectors"]], "CODE_SIGNING_ALLOWED=NO", "test-without-building"]
+        log = self.artifact / "test-smoke.log"
+        # Synthetic command proof for this predicate, not an original runner log.
+        log.write_text("Command line invocation:\n    " + shlex.join(unit_argv) + "\n** TEST EXECUTE SUCCEEDED **\n")
+        (self.artifact / "setup-budget.txt").write_text("setup_elapsed_seconds=100\nsetup_budget_seconds=300\n")
+        (self.artifact / "artifact-budget.txt").write_text("setup_elapsed_seconds=100\nartifact_elapsed_seconds=20\nsetup_artifact_elapsed_seconds=120\nsetup_artifact_budget_seconds=300\n")
+        names = ("Recheck evidence-finalization budget", "Verify selected total budget before upload",
+                 "Validate required build and test evidence", "Validate exact ordinary integration native checkpoint",
+                 "Run targeted tests", "Build unsigned simulator app", "Run task-authorized UI smoke")
+        environment = dict(zip(("CI_SETUP_ARTIFACT_TIMEOUT_SECONDS", "CI_BUILD_TIMEOUT_SECONDS", "CI_TEST_TIMEOUT_SECONDS",
+                               "CI_UI_TIMEOUT_SECONDS", "CI_TOTAL_BUDGET_SECONDS"), (str(self.selected[k]) for k in CI.BUDGET_KEYS)))
+        environment.update(CI_ARTIFACT_DIR=original_artifact, NATIVE_SELECTION_ID=self.record["selectionID"], CONFIGURATION="Debug",
+                           DEVELOPER_DIR="/Applications/Xcode_26.6.app/Contents/Developer")
+        job = {"jobID": 99, "jobLogSHA256": "A" * 64, "commands": [{"step": name, "environment": dict(environment),
+            "numericFacts": {"elapsed_seconds": "200", "total_budget_seconds": "3900"} if name == names[1] else {}} for name in names]}
+        return job, unit_argv
+
+    def test_phase1_worker_execution_rechecks_actual_command_budget_runtime_and_checkpoint_facts(self):
+        job, unit_argv = self.phase1_worker_execution_fixture()
+        environment = dict(job["commands"][0]["environment"])
+        def verify():
+            return CI.phase1_worker_execution_facts(ROOT, self.artifact, self.record, self.selected, "rui1", job)
+        proof = verify()
+        self.assertFalse(proof["offlineNativeExecution"])
+        self.assertFalse(proof["budgets"]["finalizationNumericElapsedAvailable"])
+        self.assertEqual(proof["unitCommand"]["argv"], unit_argv)
+        self.assertFalse(proof["unitCommand"]["exportReexecutedOffline"])
+        for filename, old, new in (("setup-budget.txt", "=100", "=301"),
+                                   ("artifact-budget.txt", "=120", "=121"),
+                                   ("native-sdk.txt", "23F81a", "foreign"),
+                                   ("simulator-selection.txt", "23C54", "23F77"),
+                                   ("test-smoke.log", "test-without-building", "test"),
+                                   ("test-smoke.log", "SUCCEEDED", "FAILED")):
+            path = self.artifact / filename; raw = path.read_bytes()
+            path.write_bytes(raw.replace(old.encode(), new.encode()))
+            with self.subTest(filename=filename), self.assertRaises(ValueError):
+                verify()
+            path.write_bytes(raw)
+        job["commands"][0]["environment"]["CI_TEST_TIMEOUT_SECONDS"] = "9999"
+        with self.assertRaisesRegex(ValueError, "budget/configuration"):
+            verify()
+        job["commands"][0]["environment"]["CI_TEST_TIMEOUT_SECONDS"] = environment["CI_TEST_TIMEOUT_SECONDS"]
+        job["commands"][1]["numericFacts"]["elapsed_seconds"] = "3901"
+        with self.assertRaisesRegex(ValueError, "total budget"):
+            verify()
+        job["commands"][1]["numericFacts"]["elapsed_seconds"] = "200"
+        checkpoint = self.artifact / "native-checkpoint.json"; raw = checkpoint.read_bytes()
+        value = json.loads(raw); value["executedUnitMethods"].pop(); checkpoint.write_bytes(CI.canonical(value))
+        with self.assertRaisesRegex(ValueError, "method census"):
+            verify()
+        checkpoint.write_bytes(raw)
+        self.assertEqual(verify(), proof)
+
+    def test_phase1_actual_retained_entrypoint_binds_worker_event_and_raw_originals_but_stays_incomplete(self):
+        """End-to-end local synthetic protocol bytes; never a native/visual PASS."""
+        execution_job, _ = self.phase1_worker_execution_fixture()
+        # Reconstruct synthetic diagnostics after adding the exact command log.
+        diagnostic, error = CI.simulator_diagnostic_observations(ROOT, self.artifact, self.record)
+        self.assertIsNone(error)
+        self.put(CI.SIMULATOR_DIAGNOSTIC_OUTPUT, diagnostic)
+        gate = CI.load_phase1_gates(ROOT)
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="9" * 40, selection=gate.RUI1,
+            resolved_bytes=CI.canonical(self.selected), sources={p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES},
+            requested_at="2026-09-26T12:00:00Z")
+        event = gate.canonical({"repository": {"full_name": gate.REPOSITORY}, "ref": plan["ref"],
+            "inputs": {gate.PLAN_INPUT: gate.canonical(plan).decode(), "v23_run_kind": "gate",
+                "native_selection_id": gate.RUI1, "execution_lane": gate.ROUTE["executionLane"], "run_ui_smoke": "true"}})
+        e = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": gate.REPOSITORY,
+             "GITHUB_REF": plan["ref"], "GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1",
+             "GITHUB_WORKFLOW_REF": gate.REPOSITORY + "/" + gate.ROUTE["workflow"] + "@" + plan["ref"],
+             "GITHUB_WORKFLOW_SHA": HEAD}
+        binding = gate.bind_original_event(event, e, head=HEAD, tree=plan["tree"],
+            resolved_bytes=CI.canonical(self.selected), sources=plan["sources"])
+        self.record.update(phase1Gate=binding, gitTree=plan["tree"], ref=plan["ref"], repository=gate.REPOSITORY)
+        self.put("native-admission.json", self.record)
+        self.receipt["admissionSHA256"] = CI.sha256(CI.canonical(self.record))
+        self.put("rui1-command.json", self.receipt)
+        self.put(CI.NO_INDEX_RECEIPT, CI.no_index_build_receipt(ROOT, self.artifact, self.record, self.env))
+        (self.artifact / "ui-smoke.log").write_text("synthetic UI execution output\n")
+        def collect(_root, snapshot, _environment, **_kwargs):
+            diagnostic_transport(snapshot)
+            return CI.read_json(snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+        with mock.patch.object(CI, "collect_simulator_diagnostic_transport", collect):
+            CI.phase1_collect_ui_snapshot(ROOT, self.artifact, self.record, self.env, exit_status=0, interrupted=False)
+        synthetic_diagnostic_interval(self.artifact, self.artifact, self.record, "unit")
+        synthetic_diagnostic_interval(self.artifact, self.artifact / "phase1-ui-diagnostics", self.record, "ui")
+        CI.phase1_seal_ui_log(ROOT, self.artifact, self.record)
+        proof = self.verify()
+        self.put("rui1-review.json", proof)
+        (self.artifact / "rui1-review.html").write_bytes(self.ui.review_page(ROOT, self.artifact, proof))
+        self.put("native-checkpoint.json", CI.verify_checkpoint(ROOT, self.artifact, self.record, self.selected,
+            self.env, retained_command_artifact=self.artifact))
+        self.put("phase1-gate-plan.json", plan)
+        self.put("phase1-event-binding.json", binding)
+        (self.artifact / "phase1-original-event.json").write_bytes(event)
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            artifact = directory / "artifacts/rui1"
+            shutil.copytree(self.artifact, artifact)
+            registration = {"schema": gate.REGISTRATION_SCHEMA, "plan": plan,
+                "planSHA256": binding["planSHA256"], "dispatchEnabled": False, "functionalQualification": gate.PENDING}
+            (directory / "phase1-registration.json").write_bytes(gate.canonical(registration))
+            (directory / "run-attempt-1.json").write_bytes(gate.canonical({"id": 123, "run_attempt": 1,
+                "head_sha": HEAD, "head_branch": plan["ref"].removeprefix("refs/heads/"),
+                "event": "workflow_dispatch", "path": gate.ROUTE["workflow"], "status": "completed", "conclusion": "success"}))
+            Phase1ExecutionProofTests().fixture(directory, execution_environment=execution_job["commands"][0]["environment"])
+            (directory / "artifacts.json").write_bytes(gate.canonical({"artifacts": [{"id": 20,
+                "name": "ios-ci-native-github-%s-123-1" % gate.RUI1, "expired": False, "digest": "sha256:" + "a" * 64,
+                "workflow_run": {"id": 123, "head_sha": HEAD, "head_branch": plan["ref"].removeprefix("refs/heads/")}}]}))
+            request = directory / "phase1-chain-request.json"
+            request.write_bytes(gate.canonical({"schema": "v23-phase1-retained-chain-request.v1",
+                "runID": 123, "planSHA256": binding["planSHA256"]}))
+            # Execute the real new CLI, which does not require a fake GITHUB_WORKSPACE.
+            checked = subprocess.run([sys.executable, str(ROOT / "Scripts/v23-native-ci.py"),
+                "phase1-retained-chain", "--phase1-request", str(request)], capture_output=True)
+            self.assertEqual(checked.returncode, 0, checked.stderr.decode())
+            result = json.loads(checked.stdout)
+            self.assertEqual(result["status"], "INCOMPLETE")
+            self.assertEqual(result["executionProof"]["problems"], [])
+            self.assertEqual(result["executionProof"]["status"], "RETAINED_EXECUTION_FACTS_VERIFIED")
+            self.assertEqual(result["functionalQualification"], gate.PENDING)
+            job_log = directory / "phase1-job-logs/2.log"
+            job_log_raw = job_log.read_bytes()
+            job_log.write_bytes(job_log_raw[:100])
+            incomplete = CI.phase1_retained_worker_chain(ROOT, request)
+            self.assertEqual(incomplete["executionProof"]["status"], "INCOMPLETE")
+            self.assertTrue(incomplete["executionProof"]["problems"])
+            job_log.write_bytes(job_log_raw)
+            self.assertEqual(set(result["workers"]["rui1"]["rawResultInventories"]),
+                             {"Build.xcresult", "UnitTests.xcresult", "UISmoke.xcresult"})
+            (artifact / "phase1-original-event.json").write_bytes(event + b" ")
+            with self.assertRaisesRegex(ValueError, "retained event bytes"):
+                CI.phase1_retained_worker_chain(ROOT, request)
+            (artifact / "phase1-original-event.json").write_bytes(event)
+            for bundle in ("Build.xcresult", "UnitTests.xcresult", "UISmoke.xcresult"):
+                path = artifact / bundle / "Data/original"
+                raw = path.read_bytes()
+                path.write_bytes(b"substituted raw result")
+                with self.subTest(bundle=bundle), self.assertRaises(ValueError):
+                    CI.phase1_retained_worker_chain(ROOT, request)
+                path.write_bytes(raw)
+
+    def test_collector_requires_completed_checkpoint_and_binds_run_and_owner_page(self):
+        proof, checkpoint, page = self.collector_fixture()
+        before = {p.relative_to(self.artifact):p.read_bytes() for p in self.artifact.rglob('*') if p.is_file()}
+        self.assertEqual(self.collect_fixture(), proof)
+        self.assertEqual({p.relative_to(self.artifact):p.read_bytes() for p in self.artifact.rglob('*') if p.is_file()}, before)
+        for head, run in (('2'*40,'123'), (HEAD,'999')):
+            with self.assertRaises(ValueError): self.collect_fixture(head,run)
+        for changes in ({'executedUnitMethods': []}, {'rui1Evidence': {}}, {'humanReviewComplete': True},
+                        {'head':'2'*40}, {'recordType':'admission'}, {'simulator':{}}, {'provider':{}},
+                        {'sdk':{}}, {'noIndexBuildDiagnostic':{}}):
+            self.put('native-checkpoint.json', dict(checkpoint, **changes))
+            with self.assertRaises(ValueError): self.collect_fixture()
+        self.put('native-checkpoint.json', checkpoint)
+        (self.artifact / 'rui1-review.html').write_bytes(page.replace(b'No human approval', b'Human approval'))
+        with self.assertRaises(ValueError): self.collect_fixture()
+        (self.artifact / 'rui1-review.html').write_bytes(page)
+        self.assertEqual(self.collect_fixture(), proof)
+
+    def test_collector_rejects_coherently_changed_runtime_provider_sdk_build_and_diagnostics(self):
+        proof, checkpoint, _ = self.collector_fixture()
+        for name, old, new, checkpoint_field, key, value in (
+                ('simulator-selection.txt','iOS 26.2','iOS 26.5','simulator','runtime','iOS 26.5'),
+                ('simulator-selection.txt','23C54','23F77','simulator','runtime_build','23F77'),
+                ('simulator-selection.txt','Shutdown','Booted','simulator','initial_state','Booted'),
+                ('runner-provider.txt','ARM64','X64','provider','runner_architecture','X64'),
+                ('runner-provider.txt','Xcode_26.6','Xcode_26.5','provider','developer_dir',
+                 '/Applications/Xcode_26.5.app/Contents/Developer'),
+                ('native-sdk.txt','23F81a','foreign','sdk','build','foreign')):
+            path = self.artifact / name
+            raw = path.read_bytes()
+            path.write_bytes(raw.replace(old.encode(),new.encode()))
+            changed = copy.deepcopy(checkpoint)
+            changed[checkpoint_field][key] = value
+            self.put('native-checkpoint.json', changed)
+            with self.subTest(name=name, key=key), self.assertRaises(ValueError): self.collect_fixture()
+            path.write_bytes(raw)
+        self.put('native-checkpoint.json', checkpoint)
+        for name, old, new in (
+                ('xcode-version.txt','17F113','wrong'),
+                ('build-smoke.log','** TEST BUILD SUCCEEDED **','** TEST BUILD FAILED **'),
+                ('build-smoke.log','-module-name','-index-store-path /bad -module-name'),
+                ('build-smoke.log','COMPILER_INDEX_STORE_ENABLE=NO','COMPILER_INDEX_STORE_ENABLE=YES')):
+            path = self.artifact / name
+            raw = path.read_bytes()
+            path.write_bytes(raw.replace(old.encode(),new.encode()))
+            with self.subTest(name=name, old=old), self.assertRaises(ValueError): self.collect_fixture()
+            path.write_bytes(raw)
+        for name in ('xcode-version.txt','native-sdk.txt','runner-provider.txt','simulator-selection.txt',
+                     'build-smoke.log',CI.NO_INDEX_RECEIPT,CI.SIMULATOR_DIAGNOSTIC_OUTPUT):
+            path = self.artifact / name
+            raw = path.read_bytes()
+            path.unlink()
+            with self.subTest(missing=name), self.assertRaises((ValueError,FileNotFoundError)): self.collect_fixture()
+            path.write_bytes(raw)
+        self.assertEqual(self.collect_fixture(), proof)
+
+    def test_collector_requires_complete_original_bundle_census_and_supports_relocated_evidence(self):
+        proof, _, _ = self.collector_fixture()
+        for name in ('Build.xcresult','UnitTests.xcresult','UISmoke.xcresult'):
+            bundle = self.artifact / name
+            for relative in ('Info.plist','Data/original'):
+                path = bundle / relative
+                raw = path.read_bytes()
+                path.unlink()
+                with self.subTest(missing=name+'/'+relative), self.assertRaises(ValueError): self.collect_fixture()
+                path.write_bytes(raw[:1])
+                with self.subTest(truncated=name+'/'+relative), self.assertRaises(ValueError): self.collect_fixture()
+                path.write_bytes(raw)
+            extra = bundle / 'foreign-member'
+            extra.write_bytes(b'foreign')
+            with self.assertRaises(ValueError): self.collect_fixture()
+            extra.unlink()
+            payload = bundle / 'Data/original'
+            raw = payload.read_bytes()
+            payload.unlink()
+            payload.symlink_to(bundle / 'Info.plist')
+            with self.assertRaises(ValueError): self.collect_fixture()
+            payload.unlink()
+            payload.write_bytes(raw)
+        with tempfile.TemporaryDirectory(prefix='rui1-relocated-') as destination:
+            relocated = Path(destination).resolve() / 'artifact'
+            shutil.copytree(self.artifact, relocated)
+            self.assertEqual(self.ui.collected_review(ROOT, relocated, CI, HEAD, '123'), proof)
+        self.assertEqual(self.collect_fixture(), proof)
+
+    def test_raw_result_inventory_rejects_child_directory_scan_errors(self):
+        original = os.scandir
+        unreadable = self.artifact / 'Build.xcresult' / 'Data'
+        (unreadable.parent / 'other-payload').write_bytes(b'payload remains visible at the readable root')
+
+        def denied(path):
+            if Path(path) == unreadable:
+                raise PermissionError('protocol fixture: unreadable result child')
+            return original(path)
+
+        # The root remains readable. Default os.walk would silently omit this
+        # child, so exercise the actual walker rather than mock its callback.
+        with mock.patch.object(os, 'scandir', side_effect=denied):
+            with self.assertRaisesRegex(PermissionError, 'unreadable result child'):
+                self.ui.original_results(self.artifact)
+        self.assertEqual(set(self.ui.original_results(self.artifact)),
+                         {'Build.xcresult', 'UnitTests.xcresult', 'UISmoke.xcresult'})
+
+    def test_worker_shell_preserves_failure_and_never_reaches_legacy_ui(self):
+        text = (ROOT / '.github/workflows/ios-ci-worker.yml').read_text()
+        body = step(text, 'Run task-authorized UI smoke').split('        run: |\n',1)[1]
+        body = '\n'.join(line[10:] if line.startswith(' '*10) else line for line in body.splitlines())
+        cut = body.index('if test "${WORKER_S10_4_DIAGNOSTIC_PROBE_ID')
+        script = body[:cut] + 'exit 99\n'
+        scripts = self.artifact / 'Scripts'
+        scripts.mkdir()
+        (scripts / 'run-with-timeout.sh').write_text('shift\nexec "$@"\n')
+        for code in (0, 42):
+            (scripts / 'v23-ui-smoke.sh').write_text('echo protocol-only\nexit ' + str(code) + '\n')
+            result = subprocess.run(['bash','-c',script], cwd=self.artifact,
+                env=dict(os.environ, NATIVE_SELECTION_ID=self.ui.ROUTE, CI_UI_TIMEOUT_SECONDS='900',
+                         CI_ARTIFACT_DIR=str(self.artifact)), capture_output=True)
+            self.assertEqual(result.returncode, code, result.stderr)
+        self.assertIn('inputs.run_ui_smoke == true', step(text,'Run task-authorized UI smoke'))
+        self.assertNotIn(self.ui.ROUTE, D50_JOB_CAP_EXPRESSION)
+        self.assertIn('timeout-minutes: ' + D50_JOB_CAP_EXPRESSION, text)
+        self.assertLess(text.index('      - name: Run targeted tests\n'), text.index('      - name: Run task-authorized UI smoke\n'))
+
+
+class Phase1EventBoundaryTests(unittest.TestCase):
+    def test_empty_original_event_plan_preserves_exact_existing_admission(self):
+        expected = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory() as directory:
+            event = Path(directory) / "github-event.json"
+            for payload in ({}, {"inputs": {}}, {"inputs": {"v23_phase1_gate_plan": ""}}):
+                event.write_bytes(CI.canonical(payload))
+                observed = CI.admission(selection(), dict(environment(), GITHUB_EVENT_PATH=str(event)), HEAD, "worker")
+                self.assertEqual(observed, expected)
+
+    def test_nonempty_plan_cannot_bypass_inactive_dispatch_by_manual_workflow(self):
+        gate = CI.load_phase1_gates(ROOT)
+        sources = {p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES}
+        selected = CI.load_ui_evidence(ROOT).selection(ROOT)
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="2" * 40,
+            selection=gate.RUI1, resolved_bytes=CI.canonical(selected), sources=sources,
+            requested_at="2026-09-26T12:00:00Z")
+        with tempfile.TemporaryDirectory() as directory:
+            event = Path(directory) / "github-event.json"
+            event.write_bytes(CI.canonical({"repository": {"full_name": gate.REPOSITORY}, "ref": gate.INTEGRATION_REF,
+                "inputs": {gate.PLAN_INPUT: gate.canonical(plan).decode(), "v23_run_kind": "gate",
+                    "native_selection_id": gate.RUI1, "execution_lane": gate.ROUTE["executionLane"], "run_ui_smoke": "true"}}))
+            e = dict(environment(), GITHUB_EVENT_PATH=str(event), NATIVE_SELECTION_ID=gate.RUI1,
+                     GITHUB_WORKFLOW_REF=gate.REPOSITORY + "/" + gate.ROUTE["workflow"] + "@" + gate.INTEGRATION_REF,
+                     GITHUB_WORKFLOW_SHA=HEAD)
+            with mock.patch.object(CI.subprocess, "check_output", side_effect=[HEAD + "\n", "2" * 40 + "\n"]), \
+                    self.assertRaisesRegex(ValueError, "dispatch disabled"):
+                CI.admission(selected, e, HEAD, "worker")
+
+    def test_malformed_or_unsafe_original_event_refuses_instead_of_falling_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event = Path(directory) / "github-event.json"
+            for raw in (b"[]", b'{"inputs":{"v23_phase1_gate_plan":null}}',
+                        b'{"inputs":{"v23_phase1_gate_plan":"{}"}}', b'{"inputs":{},"inputs":{}}'):
+                event.write_bytes(raw)
+                with self.subTest(raw=raw), self.assertRaises(ValueError):
+                    CI.admission(selection(), dict(environment(), GITHUB_EVENT_PATH=str(event)), HEAD, "worker")
+            link = Path(directory) / "event-link.json"
+            link.symlink_to(event)
+            with self.assertRaisesRegex(ValueError, "symlink"):
+                CI.admission(selection(), dict(environment(), GITHUB_EVENT_PATH=str(link)), HEAD, "worker")
+
+    def test_workflow_adds_only_one_empty_string_input_and_does_not_interpolate_plan(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text()
+        self.assertEqual(workflow.count(PHASE1_PLAN_INPUT_BLOCK), 1)
+        self.assertEqual(workflow.count("v23_phase1_gate_plan"), 1)
+        for relative in (".github/workflows/ios-ci-worker.yml", SHARED_WORKER_PATH):
+            self.assertNotIn("v23_phase1_gate_plan", (ROOT / relative).read_text())
+
+
+def synthetic_diagnostic_interval(artifact, snapshot, record, phase):
+    """Test-only retained format fixture, never authenticated live/container evidence."""
+    import stat
+    transport = CI.read_json(snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+    directory = {"device": 1, "inode": 2, "mode": stat.S_IFDIR | 0o700, "links": 2}
+    files = [{"name": item["name"], "sha256": item["sha256"], "identity": {
+        "device": 1, "inode": i + 10, "mode": stat.S_IFREG | 0o600, "links": 1,
+        "bytes": item["bytes"], "modifiedNS": 1, "changedNS": 1}} for i, item in enumerate(transport["files"])]
+    census = {"containerPath": "/synthetic-test-only/container", "containerIdentity": directory,
+        "directoryPath": "/synthetic-test-only/container/" + CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY,
+        "directoryIdentity": dict(directory, inode=3), "files": files}
+    value = {"schema": CI.PHASE1_DIAGNOSTIC_INTERVAL_SCHEMA,
+        "identity": CI.phase1_observation_identity(ROOT, artifact, record), "phase": phase,
+        "before": census, "after": copy.deepcopy(census), "error": None, "status": "COPY_INTERVAL_OBSERVED",
+        "interrupted": False, "collectionBoundSeconds": 30, "workBoundSeconds": 29.5,
+        "preReceiptElapsedSeconds": 0.01, "transportSHA256": CI.sha256(CI.canonical(transport)),
+        "copyIntervalOnly": True, "allLifetimesProven": False}
+    (snapshot / CI.PHASE1_DIAGNOSTIC_INTERVAL).write_bytes(CI.canonical(value))
+
+
+class Phase1RetainedDiagnosticTests(unittest.TestCase):
+    STREAM = "00000000-0000-0000-0000-000000000010"
+
+    def test_ui_finalizer_runs_on_native_failure_and_transport_cannot_erase_failure(self):
+        from types import SimpleNamespace
+        ui = CI.load_ui_evidence(ROOT)
+        for code, collector_error in ((0, None), (42, None), (42, ValueError("transport")), (0, ValueError("transport"))):
+            with self.subTest(code=code, collector_error=bool(collector_error)), tempfile.TemporaryDirectory() as directory:
+                native = SimpleNamespace(phase1_observation_identity=mock.Mock(),
+                    phase1_collect_ui_snapshot=mock.Mock(side_effect=collector_error))
+                with mock.patch.object(ui.subprocess, "run", return_value=subprocess.CompletedProcess([], code)):
+                    if collector_error:
+                        with self.assertRaises(SystemExit if code else ValueError) as caught:
+                            ui.phase1_run_and_export(ROOT, Path(directory), {}, native, ["synthetic-only"], {})
+                        if code:
+                            self.assertEqual(caught.exception.code, code)
+                    else:
+                        self.assertEqual(ui.phase1_run_and_export(ROOT, Path(directory), {}, native,
+                                                                 ["synthetic-only"], {}), (code, 1, 1))
+                self.assertEqual(native.phase1_collect_ui_snapshot.call_args.kwargs,
+                                 {"exit_status": code, "interrupted": False})
+
+    def test_ui_signal_finalizes_interrupted_and_restores_handlers(self):
+        from types import SimpleNamespace
+        import signal
+        ui = CI.load_ui_evidence(ROOT)
+        native = SimpleNamespace(phase1_observation_identity=mock.Mock(), phase1_collect_ui_snapshot=mock.Mock())
+        handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)}
+        def interrupted(*_args, **_kwargs):
+            signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(ui.subprocess, "run", side_effect=interrupted):
+            with self.assertRaises(SystemExit) as caught:
+                ui.phase1_run_and_export(ROOT, Path(directory), {}, native, ["synthetic-only"], {})
+            self.assertEqual(caught.exception.code, 128 + signal.SIGTERM)
+            self.assertEqual(native.phase1_collect_ui_snapshot.call_args.kwargs,
+                             {"exit_status": 128 + signal.SIGTERM, "interrupted": True})
+        self.assertEqual({sig: signal.getsignal(sig) for sig in handlers}, handlers)
+
+    def test_ui_export_exception_retains_original_native_failure(self):
+        from types import SimpleNamespace
+        ui = CI.load_ui_evidence(ROOT)
+        native = SimpleNamespace(phase1_observation_identity=mock.Mock(), phase1_collect_ui_snapshot=mock.Mock())
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            (artifact / "UISmoke.xcresult").mkdir()
+            with mock.patch.object(ui.subprocess, "run", side_effect=[subprocess.CompletedProcess([], 42), OSError("export")]):
+                with self.assertRaises(SystemExit) as caught:
+                    ui.phase1_run_and_export(ROOT, artifact, {}, native, ["synthetic-only"], {})
+                self.assertEqual(caught.exception.code, 42)
+            native.phase1_collect_ui_snapshot.assert_called_once()
+
+    def test_ui_finalization_receipt_missing_interrupted_or_foreign_never_completes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact)
+            path = artifact / "phase1-ui-diagnostics/phase1-ui-finalization.json"
+            raw = path.read_bytes()
+            for changes in ({"interrupted": True}, {"nativeExitStatus": 42}, {"nativeExitStatus": False},
+                            {"runID": "999"}, {"allLifetimesProven": True}, {"approved": True}):
+                path.write_bytes(CI.canonical(dict(json.loads(raw), **changes)))
+                with self.subTest(changes=changes), self.assertRaises(ValueError):
+                    CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError):
+                CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+    def fixture(self, artifact, unit_payloads=None, ui_payloads=None, *, selection_id=None, role=None):
+        """Invented worker facts for this primitive, not an authenticated gate original."""
+        gate = CI.load_phase1_gates(ROOT)
+        selection_id = selection_id or gate.RUI1
+        sources = {p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES}
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="2" * 40,
+            selection=selection_id, resolved_bytes=CI.canonical(selection()), sources=sources,
+            requested_at="2026-09-26T12:00:00Z")
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        binding = {"schema": gate.EVENT_SCHEMA, "plan": plan, "planSHA256": gate.sha(gate.canonical(plan)),
+                   "runID": record["runID"], "runAttempt": "1", "functionalQualification": gate.PENDING}
+        record.update(selectionID=selection_id, gitTree="2" * 40, phase1Gate=binding)
+        (artifact / "native-admission.json").write_bytes(CI.canonical(record))
+        if role:
+            record[CI.SHARED_KEY] = {"role": role}
+        if role == "producer":
+            return record, binding
+        unit_payloads = [diagnostic_line()] if unit_payloads is None else unit_payloads
+        ui_payloads = unit_payloads if ui_payloads is None else ui_payloads
+        (artifact / "test-smoke.log").write_text("synthetic unit output\n")
+        diagnostic_transport(artifact, [(self.STREAM, unit_payloads)] if unit_payloads else [])
+        CI.persist_simulator_diagnostic_observations(ROOT, artifact, record)
+        synthetic_diagnostic_interval(artifact, artifact, record, "unit")
+        if selection_id == gate.RUI1:
+            snapshot = artifact / "phase1-ui-diagnostics"
+            snapshot.mkdir()
+            (artifact / "ui-smoke.log").write_text("synthetic UI output\n")
+            (snapshot / "test-smoke.log").write_bytes((artifact / "ui-smoke.log").read_bytes())
+            diagnostic_transport(snapshot, [(self.STREAM, ui_payloads)] if ui_payloads else [])
+            CI.persist_simulator_diagnostic_observations(ROOT, snapshot, record)
+            synthetic_diagnostic_interval(artifact, snapshot, record, "ui")
+            # Synthetic finalizer observation required by the new B2 transport boundary.
+            final = {"schema": "v23-phase1-ui-finalization.v1", **CI.phase1_observation_identity(ROOT, artifact, record),
+                     "phase": "ui", "nativeExitStatus": 0, "interrupted": False,
+                     "transportSHA256": CI.sha256((snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).read_bytes()),
+                     "transportStatus": CI.read_json(snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)["status"],
+                     "allLifetimesProven": False, "countsAreTotalInvocations": False,
+                     "trailingRepeatCountsMayBeUnobserved": True}
+            (snapshot / "phase1-ui-finalization.json").write_bytes(CI.canonical(final))
+        return record, binding
+
+    def test_unit_and_ui_duplicates_are_retained_without_double_count_or_protection_credit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact, ui_payloads=[diagnostic_line(), diagnostic_summary_line(occurrences=3)])
+            proof = CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            self.assertEqual(proof["uniqueRetainedFrames"], 2)
+            self.assertEqual(proof["phases"]["unit"]["retainedOccurrences"], 1)
+            self.assertEqual(proof["phases"]["ui"]["retainedOccurrences"], 4)
+            self.assertFalse(proof["phaseOccurrenceCountsAreAdditive"])
+            self.assertFalse(proof["countsAreTotalInvocations"])
+            self.assertFalse(proof["allLifetimesProven"])
+            self.assertTrue(proof["trailingRepeatCountsMayBeUnobserved"])
+            for key in ("countsAsPerKindProtectionSuccess", "providerQualification", "acceptance", "releaseReady"):
+                self.assertFalse(proof[key])
+            self.assertEqual(proof["functionalQualification"], "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW")
+
+    def test_missing_ui_snapshot_original_log_alias_and_writer_poison_fail(self):
+        variants = ("missing", "alias", "unit-poison", "ui-poison", "changed-observations")
+        for variant in variants:
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                record, binding = self.fixture(artifact)
+                snapshot = artifact / "phase1-ui-diagnostics"
+                if variant == "missing":
+                    shutil.rmtree(snapshot)
+                elif variant == "alias":
+                    (snapshot / "test-smoke.log").write_text("unit log substituted\n")
+                elif variant.endswith("poison"):
+                    name = "test-smoke.log" if variant.startswith("unit") else "ui-smoke.log"
+                    (artifact / name).write_text("V23_PROTECTED_FILE_DIAGNOSTIC_JOURNAL_FAILURE phase=exit\n")
+                else:
+                    (snapshot / CI.SIMULATOR_DIAGNOSTIC_OUTPUT).write_text("{}")
+                with self.assertRaises((ValueError, OSError)):
+                    CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+    def test_substituted_or_truncated_surviving_prefix_is_rejected(self):
+        for unit, ui in (([diagnostic_line()], [diagnostic_line("scratch")]),
+                         ([diagnostic_line(), diagnostic_summary_line(occurrences=3)], [diagnostic_line()])):
+            with self.subTest(unit=unit, ui=ui), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                record, binding = self.fixture(artifact, unit, ui)
+                with self.assertRaisesRegex(ValueError, "prefix|truncated"):
+                    CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+    def test_previous_snapshot_survives_later_absence_without_lifetime_claim(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact, ui_payloads=[])
+            before = (artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).read_bytes()
+            proof = CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            self.assertEqual(proof["unitStreamsRetainedOnlyInEarlierSnapshot"], [self.STREAM])
+            self.assertFalse(proof["allLifetimesProven"])
+            self.assertEqual((artifact / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).read_bytes(), before)
+
+    def test_zero_use_does_not_establish_protection_and_producer_has_no_test_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact, [], [])
+            proof = CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            self.assertEqual(proof["uniqueRetainedFrames"], 0)
+            self.assertFalse(proof["countsAsPerKindProtectionSuccess"])
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory)
+            record, binding = self.fixture(artifact, selection_id=CI.SHARED_SELECTION_ID, role="producer")
+            proof = CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+            self.assertEqual(proof["status"], "NOT_APPLICABLE_BUILD_ONLY")
+            (artifact / "test-smoke.log").write_text("unexpected tests")
+            with self.assertRaisesRegex(ValueError, "producer"):
+                CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+    def test_tampered_raw_frames_inventory_or_interrupted_status_fail(self):
+        for variant in ("frame", "status", "inventory"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as directory:
+                artifact = Path(directory)
+                record, binding = self.fixture(artifact)
+                snapshot = artifact / "phase1-ui-diagnostics"
+                if variant == "frame":
+                    path = snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")
+                    path.write_bytes(path.read_bytes()[:-1])
+                else:
+                    path = snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS
+                    status = json.loads(path.read_bytes())
+                    if variant == "status":
+                        status.update(status="INTERRUPTED", collectionMode="interrupted", collectionBoundSeconds=3)
+                    else:
+                        status["files"][0]["sha256"] = "A" * 64
+                    path.write_bytes(CI.canonical(status))
+                with self.assertRaises(ValueError):
+                    CI.phase1_retained_diagnostic_facts(ROOT, artifact, record, binding)
+
+
+class Phase1DiagnosticIntervalCallerTests(unittest.TestCase):
+    """Synthetic actual event/filesystem/CLI flows; Git and simctl boundaries only are fake."""
+    STREAM = "00000000-0000-0000-0000-000000000041"
+    EXTRA = "00000000-0000-0000-0000-000000000042"
+
+    def fixture(self, base, streams=True, shared=False):
+        import contextlib
+        gate = CI.load_phase1_gates(ROOT)
+        artifact, container = base / "artifact", base / "container"
+        artifact.mkdir(); container.mkdir()
+        event = base / "test-only-event.json"
+        e = dict(environment(), GITHUB_WORKSPACE=str(ROOT), GITHUB_EVENT_PATH=str(event),
+            CI_ARTIFACT_DIR=str(artifact), CI_SIMULATOR_UDID=UDID, NATIVE_SELECTION_ID=gate.RUI1,
+            GITHUB_WORKFLOW_REF=gate.REPOSITORY + "/" + gate.ROUTE["workflow"] + "@" + gate.INTEGRATION_REF,
+            GITHUB_WORKFLOW_SHA=HEAD)
+        if shared:
+            e.update(NATIVE_SELECTION_ID=gate.SHARED, V23_SHARED_ROLE="consumer", V23_PARTITION_ID="S01",
+                     V23_PAYLOAD_ARTIFACT_NAME="v23-shared-payload-123-1-" + HEAD)
+        selected, selection_record = CI.selected_input(ROOT, e)
+        resolved = CI.shared_selection(ROOT) if shared else selected
+        plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="2" * 40,
+            selection=gate.SHARED if shared else gate.RUI1, resolved_bytes=CI.canonical(resolved),
+            sources={p: gate.sha((ROOT / p).read_bytes()) for p in gate.SOURCES}, requested_at="2026-09-26T12:00:00Z")
+        raw = gate.canonical({"repository": {"full_name": gate.REPOSITORY}, "ref": plan["ref"],
+                              "inputs": gate.dispatch_inputs(plan)})
+        event.write_bytes(raw)
+        binding = gate.bind_original_event(raw, e, head=HEAD, tree=plan["tree"],
+            resolved_bytes=gate.canonical(resolved), sources=plan["sources"])
+        record = CI.admission(selection(), environment(), HEAD, "worker")
+        record.update(selection_record)
+        record.update(CI.source_binding(ROOT))
+        record.update(phase1Gate=binding, gitTree=plan["tree"])
+        for name, data in (("native-admission.json", gate.canonical(record)), ("phase1-original-event.json", raw),
+            ("phase1-event-binding.json", gate.canonical(binding)), ("phase1-gate-plan.json", gate.canonical(plan))):
+            (artifact / name).write_bytes(data)
+        (artifact / "simulator-selection.txt").write_text("runtime=iOS 26.2\nruntime_build=23C54\nname=iPhone 17\nudid="+UDID+"\ninitial_state=Shutdown\n")
+        leaf = container / CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+        frame = diagnostic_frame(self.STREAM, 1, diagnostic_line())
+        if streams:
+            leaf.mkdir(parents=True); (leaf / (self.STREAM + ".jsonl")).write_bytes(frame)
+        calls, state = [], {"container": container, "lookupHook": None}
+        def simctl(argv, **kwargs):
+            self.assertEqual(argv, ["xcrun", "simctl", "get_app_container", UDID, CI.SIMULATOR_DIAGNOSTIC_APP_BUNDLE_ID, "data"])
+            self.assertGreater(kwargs["timeout"], 0); self.assertLessEqual(kwargs["timeout"], 10)
+            calls.append((argv, kwargs))
+            if state["lookupHook"]: state["lookupHook"](len(calls))
+            return subprocess.CompletedProcess(argv, 0, str(state["container"])+"\n", "")
+        def git(argv, **kwargs):
+            self.assertIn(argv, (["git", "rev-parse", "HEAD"], ["git", "rev-parse", "HEAD^{tree}"]))
+            self.assertGreater(kwargs["timeout"], 0); self.assertLessEqual(kwargs["timeout"], 29.5)
+            return HEAD+"\n" if argv[-1] == "HEAD" else plan["tree"]+"\n"
+        stack = contextlib.ExitStack()
+        stack.enter_context(mock.patch.object(CI.subprocess, "run", simctl))
+        stack.enter_context(mock.patch.object(CI.subprocess, "check_output", git))
+        self.addCleanup(stack.close)
+        return artifact, container, leaf, record, e, calls, state, frame
+
+    def interval(self, artifact):
+        return CI.read_json(artifact / CI.PHASE1_DIAGNOSTIC_INTERVAL)
+
+    def test_actual_early_main_and_ui_finally_join_same_interval_and_deduplicate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, _, _, record, e, calls, _, _ = self.fixture(Path(temporary).resolve())
+            with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["v23-native-ci.py", "collect-diagnostics"]):
+                CI.main()
+            self.assertEqual(self.interval(a)["status"], "COPY_INTERVAL_OBSERVED")
+            (a / "test-smoke.log").write_text("synthetic successful unit log\n")
+            CI.persist_simulator_diagnostic_observations(ROOT, a, record)
+            (a / "ui-smoke.log").write_text("synthetic successful UI log\n")
+            CI.phase1_collect_ui_snapshot(ROOT, a, record, e, exit_status=0, interrupted=False)
+            CI.phase1_seal_ui_log(ROOT, a, record)
+            facts = CI.phase1_retained_diagnostic_facts(ROOT, a, record, record["phase1Gate"])
+            self.assertEqual(len(calls), 4)
+            self.assertEqual(facts["uniqueRetainedFrames"], 1)
+            self.assertFalse(facts["allLifetimesProven"])
+            self.assertFalse(facts["phaseOccurrenceCountsAreAdditive"])
+            self.assertFalse(facts["countsAsPerKindProtectionSuccess"])
+            self.assertEqual(facts["functionalQualification"], "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW")
+            for phase in ("unit", "ui"): self.assertTrue(facts["phases"][phase]["copyInterval"]["copyIntervalOnly"])
+
+    def test_actual_shared_consumer_main_binds_partition_and_retained_interval(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, _, _, record, e, calls, _, _ = self.fixture(Path(temporary).resolve(), shared=True)
+            with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["native", "collect-diagnostics"]):
+                CI.main()
+            (a / "test-smoke.log").write_text("synthetic shared consumer log\n")
+            CI.persist_simulator_diagnostic_observations(ROOT, a, record)
+            facts = CI.phase1_retained_diagnostic_facts(ROOT, a, record, record["phase1Gate"])
+            self.assertEqual(set(facts["phases"]), {"unit"})
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(facts["uniqueRetainedFrames"], 1)
+            self.assertFalse(facts["acceptance"])
+
+    def test_actual_later_ui_container_preserves_earlier_unit_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, container, _, record, e, _, state, frame = self.fixture(Path(temporary).resolve())
+            with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["native", "collect-diagnostics"]):
+                CI.main()
+            (a / "test-smoke.log").write_text("synthetic unit log\n")
+            CI.persist_simulator_diagnostic_observations(ROOT, a, record)
+            later = container.parent / "later-container"
+            leaf = later / CI.SIMULATOR_DIAGNOSTIC_APP_DIRECTORY
+            leaf.mkdir(parents=True)
+            (leaf / (self.EXTRA + ".jsonl")).write_bytes(diagnostic_frame(self.EXTRA, 1, diagnostic_line("scratch")))
+            state["container"] = later
+            (a / "ui-smoke.log").write_text("synthetic UI log\n")
+            CI.phase1_collect_ui_snapshot(ROOT, a, record, e, exit_status=0, interrupted=False)
+            CI.phase1_seal_ui_log(ROOT, a, record)
+            facts = CI.phase1_retained_diagnostic_facts(ROOT, a, record, record["phase1Gate"])
+            self.assertEqual(facts["unitStreamsRetainedOnlyInEarlierSnapshot"], [self.STREAM])
+            self.assertEqual(facts["uniqueRetainedFrames"], 2)
+            self.assertFalse(facts["allLifetimesProven"])
+            self.assertEqual((a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).read_bytes(), frame)
+
+    def test_new_stream_append_disappearance_replacement_and_short_copy_refuse(self):
+        for mutation in ("new", "append", "remove", "replace", "short"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, record, e, _, _, frame = self.fixture(Path(temporary).resolve())
+                changed = False
+                def reader(stream, size):
+                    nonlocal changed
+                    raw = stream.read(size)
+                    if not changed:
+                        changed = True
+                        path = leaf / (self.STREAM + ".jsonl")
+                        if mutation == "new": (leaf / (self.EXTRA + ".jsonl")).write_bytes(diagnostic_frame(self.EXTRA, 1, diagnostic_line()))
+                        elif mutation == "append":
+                            with path.open("ab") as output: output.write(diagnostic_frame(self.STREAM, 2, diagnostic_summary_line(occurrences=1)))
+                        elif mutation == "remove": path.unlink()
+                        elif mutation == "replace": path.unlink(); path.write_bytes(frame)
+                        else: return b""
+                    return raw
+                status = CI.collect_simulator_diagnostic_transport(ROOT, a, e, read_chunk=reader)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+                self.assertTrue((a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).exists())
+                with self.assertRaises(ValueError):
+                    CI.phase1_retained_diagnostic_interval(ROOT, a, a, record, "unit", status)
+
+    def test_container_switch_and_absent_directory_appearance_refuse(self):
+        for mutation in ("container", "appearance"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                a, container, leaf, _, e, _, state, _ = self.fixture(Path(temporary).resolve(), streams=mutation=="container")
+                def hook(index):
+                    if index != 2: return
+                    if mutation == "container":
+                        target = container.parent / "different-container"; shutil.copytree(container, target); state["container"] = target
+                    else:
+                        leaf.mkdir(parents=True); (leaf / (self.EXTRA + ".jsonl")).write_bytes(diagnostic_frame(self.EXTRA, 1, diagnostic_line()))
+                state["lookupHook"] = hook
+                status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+
+    def test_initial_and_final_denied_scan_fail_closed_and_restore_succeeds(self):
+        for denied_on in (1, 3):
+            with self.subTest(denied_on=denied_on), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, _, e, _, _, _ = self.fixture(Path(temporary).resolve())
+                real_scan, count = CI.os.scandir, 0
+                def scan(path):
+                    nonlocal count
+                    if Path(path) == leaf:
+                        count += 1
+                        if count == denied_on: raise PermissionError("synthetic denied census")
+                    return real_scan(path)
+                with mock.patch.object(CI.os, "scandir", scan):
+                    status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertIn("denied census", self.interval(a)["error"])
+                self.assertEqual(len(CI.phase1_diagnostic_census(leaf.parents[2], lambda: None)["files"]), 1)
+
+    def test_malformed_missing_changed_gate_inputs_never_fall_back_to_legacy(self):
+        for mutation in ("malformed", "missing-admission", "missing-event", "changed-admission", "changed-retained-event"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                a, _, _, _, e, calls, _, _ = self.fixture(Path(temporary).resolve())
+                if mutation == "malformed": Path(e["GITHUB_EVENT_PATH"]).write_bytes(b'{"inputs":{"v23_phase1_gate_plan":"{}"}}')
+                elif mutation == "missing-admission": (a / "native-admission.json").unlink()
+                elif mutation == "missing-event": e.pop("GITHUB_EVENT_PATH")
+                elif mutation == "changed-retained-event": (a / "phase1-original-event.json").write_bytes(b"{}\n")
+                else:
+                    record = CI.read_json(a / "native-admission.json");record["phase1Gate"]["runID"]="999";(a / "native-admission.json").write_bytes(CI.canonical(record))
+                with mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["native", "collect-diagnostics"]): CI.main()
+                status = CI.read_json(a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+                self.assertIsNone(self.interval(a)["identity"])
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(status["fileCount"], 1)  # safe unqualified bytes survived
+
+    def test_actual_main_overfull_gate_directory_stops_at_first_excess_entry(self):
+        import contextlib
+        for malformed in (False, True):
+            with self.subTest(malformed=malformed), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, _, e, calls, _, _ = self.fixture(Path(temporary).resolve())
+                for index in range(CI.SIMULATOR_DIAGNOSTIC_MAX_FILES + 2):
+                    (leaf / ("11111111-0000-0000-0000-%012x.jsonl" % index)).write_bytes(b"")
+                if malformed:
+                    Path(e["GITHUB_EVENT_PATH"]).write_bytes(b'{"inputs":{"v23_phase1_gate_plan":"{}"}}')
+                real_scan, real_iterdir = CI.os.scandir, Path.iterdir
+                yielded, closed = [], []
+                @contextlib.contextmanager
+                def scan(path):
+                    with real_scan(path) as entries:
+                        if Path(path) != leaf:
+                            yield entries
+                            return
+                        def counted():
+                            for entry in entries:
+                                yielded.append(entry.name)
+                                self.assertLessEqual(len(yielded), CI.SIMULATOR_DIAGNOSTIC_MAX_FILES + 1,
+                                                     "gate scanned beyond its first excess entry")
+                                yield entry
+                        try:
+                            yield counted()
+                        finally:
+                            closed.append(True)
+                def iterdir(path):
+                    if path == leaf:
+                        self.fail("gate invoked unbounded legacy directory enumeration")
+                    return real_iterdir(path)
+                with mock.patch.object(CI.os, "scandir", scan), mock.patch.object(Path, "iterdir", iterdir), \
+                     mock.patch.dict(os.environ, e, clear=True), mock.patch.object(sys, "argv", ["native", "collect-diagnostics"]):
+                    CI.main()
+                self.assertEqual(len(yielded), CI.SIMULATOR_DIAGNOSTIC_MAX_FILES + 1)
+                self.assertEqual(closed, [True])
+                self.assertEqual(len(calls), 1)
+                status = CI.read_json(a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS)
+                self.assertEqual(status["status"], "UNSAFE")
+                self.assertEqual(status["fileCount"], 0)
+                self.assertIn("source census bound", status["error"])
+                self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+                self.assertIsNone(self.interval(a)["after"])
+
+    def test_denied_absent_directory_lookup_never_becomes_zero_use(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, container, leaf, _, e, _, _, _ = self.fixture(Path(temporary).resolve(), streams=False)
+            real_lstat = Path.lstat
+            def lstat(path, *args, **kwargs):
+                if path == container / "Library":
+                    raise PermissionError("synthetic denied source parent")
+                return real_lstat(path, *args, **kwargs)
+            with mock.patch.object(Path, "lstat", lstat):
+                status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+            self.assertEqual(status["status"], "UNSAFE")
+            self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+            self.assertIn("denied source parent", self.interval(a)["error"])
+            self.assertEqual(CI.phase1_diagnostic_census(container, lambda: None)["files"], [])
+
+    def test_actual_ui_finalization_preserves_native_failure_and_safe_partial_bytes(self):
+        for native_exit in (0, 42):
+            with self.subTest(native_exit=native_exit), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, record, e, _, state, _ = self.fixture(Path(temporary).resolve())
+                def hook(index):
+                    if index == 2:
+                        (leaf / (self.EXTRA + ".jsonl")).write_bytes(diagnostic_frame(self.EXTRA, 1, diagnostic_line()))
+                state["lookupHook"] = hook
+                if native_exit == 0:
+                    with self.assertRaisesRegex(ValueError, "transport incomplete"):
+                        CI.phase1_collect_ui_snapshot(ROOT, a, record, e, exit_status=native_exit, interrupted=False)
+                else:
+                    result = CI.phase1_collect_ui_snapshot(ROOT, a, record, e, exit_status=native_exit, interrupted=False)
+                    self.assertEqual(result["nativeExitStatus"], 42)
+                snapshot = a / "phase1-ui-diagnostics"
+                self.assertEqual(self.interval(snapshot)["status"], "INCOMPLETE")
+                self.assertEqual(CI.read_json(snapshot / "phase1-ui-finalization.json")["transportStatus"], "UNSAFE")
+                self.assertTrue((snapshot / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).is_file())
+
+    def test_empty_plan_legacy_status_bytes_and_no_observation_remain_exact(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, _, _, _, e, calls, _, _ = self.fixture(Path(temporary).resolve())
+            Path(e["GITHUB_EVENT_PATH"]).write_bytes(CI.canonical({"inputs": {"v23_phase1_gate_plan": ""}}))
+            (a / "native-admission.json").unlink()
+            status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+            self.assertEqual(status["status"], "AVAILABLE")
+            self.assertEqual(len(calls), 1)
+            self.assertFalse((a / CI.PHASE1_DIAGNOSTIC_INTERVAL).exists())
+            self.assertEqual((a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_STATUS).read_bytes(), CI.canonical(status))
+            self.assertEqual(status["collectionBoundSeconds"], 30)
+
+    def test_same_deadline_covers_binding_final_lookup_hash_and_receipt_fsync(self):
+        for phase in ("binding", "lookup", "hash", "fsync"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as temporary:
+                a, _, leaf, record, e, _, state, _ = self.fixture(Path(temporary).resolve())
+                clock = [100.0]
+                now = lambda: clock[0]
+                real_git, real_census = CI.subprocess.check_output, CI.phase1_diagnostic_census
+                def git(*args, **kwargs):
+                    result = real_git(*args, **kwargs)
+                    if phase == "binding": clock[0] = 129.6
+                    return result
+                def hook(index):
+                    if phase == "lookup" and index == 2: clock[0] = 129.6
+                state["lookupHook"] = hook
+                census_count = [0]
+                def census(container, check):
+                    census_count[0] += 1
+                    if phase == "hash" and census_count[0] == 2:
+                        def deadline_check(): clock[0] = 129.6; check()
+                        return real_census(container, deadline_check)
+                    return real_census(container, check)
+                gate = CI.load_phase1_gates(ROOT)
+                real_write = gate.write_immutable
+                def write(path, raw):
+                    result = real_write(path, raw)
+                    if phase == "fsync": clock[0] = 130.1
+                    return result
+                with mock.patch.object(CI.subprocess, "check_output", git), mock.patch.object(CI, "phase1_diagnostic_census", census), \
+                     mock.patch.object(CI, "load_phase1_gates", return_value=gate), mock.patch.object(gate, "write_immutable", write):
+                    if phase == "fsync":
+                        with self.assertRaises(CI._DiagnosticCollectionDeadline):
+                            CI.collect_simulator_diagnostic_transport(ROOT, a, e, monotonic=now)
+                    else:
+                        status = CI.collect_simulator_diagnostic_transport(ROOT, a, e, monotonic=now)
+                        self.assertEqual(status["status"], "UNSAFE")
+                        self.assertEqual(self.interval(a)["status"], "INCOMPLETE")
+                if phase in ("lookup", "hash", "fsync"):
+                    self.assertTrue((a / CI.SIMULATOR_DIAGNOSTIC_TRANSPORT_DIRECTORY / (self.STREAM + ".jsonl")).exists())
+
+    def test_zero_use_and_interrupted_paths_never_become_protection_or_complete(self):
+        for interrupted in (False, True):
+            with self.subTest(interrupted=interrupted), tempfile.TemporaryDirectory() as temporary:
+                a, _, _, record, e, calls, _, _ = self.fixture(Path(temporary).resolve(), streams=False)
+                status = CI.collect_simulator_diagnostic_transport(ROOT, a, e, interrupted=interrupted)
+                self.assertEqual(status["status"], "INTERRUPTED" if interrupted else "ZERO_USE")
+                observation = self.interval(a)
+                self.assertEqual(observation["collectionBoundSeconds"], 3 if interrupted else 30)
+                self.assertEqual(observation["status"], "INCOMPLETE" if interrupted else "COPY_INTERVAL_OBSERVED")
+                if observation["identity"] is None:
+                    self.assertTrue(interrupted)
+                    self.assertIsNotNone(observation["error"])
+                else:
+                    self.assertFalse(observation["identity"]["acceptance"])
+                self.assertFalse(observation["allLifetimesProven"])
+                if interrupted:
+                    self.assertTrue(all(kwargs["timeout"] <= 2 for _, kwargs in calls))
+                    with self.assertRaises(ValueError): CI.phase1_retained_diagnostic_interval(ROOT, a, a, record, "unit", status)
+
+    def test_retained_interval_missing_tampered_identity_census_or_budget_refuses(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            a, _, _, record, e, _, _, _ = self.fixture(Path(temporary).resolve())
+            status = CI.collect_simulator_diagnostic_transport(ROOT, a, e)
+            path = a / CI.PHASE1_DIAGNOSTIC_INTERVAL;raw=path.read_bytes()
+            for mutation in ("identity", "census", "files", "budget", "lifetimes", "transport"):
+                changed=json.loads(raw)
+                if mutation=="identity": changed["identity"]["runID"]="999"
+                elif mutation=="census": changed["after"]["containerIdentity"]["inode"]+=1
+                elif mutation=="files": changed["before"]["files"]=[];changed["after"]["files"]=[]
+                elif mutation=="budget": changed["collectionBoundSeconds"]=31
+                elif mutation=="lifetimes": changed["allLifetimesProven"]=True
+                else: changed["transportSHA256"]="0"*64
+                path.write_bytes(CI.canonical(changed))
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    CI.phase1_retained_diagnostic_interval(ROOT, a, a, record, "unit", status)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError): CI.phase1_retained_diagnostic_interval(ROOT, a, a, record, "unit", status)
+
+
+class WorkflowTemplateBudgetTests(unittest.TestCase):
+    """GitHub counts each called workflow's template once per calling job; d2c1c4b failed at ~6 MiB."""
+
+    def test_dispatcher_called_template_bytes_stay_under_the_guard(self):
+        workflow = (ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8')
+        total, calls = called_template_bytes(workflow, lambda path: (ROOT / path).stat().st_size)
+        self.assertLessEqual(total, CALLED_TEMPLATE_MAX_BYTES)
+        self.assertEqual(collections.Counter(calls), {'.github/workflows/ios-ci-worker.yml': 16,
+                                                      '.github/workflows/bitrise-build-hub-probe.yml': 1,
+                                                      SHARED_WORKER_PATH: 2})
+        self.assertLessEqual((ROOT / SHARED_WORKER_PATH).stat().st_size, SHARED_WORKER_MAX_BYTES)
+
+        # The guard separates the layout GitHub accepted from the one it rejected.
+        def at(commit):
+            text = subprocess.check_output(['git', 'show', commit + ':.github/workflows/ios-ci.yml'], cwd=ROOT).decode('utf-8')
+            return called_template_bytes(text, lambda path: int(subprocess.check_output(
+                ['git', 'cat-file', '-s', commit + ':' + path], cwd=ROOT, text=True)))[0]
+        self.assertLessEqual(at(ORDINARY_WORKER_BASE_COMMIT), CALLED_TEMPLATE_MAX_BYTES)
+        self.assertGreater(at('d2c1c4b359a44c02539545e2e6da359addd86eb8'), CALLED_TEMPLATE_MAX_BYTES)
+        with self.assertRaises(AssertionError):
+            called_template_bytes(workflow + '\n  extra:\n    uses: "./.github/workflows/ios-ci-worker.yml"\n', len)
+
+
+
+class Phase1ExecutionProofTests(unittest.TestCase):
+    """Synthetic protocol fixtures; never a hosted/native/qualification receipt."""
+
+    def fixture(self, directory, shared=False, execution_environment=None):
+        gate = CI.load_phase1_gates(ROOT)
+        plan = {"selection": gate.SHARED if shared else gate.RUI1, "head": HEAD}
+        resolved = {CI.SHARED_KEY: {"partitionIDs": ["S01"]}}
+        names = CI.phase1_job_names(ROOT, plan, resolved)
+        self.assertEqual(names["selection"], "Validate shared build selection and dependencies")
+        jobs, logs = [], {}
+        rui = {"Prepare evidence directory", "Check out the exact revision", "Validate task selection and timeout tier",
+            "Verify pinned toolchain, shared scheme, and simulator", "Verify setup budget before build", "Boot selected Simulator",
+            "Await selected Simulator boot", "Build unsigned simulator app", "Run targeted tests", "Run task-authorized UI smoke",
+            "Begin evidence-finalization budget", "Validate required build and test evidence", "Validate exact ordinary integration native checkpoint",
+            "Remove owned isolated Simulator", "Hash collected evidence", "Recheck evidence-finalization budget",
+            "Verify selected total budget before upload", "Upload build evidence"}
+        consumers = {"Download V23 shared coverage payload", "Verify and restore V23 shared coverage payload",
+                     "Recheck setup budget after V23 shared payload restore", "Fingerprint V23 shared products before tests",
+                     "Run targeted tests", "Fingerprint V23 shared products after tests"}
+        producers = {"Build unsigned simulator app", "Seal V23 shared coverage payload", "Upload V23 shared coverage payload"}
+        (directory / "phase1-job-logs").mkdir()
+        for index, (label, name) in enumerate(names.items(), 1):
+            source = ".github/workflows/ios-ci.yml" if label == "selection" else ".github/workflows/ios-ci-worker.yml" if label == "rui1" else ".github/workflows/ios-ci-shared-worker.yml"
+            definitions = CI.phase1_workflow_steps(ROOT, source, "shared-selection" if label == "selection" else "verify")
+            if label == "selection":
+                required = {"Check out the exact revision", "Validate ordinary V23 native acceptance selection", "Validate closed shared selection and original dependencies"}
+            elif label == "rui1":
+                required = rui
+            else:
+                required = {s["name"] for s in definitions} - (consumers if label == "producer" else producers)
+            steps = [{"name": "Set up job", "number": 1, "status": "completed", "conclusion": "success"}]
+            raw = []
+            for number, definition in enumerate(definitions, 2):
+                active = definition["name"] in required
+                steps.append({"name": definition["name"], "number": number, "status": "completed", "conclusion": "success" if active else "skipped"})
+                if not active:
+                    continue
+                if definition["script"]:
+                    script = definition["script"]
+                    env_lines = "".join("  %s: %s\n" % pair for pair in sorted((execution_environment or {"CONFIGURATION": "Debug"}).items()))
+                    raw.append("##[group]Run " + script.splitlines()[0] + "\n" + script + "\nshell: /bin/bash --noprofile --norc -e -o pipefail {0}\nenv:\n" + env_lines + "##[endgroup]\n")
+                    if definition["name"] == "Verify selected total budget before upload":
+                        raw.append("elapsed_seconds=200\ntotal_budget_seconds=3900\n")
+                elif definition["action"]:
+                    raw.append("##[group]Run " + definition["action"] + "\n##[endgroup]\n")
+            steps.append({"name": "Complete job", "number": len(steps) + 1, "status": "completed", "conclusion": "success"})
+            job = {"id": index, "name": name, "run_id": 123, "run_attempt": 1, "head_sha": HEAD,
+                   "status": "completed", "conclusion": "success", "steps": steps}
+            jobs.append(job)
+            log = directory / "phase1-job-logs" / (str(index) + ".log")
+            log.write_text("".join(raw))
+            logs[label] = log
+        (directory / "jobs.json").write_bytes(CI.canonical({"jobs": jobs}))
+        return plan, resolved, jobs, logs
+
+    def test_source_derived_jobs_and_actual_command_envelopes_bind_shared_and_rui1(self):
+        for shared in (False, True):
+            with self.subTest(shared=shared), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                plan, resolved, _, _ = self.fixture(root, shared)
+                facts = CI.phase1_job_execution_facts(ROOT, root, plan, resolved, 123)
+                self.assertEqual(set(facts), {"selection", "producer", "S01"} if shared else {"selection", "rui1"})
+                for label, fact in facts.items():
+                    self.assertFalse(fact["finalizationNumericElapsedAvailable"])
+                    self.assertEqual(fact["finalizationBudgetPredicatePassed"], label != "selection")
+
+    def test_job_proof_rejects_forged_origin_skipped_failures_duplicates_order_and_extra_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            plan, resolved, jobs, _ = self.fixture(directory)
+            original = copy.deepcopy(jobs)
+            def skip(v):
+                next(s for s in v[-1]["steps"] if s["name"] == "Run targeted tests")["conclusion"] = "skipped"
+            def reorder(v):
+                v[-1]["steps"][2]["name"], v[-1]["steps"][3]["name"] = v[-1]["steps"][3]["name"], v[-1]["steps"][2]["name"]
+            mutations = (lambda v: v[-1].update(run_attempt=2), lambda v: v[-1].update(head_sha="b" * 40),
+                         lambda v: v[-1].update(conclusion="cancelled"), lambda v: v.append(copy.deepcopy(v[-1])), skip, reorder,
+                         lambda v: v.append(dict(v[-1], id=55, name="unexpected execution")),
+                         lambda v: v[-1]["steps"].pop(), lambda v: v.pop())
+            for mutation in mutations:
+                changed = copy.deepcopy(original); mutation(changed)
+                (directory / "jobs.json").write_bytes(CI.canonical({"jobs": changed}))
+                with self.assertRaises(ValueError):
+                    CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123)
+            (directory / "jobs.json").write_bytes(CI.canonical({"jobs": original}))
+            self.assertIn("rui1", CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123))
+
+    def test_payload_api_identity_download_digest_and_each_consumer_tar_must_agree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            gate = CI.load_phase1_gates(ROOT)
+            plan = {"selection": gate.SHARED, "head": HEAD, "ref": "refs/heads/codex/v23-s10-integration-20260910"}
+            resolved = {CI.SHARED_KEY: {"partitionIDs": ["S01", "S02"]}}
+            prefix = "ios-ci-native-github-" + gate.SHARED
+            payload_name = "v23-shared-payload-123-1-" + HEAD
+            names = [prefix + "-producer-123-1", prefix + "-consumer-S01-123-1", prefix + "-consumer-S02-123-1", payload_name]
+            listing = [{"id": i, "name": name, "expired": False, "size_in_bytes": 100, "digest": "sha256:" + "a" * 64,
+                        "workflow_run": {"id": 123, "head_sha": HEAD, "head_branch": plan["ref"].removeprefix("refs/heads/")}}
+                       for i, name in enumerate(names, 1)]
+            api = directory / "artifacts.json"; api.write_bytes(CI.canonical({"artifacts": listing}))
+            archive = {"name": CI.SHARED_TAR, "bytes": 90, "sha256": "B" * 64}
+            for label in ("producer", "S01", "S02"):
+                artifact = directory / "artifacts" / label; artifact.mkdir(parents=True)
+                (artifact / CI.SHARED_PAYLOAD_METADATA).write_bytes(b"synthetic same producer metadata")
+                (artifact / ("phase1-shared-live-seal.json" if label == "producer" else "phase1-shared-live-restore.json")).write_bytes(CI.canonical({"archive": archive}))
+            (directory / "phase1-job-logs").mkdir()
+            jobs = {"S01": {"jobID": 101}, "S02": {"jobID": 102}}
+            for job in jobs.values():
+                (directory / "phase1-job-logs" / (str(job["jobID"]) + ".log")).write_text(
+                    "- %s (ID: 4, Size: 100, Expected Digest: sha256:%s)\nSHA256 digest of downloaded artifact is %s\nArtifact download completed successfully.\n" % (payload_name, "a" * 64, "a" * 64))
+            def verify():
+                return CI.phase1_payload_execution_facts(ROOT, directory, plan, resolved, 123, jobs)
+            proof = verify()
+            self.assertFalse(proof["downloadedByCollector"])
+            self.assertFalse(proof["offlinePayloadReplay"])
+            for relative, change in (("phase1-job-logs/102.log", lambda b: b.replace(b"ID: 4", b"ID: 5")),
+                                     ("phase1-job-logs/101.log", lambda b: b.replace(b"a" * 64, b"b" * 64)),
+                                     ("artifacts/S02/" + CI.SHARED_PAYLOAD_METADATA, lambda b: b + b"foreign"),
+                                     ("artifacts/S01/phase1-shared-live-restore.json", lambda b: b.replace(b"B" * 64, b"C" * 64))):
+                path = directory / relative; raw = path.read_bytes(); path.write_bytes(change(raw))
+                with self.subTest(relative=relative), self.assertRaises(ValueError):
+                    verify()
+                path.write_bytes(raw)
+            listing[-1]["expired"] = True; api.write_bytes(CI.canonical({"artifacts": listing}))
+            with self.assertRaises(ValueError):
+                verify()
+            listing[-1]["expired"] = False; api.write_bytes(CI.canonical({"artifacts": listing}))
+            self.assertEqual(verify(), proof)
+
+    def test_job_log_missing_truncated_substituted_command_and_duplicate_budget_fail(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            plan, resolved, _, logs = self.fixture(directory, shared=True)
+            path = logs["S01"]; raw = path.read_bytes()
+            mutations = (raw[:100], raw.replace(b"bash Scripts/test-smoke.sh", b"bash Scripts/fake-test-smoke.sh"),
+                         raw.replace(b"total_budget_seconds=3900", b"total_budget_seconds=3900\ntotal_budget_seconds=3900"),
+                         raw.replace(b"##[endgroup]", b"", 1))
+            for changed in mutations:
+                path.write_bytes(changed)
+                with self.assertRaises(ValueError):
+                    CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123)
+            path.unlink()
+            with self.assertRaises(FileNotFoundError):
+                CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123)
+            path.write_bytes(raw)
+            self.assertIn("S01", CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123))
+
+
+if __name__ == "__main__":
+    unittest.main()

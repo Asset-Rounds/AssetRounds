@@ -1,0 +1,113 @@
+{
+  "authority": {
+    "appBaseHead": "73d512ac1ff2832fa5c681078fb027604c7661cf",
+    "appBaseTree": "c521dcfe1caf97b75b4a6d952f6c2ddea1daab2f",
+    "cardID": "V23-P04-C14",
+    "contextDigest": "435c6ffc8efcf725be7c4f7a70982e8dcd0b494bbbc377d9b5fcbe9f448360fa",
+    "coordinationHead": "aee98813ac4b54ec9dd03ca69caf44bbd4e8b3f5",
+    "coordinationTree": "c31d0ea9f8cabb191b46bbd2ad622ab0c2f61666",
+    "correctionDigest": "8e9926610b6bc176c4a949bae29ed6dd9dd379648fe814ad4e064a7b829c3c0c",
+    "existingPathCount": 35,
+    "fencePathCount": 51,
+    "finalHashesSealed": true,
+    "ledgerDigest": "87531a7a04d5b21cde197b7866a4115c17cfd0533c10d1480473565a605a684e",
+    "newPathCount": 16,
+    "pathFenceDigest": "6a2fac3729e5d3f4d12909d18e951ebe5c350fe9d94b97d8d8d34cbb1e8032c1",
+    "prerequisiteDigest": "1aa55a8060f7c3642f0962632d12ae3f7fb0d9a02a341b23a7ac0b9109449a07",
+    "priorFenceCount": 4,
+    "projectionDigest": "757a4b63ec6dcfd8de8e072e508925fdae53605d90021648bcd3cad6ec210af4",
+    "s10OverlapCount": 0,
+    "sequence": 444,
+    "transitionDigest": "8e91f0df481a112f6eb6bae51f6c6b4e8407b31c755288fe744a3138c3a8cdcc"
+  },
+  "cardID": "V23-P04-C14",
+  "contractDigest": "c303fdd983429f86d1408e441a7bd00f565090570abb351db35ea781b7c22de1",
+  "provisional": true,
+  "schema": "V23P04C14PrivateSystemDiscoveryEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 51,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C14G01OptedInAvailableUnlockedDiscoveryInvokesReusableReadAndRouteOnlyIntents",
+      "testV23P04C14A01UnavailableOrOptedOutDiscoveryPublishesNoPrivateSystemProjection",
+      "testV23P04C14H01LockedIngressResolvesNothingAndReturnsOnlyGenericUnlockRequired",
+      "testV23P04C14I01InterruptedRebuildOrRemovalJournalReplaysWithoutDuplicateSystemProjection",
+      "testV23P04C14R01DeleteEraseExportAndReportDropAndRebuildDerivedDiscoveryProjection"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "FieldEvidenceApp/Domain/SystemDiscovery/PrivateSystemDiscoveryContractsV1.swift",
+        "sha256": "d684bd46327131f20dd5c04fd5e91b9571f176c14004e4693d77740bd1163568",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Application/SystemDiscovery/PrivateSystemDiscoveryCoordinatorV1.swift",
+        "sha256": "c2936d9b3837a8b84c15b849dfbf0506b9bfa3c87fa5f02e6d146b768873617d",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Search/PrivateSystemDiscoveryIndexStoreV1.swift",
+        "sha256": "b3f5687508514491b5649823cdb628bc224c85bf0a1566e95223b77fb2a72477",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/App/Intents/PrivateSystemDiscoveryAppIntentsV1.swift",
+        "sha256": "c78aaec38c32bf90cdc4a3c33419ede056a9cbaaa8312f75a1e8ffcd9d2dc78b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Features/Settings/PrivateSystemDiscoverySettingsView.swift",
+        "sha256": "f95c423f12791cb2fd9ba209130737cdb1f8d3775e7770421fc0670bfc8f3254",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_78PrivateSystemDiscoveryTests.swift",
+        "sha256": "5ca8a511a820a30927f5896847b7d0b59aeac5ebbc12929a0b6f71fce5b95310",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C14PrivateSystemDiscoveryUITests.swift",
+        "sha256": "8789a018e109fc9b15808ccf4919ab4210b61d3b495ba6cc97099003241aa1be",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V23/SystemDiscovery/V23P04C14PrivateSystemDiscoveryCorpusV1.json",
+        "sha256": "efb3fca7a4ba68cb5266035fb89b6af32610d94fb0eb91f857a3f519176bb137",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+        "sha256": "81ec67a6629b5af739ce7ed2c9c54f65d5f3cc727492b05eff49f1e1ce77b7a9",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+        "sha256": "d90cba1b0312dd2b3bf47b5bcbf2672255cf517d5bc6f3eecbee892dfb881c65",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+        "sha256": "1eb988a2cde45594c7ac89b145a8ce156771fca5f0b7f5a6ea170270840caf88",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  }
+}

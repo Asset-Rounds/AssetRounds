@@ -1,0 +1,640 @@
+{
+  "sourceSHA256": "7b8522cb926715cb076ac2b3333ae9e8c18ee75487298223187dc8033c7682a2",
+  "scope": "static lexical member census of actual Ledger class; directMemoryFence means first instruction before numeric FD access; transitive/nested exceptions require classification",
+  "members": [
+    {
+      "name": "originalEraseC16IssueFirstPPairs",
+      "line": 4889,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard let permit = originalEraseColdPermit, let operationID = originalEraseOperationID else {",
+        "            throw Scr"
+      ]
+    },
+    {
+      "name": "originalEraseC16CurrentObservationScope",
+      "line": 5012,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard let permit = originalEraseColdPermit, let operationID = originalEraseOperationID,",
+        "              originalErase"
+      ]
+    },
+    {
+      "name": "originalEraseC16VerifyScopedPairPolicy",
+      "line": 5113,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard let observed = originalEraseC16ScopedPairPolicies[url.path] else { return false }",
+        "        try originalEraseBo"
+      ]
+    },
+    {
+      "name": "originalEraseC16TargetCut",
+      "line": 5185,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard Self.isLeaseDirectoryName(target.directoryName),",
+        "              target.device == authority.rootDevice,",
+        "       "
+      ]
+    },
+    {
+      "name": "originalEraseC16PhysicalCutPrimitive",
+      "line": 5713,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard originalEraseBorrowedExclusiveCheck != nil,",
+        "              originalEraseC16ReferencePlan == plan,",
+        "            "
+      ]
+    },
+    {
+      "name": "originalEraseCurrentC16MarkerBirth",
+      "line": 6103,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard originalEraseBorrowedExclusiveCheck != nil,",
+        "              let operationID = originalEraseOperationID,",
+        "       "
+      ]
+    },
+    {
+      "name": "originalEraseBorrowedLocalLineageCheck",
+      "line": 6402,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        var operations = stat(), namedOperations = stat(), root = stat()",
+        "        guard Darwin.fstat(authority.operationsDes"
+      ]
+    },
+    {
+      "name": "originalEraseC16PlanFromFirstP",
+      "line": 6635,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard originalEraseBorrowedExclusiveCheck != nil,",
+        "              originalEraseOperationID != nil,",
+        "              excl"
+      ]
+    },
+    {
+      "name": "settleOriginalEraseFirstPPartial",
+      "line": 7063,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard name.hasPrefix(\".partial-\"),",
+        "              let id = UUID(uuidString: String(name.dropFirst(\".partial-\".count)"
+      ]
+    },
+    {
+      "name": "closeObservedScratchDescriptor",
+      "line": 7161,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        if exclusiveNoRepairRead {",
+        "            let attempt = ScratchUncertainCloseQuarantineV1.shared.begin(",
+        "              "
+      ]
+    },
+    {
+      "name": "originalEraseC16TombstoneAuthoritiesNoRepair",
+      "line": 7423,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard try hasExistingIngressControl(),",
+        "              let control = ingressControlAuthority else { return [:] }",
+        "    "
+      ]
+    },
+    {
+      "name": "originalEraseNoRepairLeaseContents",
+      "line": 7505,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        var durableBytes: UInt64 = 0",
+        "        for child in try directoryNames(descriptor)",
+        "            where child != Self.me"
+      ]
+    },
+    {
+      "name": "originalEraseNoRepairSemanticAdmission",
+      "line": 7550,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try requireOriginalEraseBorrowedOwner()",
+        "        try originalEraseBorrowedExclusiveCheck?()",
+        "        try verifyRoot()"
+      ]
+    },
+    {
+      "name": "protectedIngressReceiptDirectory",
+      "line": 7941,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try verifyRoot()",
+        "        let name = \"ProtectedIngressReceiptsV1\"",
+        "        let directory = rootURL.deletingLastPathCo"
+      ]
+    },
+    {
+      "name": "ingressControlDescriptor",
+      "line": 7989,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        _ = try protectedIngressReceiptDirectory()",
+        "        guard let ingressControlAuthority else { throw AppAccessContract"
+      ]
+    },
+    {
+      "name": "makeProtectedIngressPrepare",
+      "line": 8069,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try verifyRoot()",
+        "        let names = try directoryNames(authority.rootDescriptor)",
+        "        guard names.count <= Prot"
+      ]
+    },
+    {
+      "name": "validatePreparedIngressTargetForRecovery",
+      "line": 8148,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        let tombstone = Self.deletionTombstoneName(for: target.directoryName)",
+        "        let original = try directoryInformati"
+      ]
+    },
+    {
+      "name": "c16OwnedTargetSteps",
+      "line": 8199,
+      "directMemoryFence": false,
+      "prefix": [
+        "[.plan { session in",
+        "            let tombstone = Self.deletionTombstoneName(for: originalName)",
+        "            let original = try self.directoryInformationIfPresent("
+      ]
+    },
+    {
+      "name": "c16FinalizeHygieneSteps",
+      "line": 8302,
+      "directMemoryFence": false,
+      "prefix": [
+        "[.plan { _ in",
+        "            let finalized = try prepare.finalizing()",
+        "            let current = try self.readProtectedIngressPrepare(at: file)",
+        "            if curre"
+      ]
+    },
+    {
+      "name": "stageProtectedIngress",
+      "line": 9057,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        return try withProducerFilesystemLock {",
+        "            guard source.isFileURL, C16IngressPreparedStageV1.supportedKind"
+      ]
+    },
+    {
+      "name": "replaceIngressControlBytes",
+      "line": 9179,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard try readIngressControlFile(file, maximumBytes: 262_144) == expected else {",
+        "            throw AppAccessContrac"
+      ]
+    },
+    {
+      "name": "validateIngressRemovalWithoutEffects",
+      "line": 9235,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try removal.validate()",
+        "        let value = removal.expected",
+        "        try validateIngressPreparation(value.claim.prep"
+      ]
+    },
+    {
+      "name": "c16IngressRemovalSteps",
+      "line": 9276,
+      "directMemoryFence": false,
+      "prefix": [
+        "[.plan { _ in",
+        "            try self.validateIngressRemovalWithoutEffects(removal)",
+        "            let value = removal.expected",
+        "            var steps = self.c16OwnedT"
+      ]
+    },
+    {
+      "name": "makeUnpublishedIngressEraseTarget",
+      "line": 9307,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        let id = preparation.intent.intentID",
+        "        try validateIngressPreparation(preparation, intentID: id)",
+        "        for "
+      ]
+    },
+    {
+      "name": "hasExistingIngressControl",
+      "line": 9754,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try verifyRoot()",
+        "        var information = stat()",
+        "        if Darwin.fstatat(authority.operationsDescriptor, \"Protec"
+      ]
+    },
+    {
+      "name": "c16ControlRootRemovalSteps",
+      "line": 9932,
+      "directMemoryFence": false,
+      "prefix": [
+        "[.effect { [self] in",
+        "            try pinned.verify(rootName: \"ProtectedIngressReceiptsV1\")",
+        "            guard try directoryNames(pinned.rootDescriptor).isEmpty,"
+      ]
+    },
+    {
+      "name": "originalEraseC16MaterializedControlRole",
+      "line": 10085,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        let step = plan.steps[ordinal]",
+        "        guard step == .eraseFinalControl || step == .resumeControlTail else { return"
+      ]
+    },
+    {
+      "name": "c16ControlEraseSteps",
+      "line": 10419,
+      "directMemoryFence": false,
+      "prefix": [
+        "[.plan { [self] _ in",
+        "        if originalEraseBorrowedExclusiveCheck != nil, originalEraseControlRemovalProved { return [] }",
+        "        guard try hasExistingIngress"
+      ]
+    },
+    {
+      "name": "validateIngressClaim",
+      "line": 10557,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try validateIngressPreparation(claim.preparation, intentID: claim.preparation.intent.intentID)",
+        "        let name = c"
+      ]
+    },
+    {
+      "name": "validateIngressPublication",
+      "line": 10583,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try value.validate()",
+        "        let descriptor = try validateIngressClaim(value.claim)",
+        "        try withObservedScratch"
+      ]
+    },
+    {
+      "name": "opaqueSHA256",
+      "line": 10638,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard byteCount > 0, byteCount <= PendingLockedExternalIntentV1.maximumByteCount else {",
+        "            throw AppAccess"
+      ]
+    },
+    {
+      "name": "publishOpaqueIngress",
+      "line": 10670,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        let sinkActivity = try OwnedStorageProducerActivityV1.acquire(",
+        "            applicationSupportURL: producerApplicati"
+      ]
+    },
+    {
+      "name": "checkedOriginalEraseSourceCut",
+      "line": 11204,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard exclusiveNoRepairRead, let io = originalEraseSourceReceiptIO else {",
+        "            throw ScratchDataLeaseStoreFa"
+      ]
+    },
+    {
+      "name": "requireOriginalEraseAuxiliaryScratchNoRepairFirstImage",
+      "line": 11272,
+      "directMemoryFence": false,
+      "prefix": [
+        "try permit.requireHeld()",
+        "        var retainedStore: ScratchDataLeaseStoreV1?",
+        "        do {",
+        "            let store = try ScratchDataLeaseStoreV1("
+      ]
+    },
+    {
+      "name": "settleOriginalEraseAuxiliaryExistingControlPolicy",
+      "line": 11361,
+      "directMemoryFence": false,
+      "prefix": [
+        "let name = \"ProtectedIngressReceiptsV1\"",
+        "        // The original Router operation must retain this owner before the",
+        "        // first open. A failed checked close"
+      ]
+    },
+    {
+      "name": "settleOriginalEraseNotificationExistingRootPolicy",
+      "line": 11680,
+      "directMemoryFence": false,
+      "prefix": [
+        "let name = AppLockNotificationControlStoreV1.rootName",
+        "        // The original Router operation must retain this owner before the",
+        "        // first open. A failed"
+      ]
+    },
+    {
+      "name": "acquireScratchLeaseSynchronously",
+      "line": 12390,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try request.validate()",
+        "        let current = clock()",
+        "        guard request.createdAt <= current, current < request."
+      ]
+    },
+    {
+      "name": "writeScratchDataSynchronously",
+      "line": 12509,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard OperationalDiagnosticsBoundsV1.validRelativeName(named),",
+        "              named != Self.metadataName,",
+        "          "
+      ]
+    },
+    {
+      "name": "recoverScratchLeaseState",
+      "line": 12658,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try verifyRoot()",
+        "        try resumePreparedScratchHygiene()",
+        "        let ingressRecovery = try recoverUnpublishedIng"
+      ]
+    },
+    {
+      "name": "resetScratchDataSynchronously",
+      "line": 12778,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try settleScratchIngressAndHygieneBeforeLeaseDeletion()",
+        "        for child in try directoryNames(authority.rootDescr"
+      ]
+    },
+    {
+      "name": "eraseScratchDataSynchronously",
+      "line": 12814,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try resetScratchDataSynchronously()",
+        "        try eraseScratchIngressControl(resumeOnly: false)",
+        "        try verifyRoo"
+      ]
+    },
+    {
+      "name": "removeLeaseDirectory",
+      "line": 12910,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard Self.isLeaseDirectoryName(name) else {",
+        "            throw ScratchDataLeaseStoreFailureV1.invalidLease",
+        "        "
+      ]
+    },
+    {
+      "name": "eraseOriginalFrozenLease",
+      "line": 13010,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard originalEraseBorrowedExclusiveCheck != nil,",
+        "              exclusiveNoRepairRead,",
+        "              Self.isLeaseDi"
+      ]
+    },
+    {
+      "name": "eraseOriginalFrozenEmptyRoot",
+      "line": 13147,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard originalEraseBorrowedExclusiveCheck != nil,",
+        "              exclusiveNoRepairRead,",
+        "              expectedFirstD"
+      ]
+    },
+    {
+      "name": "removeDeletionTombstone",
+      "line": 13212,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard Self.isDeletionTombstone(name) else {",
+        "            throw ScratchDataLeaseStoreFailureV1.invalidLease",
+        "        }"
+      ]
+    },
+    {
+      "name": "c16DeletePinnedDirectorySteps",
+      "line": 13314,
+      "directMemoryFence": false,
+      "prefix": [
+        "[.plan { _ in",
+        "            guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {",
+        "                throw ScratchDataLeaseStoreFailureV1.leaseCollision",
+        "           "
+      ]
+    },
+    {
+      "name": "directoryInformationIfPresent",
+      "line": 13400,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try verifyRoot()",
+        "        var information = stat()",
+        "        if Darwin.fstatat("
+      ]
+    },
+    {
+      "name": "openLeaseDirectory",
+      "line": 13422,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard OperationalDiagnosticsBoundsV1.validRelativeName(name) else {",
+        "            throw ScratchDataLeaseStoreFailureV"
+      ]
+    },
+    {
+      "name": "verifyLeaseDirectory",
+      "line": 13463,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        try verifyRoot()",
+        "        var linked = stat()",
+        "        var pinned = stat()"
+      ]
+    },
+    {
+      "name": "directoryNames",
+      "line": 13485,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        let duplicate = Darwin.dup(descriptor)",
+        "        guard duplicate >= 0, let directory = Darwin.fdopendir(duplicate) el"
+      ]
+    },
+    {
+      "name": "regularFileInformationIfPresent",
+      "line": 13555,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        var information = stat()",
+        "        if Darwin.fstatat(",
+        "            directoryDescriptor,"
+      ]
+    },
+    {
+      "name": "readRegularFile",
+      "line": 13642,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        let expected = try regularFileInformation(",
+        "            named: name,",
+        "            directoryDescriptor: directoryDescr"
+      ]
+    },
+    {
+      "name": "readOriginalErasePublicationLeaf",
+      "line": 13728,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        var parentBefore = stat()",
+        "        guard Darwin.fstat(parent, &parentBefore) == 0 else { throw ScratchDataLeaseStore"
+      ]
+    },
+    {
+      "name": "unlinkPublicationTemporary",
+      "line": 13855,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard Darwin.unlinkat(parent, temporaryName, 0) == 0,",
+        "              Darwin.fsync(parent) == 0 else {",
+        "            th"
+      ]
+    },
+    {
+      "name": "createPublicationTemporary",
+      "line": 13865,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        let descriptor = Darwin.openat(parent, temporaryName,",
+        "            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)"
+      ]
+    },
+    {
+      "name": "writePublicationChunk",
+      "line": 13877,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard offset >= 0, offset < data.count else {",
+        "            throw ScratchDataLeaseStoreFailureV1.invalidRoot",
+        "        "
+      ]
+    },
+    {
+      "name": "publishPublicationTemporary",
+      "line": 13895,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        if atomicExclusiveRename {",
+        "            guard finalName == Self.controlEraseName,",
+        "                  leaseName == nil"
+      ]
+    },
+    {
+      "name": "publishOriginalEraseControlDurably",
+      "line": 14292,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        guard originalEraseBorrowedExclusiveCheck != nil,",
+        "              exclusiveNoRepairRead,",
+        "              let originalEr"
+      ]
+    },
+    {
+      "name": "removeInterruptedPublications",
+      "line": 14359,
+      "directMemoryFence": true,
+      "prefix": [
+        "try requireScratchDescriptorAccess()",
+        "        if originalEraseBorrowedExclusiveCheck != nil,",
+        "           try directoryNames(directoryDescriptor).contains(where: {"
+      ]
+    },
+    {
+      "name": "prepareRoot",
+      "line": 14437,
+      "directMemoryFence": false,
+      "prefix": [
+        "let operations = root.deletingLastPathComponent()",
+        "        let applicationSupport = operations.deletingLastPathComponent()",
+        "        let applicationSupportDescript"
+      ]
+    }
+  ]
+}

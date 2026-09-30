@@ -1,0 +1,22 @@
+[
+  {
+    "debug": false,
+    "exit": 0,
+    "stderr": "",
+    "sourceSHA256": {
+      "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "df0a100c57a76826c25ef00f5264f9264705d6147196d11cc7167d2f1e040baa",
+      "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "6dfad8d870bc36f14833eb821d0a1af1b3c8272826cb29e8899ae58eab3aa859",
+      "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "edaed37fdfe302ae5e7d270f6fc946a3cea0a3deb6b31ee27a74ddcc9ab8d99e"
+    }
+  },
+  {
+    "debug": true,
+    "exit": 0,
+    "stderr": "",
+    "sourceSHA256": {
+      "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "df0a100c57a76826c25ef00f5264f9264705d6147196d11cc7167d2f1e040baa",
+      "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "6dfad8d870bc36f14833eb821d0a1af1b3c8272826cb29e8899ae58eab3aa859",
+      "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "edaed37fdfe302ae5e7d270f6fc946a3cea0a3deb6b31ee27a74ddcc9ab8d99e"
+    }
+  }
+]

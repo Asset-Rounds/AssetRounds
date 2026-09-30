@@ -1,0 +1,208 @@
+from pathlib import Path
+r=Path('.codex-temp/cold-control-continuation-successor-v1'); p=r/'candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift'; s=p.read_text()
+# Public APIs bind before any Store boundary. Private helpers keep one effect.
+def insert_before_body(signature_marker, insertion):
+ global s
+ a=s.index(signature_marker); b=s.index('        try beginSchema2ColdCleanupControlScope(permit)',a)
+ s=s[:b]+insertion+s[b:]
+insert_before_body('    func publishSchema2ColdCleanupSources(','''        let declarationBytes = try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(sources)
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .publishSources,
+            inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(declarationBytes),
+                sources.c16PlanSHA256, try EraseSchema2ColdCleanupCommitmentV1.sourceByteTableSHA256(sources)],
+            path: EraseSchema2ColdCleanupGrammarV1.sourcesName), permit: permit)
+''')
+insert_before_body('    func requireSchema2ColdCleanupSources(','''        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .requireSources, inputSHA256: [receipt.indexSHA256],
+            path: EraseSchema2ColdCleanupGrammarV1.sourcesName), permit: permit)
+''')
+insert_before_body('    func canonicalSchema2ColdTransferredSource(','''        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .readTransferredSource,
+            inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(try sources.canonicalBytes()),
+                StoreMigrationCanonicalJSONV1.sha256(try progress.canonicalBytes(sources: sources)),
+                EraseSchema2ColdCleanupCommitmentV1.sha256(path)], path: path), permit: permit)
+''')
+# Original getter never chooses a captured version by same-name fallback.
+s=s.replace('              let source = sources.sources.first(where: { $0.path == path })\n                ?? current.births.first(where: { $0.source.path == path })?.source,','              let source = sources.sources.first(where: { $0.path == path }),',1)
+insert_before_body('    func createSchema2ColdCleanupProgress(','''        let initialBytes = try initial.canonicalBytes(sources: sources)
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .createProgress, inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(initialBytes)],
+            path: EraseSchema2ColdCleanupGrammarV1.progressName), permit: permit)
+''')
+# Public replacement delegates to private exact CAS for capture's same effect.
+s=s.replace('    func replaceSchema2ColdCleanupProgress(expected:', '    private func replaceSchema2ColdCleanupProgressInternal(expected:',1)
+s=s.replace('try replaceSchema2ColdCleanupProgress(expected:', 'try replaceSchema2ColdCleanupProgressInternal(expected:')
+insert_before_body('    func publishSchema2ColdSurvivingNotificationProvenance(','''        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .publishNotification, inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(try value.canonicalBytes())],
+            path: EraseSchema2ColdCleanupGrammarV1.notificationName), permit: permit)
+''')
+insert_before_body('    func requireSchema2ColdSurvivingNotificationProvenance(','''        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .requireNotification, inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(expected.bytes)],
+            path: EraseSchema2ColdCleanupGrammarV1.notificationName), permit: permit)
+''')
+# Explicit source-birth role, stable original and captured version coexist.
+s=s.replace('    struct Birth: Codable, Equatable {\n        let targetIndex: Int','    struct Birth: Codable, Equatable {\n        let role: String\n        let targetIndex: Int',1)
+s=s.replace('        for birth in births {\n            try birth.source.validate(requirePublished: true)','''        for birth in births {
+            try birth.source.validate(requirePublished: true)
+            try EraseSchema2ColdCleanupGrammarV1.requireBirthRole(birth.role, path: birth.source.path)''',1)
+s=s.replace('    func captureSchema2ColdBornCleanupSource(path: String, bytes: Data, fullFact: String,','    func captureSchema2ColdBornCleanupSource(path: String, role: String, bytes: Data, fullFact: String,',1)
+insert_before_body('    func captureSchema2ColdBornCleanupSource(','''        guard let activeOrdinal = expected.activeTargetIndex else { throw EraseIntentStoreError.invalidAuthority }
+        try EraseSchema2ColdCleanupGrammarV1.requireBirthRole(role, path: path)
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .captureBornSource,
+            inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(try expected.canonicalBytes(sources: sources)),
+                StoreMigrationCanonicalJSONV1.sha256(bytes), EraseSchema2ColdCleanupCommitmentV1.sha256(fullFact),
+                EraseSchema2ColdCleanupCommitmentV1.sha256(String(activeOrdinal)),
+                EraseSchema2ColdCleanupCommitmentV1.sha256(role)], path: path), permit: permit)
+''')
+s=s.replace('$0.source.path == path && $0.source.sha256 == sha\n                && $0.targetIndex == active','$0.source.path == path && $0.source.sha256 == sha\n                && $0.role == role && $0.targetIndex == active',1)
+s=s.replace('expected.capturing(.init(targetIndex: active, source: source), sources: sources)','expected.capturing(.init(role: role, targetIndex: active, source: source), sources: sources)',1)
+# Bounds use checked arithmetic and preserve physical1GiB family envelope.
+s=s.replace('        for source in sources { try source.validate(requirePublished: requirePublished) }','''        var aggregate = 0
+        for source in sources {
+            try source.validate(requirePublished: requirePublished)
+            guard source.byteCount <= 1_024 * 1_024 * 1_024 - aggregate else {
+                throw EraseIntentStoreError.invalidPreparation
+            }
+            aggregate += source.byteCount
+        }''',1)
+# A completed reader can only clean explicitly assigned legacy controls after
+# a real opaque authority proves namespace absence, never from metadata.
+marker='    @MainActor\n    private func bindSchema2ColdCleanupEffect('
+extra='''    @MainActor
+    private func requireSchema2ColdTerminalRoot(_ authority: EraseSchema2ColdTerminalAuthorityV1) throws {
+        guard !coldCloseAttempted, !coldClosed, coldUncertainFDs.isEmpty,
+              !coldEffectUncertain, !coldCleanupTerminalRootRemoved else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try authority.requireNamespaceAbsent()
+        try Self.requireDirectory(applicationSupportDescriptor, identity: applicationSupportIdentity)
+        try Self.requireDirectory(eraseDescriptor, identity: eraseIdentity)
+        var support = stat(), erase = stat(), held = stat()
+        guard Darwin.lstat(applicationSupportURL.path, &support) == 0,
+              support.st_dev == applicationSupportIdentity.device,
+              support.st_ino == applicationSupportIdentity.inode,
+              Darwin.fstat(eraseDescriptor, &held) == 0,
+              Darwin.fstatat(applicationSupportDescriptor, Self.directoryName, &erase,
+                AT_SYMLINK_NOFOLLOW) == 0,
+              EraseColdControlLeafFactV1(erase) == EraseColdControlLeafFactV1(held) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try authority.requireNamespaceAbsent()
+    }
+
+    @MainActor
+    func loadSchema2ColdCleanupProgress(sources: EraseSchema2ColdCleanupSourcesV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdCleanupProgressV1? {
+        let name = EraseSchema2ColdCleanupGrammarV1.progressName
+        let sha = coldCleanupProjectedLeaves[name].map { StoreMigrationCanonicalJSONV1.sha256($0.bytes) }
+            ?? EraseSchema2ColdCleanupCommitmentV1.sha256("ABSENT")
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .loadProgress, inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(try sources.canonicalBytes()), sha],
+            path: name), permit: permit)
+        let value = try loadSchema2ColdCleanupProgressInternal(sources: sources, permit: permit)
+        try requireSchema2ColdCleanupEffect(permit)
+        return value
+    }
+
+    @MainActor
+    func replaceSchema2ColdCleanupProgress(expected: EraseSchema2ColdCleanupProgressV1,
+        with replacement: EraseSchema2ColdCleanupProgressV1,
+        sources: EraseSchema2ColdCleanupSourcesV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        let expectedSHA = StoreMigrationCanonicalJSONV1.sha256(try expected.canonicalBytes(sources: sources))
+        let replacementSHA = StoreMigrationCanonicalJSONV1.sha256(try replacement.canonicalBytes(sources: sources))
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .replaceProgress, inputSHA256: [expectedSHA, replacementSHA],
+            expectedCanonicalSHA256: expectedSHA,
+            path: EraseSchema2ColdCleanupGrammarV1.progressName), permit: permit)
+        try replaceSchema2ColdCleanupProgressInternal(expected: expected, with: replacement,
+            sources: sources, permit: permit)
+        try requireSchema2ColdCleanupEffect(permit)
+    }
+
+    @MainActor
+    func canonicalSchema2ColdBornTransferredSource(path: String, role: String,
+        sources: EraseSchema2ColdCleanupSourcesV1,
+        progress: EraseSchema2ColdCleanupProgressV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> (bytes: Data, fullFact: String) {
+        try progress.validate(sources: sources)
+        try EraseSchema2ColdCleanupGrammarV1.requireBirthRole(role, path: path)
+        let matches = progress.births.filter { $0.source.path == path && $0.role == role }
+        guard matches.count == 1, let birth = matches.first,
+              let active = progress.activeTargetIndex,
+              birth.targetIndex <= active,
+              progress.targets[active].dependencyPaths.contains(path) ||
+                progress.targets[active].allowedBirthPaths.contains(path) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .readBornTransferredSource,
+            inputSHA256: [birth.source.sha256,
+                StoreMigrationCanonicalJSONV1.sha256(try progress.canonicalBytes(sources: sources)),
+                EraseSchema2ColdCleanupCommitmentV1.sha256(role)], path: path), permit: permit)
+        try beginSchema2ColdCleanupControlScope(permit)
+        guard try loadSchema2ColdCleanupProgressInternal(sources: sources, permit: permit) == progress,
+              let leaf = try readSchema2CleanupOpaqueLeaf(birth.source.leafName,
+                maximumBytes: birth.source.maximumByteCount),
+              leaf.bytes.count == birth.source.byteCount,
+              StoreMigrationCanonicalJSONV1.sha256(leaf.bytes) == birth.source.sha256 else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        _ = try requireSchema2CleanupLeaf(birth.source.leafName, bytes: leaf.bytes,
+            fullFact: birth.source.leafFullFact,
+            maximumBytes: birth.source.maximumByteCount, permit: permit)
+        try requireSchema2ColdCleanupEffect(permit)
+        return (leaf.bytes, birth.source.fullFact)
+    }
+
+    @MainActor
+    func requireSchema2ColdTransferredSource(path: String, bytes: Data, fullFact: String,
+        sources: EraseSchema2ColdCleanupSourcesV1,
+        progress: EraseSchema2ColdCleanupProgressV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        let sha = StoreMigrationCanonicalJSONV1.sha256(bytes)
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .readTransferredSource,
+            inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(try sources.canonicalBytes()),
+                StoreMigrationCanonicalJSONV1.sha256(try progress.canonicalBytes(sources: sources)),
+                EraseSchema2ColdCleanupCommitmentV1.sha256(path)], path: path), permit: permit)
+        try beginSchema2ColdCleanupControlScope(permit)
+        guard let active = progress.activeTargetIndex,
+              progress.targets[active].dependencyPaths.contains(path) ||
+                progress.targets[active].allowedBirthPaths.contains(path),
+              try loadSchema2ColdCleanupProgressInternal(sources: sources, permit: permit) == progress else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let candidates = sources.sources.filter { $0.path == path && $0.sha256 == sha && $0.fullFact == fullFact }
+            + progress.births.filter {
+                $0.source.path == path && $0.source.sha256 == sha && $0.source.fullFact == fullFact
+                    && $0.targetIndex <= active
+            }.map(\\.source)
+        guard candidates.count == 1, let source = candidates.first,
+              source.byteCount == bytes.count else { throw EraseIntentStoreError.invalidAuthority }
+        _ = try requireSchema2CleanupLeaf(source.leafName, bytes: bytes, fullFact: source.leafFullFact,
+            maximumBytes: source.maximumByteCount, permit: permit)
+        try requireSchema2ColdCleanupEffect(permit)
+    }
+
+'''
+s=s.replace(marker,extra+marker,1)
+marker='    static func requireDigest(_ sha: String) throws {'
+s=s.replace(marker,'''    static func requireBirthRole(_ role: String, path: String) throws {
+        let name = path.split(separator: "/").last.map(String.init) ?? ""
+        guard path.hasPrefix("ProtectedIngressReceiptsV1/"),
+              (role == "scratchControlErase" && name == "scratch-erase.json") ||
+              (role == "freshIngressErasePrepare" && name.hasPrefix("erase-") && name.hasSuffix(".prepare.json")) ||
+              (role == "finalizedHygienePrepare" && name.hasPrefix("hygiene-") &&
+                (name.hasSuffix(".prepare.json") || name.hasSuffix(".prepare.json.finalizing"))) else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        _ = try maximumSourceBytes(path: path)
+    }
+'''+marker,1)
+p.write_text(s)

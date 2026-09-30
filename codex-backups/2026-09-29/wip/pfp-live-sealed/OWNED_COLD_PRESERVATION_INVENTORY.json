@@ -1,0 +1,168 @@
+{
+  "packets": [
+    {
+      "fileCount": 6,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/BASELINE.json": "30c40dcbf0661d0b3065c8dfc4dd86d197b545662ba58a842f5b9652650eedb7",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/EXCLUDE_BEFORE": "38811bc4d5b9b13d8326ab6e1e4213c62a1ccd5e6b290ae8706c4346165e8f4c",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/before/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "7dd6635ac9328f02645fb7103679d261aa310bd30a7a7e98bd7889d0b9d69fea",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/before/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "2e9d22888c16d04ff89cbc825a86e1fb0e148a8f97444f3a405ce9811dbbec19",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/before/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "f8c61d0d624522f7549bdf8b795570a3c30731c4b08282de5cb9cc76867a7a9d",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/before/FieldEvidenceAppTests/V23ProductionAppAccessTests.swift": "3edc425f555a85558a5a804f772d88936ed1c5a475264ee8e434c70156cd8f54"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1"
+    },
+    {
+      "fileCount": 7,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-compact-target-planning-v1/COMPACT_INTERFACE_V1.md": "cb21d4ac069f7cd4ea14e3232bb3943b0ebffd3ba8c256690cc3d05efebf6628",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-compact-target-planning-v1/HANDOFF.md": "4068a412ed8c097c9afc7422d18edad80b09d0183e10d67c4f82c4bae18648a7",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-compact-target-planning-v1/INPUTS.json": "e34893d071d0bae593e68cf5a924b3410e48ecc6533d028ed930bc4136a749a6",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-compact-target-planning-v1/SEAL.json": "cb6adb410656b6dea13954909cd082c22b955e75681004e21a608a8d715a1b18",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-compact-target-planning-v1/inputs/BINDING.json": "79864b5a71795c93cd37c2cf8d32710add775a2550de64372c7d224241d5467c",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-compact-target-planning-v1/inputs/COMPACT_PHYSICAL_DATA_V4.swift.fragment": "74688616f4d5eaaec95cb34d6a96d706d26823c1cea30241eeead63469cf105b",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-compact-target-planning-v1/inputs/COMPACT_POLICY_TARGET_SCOPE_V11.swift.fragment": "d9a7b2a98a9945f106a54384aa66d566678ce51aac7898acf62406fcbbc2a1f5"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-compact-target-planning-v1"
+    },
+    {
+      "fileCount": 8,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/BINDING.json": "39ae97f2935b48f52ff4293108d97e0862655d90758ab385a13c220a304b55ad",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/CASE_MATRIX.md": "ea2be946e38a1e471c1e49bd89b3367997e66f8ae97c04d21a1313e0930f2328",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/HANDOFF.md": "30995664f2a4044e36772e189c54543bf4c06fb94e632c572760481b2706edf3",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/ProtectedFilePolicy.diff": "55a79eacd9132ef349c565df50ea7e9b0653c0a805178816300d561d5837e244",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/before/ProtectedFilePolicy.swift": "a2a38ec4875ad25136532c159740f12f75bc97b8c018236dc431947b139c0ed9",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/candidate/ProtectedFilePolicy.swift": "330938cb61f5c5e1c3c7b8655f7603af31e8f15e1ff890542940a802678aa6bd",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1"
+    },
+    {
+      "fileCount": 8,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/BINDING.json": "c44d55f0e137ecacf487c13fce01d06ae2e15773be297581fa41abd1ce41c6e4",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/CASE_MATRIX.md": "51b8bc9c4570c54f714b3e03068f1906f25409d5e5fbf3c4e1ce105436ac0b7c",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/HANDOFF.md": "6252fe3d2f664b0eee39324b81245be35bfa91d49d2aa4e7f2aa54ab2d9d07e1",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/ProtectedFilePolicy.diff": "918e298d78656ec1ee647f4e15327802af2b6fb729267410ef90f5cb1da68636",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/before/ProtectedFilePolicy.swift": "8db23f0eddb1f73a0702c61bd04df59f60a253660b64cfa4fda5612a02daee7a",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/candidate/ProtectedFilePolicy.swift": "4e5b589273907064a2da59328a9fe421d17a63b2b94665bc76f4b9c32966cbf3",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1"
+    },
+    {
+      "fileCount": 14,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/BINDING.json": "0bcf176f19d9b7c765f8b1cffaa56e3c2ea74de5b18f9c6819938d4eaf67937f",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/CASE_MATRIX.md": "8d01da4027b7bd95b6f040ad07a6cf6fb40eaaa9463ca513b5f4fd4bbd7ca43c",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/GENERIC_ALIAS_PREP_INTERFACE_V1.md": "c65f262e14c726e78d0b925d099c9302170dd9e092f32524e37a9cd29eb9fd64",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/HANDOFF.md": "5ab5d7e090168977eb89482a769e2cbf6ddf9df0626a7c74105b0418120d7f98",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/INPUTS.json": "670f174f1ac176cc3d5023e594cd5f248400be4320b1a2ac1e715afc4c495094",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/ProtectedFilePolicy.diff": "0949aa70a9506c72f85a994cf80f290e4d15a73f66d909480bb678aff24522ef",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/ROOT_AUTHORIZATION.md": "eee9055e49b9b1b2c97bc0b6994fe78c867b29b6b8904acf15aa46d660301d59",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/SEAL.json": "d5f927210960cac262c40b8905172fbac935d1f1d5832a2196df88cedfe5395a",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/SOURCE_SAFETY_LEDGER.json": "18db33060155d1a0719265efe979567682610f9546d036d04ff48211fef1adca",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/before/ProtectedFilePolicy.swift": "330938cb61f5c5e1c3c7b8655f7603af31e8f15e1ff890542940a802678aa6bd",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/candidate/ProtectedFilePolicy.swift": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/inputs/FIRST_CAPTURE_SCOPE_INTERFACE_V2.swift.fragment": "0d330bd56a10d7df5186a5176ab1acdcf9fc488f465494224b0e023c1138b156",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1"
+    },
+    {
+      "fileCount": 8,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1/BINDING.json": "59157420ad89706934dac4d372fe8f1beca9774f8391ac8d66b60c91a6589d7d",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1/CASE_MATRIX.md": "a26f3553f83557521588a052c6f2eabc98b1d40fe4bf665dac3874ec4395b690",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1/HANDOFF.md": "66d7b2e816110ee6d4ef8d85dbd272f78d80a248d2fdd5dddf4c41dc19d2bc8d",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1/ProtectedFilePolicy.diff": "3d7193e1e808e088e416e08cdd386d69232f3bf01afc75de7b27c8c3da6180e1",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1/before/ProtectedFilePolicy.swift": "4e5b589273907064a2da59328a9fe421d17a63b2b94665bc76f4b9c32966cbf3",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1/candidate/ProtectedFilePolicy.swift": "a2a38ec4875ad25136532c159740f12f75bc97b8c018236dc431947b139c0ed9",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1/parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1/parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1"
+    },
+    {
+      "fileCount": 14,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/BINDING.json": "37d49a9ad33e05538fb2ecd477d95e68e5de626b23a69727b23218d9c623c7d2",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/CASE_MATRIX.md": "c1d07ba7fbb8bbf7767054696b5bae96f6f97937f6f89b93b1a82184d48c555f",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/HANDOFF.md": "186c528427aef87d165648158ffff13a119e549f964b376dfc4e76893ce9a1fe",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/INPUTS.json": "0ed30aad21e7df63e8a6f4d4bdc522b73de185945b64439b4f3659619201496f",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/ProtectedFilePolicy.diff": "cdb3a12632278ab6a03823c321c2bfa33ca1074995aa605fbc6c6104a57173d1",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/SEAL.json": "309096101b8efd75aa2b8bc177dee5f7f648abf75ee8ee034e1d77e6b05e5ffe",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/SEALED_GENERIC_INTERFACE_V1.md": "716f53e42847aaa965ffc87377769626c61f85dc555ac405975b8653f2cdf5c2",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/SOURCE_SAFETY_LEDGER.json": "9dad75d1f60b740200baaf1e3e777036dc33617ff579c9cb45734bb19aa36943",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/before/ProtectedFilePolicy.swift": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/candidate/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/inputs/ORIGINAL_PAIR_ACCOUNTING_DATA_INPUT.swift.fragment": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/inputs/SEALED_GENERIC_OBSERVATION_V1.swift.fragment": "afcccf2438ae96d12f14662c8914fc3f68bf6e2a2d9f5d05141148ee4ea624d4",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1"
+    },
+    {
+      "fileCount": 15,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/BINDING.json": "cf6c0899acdba2e58bb26f1f8c0f078374c4fdab3a75bafd686e0ee56608a1ac",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/CASE_MATRIX.md": "5de960b9bc8601971c7372437b10039e121a489be7852686c51445e180480e25",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/DEPENDENCY_CORRECTION.diff": "322e82c2476584a03b4e64b8094137ffe354d8e2be7ec534f81be6c0b6c63025",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/HANDOFF.md": "6dfd98c5e82307953061cc278e3cf030bbb395dbd0b171676aa6dcfcdb66c76c",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/INPUTS.json": "6e98d743f03bcc242ae4585a8ecfd4189d5cf6579177d98a3203fd8c0a7cb62c",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/INTERFACE_CORRECTION_V1.md": "887b47ed682590bb6394d6b0ada6aa7eb2ece5b6a6d32fe53bed5a9659c82e26",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/ProtectedFilePolicy.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/SEAL.json": "6edf73114b0e4d07757a06612c5069ba0ef012d6f63261324f4275d379f660ba",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/SOURCE_SAFETY_LEDGER.json": "78e253f9c228b207be8f37b63901fdc0e399422c47ddabd8847c5dc3a62154c9",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/before/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/candidate/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/inputs/ORIGINAL_PAIR_ACCOUNTING_DATA_INPUT.swift.fragment": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/inputs/SEALED_GENERIC_OBSERVATION_V2.swift.fragment": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1"
+    },
+    {
+      "fileCount": 8,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/BINDING.json": "2b18d4a50f66375add2cabf20145a9dea35b1cf1c6a435eb6c07073c216ee7ea",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/CASE_MATRIX.md": "9a04bbf88da0ac88aa58be9827dce07a1868b9db052776464b496989cf36966a",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/HANDOFF.md": "cf80c3a57fd6f9aca149081a56da5fdfc89c3bfd16740d6591db4b632586aeca",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/ProtectedFilePolicy.diff": "df8baada9b53d671b46785244f8f8f0596e053da36e58610cf2ed76539570773",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/before/ProtectedFilePolicy.swift": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/candidate/ProtectedFilePolicy.swift": "8db23f0eddb1f73a0702c61bd04df59f60a253660b64cfa4fda5612a02daee7a",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1/parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1"
+    },
+    {
+      "fileCount": 15,
+      "files": {
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/BINDING.json": "dd475285923cf635e6c9370e071d91142d1f322c55b66712c55a458166d8d6e4",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/CASE_MATRIX.md": "a196a120b3da19d971c1a05f8c06dcf986ffc2ef905e577ebec768c6d405efc9",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/HANDOFF.md": "2a835eb121ccb7eb0c75a7bc56e25d83ece597f4489e82d492bd85aa3bb17125",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/INPUTS.json": "64b501b037b02298c3d3ce8b9883193567fd78f640d40e31856319979f12b031",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/INTERFACE_V1.md": "cffdcf7b3a48beb86e9e56f7fcea07b1b04a9f99196b9cb9b3d3155d2898f00c",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/LIFECYCLE_PROOF.md": "5283478ce08a7ec96f7e117b0d391577360b960f1e1a3fa0ad4c2dd24bbcfda9",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/PARSE_RESULTS.json": "67138f36ec39023499090b415662dec1057360dfba967aa6812787d8a7a45976",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/ProtectedFilePolicy.diff": "50d6ee9f753c59a5c867758ba11badd506ed0640f6403a3c465c1eacf4260ce3",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/SEAL.json": "aa170d5cbd2f6f5e102f978db50bb8d8a167c17f9aeb792228c6eaf162da95cf",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/SOURCE_SAFETY_LEDGER.json": "86cbd19bb948265558bc3489470f55e1491968a7d518bb38b4a2d7711d54337e",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/TERMINAL_GATE_V1.swift.fragment": "1b32be8de0b2ac1df0428adb76649e745a6c687aa82cc10c21ba889a73078385",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/before/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/candidate/ProtectedFilePolicy.swift": "4f16a1a36615010e237ab11e913e8402f89764391cd8d54fd80bc35b1e6b8473",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "root": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1"
+    }
+  ],
+  "purpose": "Source/WIP archival only; preserve all originals; no acceptance transfer"
+}

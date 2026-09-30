@@ -1,0 +1,33 @@
+{
+  "configurations": [
+    {
+      "id": "C0900000-0000-4000-8000-000000000002",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "targetForVariableExpansion": {
+      "containerPath": "container:FieldEvidenceApp.xcodeproj",
+      "identifier": "A00000000000000000000030",
+      "name": "FieldEvidenceApp"
+    }
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:FieldEvidenceApp.xcodeproj",
+        "identifier": "A00000000000000000000031",
+        "name": "FieldEvidenceAppTests"
+      }
+    },
+    {
+      "target": {
+        "containerPath": "container:FieldEvidenceApp.xcodeproj",
+        "identifier": "A00000000000000000000032",
+        "name": "FieldEvidenceAppUITests"
+      }
+    }
+  ],
+  "version": 1
+}

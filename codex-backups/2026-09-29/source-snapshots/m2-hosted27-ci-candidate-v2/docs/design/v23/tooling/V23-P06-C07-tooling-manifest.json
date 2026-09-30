@@ -1,0 +1,56 @@
+{
+  "appBaseHead": "a3ab088f7b8a86fe952f3f1bc9064360fb1ac38e",
+  "appBaseTree": "dd3e1940d459c7c869b9dec5b617f523052f595a",
+  "cardID": "V23-P06-C07",
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "flags": {
+    "acceptance": false,
+    "adoption": false,
+    "hosted": false,
+    "implementation": false,
+    "main": false,
+    "merge": false,
+    "native": false,
+    "phase": false,
+    "physical": false,
+    "release": false,
+    "selector": false
+  },
+  "generatedFiles": [
+    {
+      "path": "Scripts/v23/advanced-scheduling-static-protocol.schema.json",
+      "sha256": "5e6bc8599f1a1ca7d221100973b92e0ec5053c42ad23af0455d020b0a9a37624"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/P06/AdvancedScheduling/V23P06C07AdvancedSchedulingStaticCorpusV1.json",
+      "sha256": "03db42ed95437ae51f0ae57add0774953b1b3599dbff31c25b118a5ffe76d1d7"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C07AdvancedSchedulingStaticPreparationContractV1.json",
+      "sha256": "1d6b33a7a78630f06c64e98eb0ef0303cd01844ca7ec4c0b21b1276f6486bda9"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C07AdvancedSchedulingStaticPreparationEvidenceReceiptV1.json",
+      "sha256": "352643673a60a7ecd06b7f3fed5dfb47488d2ab84f6ae1ea16fe035d4c45147d"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C07BrandImpactManifestV1.json",
+      "sha256": "d0ee83a40ccb57b7197b9aa9b620426e1125da4a930a591100257a13686ad9c5"
+    }
+  ],
+  "manifest": "V23P06C07ToolingManifestV1",
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "pathFence": [
+    "Scripts/v23/p06_c07_contracts.py",
+    "Scripts/v23/generate_p06_c07_contracts.py",
+    "Scripts/v23/verify_p06_c07_contracts.py",
+    "Scripts/v23/advanced-scheduling-static-protocol.schema.json",
+    "FieldEvidenceAppTests/Fixtures/V23/P06/AdvancedScheduling/V23P06C07AdvancedSchedulingStaticCorpusV1.json",
+    "docs/design/v23/tooling/V23P06C07AdvancedSchedulingStaticPreparationContractV1.json",
+    "docs/design/v23/tooling/V23P06C07AdvancedSchedulingStaticPreparationEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P06C07BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P06-C07-tooling-manifest.json"
+  ],
+  "schema": "V23P06C07StaticPreparationToolingV1"
+}

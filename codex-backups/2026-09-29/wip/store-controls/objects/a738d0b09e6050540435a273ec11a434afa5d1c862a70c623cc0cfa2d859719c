@@ -1,0 +1,33 @@
+    /// Store's checked control reader calls this pure association guard from
+    /// the actual first-capture callback, including an owned roster publish
+    /// cut. Store must separately prove canonical bytes/full facts/policy and
+    /// the closed actual publication namespace; this guard never reads it.
+    func requireOriginalFirstCaptureControlStore(store: EraseIntentStore,
+        intent: EraseIntentV1, preparation: ErasePreparationV2) throws {
+        guard let owner = originalAuxiliaryFirstCaptureOwner,
+              let observer = originalAuxiliaryFirstObserver,
+              let coordinator = preparationCoordinator,
+              let exclusion = originalExclusion,
+              originalAuxiliaryStore === store,
+              originalAuxiliaryFirstIntent == intent,
+              originalAuxiliaryFirstPreparation == preparation,
+              intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared,
+              preparation.matches(intent) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // The retained parent context itself compares the actual activity;
+        // do not call a source census, Store load, or physical walker here.
+        try owner.requireOriginalFirstCaptureControlBinding(operation: self)
+        guard originalAuxiliaryFirstCaptureOwner === owner,
+              originalAuxiliaryFirstObserver === observer,
+              preparationCoordinator === coordinator,
+              originalExclusion === exclusion,
+              originalAuxiliaryStore === store else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+
+// EraseRouterOperationV1 actual immutable operation getter:
+var operationID: UUID { ticket.operationID }

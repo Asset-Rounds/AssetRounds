@@ -1,0 +1,59 @@
+/// Positively bound immutable source DATA. Store streams exact rows through
+/// its genuine lexical source/effect permit; this receipt supplies no new
+/// current scope, G/EX, physical effect, birth or terminal authority.
+@MainActor
+final class OriginalEraseAuxiliaryPairAccountingReceiptV1 {
+    let originalOperationID: UUID
+    let eraseID: UUID
+    let captureToken: String
+    let originalRosterSHA256: String
+    var rowCount: Int { rows.count }
+    private let rows: [OriginalEraseAuxiliaryPairAccountingDataV1.Row]
+    private let physical: EraseSchema2ColdOriginalPairAccountingRosterV1
+    private weak var store: EraseIntentStore?
+    private weak var operation: EraseRouterOperationV1?
+    private let publication: EraseIntentStore.OriginalAuxiliaryRosterPublicationReceiptV1
+
+    fileprivate init(data: OriginalEraseAuxiliaryPairAccountingDataV1,
+        physical: EraseSchema2ColdOriginalPairAccountingRosterV1,
+        publication: EraseIntentStore.OriginalAuxiliaryRosterPublicationReceiptV1,
+        store: EraseIntentStore, operation: EraseRouterOperationV1) throws {
+        try publication.requireBound(store: store, operation: operation, seal: publication.seal)
+        try physical.requireOriginalPBinding(originalPAuxiliaryRosterSHA256: data.originalRosterSHA256)
+        guard data.schemaVersion == 1, data.originalOperationID == operation.operationID,
+              physical.operationID == data.originalOperationID, physical.captureOriginBinding == data.captureToken,
+              data.originalRosterSHA256 == publication.seal.canonicalSHA256,
+              data.eraseID.uuidString.lowercased() == publication.seal.firstRoster.record.eraseID,
+              data.rows.count == physical.pairs.count else { throw StoreMigrationFailure.invalidIdentity }
+        for (index, row) in data.rows.enumerated() {
+            let pair = physical.pairs[index]
+            guard row.index == index, row.members.map(\.operationsRelativePath) == pair.operationsRelativeMemberPaths,
+                  row.members.map(\.observedFact) == pair.observedFacts,
+                  row.members.map(\.fullFact) == pair.fullFacts,
+                  row.sha256 == pair.sha256, row.byteCount == pair.byteCount,
+                  row.device == pair.device, row.inode == pair.inode else { throw StoreMigrationFailure.invalidIdentity }
+        }
+        originalOperationID = data.originalOperationID; eraseID = data.eraseID
+        captureToken = data.captureToken; originalRosterSHA256 = data.originalRosterSHA256
+        rows = data.rows; self.physical = physical; self.publication = publication
+        self.store = store; self.operation = operation
+        try publication.requireBound(store: store, operation: operation, seal: publication.seal)
+    }
+
+    /// Actual Store publication reproof, outside its own busy streaming cut.
+    /// Store's narrow in-flight permit authenticates each stream IO separately.
+    func requireBound(store: EraseIntentStore, operation: EraseRouterOperationV1,
+        publication: EraseIntentStore.OriginalAuxiliaryRosterPublicationReceiptV1) throws {
+        guard self.store === store, self.operation === operation, self.publication === publication,
+              originalOperationID == operation.operationID else { throw StoreMigrationFailure.invalidIdentity }
+        try physical.requireOriginalPBinding(originalPAuxiliaryRosterSHA256: originalRosterSHA256)
+        try publication.requireBound(store: store, operation: operation, seal: publication.seal)
+    }
+
+    /// Immutable DATA only. No permission or cached acceptance is returned.
+    func row(at index: Int) throws -> OriginalEraseAuxiliaryPairAccountingDataV1.Row {
+        guard index >= 0, index < rows.count, rows[index].index == index else { throw StoreMigrationFailure.invalidIdentity }
+        return rows[index]
+    }
+}
+

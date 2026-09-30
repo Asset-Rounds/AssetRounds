@@ -1,0 +1,61 @@
+{
+  "afterFullSourceMapSHA256": "fe1de29bd1515db5d6c87c0bd01c580f3b382de03968c68e25a8d22cd20c7a99",
+  "artifacts": {
+    "AFTER_SOURCE_MAP.json": "fe1de29bd1515db5d6c87c0bd01c580f3b382de03968c68e25a8d22cd20c7a99",
+    "CANDIDATE.diff": "605d56fd80b07dcaf49e153fe472eba55a857a0df94c6c71503b544fef3244c5",
+    "CASE_MATRIX.md": "1141dfcfa7c2c11b88bf3231c035a8ff9732ee132bed725b1d4146f6a04f7a98",
+    "HANDOFF.md": "6859f78819fa575774d3d0c045ce03c312b13038d9ac672aae097705c2347412",
+    "INPUT_BINDING.json": "e3a8929c1f72233ab5f46fd1ba8a9108d37087cb2ed1e03b707500b0a7528513",
+    "INTERFACES.md": "7b4f75573caa63e80cefc37abb9daf0babc622e49aa803850f1058e632fc9731",
+    "PARSE.json": "726e914cf2c084356a2b3816599adc2f829b04b05b74724c22ae648ba8d18344",
+    "READ_WORK_PROOF.md": "ac8167c86a2696712a5127ed25cdfbeb8d0a029a08052f9d410c3347755756cd",
+    "SOURCE_ONLY_CHECKS.json": "a0a426f13c897bea910266b6901d76efcc8848e5c8f57590839417e2ded4e98b",
+    "SOURCE_SUCCESSION.json": "c83a4daa59440a28a72e32511bb7849634b9c2cb59e670b1db6aef2788bf77af",
+    "SUCCESSOR.diff": "61df5dd6e2f3f3de645fbd543c8c2dce229f25ecaa103030dc7e6dd7f8b2640e",
+    "inputs/LedgerPendingRequestV10.swift.fragment": "be527834e2ff704575672a61006ab37f46babe0ec577359d8970283f8cce4617",
+    "inputs/PhysicalPendingRequestBindingV10.swift.fragment": "c2d14f08a5fcf0edc82e447d852ee7098f33b7d1d751ffe6367a3b180caf2f6f",
+    "inputs/StoreReadInterfaceV4.swift": "7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+    "seal_packet.py": "7a12ed013dee381cfe1e0af5a7a4da1dca9af961c72ddda0437fc4959d479f07"
+  },
+  "beforeFullSourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "candidateSHA256": "704a2ae6eac1309500e8576090be359afa4f2e4ff2808ac990d60213d716c881",
+      "immediateBeforeSHA256": "f20c8083fbac1c76cbb1bcd8a75f4f34827c4105294c434a3f8294b9fb3abff3",
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "candidateSHA256": "8b2faac582c4aa1358f6e920b7ea76b6d297ac2a55b6ac1e77fb35a88886a2b8",
+      "immediateBeforeSHA256": "8b2faac582c4aa1358f6e920b7ea76b6d297ac2a55b6ac1e77fb35a88886a2b8",
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e"
+    }
+  },
+  "head": "93159755395d697a5a9da02f41374120433c50f9",
+  "inputs": {
+    "LedgerPendingRequestV10.swift.fragment": {
+      "sha256": "be527834e2ff704575672a61006ab37f46babe0ec577359d8970283f8cce4617",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/LEDGER_PENDING_REQUEST_SHAPE_V10.swift.fragment"
+    },
+    "PhysicalPendingRequestBindingV10.swift.fragment": {
+      "sha256": "c2d14f08a5fcf0edc82e447d852ee7098f33b7d1d751ffe6367a3b180caf2f6f",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/terminal-authority-interface-v10/PHYSICAL_PENDING_REQUEST_BINDING_V10.swift.fragment"
+    },
+    "StoreReadInterfaceV4.swift": {
+      "sha256": "7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+      "source": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1.swift"
+    }
+  },
+  "model": "gpt-6.1-sol",
+  "openObligations": [
+    "actual private pending Store issuer/getter/controller readback/order/current scopes",
+    "direct bounded V4 logical vs physical progress adapter",
+    "all V6/V5 actual full-family source/resource/capacity/Registry/semantic/runtime obligations",
+    "root semantic compiler/native independent source review/gates"
+  ],
+  "packet": "physical_pending_producer_boundary",
+  "parentBindingSHA256": "539f6f5b71f4d5ed5f15ee3df3d715bcb519e241f14db88241d0749aacd9aa10",
+  "reasoningEffort": "xhigh",
+  "schemaVersion": 1,
+  "sourceInputs": 1206,
+  "status": "sealed_source_only_PARTIAL_NONINSTALLABLE_companion_issuers_due"
+}

@@ -1,0 +1,663 @@
+#!/usr/bin/env python3
+"""Closed Phase 1 prospective gate plans. Stage A: registration, never gate credit.
+
+No network, Git mutation, dispatch, qualification or approval implementation lives
+here. A structurally valid plan declares an intended question; it proves no tests,
+cold qualification, human review or physical protection. Activation remains closed
+until the worker, collector and prerequisite verifiers have independent review.
+"""
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+
+
+SCHEMA = "v23-phase1-functional-gate-plan.v1"
+REGISTRATION_SCHEMA = "v23-phase1-functional-gate-registration.v1"
+CANDIDATE = "phase1-candidate-functional-v1"
+EXACT_MAIN = "phase1-exact-main-functional-v1"
+INTEGRATION_REF = "refs/heads/codex/v23-s10-integration-20260910"
+PURPOSE_REFS = {CANDIDATE: INTEGRATION_REF, EXACT_MAIN: "refs/heads/main"}
+BASE_MAIN = "b1d04ae5e684aa9c6807af655089efa1df8a7ed6"
+SHARED = "v23-shared-coverage-d50x"
+RUI1 = "v23-ui-batch-rui1"
+SELECTIONS = (SHARED, RUI1)
+REPOSITORY = "Asset-Rounds/AssetRounds"
+PENDING = "PENDING_RAW_PROOF_AND_INDEPENDENT_REVIEW"
+DECISION = "docs/design/v23/integration/PHASE1_SIMULATOR_FUNCTIONAL_GATE_DECISION_20260926.md"
+DIAGNOSTIC = "docs/design/v23/integration/SIMULATOR_FILE_PROTECTION_DIAGNOSTIC.json"
+POLICIES = {
+    DECISION: "7FCAA0670436DD0FDEB3E3FF907B7DC68E3FD60BC1D375CA7D11A0B80749E523",
+    DIAGNOSTIC: "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0",
+}
+CATALOGUE = "docs/design/v23/integration/phase1-critical-states.json"
+PARTITIONS = "Scripts/v23-coverage-partitions.json"
+COLLECTOR = "Scripts/dev/v23-original.py"
+# Exact source closure is also bound by the Git tree. No caller-selected paths.
+SOURCES = (
+    "Scripts/v23-phase1-gates.py", COLLECTOR, "Scripts/v23-native-ci.py",
+    ".github/workflows/ios-ci.yml", ".github/workflows/ios-ci-worker.yml",
+    ".github/workflows/ios-ci-shared-worker.yml", "Scripts/v23-shared-worker.sh",
+    "Scripts/v23-ui-evidence.py", "Scripts/v23-ui-smoke.sh", "Scripts/v23-ui-batch.json",
+    "Scripts/ci-selection-map.json", "Scripts/ci-selection.json", "Scripts/ci-worker-selection.jq",
+    "Scripts/v23-selection-generator.py", "Scripts/v23-selection-manifest.json",
+    "Scripts/build-smoke.sh", "Scripts/test-smoke.sh", "Scripts/ui-smoke.sh",
+    "Scripts/run-with-timeout.sh", "Scripts/validate-required-evidence.sh",
+    "Scripts/s10-4-build-payload.py", PARTITIONS, CATALOGUE, DECISION, DIAGNOSTIC,
+)
+ROUTE = {
+    "repository": REPOSITORY, "workflow": ".github/workflows/ios-ci.yml",
+    "executionLane": "github-xcode-26.6-acceptance", "provider": "github",
+    "runnerLabel": "macos-26", "configuration": "Debug", "runAttempt": 1,
+    "xcode": "26.6", "xcodeBuild": "17F113", "sdk": "26.5", "sdkBuild": "23F81a",
+    "simulator": "iPhone 17", "runtime": "iOS 26.2", "runtimeBuild": "23C54",
+    "budgets": {"D40P": [300, 2400, 0, 0, 3000], "D50C": [300, 0, 3000, 0, 3600],
+                "D90S": [300, 0, 5400, 0, 6000], "RUI1": [300, 1800, 900, 900, 3900]},
+    "rui1JobMinutes": 90,
+}
+CLASSIFICATION = {
+    "functionalQualification": PENDING, "simulatorProtection": "UNSUPPORTED",
+    "physicalProtection": "UNVERIFIED/DEFERRED", "physicalProtectionReleaseBlocker": True,
+    "countsAsPerKindProtectionSuccess": False, "providerQualification": False,
+    "acceptance": False, "releaseReady": False,
+}
+MAX_PLAN_BYTES = 32768
+PLAN_INPUT = "v23_phase1_gate_plan"
+EVENT_SCHEMA = "v23-phase1-original-event-binding.v1"
+MAX_EVENT_BYTES = 1024 * 1024
+PLAN_KEYS = {"schema", "purpose", "ref", "head", "tree", "baseMain", "selection",
+             "selectionSHA256", "orderedUnitMethodsSHA256", "orderedUIMethodsSHA256",
+             "sources", "policies", "route", "classification", "requestedAtUTC", "collector"}
+
+
+class Refused(ValueError):
+    """An explicitly named fail-closed admission or registration error."""
+
+
+def require(value, message):
+    if not value:
+        raise Refused("Phase1 gate: " + message)
+
+
+def canonical(value):
+    return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+                       allow_nan=False) + "\n").encode("utf-8")
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest().upper()
+
+
+def digest(value):
+    return type(value) is str and re.fullmatch(r"[0-9A-F]{64}", value) is not None
+
+
+def object_pairs(items):
+    out = {}
+    for key, value in items:
+        require(key not in out, "duplicate JSON key " + key)
+        out[key] = value
+    return out
+
+
+def decode(raw, limit=MAX_PLAN_BYTES):
+    require(type(raw) is bytes and 0 < len(raw) <= limit, "bounded plan bytes")
+    try:
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=object_pairs,
+                           parse_constant=lambda _: (_ for _ in ()).throw(Refused("nonfinite JSON")))
+    except (ValueError, UnicodeError) as error:
+        raise Refused("Phase1 gate: invalid JSON: " + str(error)) from error
+    require(canonical(value) == raw, "noncanonical plan bytes")
+    return value
+
+
+def exact(value, expected, message):
+    # JSON booleans and integers must not compare equal through Python's bool/int alias.
+    require(canonical(value) == canonical(expected), message)
+
+
+def validate_plan(value):
+    require(type(value) is dict and set(value) == PLAN_KEYS, "closed plan keys")
+    require(value["schema"] == SCHEMA, "plan schema")
+    require(type(value["purpose"]) is str and value["purpose"] in PURPOSE_REFS, "closed purpose")
+    require(value["ref"] == PURPOSE_REFS[value["purpose"]], "purpose/ref mismatch")
+    for key in ("head", "tree"):
+        require(type(value[key]) is str and re.fullmatch(r"[0-9a-f]{40}", value[key]), key + " identity")
+    require(value["head"] != BASE_MAIN and value["baseMain"] == BASE_MAIN, "Phase1 main baseline")
+    require(type(value["selection"]) is str and value["selection"] in SELECTIONS, "closed selection")
+    for key in ("selectionSHA256", "orderedUnitMethodsSHA256", "orderedUIMethodsSHA256"):
+        require(digest(value[key]), key + " digest")
+    require(type(value["sources"]) is dict and set(value["sources"]) == set(SOURCES)
+            and all(digest(v) for v in value["sources"].values()), "closed source closure")
+    exact(value["policies"], POLICIES, "approved policy bytes")
+    require(all(value["sources"][p] == h for p, h in POLICIES.items()), "source/policy mismatch")
+    exact(value["route"], ROUTE, "pinned route and budgets")
+    exact(value["classification"], CLASSIFICATION, "pending-only classification")
+    exact(value["collector"], {"path": COLLECTOR, "sha256": value["sources"][COLLECTOR]},
+          "sole collector implementation")
+    stamp = value["requestedAtUTC"]
+    require(type(stamp) is str and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", stamp),
+            "UTC timestamp")
+    try:
+        parsed_stamp = datetime.datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise Refused("Phase1 gate: invalid UTC timestamp") from error
+    require(parsed_stamp >= datetime.datetime(2026, 9, 26), "predates owner decision 24")
+    return value
+
+
+def parse_plan(raw):
+    return validate_plan(decode(raw))
+
+
+def plan_from_event(raw):
+    """Read original GitHub event bytes; empty plan retains the legacy route.
+
+    This parses data, not authorization. A valid envelope still cannot dispatch
+    or qualify an original until its root attempt and API identity are verified.
+    GitHub's event JSON need not use our canonical serialization.
+    """
+    require(type(raw) is bytes and 0 < len(raw) <= MAX_EVENT_BYTES, "bounded original event")
+    try:
+        event = json.loads(raw.decode("utf-8"), object_pairs_hook=object_pairs)
+    except (UnicodeError, ValueError) as error:
+        raise Refused("Phase1 gate: original event JSON: " + str(error)) from error
+    require(type(event) is dict, "original event object")
+    inputs = event.get("inputs", {})
+    require(type(inputs) is dict, "original dispatch inputs")
+    encoded = inputs.get(PLAN_INPUT, "")
+    require(type(encoded) is str, "original plan input string")
+    return (None if encoded == "" else parse_plan(encoded.encode("utf-8"))), event
+
+
+def bind_original_event(raw, environment, *, head, tree, resolved_bytes, sources):
+    """Pure worker/collector binding. No source, run or human trust is synthesized.
+
+    The native caller must supply independently read checkout/selection/source
+    facts; the sole collector must supply authenticated API run identity and its
+    preregistered plan before relying on this returned pending binding.
+    """
+    plan, event = plan_from_event(raw)
+    if plan is None:
+        return None
+    e, inputs = environment, event["inputs"]
+    require(e.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "original dispatch event")
+    require(e.get("GITHUB_REPOSITORY") == REPOSITORY
+            and type(event.get("repository")) is dict
+            and event["repository"].get("full_name") == REPOSITORY, "original event repository")
+    require(e.get("GITHUB_REF") == plan["ref"]
+            and event.get("ref") in (plan["ref"], plan["ref"].removeprefix("refs/heads/")),
+            "original event ref")
+    require(e.get("GITHUB_SHA") == head == plan["head"] and tree == plan["tree"], "original event head/tree")
+    require(e.get("GITHUB_RUN_ATTEMPT") == "1" and type(e.get("GITHUB_RUN_ID")) is str
+            and re.fullmatch(r"[1-9][0-9]*", e["GITHUB_RUN_ID"]), "original event attempt/run")
+    workflow_ref = REPOSITORY + "/" + ROUTE["workflow"] + "@" + plan["ref"]
+    require(e.get("GITHUB_WORKFLOW_REF") == workflow_ref
+            and e.get("GITHUB_WORKFLOW_SHA") == head, "original workflow source")
+    require(inputs.get("v23_run_kind") == "gate"
+            and inputs.get("native_selection_id") == plan["selection"]
+            and inputs.get("execution_lane") == ROUTE["executionLane"], "original event kind/selection/lane")
+    require(inputs.get("run_ui_smoke") == ("true" if plan["selection"] == RUI1 else "false"),
+            "original event UI intent")
+    rebuilt = make_plan(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
+                        resolved_bytes=resolved_bytes, sources=sources, requested_at=plan["requestedAtUTC"])
+    exact(plan, rebuilt, "original event committed source/selection")
+    return {"schema": EVENT_SCHEMA, "plan": plan, "planSHA256": sha(canonical(plan)),
+            "originalEventSHA256": sha(raw), "repository": REPOSITORY, "ref": plan["ref"],
+            "head": head, "tree": tree, "workflowRef": workflow_ref, "workflowSHA": head,
+            "runID": e["GITHUB_RUN_ID"], "runAttempt": "1", "kind": "gate",
+            "selection": plan["selection"], "functionalQualification": PENDING}
+
+
+def verify_collected_event(binding, *, registered_plan_bytes, original_event_bytes, api_run,
+                           tree, resolved_bytes, sources):
+    """Bind retained input to an existing root registration and authenticated API facts.
+
+    This is one necessary check, never complete collector/qualification admission.
+    The caller must additionally verify exclusive attempt, sole claim, artifact
+    provenance, all raw proof and genuine review provenance.
+    """
+    require(type(binding) is dict and binding.get("schema") == EVENT_SCHEMA, "retained event schema")
+    plan = parse_plan(registered_plan_bytes)
+    exact(binding.get("plan"), plan, "retained event differs from registered plan")
+    require(binding.get("planSHA256") == sha(registered_plan_bytes)
+            and binding.get("originalEventSHA256") == sha(original_event_bytes), "retained event bytes")
+    original_plan, _ = plan_from_event(original_event_bytes)
+    exact(original_plan, plan, "original event differs from registered plan")
+    require(type(api_run) is dict and type(api_run.get("id")) is int and api_run["id"] > 0
+            and type(api_run.get("run_attempt")) is int and api_run["run_attempt"] == 1,
+            "authenticated API original")
+    require((api_run.get("head_sha"), api_run.get("head_branch"), api_run.get("event"), api_run.get("path"))
+            == (plan["head"], plan["ref"].removeprefix("refs/heads/"), "workflow_dispatch", ROUTE["workflow"]),
+            "authenticated API identity")
+    require(binding.get("runID") == str(api_run["id"]) and binding.get("runAttempt") == "1"
+            and binding.get("head") == plan["head"] and binding.get("ref") == plan["ref"],
+            "retained run/attempt/ref/head")
+    exact(binding.get("functionalQualification"), PENDING, "retained pending status")
+    expected = bind_original_event(original_event_bytes, {
+        "GITHUB_EVENT_NAME": api_run["event"], "GITHUB_REPOSITORY": REPOSITORY,
+        "GITHUB_REF": "refs/heads/" + api_run["head_branch"], "GITHUB_SHA": api_run["head_sha"],
+        "GITHUB_RUN_ID": str(api_run["id"]), "GITHUB_RUN_ATTEMPT": str(api_run["run_attempt"]),
+        "GITHUB_WORKFLOW_REF": REPOSITORY + "/" + api_run["path"] + "@" + plan["ref"],
+        "GITHUB_WORKFLOW_SHA": api_run["head_sha"],
+    }, head=api_run["head_sha"], tree=tree, resolved_bytes=resolved_bytes, sources=sources)
+    exact(binding, expected, "complete retained event binding")
+    return {"planSHA256": sha(registered_plan_bytes), "originalEventSHA256": sha(original_event_bytes),
+            "runID": str(api_run["id"]), "runAttempt": "1", "functionalQualification": PENDING}
+
+
+def make_plan(*, purpose, head, tree, selection, resolved_bytes, sources, requested_at):
+    """Create pending intent from exact source facts, never a qualification receipt."""
+    selected = decode(resolved_bytes, limit=4 * 1024 * 1024)
+    require(type(selected) is dict, "resolved selection object")
+    for field in ("unitTestSelectors", "uiTestSelectors"):
+        require(type(selected.get(field)) is list and all(type(x) is str for x in selected[field]),
+                "ordered selectors")
+    require(type(purpose) is str and purpose in PURPOSE_REFS, "closed purpose")
+    return validate_plan({
+        "schema": SCHEMA, "purpose": purpose, "ref": PURPOSE_REFS[purpose], "head": head,
+        "tree": tree, "baseMain": BASE_MAIN, "selection": selection,
+        "selectionSHA256": sha(resolved_bytes),
+        "orderedUnitMethodsSHA256": sha(canonical(selected["unitTestSelectors"])),
+        "orderedUIMethodsSHA256": sha(canonical(selected["uiTestSelectors"])),
+        "sources": dict(sources), "policies": dict(POLICIES), "route": json.loads(canonical(ROUTE)),
+        "classification": dict(CLASSIFICATION), "requestedAtUTC": requested_at,
+        "collector": {"path": COLLECTOR, "sha256": sources[COLLECTOR]},
+    })
+
+
+def bind_facts(plan, *, head, tree, integration_head, main_head, resolved_bytes, sources):
+    validate_plan(plan)
+    require(head == plan["head"] == integration_head and tree == plan["tree"], "frozen checkout/ref/tree")
+    require(main_head == (BASE_MAIN if plan["purpose"] == CANDIDATE else head), "main moved or wrong phase")
+    rebuilt = make_plan(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
+                        resolved_bytes=resolved_bytes, sources=sources, requested_at=plan["requestedAtUTC"])
+    exact(plan, rebuilt, "committed source/selection binding")
+
+
+def original_key(plan):
+    validate_plan(plan)
+    return (plan["head"], plan["purpose"], plan["selection"])
+
+
+def original_stem(plan):
+    return "-".join(original_key(plan))
+
+
+def conflicting_originals(plan, records, attempt_names):
+    """Conservative legacy collisions; a closed name alone never authorizes reuse.
+
+    Cross-purpose separation is only a mathematical key here. Verifying the prior
+    candidate original and its prerequisites is a mandatory later admission step.
+    Development and unknown records collide with both purposes.
+    """
+    head, purpose, selection = original_key(plan)
+    conflicts, bound_candidates = [], 0
+    for record in records:
+        require(type(record) is dict, "malformed historical ledger record")
+        if "event" in record:
+            continue
+        if (record.get("head"), record.get("selection")) != (head, selection):
+            continue
+        other = record.get("phase1Purpose")
+        if (record.get("kind") != "gate" or type(other) is not str or other not in PURPOSE_REFS or other == purpose
+                or purpose != EXACT_MAIN):
+            conflicts.append("ledger:" + str(record.get("runID", "unknown")))
+        else:
+            # A purported Phase1 entry must bind the closed plan; arbitrary purpose
+            # strings attached to old ledger entries cannot create an exemption.
+            try:
+                prior = parse_plan(record.get("phase1PlanBytes", "").encode("utf-8"))
+                require(original_key(prior) == (head, other, selection), "prior plan key")
+                require(record.get("phase1PlanSHA256") == sha(canonical(prior)), "prior plan hash")
+                require(record.get("phase1RegistrationSchema") == REGISTRATION_SCHEMA, "prior registration")
+                bound_candidates += 1
+            except (Refused, AttributeError):
+                conflicts.append("unbound-ledger:" + str(record.get("runID", "unknown")))
+    legacy_prefix = head + "-" + selection
+    own = original_stem(plan)
+    other = head + "-" + (EXACT_MAIN if purpose == CANDIDATE else CANDIDATE) + "-" + selection
+    for name in attempt_names:
+        require(type(name) is str and Path(name).name == name, "attempt basename")
+        if name.startswith(legacy_prefix) or name.startswith(own):
+            conflicts.append("attempt:" + name)
+        elif name.startswith(head + "-") and selection in name:
+            if not (purpose == EXACT_MAIN and bound_candidates == 1 and name == other + ".json"):
+                conflicts.append("ambiguous-attempt:" + name)
+    if bound_candidates > 1:
+        conflicts.append("multiple candidate originals")
+    return conflicts
+
+
+ATTEMPT_SCHEMA = "v23-phase1-original-attempt.v2"
+DISCOVERY_SCHEMA = "v23-phase1-original-discovery.v1"
+MAX_ATTEMPT_BYTES = 8 * 1024 * 1024
+MAX_ORIGINAL_RUNS = 1000
+ACTIVE_RUN_STATUSES = ("queued", "in_progress", "waiting", "pending", "requested")
+
+
+def dispatch_inputs(plan):
+    validate_plan(plan)
+    require(plan["purpose"] == CANDIDATE, "candidate-only attempt lifecycle")
+    return {"execution_lane": ROUTE["executionLane"], "native_selection_id": plan["selection"],
+            "run_ui_smoke": "true" if plan["selection"] == RUI1 else "false",
+            "s10_4_shard_id": "none", "s10_4_minimum_core_smoke_id": "none",
+            "s10_4_shared_segment_id": "none", "s10_4_shared_payload_run_id": "",
+            "s10_4_segment_source_run_ids": "", "v23_run_kind": "gate",
+            PLAN_INPUT: canonical(plan).decode("utf-8")}
+
+
+def verify_attempt_inputs(attempt, original_event_raw):
+    plan, event = plan_from_event(original_event_raw)
+    require(plan is not None and canonical(plan).decode("utf-8") == attempt["planBytes"], "original event attempt plan")
+    require(canonical(event["inputs"]).decode("utf-8") == attempt["inputBytes"], "original event exact requested inputs")
+    return {"originalEventSHA256": sha(original_event_raw), "inputSHA256": sha(attempt["inputBytes"].encode("utf-8"))}
+
+
+def dispatch_argv(plan, workflow_id):
+    dispatch_inputs(plan)
+    require(type(workflow_id) is int and workflow_id > 0, "workflow API identity")
+    return ["gh", "workflow", "run", str(workflow_id), "--repo", REPOSITORY,
+            "--ref", plan["ref"].removeprefix("refs/heads/"), "--json"]
+
+
+def validate_run_census(value, *, head=None):
+    require(type(value) is dict and set(value) == {"total_count", "workflow_runs"}, "closed run census")
+    count, rows = value["total_count"], value["workflow_runs"]
+    require(type(count) is int and 0 <= count <= MAX_ORIGINAL_RUNS and type(rows) is list
+            and len(rows) == count, "complete bounded run census")
+    identifiers = []
+    for row in rows:
+        require(type(row) is dict and type(row.get("id")) is int and row["id"] > 0, "run census identity")
+        require(head is None or row.get("head_sha") == head, "run census head")
+        identifiers.append(row["id"])
+    require(len(set(identifiers)) == len(identifiers), "duplicate run census IDs")
+    return sorted(identifiers)
+
+
+def validate_ref_observations(value, plan):
+    require(type(value) is dict and set(value) == {"integration", "main"}, "closed ref observations")
+    for key, ref, head in (("integration", INTEGRATION_REF, plan["head"]),
+                           ("main", "refs/heads/main", BASE_MAIN)):
+        row = value[key]
+        require(type(row) is dict and row.get("ref") == ref and type(row.get("object")) is dict
+                and row["object"].get("type") == "commit" and row["object"].get("sha") == head,
+                "authenticated " + key + " ref moved")
+
+
+def validate_attempt(value, plan, registration_raw):
+    """Closed root record, not authentication of caller-supplied API dictionaries.
+
+    Actual fixed-endpoint capture belongs to the dormant dispatcher. Collection
+    rechecks these bytes, the live original and exact worker inputs separately.
+    """
+    validate_plan(plan)
+    require(plan["purpose"] == CANDIDATE, "candidate-only attempt lifecycle")
+    keys = {"schema", "planBytes", "planSHA256", "registrationSHA256", "collectorSHA256", "collectorID",
+            "workflowID", "repositoryID", "knownRunIDs", "requestedAtUTC", "integrationHead", "mainHead",
+            "inputBytes", "argv", "observations", "ledgerBytes", "attemptNames"}
+    require(type(value) is dict and set(value) == keys and value["schema"] == ATTEMPT_SCHEMA,
+            "closed consumed attempt v2")
+    exact(decode(registration_raw), {"schema": REGISTRATION_SCHEMA, "plan": plan,
+          "planSHA256": sha(canonical(plan)), "dispatchEnabled": False, "functionalQualification": PENDING},
+          "attempt pending registration")
+    require(value["planBytes"] == canonical(plan).decode("utf-8")
+            and value["planSHA256"] == sha(canonical(plan))
+            and value["registrationSHA256"] == sha(registration_raw)
+            and value["collectorSHA256"] == plan["sources"][COLLECTOR]
+            and value["integrationHead"] == plan["head"] and value["mainHead"] == BASE_MAIN,
+            "attempt frozen plan/source/registration")
+    require(type(value["collectorID"]) is str and re.fullmatch(r"[0-9a-f]{32}", value["collectorID"]),
+            "sole collector identity")
+    validate_plan(dict(plan, requestedAtUTC=value["requestedAtUTC"]))
+    require(value["requestedAtUTC"] >= plan["requestedAtUTC"], "attempt predates registration intent")
+    exact(value["argv"], dispatch_argv(plan, value["workflowID"]), "exact dispatch argv")
+    require(value["inputBytes"] == canonical(dispatch_inputs(plan)).decode("utf-8"), "exact dispatch input bytes")
+    observations = value["observations"]
+    require(type(observations) is dict and set(observations) == {"repository", "workflow", "refs", "headRuns", "activeRuns"},
+            "closed predispatch observations")
+    repository, workflow = observations["repository"], observations["workflow"]
+    require(type(repository) is dict and repository.get("full_name") == REPOSITORY
+            and type(repository.get("id")) is int and repository["id"] > 0
+            and type(value["repositoryID"]) is int and value["repositoryID"] == repository["id"],
+            "authenticated repository identity")
+    require(type(workflow) is dict and type(workflow.get("id")) is int and workflow["id"] == value["workflowID"]
+            and workflow.get("path") == ROUTE["workflow"] and workflow.get("state") == "active", "active original workflow")
+    validate_ref_observations(observations["refs"], plan)
+    identifiers = validate_run_census(observations["headRuns"], head=plan["head"])
+    exact(value["knownRunIDs"], identifiers, "known original census")
+    active = observations["activeRuns"]
+    require(type(active) is dict and set(active) == set(ACTIVE_RUN_STATUSES), "closed active-run census")
+    # Conservative candidate gates never overlap another active original. This
+    # does not alter any development capacity or concurrency behavior.
+    for status in ACTIVE_RUN_STATUSES:
+        require(not validate_run_census(active[status]), "candidate gate requires no active original")
+    require(type(value["ledgerBytes"]) is str, "retained original ledger bytes")
+    try:
+        records = [json.loads(line, object_pairs_hook=object_pairs,
+                   parse_constant=lambda _: (_ for _ in ()).throw(Refused("nonfinite ledger")))
+                   for line in value["ledgerBytes"].splitlines() if line.strip()]
+    except (ValueError, UnicodeError) as error:
+        raise Refused("Phase1 gate: invalid retained ledger") from error
+    require(all(type(row) is dict for row in records), "ledger objects")
+    originals = [row for row in records if "event" not in row]
+    require(all(type(row.get("runID")) is int and row["runID"] > 0 for row in originals), "ledger original IDs")
+    known = [row["runID"] for row in originals]
+    require(len(known) == len(set(known)) and set(identifiers) <= set(known), "unknown or duplicate ledger originals")
+    by_id = {row["runID"]: row for row in originals}
+    require(all(by_id[identifier].get("head") == plan["head"] for identifier in identifiers),
+            "known ledger original head")
+    names = value["attemptNames"]
+    require(type(names) is list and all(type(x) is str for x in names) and names == sorted(set(names)),
+            "complete attempt-name census")
+    require(not conflicting_originals(plan, records, names), "consumed or historical question collision")
+    require(len(canonical(value)) <= MAX_ATTEMPT_BYTES, "bounded consumed attempt")
+    return value
+
+
+def make_attempt(plan, registration_raw, *, collector_id, requested_at, observations, ledger_bytes, attempt_names):
+    value = {"schema": ATTEMPT_SCHEMA, "planBytes": canonical(plan).decode("utf-8"),
+             "planSHA256": sha(canonical(plan)), "registrationSHA256": sha(registration_raw),
+             "collectorSHA256": plan["sources"][COLLECTOR], "collectorID": collector_id,
+             "workflowID": observations["workflow"]["id"], "repositoryID": observations["repository"]["id"],
+             "knownRunIDs": validate_run_census(observations["headRuns"], head=plan["head"]),
+             "requestedAtUTC": requested_at, "integrationHead": plan["head"], "mainHead": BASE_MAIN,
+             "inputBytes": canonical(dispatch_inputs(plan)).decode("utf-8"),
+             "argv": dispatch_argv(plan, observations["workflow"]["id"]), "observations": observations,
+             "ledgerBytes": ledger_bytes, "attemptNames": attempt_names}
+    return validate_attempt(value, plan, registration_raw)
+
+
+def durable_directory(path):
+    path = Path(path)
+    require(path.parent.is_dir() and not path.parent.is_symlink(), "regular directory parent")
+    path.mkdir(exist_ok=True)
+    require(path.is_dir() and not path.is_symlink(), "regular durable directory")
+    if os.name != "nt":
+        fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
+def write_immutable(path, raw):
+    """Create and fsync before effects. Any partial record still consumes its key.
+
+    Root controls the evidence tree; a failed/partial exclusive write is never
+    replaced. This is durable record creation, not hostile-filesystem isolation.
+    """
+    require(type(raw) is bytes and 0 < len(raw) <= MAX_ATTEMPT_BYTES, "bounded immutable bytes")
+    path = Path(path)
+    require(path.parent.is_dir() and not path.parent.is_symlink(), "regular immutable parent")
+    with path.open("xb") as stream:
+        stream.write(raw)
+        stream.flush()
+        os.fsync(stream.fileno())
+    if os.name != "nt":
+        fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    return path
+
+
+def regular_bytes(path, limit=MAX_PLAN_BYTES):
+    path = Path(path)
+    before = path.lstat()
+    require(not stat.S_ISLNK(before.st_mode), "symlink input")
+    require(stat.S_ISREG(before.st_mode), "regular input")
+    with path.open("rb") as stream:
+        opened = os.fstat(stream.fileno())
+        require(stat.S_ISREG(opened.st_mode) and (before.st_dev, before.st_ino) == (opened.st_dev, opened.st_ino),
+                "input identity changed")
+        value = stream.read(limit + 1)
+    require(len(value) <= limit, "bounded input")
+    return value
+
+
+def register_candidate(plan, directory):
+    """Exclusive pending intent. Does not consume an original or permit dispatch.
+
+    The enclosing directory is a dedicated local evidence directory controlled by
+    root. Existing/corrupt reservations are never replaced or silently repaired.
+    """
+    validate_plan(plan)
+    require(plan["purpose"] == CANDIDATE, "exact-main prerequisites are not implemented")
+    directory = Path(directory)
+    require(not directory.is_symlink(), "symlink registration directory")
+    directory.mkdir(parents=True, exist_ok=True)
+    require(directory.is_dir(), "registration directory")
+    target = directory / (original_stem(plan) + ".json")
+    record = {"schema": REGISTRATION_SCHEMA, "plan": plan, "planSHA256": sha(canonical(plan)),
+              "dispatchEnabled": False, "functionalQualification": PENDING}
+    try:
+        with target.open("xb") as stream:
+            stream.write(canonical(record))
+            stream.flush()
+            os.fsync(stream.fileno())
+    except FileExistsError as error:
+        raise Refused("Phase1 gate: registration already exists; inspect, never replace") from error
+    return target, record
+
+
+def refuse_dispatch():
+    raise Refused("Phase1 gate: dispatch disabled until worker, collection, qualification and "
+                  "exact-main prerequisite verification are implemented and independently reviewed")
+
+
+REVIEW_SCHEMA = "v23-phase1-review-provenance.v1"
+REVIEW_REQUEST_SCHEMA = "v23-phase1-review-request.v1"
+REVIEW_PENDING = "PROVENANCE_RECORDED_PENDING"
+REVIEW_SUBJECTS = ("shared-cold-original", "rui1-cold-original", "candidate-integration", "owner-critical-states")
+MAX_REVIEW_BYTES = 2 * 1024 * 1024
+REVIEW_TRUST = "Root must verify actual source messages and identity/independence; hashes bind bytes only."
+
+
+def review_text(value, label, limit=4096):
+    require(type(value) is str and bool(value.strip()) and len(value.encode("utf-8")) <= limit
+            and "\x00" not in value, "review " + label)
+
+
+def review_timestamp(value):
+    require(type(value) is str and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", value), "review timestamp")
+    try:
+        datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise Refused("review calendar timestamp") from error
+
+
+def validate_review_request(value, *, test_only=False):
+    """Validate declarations and byte references, never the truth of a speaker."""
+    require(type(test_only) is bool and type(value) is dict and set(value) == {
+        "schema", "testOnly", "subject", "reportedDisposition", "head", "tree", "originals", "gallery",
+        "messageSHA256", "contextSHA256", "messageReference", "conversationReference", "messageTimestampUTC",
+        "speakerReference", "reviewer"}, "closed review request")
+    require(value["schema"] == REVIEW_REQUEST_SCHEMA and type(value["testOnly"]) is bool
+            and value["testOnly"] == test_only, "test-only provenance cannot enter real records")
+    require(type(value["subject"]) is str and value["subject"] in REVIEW_SUBJECTS, "closed review subject")
+    require(type(value["reportedDisposition"]) is str and value["reportedDisposition"] in
+            ("approve", "changes-requested", "pending"), "reported review disposition")
+    for key in ("head", "tree"):
+        require(type(value[key]) is str and re.fullmatch(r"[0-9a-f]{40}", value[key]), "review " + key)
+    for key in ("messageSHA256", "contextSHA256"):
+        require(digest(value[key]), "review byte digest")
+    for key in ("messageReference", "conversationReference", "speakerReference"):
+        review_text(value[key], key)
+    review_timestamp(value["messageTimestampUTC"])
+    originals = value["originals"]
+    count = 2 if value["subject"] == "candidate-integration" else 1
+    require(type(originals) is list and len(originals) == count, "review original subject census")
+    for item in originals:
+        require(type(item) is dict and set(item) == {"runID", "manifestSHA256"}
+                and type(item["runID"]) is int and item["runID"] > 0 and digest(item["manifestSHA256"]),
+                "review original identity")
+    require([i["runID"] for i in originals] == sorted({i["runID"] for i in originals}), "review unique ordered originals")
+    if value["subject"] == "owner-critical-states":
+        require(value["reviewer"] is None, "owner review is not a model review")
+        gallery = value["gallery"]
+        require(type(gallery) is dict and set(gallery) == {"catalogueSHA256", "proofSHA256", "presentationSHA256",
+                "checklistSHA256", "attachmentsSHA256"} and all(digest(v) for v in gallery.values()), "owner bundle digests")
+    else:
+        require(value["gallery"] is None, "gallery only for owner subject")
+        reviewer = value["reviewer"]
+        require(type(reviewer) is dict and set(reviewer) == {"model", "effort", "authorReference", "independenceReference"},
+                "reviewer source references")
+        for key in reviewer:
+            review_text(reviewer[key], key)
+        # Reported strings are retained facts, not proof of independence or model identity.
+    require(len(canonical(value)) <= MAX_REVIEW_BYTES, "review request bound")
+    return value
+
+
+def make_review_record(request, message, context, bindings, *, index, previous, captured_at, test_only=False):
+    validate_review_request(request, test_only=test_only)
+    require(type(index) is int and 0 <= index < 1000 and (previous is None if index == 0 else digest(previous)),
+            "review history position")
+    review_timestamp(captured_at)
+    require(captured_at >= request["messageTimestampUTC"], "review capture precedes message")
+    texts = []
+    for raw, name in ((message, "message"), (context, "context")):
+        require(type(raw) is bytes and 0 < len(raw) <= 512 * 1024 and sha(raw) == request[name + "SHA256"],
+                "review " + name + " bytes")
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeError as error:
+            raise Refused("review UTF8 bytes") from error
+        review_text(text, name, 512 * 1024)
+        texts.append(text)
+    value = {"schema": REVIEW_SCHEMA, "index": index, "previousSHA256": previous,
+             "capturedAtUTC": captured_at, "request": request, "messageUTF8": texts[0], "contextUTF8": texts[1],
+             "bindings": bindings, "status": REVIEW_PENDING, "trustBoundary": REVIEW_TRUST,
+             "functionalQualification": PENDING, "acceptance": False, "releaseReady": False}
+    require(len(canonical(value)) <= MAX_REVIEW_BYTES, "review record bound")
+    return value
+
+
+def review_pending_assessment(head, records):
+    """Report all recorded dispositions without selecting an approval or resolving conflict."""
+    subjects = {s: [] for s in REVIEW_SUBJECTS}
+    for item in records:
+        request = item["request"]
+        require(request["head"] == head and item["status"] == REVIEW_PENDING, "review assessment scope")
+        subjects[request["subject"]].append({"recordSHA256": sha(canonical(item)),
+            "reportedDisposition": request["reportedDisposition"], "testOnly": request["testOnly"]})
+    return {"schema": "v23-phase1-review-pending-assessment.v1", "head": head, "subjects": subjects,
+            "retainedOriginals": [{"recordSHA256": sha(canonical(item)), "originals": item["bindings"]["originals"]}
+                                  for item in records],
+            "declaredIndependenceGaps": [sha(canonical(item)) for item in records
+                if item["request"]["reviewer"] is not None and item["request"]["speakerReference"]
+                    == item["request"]["reviewer"]["authorReference"]],
+            "missingSubjects": [s for s, items in subjects.items() if not items],
+            "unresolvedSubjects": [s for s, items in subjects.items() if len(items) > 1
+                or any(i["reportedDisposition"] != "approve" for i in items)],
+            "status": REVIEW_PENDING, "functionalQualification": PENDING,
+            "pendingPredicates": ["genuine source-message and independence verification",
+                "complete cold/raw proof and qualification lifecycle", "fresh current authority before admission"],
+            "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
+            "physicalProtectionReleaseBlocker": True, "acceptance": False,
+            "providerQualification": False, "releaseReady": False, "trustBoundary": REVIEW_TRUST}

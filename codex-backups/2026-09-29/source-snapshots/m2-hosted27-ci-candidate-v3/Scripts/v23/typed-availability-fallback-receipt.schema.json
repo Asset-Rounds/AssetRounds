@@ -1,0 +1,1144 @@
+{
+  "$id": "https://assetrounds.invalid/v23/V23P02C10TypedAvailabilityFallbackReceiptV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "appBaseHead": {
+          "const": "1c8b3d99826a207d3b18b3e0429231c31804f317"
+        },
+        "appBaseTree": {
+          "const": "3107903158238e5e5eaed78322c3564b06c648e2"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C10"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationCASSequence": {
+          "const": 126
+        },
+        "coordinationHead": {
+          "const": "229ce1e9c7071d392760192875c6af23600b32fc"
+        },
+        "coordinationLedgerDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "coordinationTree": {
+          "const": "cf1009737e0d90a9063a4bc20b77731d6ec219ba"
+        },
+        "dependencyDispositionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "directGraphDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C09"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "dossierLength": {
+          "const": 7206
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "foundationRegisterDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "frozenS10ReservationDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "impactManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "inheritedV21BlockLength": {
+          "const": 19063
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C11"
+            },
+            {
+              "const": "V23-P03-C09"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "REFINED_WITHOUT_LOSS"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C10"
+        },
+        "nativeOrHostedEvidenceClaimed": {
+          "const": false
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerOrdinal": {
+          "const": 30
+        },
+        "registerRowDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerSectionDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "registerSectionLength": {
+          "const": 44217
+        },
+        "relationManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "releaseCredit": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        },
+        "selectorManifestDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "title": {
+          "const": "Typed settings, permissions, capability availability, fallback, privacy, and scratch-data lifecycle boundary"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationHead",
+        "coordinationTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "registerSectionDigest",
+        "registerSectionLength",
+        "registerRowDigest",
+        "dossierDigest",
+        "dossierLength",
+        "inheritedV21BlockDigest",
+        "inheritedV21BlockLength",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "nativeOrHostedEvidenceClaimed",
+        "phase10PollingDuringParallelExecution",
+        "acceptanceEnabled",
+        "adoptionEnabled",
+        "releaseCredit",
+        "requiresAcceptedS10_6Reconciliation"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C10"
+    },
+    "exactFiveTests": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "const": 5
+        },
+        "methods": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "testV9_14G01TypedSettingsScopesMigrationAndLifecycle"
+            },
+            {
+              "const": "testV9_14A01AvailabilityReasonsPreserveHistoricEssentialOperations"
+            },
+            {
+              "const": "testV9_14H01CapabilityPermissionsConsentFallbackAndScratchAreClosed"
+            },
+            {
+              "const": "testV9_14I01InterruptionRecoveryIsIdempotentAndCreatesNoCanonicalLeak"
+            },
+            {
+              "const": "testV9_14R01HapticsAndEntryAssistRemainPrivateBoundedAndRecoverable"
+            }
+          ],
+          "type": "array"
+        },
+        "required": {
+          "const": true
+        }
+      },
+      "required": [
+        "required",
+        "methods",
+        "count"
+      ],
+      "type": "object"
+    },
+    "generatorSeed": {
+      "const": 230210
+    },
+    "generatorVersion": {
+      "const": "p02-c10-contracts-v1"
+    },
+    "noFallbackMediaEquivalence": {
+      "const": true
+    },
+    "noPermissionConsentEquivalence": {
+      "const": true
+    },
+    "owner": {
+      "const": "PermissionFallbackRegistryV1"
+    },
+    "pathFence": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "const": 24
+        },
+        "digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "paths": {
+          "items": false,
+          "maxItems": 24,
+          "minItems": 24,
+          "prefixItems": [
+            {
+              "const": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/Settings/FeaturePolicyLoaderV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift"
+            },
+            {
+              "const": "FieldEvidenceApp/Resources/FeaturePolicyV1.json"
+            },
+            {
+              "const": "FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests.swift"
+            },
+            {
+              "const": "FieldEvidenceAppTests/Fixtures/V21/Settings/V21P02C10SettingsCapabilityCorpusV1.json"
+            },
+            {
+              "const": "Scripts/v23/p02_c10_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/generate_p02_c10_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/verify_p02_c10_contracts.py"
+            },
+            {
+              "const": "Scripts/v23/settings-registry.schema.json"
+            },
+            {
+              "const": "Scripts/v23/feature-availability.schema.json"
+            },
+            {
+              "const": "Scripts/v23/capability-permission-matrix.schema.json"
+            },
+            {
+              "const": "Scripts/v23/feature-policy.schema.json"
+            },
+            {
+              "const": "Scripts/v23/entry-assist-policy.schema.json"
+            },
+            {
+              "const": "Scripts/v23/typed-availability-fallback-receipt.schema.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C10SettingsLifecycleContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C10CapabilityAvailabilityContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C10FeaturePolicyRegistryV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C10EntryAssistPrivacyContractV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23P02C10SettingsCapabilityEvidenceReceiptV1.json"
+            },
+            {
+              "const": "docs/design/v23/tooling/V23-P02-C10-tooling-manifest.json"
+            }
+          ],
+          "type": "array"
+        },
+        "s10Overlap": {
+          "const": false
+        }
+      },
+      "required": [
+        "paths",
+        "count",
+        "digest",
+        "s10Overlap"
+      ],
+      "type": "object"
+    },
+    "permissionStates": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "const": "NOT_DETERMINED"
+        },
+        {
+          "const": "LIMITED"
+        },
+        {
+          "const": "AUTHORIZED"
+        },
+        {
+          "const": "DENIED"
+        },
+        {
+          "const": "RESTRICTED"
+        },
+        {
+          "const": "UNSUPPORTED"
+        }
+      ],
+      "type": "array"
+    },
+    "provisional": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceCredit": {
+          "const": false
+        },
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "hostedDispatchRan": {
+          "const": false
+        },
+        "nativeCompileRan": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalEvidenceComplete": {
+          "const": false
+        },
+        "releaseCredit": {
+          "const": false
+        },
+        "releaseReady": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        }
+      },
+      "required": [
+        "nativeCompileRan",
+        "hostedDispatchRan",
+        "physicalEvidenceComplete",
+        "adoptionEnabled",
+        "acceptanceEnabled",
+        "releaseReady",
+        "acceptanceCredit",
+        "releaseCredit",
+        "phase10PollingDuringParallelExecution",
+        "requiresAcceptedS10_6Reconciliation"
+      ],
+      "type": "object"
+    },
+    "reasonSet": {
+      "items": false,
+      "maxItems": 13,
+      "minItems": 13,
+      "prefixItems": [
+        {
+          "const": "AVAILABLE"
+        },
+        {
+          "const": "PACKAGE_NOT_ENABLED"
+        },
+        {
+          "const": "NOT_ENTITLED"
+        },
+        {
+          "const": "UNSUPPORTED_OS_OR_DEVICE"
+        },
+        {
+          "const": "PERMISSION_NOT_DETERMINED"
+        },
+        {
+          "const": "PERMISSION_LIMITED"
+        },
+        {
+          "const": "PERMISSION_DENIED"
+        },
+        {
+          "const": "PERMISSION_RESTRICTED"
+        },
+        {
+          "const": "OFFLINE_CONTENT_MISSING"
+        },
+        {
+          "const": "RECOVERY_BLOCKED"
+        },
+        {
+          "const": "WORKSPACE_POLICY_DISABLED"
+        },
+        {
+          "const": "PACKAGE_RETIRED"
+        },
+        {
+          "const": "TEMPORARILY_UNAVAILABLE"
+        }
+      ],
+      "type": "array"
+    },
+    "receipt": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate": {
+          "const": "TYPED_PROVIDER_CANDIDATE"
+        },
+        "consumer": {
+          "const": "EXPLICIT_FEATURE_ENTRY_POINT"
+        },
+        "coreDisposition": {
+          "const": "MANDATORY_CORE_REMAINS_VISIBLE"
+        },
+        "dataDisposition": {
+          "const": "NO_CANONICAL_SUGGESTION_OR_EVIDENCE_UNTIL_ACCEPTANCE"
+        },
+        "fallbackDisposition": {
+          "const": "COMPLETE_MANUAL_PATH_WHEN_APPLICABLE"
+        },
+        "provider": {
+          "const": "CAPABILITY_OR_OPTIONAL_PROVIDER"
+        },
+        "reason": {
+          "const": "CLOSED_FEATURE_AVAILABILITY_REASON"
+        },
+        "reentryTrigger": {
+          "const": "USER_INITIATED_RETRY_OR_MANUAL_PATH"
+        },
+        "tests": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "testV9_14G01TypedSettingsScopesMigrationAndLifecycle"
+            },
+            {
+              "const": "testV9_14A01AvailabilityReasonsPreserveHistoricEssentialOperations"
+            },
+            {
+              "const": "testV9_14H01CapabilityPermissionsConsentFallbackAndScratchAreClosed"
+            },
+            {
+              "const": "testV9_14I01InterruptionRecoveryIsIdempotentAndCreatesNoCanonicalLeak"
+            },
+            {
+              "const": "testV9_14R01HapticsAndEntryAssistRemainPrivateBoundedAndRecoverable"
+            }
+          ],
+          "type": "array"
+        },
+        "unsupportedClaims": {
+          "items": false,
+          "maxItems": 0,
+          "minItems": 0,
+          "prefixItems": [],
+          "type": "array"
+        }
+      },
+      "required": [
+        "provider",
+        "consumer",
+        "candidate",
+        "reason",
+        "coreDisposition",
+        "fallbackDisposition",
+        "dataDisposition",
+        "tests",
+        "reentryTrigger",
+        "unsupportedClaims"
+      ],
+      "type": "object"
+    },
+    "registerOrdinal": {
+      "const": 30
+    },
+    "schema": {
+      "const": "V23P02C10TypedAvailabilityFallbackReceiptV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceBindings": {
+      "items": false,
+      "maxItems": 9,
+      "minItems": 9,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 26005
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 33239
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Domain/Capability/CapabilityAvailabilityContractsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 6608
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Application/Ports/SettingsCapabilityPortsV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 14126
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 3984
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/Settings/FeaturePolicyLoaderV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 10136
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Infrastructure/System/SystemCapabilityAdaptersV1.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 1340
+            },
+            "path": {
+              "const": "FieldEvidenceApp/Resources/FeaturePolicyV1.json"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 61903
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/V9_14SettingsCapabilityLifecycleTests.swift"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "const": 6450
+            },
+            "path": {
+              "const": "FieldEvidenceAppTests/Fixtures/V21/Settings/V21P02C10SettingsCapabilityCorpusV1.json"
+            },
+            "present": {
+              "const": true
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "bytes",
+            "sha256",
+            "present"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "title": {
+      "const": "Typed settings, permissions, capability availability, fallback, privacy, and scratch-data lifecycle boundary"
+    },
+    "typedReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "availabilityReason": {
+          "const": "PERMISSION_DENIED"
+        },
+        "candidateHead": {
+          "const": "1c8b3d99826a207d3b18b3e0429231c31804f317"
+        },
+        "candidateTree": {
+          "const": "3107903158238e5e5eaed78322c3564b06c648e2"
+        },
+        "capabilityID": {
+          "const": "FILES_AND_SHARE"
+        },
+        "consumerID": {
+          "const": "CHECK_RUNNER"
+        },
+        "dataDisposition": {
+          "const": "PRIOR_HISTORY_PRESERVED"
+        },
+        "evidenceArtifactIDs": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C10-A01-RECEIPT"
+            }
+          ],
+          "type": "array"
+        },
+        "fallbackTestArtifactIDs": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C10-A01-FALLBACK"
+            }
+          ],
+          "type": "array"
+        },
+        "localizedNextActionKey": {
+          "const": "availability.PERMISSION_DENIED.action"
+        },
+        "localizedVisibleCopyKey": {
+          "const": "availability.PERMISSION_DENIED.copy"
+        },
+        "localizedVisibleStateKey": {
+          "const": "availability.PERMISSION_DENIED.state"
+        },
+        "mandatoryCoreComplete": {
+          "const": true
+        },
+        "persistenceDisposition": {
+          "const": "NO_CANONICAL_EFFECT_UNTIL_ACCEPTANCE"
+        },
+        "providerID": {
+          "const": "SYSTEM_CAPABILITY_ADAPTER"
+        },
+        "providerSliceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "reentryTrigger": {
+          "const": "CAPABILITY_STATE_CHANGED"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "visibleFallback": {
+          "const": "SAVE_LOCALLY"
+        },
+        "zeroUnsupportedPublicClaim": {
+          "const": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "candidateHead",
+        "candidateTree",
+        "providerID",
+        "providerSliceDigest",
+        "consumerID",
+        "capabilityID",
+        "availabilityReason",
+        "mandatoryCoreComplete",
+        "visibleFallback",
+        "persistenceDisposition",
+        "dataDisposition",
+        "reentryTrigger",
+        "localizedVisibleStateKey",
+        "localizedVisibleCopyKey",
+        "localizedNextActionKey",
+        "fallbackTestArtifactIDs",
+        "evidenceArtifactIDs",
+        "zeroUnsupportedPublicClaim"
+      ],
+      "type": "object"
+    },
+    "typedReceiptFields": {
+      "items": false,
+      "maxItems": 19,
+      "minItems": 19,
+      "prefixItems": [
+        {
+          "const": "schemaVersion"
+        },
+        {
+          "const": "candidateHead"
+        },
+        {
+          "const": "candidateTree"
+        },
+        {
+          "const": "providerID"
+        },
+        {
+          "const": "providerSliceDigest"
+        },
+        {
+          "const": "consumerID"
+        },
+        {
+          "const": "capabilityID"
+        },
+        {
+          "const": "availabilityReason"
+        },
+        {
+          "const": "mandatoryCoreComplete"
+        },
+        {
+          "const": "visibleFallback"
+        },
+        {
+          "const": "persistenceDisposition"
+        },
+        {
+          "const": "dataDisposition"
+        },
+        {
+          "const": "reentryTrigger"
+        },
+        {
+          "const": "localizedVisibleStateKey"
+        },
+        {
+          "const": "localizedVisibleCopyKey"
+        },
+        {
+          "const": "localizedNextActionKey"
+        },
+        {
+          "const": "fallbackTestArtifactIDs"
+        },
+        {
+          "const": "evidenceArtifactIDs"
+        },
+        {
+          "const": "zeroUnsupportedPublicClaim"
+        }
+      ],
+      "type": "array"
+    },
+    "typedReceiptSemantics": {
+      "additionalProperties": false,
+      "properties": {
+        "candidateIsExactHeadAndTree": {
+          "const": true
+        },
+        "capabilityAwareFallback": {
+          "additionalProperties": false,
+          "properties": {
+            "availableRequiresNoFallback": {
+              "const": true
+            },
+            "cameraRequires": {
+              "const": "CHOOSE_EXISTING_PHOTO"
+            },
+            "hapticsMayUseNoFallback": {
+              "const": true
+            },
+            "unavailableUsesCapabilityDescriptor": {
+              "const": true
+            }
+          },
+          "required": [
+            "availableRequiresNoFallback",
+            "unavailableUsesCapabilityDescriptor",
+            "hapticsMayUseNoFallback",
+            "cameraRequires"
+          ],
+          "type": "object"
+        },
+        "dataDispositions": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "PRIOR_HISTORY_PRESERVED"
+            },
+            {
+              "const": "SCRATCH_DELETED_NO_CANONICAL_EFFECT"
+            },
+            {
+              "const": "ACCEPTED_IMMUTABLE_CONTENT"
+            }
+          ],
+          "type": "array"
+        },
+        "evidenceArtifactIDsNonemptySorted": {
+          "const": true
+        },
+        "fallbackTestsNonemptySorted": {
+          "const": true
+        },
+        "mandatoryCoreComplete": {
+          "const": true
+        },
+        "persistenceDispositions": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "NO_CANONICAL_EFFECT_UNTIL_ACCEPTANCE"
+            },
+            {
+              "const": "DEVICE_LOCAL_ONLY"
+            },
+            {
+              "const": "WORKSPACE_CANONICAL_AFTER_ACCEPTANCE"
+            }
+          ],
+          "type": "array"
+        },
+        "providerSliceDigestRequired": {
+          "const": true
+        },
+        "reentryTriggers": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "CAPABILITY_STATE_CHANGED"
+            },
+            {
+              "const": "PERMISSION_CHANGED"
+            },
+            {
+              "const": "USER_INITIATED_RETRY"
+            },
+            {
+              "const": "MANUAL_PATH_SELECTED"
+            }
+          ],
+          "type": "array"
+        },
+        "threeLocalizationKeys": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "localizedVisibleStateKey"
+            },
+            {
+              "const": "localizedVisibleCopyKey"
+            },
+            {
+              "const": "localizedNextActionKey"
+            }
+          ],
+          "type": "array"
+        },
+        "zeroUnsupportedPublicClaim": {
+          "const": true
+        }
+      },
+      "required": [
+        "candidateIsExactHeadAndTree",
+        "threeLocalizationKeys",
+        "fallbackTestsNonemptySorted",
+        "evidenceArtifactIDsNonemptySorted",
+        "mandatoryCoreComplete",
+        "zeroUnsupportedPublicClaim",
+        "providerSliceDigestRequired",
+        "persistenceDispositions",
+        "dataDispositions",
+        "reentryTriggers",
+        "capabilityAwareFallback"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "registerOrdinal",
+    "title",
+    "generatorVersion",
+    "generatorSeed",
+    "authority",
+    "pathFence",
+    "provisional",
+    "exactFiveTests",
+    "sourceBindings",
+    "owner",
+    "receipt",
+    "reasonSet",
+    "permissionStates",
+    "typedReceipt",
+    "typedReceiptFields",
+    "typedReceiptSemantics",
+    "noPermissionConsentEquivalence",
+    "noFallbackMediaEquivalence",
+    "artifactDigest"
+  ],
+  "title": "V23P02C10TypedAvailabilityFallbackReceiptV1",
+  "type": "object"
+}

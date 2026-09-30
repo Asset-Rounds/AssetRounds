@@ -1,0 +1,585 @@
+import Foundation
+
+/// Sole-store adapter contract. Implementations route every append/CAS through
+/// the existing workspace writer and return its durable receipt.
+@MainActor protocol FieldDraftWritingV1: AnyObject {
+    func currentCheckpoint(workspaceID:WorkspaceID,draftID:UUID)throws->FieldDraftCheckpointV1?
+    func compareAndSwap(checkpoint:FieldDraftCheckpointV1,expectedDraftRevision:UInt64,expectedBaseRevision:UInt64)throws->MutationReceiptV1
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1
+    func append(stagingItem:AttachmentStagingItemV1,expectedRevision:UInt64)throws->MutationReceiptV1
+    func append(saga:DraftCommitSagaV1,expectedRevision:UInt64)throws->MutationReceiptV1
+    func append(reservation:DraftContentReservationV1,expectedRevision:UInt64)throws->MutationReceiptV1
+    func apply(commitTerminalBundle:DraftCommitTerminalBundleV1,expectedDraftRevision:UInt64,expectedSagaRevision:UInt64)throws->MutationReceiptV1
+    func apply(discardTerminalBundle:DraftDiscardTerminalBundleV1,expectedDraftRevision:UInt64)throws->MutationReceiptV1
+}
+
+/// Existing content authority only; this coordinator never writes bytes itself.
+protocol DraftContentPromotionPortV1: Sendable {
+    func promote(plan:DraftCommitPlanV1,items:[AttachmentStagingItemV1],reservationMutationIDs:[UUID:MutationIDV1])async throws->[DraftContentReservationV1]
+    func quarantine(reservations:[DraftContentReservationV1],for plan:DraftDiscardPlanV1)async throws
+}
+
+/// Existing WorkspaceWriter target effect/read-back authority.
+@MainActor protocol DraftCanonicalCommitPortV1: AnyObject {
+    func commit(plan:DraftCommitPlanV1,reservations:[DraftContentReservationV1])throws->MutationReceiptV1
+    func readBackMatches(plan:DraftCommitPlanV1,receipt:MutationReceiptV1)throws->Bool
+}
+
+/// Async targets retain the same canonical receipt and read-back boundary.
+@MainActor protocol DraftAsyncCanonicalCommitPortV1: AnyObject {
+    func commit(plan: DraftCommitPlanV1, reservations: [DraftContentReservationV1]) async throws -> MutationReceiptV1
+    func readBackMatches(plan: DraftCommitPlanV1, receipt: MutationReceiptV1) throws -> Bool
+}
+
+@MainActor final class FieldDraftCoordinatorV1 {
+    private let purposeAuthority:any DraftPurposeDefinitionResolvingV1
+    private let writer:any FieldDraftWritingV1
+    private let content:any DraftContentPromotionPortV1
+    private let commitTarget: @MainActor (DraftCommitPlanV1, [DraftContentReservationV1]) async throws -> MutationReceiptV1
+    private let readBackTarget: @MainActor (DraftCommitPlanV1, MutationReceiptV1) throws -> Bool
+
+    convenience init(registry: DraftPurposeRegistryV1, writer: any FieldDraftWritingV1,
+                     content: any DraftContentPromotionPortV1, target: any DraftCanonicalCommitPortV1) {
+        self.init(purposeAuthority: registry, writer: writer, content: content, target: target)
+    }
+
+    init(purposeAuthority: any DraftPurposeDefinitionResolvingV1, writer: any FieldDraftWritingV1,
+         content: any DraftContentPromotionPortV1, target: any DraftCanonicalCommitPortV1) {
+        self.purposeAuthority = purposeAuthority
+        self.writer = writer
+        self.content = content
+        commitTarget = { try target.commit(plan: $0, reservations: $1) }
+        readBackTarget = { try target.readBackMatches(plan: $0, receipt: $1) }
+    }
+
+    init(purposeAuthority: any DraftPurposeDefinitionResolvingV1, writer: any FieldDraftWritingV1,
+         content: any DraftContentPromotionPortV1, asyncTarget: any DraftAsyncCanonicalCommitPortV1) {
+        self.purposeAuthority = purposeAuthority
+        self.writer = writer
+        self.content = content
+        commitTarget = { try await asyncTarget.commit(plan: $0, reservations: $1) }
+        readBackTarget = { try asyncTarget.readBackMatches(plan: $0, receipt: $1) }
+    }
+
+    func checkpoint(_ value:FieldDraftCheckpointV1,expectedDraftRevision:UInt64,expectedBaseRevision:UInt64)throws->MutationReceiptV1{
+        try value.validate(authority:purposeAuthority)
+        if let prior=try writer.currentCheckpoint(workspaceID:value.workspaceID,draftID:value.draftID){try value.validateSuccessor(of:prior,expectedDraftRevision:expectedDraftRevision,expectedBaseRevision:expectedBaseRevision)}else{guard expectedDraftRevision==0,value.draftRevision==1,value.baseCanonicalRevision==expectedBaseRevision else{throw FieldDraftFailureV1.staleDraftRevision}}
+        return try writer.compareAndSwap(checkpoint:value,expectedDraftRevision:expectedDraftRevision,expectedBaseRevision:expectedBaseRevision)
+    }
+
+    func append(_ item:AttachmentStagingItemV1,checkpoint:FieldDraftCheckpointV1,expectedRevision:UInt64)throws->MutationReceiptV1{try item.validate();try checkpoint.validate(authority:purposeAuthority);guard item.workspaceID==checkpoint.workspaceID,item.draftID==checkpoint.draftID,checkpoint.stageIDs.contains(item.stageID)else{throw FieldDraftFailureV1.wrongWorkspace};return try writer.append(stagingItem:item,expectedRevision:expectedRevision)}
+
+    /// Validate the frozen command before writer entry. The writer resolves
+    /// exact committed retries before comparing the current checkpoint tip.
+    func publish(readyStage bundle: FieldDraftStagePublicationBundleV1) throws -> MutationReceiptV1 {
+        try bundle.validate()
+        try bundle.expectedCheckpoint.validate(authority: purposeAuthority)
+        try bundle.successorCheckpoint.validate(authority: purposeAuthority)
+        return try writer.publish(readyStage: bundle)
+    }
+
+    func applyPackageUpgrade(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        diff: PackageSemanticDiffV1,
+        mutationID: MutationIDV1,
+        updatedAt: Date
+    ) throws -> MutationReceiptV1 {
+        try source.validate(authority: purposeAuthority)
+        try plan.validate(source: source, diff: diff)
+        return try applyPackageUpgradeSuccessor(
+            plan: plan, source: source, mutationID: mutationID, updatedAt: updatedAt
+        )
+    }
+
+    /// Applies a package upgrade only after the immutable C21 capability
+    /// closure has admitted the safe migration operation.  The capability
+    /// values remain nonpersistent preview inputs; this method still uses the
+    /// existing compare-and-swap checkpoint writer for the sole durable effect.
+    func applyPackageUpgrade(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        diff: PackageSemanticDiffV1,
+        admittedBy capability: ClientCapabilityLifecycleClosureV1,
+        mutationID: MutationIDV1,
+        updatedAt: Date
+    ) throws -> MutationReceiptV1 {
+        try PackageEvolutionDraftPersistenceBoundaryV1.validateUpgradeInputs(
+            plan: plan,
+            source: source,
+            diff: diff,
+            admittedBy: capability
+        )
+        try source.validate(authority: purposeAuthority)
+        return try applyPackageUpgradeSuccessor(
+            plan: plan, source: source, mutationID: mutationID, updatedAt: updatedAt
+        )
+    }
+
+    private func applyPackageUpgradeSuccessor(
+        plan: DraftUpgradePlanV1,
+        source: FieldDraftCheckpointV1,
+        mutationID: MutationIDV1,
+        updatedAt: Date
+    ) throws -> MutationReceiptV1 {
+        guard source.draftRevision < UInt64.max else {
+            throw PackageEvolutionFailureV1.staleSource
+        }
+        let successor = try FieldDraftCheckpointV1(
+            draftID: source.draftID, workspaceID: source.workspaceID,
+            scope: source.scope, purpose: source.purpose, codec: source.codec,
+            baseCanonicalRevision: source.baseCanonicalRevision,
+            draftRevision: source.draftRevision + 1,
+            payloadData: plan.targetPayloadData, stageIDs: source.stageIDs,
+            resumeAnchor: source.resumeAnchor, state: .active,
+            lastDurableMutationID: source.lastDurableMutationID,
+            lastReceiptSHA256: source.lastReceiptSHA256,
+            updatedAt: updatedAt, mutationID: mutationID
+        )
+        return try checkpoint(
+            successor, expectedDraftRevision: source.draftRevision,
+            expectedBaseRevision: source.baseCanonicalRevision
+        )
+    }
+
+    func commit(plan:DraftCommitPlanV1,checkpoint:FieldDraftCheckpointV1,items:[AttachmentStagingItemV1],prepared:DraftCommitSagaV1,contentPromoted:DraftCommitSagaV1,targetCommitted:DraftCommitSagaV1,retirePending:DraftCommitSagaV1,retired:DraftCommitSagaV1,commitReceiptID:UUID,terminalCheckpointUpdatedAt:Date,rowMutationIDs:DraftCommitRowMutationIDsV1)async throws->DraftCommitReceiptV1{
+        try plan.validate();try checkpoint.validate(authority:purposeAuthority);try items.forEach{try $0.validate()};try prepared.validate();try contentPromoted.validateSuccessor(of:prepared);try targetCommitted.validateSuccessor(of:contentPromoted);try retirePending.validateSuccessor(of:targetCommitted);try retired.validateSuccessor(of:retirePending)
+        try rowMutationIDs.validate(stageIDs:items.map(\.stageID),targetMutationID:plan.mutationID,sagaMutationIDs:[prepared.mutationID,contentPromoted.mutationID,targetCommitted.mutationID,retirePending.mutationID])
+        guard checkpoint.state == .committing,plan.workspaceID==checkpoint.workspaceID,plan.draftID==checkpoint.draftID,plan.draftRevision==checkpoint.draftRevision,plan.baseCanonicalRevision==checkpoint.baseCanonicalRevision,plan.payloadSHA256==checkpoint.payloadSHA256,prepared.plan==plan,prepared.state == .prepared,contentPromoted.state == .contentPromotedUnbound,targetCommitted.state == .targetCommitted,retirePending.state == .draftRetirePending,retired.state == .draftRetired,retired.mutationID==rowMutationIDs.terminalBundleMutationID,Set(items.map(\.stageID)).count==items.count,Set(items.map(\.stageSHA256)).count==items.count,items.allSatisfy({$0.workspaceID==plan.workspaceID&&$0.draftID==plan.draftID&&$0.state == .readyLocal}),Set(items.map(\.stageSHA256)).sorted()==plan.stageDigests else{throw FieldDraftFailureV1.conflictRequired}
+        _ = try writer.append(saga:prepared,expectedRevision:0)
+        let reservations=try await content.promote(plan:plan,items:items,reservationMutationIDs:rowMutationIDs.reservationByStageID)
+        try requireCurrentCommittingCheckpoint(checkpoint)
+        guard reservations.count==items.count,Set(reservations.map(\.stageID)).count==reservations.count,Set(reservations.map(\.stageID))==Set(items.map(\.stageID)),reservations.allSatisfy({$0.workspaceID==plan.workspaceID&&$0.draftID==plan.draftID&&$0.commitPlanSHA256==plan.planSHA256&&$0.mutationID==rowMutationIDs.reservationByStageID[$0.stageID]})else{throw FieldDraftFailureV1.missingContent}
+        for reservation in reservations{_ = try writer.append(reservation:reservation,expectedRevision:0)}
+        _ = try writer.append(saga:contentPromoted,expectedRevision:prepared.revision)
+        let targetReceipt=try await commitTarget(plan,reservations)
+        try requireCurrentCommittingCheckpoint(checkpoint)
+        guard targetReceipt.mutationID == plan.mutationID,
+              targetReceipt.identity.workspaceID == plan.workspaceID,
+              try readBackTarget(plan,targetReceipt) else { throw FieldDraftFailureV1.missingReceipt }
+        _ = try writer.append(saga:targetCommitted,expectedRevision:contentPromoted.revision)
+        _ = try writer.append(saga:retirePending,expectedRevision:targetCommitted.revision)
+        let mapping=Dictionary(uniqueKeysWithValues:reservations.map{($0.stageID.uuidString,$0.locator.contentID)})
+        let chain=[prepared,contentPromoted,targetCommitted,retirePending,retired].map(\.sagaSHA256)
+        let receipt=try DraftCommitReceiptV1(receiptID:commitReceiptID,workspaceID:plan.workspaceID,draftID:plan.draftID,sagaID:retired.sagaID,commitPlanSHA256:plan.planSHA256,sagaEventSHA256Chain:chain,targetMutationID:plan.mutationID,targetReceiptSHA256:targetReceipt.resultSHA256,consumedStageToContentID:mapping,committedAt:targetReceipt.committedAt,mutationID:rowMutationIDs.terminalBundleMutationID)
+        let revision=checkpoint.draftRevision.addingReportingOverflow(1);guard !revision.overflow else{throw FieldDraftFailureV1.staleDraftRevision}
+        let terminalCheckpoint=try FieldDraftCheckpointV1(draftID:checkpoint.draftID,workspaceID:checkpoint.workspaceID,scope:checkpoint.scope,purpose:checkpoint.purpose,codec:checkpoint.codec,baseCanonicalRevision:checkpoint.baseCanonicalRevision,draftRevision:revision.partialValue,payloadData:checkpoint.payloadData,stageIDs:checkpoint.stageIDs,resumeAnchor:checkpoint.resumeAnchor,state:.committed,lastDurableMutationID:rowMutationIDs.terminalBundleMutationID,lastReceiptSHA256:receipt.receiptSHA256,updatedAt:terminalCheckpointUpdatedAt,mutationID:rowMutationIDs.terminalBundleMutationID)
+        try terminalCheckpoint.validateSuccessor(of:checkpoint,expectedDraftRevision:checkpoint.draftRevision,expectedBaseRevision:checkpoint.baseCanonicalRevision)
+        let bundle=try DraftCommitTerminalBundleV1(retiredSaga:retired,committedCheckpoint:terminalCheckpoint,receipt:receipt)
+        _ = try writer.apply(commitTerminalBundle:bundle,expectedDraftRevision:checkpoint.draftRevision,expectedSagaRevision:retirePending.revision)
+        return receipt
+    }
+
+    private func requireCurrentCommittingCheckpoint(_ checkpoint: FieldDraftCheckpointV1) throws {
+        guard checkpoint.state == .committing,
+              try writer.currentCheckpoint(workspaceID: checkpoint.workspaceID, draftID: checkpoint.draftID) == checkpoint else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+    }
+
+    func discard(plan:DraftDiscardPlanV1,checkpoint:FieldDraftCheckpointV1,reservations:[DraftContentReservationV1],disposedStageIDs:[UUID],discardReceiptID:UUID,at instant:Date,mutationID:MutationIDV1)async throws->DraftDiscardReceiptV1{
+        try plan.validate();try checkpoint.validate(authority:purposeAuthority);try reservations.forEach{try $0.validate()};guard checkpoint.state == .discardPending,checkpoint.workspaceID==plan.workspaceID,checkpoint.draftID==plan.draftID,checkpoint.draftRevision==plan.expectedDraftRevision,Set(disposedStageIDs).count==disposedStageIDs.count,Set(reservations.map(\.reservationID)).count==reservations.count,Set(disposedStageIDs).isSubset(of:Set(plan.stageIDs)),Set(reservations.map(\.reservationID)).isSubset(of:Set(plan.reservationIDs)),reservations.allSatisfy({$0.workspaceID==plan.workspaceID&&$0.draftID==plan.draftID})else{throw FieldDraftFailureV1.invalidValue}
+        try await content.quarantine(reservations:reservations,for:plan)
+        let receipt=try DraftDiscardReceiptV1(receiptID:discardReceiptID,workspaceID:plan.workspaceID,draftID:plan.draftID,planSHA256:plan.planSHA256,disposedStageIDs:disposedStageIDs,quarantinedReservationIDs:reservations.map(\.reservationID),discardedAt:instant,mutationID:mutationID)
+        let revision=checkpoint.draftRevision.addingReportingOverflow(1);guard !revision.overflow else{throw FieldDraftFailureV1.staleDraftRevision}
+        let terminalCheckpoint=try FieldDraftCheckpointV1(draftID:checkpoint.draftID,workspaceID:checkpoint.workspaceID,scope:checkpoint.scope,purpose:checkpoint.purpose,codec:checkpoint.codec,baseCanonicalRevision:checkpoint.baseCanonicalRevision,draftRevision:revision.partialValue,payloadData:checkpoint.payloadData,stageIDs:checkpoint.stageIDs,resumeAnchor:checkpoint.resumeAnchor,state:.discarded,lastDurableMutationID:mutationID,lastReceiptSHA256:receipt.receiptSHA256,updatedAt:instant,mutationID:mutationID)
+        try terminalCheckpoint.validateSuccessor(of:checkpoint,expectedDraftRevision:checkpoint.draftRevision,expectedBaseRevision:checkpoint.baseCanonicalRevision)
+        let bundle=try DraftDiscardTerminalBundleV1(discardedCheckpoint:terminalCheckpoint,receipt:receipt)
+        _ = try writer.apply(discardTerminalBundle:bundle,expectedDraftRevision:checkpoint.draftRevision)
+        return receipt
+    }
+}
+
+extension FieldDraftCoordinatorV1 {
+    /// Produces C21's derived batch projection only after binding the plan to
+    /// the exact durable draft checkpoint. No draft payload is decoded,
+    /// copied, or mutated by this read path.
+    func repetitiveCaptureProjection(
+        for plan: RepetitiveCapturePlanV1,
+        checkpoint: FieldDraftCheckpointV1
+    ) throws -> RepetitiveCaptureProjectionV1 {
+        try C21RepetitiveCaptureDraftBoundaryV1.validate(
+            plan: plan,
+            checkpoint: checkpoint,
+            registry: purposeAuthority
+        )
+        return try RepetitiveCaptureProjectionV1(plan: plan)
+    }
+
+    /// Configuration reuse is an explicit validation-only seam. The C21
+    /// value has no payload bytes, evidence, pose, timestamps, completion,
+    /// notes, or findings to pass to the canonical draft writer.
+    func validateRepetitiveCaptureConfigurationCopy(
+        _ copy: RepetitiveCaptureConfigurationCopyV1,
+        source: RepetitiveCapturePlanV1,
+        sourceCheckpoint: FieldDraftCheckpointV1
+    ) throws {
+        try C21RepetitiveCaptureDraftBoundaryV1.validateConfigurationCopy(
+            copy,
+            source: source,
+            sourceCheckpoint: sourceCheckpoint,
+            registry: purposeAuthority
+        )
+    }
+
+    /// C56 composes the registered C36 payload codec with the existing
+    /// checkpoint CAS. The voice layer supplies only a typed reviewed value;
+    /// it never decodes or serializes the draft's opaque payload itself.
+    func existingReviewedVoiceFieldEffect(
+        _ update: VoiceProposalDraftCheckpointUpdateV1,
+        application: VoiceReviewedFieldDraftPayloadApplicationV1
+    ) throws -> VoiceReviewedFieldDraftCheckpointEffectV1? {
+        try validateReviewedVoiceUpdate(update, application: application)
+        guard let current = try writer.currentCheckpoint(
+            workspaceID: update.workspaceID,
+            draftID: update.draftID
+        ), current.mutationID == update.mutationID else {
+            return nil
+        }
+        try validate(application: application, update: update)
+        guard current.payloadData == application.successorPayloadData else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let mutation = try FieldDraftMutationV1(
+            workspaceID: update.workspaceID,
+            expectedRevision: update.expectedDraftRevision,
+            expectedBaseCanonicalRevision: update.expectedBaseCanonicalRevision,
+            mutationID: update.mutationID,
+            postImage: .reviseCheckpoint(current)
+        )
+        guard let receiptReader = writer as? any VoiceReviewedFieldDraftReceiptReadingV1,
+              let receipt = try receiptReader.reviewedVoiceFieldReceipt(
+                mutationID: update.mutationID
+              ) else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        return try VoiceReviewedFieldDraftCheckpointEffectV1(
+            predecessor: update.predecessor,
+            mutation: mutation,
+            mutationReceipt: receipt,
+            successor: current,
+            application: application
+        )
+    }
+
+    func applyReviewedVoiceFieldEffect(
+        _ update: VoiceProposalDraftCheckpointUpdateV1,
+        application: VoiceReviewedFieldDraftPayloadApplicationV1
+    ) throws -> VoiceReviewedFieldDraftCheckpointEffectV1 {
+        try validateReviewedVoiceUpdate(update, application: application)
+        guard let current = try writer.currentCheckpoint(
+            workspaceID: update.workspaceID,
+            draftID: update.draftID
+        ), current.checkpointSHA256 == update.expectedCheckpointSHA256 else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        try validate(application: application, update: update)
+        guard application.successorPayloadData != current.payloadData else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+        let successor = try FieldDraftCheckpointV1(
+            draftID: current.draftID,
+            workspaceID: current.workspaceID,
+            scope: current.scope,
+            purpose: current.purpose,
+            codec: current.codec,
+            baseCanonicalRevision: current.baseCanonicalRevision,
+            draftRevision: try nextRevision(after: current.draftRevision),
+            payloadData: application.successorPayloadData,
+            stageIDs: current.stageIDs,
+            resumeAnchor: current.resumeAnchor,
+            state: .active,
+            lastDurableMutationID: current.lastDurableMutationID,
+            lastReceiptSHA256: current.lastReceiptSHA256,
+            updatedAt: update.reviewedAt,
+            mutationID: update.mutationID
+        )
+        let mutation = try FieldDraftMutationV1(
+            workspaceID: update.workspaceID,
+            expectedRevision: update.expectedDraftRevision,
+            expectedBaseCanonicalRevision: update.expectedBaseCanonicalRevision,
+            mutationID: update.mutationID,
+            postImage: .reviseCheckpoint(successor)
+        )
+        let receipt = try checkpoint(
+            successor,
+            expectedDraftRevision: update.expectedDraftRevision,
+            expectedBaseRevision: update.expectedBaseCanonicalRevision
+        )
+        guard let readBack = try writer.currentCheckpoint(
+            workspaceID: update.workspaceID,
+            draftID: update.draftID
+        ), readBack.checkpointSHA256 == successor.checkpointSHA256 else {
+            throw FieldDraftFailureV1.missingReceipt
+        }
+        return try VoiceReviewedFieldDraftCheckpointEffectV1(
+            predecessor: update.predecessor,
+            mutation: mutation,
+            mutationReceipt: receipt,
+            successor: readBack,
+            application: application
+        )
+    }
+
+    private func validateReviewedVoiceUpdate(
+        _ update: VoiceProposalDraftCheckpointUpdateV1,
+        application: VoiceReviewedFieldDraftPayloadApplicationV1
+    ) throws {
+        try update.predecessor.validate(authority: purposeAuthority)
+        try application.validate(predecessor: update.predecessor)
+        guard update.predecessor.state == .active,
+              update.workspaceID == update.predecessor.workspaceID,
+              update.draftID == update.predecessor.draftID,
+              update.scope == update.predecessor.scope,
+              update.expectedDraftRevision == update.predecessor.draftRevision,
+              update.expectedBaseCanonicalRevision == update.predecessor.baseCanonicalRevision,
+              update.expectedCheckpointSHA256 == update.predecessor.checkpointSHA256,
+              application.codec == update.predecessor.codec else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+    }
+
+    private func validate(
+        application: VoiceReviewedFieldDraftPayloadApplicationV1,
+        update: VoiceProposalDraftCheckpointUpdateV1
+    ) throws {
+        guard application.fieldID == update.fieldID,
+              application.fieldKind == update.fieldKind,
+              application.value == update.value else {
+            throw FieldDraftFailureV1.invalidValue
+        }
+    }
+
+    private func nextRevision(after value: UInt64) throws -> UInt64 {
+        let next = value.addingReportingOverflow(1)
+        guard !next.overflow else { throw FieldDraftFailureV1.staleDraftRevision }
+        return next.partialValue
+    }
+}
+
+extension FieldDraftCoordinatorV1 {
+    func applyReviewedOCRField(
+        _ update: OCRProposalDraftCheckpointUpdateV1,
+        codec: any OCRReviewedFieldDraftPayloadApplyingV1
+    ) throws -> OCRReviewedFieldDraftCheckpointEffectV1 {
+        guard let value = update.review.reviewedValue,
+              codec.registeredCodec == update.predecessor.codec else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        let application = try codec.applyReviewedOCRField(to: update.predecessor,
+            fieldID: update.evidence.proposal.target.fieldID, value: value)
+        try codec.validateReviewedOCRFieldApplication(application, predecessor: update.predecessor)
+        if let recovered = try existingReviewedOCRFieldEffect(update, application: application) {
+            return recovered
+        }
+        guard
+              let current = try writer.currentCheckpoint(workspaceID: update.predecessor.workspaceID,
+                  draftID: update.predecessor.draftID),
+              current.checkpointSHA256 == update.predecessor.checkpointSHA256,
+              codec.registeredCodec == current.codec else { throw FieldDraftFailureV1.staleDraftRevision }
+        let next = current.draftRevision.addingReportingOverflow(1)
+        guard !next.overflow else { throw FieldDraftFailureV1.staleDraftRevision }
+        let successor = try FieldDraftCheckpointV1(draftID:current.draftID,workspaceID:current.workspaceID,
+            scope:current.scope,purpose:current.purpose,codec:current.codec,
+            baseCanonicalRevision:current.baseCanonicalRevision,draftRevision:next.partialValue,
+            payloadData:application.successorPayloadData,stageIDs:current.stageIDs,
+            resumeAnchor:current.resumeAnchor,state:.active,lastDurableMutationID:current.lastDurableMutationID,
+            lastReceiptSHA256:current.lastReceiptSHA256,updatedAt:update.review.reviewedAt,
+            mutationID:update.mutationID)
+        let mutation = try FieldDraftMutationV1(workspaceID:current.workspaceID,
+            expectedRevision:current.draftRevision,expectedBaseCanonicalRevision:current.baseCanonicalRevision,
+            mutationID:update.mutationID,postImage:.reviseCheckpoint(successor))
+        let receipt = try checkpoint(successor, expectedDraftRevision:current.draftRevision,
+            expectedBaseRevision:current.baseCanonicalRevision)
+        return try OCRReviewedFieldDraftCheckpointEffectV1(update:update,mutation:mutation,
+            mutationReceipt:receipt,successor:successor,application:application)
+    }
+
+    func existingReviewedOCRFieldEffect(
+        _ update: OCRProposalDraftCheckpointUpdateV1,
+        application: OCRReviewedFieldDraftPayloadApplicationV1
+    ) throws -> OCRReviewedFieldDraftCheckpointEffectV1? {
+        guard let current = try writer.currentCheckpoint(workspaceID:update.predecessor.workspaceID,
+                draftID:update.predecessor.draftID), current.mutationID == update.mutationID else { return nil }
+        guard let reader = writer as? any OCRReviewedFieldDraftReceiptReadingV1,
+              let receipt = try reader.reviewedOCRFieldReceipt(mutationID:update.mutationID),
+              current.payloadData == application.successorPayloadData else { throw FieldDraftFailureV1.missingReceipt }
+        let mutation = try FieldDraftMutationV1(workspaceID:current.workspaceID,
+            expectedRevision:update.predecessor.draftRevision,
+            expectedBaseCanonicalRevision:update.predecessor.baseCanonicalRevision,
+            mutationID:update.mutationID,postImage:.reviseCheckpoint(current))
+        return try .init(update:update,mutation:mutation,mutationReceipt:receipt,
+            successor:current,application:application)
+    }
+}
+
+extension FieldDraftCoordinatorV1 {
+    func applyReviewedAssistedCaptureField(_ update:AssistedCaptureDraftCheckpointUpdateV1,
+        codec:any OCRReviewedFieldDraftPayloadApplyingV1)throws->AssistedCaptureReviewedFieldDraftEffectV1{
+        guard let value=update.review.reviewedValue,codec.registeredCodec==update.predecessor.codec else{throw FieldDraftFailureV1.staleDraftRevision}
+        let application=try codec.applyReviewedOCRField(to:update.predecessor,fieldID:update.review.source.proposal.target.fieldID,value:value)
+        try codec.validateReviewedOCRFieldApplication(application,predecessor:update.predecessor)
+        if let current=try writer.currentCheckpoint(workspaceID:update.predecessor.workspaceID,draftID:update.predecessor.draftID),current.mutationID==update.mutationID{
+            guard let reader=writer as? any OCRReviewedFieldDraftReceiptReadingV1,
+                  let receipt=try reader.reviewedOCRFieldReceipt(mutationID:update.mutationID),current.payloadData==application.successorPayloadData else{throw FieldDraftFailureV1.missingReceipt}
+            let mutation=try FieldDraftMutationV1(workspaceID:current.workspaceID,expectedRevision:update.predecessor.draftRevision,
+                expectedBaseCanonicalRevision:update.predecessor.baseCanonicalRevision,mutationID:update.mutationID,postImage:.reviseCheckpoint(current))
+            return try .init(update:update,mutation:mutation,receipt:receipt,successor:current,application:application)
+        }
+        guard let current=try writer.currentCheckpoint(workspaceID:update.predecessor.workspaceID,draftID:update.predecessor.draftID),current.checkpointSHA256==update.predecessor.checkpointSHA256 else{throw FieldDraftFailureV1.staleDraftRevision}
+        let next=current.draftRevision.addingReportingOverflow(1);guard !next.overflow else{throw FieldDraftFailureV1.staleDraftRevision}
+        let successor=try FieldDraftCheckpointV1(draftID:current.draftID,workspaceID:current.workspaceID,scope:current.scope,purpose:current.purpose,codec:current.codec,
+            baseCanonicalRevision:current.baseCanonicalRevision,draftRevision:next.partialValue,payloadData:application.successorPayloadData,stageIDs:current.stageIDs,
+            resumeAnchor:current.resumeAnchor,state:.active,lastDurableMutationID:current.lastDurableMutationID,lastReceiptSHA256:current.lastReceiptSHA256,
+            updatedAt:update.review.reviewedAt,mutationID:update.mutationID)
+        let mutation=try FieldDraftMutationV1(workspaceID:current.workspaceID,expectedRevision:current.draftRevision,
+            expectedBaseCanonicalRevision:current.baseCanonicalRevision,mutationID:update.mutationID,postImage:.reviseCheckpoint(successor))
+        let receipt=try checkpoint(successor,expectedDraftRevision:current.draftRevision,expectedBaseRevision:current.baseCanonicalRevision)
+        return try .init(update:update,mutation:mutation,receipt:receipt,successor:successor,application:application)
+    }
+}
+
+extension FieldDraftCoordinatorV1 {
+    /// C23-aware checkpoint entry point. The reference tuple is checked before
+    /// the existing checkpoint CAS and is never copied into the draft row.
+    @MainActor
+    func checkpoint(
+        _ value: FieldDraftCheckpointV1,
+        expectedDraftRevision: UInt64,
+        expectedBaseRevision: UInt64,
+        fieldReferenceBinding: FieldReferenceBindingV1,
+        fieldReferenceRelease: FieldReferenceReleaseV1,
+        fieldReferenceReadiness: FieldReferenceOfflineReadinessV1
+    ) throws -> MutationReceiptV1 {
+        _ = try value.c23ReferenceProjection(
+            binding: fieldReferenceBinding,
+            release: fieldReferenceRelease,
+            readiness: fieldReferenceReadiness
+        )
+        return try checkpoint(
+            value,
+            expectedDraftRevision: expectedDraftRevision,
+            expectedBaseRevision: expectedBaseRevision
+        )
+    }
+
+    /// Read-only validation used by commit/recovery coordinators immediately
+    /// before they operate on a draft. Finalized checkpoints cannot accept a
+    /// replacement binding; callers must use an explicit C23 successor while
+    /// the session is still active.
+    @MainActor
+    func validateFieldReference(
+        checkpoint: FieldDraftCheckpointV1,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1
+    ) throws -> FieldDraftReferenceProjectionV1 {
+        guard let durable = try writer.currentCheckpoint(
+            workspaceID: checkpoint.workspaceID, draftID: checkpoint.draftID
+        ), durable.checkpointSHA256 == checkpoint.checkpointSHA256 else {
+            throw FieldDraftFailureV1.staleDraftRevision
+        }
+        return try durable.c23ReferenceProjection(
+            binding: binding, release: release, readiness: readiness
+        )
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Application_Drafts_FieldDraftCoordinatorV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Application_Drafts_FieldDraftCoordinatorV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Application/Drafts/FieldDraftCoordinatorV1.swift", role: .draft)
+}
+
+enum C31LightingConsumerBoundary_Application_Drafts_FieldDraftCoordinatorV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/field-draft-coordinator"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}
+// MARK: - C32 assistance field draft boundary
+
+enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Application_Drafts_FieldDraftCoordinatorV1_swift {
+    static let proposalIsPersistent = AssistancePersistenceEnrollmentV1.proposalIsPersistent
+    static let rejectedProposalCorpusIsPersistent = AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent
+    static let durableFamilyCount = AssistancePersistenceEnrollmentV1.durableModelCount
+    static let acceptedMutationKind: WorkspaceCommandKindV1 = .applyAssistanceAcceptance
+    static let manualFallback: ManualFallbackActionV1 = .typeManually
+    static let manualDraftTextRemainsIndependent = true
+
+    static func validateProposal(_ proposal: AssistanceProposalV1, in context: AssistanceProposalEvaluationContextV1) throws {
+        try proposal.validate()
+        try context.validate()
+        guard proposal.verificationState.rawValue == AssistanceProposalVerificationStateV1.unverified.rawValue,
+              context.policy.manualFallback == .typeManually else {
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+        if let reason = try proposal.expiryReason(in: context) {
+            throw AssistanceContractFailureV1.expired(reason)
+        }
+    }
+
+    static func validateAcceptanceReceipt(_ receipt: AssistanceAcceptanceReceiptV1) throws {
+        try receipt.validate()
+    }
+}
+
+enum C33TemporalEvidenceBoundary_Application_Drafts_FieldDraftCoordinatorV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row162 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}
+enum C46OperationalContactConformance_FieldEvidenceApp_Application_Drafts_FieldDraftCoordinatorV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noSecondWriterOrAutomaticHandoff = true
+}
+
+enum C34RouteAdoptionBoundary_FieldDraftCoordinatorV1 {
+    static let draftAnchorType = DraftResumeAnchorV1.self
+    static let routeAnchorType = FieldPositionAnchorV1.self
+    static let routeCarriesSemanticIDsOnly = true
+}
+
+// MARK: - C52 lifecycle and privacy boundary
+enum C52ServiceRequestBoundary_FieldEvidenceApp_Application_Drafts_FieldDraftCoordinatorV1_swift {
+    static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let acceptedEventPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let duplicateProjectionPersistence: ServiceRequestPersistenceClassV1 = .nonpersistentDerived
+    static let rawCapabilityPersistence: ServiceRequestPersistenceClassV1 = .prohibitedPersistent
+    static let acceptedLifecycleEnrollment: ServiceRequestPersistenceEnrollmentV1.Type = ServiceRequestPersistenceEnrollmentV1.self
+    static let cloneOrForkInvalidatesActiveCapabilities: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities
+    static let duplicateProjectionIsRebuildable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.derivedProjectionIsRebuildable &&
+        !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityIsExcludedFromReportsAndDiagnostics: Bool =
+        !ServiceRequestLifecycleRegistrationBoundaryV1.rawCapabilityAppearsInReportsOrDiagnostics
+    static let sharedPortableFilesAreRecallable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
+    static let unverifiedAssertionsAreVerified: Bool = false
+    static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}

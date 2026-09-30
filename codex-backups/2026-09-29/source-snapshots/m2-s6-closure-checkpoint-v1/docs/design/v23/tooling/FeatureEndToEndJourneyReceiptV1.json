@@ -1,0 +1,752 @@
+{
+  "schema": "FeatureEndToEndJourneyReceiptV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C08",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+    "baseTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "fd8fa7e7266b64dde5f01f2e978bbdbf8fb69dd42d09e2474457aecedce84a1a",
+    "inheritedV21BlockDigest": "446e9257fa36c2017d8a90dfffc953e50e4c2bac3626512adf6bdce390712ce9",
+    "registerRowDigest": "463e84abc0629ce07e70454b75844a6f8d5817cd548793f832225a494463ec04",
+    "planningAuthorityImpactDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "planningAuthorityFacetDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "970c8b15ad738c1969caa4e47d104a95600bee80dccd284284cc02fc0eb076db",
+    "bootstrapPathFenceDigest": "6a227a647dfd279cbd62edaa0501ff153e5ca5676260319aa7031e91b901ef1b",
+    "provisionalPrerequisiteDigest": "4fd27cf40d362da2c7d170284618c0d6d0fb89c605f156283de152ae2de5f6e8",
+    "directPrerequisite": {
+      "cardID": "V23-P00-C06",
+      "contextDigest": "afbb364ed404d4fbd57ee66c5707c8f670a002b8d81cdc425cc6a0cfb3c53d60",
+      "fenceDigest": "ca49bcc135ddc270e18c42b808a804a6b1de71bb8a08647b32bccd3b1a9a6eca",
+      "verificationDigest": "77444d12c7a2bec4b09f16e96fcb70f8278805d58200a15cd8033263eb4d53b8",
+      "checkpointDigest": "8bdd5bcee83c136496e1ca6bd4b2a9ec79719ecf002d6f8bca9b73d853fc03ee",
+      "platformArtifactDigest": "ba548ef8cec1be0d290c300ebf88f10239640bc57e35841843aa4632d4bbed6b",
+      "toolingManifestDigest": "33e5f0043ab318261ec63ee92b0bc4360215e5fd7bd7ac279b647738b743198e",
+      "predecessorCandidateHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+      "predecessorCandidateTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+      "releaseTestSupportAbsent": false
+    },
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "e37bcca5dcad00c80cb7b160ce100d0bef2cab15362f3450b56f0a1d9bcb7ca2",
+    "ledgerCASSequence": 43,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "lifecycle": {
+    "persistence": "NONPERSISTENT_IMMUTABLE_BUNDLED_POLICY_OR_BUILD_BOUND_EVIDENCE",
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_EVIDENCE",
+    "customerData": "NONE",
+    "interruption": "FAIL_CLOSED_NO_PARTIAL_ACCEPTANCE",
+    "recovery": "DETERMINISTIC_REGENERATION_OR_SUCCESSOR_RECEIPT"
+  },
+  "candidateHead": null,
+  "candidateTree": null,
+  "releaseDigest": "151dc0ae37fbd0ede08e39e192d37a6fcab5d7f54c1815623a3f87c7f692f7d8",
+  "memberDigests": [
+    "2602a430f66302f67c90119902821a5986f1245bd24a2063e88a23d0b61e442a",
+    "b150cd13edbd6992a4f5bcfffcf2991479201d7c1c7e49697d2672e37b8a771d",
+    "c1189b62b8104acb524aaad9179346ae796ac6d046ae8ae35b2330a9b2755157",
+    "338273218a4506fe4c5d323d17345c75e0dd18110eab1074e88a494fe7e44ac8",
+    "0f339614870bd58fd44b710e3314cbbe81f9a8adee6f1b6c554fc2516dfd7e76",
+    "68f694300b7727bf380d4a48b3eb98defa240e9bf63c982b4cf95a5482b114cf",
+    "ac3e00ccf6224bc3f926b1b8e97c7a67197ca1b8efae1f7cc8c4aa2523e05437",
+    "afe267b68003a1672c066d560e12ca8f2823e6791c87b84a84b228081bdfecd9",
+    "716b8b9b5ed0b3e353b936b3b4c0f877be2020d4b8e63c60361f7244e021981f",
+    "61be65c4e42965953937ad4582f8140ac560201d94b02d33ae0c2b6f8c070882",
+    "bc9313999963deb41f84ab9fcee3a07d2c210865ab6dba7fab56de67dbab5f81",
+    "f43811ab8ff1075d77e039f8148c474bc227bcd773e757574d4d942afedbb137",
+    "e92e35d89acd1224b0940a9b724f415a00f458104e032f6a90259850706efca0",
+    "74682013878fdddaffa849445eb82cd71e7ee8f3495ae1f2300e6867a99d2fbc",
+    "27ae9fdd905561f1d084593cd8f211020f56dbabd768c2ec91d3033e35ec189b",
+    "8f8a33db4ecb6ce713a265affe3838cb1c0dd656ed5fe8ae641effd70ef04040",
+    "75c12694e5b5221ecbd739beb6089858a479cd4a3db39f68a557225446db3053"
+  ],
+  "journeys": [
+    {
+      "id": "FJ01",
+      "memberDigest": "2602a430f66302f67c90119902821a5986f1245bd24a2063e88a23d0b61e442a",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ02",
+      "memberDigest": "b150cd13edbd6992a4f5bcfffcf2991479201d7c1c7e49697d2672e37b8a771d",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ03",
+      "memberDigest": "c1189b62b8104acb524aaad9179346ae796ac6d046ae8ae35b2330a9b2755157",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ04",
+      "memberDigest": "338273218a4506fe4c5d323d17345c75e0dd18110eab1074e88a494fe7e44ac8",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ05",
+      "memberDigest": "0f339614870bd58fd44b710e3314cbbe81f9a8adee6f1b6c554fc2516dfd7e76",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ06",
+      "memberDigest": "68f694300b7727bf380d4a48b3eb98defa240e9bf63c982b4cf95a5482b114cf",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ07",
+      "memberDigest": "ac3e00ccf6224bc3f926b1b8e97c7a67197ca1b8efae1f7cc8c4aa2523e05437",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ08",
+      "memberDigest": "afe267b68003a1672c066d560e12ca8f2823e6791c87b84a84b228081bdfecd9",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ09",
+      "memberDigest": "716b8b9b5ed0b3e353b936b3b4c0f877be2020d4b8e63c60361f7244e021981f",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ10",
+      "memberDigest": "61be65c4e42965953937ad4582f8140ac560201d94b02d33ae0c2b6f8c070882",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ11",
+      "memberDigest": "bc9313999963deb41f84ab9fcee3a07d2c210865ab6dba7fab56de67dbab5f81",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ12",
+      "memberDigest": "f43811ab8ff1075d77e039f8148c474bc227bcd773e757574d4d942afedbb137",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ13",
+      "memberDigest": "e92e35d89acd1224b0940a9b724f415a00f458104e032f6a90259850706efca0",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ14",
+      "memberDigest": "74682013878fdddaffa849445eb82cd71e7ee8f3495ae1f2300e6867a99d2fbc",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ15",
+      "memberDigest": "27ae9fdd905561f1d084593cd8f211020f56dbabd768c2ec91d3033e35ec189b",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ16",
+      "memberDigest": "8f8a33db4ecb6ce713a265affe3838cb1c0dd656ed5fe8ae641effd70ef04040",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    },
+    {
+      "id": "FJ17",
+      "memberDigest": "75c12694e5b5221ecbd739beb6089858a479cd4a3db39f68a557225446db3053",
+      "requiredEvidence": [
+        "AUTOMATED_SEMANTIC"
+      ],
+      "startingFixture": null,
+      "typedRoute": null,
+      "semanticPath": null,
+      "publicUIActions": [],
+      "checkpoints": [],
+      "branches": [],
+      "successEndpoint": null,
+      "cancelBehavior": null,
+      "backBehavior": null,
+      "focusBehavior": null,
+      "fallbackBehavior": null,
+      "accessibilityEvidence": [],
+      "startingFixtureResult": "NOT_RUN",
+      "pathResult": "NOT_RUN",
+      "checkpointResult": "NOT_RUN",
+      "branchResult": "NOT_RUN",
+      "endpointResult": "NOT_RUN",
+      "cancelResult": "NOT_RUN",
+      "backResult": "NOT_RUN",
+      "focusResult": "NOT_RUN",
+      "fallbackResult": "NOT_RUN",
+      "accessibilityResult": "NOT_RUN",
+      "artifacts": [],
+      "result": "NOT_RUN",
+      "blocksAcceptance": true,
+      "evidenceLayerResults": [
+        {
+          "layer": "AUTOMATED_SEMANTIC",
+          "result": "NOT_RUN",
+          "artifactReferences": []
+        }
+      ]
+    }
+  ],
+  "zeroMissingMembers": true,
+  "evidenceStatus": "NOT_RUN",
+  "receiptSatisfied": false,
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "e226db3c99461e71492429b73f7f5a2b2bf46703a30ceb7645f9072dcb56b607"
+}

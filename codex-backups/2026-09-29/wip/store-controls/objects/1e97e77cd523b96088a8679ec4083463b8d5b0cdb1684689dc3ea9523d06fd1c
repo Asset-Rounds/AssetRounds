@@ -1,0 +1,21 @@
+// Counterpart protocol; Store owns concrete persisted readback implementation.
+struct EraseSchema2ColdProducerRequestReadbackV4 {
+    let slot: OriginalEraseC16BornProducerSlotV1
+    let temporaryPath: String
+    let publicationMode: OriginalEraseC16ProducerRequestV4.PublicationMode
+    let payloadSHA256: String
+    let requestCommitmentSHA256: String
+    let record: EraseSchema2ColdCurrentC16RecordV4
+}
+@MainActor protocol EraseSchema2ColdPendingProducerStoreContractV4 {
+    func prepareSchema2ColdProducerRequest(
+        _ request: OriginalEraseC16ProducerRequestV4,
+        expectedRecordBindingSHA256: String,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdProducerRequestReadbackV4
+    func canonicalSchema2ColdProducerRequest(
+        slot: OriginalEraseC16BornProducerSlotV1,
+        record: EraseSchema2ColdCurrentC16RecordV4,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> (temporaryPath: String, bytes: Data, sha256: String)?
+}

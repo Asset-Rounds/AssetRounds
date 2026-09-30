@@ -1,0 +1,232 @@
+/// DATA only. The authentic first-capture owner supplies bounded held bytes;
+/// this parser never observes names, issues a permit, or performs filesystem IO.
+struct OriginalEraseC16FirstCaptureCanonicalSourceV1 {
+    let path: String
+    let bytes: Data
+}
+struct OriginalEraseC16FirstCaptureRootIdentityV1 {
+    let device: UInt64
+    let inode: UInt64
+}
+struct OriginalEraseC16FirstCaptureProducerSlotV1: Equatable {
+    let role: String
+    let finalPath: String
+    let expectedSHA256: String
+    let expectedByteCount: Int64
+    /// Opaque payloads retain only their canonical intent digest and count.
+    let canonicalBytes: Data?
+    let predecessorSourcePaths: [String]
+}
+
+extension ScratchDataLeaseStoreV1 {
+    /// Derive a closed final-role declaration from genuine canonical producer
+    /// controls. Migration must independently authenticate these source bytes,
+    /// the complete namespace and exact two current aliases under its real
+    /// held first-capture owner. A declaration is never effect authority.
+    static func originalEraseC16FirstCaptureProducerDeclarations(
+        canonicalSources: [OriginalEraseC16FirstCaptureCanonicalSourceV1],
+        scratchRoot: OriginalEraseC16FirstCaptureRootIdentityV1?,
+        controlRoot: OriginalEraseC16FirstCaptureRootIdentityV1?
+    ) throws -> [OriginalEraseC16FirstCaptureProducerSlotV1] {
+        var sources: [String: Data] = [:]
+        var charges: [String: Int] = [:], nodes: [String: Int] = [:]
+        for source in canonicalSources {
+            let components = source.path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard components.allSatisfy(OperationalDiagnosticsBoundsV1.validRelativeName),
+                  components.first == "ScratchDataV1" || components.first == "ProtectedIngressReceiptsV1",
+                  sources[source.path] == nil else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            let root = components[0]
+            let maximum: Int
+            if root == "ScratchDataV1" {
+                guard components.count == 3, components[2] == metadataName,
+                      scratchRoot != nil else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                maximum = 65_536
+            } else {
+                guard components.count == 2, controlRoot != nil else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                maximum = originalEraseC16SourceMaximum(name: components[1])
+            }
+            let next = (charges[root] ?? 0).addingReportingOverflow(source.bytes.count)
+            guard source.bytes.count > 0, source.bytes.count <= maximum, !next.overflow,
+                  next.partialValue <= 1_024 * 1_024 * 1_024,
+                  (nodes[root] ?? 0) < 100_000 else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            charges[root] = next.partialValue; nodes[root, default: 0] += 1
+            sources[source.path] = source.bytes
+        }
+        for root in [scratchRoot, controlRoot].compactMap({ $0 }) {
+            guard root.inode != 0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        }
+        var slots: [String: OriginalEraseC16FirstCaptureProducerSlotV1] = [:]
+        func slot(role: String, path: String, bytes: Data?, sha256: String,
+                  count: Int64, predecessors: [String]) throws {
+            guard CompatibilityCanonicalV1.validSHA256(sha256), count > 0,
+                  count <= 1_024 * 1_024 * 1_024,
+                  predecessors == predecessors.sorted(), Set(predecessors).count == predecessors.count,
+                  predecessors.allSatisfy({ sources[$0] != nil }) else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            let value = OriginalEraseC16FirstCaptureProducerSlotV1(role: role, finalPath: path,
+                expectedSHA256: sha256, expectedByteCount: count, canonicalBytes: bytes,
+                predecessorSourcePaths: predecessors)
+            if let old = slots[path] {
+                guard old.role == role, old.expectedSHA256 == sha256, old.expectedByteCount == count,
+                      old.canonicalBytes == bytes else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                slots[path] = .init(role: role, finalPath: path, expectedSHA256: sha256,
+                    expectedByteCount: count, canonicalBytes: bytes,
+                    predecessorSourcePaths: Set(old.predecessorSourcePaths + predecessors).sorted())
+            } else { slots[path] = value }
+        }
+        func canonicalSlot(role: String, path: String, bytes: Data, predecessors: [String]) throws {
+            try slot(role: role, path: path, bytes: bytes, sha256: CompatibilityCanonicalV1.sha256(bytes),
+                count: Int64(bytes.count), predecessors: predecessors.sorted())
+        }
+        func identifier(_ name: String, prefix: String, suffix: String) throws -> UUID {
+            guard name.hasPrefix(prefix), name.hasSuffix(suffix) else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            let value = String(name.dropFirst(prefix.count).dropLast(suffix.count))
+            guard let id = UUID(uuidString: value), id != SettingsValidationV1.zeroUUID,
+                  id.uuidString.lowercased() == value else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            return id
+        }
+        func requireRoot(_ device: UInt64, _ inode: UInt64) throws {
+            guard let scratchRoot, device == scratchRoot.device, inode == scratchRoot.inode else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+        }
+        func requirePreparation(_ value: C16IngressPreparedStageV1) throws {
+            try value.validate(); try requireRoot(value.rootDevice, value.rootInode)
+        }
+        func requireClaim(_ value: C16IngressDirectoryClaimV1) throws {
+            try requirePreparation(value.preparation)
+            guard value.device == value.preparation.rootDevice, value.inode != 0 else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+        }
+        let controlPrefix = "ProtectedIngressReceiptsV1/"
+        // First establish original prepare/claim premises. These dictionaries
+        // are canonical producer declarations, not currently surviving IDs.
+        var preparations: [UUID: (C16IngressPreparedStageV1, String)] = [:]
+        var claims: [UUID: (C16IngressDirectoryClaimV1, String)] = [:]
+        for (path, bytes) in sources.sorted(by: { $0.key < $1.key }) where path.hasPrefix(controlPrefix) {
+            let name = String(path.dropFirst(controlPrefix.count))
+            if name.hasPrefix("ingress-"), name.hasSuffix(".prepare.json") {
+                let id = try identifier(name, prefix: "ingress-", suffix: ".prepare.json")
+                let value = try CompatibilityCanonicalV1.decode(C16IngressPreparedStageV1.self, from: bytes)
+                try requirePreparation(value)
+                guard value.intent.intentID == id else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                preparations[id] = (value, path)
+            } else if name.hasPrefix("ingress-"), name.hasSuffix(".claim.json") {
+                let id = try identifier(name, prefix: "ingress-", suffix: ".claim.json")
+                let value = try CompatibilityCanonicalV1.decode(C16IngressDirectoryClaimV1.self, from: bytes)
+                try requireClaim(value)
+                guard value.preparation.intent.intentID == id else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                claims[id] = (value, path)
+            }
+        }
+        for (id, claim) in claims {
+            guard let prepare = preparations[id], prepare.0 == claim.0.preparation else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            let prefix = "ScratchDataV1/" + prepare.0.lease.relativeDirectory + "/"
+            let metadata = try CompatibilityCanonicalV1.encode(prepare.0.lease)
+            try canonicalSlot(role: "leaseMetadata", path: prefix + metadataName, bytes: metadata,
+                predecessors: [prepare.1, claim.1])
+            guard prepare.0.intent.byteCount <= 1_024 * 1_024 * 1_024 else {
+                throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+            }
+            try slot(role: "opaqueIngressPayload", path: prefix + "opaque-data", bytes: nil,
+                sha256: prepare.0.intent.sha256, count: Int64(prepare.0.intent.byteCount),
+                predecessors: [prepare.1, claim.1].sorted())
+        }
+        for (path, bytes) in sources.sorted(by: { $0.key < $1.key }) {
+            if path.hasPrefix("ScratchDataV1/") {
+                let value = try CompatibilityCanonicalV1.decode(ScratchDataLeaseV1.self, from: bytes)
+                try value.request.validate()
+                let canonical = leaseDirectoryName(for: value.request)
+                let directory = String(path.dropFirst("ScratchDataV1/".count).dropLast(("/" + metadataName).count))
+                guard value.schemaVersion == ScratchDataLeaseV1.schemaVersion, value.relativeDirectory == canonical,
+                      directory == canonical else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                try canonicalSlot(role: "leaseMetadata", path: path, bytes: bytes, predecessors: [path])
+                continue
+            }
+            let name = String(path.dropFirst(controlPrefix.count))
+            var role: String, predecessors = [path]
+            if name == controlEraseName {
+                let value = try CompatibilityCanonicalV1.decode(C16ScratchControlEraseV1.self, from: bytes)
+                try requireRoot(value.rootDevice, value.rootInode)
+                guard let controlRoot, value.schemaVersion == 1, value.controlDevice == controlRoot.device,
+                      value.controlInode == controlRoot.inode, value.files.count <= 100_000,
+                      value.files.map(\.name) == value.files.map(\.name).sorted(),
+                      Set(value.files.map(\.name)).count == value.files.count else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                for file in value.files {
+                    guard OperationalDiagnosticsBoundsV1.validRelativeName(file.name), file.device == controlRoot.device,
+                          file.inode != 0, file.byteCount >= 0,
+                          (0..<1_000_000_000).contains(file.modifiedNanoseconds) else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                }
+                role = "scratchControlErase"
+            } else if name.hasPrefix("hygiene-") {
+                let suffix = name.hasSuffix(".prepare.json.finalizing") ? ".prepare.json.finalizing"
+                    : name.hasSuffix(".prepare.json") ? ".prepare.json" : ".json"
+                let id = try identifier(name, prefix: "hygiene-", suffix: suffix)
+                if suffix == ".json" {
+                    let value = try CompatibilityCanonicalV1.decode(ProtectedIngressStartupHygieneReceiptV1.self, from: bytes)
+                    let preparePath = controlPrefix + "hygiene-" + id.uuidString.lowercased() + ".prepare.json"
+                    guard value.operationID == id, let prepareBytes = sources[preparePath] else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                    let prepare = try CompatibilityCanonicalV1.decode(C16IngressHygienePrepareV1.self, from: prepareBytes)
+                    try prepare.validate(); try requireRoot(prepare.rootDevice, prepare.rootInode)
+                    guard try prepare.receipt() == value else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                    predecessors.append(preparePath); role = "hygieneReceipt"
+                } else {
+                    let value = try CompatibilityCanonicalV1.decode(C16IngressHygienePrepareV1.self, from: bytes)
+                    try value.validate(); try requireRoot(value.rootDevice, value.rootInode)
+                    guard value.request.operationID == id, suffix != ".prepare.json.finalizing" || value.finalized else {
+                        throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                    }
+                    role = suffix == ".prepare.json.finalizing" ? "hygieneFinalizing"
+                        : value.finalized ? "finalizedHygienePrepare" : "hygienePrepare"
+                }
+            } else if name.hasPrefix("erase-") {
+                let suffix = name.hasSuffix(".prepare.json") ? ".prepare.json" : ".complete.json"
+                let id = try identifier(name, prefix: "erase-", suffix: suffix)
+                let value = try CompatibilityCanonicalV1.decode(C16IngressEraseV1.self, from: bytes)
+                try value.validate(); try requireRoot(value.rootDevice, value.rootInode)
+                guard value.operationID == id else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                if suffix == ".complete.json" {
+                    let preparePath = controlPrefix + "erase-" + id.uuidString.lowercased() + ".prepare.json"
+                    guard sources[preparePath] == bytes else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                    predecessors.append(preparePath)
+                }
+                role = suffix == ".prepare.json" ? "ingressErasePrepare" : "ingressEraseComplete"
+            } else if name.hasPrefix("ingress-") {
+                let suffixes = [".pending.json.replacement", ".prepare.json", ".claim.json", ".published.json",
+                    ".pending.json", ".terminal.json", ".aborted.json"]
+                guard let suffix = suffixes.first(where: { name.hasSuffix($0) }) else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                let id = try identifier(name, prefix: "ingress-", suffix: suffix)
+                switch suffix {
+                case ".prepare.json":
+                    guard preparations[id] != nil else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                    role = "ingressPreparation"
+                case ".claim.json":
+                    guard let prepare = preparations[id], let claim = claims[id], claim.0.preparation == prepare.0 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                    predecessors.append(prepare.1); role = "ingressClaim"
+                case ".published.json", ".pending.json", ".pending.json.replacement":
+                    let value = try CompatibilityCanonicalV1.decode(C16IngressPublicationV1.self, from: bytes)
+                    try value.validate(); try requireClaim(value.claim)
+                    guard value.intent.intentID == id, let prepare = preparations[id], let claim = claims[id],
+                          prepare.0 == value.claim.preparation, claim.0 == value.claim else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                    predecessors += [prepare.1, claim.1]
+                    role = suffix == ".published.json" ? "ingressPublication" : "ingressPending"
+                case ".terminal.json":
+                    let value = try CompatibilityCanonicalV1.decode(C16IngressRemovalV1.self, from: bytes)
+                    try value.validate(); try requireClaim(value.expected.claim)
+                    guard value.expected.intent.intentID == id else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                    role = "ingressTerminal"
+                case ".aborted.json":
+                    let value = try CompatibilityCanonicalV1.decode(C16IngressAbortedStageV1.self, from: bytes)
+                    try value.validate(); try requirePreparation(value.expected.preparation)
+                    guard value.expected.preparation.intent.intentID == id else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                    role = "ingressAborted"
+                default: throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+            } else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            try canonicalSlot(role: role, path: path, bytes: bytes, predecessors: Set(predecessors).sorted())
+        }
+        return slots.values.sorted { $0.finalPath < $1.finalPath }
+    }
+}

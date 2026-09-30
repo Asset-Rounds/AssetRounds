@@ -1,0 +1,17 @@
+// Declaration contract for sole Ledger author; not an implemented producer.
+// Constructor belongs fileprivate to Ledger's actual PublicationSession.
+@MainActor final class OriginalEraseC16ProducerRequestV4 {
+    enum PublicationMode: String { case linkExclusiveFinal, renameExclusiveFinal }
+    let slot: OriginalEraseC16BornProducerSlotV1
+    let temporaryPath: String
+    let bytes: Data
+    let sha256: String
+    let planSHA256: String
+    let stepSHA256: String
+    let ordinal: Int
+    let publicationMode: PublicationMode
+    // Private initialization from actual session's fixed input/cut only.
+}
+// BoundaryObservation.Purpose adds producerRequest; let producerRequest:
+// OriginalEraseC16ProducerRequestV4? is mutually exclusive with bornSource.
+// No .finalizedHygienePrepare request: that birth is a checked source rename.

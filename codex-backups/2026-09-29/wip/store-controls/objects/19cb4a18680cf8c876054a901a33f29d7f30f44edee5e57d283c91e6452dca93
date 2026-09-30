@@ -1,0 +1,300 @@
+// Exact source excerpts from Ledger SHA 818673231202c56f545c3d87019997d53bffee0ea52916611a75ea090fe88fe5; parse-only NONINSTALLABLE.
+struct OriginalEraseC16BornSlotCursorV4 {
+    let planSHA256: String
+    let nextProducerOrdinal: Int
+    let nextWithinProducerOrdinal: UInt64
+    let nextSlotOrdinal: UInt64
+    let prefixCommitmentSHA256: String
+    fileprivate let warmComputation: OriginalEraseC16BornSlotComputationV4?
+    init(planSHA256: String, nextProducerOrdinal: Int,
+        nextWithinProducerOrdinal: UInt64, nextSlotOrdinal: UInt64,
+        prefixCommitmentSHA256: String) {
+        self.planSHA256 = planSHA256; self.nextProducerOrdinal = nextProducerOrdinal
+        self.nextWithinProducerOrdinal = nextWithinProducerOrdinal
+        self.nextSlotOrdinal = nextSlotOrdinal
+        self.prefixCommitmentSHA256 = prefixCommitmentSHA256
+        warmComputation = nil
+    }
+    fileprivate init(computation: OriginalEraseC16BornSlotComputationV4) {
+        planSHA256 = computation.planSHA256
+        nextProducerOrdinal = computation.nextProducerOrdinal
+        nextWithinProducerOrdinal = computation.nextWithinProducerOrdinal
+        nextSlotOrdinal = computation.nextSlotOrdinal
+        prefixCommitmentSHA256 = computation.prefixCommitmentSHA256
+        warmComputation = computation
+    }
+}
+
+fileprivate struct OriginalEraseC16BornSlotComputationV4 {
+    let planSHA256: String
+    let nextProducerOrdinal: Int
+    let nextWithinProducerOrdinal: UInt64
+    let nextSlotOrdinal: UInt64
+    let prefixCommitmentSHA256: String
+    func exactlyMatches(_ cursor: OriginalEraseC16BornSlotCursorV4) -> Bool {
+        planSHA256 == cursor.planSHA256 && nextProducerOrdinal == cursor.nextProducerOrdinal
+            && nextWithinProducerOrdinal == cursor.nextWithinProducerOrdinal
+            && nextSlotOrdinal == cursor.nextSlotOrdinal
+            && prefixCommitmentSHA256 == cursor.prefixCommitmentSHA256
+    }
+}
+
+struct OriginalEraseC16BornSlotPageV4 {
+    let slots: [OriginalEraseC16BornProducerSlotV1]
+    let nextCursor: OriginalEraseC16BornSlotCursorV4?
+    /// Cumulative exact prefix count, including this page; never page length.
+    let emittedSlotCount: UInt64
+}
+
+    /// Distinct read-only renewal after actual Sources/Plan/checkpoint
+    /// publication. Caller-supplied Plan remains DATA until the required real
+    /// Store callback proves exact retained source roots, Plan and no Progress.
+    /// A predecessor scope is never revived across a page publication.
+    @MainActor
+    static func withSchema2ColdBorrowedPublishedInitialPlan<Value>(
+        applicationSupportURL: URL, operationID: UUID,
+        permit: EraseSchema2ColdScratchBootstrapPermitV1,
+        firstPPartials: [OriginalEraseC16StepV1],
+        initialPublishedPlan: OriginalEraseC16PlanV1,
+        genericObservationScope: @escaping @MainActor () throws
+            -> OriginalEraseSealedGenericObservationScopeV1?,
+        verifyPostimageBeforeClose: @MainActor () throws -> Void,
+        _ body: @MainActor (ScratchDataLeaseStoreV1) throws -> Value
+    ) throws -> Value {
+        try initialPublishedPlan.validate()
+        let bytes = try CompatibilityCanonicalV1.encode(initialPublishedPlan)
+        guard bytes.count <= 96 * 1_024 * 1_024 else {
+            throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+        }
+        let planSHA = try CompatibilityCanonicalV1.sha256(bytes)
+        let sourceToken = try permit.requireInitialC16PublishedPlanBinding(planSHA256: planSHA)
+        func requirePublishedSourceCut() throws {
+            guard try permit.requireInitialC16PublishedPlanBinding(planSHA256: planSHA)
+                == sourceToken else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        }
+        return try withSchema2ColdBorrowedExistingRoot(
+            applicationSupportURL: applicationSupportURL, operationID: operationID,
+            permit: permit, firstPPartials: firstPPartials,
+            genericObservationScope: genericObservationScope,
+            verifyPostimageBeforeClose: {
+                try requirePublishedSourceCut()
+                try verifyPostimageBeforeClose()
+                try requirePublishedSourceCut()
+            }) { store in
+                try requirePublishedSourceCut()
+                guard let actualInitialOwnerCheck = store.originalEraseBorrowedOwnerCheck,
+                      store.originalEraseC16InitialSourceProof,
+                      store.originalEraseC16ReferencePlan == nil,
+                      store.originalEraseC16CurrentOrdinal == nil else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+                // Immutable calculation inputs only. The live owner callback
+                // rechecks both genuine Initial and exact published-source cuts
+                // before/after every source/page boundary; no effect origin.
+                store.originalEraseC16InitialDerivedPlan = initialPublishedPlan
+                store.originalEraseC16InitialDerivedPlanSHA256 = planSHA
+                store.originalEraseBorrowedOwnerCheck = {
+                    try actualInitialOwnerCheck()
+                    try requirePublishedSourceCut()
+                    try actualInitialOwnerCheck()
+                }
+                let result = try body(store)
+                try requirePublishedSourceCut()
+                return result
+            }
+    }
+
+    /// Source-backed producer slots in stable ordinal/role/path order. Only
+    /// the bounded outputs of one original marker are materialized at once.
+    /// Store's paged control format consumes this iterator, never a full list.
+    @MainActor @discardableResult
+    func enumerateOriginalEraseC16BornProducerSlots(
+        plan: OriginalEraseC16PlanV1,
+        visit: @MainActor (OriginalEraseC16BornProducerSlotV1) throws -> Void
+    ) throws -> Int {
+        try requireScratchDescriptorAccess()
+        try requireOriginalEraseBorrowedOwner()
+        guard originalEraseC16ReferencePlan == plan,
+              originalEraseColdPermit != nil, !originalEraseC16InitialSourceProof else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        return try enumerateOriginalEraseC16BornProducerSlotData(plan: plan, visit: visit)
+    }
+
+    /// Distinct read-only bootstrap origin. Only the exact genuinely derived
+    /// private first-P output can declare source-backed slots before Progress.
+    /// Each source/visit rechecks the real complete no-progress Initial image.
+    @MainActor @discardableResult
+    func enumerateOriginalEraseC16InitialBornProducerSlots(
+        plan: OriginalEraseC16PlanV1,
+        visit: @MainActor (OriginalEraseC16BornProducerSlotV1) throws -> Void
+    ) throws -> Int {
+        try requireScratchDescriptorAccess()
+        try requireOriginalEraseBorrowedOwner()
+        guard originalEraseC16InitialSourceProof, originalEraseC16ReferencePlan == nil,
+              originalEraseC16InitialDerivedPlan == plan,
+              originalEraseC16BootstrapPermit != nil, originalEraseColdPermit == nil,
+              originalEraseC16CurrentOrdinal == nil else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        return try enumerateOriginalEraseC16BornProducerSlotData(plan: plan, visit: visit)
+    }
+
+    /// Sole shared source-backed enumeration. This never enters an effect or
+    /// creates a semantic Progress/ordinal; callers have distinct real origins.
+    @MainActor private func enumerateOriginalEraseC16BornProducerSlotData(
+        plan: OriginalEraseC16PlanV1,
+        visit: @MainActor (OriginalEraseC16BornProducerSlotV1) throws -> Void
+    ) throws -> Int {
+        try requireScratchDescriptorAccess()
+        try requireOriginalEraseBorrowedOwner()
+        let maximum = try plan.maximumRetainedBornProducerSlotCount()
+        var count = 0
+        for ordinal in plan.steps.indices {
+            try requireOriginalEraseBorrowedOwner()
+            let slots = try originalEraseC16BornSlotsForProducer(plan: plan, ordinal: ordinal)
+            for slot in slots {
+                let next = count.addingReportingOverflow(1)
+                guard !next.overflow, next.partialValue <= maximum else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+                try requireOriginalEraseBorrowedOwner()
+                try visit(slot)
+                try requireOriginalEraseBorrowedOwner()
+                count = next.partialValue
+            }
+        }
+        try requireOriginalEraseBorrowedOwner()
+        return count
+    }
+
+    @MainActor private func originalEraseC16BornSlotsForProducer(
+        plan: OriginalEraseC16PlanV1, ordinal: Int
+    ) throws -> [OriginalEraseC16BornProducerSlotV1] {
+        try requireScratchDescriptorAccess()
+        try requireOriginalEraseBorrowedOwner()
+        guard ordinal >= 0, ordinal < plan.steps.count else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        var slots: [OriginalEraseC16BornProducerSlotV1] = []
+        if plan.steps[ordinal] == .eraseFinalControl {
+            slots = [.init(producerOrdinal: ordinal, role: "scratchControlErase",
+                path: "ProtectedIngressReceiptsV1/" + Self.controlEraseName)]
+        } else {
+            let roles = try originalEraseC16CanonicalRolesForStep(plan: plan, ordinal: ordinal)
+            for name in try originalEraseC16PublicationRoleSequence(plan: plan, ordinal: ordinal) {
+                guard let role = roles[name] else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                slots.append(.init(producerOrdinal: ordinal, role: role.role,
+                    path: "ProtectedIngressReceiptsV1/" + name))
+            }
+        }
+        guard Set(slots).count == slots.count else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+        try requireOriginalEraseBorrowedOwner()
+        return slots.sorted { $0.role == $1.role ? $0.path < $1.path : $0.role < $1.role }
+    }
+
+    /// Read-only transfer page. Store publishes only after returning from this
+    /// call and exiting/revoking its actual Initial image. A new page requires
+    /// a freshly issued real Initial source/checkpoint/noProgress owner.
+    @MainActor
+    func readOriginalEraseC16InitialBornProducerSlotPage(
+        plan: OriginalEraseC16PlanV1,
+        cursor: OriginalEraseC16BornSlotCursorV4?,
+        maximumCount: Int
+    ) throws -> OriginalEraseC16BornSlotPageV4 {
+        try requireScratchDescriptorAccess()
+        try requireOriginalEraseBorrowedOwner()
+        guard maximumCount > 0, maximumCount <= 128,
+              originalEraseC16InitialSourceProof, originalEraseC16ReferencePlan == nil,
+              originalEraseC16InitialDerivedPlan == plan,
+              let planSHA = originalEraseC16InitialDerivedPlanSHA256,
+              originalEraseC16BootstrapPermit != nil, originalEraseColdPermit == nil,
+              originalEraseC16CurrentOrdinal == nil else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        let maximumSlots = UInt64(try plan.maximumRetainedBornProducerSlotCount())
+        var producer = 0, within: UInt64 = 0, count: UInt64 = 0
+        var prefix = try CompatibilityCanonicalV1.sha256(
+            Data(("OriginalEraseC16BornSlotPrefixV4|" + planSHA).utf8))
+        func nextPrefix(_ old: String, _ slot: OriginalEraseC16BornProducerSlotV1) throws -> String {
+            let framed = old + "|" + String(slot.producerOrdinal) + "|"
+                + String(slot.role.utf8.count) + ":" + slot.role + "|"
+                + String(slot.path.utf8.count) + ":" + slot.path
+            return try CompatibilityCanonicalV1.sha256(Data(framed.utf8))
+        }
+        if let cursor {
+            guard cursor.planSHA256 == planSHA,
+                  cursor.nextProducerOrdinal >= 0, cursor.nextProducerOrdinal <= plan.steps.count,
+                  cursor.nextSlotOrdinal <= maximumSlots,
+                  CompatibilityCanonicalV1.validSHA256(cursor.prefixCommitmentSHA256) else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            if let computed = cursor.warmComputation, computed.exactlyMatches(cursor) {
+                // Pure prior computation only. Actual Initial/source proof
+                // above and below is never skipped by this retained data.
+                producer = cursor.nextProducerOrdinal
+                within = cursor.nextWithinProducerOrdinal
+                count = cursor.nextSlotOrdinal
+                prefix = cursor.prefixCommitmentSHA256
+            } else {
+                // A decoded cold cursor has no private stamp. Recompute its
+                // exact source-backed prefix once, without an all-slot array.
+                while producer < cursor.nextProducerOrdinal {
+                    let slots = try originalEraseC16BornSlotsForProducer(plan: plan, ordinal: producer)
+                    for slot in slots {
+                        guard count < cursor.nextSlotOrdinal, count < maximumSlots else {
+                            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                        }
+                        prefix = try nextPrefix(prefix, slot); count += 1
+                    }
+                    producer += 1
+                }
+                if producer < plan.steps.count {
+                    let slots = try originalEraseC16BornSlotsForProducer(plan: plan, ordinal: producer)
+                    guard cursor.nextWithinProducerOrdinal < UInt64(slots.count) else {
+                        throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                    }
+                    for index in 0..<Int(cursor.nextWithinProducerOrdinal) {
+                        guard count < cursor.nextSlotOrdinal, count < maximumSlots else {
+                            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                        }
+                        prefix = try nextPrefix(prefix, slots[index]); count += 1
+                    }
+                    within = cursor.nextWithinProducerOrdinal
+                } else {
+                    guard cursor.nextWithinProducerOrdinal == 0 else {
+                        throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                    }
+                }
+                guard count == cursor.nextSlotOrdinal, prefix == cursor.prefixCommitmentSHA256 else {
+                    throw ScratchDataLeaseStoreFailureV1.leaseCollision
+                }
+            }
+        }
+        var output: [OriginalEraseC16BornProducerSlotV1] = []
+        output.reserveCapacity(maximumCount)
+        while producer < plan.steps.count {
+            let slots = try originalEraseC16BornSlotsForProducer(plan: plan, ordinal: producer)
+            guard within <= UInt64(slots.count) else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+            while within < UInt64(slots.count), output.count < maximumCount {
+                let slot = slots[Int(within)]
+                guard count < maximumSlots else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+                prefix = try nextPrefix(prefix, slot)
+                output.append(slot); count += 1; within += 1
+            }
+            if within == UInt64(slots.count) { producer += 1; within = 0 }
+            if output.count == maximumCount { break }
+        }
+        // Normalize empty following producers without emitting/skipping slots;
+        // this yields nil only after the exact complete source-backed sequence.
+        while producer < plan.steps.count, within == 0 {
+            let slots = try originalEraseC16BornSlotsForProducer(plan: plan, ordinal: producer)
+            if !slots.isEmpty { break }
+            producer += 1
+        }
+        try requireOriginalEraseBorrowedOwner()
+        let next = producer == plan.steps.count ? nil
+            : OriginalEraseC16BornSlotCursorV4(computation: .init(planSHA256: planSHA,
+                nextProducerOrdinal: producer, nextWithinProducerOrdinal: within,
+                nextSlotOrdinal: count, prefixCommitmentSHA256: prefix))
+        return .init(slots: output, nextCursor: next, emittedSlotCount: count)
+    }
+

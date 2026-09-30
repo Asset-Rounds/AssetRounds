@@ -1,0 +1,16 @@
+{
+  "files": {
+    "ROOT_BASELINE.json": "9690309c3fac4bddd146706bccc31a4c26f82e3d908ba8a1a8c3d3214d7e2169",
+    "SOURCE_MAP.json": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+    "before/ProtectedFilePolicy.swift": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+    "candidate/ProtectedFilePolicy.swift": "1a00041bb508f72f78467e1f2669cd3be09d37e44ed6aad75125bba35f07c2e5",
+    "inputs/LIVE_POLICY_EFFECT_SCOPE_INTERFACE_V1.swift.fragment": "3f4b1c88ceb8260609a926d76743104465b5957213ba677e31824f5df2e826e0",
+    "inputs/LIVE_POLICY_SCOPE_INTERFACE_V1.swift.fragment": "30a6eb5e79b86b3577a5a81a86ef70a766321b550c3022a0b90a0a9b39da6e1d",
+    "observer-before-setter/ProtectedFilePolicy.swift": "e891309de25c56032c759fad8871150ab0542c5141698114b38383742dfb6b34",
+    "parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "wip-before-setter/HANDOFF.md": "298499af47bac1f54f9df2fb8bd2dd613eab72b1eecbdef6ac75234d9ababbd6",
+    "wip-before-setter/ProtectedFilePolicy.swift": "1a00041bb508f72f78467e1f2669cd3be09d37e44ed6aad75125bba35f07c2e5"
+  },
+  "state": "WIP_NONINSTALLABLE"
+}

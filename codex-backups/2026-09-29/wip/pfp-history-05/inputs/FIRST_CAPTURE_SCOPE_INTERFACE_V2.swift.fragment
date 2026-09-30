@@ -1,0 +1,159 @@
+/// Distinct DATA observation origin before an immutable auxiliary P exists.
+/// Migration alone privately issues this scope in the genuine first-capture
+/// owner callback under actual retained allocation/EX/activity/Registry G.
+/// Scope construction remains private to the actual Migration issuer.
+struct OriginalEraseC16FirstCapturePairV1: Equatable {
+    let finalURL: URL
+    let partialURL: URL
+    let finalObservedFact: String
+    let partialObservedFact: String
+    let expectedSHA256: String
+    let expectedByteCount: Int64
+    let expectedDevice: UInt64
+    let finalFullFact: String
+    let partialFullFact: String
+    let captureToken: String
+    let declaredPairIndex: Int
+}
+
+/// Current owned DATA; UTF8 ordered members do not identify historical final/temp.
+/// A present metadata record is positively canonical/validated; an orphan
+/// records exact metadata absence. Neither case grants a live lease or effect.
+enum OriginalEraseOwnedScratchMetadataV1: Equatable {
+    case validatedLease(relativeDirectory: String, canonicalBytes: Data, sha256: String)
+    case ownedOrphan(relativeDirectory: String)
+}
+struct OriginalEraseObservedOwnedGenericAliasPairV1: Equatable {
+    struct Member: Equatable {
+        let operationsRelativePath: String
+        let url: URL
+        let observedFact: String
+        let fullFact: String
+    }
+    let members: [Member] // exactly two, strict UTF8 order, same declared lease directory
+    let metadata: OriginalEraseOwnedScratchMetadataV1
+    let sha256: String
+    let byteCount: Int64
+    let device: UInt64
+    let inode: UInt64
+    let operationID: UUID
+    let originBinding: String
+    let declaredPairIndex: Int // position in complete finite table, not global100k authority
+}
+
+enum OriginalEraseC16FirstCapturePathRoleV1: Equatable {
+    case ordinary
+    case firstCapturePair(OriginalEraseC16FirstCapturePairV1)
+    case observedOwnedGenericAliases(OriginalEraseObservedOwnedGenericAliasPairV1)
+}
+
+@MainActor
+final class OriginalEraseC16FirstCaptureObservationScopeV1 {
+    let operationID: UUID
+    let captureToken: String
+    private let operationsURL: URL
+    private let pairs: [OriginalEraseC16FirstCapturePairV1]
+    private let genericAliases: [OriginalEraseObservedOwnedGenericAliasPairV1]
+    private let requireOrigin: @MainActor () throws -> String
+    private let poisonOrigin: @MainActor () -> Void
+    private var retainedAttempts:
+        [OriginalEraseC16CurrentTemporalObservationAttemptV1] = []
+    private var active = true
+    private var uncertain = false
+
+    /// Callable only by Migration's concrete checked first-capture issuer.
+    /// requireOrigin must freshly prove the actual owner+phase/control/cohort
+    /// and full captured namespace/finite producer roles, returning the exact
+    /// same token. It cannot read original-P, a future plan, or current-only
+    /// survivors; no arbitrary closure supplied outside this file can issue.
+    fileprivate init(operationID: UUID, captureToken: String,
+        operationsURL: URL, pairs: [OriginalEraseC16FirstCapturePairV1],
+        genericAliases: [OriginalEraseObservedOwnedGenericAliasPairV1],
+        requireOrigin: @escaping @MainActor () throws -> String,
+        poisonOrigin: @escaping @MainActor () -> Void) {
+        self.operationID = operationID; self.captureToken = captureToken
+        self.operationsURL = operationsURL.standardizedFileURL
+        self.pairs = pairs; self.genericAliases = genericAliases; self.requireOrigin = requireOrigin
+        self.poisonOrigin = poisonOrigin
+    }
+
+    func requireCurrentBinding() throws {
+        do {
+            guard active, !uncertain,
+                  try requireOrigin() == captureToken else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+
+    func requirePair(finalURL: URL, partialURL: URL) throws
+        -> OriginalEraseC16FirstCapturePairV1 {
+        try requireCurrentBinding()
+        guard let pair = pairs.first(where: {
+            $0.finalURL == finalURL.standardizedFileURL &&
+                $0.partialURL == partialURL.standardizedFileURL
+        }), pair.captureToken == captureToken else {
+            poisonOnUncertainObservation()
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try requireCurrentBinding()
+        return pair
+    }
+
+    func requireObservedOwnedGenericAliases(aliasURLs: [URL]) throws
+        -> OriginalEraseObservedOwnedGenericAliasPairV1 {
+        try requireCurrentBinding()
+        let urls = aliasURLs.map(\.standardizedFileURL)
+        guard urls.count == 2, let pair = genericAliases.first(where: {
+            $0.members.map(\.url) == urls
+        }), pair.operationID == operationID, pair.originBinding == captureToken,
+            pair.declaredPairIndex >= 0 else {
+            poisonOnUncertainObservation()
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try requireCurrentBinding(); return pair
+    }
+
+    func roleFor(path: String, fullFact: String, sha256: String) throws
+        -> OriginalEraseC16FirstCapturePathRoleV1 {
+        try requireCurrentBinding()
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard !components.isEmpty, components.allSatisfy({
+            !$0.isEmpty && $0 != "." && $0 != ".." && !$0.utf8.contains(0)
+        }) else {
+            poisonOnUncertainObservation()
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        let url = operationsURL.appendingPathComponent(path).standardizedFileURL
+        if let generic = genericAliases.first(where: { $0.members.contains(where: { $0.url == url }) }),
+            let member = generic.members.first(where: { $0.url == url }) {
+            guard generic.operationID == operationID, generic.originBinding == captureToken,
+                  member.fullFact == fullFact, generic.sha256 == sha256 else {
+                poisonOnUncertainObservation()
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            _ = try requireObservedOwnedGenericAliases(aliasURLs: generic.members.map(\.url))
+            return .observedOwnedGenericAliases(generic)
+        }
+        guard let pair = pairs.first(where: {
+            $0.finalURL == url || $0.partialURL == url
+        }) else { try requireCurrentBinding(); return .ordinary }
+        let expected = pair.finalURL == url ? pair.finalFullFact : pair.partialFullFact
+        guard pair.captureToken == captureToken,
+              fullFact == expected, sha256 == pair.expectedSHA256 else {
+            poisonOnUncertainObservation()
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try requireCurrentBinding()
+        return .firstCapturePair(pair)
+    }
+
+    func retainObservationAttempt(
+        _ attempt: OriginalEraseC16CurrentTemporalObservationAttemptV1) {
+        retainedAttempts.append(attempt)
+    }
+    func poisonOnUncertainObservation() {
+        uncertain = true; active = false; poisonOrigin()
+    }
+    fileprivate func revoke() { active = false }
+}

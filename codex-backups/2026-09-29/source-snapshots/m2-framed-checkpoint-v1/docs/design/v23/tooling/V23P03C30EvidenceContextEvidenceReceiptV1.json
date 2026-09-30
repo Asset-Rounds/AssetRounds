@@ -1,0 +1,34 @@
+{
+  "artifactDigest": "f10ffbb00d7cd7ee2f20de0452972d6a6abbc1625549c29f759c8f8567956db3",
+  "cardID": "V23-P03-C30",
+  "evidenceIDs": [
+    "V23-P03-C30-G01",
+    "V23-P03-C30-A01",
+    "V23-P03-C30-H01",
+    "V23-P03-C30-I01",
+    "V23-P03-C30-R01"
+  ],
+  "requiredSemanticsDigest": "db84404ace69ef3c5d987f73d0bfd394216d6c2a529a8c11b02390b872486585",
+  "schema": "V23P03C30EvidenceContextEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C30G01ExplicitConditionsAndOfflineSolarDerivationAreDeterministic",
+    "testV23P03C30A01CoveredAndUnknownContextsRetainUserTruthAndStablePairing",
+    "testV23P03C30H01MissingLocationTimeConflictsAndPurposeMismatchFailClosed",
+    "testV23P03C30I01InterruptedContextAndPairWritesRecoverAsZeroOrOneCanonicalSuccess",
+    "testV23P03C30R01RestoreReplayRebuildAndHistoricContextRemainByteExact"
+  ]
+}

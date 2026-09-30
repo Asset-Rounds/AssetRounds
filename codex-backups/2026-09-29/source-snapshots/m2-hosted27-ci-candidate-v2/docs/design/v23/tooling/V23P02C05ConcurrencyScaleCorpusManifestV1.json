@@ -1,0 +1,284 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "4ac198e53768941c6b6253f9ed1d40e3aa81cfeec02a3ed2b34473ac2958f667",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "a6742867a235ad7cc4e4bc07f2b650cca82434cd",
+    "appBaseTree": "fc0d86d8d02fc463621540637321d4645ad727f8",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C05",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "625a596b0bd0f67c4ca83befe0b05309f35535c9db70584ff9bef3df87bdacaa",
+    "coordinationAuthorityHead": "a02692c9f20c6fe4944c7771dde6dd9bdcd51a71",
+    "coordinationAuthorityTree": "f326ad839c04b312bb07cbdba17953c6a10237f6",
+    "coordinationCASSequence": 101,
+    "coordinationLedgerDigest": "1cd7e2f90d12258b9e079c650d40d4ce4cee1f22a6b28970167883a26f6d3916",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C05-G01",
+      "V23-P02-C05-A01",
+      "V23-P02-C05-H01",
+      "V23-P02-C05-I01",
+      "V23-P02-C05-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P00-C08",
+      "V23-P02-C04"
+    ],
+    "dossierDigest": "ec42ff8d9671a79c44c9d20d861958771689e6b391e00de2d6527dac31e206fe",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "65d096f19e97ee8b8bdc52a297d58510a57397b952ec9da02432b23ba9145fb2",
+    "hydrationTransitionDigest": "620971c0df32ad82017122d3c81a73f2edec048196412a4454ad8be2a3f6e5d1",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "2d967b801e515707b91344039ceb22c2dad717847cb297f05b4fddb510e6989b",
+    "invalidationConsumers": [
+      "V23-P02-C06"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C05",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "336ad660a86cb30e4ea70ae99ca157f3dbaac1f89dd3011d0f37dd61926a73ac",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "9da050851718d6877bb678614f014e657e60868fa9160a62a3a5778da7776d1b",
+    "registerOrdinal": 25,
+    "registerRowDigest": "59877398b77b4aefa0bd64678165c52939906eb97bc82e0f9288704366f8f283",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Off-main resumable local jobs, cancellation, concurrency, and scale budgets"
+  },
+  "cardID": "V23-P02-C05",
+  "customerDataPresent": false,
+  "evidence": [
+    {
+      "evidenceID": "V23-P02-C05-G01",
+      "testMethod": "testV9_09G01OffMainWorkersAndDeterministicIdentifiers"
+    },
+    {
+      "evidenceID": "V23-P02-C05-A01",
+      "testMethod": "testV9_09A01DurableBoundedCheckpointsResumeAfterRelaunch"
+    },
+    {
+      "evidenceID": "V23-P02-C05-H01",
+      "testMethod": "testV9_09H01StructuredCancellationCleansStagingWithoutPublishingPartialBytes"
+    },
+    {
+      "evidenceID": "V23-P02-C05-I01",
+      "testMethod": "testV9_09I01GenerationLeaseFencesStalePublicationAndBalancesConcurrency"
+    },
+    {
+      "evidenceID": "V23-P02-C05-R01",
+      "testMethod": "testV9_09R01RepresentativeScaleMatrixMeetsBoundedConcurrencyMemoryAndLatencyBudgets"
+    }
+  ],
+  "evidenceIDs": [
+    "V23-P02-C05-G01",
+    "V23-P02-C05-A01",
+    "V23-P02-C05-H01",
+    "V23-P02-C05-I01",
+    "V23-P02-C05-R01"
+  ],
+  "exactFiveTestMethods": true,
+  "executableEvidence": [
+    {
+      "case": "PROTECTED_DATA_FAILURE_HOOK",
+      "requiredTokens": [
+        "protectedDataFailureHook",
+        "protectedDataUnavailable"
+      ],
+      "testPath": "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift"
+    },
+    {
+      "case": "CORRUPT_STORE_QUARANTINE_REBUILD",
+      "requiredTokens": [
+        "corruptBytes",
+        "quarantinedAndRebuilt",
+        "quarantineDirectoryName"
+      ],
+      "testPath": "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift"
+    },
+    {
+      "case": "RELAUNCH_CANCELLATION_CLEANUP",
+      "requiredTokens": [
+        "relaunch-cancel",
+        "resumePending",
+        "interruptedStagingURL",
+        ".cancelled"
+      ],
+      "testPath": "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift"
+    },
+    {
+      "case": "HOSTILE_SYMLINK_CLEANUP",
+      "requiredTokens": [
+        "createSymbolicLink",
+        "hostile-symlink",
+        "outsideSentinel",
+        "symlink staging cleanup must fail closed"
+      ],
+      "testPath": "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift"
+    },
+    {
+      "case": "DESTRUCTIVE_REMOVE_RECONCILIATION",
+      "requiredTokens": [
+        "removeJobs(workspaceID:",
+        "eraseAll()",
+        "awaitingRemove",
+        "awaitingErase"
+      ],
+      "testPath": "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift"
+    }
+  ],
+  "fixtureGeneratedByTooling": false,
+  "fixturePath": "FieldEvidenceAppTests/Fixtures/V21/Concurrency/V21P02C05ConcurrencyScaleCorpusV1.json",
+  "fixtureScaleCaseFields": [
+    "caseID",
+    "fixture",
+    "assetCount",
+    "proxyByteCount",
+    "budgetReference",
+    "expectedLogicalChunkCount",
+    "measurementRepetitions",
+    "proxyBacking"
+  ],
+  "fixtureSchema": "V21P02C05ConcurrencyScaleCorpusV1",
+  "fixtureSchemaVersion": 1,
+  "fixtureTopLevelFields": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "generator",
+    "synthetic",
+    "containsCustomerData",
+    "containsSecrets",
+    "scaleCases",
+    "hostileCases",
+    "interruptionBoundaries",
+    "recoveryCases",
+    "provisional"
+  ],
+  "hostedDispatchRan": false,
+  "hostileFailClosed": true,
+  "lifecycle": {
+    "destructiveRemoval": "FAIL_CLOSED_UNTIL_PUBLICATION_AND_STAGING_ARE_RECONCILED",
+    "downgrade": "DROP_AND_REBUILD_AFTER_CANONICAL_SURVIVAL_PROOF",
+    "operationalCheckpointStore": "SEPARATELY_VERSIONED_DEVICE_LOCAL",
+    "publication": "AWAITING_PUBLICATION_RECONCILES_PUBLISH_OR_ADOPT_BEFORE_TERMINAL_RECEIPT",
+    "publicationFailure": "SUPPRESS_RETRY_NO_SPIN",
+    "replaceRestore": "REBUILD_FROM_CANONICAL_INCOMPLETE_INTENTS",
+    "userBackupAndExport": "EXCLUDED",
+    "workspaceDeleteEraseExpiry": "REMOVE_OPERATIONAL_ROWS"
+  },
+  "nativeCompileRan": false,
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiredCoverage": {
+    "A01": [
+      "DURABLE_BOUNDED_CHECKPOINTS",
+      "RELAUNCH_RESUMES_FROM_CHECKPOINT",
+      "MONOTONIC_CHECKPOINTS",
+      "NO_STALE_ATTEMPT_EFFECT"
+    ],
+    "G01": [
+      "OFF_MAIN_WORKER_EXECUTION",
+      "DETERMINISTIC_JOB_AND_CHUNK_IDENTIFIERS",
+      "EXACTLY_ONCE_COMPLETION",
+      "MAIL_CALLBACK_REGRESSION"
+    ],
+    "H01": [
+      "STRUCTURED_CANCELLATION",
+      "STAGING_CLEANUP",
+      "NO_PARTIAL_OUTPUT",
+      "PROTECTED_DATA_AND_UNKNOWN_FAILURE_VISIBLE"
+    ],
+    "I01": [
+      "GENERATION_LEASE_FENCE",
+      "STALE_PUBLICATION_REJECTED",
+      "CONCURRENCY_BACKPRESSURE",
+      "EXACTLY_ONCE_LEASE_CLOSE"
+    ],
+    "R01": [
+      "ASSET_1_100_10000_MATRIX",
+      "LARGE_MEDIA_PROXY",
+      "P50_P95_PEAK_MEMORY",
+      "NO_SINGLE_SAMPLE_PASS",
+      "ENQUEUE_TO_PUBLISHED_LATENCY",
+      "FINAL_HEARTBEAT_GAP",
+      "EXPLICIT_COMPLETED_JOB_IDS",
+      "ZERO_HANG_COUNT"
+    ]
+  },
+  "requiresAcceptedS10_6Reconciliation": true,
+  "scaleCaseMetrics": [
+    {
+      "caseID": "ASSET_1",
+      "expectedLogicalChunkCount": 1,
+      "measurementRepetitions": 20
+    },
+    {
+      "caseID": "ASSET_100",
+      "expectedLogicalChunkCount": 1,
+      "measurementRepetitions": 20
+    },
+    {
+      "caseID": "ASSET_10000",
+      "expectedLogicalChunkCount": 20,
+      "measurementRepetitions": 20
+    },
+    {
+      "caseID": "LARGE_MEDIA_PROXY",
+      "expectedLogicalChunkCount": 512,
+      "measurementRepetitions": 20,
+      "proxyBacking": "FILE_BACKED_SPARSE"
+    }
+  ],
+  "scaleCases": [
+    {
+      "assetCount": 1,
+      "budgetReference": "ASSET_1",
+      "caseID": "ASSET_1",
+      "fixture": "ASSET_1",
+      "proxyByteCount": 0
+    },
+    {
+      "assetCount": 100,
+      "budgetReference": "ASSET_100",
+      "caseID": "ASSET_100",
+      "fixture": "ASSET_100",
+      "proxyByteCount": 0
+    },
+    {
+      "assetCount": 10000,
+      "budgetReference": "ASSET_10000",
+      "caseID": "ASSET_10000",
+      "fixture": "ASSET_10000",
+      "proxyByteCount": 0
+    },
+    {
+      "assetCount": 1,
+      "budgetReference": "LARGE_MEDIA_PROXY",
+      "caseID": "LARGE_MEDIA_PROXY",
+      "fixture": "LARGE_MEDIA_PROXY",
+      "proxyByteCount": 536870912
+    }
+  ],
+  "schema": "ConcurrencyScaleCorpusManifestV1",
+  "schemaVersion": 1,
+  "secretsPresent": false,
+  "testPath": "FieldEvidenceAppTests/V9_09ConcurrencyScaleTests.swift"
+}

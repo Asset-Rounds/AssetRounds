@@ -1,0 +1,63 @@
+from pathlib import Path
+p=Path('.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift')
+s=p.read_text()
+s=s.replace('''            && originalCleanupOperation != nil && coldCleanupPermit != nil && coldCleanupEffect != nil''','''            && (originalCleanupOperation != nil || coldCleanupTerminalRetirement != nil)
+            && coldCleanupPermit != nil && coldCleanupEffect != nil''',1)
+s=s.replace('''        try settleOriginalCleanupRootProjection()
+        try requireSchema2ColdCleanupEffect(permit)
+    }
+
+    @MainActor
+    private func requireSchema2CleanupLineage''','''        if coldCleanupControlAttempt != nil && !coldCleanupTerminalRemovalStarted {
+            try settleOriginalCleanupRootProjection()
+        }
+        try requireSchema2ColdCleanupEffect(permit)
+    }
+
+    @MainActor
+    private func requireSchema2CleanupLineage''',1)
+s=s.replace('''+ (coldCapturedOpaqueAuxiliaryRosterBytes == nil ? [] : [Self.auxiliaryRosterName])
+            + ((coldOwnRosterFact''','''+ ((coldCapturedOpaqueAuxiliaryRosterBytes != nil || originalAuxiliaryPublishedReceipt != nil) ? [Self.auxiliaryRosterName] : [])
+            + (originalRetiredCommitmentReceipt == nil ? [] : [Self.originalRetiredCommitmentName])
+            + (originalRetiredStageIdentityReceipt == nil ? [] : [Self.originalRetiredStageIdentityName])
+            + ((coldOwnRosterFact''',1)
+s=s.replace('''            } else if name == Self.rosterName, let bytes = coldOwnRosterBytes,''','''            } else if name == Self.auxiliaryRosterName, let receipt = originalAuxiliaryPublishedReceipt {
+                leaf = .init(bytes: receipt.canonicalBytes, fact: receipt.recordFact, policy: nil)
+            } else if name == Self.originalRetiredCommitmentName, let receipt = originalRetiredCommitmentReceipt {
+                leaf = .init(bytes: receipt.canonicalBytes, fact: receipt.recordFact, policy: nil)
+            } else if name == Self.originalRetiredStageIdentityName, let receipt = originalRetiredStageIdentityReceipt {
+                leaf = .init(bytes: receipt.canonicalBytes, fact: receipt.recordFact, policy: nil)
+            } else if name == Self.rosterName, let bytes = coldOwnRosterBytes,''',1)
+# The already-authentic terminal authority survives the original operation's
+# EX transfer. The binding is never an issuer and every effect rechecks it.
+for kind in ['replaceCleanupPhase','publishTerminal','requireTerminal','removeTerminalControls']:
+    start=s.index('            kind: .'+kind)
+    # terminal/phase authoritative argument is checked before entering primitives.
+    end=s.index('        try beginSchema2ColdCleanupControlScope(permit)',start)
+    s=s[:end]+'''        try retirement.requireNamespaceAbsent()
+        coldCleanupTerminalRetirement = retirement
+'''+s[end:]
+# Exact closed transfer prefix, including the single positively predeclared
+# active next leaf. No later surviving leaf can be adopted to fill a hole.
+needle='''        // No indexed-dependent effect is admitted until the complete index
+'''
+pos=s.index(needle)
+s=s[:pos]+'''        var transferOrder: [String] = []
+        for leafName in sources.sources.map(\\.leafName) + [sources.c16PlanLeafName,
+            EraseSchema2ColdCleanupGrammarV1.sourcesName] {
+            if !transferOrder.contains(leafName) { transferOrder.append(leafName) }
+        }
+        let present = try coldNamesChecked().filter {
+            transferOrder.contains(EraseSchema2ColdCleanupGrammarV1.canonicalName($0))
+        }
+        let canonicals = Set(present.filter { transferOrder.contains($0) })
+        guard let count = (0...transferOrder.count).first(where: {
+            canonicals == Set(transferOrder.prefix($0))
+        }) else { throw EraseIntentStoreError.invalidAuthority }
+        let activeNext = count < transferOrder.count
+            ? EraseSchema2ColdCleanupGrammarV1.temporaryName(transferOrder[count]) : nil
+        guard present.filter({ !transferOrder.contains($0) }).allSatisfy({ $0 == activeNext }) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+''' + s[pos:]
+p.write_text(s)

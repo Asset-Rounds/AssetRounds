@@ -1,0 +1,158 @@
+{
+  "$defs": {
+    "ExactDecimalV1": {
+      "additionalProperties": false,
+      "properties": {
+        "mantissa": {
+          "type": "integer"
+        },
+        "scale": {
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mantissa",
+        "scale"
+      ],
+      "type": "object"
+    },
+    "ExactRoundingReceiptV1": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "EXACT",
+            "NEAREST_TOWARD_ZERO",
+            "NEAREST_AWAY_FROM_ZERO",
+            "TIE_EVEN_UNCHANGED",
+            "TIE_EVEN_ADJUSTED"
+          ],
+          "type": "string"
+        },
+        "policy": {
+          "const": "TIES_TO_EVEN_V1"
+        },
+        "remainder": {
+          "type": "integer"
+        },
+        "roundedMantissa": {
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "sourceDenominator": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sourceNumerator": {
+          "type": "integer"
+        },
+        "targetScale": {
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "truncatedMantissa": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "policy",
+        "sourceNumerator",
+        "sourceDenominator",
+        "targetScale",
+        "truncatedMantissa",
+        "remainder",
+        "roundedMantissa",
+        "disposition"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://assetrounds.invalid/v23/ExactMeasurementV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canonicalUnitID": {
+      "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+      "type": "string"
+    },
+    "canonicalValue": {
+      "$ref": "#/$defs/ExactDecimalV1"
+    },
+    "captureMethodID": {
+      "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+      "type": "string"
+    },
+    "conversionPolicyVersion": {
+      "const": "KERNEL_UNIT_POLICY_V1"
+    },
+    "dimension": {
+      "enum": [
+        "DIMENSIONLESS",
+        "LENGTH",
+        "ILLUMINANCE",
+        "DURATION",
+        "TEMPERATURE"
+      ],
+      "type": "string"
+    },
+    "enteredUnitID": {
+      "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+      "type": "string"
+    },
+    "enteredValue": {
+      "$ref": "#/$defs/ExactDecimalV1"
+    },
+    "precisionScale": {
+      "maximum": 9,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "roundingReceipt": {
+      "$ref": "#/$defs/ExactRoundingReceiptV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "source": {
+      "enum": [
+        "MANUAL_ENTRY",
+        "INSTRUMENT_OBSERVED",
+        "IMPORTED",
+        "DERIVED"
+      ],
+      "type": "string"
+    },
+    "uncertaintyCanonical": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExactDecimalV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "enteredValue",
+    "enteredUnitID",
+    "canonicalValue",
+    "canonicalUnitID",
+    "dimension",
+    "precisionScale",
+    "uncertaintyCanonical",
+    "source",
+    "captureMethodID",
+    "conversionPolicyVersion",
+    "roundingReceipt"
+  ],
+  "title": "ExactMeasurementV1",
+  "type": "object"
+}

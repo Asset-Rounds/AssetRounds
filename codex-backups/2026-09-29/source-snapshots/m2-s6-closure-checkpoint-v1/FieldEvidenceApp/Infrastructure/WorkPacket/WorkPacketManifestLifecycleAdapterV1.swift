@@ -1,0 +1,290 @@
+import Foundation
+
+enum C34WorkPacketNavigationLifecycleBoundaryV1 {
+    static let restorationUsesReadProjection = true
+    static let restorationCommitsWorkPacket = false
+}
+
+enum WorkPacketScheduleLifecycleBoundaryV1 { static let dueQueueCreatesRows = false }
+
+enum C51WorkPacketScheduleLifecycleBoundaryV1 {
+    static let adapterIsNotOccurrenceWriter = true
+    static let scheduleClosureMetadataIsDerivedOnly = true
+    static let canonicalWorkPacketWriterRemainsUnchanged = true
+
+    static func validate(_ metadata: C51ScheduleClosureMetadataV1) throws {
+        try metadata.validate()
+    }
+}
+
+/// Read-only bridge to the canonical V15 rows. Implementations must read the
+/// one workspace store; this protocol is not a persistence or writer owner.
+@MainActor protocol WorkPacketManifestRecordSourceV1: AnyObject {
+    func manifests(workspaceID: WorkspaceID) throws -> [WorkPacketManifestV1]
+    func claims(workspaceID: WorkspaceID) throws -> [WorkItemClaimV1]
+    func leases(workspaceID: WorkspaceID) throws -> [WorkLeaseV1]
+    func releases(workspaceID: WorkspaceID) throws -> [WorkReleaseV1]
+    func handoffs(workspaceID: WorkspaceID) throws -> [WorkHandoffV1]
+}
+
+@MainActor final class WorkPacketManifestLifecycleAdapterV1 {
+    private let source: any WorkPacketManifestRecordSourceV1
+
+    init(source: any WorkPacketManifestRecordSourceV1) {
+        self.source = source
+    }
+
+    func manifest(
+        workspaceID: WorkspaceID,
+        manifestID: UUID
+    ) throws -> WorkPacketManifestV1 {
+        let matches = try source.manifests(workspaceID: workspaceID).filter {
+            $0.workspaceID == workspaceID && $0.manifestID == manifestID
+        }
+        guard !matches.isEmpty, let value = matches.first else {
+            throw WorkPacketFailureV1.invalidValue
+        }
+        guard Set(matches.map(\.manifestSHA256)).count == 1 else {
+            throw WorkPacketFailureV1.divergentReplay
+        }
+        try value.validate()
+        return value
+    }
+
+    /// Resolves a historic packet only by its complete immutable reference.
+    /// It deliberately has no fallback to the newest packet for an ID.
+    func manifest(
+        workspaceID: WorkspaceID,
+        reference: WorkPacketManifestReferenceV1
+    ) throws -> WorkPacketManifestV1 {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw WorkPacketFailureV1.invalidValue
+        }
+        let matches = try source.manifests(workspaceID: workspaceID).filter {
+            $0.workspaceID == workspaceID &&
+                $0.manifestID == reference.manifestID &&
+                $0.packetID == reference.packetID &&
+                $0.packetVersion == reference.packetVersion &&
+                $0.manifestSHA256 == reference.manifestSHA256
+        }
+        guard matches.count == 1, let value = matches.first,
+              try WorkPacketManifestReferenceV1(value) == reference else {
+            throw WorkPacketFailureV1.divergentReplay
+        }
+        return value
+    }
+
+    /// Returns a displayable historic item only when it remains exactly bound
+    /// to the selected immutable packet reference. This is read-only; claims,
+    /// resumes, and writes remain outside this adapter.
+    func item(
+        workspaceID: WorkspaceID,
+        manifestReference: WorkPacketManifestReferenceV1,
+        itemReference: WorkPacketItemReferenceV1
+    ) throws -> (manifest: WorkPacketManifestV1, item: WorkPacketItemV1) {
+        let manifest = try manifest(workspaceID: workspaceID, reference: manifestReference)
+        try itemReference.validate()
+        guard itemReference.workspaceID == workspaceID,
+              itemReference.packetID == manifest.packetID,
+              itemReference.packetVersion == manifest.packetVersion,
+              itemReference.manifestSHA256 == manifest.manifestSHA256 else {
+            throw WorkPacketFailureV1.invalidValue
+        }
+        let matches = manifest.items.filter {
+            $0.itemID == itemReference.itemID &&
+                $0.expectedRevision == itemReference.expectedRevision &&
+                $0.itemSHA256 == itemReference.itemSHA256
+        }
+        guard matches.count == 1, let item = matches.first,
+              try WorkPacketItemReferenceV1(manifest: manifest, item: item) == itemReference else {
+            throw WorkPacketFailureV1.divergentReplay
+        }
+        return (manifest, item)
+    }
+
+    func projection(
+        workspaceID: WorkspaceID,
+        manifestID: UUID,
+        at instant: Date
+    ) throws -> WorkPacketProjectionV1 {
+        let value = try manifest(workspaceID: workspaceID, manifestID: manifestID)
+        return try WorkPacketProjectionBuilderV1.rebuild(
+            workspaceID: workspaceID,
+            manifest: value,
+            claims: source.claims(workspaceID: workspaceID),
+            leases: source.leases(workspaceID: workspaceID),
+            releases: source.releases(workspaceID: workspaceID),
+            handoffs: source.handoffs(workspaceID: workspaceID),
+            at: instant
+        )
+    }
+
+    /// C23 read-only projection path. The source still supplies only the
+    /// existing work-packet rows; field-reference releases, bindings, and
+    /// readiness are explicit inputs from their canonical owner.
+    func projectionWithFieldReferences(
+        workspaceID: WorkspaceID,
+        manifestID: UUID,
+        fieldReferenceBindings: [FieldReferenceBindingV1],
+        fieldReferenceReleases: [FieldReferenceReleaseV1],
+        fieldReferenceReadiness: [FieldReferenceOfflineReadinessV1],
+        subjectState: FieldReferenceSubjectStateV1 = .active,
+        at instant: Date
+    ) throws -> WorkPacketFieldReferenceProjectionV1 {
+        let value = try manifest(workspaceID: workspaceID, manifestID: manifestID)
+        return try WorkPacketReferenceProjectionBuilderV1.rebuild(
+            workspaceID: workspaceID,
+            manifest: value,
+            claims: source.claims(workspaceID: workspaceID),
+            leases: source.leases(workspaceID: workspaceID),
+            releases: source.releases(workspaceID: workspaceID),
+            handoffs: source.handoffs(workspaceID: workspaceID),
+            fieldReferenceBindings: fieldReferenceBindings,
+            fieldReferenceReleases: fieldReferenceReleases,
+            fieldReferenceReadiness: fieldReferenceReadiness,
+            subjectState: subjectState,
+            at: instant
+        )
+    }
+
+    /// Read-back guard used by session consumers before they display or
+    /// finalize a packet. A stale or missing C23 binding is never inferred.
+    func validateFieldReferenceBinding(
+        workspaceID: WorkspaceID,
+        manifestID: UUID,
+        binding: FieldReferenceBindingV1,
+        release: FieldReferenceReleaseV1,
+        readiness: FieldReferenceOfflineReadinessV1,
+        subjectState: FieldReferenceSubjectStateV1 = .active
+    ) throws -> WorkSessionFieldReferenceProjectionV1 {
+        let value = try manifest(workspaceID: workspaceID, manifestID: manifestID)
+        return try value.c23ValidateReferenceBinding(
+            binding,
+            release: release,
+            readiness: readiness,
+            subjectState: subjectState
+        )
+    }
+}
+
+/// C29 typed integration anchor: this owner consumes an exact immutable plan
+/// revision reference and may not reinterpret current plan state implicitly.
+enum C29PlanIntegration_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1 {
+    static func validatePlanRevision(_ value: PlanRevisionReferenceV1) throws {
+        try value.validate()
+    }
+}
+
+enum C37PoseIntegration_FieldEvidenceApp_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1_swift {
+    /// Typed C37 boundary: inherited owners may retain an immutable pose
+    /// reference, but cannot infer pose, compliance, or current-state truth.
+    static func validate(reference: AssetPoseEventReferenceV1,
+                         in workspaceID: WorkspaceID) throws {
+        try reference.validate()
+        guard reference.workspaceID == workspaceID else {
+            throw PlacementPoseFailureV1.wrongWorkspace
+        }
+    }
+}
+// C30: this seam consumes only the frozen, metadata-only operating-context projection.
+enum C30ConsumerBoundaryV1_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1 {
+    static let registration = C30ConsumerRegistrationV1(ownerPath: "FieldEvidenceApp/Infrastructure/WorkPacket/WorkPacketManifestLifecycleAdapterV1.swift", role: .workPacket)
+}
+
+enum C31LightingConsumerBoundary_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1 {
+    static let registrationID = "C31_LIGHTING_CONSUMER/work-packet-lifecycle-adapter"
+    static let compatibility = C31LightingCompatibilityPolicyV1()
+    static func validate(projection: C31LightingReportProjectionV1) throws {
+        try compatibility.validate()
+        try C31LightingProjectionPolicyV1.validate(projection)
+    }
+}
+
+/// C32 keeps assistance candidates outside every durable and derived surface;
+/// only explicit acceptance may reach the existing canonical writer/receipt path.
+enum C32AssistanceCompatibility_WorkPacket_WorkPacketManifestLifecycleAdapterV1 {
+    enum ProposalDispositionV1: Sendable {
+        case nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+    }
+
+    enum AcceptanceDispositionV1: Sendable {
+        case durableThroughExistingCanonicalWriter
+    }
+
+    static func disposition(
+        for proposal: AssistanceProposalV1
+    ) throws -> ProposalDispositionV1 {
+        try proposal.validate()
+        guard !AssistancePersistenceEnrollmentV1.proposalIsPersistent,
+              !AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent else {
+            throw AssistanceContractFailureV1.nonCanonicalData
+        }
+        switch proposal.verificationState {
+        case .unverified:
+            return .nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+        }
+    }
+
+    static func disposition(
+        for receipt: AssistanceAcceptanceReceiptV1
+    ) throws -> AcceptanceDispositionV1 {
+        try receipt.validate()
+        guard AssistancePersistenceEnrollmentV1.durableModelCount == 1 else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+        return .durableThroughExistingCanonicalWriter
+    }
+
+    static let capabilityScratchIsDiscardedOnTerminalReview = true
+    static let manualFallbackRemainsAvailable = true
+    static let interruptionNeverPromotesAProposal = true
+    static let createsParallelStoreOrWriter = false
+}
+
+enum C33TemporalEvidenceConformance_FieldEvidenceApp_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1_swift {
+    static let durableFamilyCount = TemporalEvidencePersistenceEnrollmentV1.durableModelCount
+    static func validate(clip: TemporalEvidenceClipV1,
+                         anchor: TimecodedEvidenceAnchorV1) throws {
+        try clip.validateIntrinsic()
+        try anchor.validate(clip: clip)
+        guard durableFamilyCount == 2 else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+    }
+}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row128 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}
+enum C46OperationalContactConformance_FieldEvidenceApp_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let noContactProjectionOrNetworkDelivery = true
+}
+
+// MARK: - C52 lifecycle and privacy boundary
+enum C52ServiceRequestBoundary_FieldEvidenceApp_Infrastructure_WorkPacket_WorkPacketManifestLifecycleAdapterV1_swift {
+    static let acceptedCanonicalRecordPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let acceptedEventPersistence: ServiceRequestPersistenceClassV1 = .canonicalPersistent
+    static let duplicateProjectionPersistence: ServiceRequestPersistenceClassV1 = .nonpersistentDerived
+    static let rawCapabilityPersistence: ServiceRequestPersistenceClassV1 = .prohibitedPersistent
+    static let acceptedLifecycleEnrollment: ServiceRequestPersistenceEnrollmentV1.Type = ServiceRequestPersistenceEnrollmentV1.self
+    static let cloneOrForkInvalidatesActiveCapabilities: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.cloneOrForkInvalidatesOutstandingCapabilities
+    static let duplicateProjectionIsRebuildable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.derivedProjectionIsRebuildable &&
+        !ServiceRequestNoncanonicalBoundaryV1.duplicateProjectionIsPersistent
+    static let rawCapabilityIsExcludedFromReportsAndDiagnostics: Bool =
+        !ServiceRequestLifecycleRegistrationBoundaryV1.rawCapabilityAppearsInReportsOrDiagnostics
+    static let sharedPortableFilesAreRecallable: Bool =
+        ServiceRequestLifecycleRegistrationBoundaryV1.escapedPortableFilesCanBeRecalled
+    static let unverifiedAssertionsAreVerified: Bool = false
+    static let automaticWorkNetworkSLAOrAIClaimsPermitted: Bool = false
+}

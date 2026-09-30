@@ -1,0 +1,106 @@
+{
+  "author": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh"
+  },
+  "baseline": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/BASELINE.json",
+    "sha256": "30c40dcbf0661d0b3065c8dfc4dd86d197b545662ba58a842f5b9652650eedb7",
+    "sourceCount": 1206,
+    "sourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+    "sourceMismatches": []
+  },
+  "dependencies": {
+    "ledgerScopeFragment": {
+      "firstPDeclarationsPresentAtSeal": false,
+      "path": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/BOUNDARY_SCOPE_TYPES_FRAGMENT.swift",
+      "sha256": "918587e97c98fdfffcb97824d931fd822f28ae58a357b27e2e29b220b9a9366b",
+      "status": "Exact firstP declarations frozen by direct Ledger coordination; real private issuer and each-boundary actual Store plan/ordinal proof must be coupled-source reviewed, never inferred from this PFP packet."
+    }
+  },
+  "head": "dbdb4649e3e405eb50a1d2b443c8d7c061831a1a",
+  "interface": {
+    "api": "@MainActor static func observeEraseC16FirstPTemporalPairWithCheckedClose(finalURL: URL, partialURL: URL, scope: OriginalEraseC16FirstPObservationScopeV1, retainUncertainDescriptor: (Int32) -> Void) throws -> [TemporalPolicyObservationV1]",
+    "bounds": "Per file expectedByteCount 0...1_073_741_824; fixed64KiB buffer. Exact whole recorded physical tree<=1GiB/100k/64depth remains physical/Ledger caller obligation; API cannot issue/override these proofs.",
+    "issuerAndBoundaryRequirements": "Actual immutable planSHA and current Store C16 ordinal at issuance AND EVERY IO boundary; actual EX/G/op/Store source-progress binding plus permanent memory/local-root lineage; no full observer recursion or cached acceptance.",
+    "ordinalRule": "0 <= currentOrdinal <= assignedSettlementOrdinal; fixed .settleFirstPPartial from immutable plan only; stale Store ordinal/plan refuses.",
+    "originalFactsRule": "Both original9 facts exactly equal each other; describe same dev/ino/mode/nlink2/size/mtime/ctime. Every actual held/named current11 projected9 must exactly equal assigned original9. Immutable single original SHA binds both aliases.",
+    "pairFields": {
+      "assignedSettlementOrdinal": "Int",
+      "currentOrdinal": "Int",
+      "expectedByteCount": "Int64",
+      "expectedDevice": "UInt64",
+      "expectedSHA256": "String",
+      "finalFullFact": "String",
+      "finalOriginalFact": "String",
+      "finalURL": "URL",
+      "partialFullFact": "String",
+      "partialOriginalFact": "String",
+      "partialURL": "URL",
+      "planSHA256": "String"
+    },
+    "pairType": "OriginalEraseC16FirstPPairV1",
+    "scopeFields": {
+      "currentOrdinal": "Int",
+      "operationID": "UUID",
+      "planSHA256": "String"
+    },
+    "scopeMethods": [
+      "requireCurrentBinding() throws",
+      "requirePair(finalURL: URL, partialURL: URL) throws -> OriginalEraseC16FirstPPairV1",
+      "retainObservationAttempt(_ attempt: OriginalEraseC16CurrentTemporalObservationAttemptV1)",
+      "poisonOnUncertainObservation()"
+    ],
+    "scopeType": "@MainActor final class OriginalEraseC16FirstPObservationScopeV1; Ledger fileprivate actual issuer"
+  },
+  "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1",
+  "predecessor": {
+    "approvalNotInherited": true,
+    "bindingSHA256": "2b18d4a50f66375add2cabf20145a9dea35b1cf1c6a435eb6c07073c216ee7ea",
+    "candidateSHA256": "8db23f0eddb1f73a0702c61bd04df59f60a253660b64cfa4fda5612a02daee7a",
+    "entirePacketPreserved": true,
+    "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1"
+  },
+  "preserved": {
+    "originalCanonicalCurrentPairAPIUnchanged": true,
+    "priorCandidateEveryLinePreservedAdditively": true,
+    "privateTemporalPredicateAndDefaultCallbacksByteIdenticalToPredecessor": true,
+    "strictDefaultNlink1PolicyUnchanged": true,
+    "trackedSourceMapUnchanged": true
+  },
+  "schemaVersion": 1,
+  "scope": "PFP-only ignored successor packet. No tracked1206/primary/verification/Products/tests/CI/pins/docs/S10/Release/Git writes.",
+  "source": {
+    "beforePath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/before/ProtectedFilePolicy.swift",
+    "beforeSHA256": "8db23f0eddb1f73a0702c61bd04df59f60a253660b64cfa4fda5612a02daee7a",
+    "candidatePath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/candidate/ProtectedFilePolicy.swift",
+    "candidateSHA256": "4e5b589273907064a2da59328a9fe421d17a63b2b94665bc76f4b9c32966cbf3",
+    "diffPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/ProtectedFilePolicy.diff",
+    "diffSHA256": "918e298d78656ec1ee647f4e15327802af2b6fb729267410ef90f5cb1da68636",
+    "removedDiffLines": 0,
+    "trackedPath": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+  },
+  "verification": {
+    "acceptanceCredit": false,
+    "ciPins": "Root actual-byte succession and full381+42 CI due",
+    "compiler": "NOT RUN; root coupled DEBUG/nonDEBUG compilation due",
+    "debugParse": {
+      "command": "xcrun swiftc -frontend -parse -D DEBUG .codex-temp/cold-pair-policy-firstp-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "exitCode": 0,
+      "logPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/parse-debug.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "fullGates": "All mandatory full same-head gates remain due",
+    "gateCredit": false,
+    "independentReview": "Requested from same read-only gpt-6.1-sol xhigh reviewer after seal; no verdict inferred",
+    "native": "NOT RUN; root affected development runtime due",
+    "nondebugParse": {
+      "command": "xcrun swiftc -frontend -parse .codex-temp/cold-pair-policy-firstp-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "exitCode": 0,
+      "logPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/parse-nondebug.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtimeCredit": false
+  },
+  "worktree": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds"
+}

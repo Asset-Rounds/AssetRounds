@@ -1,0 +1,13 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "28b3a1c907e98f5d8b276c19278d5241bcdb040ffbdb6c2473ddb16b83095bf8",
+  "afterSHA256": "818673231202c56f545c3d87019997d53bffee0ea52916611a75ea090fe88fe5",
+  "requiredContractSHA256": "d27e7e334e97714b9a20a1c52c07a7bbf36f38f58814dbfceeba7bcbc1f65874",
+  "change": "Distinct published Sources/Plan/noProgress read-only renewal, required actual source token checked per borrowed source/page boundary; no fabricated referencePlan/current ordinal/Progress/effects",
+  "limitations": [
+    "Actual Router private Store-backed callback and paged Source checkpoint publication implementation due",
+    "Existing base admission/whole-capacity/complete generic directory source prerequisites unchanged",
+    "Syntax/semantic compilation/runtime/review pending"
+  ]
+}

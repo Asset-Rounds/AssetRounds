@@ -1,0 +1,108 @@
+{
+  "schema": "V23P04C39RatingSupportWorkflowCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C39",
+  "testOnly": true,
+  "synthetic": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "scenarioIDs": [
+    "V23-P04-C39-G01",
+    "V23-P04-C39-A01",
+    "V23-P04-C39-H01",
+    "V23-P04-C39-I01",
+    "V23-P04-C39-R01"
+  ],
+  "thresholds": {
+    "minimumDistinctSeries": 3,
+    "minimumCompletionSpanSeconds": 604800,
+    "minimumAttemptSeparationSeconds": 10368000,
+    "rollingYearSeconds": 31536000,
+    "maximumAttemptsPerRollingYear": 2,
+    "eraseCooldownSeconds": 31536000
+  },
+  "boundaryVectors": [
+    {"caseID": "SEVEN_DAYS_MINUS_ONE_SECOND", "seconds": 604799, "eligible": false},
+    {"caseID": "SEVEN_DAYS_EXACT", "seconds": 604800, "eligible": true},
+    {"caseID": "ONE_HUNDRED_TWENTY_DAYS_MINUS_ONE_SECOND", "seconds": 10367999, "eligible": false},
+    {"caseID": "ONE_HUNDRED_TWENTY_DAYS_EXACT", "seconds": 10368000, "eligible": true},
+    {"caseID": "ROLLING_YEAR_MINUS_ONE_SECOND", "seconds": 31535999, "eligible": false},
+    {"caseID": "ROLLING_YEAR_EXACT", "seconds": 31536000, "eligible": true},
+    {"caseID": "ERASE_COOLDOWN_MINUS_ONE_SECOND", "seconds": 31535999, "eligible": false},
+    {"caseID": "ERASE_COOLDOWN_EXACT", "seconds": 31536000, "eligible": true}
+  ],
+  "includedReadbacks": [
+    "LOCAL_FINALIZATION_RECEIPT_MATCHING_CURRENT_FINALIZED_SNAPSHOT_V1",
+    "LOCAL_FINALIZATION_RECEIPT_MATCHING_CURRENT_FINALIZED_SNAPSHOT_V2"
+  ],
+  "excludedCompletionCases": [
+    "PRACTICE",
+    "IMPORTED",
+    "HISTORIC",
+    "DUPLICATE_RECEIPT",
+    "DUPLICATE_ACTIVITY_SERIES",
+    "REPORT_GENERATION",
+    "AMENDMENT",
+    "REOPENED",
+    "SUPERSEDED",
+    "NONFINAL",
+    "MISSING_RECEIPT",
+    "MISSING_READBACK",
+    "MISMATCHED_READBACK",
+    "NONCURRENT_READBACK",
+    "WRONG_WORKSPACE"
+  ],
+  "activeContextSuppressions": [
+    "ERROR",
+    "RECOVERY",
+    "PURCHASE",
+    "PERMISSION",
+    "IMPORT",
+    "EXPORT_OR_SHARE",
+    "CAPTURE",
+    "DESTRUCTIVE_CONFIRMATION",
+    "ACTIVE_WORK"
+  ],
+  "ledgerStates": [
+    "ABSENT_FRESH_INSTALL",
+    "VALID",
+    "ERASED_COOLDOWN",
+    "CORRUPT",
+    "FUTURE",
+    "MIGRATION_FAILED"
+  ],
+  "interruptionVectors": [
+    "BEFORE_ATTEMPT_RESERVATION",
+    "AFTER_ATTEMPT_RESERVATION_BEFORE_SYSTEM_CALL",
+    "AFTER_SYSTEM_CALL_BEFORE_RETURN",
+    "DUPLICATE_SAME_EVENT",
+    "KILL_AND_RELAUNCH"
+  ],
+  "truth": {
+    "attemptDisposition": "SYSTEM_CONSIDERATION_REQUESTED",
+    "systemPromptDisplayKnown": false,
+    "supportAlwaysVisible": true,
+    "supportConditionedOnRating": false,
+    "ordinaryResetClearsAttemptHistory": false,
+    "eraseRetainsCustomerData": false,
+    "sceneUnavailableRecordsAttempt": false,
+    "storeNoOpIsSuccess": false,
+    "automaticRequestRequiresVerifiedAppStoreID": true
+  },
+  "claims": {
+    "telemetryWritten": false,
+    "analyticsWritten": false,
+    "networkWritten": false,
+    "marketingWritten": false,
+    "contactWritten": false,
+    "reviewContentStored": false,
+    "starValueStored": false,
+    "sentimentStored": false,
+    "promptDisplayStored": false,
+    "submissionStored": false,
+    "storeResponseStored": false,
+    "conversionStored": false,
+    "rewardOffered": false,
+    "ratingEffectClaimed": false
+  }
+}

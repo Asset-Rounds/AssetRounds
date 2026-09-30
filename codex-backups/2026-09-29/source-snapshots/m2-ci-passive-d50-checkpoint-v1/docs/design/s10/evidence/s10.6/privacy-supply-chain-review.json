@@ -1,0 +1,761 @@
+{
+  "schema_version": "s10.6.privacy-supply-chain-review.v1",
+  "document_status": "PREPARED_SOURCE_AND_SCOPED_HUMAN_REVIEW",
+  "review_scope": "source_only_no_archive_no_signing_no_runtime_network_capture",
+  "source_product_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+  "accepted_s10_4_evidence_head": "e2189af36a89caf815cf078756341c1f1542f7df",
+  "accepted_s10_4_receipt_head": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
+  "release_ready": false,
+  "source_files": [
+    {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "sha256": "74D9336AB668E1991BE1574AB5FD59647AB2F5C60F07EDC129A2CC0706E8887F"
+    },
+    {
+      "path": "FieldEvidenceApp/PrivacyInfo.xcprivacy",
+      "sha256": "01950CEEFB6C8E05BEFCCA4D769E085A9A4BEEABA31A942FB684CE0095D29F8A"
+    },
+    {
+      "path": "FieldEvidenceApp/Info.plist",
+      "sha256": "0DA8191E0B392DE33AE39BDF32E01948CF4FA1CB13C1B6FD33E3132240601F56"
+    },
+    {
+      "path": "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "sha256": "6E79F6C89E3063B18A7F250909163DB78F23175C9159BDB4621CB8C2208709B3"
+    },
+    {
+      "path": "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+      "sha256": "7B16D90786C0E94ECEDB61F78367AB087B85B994D09BCDE1C5DBFD340C084DC2"
+    },
+    {
+      "path": "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+      "sha256": "333A2B8462C86E7EB2D37E65E7501BCBAA80B3002BAD77251EA56669D9569C71"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift",
+      "sha256": "3B57F7D13052B789C54191000A9348E4EC25792648EDE8AC64F3F2679AE3C6A5"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+      "sha256": "3305DF4288073FF24EB2EF69CDBD3CDEEAE9D2EED3428D5AC7FF9C4FE85FAD57"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift",
+      "sha256": "9F877276015564F390A8924A237448383F2E158DF235EBD91BDF41EEAE406E25"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+      "sha256": "B6DCC3D5F26CD95CB32F4C328496D82A033E0E7FB426D87EFCD2120CD8D9DE7C"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+      "sha256": "D2708F88A8C51794EB255AC413C7356529A64B4B1C324E0FCBA1A7298595AD50"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "sha256": "DE35D741F64FE954DC0855A37557328404D8CF3124623DE8E58315CF522794E4"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Media/MediaNormalizerV1.swift",
+      "sha256": "251E8EE8B3E9975A42883D4E76AC06C7FBD954AD7C5A46AC22ED97971E469404"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+      "sha256": "C57AD0DF48160F4FE0956D151C0E40F5FC831AA85E91608768AE7BE25546CB33"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+      "sha256": "53B00167F20179F1BBAE89E699CDBFA5BCBAD546F41B38E0AE71BF813426F3B9"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+      "sha256": "4CF086DE5CA3FFC3AAD964CD1BC57D4526CADB558ED251697BB4DBD19507B5BA"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift",
+      "sha256": "535A99DCE4298C11B659FBA8FD936BC75A86FF7BB956949ED95A624C1EB3C00C"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitProductLoader.swift",
+      "sha256": "E449DA69EFD64AE6AE953707DB18A11175092CA428274AA3114B95A95012C9FF"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "sha256": "C7CD2DB4B51310DCD5670519453B6AE9DF95E125B1AA4A8E001DCEC539C47A7C"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "sha256": "B4A7FDD087CCBE4B0644EA81184209CDEADC960176D5C61CE851A5145FDA0782"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "sha256": "09B2B7B3A747A4D8FACD20735B53B5B63FEDEE788613EFA3F26FC622D12FC64F"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "sha256": "850D4C16EE31A12DFB78B1D07498BF428EC99FECE6153CF530F0A844C37316C4"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "sha256": "6B5126A224E0A62EE00C539CAAF6E4C88369D634F4AB6AC16AA4E4AA2EC71BB8"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+      "sha256": "E354214DBFDEE416892462E0419FBD3D2B474166E9FBD964364965B0B29060BA"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "sha256": "8CF0AF2E25352EE0EF7C19A2A063B9F51A06AD81188C05FFB736AFE05ABED056"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "sha256": "1034564457E01A5EA5CD496E765CC7EF5523404C155CA6632D926C0F67A4460C"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "sha256": "8F5A78E006C08081D740769D86B5884EB5B1E6D1C3F8A6DF29D2E3D08C4925A9"
+    },
+    {
+      "path": "TestFixtures/StoreKit/FieldEvidence.storekit",
+      "sha256": "5BD997964A9B5DAF7D00B8B9E4E85EF6D7F1ACEF0A7148FC37482F007CB6B071"
+    },
+    {
+      "path": "Release/PrivacyReviewV1.md",
+      "sha256": "531302FCCCB35819996358B8B89036F3CB4AF9A5CE99FD23EC85AAA0E179E208"
+    },
+    {
+      "path": "Release/UnsignedRCMetadataV1.json",
+      "sha256": "8213397E9326882BFBFB1DC491F92B170DB791482B10CF27EAC5FE63C5FED6AE"
+    },
+    {
+      "path": "Release/ReleaseInputManifestV1.json",
+      "sha256": "15EA1C720342EABC53247089639CC8DF8B75B66352008DF5D4F4091D453DC3EE"
+    },
+    {
+      "path": "Release/ProvidedReleaseValuesV1.json",
+      "sha256": "242E20FA46D9DE103027364324012C26C4D147BBD991A5F90A932946F0510281"
+    },
+    {
+      "path": "Release/LaunchSmokeEvidenceIndexV1.json",
+      "sha256": "889A74B438C0625BAE4273C8B3BB4DFA391A25D10D63F763046016883F6F1485"
+    },
+    {
+      "path": "docs/design/s10/authority/asset-manifest.json",
+      "sha256": "F771EB8FBD3D42960FC4B8C0A516A05E8B0FD16EBA2C88107ADD6A4E0D74F551"
+    },
+    {
+      "path": "docs/design/s10/s10-activation.json",
+      "sha256": "804DD9E6D6DC87E358F16CB9A9C5DAAE0727D192067836C6687B5890485CD184"
+    },
+    {
+      "path": "docs/design/s10/s10-store-readiness.json",
+      "sha256": "D8AB503B5864C812E4E808DC214D9351E95BA58DC496D6505905E69408DAEABA"
+    }
+  ],
+  "application_identity": {
+    "target": "FieldEvidenceApp",
+    "bundle_identifier": "com.palatis3.fieldrecord",
+    "display_name": "AssetRounds",
+    "marketing_version": "1.0",
+    "project_build_number": "1",
+    "minimum_ios_version": "18.0",
+    "configuration_values_match_debug_and_release": true,
+    "final_release_marketing_version_status": "PENDING",
+    "final_release_build_number_status": "PENDING"
+  },
+  "project_resource_inclusion": {
+    "application_group_type": "PBXFileSystemSynchronizedRootGroup",
+    "application_group_path": "FieldEvidenceApp",
+    "privacy_manifest_path": "FieldEvidenceApp/PrivacyInfo.xcprivacy",
+    "privacy_manifest_source_inclusion_status": "SOURCE_CONFIGURED_BY_SYNCHRONIZED_APP_ROOT",
+    "privacy_manifest_s9_test_contract": "Bundle.main PrivacyInfo.xcprivacy bytes must equal source bytes",
+    "privacy_manifest_s10_6_built_bundle_status": "NOT_RUN",
+    "asset_catalog_path": "FieldEvidenceApp/Resources/Assets.xcassets",
+    "appicon_build_setting": "AppIcon",
+    "storekit_fixture_path": "TestFixtures/StoreKit/FieldEvidence.storekit",
+    "storekit_fixture_resource_owner": "FieldEvidenceAppUITests",
+    "storekit_fixture_in_application_resources": false
+  },
+  "privacy_manifest": {
+    "path": "FieldEvidenceApp/PrivacyInfo.xcprivacy",
+    "source_status": "PRESENT_AND_WELL_FORMED_BY_INSPECTION",
+    "tracking": false,
+    "tracking_domains": [],
+    "collected_data_types": [],
+    "accessed_api_types": [
+      {
+        "category": "NSPrivacyAccessedAPICategoryDiskSpace",
+        "reasons": [
+          "E174.1"
+        ],
+        "source_evidence": [
+          "FieldEvidenceApp/Infrastructure/Storage/StoragePreflightService.swift"
+        ]
+      },
+      {
+        "category": "NSPrivacyAccessedAPICategoryFileTimestamp",
+        "reasons": [
+          "3B52.1",
+          "C617.1"
+        ],
+        "source_evidence": [
+          "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+          "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift"
+        ]
+      },
+      {
+        "category": "NSPrivacyAccessedAPICategoryUserDefaults",
+        "reasons": [
+          "CA92.1"
+        ],
+        "source_evidence": [
+          "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+        ]
+      }
+    ],
+    "system_boot_time_api_symbol_scan": {
+      "systemUptime": false,
+      "mach_absolute_time": false
+    },
+    "current_apple_reason_policy_review": "PENDING_OWNER_ARCHIVE_CURRENT_EXTERNAL_REVIEW"
+  },
+  "runtime_assets": [
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png",
+      "sha256": "1382E2923E5D6795C6672CB3C672477E4C9DC3FF528EA1E6713AD29AA7C20FEA"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png",
+      "sha256": "9082ABAAD84221FD34C97CB72E20DF92ED5C5EEC20A5B9E298A19C7194618B12"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png",
+      "sha256": "6D9527F0187EA15EFB1C5D5B177926E8D21A9022569F6DF361A8B4547B10D76F"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "sha256": "3489D417973CD3250806AED5A2D9D0C04C8C3AC639B40C43E2F6606A7701F2DF"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png",
+      "sha256": "48D85E616BD4081FFE7A99ACB0F31A2A63F979670C69ABB319E31D18B647E8F3"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png",
+      "sha256": "BD6EC428E43072222DB9091980786BB3905AA3862F411AF0E08B772C35BB4C38"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png",
+      "sha256": "371C48D2D5B37684490C4756ADE3450A06393CE7B411E6AD6EC9A1143C3C90E4"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/Contents.json",
+      "sha256": "F29B99ADEDAFFC6F6542D5AEEA8F7B060BEC922C247FB23E675AA3C0AD46D061"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png",
+      "sha256": "954EF0A3985E03CEF6872DB5BE5D231151B70F94B0F31C3F1C12AE84BC8973D9"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png",
+      "sha256": "678DC6F5A8D4E29595E26B8E6D8D49369F72788E2467DA4BF4C3A7F4FF676632"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png",
+      "sha256": "54D09DC39F9EF173261432E48586FACBED491050CA00C5EC4985D056000D90C4"
+    },
+    {
+      "path": "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json",
+      "sha256": "AD2AD925FF43AF8679A260248BFE4776387D8EACDAD5637E0536381D5D584D55"
+    }
+  ],
+  "runtime_asset_allowlist_comparison": {
+    "authority": "docs/design/s10/authority/asset-manifest.json plus docs/design/s10/s10-activation.json S10.2 installation map",
+    "expected_count": 12,
+    "actual_count": 12,
+    "missing_paths": [],
+    "unexpected_paths": [],
+    "content_hash_mismatches": [],
+    "source_status": "PASS",
+    "actual_project_asset_catalog_tracked_file_count": 38,
+    "catalog_file_categories": {
+      "runtime_asset_allowlist": 12,
+      "brand_semantic_color_contents": 6,
+      "legacy_worklight_color_contents": 19,
+      "catalog_root_contents": 1
+    },
+    "archive_asset_inventory_status": "NOT_RUN"
+  },
+  "dependency_and_framework_inventory": {
+    "package_swift_present": false,
+    "package_resolved_present": false,
+    "vendored_framework_or_xcframework_paths": [],
+    "project_package_references": [],
+    "app_package_product_dependencies": [],
+    "app_framework_build_phase_entries": [],
+    "source_imported_apple_modules": [
+      "AVFoundation",
+      "Combine",
+      "CoreFoundation",
+      "CoreGraphics",
+      "CoreText",
+      "CryptoKit",
+      "Darwin",
+      "Foundation",
+      "ImageIO",
+      "MessageUI",
+      "MetricKit",
+      "OSLog",
+      "PDFKit",
+      "PhotosUI",
+      "StoreKit",
+      "SwiftData",
+      "SwiftUI",
+      "UIKit",
+      "UniformTypeIdentifiers"
+    ],
+    "direct_urlsession_or_common_tracking_sdk_symbol_matches": [],
+    "source_tree_third_party_shipping_declaration_status": "NONE_FOUND",
+    "archive_embedded_framework_inventory_status": "NOT_RUN",
+    "test_storekit_fixture": {
+      "path": "TestFixtures/StoreKit/FieldEvidence.storekit",
+      "classification": "TEST_ONLY_NONPRODUCTION",
+      "release_authority": false
+    }
+  },
+  "source_data_boundaries": [
+    {
+      "boundary": "local_application_storage",
+      "source_result": "Application data roots are created under the app Application Support container; no custom backend source is configured.",
+      "source_evidence": [
+        "FieldEvidenceApp/App/FieldEvidenceAppApp.swift"
+      ],
+      "runtime_or_archive_confirmation": "NOT_RUN"
+    },
+    {
+      "boundary": "camera_and_photo_import",
+      "source_result": "Photo selection is user initiated and accepted image bytes are decoded and re-encoded into canonical JPEG output without copying source metadata dictionaries.",
+      "source_evidence": [
+        "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "FieldEvidenceApp/Infrastructure/Media/MediaNormalizerV1.swift"
+      ],
+      "runtime_or_archive_confirmation": "NOT_RUN"
+    },
+    {
+      "boundary": "reports_and_backups",
+      "source_result": "Report, backup, and restore transfers are routed through explicit system share, file exporter, or file importer actions.",
+      "source_evidence": [
+        "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+        "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+        "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift",
+        "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+        "FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift"
+      ],
+      "runtime_or_archive_confirmation": "NOT_RUN"
+    },
+    {
+      "boundary": "diagnostics",
+      "source_result": "Prepared diagnostics contain app version/build, device model/OS, bounded local counters, generation time, and bounded MetricKit summary; source UI states the exclusions before explicit export.",
+      "source_evidence": [
+        "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticExportV1.swift",
+        "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+        "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift"
+      ],
+      "runtime_or_archive_confirmation": "NOT_RUN"
+    },
+    {
+      "boundary": "feedback",
+      "source_result": "The editable system mail composer is opened only through user action and adds the prepared diagnostic JSON only for the explicit attach choice.",
+      "source_evidence": [
+        "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+        "FieldEvidenceApp/Features/Settings/FeedbackView.swift"
+      ],
+      "runtime_or_archive_confirmation": "NOT_RUN"
+    },
+    {
+      "boundary": "commerce",
+      "source_result": "Commerce source uses Apple StoreKit product and verified-transaction APIs; the checked-in StoreKit catalog belongs only to the UI-test target.",
+      "source_evidence": [
+        "FieldEvidenceApp/Infrastructure/Commerce/StoreKitProductLoader.swift",
+        "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+        "FieldEvidenceApp.xcodeproj/project.pbxproj",
+        "TestFixtures/StoreKit/FieldEvidence.storekit"
+      ],
+      "production_store_configuration_status": "PENDING",
+      "runtime_or_archive_confirmation": "NOT_RUN"
+    },
+    {
+      "boundary": "erase",
+      "source_result": "The explicit erase route clears app-owned local generations, commerce cache, diagnostics, and standard app defaults; it does not claim to cancel an Apple subscription.",
+      "source_evidence": [
+        "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+        "FieldEvidenceApp/Features/Settings/EraseAllView.swift"
+      ],
+      "runtime_or_archive_confirmation": "NOT_RUN"
+    }
+  ],
+  "s9_release_privacy_baseline": {
+    "status": "PRESERVED_UNSIGNED_BASELINE",
+    "privacy_review_status": "unsigned S9.1 review complete",
+    "app_store_privacy_answers_status": "PENDING",
+    "candidate_title_clearance_status": "PENDING",
+    "production_commerce_configuration_status": "PENDING",
+    "unsigned": true,
+    "release_ready": false,
+    "non_claims": [
+      "No signing was performed.",
+      "No archive or export was performed.",
+      "No TestFlight or App Store upload was performed.",
+      "No live URL, support email, title clearance, App Store record, privacy answer, credential, or signing value was invented.",
+      "The checked-in StoreKit configuration is CI-only and is not production product evidence."
+    ]
+  },
+  "trusted_s10_4_evidence": {
+    "product_head": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+    "evidence_head": "e2189af36a89caf815cf078756341c1f1542f7df",
+    "receipt_head": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
+    "evidence_documents": [
+      {
+        "head": "e2189af36a89caf815cf078756341c1f1542f7df",
+        "path": "docs/design/s10/s10-accessibility-common-tasks.json",
+        "sha256": "CE2BB6143140825749783D00F25D8AF5A8F1290274E39AE59D1421F8AC4E0F49"
+      },
+      {
+        "head": "e2189af36a89caf815cf078756341c1f1542f7df",
+        "path": "docs/design/s10/s10-token-coverage.json",
+        "sha256": "42476BEFB8283F35D5A61BA3D3693D5B0181024493DE33304738FBAF71AA5AD6"
+      },
+      {
+        "head": "e2189af36a89caf815cf078756341c1f1542f7df",
+        "path": "docs/design/s10/s10-visual-regression.json",
+        "sha256": "D9086AE7D1DB74BEF22D85088BA5356EA55960868B4A36C0A1683215C9A71E64"
+      },
+      {
+        "head": "e2189af36a89caf815cf078756341c1f1542f7df",
+        "path": "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+        "sha256": "A931F6DF332A834C445A1B03BAE2A710405A9D4ADFD5F486AE0B6ABACCA1383B"
+      },
+      {
+        "head": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
+        "path": "docs/design/s10/s10-stage-checkpoints.json",
+        "sha256": "10B070449DCA8D6AB910425DC095848E84FC4C94A28C835AE75C1DF37E567B76"
+      },
+      {
+        "head": "0d54add4a5d09ec3b54483a1fc2a55d8eea8b0e3",
+        "path": "docs/execution/HANDOFF.md",
+        "sha256": "CFD74F776FFFCDB78A58E26CBE3B289A77BC40E906F325DCA836D018937D606F"
+      }
+    ],
+    "accepted_current_runtime_visual_cells": 469,
+    "accepted_current_runtime_accessibility_rows": 42,
+    "minimum_runtime_full_matrix_status": "DEFERRED",
+    "evidence_use": "PROVENANCE_ONLY_NO_CROSS_HEAD_PROMOTION"
+  },
+  "archive_privacy_report": {
+    "status": "NOT_RUN",
+    "archive_identity": null,
+    "archive_sha256": null,
+    "privacy_report_path": null,
+    "privacy_report_sha256": null,
+    "embedded_framework_inventory": null,
+    "code_signature_inventory": null
+  },
+  "signature_and_distribution": {
+    "signature_review_status": "NOT_RUN",
+    "archive_status": "NOT_RUN",
+    "export_status": "NOT_RUN",
+    "testflight_upload_status": "NOT_RUN",
+    "app_store_submission_status": "NOT_RUN",
+    "credentials_recorded": false
+  },
+  "physical_verification": {
+    "status": "DEFERRED",
+    "s10_5_receipt": null,
+    "physical_device_identity": null,
+    "installed_build_identity": null,
+    "blocks_release_ready": false,
+    "resume_policy": "explicit_owner_request_after_app_store_release",
+    "deferral_policy_id": "owner-s10-5-nonblocking-post-release-20260910"
+  },
+  "store_readiness_gaps": [
+    {
+      "gate": "final_archive_privacy_and_supply_chain_report",
+      "status": "NOT_RUN"
+    },
+    {
+      "gate": "app_store_privacy_answers",
+      "status": "PENDING_OWNER_INPUT"
+    },
+    {
+      "gate": "required_6_5_or_6_9_app_store_screenshot_set",
+      "status": "PENDING_EXTERNAL_STORE_ASSET_REVIEW",
+      "source_note": "The frozen repository plan contains a 6.3-inch 1206-by-2622 set; preparation context reports the required 6.5/6.9 set is still missing. This is not a new device-CI route."
+    }
+  ],
+  "unsupported_or_dynamic_claims": [
+    {
+      "claim": "The source privacy reasons satisfy Apple's current submission policy.",
+      "status": "UNSUPPORTED_BY_SOURCE_ONLY_REVIEW",
+      "required_evidence": "Current Apple policy review against the final archive."
+    },
+    {
+      "claim": "The final binary contains no undeclared SDK or framework.",
+      "status": "UNSUPPORTED_UNTIL_ARCHIVE_INSPECTION",
+      "required_evidence": "Exact final archive embedded-framework and privacy-report inventory."
+    },
+    {
+      "claim": "Runtime network behavior matches the source-only no-custom-network-client scan.",
+      "status": "UNSUPPORTED_UNTIL_RUNTIME_REVIEW",
+      "required_evidence": "Owner review of the exact installed build and final archive/network behavior."
+    },
+    {
+      "claim": "App Store privacy answers are complete.",
+      "status": "UNSUPPORTED_PENDING_OWNER_INPUT",
+      "required_evidence": "Owner-completed answers from exact binary and support flow."
+    },
+    {
+      "claim": "Release is ready.",
+      "status": "BLOCKED",
+      "required_evidence": "All remaining S10.6 hard gates, final archive review, legal/live inputs and final F25 evidence. S10.5 physical verification is a non-blocking deferred follow-up; this is not a physical PASS."
+    }
+  ],
+  "deferred_follow_ups": [
+    {
+      "gate": "physical_s10_5_evidence",
+      "status": "DEFERRED",
+      "blocking": false,
+      "resume_policy": "explicit_owner_request_after_app_store_release",
+      "policy_id": "owner-s10-5-nonblocking-post-release-20260910"
+    }
+  ],
+  "unsigned_preparation_ci": {
+    "evidenceID": "s10.6-phase-contract-ci-34540218053",
+    "status": "PASS",
+    "scope": "unsigned_phase_contract_five_unit_tests_one_branded_ui_smoke",
+    "headSHA": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
+    "sourceProductHead": "0adebd72ae0226a80e14eaf515ca133072fb1c76",
+    "runID": "34540218053",
+    "runURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34540218053",
+    "workflow": ".github/workflows/ios-ci.yml",
+    "workflowRef": "phase/s10-brand-refresh",
+    "runAttempt": 1,
+    "jobID": "103081012380",
+    "executionLane": "github-xcode-26.6-acceptance",
+    "selectorTier": "F25",
+    "unitSelectors": [
+      "FieldEvidenceAppTests/S10_6BrandReleaseTests"
+    ],
+    "uiSelectors": [
+      "FieldEvidenceAppUITests/S10_6BrandReleaseUITests"
+    ],
+    "unitPassed": 5,
+    "uiPassed": 1,
+    "artifactID": "10177393405",
+    "artifactURL": "https://github.com/Asset-Rounds/AssetRounds/actions/runs/34540218053/artifacts/10177393405",
+    "artifactName": "ios-ci-34540218053-1",
+    "artifactSHA256": "A3E05448E9B2DAE4D6BEED948DB83F36942AE37F4442466C38D7EF64D4A03CDC",
+    "artifactExpiresAt": "2026-09-24T23:16:54Z",
+    "checksumFileCount": 102,
+    "checksumManifestSHA256": "5F38798BA67A75D45C7BA063F26A18B3339162D80A17878C0A3B028CE2E6B81F",
+    "originalLogsSHA256": "F18BCD2E31A7DB33200D0B1F7F1137AB603F46D24F0CF4B61FA3FFEB6B9CB14D",
+    "auditPath": "Temp/S10_6_ReleasePreparation/ci/e28d6827bcf78c26dd6381926aa6aec73d7e9999/originals/34540218053/AUDIT.json",
+    "auditSHA256": "2470B764823D3E588525337D238AA3BF3E69176DFC0E772895692E72CB3C5F6C",
+    "terminalScreenshotEntry": "ui-final.png",
+    "terminalScreenshotSHA256": "D56C831A3F95CC7AC2336A0B5511E1A92C9C87762AFCD9529CC5768FD9CCFCA7",
+    "unitResultsSHA256": "AD1B2F9124ECC52A275F48D63D428AA0E4A06DC3227D7F9A961BEA34592740EB",
+    "uiResultsSHA256": "43CF7909C8491030B32823E81D0E43EFA4534FE821157D7F951DC7BD1E45E19A",
+    "runnerImage": {
+      "ImageOS": "macos26",
+      "ImageVersion": "20260831.0337.3",
+      "ImageArch": "unknown"
+    },
+    "xcodeVersion": "Xcode 26.6",
+    "xcodeBuild": "17F113",
+    "sdkName": "iphonesimulator26.5",
+    "sdkBuild": "23F81a",
+    "simulator": {
+      "runtime": "iOS 26.2",
+      "runtime_build": "23C54",
+      "name": "iPhone 17",
+      "udid": "F007E22E-9AEC-4FE9-8477-78ED0F8133C7",
+      "initial_state": "Shutdown"
+    },
+    "nativeStepSeconds": {
+      "Build unsigned simulator app": 379.0,
+      "Run targeted tests": 67.0,
+      "Run task-authorized UI smoke": 342.0
+    },
+    "setupArtifactBudget": {
+      "setup_elapsed_seconds": "27",
+      "artifact_elapsed_seconds": "1",
+      "setup_artifact_elapsed_seconds": "28",
+      "setup_artifact_budget_seconds": "300"
+    },
+    "nativeCommands": {
+      "build-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/Build.xcresult CODE_SIGNING_ALLOWED=NO build-for-testing",
+      "test-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UnitTests.xcresult \"-only-testing:FieldEvidenceAppTests/S10_6BrandReleaseTests\" CODE_SIGNING_ALLOWED=NO test-without-building",
+      "ui-smoke.log": "/Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild -project FieldEvidenceApp.xcodeproj -scheme FieldEvidenceApp -configuration Debug -destination \"platform=iOS Simulator,id=F007E22E-9AEC-4FE9-8477-78ED0F8133C7\" -derivedDataPath /Users/runner/work/_temp/FieldEvidenceDerivedData -resultBundlePath /Users/runner/work/_temp/FieldEvidenceCI/UISmoke.xcresult \"-only-testing:FieldEvidenceAppUITests/S10_6BrandReleaseUITests\" CODE_SIGNING_ALLOWED=NO test-without-building"
+    },
+    "humanVisualReview": "APPROVED",
+    "formalReleaseAcceptance": false,
+    "physicalPass": false,
+    "humanVisualReviewEvidenceID": "s10.6-terminal-owner-review-34540218053",
+    "humanVisualReviewScope": "displayed_exact_candidate_terminal_screenshot"
+  },
+  "physical_deferral_owner_request": {
+    "policy_id": "owner-s10-5-nonblocking-post-release-20260910",
+    "original_path": "Temp/S10_6_ReleasePreparation/post-release-deferral/OWNER_REQUEST_20260910.json",
+    "original_sha256": "2C2F440BDB4EB999DF9DF93793F843AABF382681E85690A01761A8254BE7FE7A",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"source\": \"direct owner message in the active S10 task\",\n  \"ownerInstruction\": \"Is there anyway I can change policy change to just not include 10.5 going forward until the app is in the app store and I can come back to it for like \\\"bug fixes\\\" or anything. \",\n  \"interpretation\": \"Make S10.5 non-blocking for S10.6 and S10 phase acceptance, defer it until after App Store release, and resume only on explicit future owner request.\",\n  \"physicalResult\": \"DEFERRED\",\n  \"physicalPassClaimed\": false,\n  \"automaticResumptionAuthorized\": false,\n  \"otherReleaseGatesWaived\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"observedPreparationHead\": \"df52d7517806192b8ccff46923d1add1680ec75f\",\n  \"activeOriginalCIRunID\": \"34525551221\",\n  \"authorityApplicationStatus\": \"PENDING_REVIEW_AND_SAFE_POST_CI_BOUNDARY\"\n}\n",
+    "status": "DEFERRED",
+    "blocking": false,
+    "resume_policy": "explicit_owner_request_after_app_store_release"
+  },
+  "owner_name_attestation": {
+    "evidence_id": "owner-name-ownership-attestation-20260910",
+    "date": "2026-09-10",
+    "owner": "palatis3",
+    "name": "AssetRounds",
+    "status": "OWNER_ATTESTED",
+    "source_path": "Temp/S10_6_ReleasePreparation/remaining-inputs/OWNER_NAME_ATTESTATION_20260910.json",
+    "source_sha256": "CBD773A2616D51732AB4B17FD77C4B8D65BE9E9E6485FCF845E772022AA5AF94",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"source\": \"direct owner response in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"ownerStatement\": \"No urls yet. I own the name. Lets mark it as today. I will make website once this is done and update accordignly\",\n  \"name\": \"AssetRounds\",\n  \"ownerIdentityFromExistingGrant\": \"palatis3\",\n  \"ownershipAttested\": true,\n  \"websiteStatus\": \"planned_after_current_work\",\n  \"liveURLsProvided\": false,\n  \"separateTrademarkSearchOrClearanceEvidenceProvided\": false,\n  \"fiveStoreClaimsSeparatelyReviewed\": false,\n  \"interpretation\": \"Record the owner's name-ownership attestation dated today and retain absent live URLs as pending; do not infer a separate trademark clearance, claim review, website existence, or release approval.\"\n}\n",
+    "website_status": "planned_after_current_work",
+    "live_urls_provided": false,
+    "separate_trademark_clearance_evidence": null,
+    "separate_five_claim_review_evidence": null
+  },
+  "owner_human_review_record": {
+    "evidence_id": "owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910",
+    "status": "APPROVED",
+    "reviewer": "palatis3",
+    "review_date": "2026-09-10",
+    "exact_owner_message": "Yes i approve of what you sent me",
+    "source_visual_review_path": "Temp/S10_6_ReleasePreparation/remaining-inputs/VISUAL_REVIEW.md",
+    "source_visual_review_sha256": "DF28C927FD3243770F0E3A6674165D9C5F723D721EFD968AF0AEAFF129B56247",
+    "sealed_receipt_path": "Temp/S10_6_ReleasePreparation/final-phase-contract/human-review/OWNER_VISUAL_APPROVAL_20260910.json",
+    "sealed_receipt_sha256": "8247DC6DBB69DF93F31AE2D785C778BC9A4A36487177EF83DE968A26945EC645",
+    "sealed_receipt_utf8": "{\n  \"schema_version\": \"s10.6.owner-visual-approval.v1\",\n  \"evidence_id\": \"owner-s10.6-five-store-slots-and-i2-terminal-visual-approval-20260910\",\n  \"status\": \"SEALED_OWNER_APPROVAL\",\n  \"source\": \"direct owner response in the active S10 task\",\n  \"owner\": \"palatis3\",\n  \"date\": \"2026-09-10\",\n  \"owner_message\": \"Yes i approve of what you sent me\",\n  \"review_request\": {\n    \"path\": \"Temp/S10_6_ReleasePreparation/remaining-inputs/VISUAL_REVIEW.md\",\n    \"sha256\": \"DF28C927FD3243770F0E3A6674165D9C5F723D721EFD968AF0AEAFF129B56247\",\n    \"presented_image_count\": 6,\n    \"requested_review_dimensions\": [\n      \"layout\",\n      \"text\",\n      \"imagery\",\n      \"privacy\",\n      \"truthful_claim_presentation\"\n    ]\n  },\n  \"interpretation\": \"Approve exactly the six images presented in the bound visual-review document: the five frozen 6.3-inch store candidates and the exact I2 terminal Settings screenshot.\",\n  \"image_bindings\": [\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-01-find-asset\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.sign-detail.ready.png\",\n      \"sha256\": \"6EB56317ACBDA532BBDB776B2DB039AF4FC5E78768A1FECBF1C0A2CB7B817710\"\n    },\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-02-capture-evidence\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.capture.wide-preview.png\",\n      \"sha256\": \"B5B769433EA13A40CC27990CCCF9F8184B4E6AF41BE5C467A5E7D877CDD36CA3\"\n    },\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-03-share-report\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.report-detail.ready.png\",\n      \"sha256\": \"2DE26DE0F2AD595CE3B4EB8923E23EA77FB828AFD119327DD977B4C783AF1870\"\n    },\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-04-work-recheck\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.issue.recheck-due.png\",\n      \"sha256\": \"92E98827528E725D217078DA2CFA4027D165350D734A5D64D5F5C26D4A14DB41\"\n    },\n    {\n      \"kind\": \"store_slot\",\n      \"slot_id\": \"en-US-iphone-6.3-05-local-data\",\n      \"source_run_id\": \"34481147676\",\n      \"source_artifact_id\": \"10155130147\",\n      \"entry\": \"s10-4/s10.4.current.default-light/candidates/state.backup.ready.png\",\n      \"sha256\": \"7FE07225143F72EC32D4EADD6349125D2B77A9305C0B0983CA1539F2B7721086\"\n    },\n    {\n      \"kind\": \"i2_terminal_screenshot\",\n      \"source_head\": \"0a48504502994fdb8a5d73c9e8cc307aba210821\",\n      \"source_run_id\": \"34527590250\",\n      \"source_artifact_id\": \"10172675373\",\n      \"entry\": \"ui-final.png\",\n      \"sha256\": \"2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C\"\n    }\n  ],\n  \"approved_scope\": {\n    \"five_frozen_6_3_store_candidates\": true,\n    \"exact_i2_terminal_screenshot\": true,\n    \"human_visual_review_result\": \"APPROVED\"\n  },\n  \"not_approved_or_inferred\": [\n    \"separate trademark, name, five-claim, or URL clearance\",\n    \"a 6.5-inch or 6.9-inch upload screenshot set\",\n    \"any screenshot from a future changed test or candidate head\",\n    \"physical S10.5 evidence\",\n    \"archive, live URL, App Privacy, signing, upload, submission, or release readiness\"\n  ]\n}\n",
+    "reviewed_image_count": 6,
+    "image_bindings": [
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-01-find-asset",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.sign-detail.ready.png",
+        "sha256": "6EB56317ACBDA532BBDB776B2DB039AF4FC5E78768A1FECBF1C0A2CB7B817710"
+      },
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-02-capture-evidence",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.capture.wide-preview.png",
+        "sha256": "B5B769433EA13A40CC27990CCCF9F8184B4E6AF41BE5C467A5E7D877CDD36CA3"
+      },
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-03-share-report",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.report-detail.ready.png",
+        "sha256": "2DE26DE0F2AD595CE3B4EB8923E23EA77FB828AFD119327DD977B4C783AF1870"
+      },
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-04-work-recheck",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.issue.recheck-due.png",
+        "sha256": "92E98827528E725D217078DA2CFA4027D165350D734A5D64D5F5C26D4A14DB41"
+      },
+      {
+        "kind": "store_slot",
+        "slot_id": "en-US-iphone-6.3-05-local-data",
+        "source_run_id": "34481147676",
+        "source_artifact_id": "10155130147",
+        "entry": "s10-4/s10.4.current.default-light/candidates/state.backup.ready.png",
+        "sha256": "7FE07225143F72EC32D4EADD6349125D2B77A9305C0B0983CA1539F2B7721086"
+      },
+      {
+        "kind": "i2_terminal_screenshot",
+        "source_head": "0a48504502994fdb8a5d73c9e8cc307aba210821",
+        "source_run_id": "34527590250",
+        "source_artifact_id": "10172675373",
+        "entry": "ui-final.png",
+        "sha256": "2E200B14E17E1F7632F5F7CF63681FB898C658124C02D08E1CBBF69835A83A7C"
+      }
+    ],
+    "scope": "Approve exactly the six images presented in the bound visual-review document: the five frozen 6.3-inch store candidates and the exact I2 terminal Settings screenshot.",
+    "not_approved_or_inferred": [
+      "separate trademark, name, five-claim, or URL clearance",
+      "a 6.5-inch or 6.9-inch upload screenshot set",
+      "any screenshot from a future changed test or candidate head",
+      "physical S10.5 evidence",
+      "archive, live URL, App Privacy, signing, upload, submission, or release readiness"
+    ]
+  },
+  "owner_website_llc_attestation": {
+    "evidence_id": "owner-website-llc-attestation-20260910",
+    "date": "2026-09-10",
+    "owner": "palatis3",
+    "website_ownership": "OWNER_ATTESTED",
+    "website_or_domain_url": null,
+    "llc_formation": "IN_PROGRESS_OWNER_ATTESTED",
+    "registered_entity_name": null,
+    "registration_identifier": null,
+    "separate_clearance_reviewer": null,
+    "separate_clearance_result": null,
+    "source_path": "Temp/S10_6_ReleasePreparation/final-phase-contract/OWNER_WEBSITE_LLC_ATTESTATION_20260910.json",
+    "source_sha256": "837164D7E626B3A743A44E5C3BFB553444DB05A42444DE8EAC8A1180685A1AA5",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-website-llc-attestation-20260910\",\n  \"source\": \"direct owner response in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I owj the website and working on getting llc. Confirm it as if today\",\n  \"websiteOwnership\": \"OWNER_ATTESTED\",\n  \"websiteOrDomainURL\": null,\n  \"llcFormation\": \"IN_PROGRESS_OWNER_ATTESTED\",\n  \"registeredEntityName\": null,\n  \"registrationIdentifier\": null,\n  \"separateClearanceReviewer\": null,\n  \"separateClearanceResult\": null,\n  \"interpretation\": \"Record the owner's website-ownership statement and in-progress LLC formation as dated September 10, 2026. No domain, completed LLC registration, separate clearance reviewer/result, or five-claim review was supplied.\"\n}\n"
+  },
+  "owner_terminal_review_record": {
+    "evidence_id": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+    "date": "2026-09-10",
+    "reviewer": "palatis3",
+    "image": {
+      "headSHA": "75a8856c21e7a4aae5a8e48b40a68bdef6874d94",
+      "runID": "34536261005",
+      "artifactID": "10175949736",
+      "artifactSHA256": "F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467",
+      "pathWithinArtifact": "ui-final.png",
+      "sha256": "C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888",
+      "status": "APPROVED",
+      "scope": "displayed exact I5 Settings terminal screenshot",
+      "futureUnseenImageApproval": false
+    },
+    "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/OWNER_DIRECTIVE_20260910.json",
+    "source_sha256": "BD23286FA03EC456B50D637E4DE11FCDAB34383A466FDFAD40F75CBAF8F365E7",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910\",\n  \"policyID\": \"owner-s10.6-name-trademark-url-clearance-waiver-20260910\",\n  \"source\": \"direct owner instruction in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I approve. Merge into main. We don't need the dated name or trademark or URL clearance.\",\n  \"approvedTerminalImage\": {\n    \"headSHA\": \"75a8856c21e7a4aae5a8e48b40a68bdef6874d94\",\n    \"runID\": \"34536261005\",\n    \"artifactID\": \"10175949736\",\n    \"artifactSHA256\": \"F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467\",\n    \"pathWithinArtifact\": \"ui-final.png\",\n    \"sha256\": \"C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888\",\n    \"status\": \"APPROVED\",\n    \"scope\": \"displayed exact I5 Settings terminal screenshot\",\n    \"futureUnseenImageApproval\": false\n  },\n  \"clearanceObligation\": {\n    \"status\": \"OWNER_WAIVED\",\n    \"waivedClearances\": [\"name\", \"trademark\", \"url\"],\n    \"scope\": [\"S10.6 phase closure\", \"S10 main integration\"],\n    \"positiveLegalClearanceClaimed\": false,\n    \"clearanceReportProvided\": false,\n    \"truthfulFiveStoreClaimSubstantiationWaived\": false,\n    \"actualLiveURLRequirementsWaived\": false\n  },\n  \"mainIntegrationAuthorized\": true,\n  \"nonForceFastForwardRequired\": true,\n  \"remainingEvidenceAndCIRequirementsWaived\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"interpretation\": \"Record approval of the displayed I5 terminal image and remove the three named clearance prerequisites for the current S10.6 phase/main boundary. Preserve truthful source-backed review of the five store claims, actual absent live values, all remaining evidence/receipt/CI requirements, historical originals, and later owner-only release operations. The waiver is not a positive legal clearance result.\"\n}\n"
+  },
+  "owner_clearance_waiver": {
+    "policy_id": "owner-s10.6-name-trademark-url-clearance-waiver-20260910",
+    "status": "OWNER_WAIVED",
+    "evidence_id": "owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910",
+    "date": "2026-09-10",
+    "owner": "palatis3",
+    "waived_clearances": [
+      "name",
+      "trademark",
+      "url"
+    ],
+    "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/OWNER_DIRECTIVE_20260910.json",
+    "source_sha256": "BD23286FA03EC456B50D637E4DE11FCDAB34383A466FDFAD40F75CBAF8F365E7",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"owner-s10.6-terminal-approval-clearance-waiver-main-integration-20260910\",\n  \"policyID\": \"owner-s10.6-name-trademark-url-clearance-waiver-20260910\",\n  \"source\": \"direct owner instruction in the active S10 task\",\n  \"date\": \"2026-09-10\",\n  \"owner\": \"palatis3\",\n  \"ownerStatement\": \"I approve. Merge into main. We don't need the dated name or trademark or URL clearance.\",\n  \"approvedTerminalImage\": {\n    \"headSHA\": \"75a8856c21e7a4aae5a8e48b40a68bdef6874d94\",\n    \"runID\": \"34536261005\",\n    \"artifactID\": \"10175949736\",\n    \"artifactSHA256\": \"F1FE86BACB1D30EAB5C24435B6D4B77F0E8BD4D9B0A5F58A50D1C3C6C85F3467\",\n    \"pathWithinArtifact\": \"ui-final.png\",\n    \"sha256\": \"C8833192DCB2CFC5479657F6276CF7BDDE69AD216A226D274932E459F677F888\",\n    \"status\": \"APPROVED\",\n    \"scope\": \"displayed exact I5 Settings terminal screenshot\",\n    \"futureUnseenImageApproval\": false\n  },\n  \"clearanceObligation\": {\n    \"status\": \"OWNER_WAIVED\",\n    \"waivedClearances\": [\"name\", \"trademark\", \"url\"],\n    \"scope\": [\"S10.6 phase closure\", \"S10 main integration\"],\n    \"positiveLegalClearanceClaimed\": false,\n    \"clearanceReportProvided\": false,\n    \"truthfulFiveStoreClaimSubstantiationWaived\": false,\n    \"actualLiveURLRequirementsWaived\": false\n  },\n  \"mainIntegrationAuthorized\": true,\n  \"nonForceFastForwardRequired\": true,\n  \"remainingEvidenceAndCIRequirementsWaived\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"interpretation\": \"Record approval of the displayed I5 terminal image and remove the three named clearance prerequisites for the current S10.6 phase/main boundary. Preserve truthful source-backed review of the five store claims, actual absent live values, all remaining evidence/receipt/CI requirements, historical originals, and later owner-only release operations. The waiver is not a positive legal clearance result.\"\n}\n"
+  },
+  "current_candidate_terminal_review_record": {
+    "evidence_id": "s10.6-terminal-owner-review-34540218053",
+    "date": "2026-09-10",
+    "reviewer": "palatis3",
+    "head_sha": "e28d6827bcf78c26dd6381926aa6aec73d7e9999",
+    "run_id": "34540218053",
+    "artifact_id": "10177393405",
+    "terminal_screenshot_sha256": "D56C831A3F95CC7AC2336A0B5511E1A92C9C87762AFCD9529CC5768FD9CCFCA7",
+    "source_path": "Temp/S10_6_ReleasePreparation/owner-clearance-waiver/OWNER_TERMINAL_APPROVAL_34540218053.json",
+    "source_sha256": "0306CD7775E0EFA13C8BF7468391BB2543970749CE6E89C546F350BD67B22F9F",
+    "sealed_original_utf8": "{\n  \"schemaVersion\": 1,\n  \"evidenceID\": \"s10.6-terminal-owner-review-34540218053\",\n  \"status\": \"APPROVED\",\n  \"owner\": \"palatis3\",\n  \"date\": \"2026-09-10\",\n  \"ownerStatement\": \"Approve screenshot\",\n  \"sourceUserMessageID\": \"483702911\",\n  \"sourceMessageTimestampUTC\": \"2026-09-10T23:18:56.931564Z\",\n  \"sourceQuestionItemID\": \"[\\\"request_user_input_async\\\",\\\"call_1haySXeHNWUyOrTgIYEtZBfn\\\",0]\",\n  \"sourceQuestion\": \"Do you approve the displayed terminal screenshot from successful CI run 34540218053 for the final S10.6 evidence?\",\n  \"sourceReceiptType\": \"direct_owner_response_after_image_display\",\n  \"scope\": \"displayed_exact_candidate_terminal_screenshot\",\n  \"headSHA\": \"e28d6827bcf78c26dd6381926aa6aec73d7e9999\",\n  \"runID\": \"34540218053\",\n  \"artifactID\": \"10177393405\",\n  \"terminalScreenshotSHA256\": \"D56C831A3F95CC7AC2336A0B5511E1A92C9C87762AFCD9529CC5768FD9CCFCA7\",\n  \"displayedLocalPath\": \"Temp/S10_6_ReleasePreparation/ci/e28d6827bcf78c26dd6381926aa6aec73d7e9999/originals/34540218053/10177393405/ui-final.png\",\n  \"pixelWidth\": 1206,\n  \"pixelHeight\": 2622,\n  \"priorImageApprovalReused\": false,\n  \"signingUploadSubmissionAuthorized\": false,\n  \"recordedAtUTC\": \"2026-09-10T23:19:50.763079+00:00\"\n}\n"
+  }
+}

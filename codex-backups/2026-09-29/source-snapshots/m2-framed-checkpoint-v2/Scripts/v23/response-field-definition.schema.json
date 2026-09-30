@@ -1,0 +1,220 @@
+{
+  "$defs": {
+    "ExactDecimalV1": {
+      "additionalProperties": false,
+      "properties": {
+        "mantissa": {
+          "type": "integer"
+        },
+        "scale": {
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mantissa",
+        "scale"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://assetrounds.invalid/v23/ResponseFieldDefinitionV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allowedEntityKindIDs": {
+      "items": {
+        "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+        "type": "string"
+      },
+      "maxItems": 128,
+      "minItems": 0,
+      "type": "array"
+    },
+    "allowedOptionIDs": {
+      "items": {
+        "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+        "type": "string"
+      },
+      "maxItems": 128,
+      "minItems": 0,
+      "type": "array"
+    },
+    "allowedUnitIDs": {
+      "items": {
+        "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+        "type": "string"
+      },
+      "maxItems": 15,
+      "minItems": 0,
+      "type": "array"
+    },
+    "allowsNotApplicable": {
+      "type": "boolean"
+    },
+    "allowsUnknownTriState": {
+      "type": "boolean"
+    },
+    "cardinality": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum": {
+          "maximum": 128,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "minimum": {
+          "maximum": 128,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "minimum",
+        "maximum"
+      ],
+      "type": "object"
+    },
+    "fieldID": {
+      "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+      "type": "string"
+    },
+    "maximumNumericValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExactDecimalV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "maximumPrecisionScale": {
+      "anyOf": [
+        {
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "maximumTextUTF8Bytes": {
+      "anyOf": [
+        {
+          "maximum": 4096,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "maximumUncertaintyCanonical": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExactDecimalV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "measurementDimension": {
+      "anyOf": [
+        {
+          "enum": [
+            "DIMENSIONLESS",
+            "LENGTH",
+            "ILLUMINANCE",
+            "DURATION",
+            "TEMPERATURE"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "minimumNumericValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExactDecimalV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "packageReleaseID": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "repeatNodeID": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "valueKind": {
+      "enum": [
+        "NO_VALUE",
+        "NOT_APPLICABLE",
+        "BOOLEAN",
+        "TRI_STATE",
+        "SINGLE_OPTION",
+        "MULTIPLE_OPTIONS",
+        "TEXT",
+        "LOCAL_DATE",
+        "LOCAL_TIME",
+        "INSTANT",
+        "DURATION",
+        "INTEGER",
+        "DECIMAL",
+        "MEASUREMENT",
+        "ENTITY_REFERENCE",
+        "CONTENT_REFERENCE"
+      ],
+      "type": "string"
+    },
+    "workflowSHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "fieldID",
+    "packageReleaseID",
+    "workflowSHA256",
+    "valueKind",
+    "cardinality",
+    "allowsNotApplicable",
+    "allowsUnknownTriState",
+    "maximumTextUTF8Bytes",
+    "allowedOptionIDs",
+    "minimumNumericValue",
+    "maximumNumericValue",
+    "measurementDimension",
+    "allowedUnitIDs",
+    "maximumPrecisionScale",
+    "maximumUncertaintyCanonical",
+    "repeatNodeID",
+    "allowedEntityKindIDs"
+  ],
+  "title": "ResponseFieldDefinitionV1",
+  "type": "object"
+}

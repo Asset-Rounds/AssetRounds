@@ -1,0 +1,23 @@
+# AssetRounds inherits the owner's selected Codex GUI/session permission profile.
+# D-004 explicitly permits Full access, network access, and no approval prompts.
+# CURRENT_TASK.md still limits product scope, paths, branches, and external actions.
+
+# Owner-selected project defaults (2026-09-19). Explicit session choices still win.
+model = "gpt-6-astra"
+model_reasoning_effort = "xhigh"
+
+# Performance workflow active until the owner switches back; see
+# docs/execution/agent-workflows/README.md. Root stays hands-on, with up to
+# four active helpers on independent bounded work under AGENTS.md.
+# Pass gpt-6-astra/xhigh explicitly for substantive coding, diagnosis and review;
+# use Astra low for mechanical work and Luna low only for simple non-coding.
+# Capacity is not a quota. Preserve the owner's current session choices.
+# Installed CLI 0.144.5 rejects the newer default_subagent_* settings.
+[agents]
+max_threads = 5
+
+[features]
+goals = true
+
+[plugins."github@openai-curated"]
+enabled = true

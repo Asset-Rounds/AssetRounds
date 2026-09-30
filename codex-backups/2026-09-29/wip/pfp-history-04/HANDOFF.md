@@ -1,0 +1,25 @@
+# PFP immutable original-P pair streaming successor
+
+Author: GPT-6.1 Sol xhigh. Root requested a separate bounded PFP successor; this author owns only this ignored packet. Root alone imports, compiles, collects native evidence, commits, pushes and dispatches. Prior sealed8db23 candidate/2b18d binding and all its packet files are unchanged. No approval is inherited.
+
+Candidate: `/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1/candidate/ProtectedFilePolicy.swift`
+SHA-256: `4e5b589273907064a2da59328a9fe421d17a63b2b94665bc76f4b9c32966cbf3`
+Before: sealed predecessor `8db23f0eddb1f73a0702c61bd04df59f60a253660b64cfa4fda5612a02daee7a`. Diff: `918e298d78656ec1ee647f4e15327802af2b6fb729267410ef90f5cb1da68636`. The diff is additive only, with zero removed lines. All1206 baseline tracked hashes remain exact b24e at worktree HEAD `dbdb4649e3e405eb50a1d2b443c8d7c061831a1a`; BASELINE SHA `30c40dcbf0661d0b3065c8dfc4dd86d197b545662ba58a842f5b9652650eedb7`. No tracked/primary/verification/Products/tests/CI/pin/docs/S10/Release/Git mutations.
+
+New @MainActor API at candidate line2032:
+
+```swift
+@MainActor static func observeEraseC16FirstPTemporalPairWithCheckedClose(finalURL: URL, partialURL: URL, scope: OriginalEraseC16FirstPObservationScopeV1, retainUncertainDescriptor: (Int32) -> Void) throws -> [TemporalPolicyObservationV1]
+```
+
+Ledger owns the authentic fileprivate issuer and exact fields/methods listed in BINDING.interface. Pair authentic role is one fixed `.settleFirstPPartial` from the immutable plan, with exact lexical final/temp URLs, same original9 fact for both, common immutable SHA/count≤1GiB, actual full11 facts/device, planSHA/currentOrdinal and assignedSettlementOrdinal. Only both originally existing SAME dev/ino/mode/nlink2/size/mtime/ctime records are admitted; both actual11→9 projections must equal those originals exactly. No originalnlink1/finalabsent→newpair adoption or pre-settlement ctime drift. Whole image may contain the original pair before/during its assigned settlement, with 0≤actualcurrentOrdinal≤assigned ordinal. The scope must verify actual Store planSHA/C16ordinal both AT ISSUANCE and EVERY IO boundary; a closure that only proves generic EX/G is insufficient. Frozen fields alone never grant scope or progress authority.
+
+A fixed64KiB CryptoKitSHA256 buffer streams the held final FD once per pre/post policy proof. Both names are checked exact same inode/nlink2/full11/original9; their common sourceSHA binds that one stream to both aliases, avoiding duplicate1GiB reads. No payload Data construction, canonical assertion, source transfer or second reader/engine occurs. Maximum file bytes remain1_073_741_824. Complete original/current physical tree budgets (1GiB/100k/64depth), assignedrole and exact whole-projection proof remain mandatory at physical/Ledger caller boundaries; this helper cannot exempt or issue them.
+
+The existing retained observation attempt receives typed FirstP-scope overloads, preserving all old code. It is retained before first IO, permanently memory-fenced before close, checks fresh scope around every IO/policy/close including failures, drains each definitely owned FD with one checked close and poisons realoperation before uncertain-FD retention callback. No deinit close/FD retry/inspection after terminal/reuse. Retention callback is evidence-only. Exact sameinode/names/parent/UID/GID/mode0600/device/sourcefact/hash predicates remain required. Current canonical-payload API, private temporal predicate/defaultcallback, strict ordinary nlink1, notification/sharedproducer/callback/fd0a and Release policy remain unchanged.
+
+DEBUG parse exit0/nonDEBUG parse exit0, empty logs SHA `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. These are syntax checks only, not compiler/typecheck/runtime evidence. Root coupled DEBUG/nonDEBUG compile, same independent read-only GPT-6.1 Sol xhigh reviewer, affected native development tests, actual-byte CI pin succession/full381+42 and all full same-head gates remain due. Physical protection remains unverified/release-blocking.
+
+Ledger author `/root/sol61_xhigh_terminal_fix` froze the interface and originalpair/currentordinal rules directly. Physical author `/root/sol61_xhigh_cold_physical_fix` received the exact interface/bounds/currentStore-source obligation; its FirstObserver/Factory integration is separately owned. This packet records exact current Ledger scope fragment bytes, but no finished issuer-source coupling is inferred; scope source must be independently reviewed with the final composition.
+
+Review successor: return this exact frozen candidate/BINDING/diff/CASE_MATRIX to `/root/sol61_xhigh_pair_policy_review`. Any missing real plan/ordinal check, role/upper-bound ambiguity, generic scope revival/recursion, callback that closes an uncertain raw FD or authentic source transition outside these rules is escalated to root rather than widened/refused wholesale. Complete source and runtime acceptance remain unclaimed.

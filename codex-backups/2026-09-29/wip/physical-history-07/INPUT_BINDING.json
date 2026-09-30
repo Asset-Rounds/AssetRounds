@@ -1,0 +1,22 @@
+{
+  "CompactTargetReadPermitV4.swift.fragment": {
+    "sha256": "86825adf3c60794f2e16693552c35bb54c7359ec3fb37c32ed4ca5e10d5ca6d3",
+    "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_REAL_OS_SCOPE_V4.swift.fragment"
+  },
+  "ConsumerCompleteSubjectV4.swift.fragment": {
+    "sha256": "600f50f9639f479e8b20144f112da4acdcc77bf55f62e529179bc5288f6d2dfc",
+    "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/TERMINAL_FIXED_SUBJECT_V4.swift.fragment"
+  },
+  "MINIMUM_TUPLE_AND_PRODUCER_CUTS.md": {
+    "sha256": "cfd77fb328fe2dbf1fda0dc1e4d7a8624715731a5cf8d97c539e15ef14249b73",
+    "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-prerequisite-review-sol61-xhigh-v1/MINIMUM_TUPLE_AND_PRODUCER_CUTS.md"
+  },
+  "ROOT_A_DECISION.md": {
+    "sha256": "349fbc7147135ee00e9ce63264c1705e9baf68b2c6e43ea8567b9d6ac62af9b7",
+    "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-root-direction-v1/DECISION.md"
+  },
+  "SEMANTIC_PREREQUISITE_REVIEW.md": {
+    "sha256": "b37729b0a05382f91b62f2876c5f4e1977a05a849ea71b7c01f8088bdde85100",
+    "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/compact-target-semantic-prerequisite-review-sol61-xhigh-v1/REVIEW.md"
+  }
+}

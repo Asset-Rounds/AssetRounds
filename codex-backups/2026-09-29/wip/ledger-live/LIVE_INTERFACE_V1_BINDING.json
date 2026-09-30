@@ -1,0 +1,17 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "status": "frozen narrow interface proposal; actual implementation/issuer/readback NOT complete",
+  "baselineHEAD": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "baselineLedgerSHA256": "b4eef0e28bff89de4512ed9d240ea01184a872c501c5b6b062ee1dcd69eb09c0",
+  "baselineSourceMapSHA256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+  "interfaceSHA256": "b12ecefbe43d5a83c99bc38b2046fc053ed7b7e8ddaa8c248cfe43e8084e56e2",
+  "remainingDependencies": [
+    "Actual Router private effect origin and Registry G wrapper (central/Migration)",
+    "Exact independent FirstObserver initial admission and typed per-effect whole namespace delta/readback",
+    "Checked temporal policy for exact publication prefix/link pair without broad nlink exception",
+    "Complete original generic directory DATA classification and retained canonical controls before loss; no orphan/current-survivor rebase",
+    "Actual primitive/descriptor lifetime implementation and all reached nested effects",
+    "Independent source/actor/lifetime/capacity review plus root DEBUG/nonDEBUG semantic compile/native/gates"
+  ]
+}

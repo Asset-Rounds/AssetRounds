@@ -1,0 +1,31 @@
+# Genuine retained target context/image producer interface proposal V1
+
+GPT-6.1 Sol xhigh. Root349f and minimum cfd77 apply. This is an exact producer/consumer interface proposal, not issued authority, installed source, semantic compilation or a complete graph datum. Owned source will be a distinct successor over immutable physical V6; ordinary Session/Factory/writer/Registry behavior stays exact.
+
+## Actual source
+
+The actual already-retained StoreGenerationSession after genuine R is the only input. Incumbent Service.prepareCleanupForRetirement calls complete published graph on that exact session at12906; cold session comes from the actual private EraseSchema2ColdActivatedTargetAttemptV1 (baseline32990). Its private modelContainer, modelContext and openingFactoryForWriter are established by the private Session initializer. The source proof must positively verify actual context.container === modelContainer, context === modelContainer.mainContext, one actual persistent ModelConfiguration URL == generationRootURL/model.sqlite, generationRootURL == openingFactory.installedGenerationURL(generationID), actual schema/epoch/identity, retained real reader/current operation, no afterSaveFailure and no context.hasChanges. It never invokes validatedOpeningFactoryForWriter (which may acquire Registry), reproofAfterSave (policy setters), a fresh constructor or allowsSave:false as a sidecar guarantee.
+
+## Required central actual origin
+
+Proposed separate private Router issuer `EraseSchema2TargetSemanticProducerPermitV4` must positively bind operationID/eraseID/targetGenerationID and the SAME retained Session, inventory/reader, opening Factory provider, actual original/cold source controls and actual same-held EX/G/current target cut. Methods needed: requireCurrentBinding(); requireBoundSession(_ session: StoreGenerationSession); requireManifestSource (exact existing schema-migration target artifact versus genuinely preserved Data artifact, never guessed); positive kind/path/full11/ancestor policy lookup; retainObservationAttempt(io:); retainSemanticLoan(_:); poisonOnUncertainObservation(). All callbacks are required genuine private issuer functions, nonrecursive and independently work-bounded. No caller session, image hash or closure creates the origin.
+
+## Concrete lexical entry and fixed consumers
+
+Proposed Factory source entry is on the real Session:
+
+`@MainActor func observeSchema2EraseTargetSemanticImage(support: Int32, permit: EraseSchema2TargetSemanticProducerPermitV4, io: EraseAbortCheckedSnapshotIOV1) throws -> EraseSchema2TargetSemanticImageObservationV4`
+
+Factory privately mints `EraseSchema2TargetSemanticContextLoanV4` only in this entry after actual source binding and complete original physical preimage. It keeps the exact context private, exposes generationID/workspaceIdentity/storeSchemaRelease/modelStoreURL/operationID/originBinding DATA and requireCurrentBinding(), and is permanently revoked at lexical exit. No general context getter, caller Context, closure-result constructor or returned Journal/context is provided. Genuine IO/loan retention precedes the first open/read. Actual before/after complete target+SQL/WAL/SHM/all classified byte-bearing paths, pointer and actual Manifest bytes/facts/roles bracket the real semantic reads.
+
+Factory hard-calls the actual fixed Service graph component `EraseAllService.observeEmptyEraseConsumerCompleteGraph(producer: EraseSchema2TargetSemanticContextLoanV4)`; its result is privately minted by Service only after all incumbent predicates. Journal's public static entry is `MutationJournalStoreV1.observeEraseTargetZeroHistory(producer: EraseSchema2TargetSemanticContextLoanV4)` returning privately minted Journal DATA only.
+
+To keep Context private while different files own their fixed queries, each component uses a private-initialized query frame in its own file (Service.EraseTargetGraphQueryFrameV4 / MutationJournalStoreV1.EraseTargetZeroJournalQueryFrameV4). Loan methods `observeRegisteredGraph(frame:)` and `observeRegisteredJournal(frame:)` hard-call those actual frames with the private genuine Context after positive source binding and clean checks; frames cannot be caller-created. Frame internal query methods require the SAME loan plus exact Context/container match, never issue authority from an arbitrary Context. No generic perform(body:), mode flag, write closure or bootstrap/save/recovery path is exposed. Actual query success supplies semantic DATA only; outer Factory requires real same image and every checked transient close before returning its private bridge observation.
+
+## Image DATA and producer timeline
+
+`EraseSchema2TargetSemanticImageObservationV4` must retain actual operation/source/Session/loan lineage; actual generation/identity/schema/migration; exact canonical pointer and real source Manifest bytes/SHA/full11; complete target image/full11/kind/regularSHA/byteCount/membership/current policy work; private Service/Journal semantic DATA and predicate/reader-image version; and genuine source equality before/after validation. Whole image commitment must be a new closed versioned full11/kind/byte stream, separate from existing nine-field targetTree.digest. No rows/DB bytes are embedded into compact tuple. Manifest placement/actual move and any allowed directory drift require authentic known receipts and exact role mapping, not current scan adoption.
+
+This initial observation alone is NOT final consumer-complete or durable graph DATA. Actual target-affecting work, checkpoint/close and alias drain must finish; Factory reobserves final source image and central privately binds actual completed drain/close/consumer/phase/P/Sources/Progress lineage before Store publication. A changed valid image requires authentic complete semantic validation again, with full B source where necessary. Fresh A rebind consumes the genuinely sealed image tuple under new real EX and full actual physical observation without opening SwiftData or writing sidecars. Missing/lawful legacy DATA keeps full genuine B route mandatory.
+
+Exact central permit, fixed Service/Journal frame DATA methods, final-image/close transition tuple and image stream framing must be agreed before source implementation. No temporary protocol/default success/fake authority is introduced by this proposal.

@@ -1,0 +1,34 @@
+{
+  "results": [
+    {
+      "argv": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        ".codex-temp/original-scratch-pfp-effect-v1/candidate/ProtectedFilePolicy.swift"
+      ],
+      "configuration": "debug",
+      "exitCode": 0,
+      "outputSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        ".codex-temp/original-scratch-pfp-effect-v1/candidate/ProtectedFilePolicy.swift"
+      ],
+      "configuration": "nondebug",
+      "exitCode": 0,
+      "outputSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "runtime": false,
+  "semanticTypecheck": false,
+  "sourceSHA256": "07d257675980361e8c945cfaeda332877c80b43566455368d93d1baefcac38cd",
+  "syntaxOnly": true
+}

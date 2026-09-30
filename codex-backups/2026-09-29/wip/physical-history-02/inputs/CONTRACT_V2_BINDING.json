@@ -1,0 +1,12 @@
+{
+  "authorModel": "gpt-6.1-sol",
+  "interfaces": {
+    "C16_INTERFACE.md": "bd9671abebe0df0782ff186edd7003df278d7958ecd8939efcb946284e65234a",
+    "COLD_CONTINUATION_CONTRACT_V2.md": "e275b2d2c0c719cbe039c5cf93d79ce67da0f64abd3973ddda8e25c840131692",
+    "STORE_INTERFACE.md": "9da3b897d4592c9d2693df228db021e94d617c602f4b891ef28055386c7006d4"
+  },
+  "parentBaselineSHA256": "b90f8d0c6bab93189257602fcfaa902285f8bc16b528f086b0797b916e6a0bef",
+  "reasoningEffort": "xhigh",
+  "status": "contract-only-not-installable",
+  "version": 2
+}

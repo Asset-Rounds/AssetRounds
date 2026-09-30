@@ -1,0 +1,150 @@
+{
+  "$id": "https://assetrounds.invalid/v23/structured-voice-proposal.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allowedProposalFields": {
+      "const": [
+        "NOTE_TEXT",
+        "FINDING_TEXT",
+        "ALLOWED_ENUM",
+        "EXACT_NUMBER_AND_UNIT",
+        "DURATION",
+        "MATERIAL_DESCRIPTION_AND_QUANTITY"
+      ]
+    },
+    "c56OwnsCaptureUIRuntime": {
+      "const": false
+    },
+    "captureUIRuntimeOwnership": {
+      "const": "V23-P04-C45"
+    },
+    "cardID": {
+      "const": "V23-P03-C56"
+    },
+    "contractRefs": {
+      "const": [
+        "VoiceStructuringGrammarReleaseV1",
+        "StructuredVoiceProposalV1",
+        "VoiceProposalReviewPlanV1",
+        "DirectPrerequisiteEvidenceSetV1",
+        "CardAcceptanceInclusionProofV1",
+        "CardAcceptanceInclusionProofRecoveryReceiptV1",
+        "CandidateAcceptanceCompatibilityReceiptV1"
+      ]
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C56-G01",
+        "V23-P03-C56-A01",
+        "V23-P03-C56-H01",
+        "V23-P03-C56-I01",
+        "V23-P03-C56-R01"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "forbiddenInferences": {
+      "const": [
+        "DIAGNOSIS",
+        "COMPLIANCE",
+        "SEVERITY",
+        "IDENTITY",
+        "PLACEMENT",
+        "SCHEDULE",
+        "EXACT_STOCK_BINDING",
+        "STOCK_DECREMENT",
+        "CANONICAL_COMMAND",
+        "COMPLETION",
+        "FINALIZATION"
+      ]
+    },
+    "journeyRefs": {
+      "const": [
+        "FJ14"
+      ]
+    },
+    "maximumProposalLifetimeSeconds": {
+      "const": 1800
+    },
+    "p04C45OwnsCaptureUIRuntime": {
+      "const": true
+    },
+    "persistence": {
+      "const": {
+        "acceptedFieldCheckpoint": "P03-C36_EXISTING_DRAFT_CHECKPOINT_AND_WRITER",
+        "backup": "PROPOSAL_EXCLUDED_ACCEPTED_DRAFT_USES_EXISTING_C36_LIFECYCLE",
+        "cloneFork": "PROPOSAL_INVALIDATED_DRAFT_AUTHORITY_REMAINS_C36",
+        "deleteErase": "SCRATCH_DELETED_PROPOSAL_DISCARDED",
+        "durableFamilies": [],
+        "durableFamilyCount": 0,
+        "importExport": "NO_PROPOSAL_EXPORT",
+        "journalReplay": "NO_PROPOSAL_JOURNAL_ROW",
+        "mode": "NONPERSISTENT_PROPOSAL_EXISTING_C36_DRAFT_ACCEPTANCE",
+        "newPersistentModelCount": 0,
+        "persistentSchemaVersionUnchanged": true,
+        "proposal": "NONPERSISTENT",
+        "recordsSchemaVersionUnchanged": true,
+        "report": "EXCLUDED",
+        "restore": "PROPOSAL_EXCLUDED_ACCEPTED_DRAFT_USES_EXISTING_C36_LIFECYCLE",
+        "retention": "NO_AUDIO_RETENTION",
+        "scratchAudio": "NONPERSISTENT_DELETE_ON_TERMINAL_DISPOSITION",
+        "search": "EXCLUDED"
+      }
+    },
+    "provisional": {
+      "const": false
+    },
+    "qualityStates": {
+      "const": [
+        "EXACT_EXPLICIT_GRAMMAR",
+        "AMBIGUOUS_REQUIRES_MANUAL_ENTRY",
+        "UNSUPPORTED"
+      ]
+    },
+    "schema": {
+      "const": "V22P03C56StructuredVoiceProposalCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P03C56G01DeterministicGrammarSpansAndTypedC36Acceptance",
+        "testV23P03C56A01AmbiguityLocaleAndManualFallbackUseExplicitReview",
+        "testV23P03C56H01HostileRegistrySpansValuesReplayAndGenerationFailClosed",
+        "testV23P03C56I01InterruptionAdmissionEraseAndNonpersistentLifecycleRemainClosed",
+        "testV23P03C56R01CanonicalRecoveryAndPersistenceClosureRemainDeterministic"
+      ]
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "contractRefs",
+    "journeyRefs",
+    "evidenceIDs",
+    "selectors",
+    "qualityStates",
+    "allowedProposalFields",
+    "forbiddenInferences",
+    "maximumProposalLifetimeSeconds",
+    "captureUIRuntimeOwnership",
+    "c56OwnsCaptureUIRuntime",
+    "p04C45OwnsCaptureUIRuntime",
+    "persistence",
+    "statusFlags",
+    "provisional",
+    "finalHashesSealed"
+  ],
+  "title": "On-device StructuredVoiceProposalV1, deterministic grammar, source spans, ambiguity, expiry, and explicit field acceptance",
+  "type": "object"
+}

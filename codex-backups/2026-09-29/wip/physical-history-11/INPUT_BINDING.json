@@ -1,0 +1,40 @@
+{
+  "status": "noninstallable WIP coupling snapshots",
+  "inputs": [
+    {
+      "source": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/interface-checkpoint-v3/ROUTER_ADMISSION_PERMIT_READBACK_V3.swift.fragment",
+      "copied": ".codex-temp/original-scratch-physical-effect-v1/inputs/CENTRAL_V3_ADMISSION.swift.fragment",
+      "sha256": "9c46b37dc6a14a4a6d63cd118b34e2db213ae202d7d1141765964cf38f664e3a",
+      "bytes": 25064,
+      "classification": "source-only interface/partial snapshot; no authority/compile/runtime acceptance"
+    },
+    {
+      "source": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-central-effect-v1/interface-checkpoint-v3/BINDING.json",
+      "copied": ".codex-temp/original-scratch-physical-effect-v1/inputs/CENTRAL_V3_BINDING.json",
+      "sha256": "66549cbfe3046c7a5745b904c5433b1621cb980c9602467de7610c00bef97864",
+      "bytes": 3284,
+      "classification": "source-only interface/partial snapshot; no authority/compile/runtime acceptance"
+    },
+    {
+      "source": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-effect-loan-v1/source-checkpoint-v4-backup/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift",
+      "copied": ".codex-temp/original-scratch-physical-effect-v1/inputs/LEDGER_BACKUP_V4_OwnedStorageLedgerV1.swift",
+      "sha256": "a178ebe247d8346d1b99fc082c83a7353165c8d28f55387f1ed7ee063520b0a1",
+      "bytes": 638775,
+      "classification": "source-only interface/partial snapshot; no authority/compile/runtime acceptance"
+    },
+    {
+      "source": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-effect-loan-v1/LIVE_SCRATCH_EFFECT_INTERFACE_V1.swift.fragment",
+      "copied": ".codex-temp/original-scratch-physical-effect-v1/inputs/LEDGER_LIVE_INTERFACE_V1.swift.fragment",
+      "sha256": "b12ecefbe43d5a83c99bc38b2046fc053ed7b7e8ddaa8c248cfe43e8084e56e2",
+      "bytes": 5876,
+      "classification": "source-only interface/partial snapshot; no authority/compile/runtime acceptance"
+    },
+    {
+      "source": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-pfp-effect-v1/candidate/ProtectedFilePolicy.swift",
+      "copied": ".codex-temp/original-scratch-physical-effect-v1/inputs/PFP_WORKING_SNAPSHOT_ProtectedFilePolicy.swift",
+      "sha256": "07d257675980361e8c945cfaeda332877c80b43566455368d93d1baefcac38cd",
+      "bytes": 158649,
+      "classification": "source-only interface/partial snapshot; no authority/compile/runtime acceptance"
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "fixtureIdentity": "V23-P02-C11-APP-LOCK-LIFECYCLE-CORPUS-V1",
+  "authority": {
+    "cardID": "V23-P02-C11",
+    "contextDigest": "b864682eb37661d7b0316331e9f53de201b7027cc4f8363e130ce5ee66015469",
+    "pathFenceDigest": "c9bef9203b66eea8e816413a646ee5f3ef530ca3d1d5797be43c8f05314207a5",
+    "baseHead": "3acab655d53f76f2f2b2e3fc5c27464b4d385ac5"
+  },
+  "activation": {
+    "disposition": "PROVISIONAL_NON_UI_KERNEL_ONLY_UNTIL_ACCEPTED_S10_6_RECONCILIATION",
+    "provisionalKernelOnly": true,
+    "adopted": false,
+    "shippingSurfaceEnabled": false,
+    "consumersActivated": false
+  },
+  "testMethods": [
+    "testV9_15G01OptInAccessGateUsesFreshDeviceOwnerAuthentication",
+    "testV9_15A01LockedIngressAndNotificationsRemainContentBlind",
+    "testV9_15H01CorruptSettingsAndAuthenticationFailuresFailLocked",
+    "testV9_15I01BackgroundTerminationAndJournalInterruptionRecoverLocked",
+    "testV9_15R01EraseClearsDeviceLocalLockAndProtectedIngress"
+  ],
+  "evidenceIDs": [
+    "V23-P02-C11-G01",
+    "V23-P02-C11-A01",
+    "V23-P02-C11-H01",
+    "V23-P02-C11-I01",
+    "V23-P02-C11-R01"
+  ],
+  "exactCopy": {
+    "setting": "Require Face ID, Touch ID, or your iPhone passcode whenever AssetRounds launches or returns from the background.",
+    "disclosure": "App Lock limits access inside AssetRounds. It does not encrypt exported files, replace iPhone data protection, verify a person\u2019s identity, or protect files after you share them.",
+    "lockedState": "AssetRounds is locked. Authenticate with Face ID, Touch ID, or your iPhone passcode to view local work records.",
+    "faceIDPurpose": "Use Face ID to unlock your locally stored inspection and service records.",
+    "genericNotificationTitle": "AssetRounds reminder",
+    "genericNotificationBody": "Open AssetRounds to view details."
+  },
+  "setting": {
+    "key": "device.appLock.enabled",
+    "defaultEnabled": false,
+    "scope": "DEVICE_LOCAL",
+    "backup": "EXCLUDED_DEVICE_LOCAL",
+    "export": "EXCLUDED",
+    "erase": "RESTORE_DEFAULT",
+    "persistsUnlockedSession": false,
+    "corruptDisposition": "CONFIGURATION_UNKNOWN_LOCKED",
+    "ambiguousDisposition": "CONFIGURATION_UNKNOWN_LOCKED",
+    "futureVersionDisposition": "CONFIGURATION_UNKNOWN_LOCKED",
+    "repairRequiresAuthentication": true
+  },
+  "accessStates": [
+    "AUTHENTICATING",
+    "CONFIGURATION_UNKNOWN_LOCKED",
+    "DISABLED",
+    "INTERRUPTED_LOCKED",
+    "LOCKED",
+    "UNLOCKED_FOREGROUND"
+  ],
+  "lockReasons": [
+    "AUTHENTICATION_CANCELLED",
+    "AUTHENTICATION_FAILED",
+    "AUTHENTICATION_LOCKED_OUT",
+    "BIOMETRY_CHANGED",
+    "BIOMETRY_NOT_ENROLLED",
+    "COLD_LAUNCH",
+    "INTERRUPTED",
+    "DEVICE_PASSCODE_REMOVED",
+    "LOCK_NOW",
+    "PENDING_RECOVERY",
+    "PROTECTED_DATA_UNAVAILABLE",
+    "RETURNED_FROM_BACKGROUND"
+  ],
+  "lifecycleEvents": ["COLD_LAUNCH","ERASE","LOCK_NOW","PROTECTED_DATA_UNAVAILABLE","SCENE_ACTIVE","SCENE_BACKGROUND","SCENE_INACTIVE","TERMINATION"],
+  "lifecycleMatrix": [
+    {"event":"COLD_LAUNCH","enabled":true,"expectedState":"LOCKED","invalidatesSession":true,"cancelsAttempt":false},
+    {"event":"LOCK_NOW","enabled":true,"expectedState":"LOCKED","invalidatesSession":true,"cancelsAttempt":true},
+    {"event":"REAL_BACKGROUND","enabled":true,"expectedState":"LOCKED","invalidatesSession":true,"cancelsAttempt":true},
+    {"event":"TERMINATED","enabled":true,"expectedState":"LOCKED","invalidatesSession":true,"cancelsAttempt":true},
+    {"event":"TRANSIENT_INACTIVE_SYSTEM_SHEET","enabled":true,"expectedState":"UNCHANGED_WITH_PRIVACY_COVER","invalidatesSession":false,"cancelsAttempt":false},
+    {"event":"COLD_LAUNCH","enabled":false,"expectedState":"DISABLED","invalidatesSession":true,"cancelsAttempt":false}
+  ],
+  "authentication": {
+    "policy": "DEVICE_OWNER_AUTHENTICATION",
+    "freshContextPerAttempt": true,
+    "maximumEvaluationsPerContext": 1,
+    "releaseClient": "SystemLocalAuthenticationClient",
+    "availabilityCases": [
+      "AVAILABLE",
+      "BIOMETRY_LOCKED_OUT",
+      "BIOMETRY_NOT_ENROLLED",
+      "DEVICE_PASSCODE_NOT_SET",
+      "TEMPORARILY_UNAVAILABLE",
+      "UNSUPPORTED"
+    ],
+    "outcomeCases": [
+      "APP_CANCELLED",
+      "AUTHENTICATION_FAILED",
+      "BIOMETRY_CHANGED",
+      "BIOMETRY_LOCKED_OUT",
+      "BIOMETRY_NOT_ENROLLED",
+      "DEVICE_PASSCODE_NOT_SET",
+      "INTERRUPTED",
+      "SYSTEM_CANCELLED",
+      "UNAVAILABLE",
+      "AUTHENTICATED",
+      "USER_CANCELLED"
+    ]
+  },
+  "gatedEntryPoints": [
+    "APP_INTENT",
+    "BACKUP_FILE",
+    "CSV_FILE",
+    "DOCUMENT",
+    "EXPORT",
+    "PROTECTED_INGRESS",
+    "REMINDER_NOTIFICATION",
+    "RESTORATION",
+    "REVIEW_FILE",
+    "ROOT_ROUTE",
+    "SCAN",
+    "SHARE",
+    "SHARE_FILE",
+    "SHORTCUT",
+    "SPOTLIGHT",
+    "SUPPORT_RECOVERY",
+    "THIRD_PARTY_ADAPTER_FILE"
+  ],
+  "ingressKinds": ["APP_INTENT","BACKUP_FILE","CSV_FILE","DOCUMENT","EXPORT","PROTECTED_INGRESS","REMINDER_NOTIFICATION","RESTORATION","REVIEW_FILE","ROOT_ROUTE","SCAN","SHARE","SHARE_FILE","SHORTCUT","SPOTLIGHT","SUPPORT_RECOVERY","THIRD_PARTY_ADAPTER_FILE"],
+  "lockedIngress": {
+    "allowedOperations": ["BOUNDED_SIZE_PREFLIGHT","PROTECTED_STAGING_COPY"],
+    "forbiddenOperations": ["APPLY","CANONICAL_WRITE","DECRYPT","DERIVE_CUSTOMER_FACTS","DESERIALIZE","INDEX","PARSE","PREVIEW","RENDER","RESOLVE_NOTIFICATION_TOKEN"],
+    "pendingIntentAllowedFields": ["correlationToken","expiresAt","ingressKind","payloadByteCount","payloadSHA256","schemaVersion"],
+    "pendingIntentForbiddenFields": ["assetID","customerName","locationID","note","routeID","scheduleTitle","siteID","workID","workspaceID"],
+    "hostileCases": ["AMBIGUOUS_OWNERSHIP","EXPIRED","OVERSIZED","PATH_TRAVERSAL","STALE_REVISION","SYMLINK","TOKEN_COLLISION","UNKNOWN_SCHEMA","WRONG_WORKSPACE"]
+  },
+  "notificationPrivacy": {
+    "enabledDisposition": "GENERIC_ONLY",
+    "payloadAllowedFields": ["correlationToken"],
+    "payloadForbiddenFields": ["assetID","customerName","locationID","note","routeID","scheduleTitle","siteID","workID","workspaceID"],
+    "tapOrder": ["GATE","AUTHENTICATE","RESOLVE_TOKEN","VALIDATE_EXPIRY","VALIDATE_WORKSPACE","VALIDATE_REVISION","ROUTE"],
+    "enableJournalPhases": ["PREPARED","PRIVATE_REQUESTS_CANCELLED","DELIVERED_REMOVED","GENERIC_REQUESTS_PROJECTED","COMPLETED"],
+    "disableJournalPhases": ["PREPARED","GENERIC_REQUESTS_CANCELLED","CANONICAL_POLICY_REBUILT","COMPLETED"],
+    "mixedPrivateAndGenericAllowed": false,
+    "canonicalScheduleIsTruth": true,
+    "notificationIsCanonicalTruth": false
+  },
+  "interruptionBoundaries": [
+    "AFTER_AUTHENTICATION_SUCCESS_BEFORE_SESSION_PUBLICATION",
+    "AFTER_DELIVERED_NOTIFICATION_REMOVAL",
+    "AFTER_GENERIC_NOTIFICATION_EFFECT_BEFORE_RECEIPT",
+    "AFTER_INGRESS_COPY_BEFORE_PENDING_INTENT_RECEIPT",
+    "AFTER_PRIVATE_NOTIFICATION_CANCELLATION",
+    "AFTER_SESSION_PUBLICATION_BEFORE_ROUTE",
+    "BEFORE_AUTHENTICATION_EVALUATION",
+    "BEFORE_INGRESS_COPY",
+    "BEFORE_NOTIFICATION_REPROJECTION",
+    "DURING_AUTHENTICATION_THEN_BACKGROUND",
+    "DURING_DISABLE_REBUILD",
+    "DURING_ERASE_LOCAL_CLEANUP"
+  ],
+  "recovery": {
+    "coldRelaunchStateWhenEnabled": "LOCKED",
+    "zeroOrCompleteEffectsOnly": true,
+    "retryIsIdempotent": true,
+    "lateAuthenticationCannotUnlock": true,
+    "blindScratchHygieneAllowed": true,
+    "ambiguousScratchWaitsForAuthentication": true
+  },
+  "erase": {
+    "clears": ["DEVICE_LOCAL_SETTING","GENERIC_NOTIFICATION_REQUESTS","NOTIFICATION_CORRELATION_MAPPINGS","NOTIFICATION_JOURNAL","PENDING_LOCKED_EXTERNAL_INTENTS","PROTECTED_INGRESS_STAGING","UNLOCKED_FOREGROUND_SESSION"],
+    "removesDeliveredNotifications": true,
+    "nextLaunchState": "DISABLED",
+    "canRecallSharedFiles": false,
+    "idempotentRecovery": true
+  },
+  "claimFlags": {
+    "appPIN": false,
+    "backgroundBypass": false,
+    "databaseEncryption": false,
+    "identityVerification": false,
+    "persistedUnlockedSession": false,
+    "remoteLock": false,
+    "remoteWipe": false,
+    "roleAuthorization": false,
+    "sharedFileRecall": false,
+    "storageEncryption": false,
+    "userAccount": false
+  },
+  "accessibility": ["AX5","ERROR_FOCUS","REDUCE_MOTION","SWITCH_CONTROL","VOICE_CONTROL","VOICE_OVER"],
+  "physicalEvidence": {
+    "simulatorBiometricClaimAllowed": false,
+    "faceIDRequired": true,
+    "touchIDRequiredWhenSupportedHardwareAvailable": true,
+    "unavailableHardwareDisposition": "EXACT_P05_OWNER_GATE"
+  }
+}

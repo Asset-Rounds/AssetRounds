@@ -1,0 +1,68 @@
+{
+  "$id": "https://assetrounds.invalid/v23/evidence-context.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P03-C30"
+    },
+    "durableFamilies": {
+      "const": [
+        "EvidenceContextRow",
+        "PairedObservationLinkRow"
+      ]
+    },
+    "persistentSchemaVersion": {
+      "const": 30
+    },
+    "recordsSchemaVersion": {
+      "const": 29
+    },
+    "requiredContractNames": {
+      "const": [
+        "EvidenceLightingConditionV1",
+        "UserObservedEvidenceContextV1",
+        "SolarLocationV1",
+        "SolarPolarDispositionV1",
+        "DerivedSolarConditionV1",
+        "SolarEventInstantV1",
+        "DerivedSolarContextV1",
+        "SolarCalculationInputV1",
+        "OfflineSolarCalculatorV1",
+        "ControlExpectationV1",
+        "EvidenceContextV1",
+        "PairedObservationPurposeV1",
+        "PairedObservationReferenceV1",
+        "PairedObservationMismatchReasonV1",
+        "PairedObservationLinkV1",
+        "EvidenceContextCanonicalCodecV1",
+        "EvidenceContextWriteOperationV1",
+        "EvidenceContextWriteReceiptV1"
+      ]
+    },
+    "schema": {
+      "const": "V22P03C30EvidenceContextCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "durableFamilies",
+    "requiredContractNames",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C30 Evidence Context Corpus",
+  "type": "object"
+}

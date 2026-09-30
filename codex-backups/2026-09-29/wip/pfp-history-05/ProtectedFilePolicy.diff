@@ -1,0 +1,339 @@
+--- before/ProtectedFilePolicy.swift
++++ candidate/ProtectedFilePolicy.swift
+@@ -1468,6 +1468,49 @@
+     let volumeSupportsProtection: Bool?
+ }
+ 
++/// Pure payload-work accounting for the actual checked pair readers. These
++/// constants grant no scope, inode sharing, policy, storage or effect authority.
++/// Fresh issuer/control/metadata IO and the scanner's own reads are separate.
++enum EraseC16TemporalPairReadWorkKindV1 {
++    case currentCanonicalPair
++    case firstPImmutablePair
++    case initialOpaquePair
++    case firstCaptureOpaquePair
++    case observedOwnedGenericAliases
++}
++
++enum EraseC16TemporalPairReadWorkV1 {
++    static func payloadBytePassesPerInvocation(
++        kind: EraseC16TemporalPairReadWorkKindV1
++    ) -> UInt64 {
++        switch kind {
++        case .currentCanonicalPair:
++            // Both descriptors are read before and after each of two policies.
++            return 8
++        case .firstPImmutablePair, .initialOpaquePair,
++             .firstCaptureOpaquePair, .observedOwnedGenericAliases:
++            // One shared-inode descriptor is streamed before and after each
++            // of two policies; exact both-name facts bind each complete pass.
++            return 4
++        }
++    }
++
++    static func maximumPayloadReadBytes(expectedByteCount: Int64,
++        kind: EraseC16TemporalPairReadWorkKindV1
++    ) throws -> UInt64 {
++        guard expectedByteCount >= 0,
++              let byteCount = UInt64(exactly: expectedByteCount) else {
++            throw ProtectedFilePolicyError.invalidURL
++        }
++        let (work, overflow) = byteCount.multipliedReportingOverflow(
++            by: payloadBytePassesPerInvocation(kind: kind))
++        guard !overflow else { throw ProtectedFilePolicyError.invalidURL }
++        // Each real observer independently retains its existing per-leaf
++        // limit. This pure arithmetic never enlarges it or a tree envelope.
++        return work
++    }
++}
++
+ /// A retained, observation-only owner. Ledger retains this attempt before its
+ /// first IO. Numeric descriptors leave the usable set BEFORE any close call;
+ /// an ambiguous close is evidence only and is never retried or inspected.
+@@ -2858,6 +2901,286 @@
+         }
+     }
+ 
++    /// Current owned generic Scratch DATA in the genuine pre-roster owner.
++    /// Ordered aliases do not assert which member was historically final or
++    /// temporary. The actual private issuer proves complete exact membership,
++    /// current metadata/orphan role and source/control ownership at every IO.
++    /// No original P, lease/publication receipt, policy or effect is issued.
++    @MainActor
++    static func observeEraseObservedOwnedGenericAliasTemporalPairWithCheckedClose(
++        aliasURLs: [URL],
++        scope: OriginalEraseC16FirstCaptureObservationScopeV1,
++        retainUncertainDescriptor: (Int32) -> Void
++    ) throws -> [TemporalPolicyObservationV1] {
++        let attempt = OriginalEraseC16CurrentTemporalObservationAttemptV1()
++        scope.retainObservationAttempt(attempt)
++        do {
++            func boundary() throws {
++                try attempt.requireObserving()
++                try scope.requireCurrentBinding()
++            }
++            try boundary()
++            let pair = try scope.requireObservedOwnedGenericAliases(
++                aliasURLs: aliasURLs)
++            try boundary()
++            guard aliasURLs.count == 2, pair.members.count == 2,
++                  pair.members.map(\.url) == aliasURLs else {
++                throw ProtectedFilePolicyError.invalidURL
++            }
++            let firstMember = pair.members[0], secondMember = pair.members[1]
++            let firstURL = firstMember.url, secondURL = secondMember.url
++            let parentURL = firstURL.deletingLastPathComponent()
++            let firstName = firstURL.lastPathComponent
++            let secondName = secondURL.lastPathComponent
++            let relativeDirectory: String
++            switch pair.metadata {
++            case .validatedLease(let directory, let canonicalBytes, let sha256):
++                // Canonical request/purpose/owner/bounds and actual present
++                // metadata are the private issuer's fresh origin proof. This
++                // check only rejects an internally inconsistent DATA witness.
++                guard !canonicalBytes.isEmpty,
++                      OperationalDiagnosticsBoundsV1.isLowercaseSHA256(sha256),
++                      SHA256.hash(data: canonicalBytes)
++                        .map({ String(format: "%02x", $0) }).joined() == sha256 else {
++                    throw ProtectedFilePolicyError.identityChanged
++                }
++                relativeDirectory = directory
++            case .ownedOrphan(let directory):
++                // The issuer must prove exact current lease.json absence;
++                // corrupt, mismatched or consumed metadata is never fallback.
++                relativeDirectory = directory
++            }
++            func isProducerTemporaryName(_ name: String) -> Bool {
++                guard name.hasPrefix(".partial-"),
++                      let id = UUID(uuidString: String(name.dropFirst(9))) else {
++                    return false
++                }
++                return name == ".partial-" + id.uuidString.lowercased()
++            }
++            guard firstURL.isFileURL, secondURL.isFileURL,
++                  firstURL == firstURL.standardizedFileURL,
++                  secondURL == secondURL.standardizedFileURL,
++                  firstURL != secondURL,
++                  parentURL == secondURL.deletingLastPathComponent(),
++                  OperationalDiagnosticsBoundsV1.validRelativeName(relativeDirectory),
++                  parentURL.lastPathComponent == relativeDirectory,
++                  parentURL.deletingLastPathComponent().lastPathComponent == "ScratchDataV1",
++                  OperationalDiagnosticsBoundsV1.validRelativeName(firstName),
++                  OperationalDiagnosticsBoundsV1.validRelativeName(secondName),
++                  firstName != "lease.json", secondName != "lease.json",
++                  isProducerTemporaryName(firstName) || isProducerTemporaryName(secondName),
++                  firstMember.operationsRelativePath == "ScratchDataV1/" + relativeDirectory + "/" + firstName,
++                  secondMember.operationsRelativePath == "ScratchDataV1/" + relativeDirectory + "/" + secondName,
++                  firstMember.operationsRelativePath.utf8.lexicographicallyPrecedes(
++                    secondMember.operationsRelativePath.utf8),
++                  pair.operationID == scope.operationID,
++                  pair.originBinding == scope.captureToken,
++                  OperationalDiagnosticsBoundsV1.isLowercaseSHA256(pair.originBinding),
++                  pair.declaredPairIndex >= 0,
++                  pair.byteCount >= 0,
++                  pair.byteCount <= 1_024 * 1_024 * 1_024,
++                  OperationalDiagnosticsBoundsV1.isLowercaseSHA256(pair.sha256),
++                  firstMember.observedFact == secondMember.observedFact,
++                  firstMember.observedFact.split(separator: "|",
++                    omittingEmptySubsequences: false).count == 9,
++                  firstMember.fullFact == secondMember.fullFact,
++                  firstMember.fullFact.split(separator: "|",
++                    omittingEmptySubsequences: false).count == 11 else {
++                throw ProtectedFilePolicyError.invalidURL
++            }
++            func fact(_ value: stat) -> String {
++                "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
++            }
++            func observedFact(_ value: stat) -> String {
++                "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
++            }
++            func checkedIO<Value>(_ body: () throws -> Value) throws -> Value {
++                try boundary()
++                let result: Result<Value, Error>
++                do { result = .success(try body()) }
++                catch { result = .failure(error) }
++                try boundary()
++                return try result.get()
++            }
++            var parentBefore = stat()
++            try checkedIO {
++                guard Darwin.lstat(parentURL.path, &parentBefore) == 0 else {
++                    throw ProtectedFilePolicyError.invalidURL
++                }
++            }
++            guard parentBefore.st_mode & S_IFMT == S_IFDIR,
++                  parentBefore.st_uid == Darwin.geteuid(),
++                  UInt64(parentBefore.st_dev) == pair.device else {
++                throw ProtectedFilePolicyError.identityChanged
++            }
++            let parentFact = fact(parentBefore)
++            func checkedOpen(_ body: () -> Int32) throws -> Int32 {
++                try boundary()
++                let descriptor = body()
++                let remembered: Result<Void, Error>
++                if descriptor >= 0 {
++                    do {
++                        try attempt.rememberOpened(descriptor, scope: scope,
++                            retainUncertainDescriptor: retainUncertainDescriptor)
++                        remembered = .success(())
++                    } catch { remembered = .failure(error) }
++                } else {
++                    remembered = .failure(ProtectedFilePolicyError.invalidURL)
++                }
++                try boundary()
++                try remembered.get()
++                return descriptor
++            }
++            let parentFD = try checkedOpen {
++                Darwin.open(parentURL.path,
++                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
++            }
++            func requireParent() throws {
++                var held = stat(), named = stat()
++                try checkedIO {
++                    guard Darwin.fstat(parentFD, &held) == 0 else {
++                        throw ProtectedFilePolicyError.identityChanged
++                    }
++                }
++                try checkedIO {
++                    guard Darwin.lstat(parentURL.path, &named) == 0 else {
++                        throw ProtectedFilePolicyError.identityChanged
++                    }
++                }
++                guard fact(held) == parentFact, fact(named) == parentFact else {
++                    throw ProtectedFilePolicyError.identityChanged
++                }
++            }
++            try requireParent()
++            let flags = O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC
++            let firstFD = try checkedOpen {
++                Darwin.openat(parentFD, firstName, flags)
++            }
++            let secondFD = try checkedOpen {
++                Darwin.openat(parentFD, secondName, flags)
++            }
++            let expectedGroup = parentBefore.st_mode & S_ISGID != 0
++                ? parentBefore.st_gid : Darwin.getegid()
++            func inspect(_ descriptor: Int32, name: String,
++                expectedFact: String, expectedObservedFact: String) throws -> stat {
++                var held = stat(), named = stat()
++                try checkedIO {
++                    guard Darwin.fstat(descriptor, &held) == 0 else {
++                        throw ProtectedFilePolicyError.identityChanged
++                    }
++                }
++                try checkedIO {
++                    guard Darwin.fstatat(parentFD, name, &named,
++                        AT_SYMLINK_NOFOLLOW) == 0 else {
++                        throw ProtectedFilePolicyError.identityChanged
++                    }
++                }
++                guard held.st_mode & S_IFMT == S_IFREG,
++                      held.st_mode & 0o7777 == 0o600,
++                      held.st_uid == Darwin.geteuid(),
++                      held.st_gid == expectedGroup,
++                      held.st_nlink == 2,
++                      held.st_size == pair.byteCount,
++                      UInt64(held.st_dev) == pair.device,
++                      UInt64(held.st_ino) == pair.inode,
++                      fact(held) == expectedFact,
++                      fact(named) == expectedFact,
++                      observedFact(held) == expectedObservedFact,
++                      observedFact(named) == expectedObservedFact else {
++                    throw ProtectedFilePolicyError.identityChanged
++                }
++                return held
++            }
++            func requirePair() throws -> stat {
++                try requireParent()
++                let first = try inspect(firstFD, name: firstName,
++                    expectedFact: firstMember.fullFact,
++                    expectedObservedFact: firstMember.observedFact)
++                let second = try inspect(secondFD, name: secondName,
++                    expectedFact: secondMember.fullFact,
++                    expectedObservedFact: secondMember.observedFact)
++                guard first.st_dev == second.st_dev,
++                      first.st_ino == second.st_ino else {
++                    throw ProtectedFilePolicyError.hardLink
++                }
++                try requireParent()
++                return first
++            }
++            func requireStreamingSHA() throws {
++                var digest = SHA256()
++                var offset: Int64 = 0
++                var buffer = [UInt8](repeating: 0, count: 64 * 1024)
++                while offset < pair.byteCount {
++                    let count = Int(min(Int64(buffer.count),
++                        pair.byteCount - offset))
++                    let readCount = try checkedIO {
++                        buffer.withUnsafeMutableBytes {
++                            Darwin.pread(firstFD, $0.baseAddress!, count,
++                                off_t(offset))
++                        }
++                    }
++                    guard readCount == count else {
++                        throw ProtectedFilePolicyError.identityChanged
++                    }
++                    // CryptoKit consumes this fixed-size buffer synchronously.
++                    // Exact both-name/shared-inode proof binds this digest to
++                    // both ordered owned DATA aliases without copying data
++                    // or choosing a historical publication member.
++                    buffer.withUnsafeBytes {
++                        digest.update(bufferPointer: UnsafeRawBufferPointer(
++                            start: $0.baseAddress, count: count))
++                    }
++                    offset += Int64(count)
++                }
++                guard offset == pair.byteCount,
++                      digest.finalize().map({ String(format: "%02x", $0) })
++                        .joined() == pair.sha256 else {
++                    throw ProtectedFilePolicyError.identityChanged
++                }
++            }
++            func requireUnchangedPairAndSHA() throws -> stat {
++                let value = try requirePair()
++                try requireStreamingSHA()
++                _ = try requirePair()
++                return value
++            }
++            var values: [TemporalPolicyObservationV1] = []
++            for url in [firstURL, secondURL] {
++                let before = try requireUnchangedPairAndSHA()
++                let value = try readTemporalPolicy(.temporaryFile, at: url,
++                    expectedDevice: UInt64(before.st_dev),
++                    expectedInode: UInt64(before.st_ino),
++                    expectedLinkCount: 2,
++                    observationBoundary: boundary)
++                _ = try requireUnchangedPairAndSHA()
++                values.append(value)
++            }
++            guard values.count == 2, values[0] == values[1] else {
++                throw ProtectedFilePolicyError.resourceValueMismatch
++            }
++            try boundary()
++            try attempt.finish(scope: scope,
++                retainUncertainDescriptor: retainUncertainDescriptor)
++            try scope.requireCurrentBinding()
++            return values
++        } catch {
++            // Finish every still-owned descriptor once even after a refusal.
++            // A failed close is retained by this attempt and the exact owner;
++            // neither successful nor ambiguous closes are ever retried.
++            if attempt.isObserving || attempt.hasUnclosedDescriptors {
++                do {
++                    try attempt.finish(scope: scope,
++                        retainUncertainDescriptor: retainUncertainDescriptor)
++                } catch {
++                    scope.poisonOnUncertainObservation()
++                    throw error
++                }
++            }
++            scope.poisonOnUncertainObservation()
++            throw error
++        }
++    }
++
+     private static func readTemporalPolicy(_ kind: OwnedFileKindV1, at url: URL,
+         expectedDevice: UInt64, expectedInode: UInt64, expectedLinkCount: UInt64,
+         observationBoundary: (() throws -> Void)? = nil)

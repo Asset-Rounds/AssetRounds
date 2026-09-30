@@ -1,0 +1,96 @@
+{
+  "parseOnly": true,
+  "noTypecheckOrBuild": true,
+  "results": [
+    {
+      "file": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "mode": "DEBUG",
+      "exit": 0,
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        ".codex-temp/original-scratch-central-effect-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+      ],
+      "log": "PARSE-V2-EraseAllService-DEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "mode": "nonDEBUG",
+      "exit": 0,
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        ".codex-temp/original-scratch-central-effect-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+      ],
+      "log": "PARSE-V2-EraseAllService-nonDEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+      "mode": "DEBUG",
+      "exit": 0,
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        ".codex-temp/original-scratch-central-effect-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+      ],
+      "log": "PARSE-V2-StartupRouter-DEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+      "mode": "nonDEBUG",
+      "exit": 0,
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        ".codex-temp/original-scratch-central-effect-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+      ],
+      "log": "PARSE-V2-StartupRouter-nonDEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "mode": "DEBUG",
+      "exit": 0,
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        ".codex-temp/original-scratch-central-effect-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+      ],
+      "log": "PARSE-V2-StoreSessionCoordinator-DEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+      "mode": "nonDEBUG",
+      "exit": 0,
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        ".codex-temp/original-scratch-central-effect-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+      ],
+      "log": "PARSE-V2-StoreSessionCoordinator-nonDEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

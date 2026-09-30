@@ -1,0 +1,869 @@
+{
+  "schema": "V23PlatformScopeManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C06",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "7b72263ea2c64a8f9bace8e87872d1a293400969",
+    "baseTree": "d3fbaa46c1a35c5a52909731dfbfa30fed3b1086",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "cffd38d2cb51968dc4e04002c1adda95d87893458404e0ed6a1873c5d0800554",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "afbb364ed404d4fbd57ee66c5707c8f670a002b8d81cdc425cc6a0cfb3c53d60",
+    "bootstrapPathFenceDigest": "ca49bcc135ddc270e18c42b808a804a6b1de71bb8a08647b32bccd3b1a9a6eca",
+    "hydratedSpecDigest": "94d972d447cccba8e06862ba672e0e79fa2228c71382157360534afc49229497",
+    "hydratedPathFenceDigest": "83f17a0763528e8ecf2959be04d73015d8ec4d20300c49613d9cbb4e945960bb",
+    "provisionalPrerequisiteDigest": "7ae46c43ce2211c539ee701edfeaadfe56e10d89d759046e2d20f0d9c07972ee",
+    "inheritedV21BlockDigest": "1198e87ffa91fbc0c46781b4b3adc384ce97a92079b93d4db71045e75782625b",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "5a3b288b6a83e354a96db269d0c830e8bf654d10e1fff4a8a5fe2f5d70a8db61",
+    "ledgerCASSequence": 39,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "prerequisiteBindings": {
+    "C12ToolingManifestDigest": "01e5960fafb04523557257e6286257cd7103c7481039ed3006345b9c18fc6c15",
+    "SwiftLanguageModeClosureReceiptDigest": "d229005282b59b5002137b09d9415555190405eec7a51e066bc6744007f11229",
+    "C07ToolingManifestDigest": "1d339540d38e8378b861ef827713d0347197219b0d133c13a8b8de5949608619",
+    "C07ReleaseTestSupportAbsenceDigest": "2ba91558ce2f309b10181b52509bd557d89ef08774b1e7af61ecfbeaa91c5be0",
+    "C07ReleaseHookInventoryDigest": "30da83dc94aebc95be69af806aa7b87cb0fe938b7fc99c048c1bac7599b389aa"
+  },
+  "releaseDeviceFamily": "IPHONE_ONLY",
+  "targetedDeviceFamily": "1",
+  "requiredArchiveUIDeviceFamily": [
+    1
+  ],
+  "nativeIPadSupport": false,
+  "selectedOrientations": [
+    "PORTRAIT",
+    "LANDSCAPE_LEFT",
+    "LANDSCAPE_RIGHT"
+  ],
+  "upsideDownSupported": false,
+  "targetConfigurationMatrix": [
+    {
+      "target": "FieldEvidenceApp",
+      "configuration": "Debug",
+      "buildConfigurationObjectID": "A00000000000000000000062",
+      "targetedDeviceFamily": "1",
+      "supportedPlatforms": [
+        "iphoneos",
+        "iphonesimulator"
+      ],
+      "minimumIOS": "18.0",
+      "currentSwiftVersion": "5.0",
+      "requiredArchiveUIDeviceFamily": [
+        1
+      ],
+      "staticStatus": "PASS_IPHONE_ONLY_CONFIGURATION"
+    },
+    {
+      "target": "FieldEvidenceApp",
+      "configuration": "Release",
+      "buildConfigurationObjectID": "A00000000000000000000063",
+      "targetedDeviceFamily": "1",
+      "supportedPlatforms": [
+        "iphoneos",
+        "iphonesimulator"
+      ],
+      "minimumIOS": "18.0",
+      "currentSwiftVersion": "5.0",
+      "requiredArchiveUIDeviceFamily": [
+        1
+      ],
+      "staticStatus": "PASS_IPHONE_ONLY_CONFIGURATION"
+    },
+    {
+      "target": "FieldEvidenceAppTests",
+      "configuration": "Debug",
+      "buildConfigurationObjectID": "A00000000000000000000064",
+      "targetedDeviceFamily": "1",
+      "supportedPlatforms": [
+        "iphoneos",
+        "iphonesimulator"
+      ],
+      "minimumIOS": "18.0",
+      "currentSwiftVersion": "5.0",
+      "requiredArchiveUIDeviceFamily": [
+        1
+      ],
+      "staticStatus": "PASS_IPHONE_ONLY_CONFIGURATION"
+    },
+    {
+      "target": "FieldEvidenceAppTests",
+      "configuration": "Release",
+      "buildConfigurationObjectID": "A00000000000000000000065",
+      "targetedDeviceFamily": "1",
+      "supportedPlatforms": [
+        "iphoneos",
+        "iphonesimulator"
+      ],
+      "minimumIOS": "18.0",
+      "currentSwiftVersion": "5.0",
+      "requiredArchiveUIDeviceFamily": [
+        1
+      ],
+      "staticStatus": "PASS_IPHONE_ONLY_CONFIGURATION"
+    },
+    {
+      "target": "FieldEvidenceAppUITests",
+      "configuration": "Debug",
+      "buildConfigurationObjectID": "A00000000000000000000066",
+      "targetedDeviceFamily": "1",
+      "supportedPlatforms": [
+        "iphoneos",
+        "iphonesimulator"
+      ],
+      "minimumIOS": "18.0",
+      "currentSwiftVersion": "5.0",
+      "requiredArchiveUIDeviceFamily": [
+        1
+      ],
+      "staticStatus": "PASS_IPHONE_ONLY_CONFIGURATION"
+    },
+    {
+      "target": "FieldEvidenceAppUITests",
+      "configuration": "Release",
+      "buildConfigurationObjectID": "A00000000000000000000067",
+      "targetedDeviceFamily": "1",
+      "supportedPlatforms": [
+        "iphoneos",
+        "iphonesimulator"
+      ],
+      "minimumIOS": "18.0",
+      "currentSwiftVersion": "5.0",
+      "requiredArchiveUIDeviceFamily": [
+        1
+      ],
+      "staticStatus": "PASS_IPHONE_ONLY_CONFIGURATION"
+    }
+  ],
+  "infoPlist": {
+    "path": "FieldEvidenceApp/Info.plist",
+    "sha256": "bd1859baa2856fe4bb637524f49fd0eb95459d62790071d88fbe53e2434f6d52",
+    "orientationValues": [
+      "UIInterfaceOrientationPortrait",
+      "UIInterfaceOrientationLandscapeLeft",
+      "UIInterfaceOrientationLandscapeRight"
+    ]
+  },
+  "infoPlistStrings": {
+    "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+    "sha256": "85deb6f7fa8932d049181470e61a489d87faf830efb6399f0a46e004048bff70",
+    "permissionKeys": [
+      "NSCameraUsageDescription"
+    ],
+    "cameraPurpose": "Use the camera to add sign photos to reports stored on this iPhone."
+  },
+  "platformFacts": {
+    "minimumRuntime": "iOS 18.0",
+    "pinnedStableToolchain": "Xcode 26.6",
+    "pinnedStableSimulatorRuntime": "iOS 26.5",
+    "latestStableShippingRuntimeSnapshot": "iOS 26.6.1",
+    "betaRuntime": "iOS/Xcode 27 DIAGNOSTIC_ONLY",
+    "requirementSnapshotSource": "INHERITED_V21_P00_C06_BLOCK",
+    "requirementSnapshotDisposition": "PLANNING_SNAPSHOT_ONLY_CURRENTNESS_NOT_RECHECKED",
+    "observationDate": "NOT_RECORDED_IN_INCORPORATED_SOURCE",
+    "recheckDeadline": "BEFORE_ARCHIVE_ACCEPTANCE_AND_IMMEDIATELY_BEFORE_UPLOAD",
+    "macAvailability": "OWNER_DECISION_NOT_RUN",
+    "visionAvailability": "OWNER_DECISION_NOT_RUN",
+    "iPadCompatibilityMode": "DEFERRED_BOUNDED_SMOKE",
+    "sceneLifecycle": "SWIFTUI_APP_LIFECYCLE_STATIC_SOURCE_ONLY",
+    "launchScreen": "CONDITIONAL_NATIVE_EVIDENCE_DEFERRED",
+    "resizableCompatibility": "CONDITIONAL_NATIVE_EVIDENCE_DEFERRED"
+  },
+  "sourceInventory": {
+    "sourceDigests": [
+      {
+        "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+        "sha256": "5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f"
+      },
+      {
+        "path": "FieldEvidenceApp/Info.plist",
+        "sha256": "bd1859baa2856fe4bb637524f49fd0eb95459d62790071d88fbe53e2434f6d52"
+      },
+      {
+        "path": "FieldEvidenceApp/InfoPlist.xcstrings",
+        "sha256": "85deb6f7fa8932d049181470e61a489d87faf830efb6399f0a46e004048bff70"
+      },
+      {
+        "path": "FieldEvidenceApp/PrivacyInfo.xcprivacy",
+        "sha256": "e7a1b195fb721d32f6abb77e4f25c36bcb9b04a07a1f61ef251d84cbd163fb8a"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Camera/CameraAdapter.swift",
+        "sha256": "c27258821509516754711607b9ea864ba2dd9f324d6a8769f867a129adf9fe30"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Diagnostics/MetricKitDiagnosticsAdapter.swift",
+        "sha256": "53b00167f20179f1bbae89e699cdbfa5bcbad546f41b38e0ae71bf813426f3b9"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+        "sha256": "0cdb28be1ff4dae0763f28163566e9350c12adf4cabe8f870b6b90071619650a"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitLifecycleCoordinator.swift",
+        "sha256": "153b2ab2e01a70c2077c4dd91d98cfb78de59cb9e5369a42494d55df74c938c4"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+        "sha256": "4624e392d7df109288e6784ea6326dad2d775c876c3ebbc83ef7ddc56d33d6f4"
+      },
+      {
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+        "sha256": "716703e48b2339128e79298956f0f01864a4db7a8777a75e3dd5b7cf0c50a71b"
+      },
+      {
+        "path": "FieldEvidenceApp/Domain/Commerce/EntitlementReducerV1.swift",
+        "sha256": "7a73cbaf58fcc9a178a5929e21ffa09c6a6af41bcfd8ca1adb51ef498d3fcc4b"
+      },
+      {
+        "path": "TestFixtures/StoreKit/FieldEvidence.storekit",
+        "sha256": "5bd997964a9b5daf7d00b8b9e4e85ef6d7f1acef0a7148fc37482f007cb6b071"
+      },
+      {
+        "path": "Release/ProvidedReleaseValuesV1.json",
+        "sha256": "242e20fa46d9de103027364324012c26c4d147bbd991a5f90a932946f0510281"
+      },
+      {
+        "path": "Release/UnsignedRCMetadataV1.json",
+        "sha256": "8213397e9326882bfbfb1dc491f92b170db791482b10cf27eac5fe63c5fed6ae"
+      }
+    ],
+    "projectFacts": {
+      "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "sha256": "5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f",
+      "reservedByActiveS10": true,
+      "appConfigurations": [
+        {
+          "configuration": "Debug",
+          "generatedInfoPlist": "YES",
+          "sourceInfoPlist": "FieldEvidenceApp/Info.plist",
+          "cameraPurpose": "Use the camera to add sign photos to reports stored on this iPhone.",
+          "generatedSceneManifest": "YES",
+          "generatedLaunchScreen": "YES",
+          "bundleIdentifier": "com.palatis3.fieldrecord",
+          "marketingVersion": "1.0",
+          "buildVersion": "1"
+        },
+        {
+          "configuration": "Release",
+          "generatedInfoPlist": "YES",
+          "sourceInfoPlist": "FieldEvidenceApp/Info.plist",
+          "cameraPurpose": "Use the camera to add sign photos to reports stored on this iPhone.",
+          "generatedSceneManifest": "YES",
+          "generatedLaunchScreen": "YES",
+          "bundleIdentifier": "com.palatis3.fieldrecord",
+          "marketingVersion": "1.0",
+          "buildVersion": "1"
+        }
+      ],
+      "fileSystemSynchronizedAppGroup": true,
+      "infoPlistMembershipException": true,
+      "storeKitFixtureDeclaredInApplicationResources": true,
+      "entitlementsFileCount": 0,
+      "explicitBackgroundModeSettingCount": 0
+    },
+    "productionSwiftFileCount": 100,
+    "nativeIPadSourceClaimPaths": [],
+    "uiScreenMainReferenceCount": 0,
+    "privacyManifestPaths": [
+      "FieldEvidenceApp/PrivacyInfo.xcprivacy"
+    ],
+    "privacyManifestCount": 1,
+    "privacyFacts": {
+      "path": "FieldEvidenceApp/PrivacyInfo.xcprivacy",
+      "sha256": "e7a1b195fb721d32f6abb77e4f25c36bcb9b04a07a1f61ef251d84cbd163fb8a",
+      "tracking": false,
+      "collectedDataTypeCount": 0,
+      "trackingDomains": [],
+      "requiredReasonAPIs": [
+        {
+          "category": "NSPrivacyAccessedAPICategoryDiskSpace",
+          "reasons": [
+            "E174.1"
+          ]
+        },
+        {
+          "category": "NSPrivacyAccessedAPICategoryFileTimestamp",
+          "reasons": [
+            "3B52.1",
+            "C617.1"
+          ]
+        },
+        {
+          "category": "NSPrivacyAccessedAPICategoryUserDefaults",
+          "reasons": [
+            "CA92.1"
+          ]
+        }
+      ]
+    },
+    "permissionInventory": {
+      "declaredUsageKeys": [
+        "NSCameraUsageDescription"
+      ],
+      "cameraPurpose": "Use the camera to add sign photos to reports stored on this iPhone.",
+      "requestSourcePaths": [
+        "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+        "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+        "FieldEvidenceApp/Infrastructure/Camera/CameraAdapter.swift"
+      ],
+      "firstLaunchPromptEvidence": "DEFERRED_NATIVE_ACCEPTANCE",
+      "denialAndManualFallbackEvidence": "DEFERRED_NATIVE_ACCEPTANCE"
+    },
+    "dependencyInventory": {
+      "swiftPackageReferenceCount": 0,
+      "swiftPackageProductCount": 0,
+      "importedModules": [
+        "AVFoundation",
+        "Combine",
+        "CoreFoundation",
+        "CoreGraphics",
+        "CoreText",
+        "CryptoKit",
+        "Darwin",
+        "Foundation",
+        "ImageIO",
+        "MessageUI",
+        "MetricKit",
+        "OSLog",
+        "PDFKit",
+        "PhotosUI",
+        "StoreKit",
+        "SwiftData",
+        "SwiftUI",
+        "UIKit",
+        "UniformTypeIdentifiers"
+      ],
+      "nonAppleImportedModules": [],
+      "packageResolvedPresent": false,
+      "newSDKDisposition": "NONE_DECLARED"
+    },
+    "networkInventory": {
+      "literalHTTPSDestinations": [
+        "https://example.invalid/privacy",
+        "https://example.invalid/support",
+        "https://example.invalid/terms"
+      ],
+      "rawIPDestinations": [],
+      "placeholderContactValues": [
+        "support@example.invalid"
+      ],
+      "placeholderReleaseLinksBlockRelease": true,
+      "networkAPISourcePaths": [],
+      "runtimeIPv6NAT64Evidence": "DEFERRED_NATIVE_ACCEPTANCE"
+    },
+    "commerceInventory": {
+      "storeKitSourcePaths": [
+        "FieldEvidenceApp/Domain/Commerce/EntitlementFactsV1.swift",
+        "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+        "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+        "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+        "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+        "FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift",
+        "FieldEvidenceApp/Infrastructure/Commerce/StoreKitLifecycleCoordinator.swift",
+        "FieldEvidenceApp/Infrastructure/Commerce/StoreKitProductLoader.swift",
+        "FieldEvidenceApp/Infrastructure/Commerce/StoreKitPurchaseCoordinator.swift",
+        "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+        "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+      ],
+      "appStoreSyncCalls": [
+        {
+          "path": "FieldEvidenceApp/Infrastructure/Commerce/StoreKitLifecycleCoordinator.swift",
+          "count": 1
+        }
+      ],
+      "productIDs": [
+        "com.palatis3.fieldrecord.sub.solo.monthly.v1"
+      ],
+      "storeKitFixtureAuthority": "CI_FIXTURE_ONLY_NOT_EXTERNAL_STORE_AUTHORITY",
+      "regressionEvidence": "DEFERRED_NATIVE_ACCEPTANCE"
+    }
+  },
+  "inheritedContractClosure": [
+    {
+      "contract": "SupportedDeviceFamilyDispositionV1",
+      "disposition": "STATIC_SOURCE_FACTS_RECORDED",
+      "nativeEvidenceRequired": false,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "ShippingOrientationDispositionV1",
+      "disposition": "STATIC_SOURCE_FACTS_RECORDED",
+      "nativeEvidenceRequired": false,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "OrientationReleaseEvidenceV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "CompatiblePlatformAvailabilityV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "CompatiblePlatformEvidenceV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "PhysicalValidationDispositionV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "RuntimeFileProtectionDispositionV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "ApplePlatformRequirementSnapshotV1",
+      "disposition": "STATIC_SOURCE_FACTS_RECORDED",
+      "nativeEvidenceRequired": false,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "SceneLifecycleDispositionV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "LaunchScreenDispositionV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "ResizableIOSCompatibilityDispositionV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "PlatformReleaseDisclosureManifestV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "ReleaseArchiveInspectionReceiptV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "ReleaseSigningFlowCapabilityV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "PrivacyReconciliationReceiptV1",
+      "disposition": "STATIC_SOURCE_FACTS_RECORDED",
+      "nativeEvidenceRequired": false,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "PrivacyPolicyClosureV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "ThirdPartySDKInventoryV1",
+      "disposition": "STATIC_SOURCE_FACTS_RECORDED",
+      "nativeEvidenceRequired": false,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "DependencyProvenanceManifestV1",
+      "disposition": "STATIC_SOURCE_FACTS_RECORDED",
+      "nativeEvidenceRequired": false,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "InheritedCommerceCompatibilityReceiptV1",
+      "disposition": "STATIC_SOURCE_FACTS_RECORDED",
+      "nativeEvidenceRequired": false,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "StoreKitReleaseRegressionReceiptV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "AppCompatibilityManifestV1",
+      "disposition": "STATIC_SOURCE_FACTS_RECORDED",
+      "nativeEvidenceRequired": false,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "FileProtectionReleaseClosureV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "InstalledFileProtectionVerificationReceiptV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "CrashSymbolRetentionReceiptV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    },
+    {
+      "contract": "AppStorePlatformInputManifestV1",
+      "disposition": "DEFERRED_EXACT_ARCHIVE_OR_RUNTIME_EVIDENCE",
+      "nativeEvidenceRequired": true,
+      "acceptanceSatisfied": false
+    }
+  ],
+  "contractFamilies": [
+    {
+      "familyID": "DEVICE_AND_ORIENTATION",
+      "contracts": [
+        "SupportedDeviceFamilyDispositionV1",
+        "ShippingOrientationDispositionV1",
+        "OrientationReleaseEvidenceV1"
+      ],
+      "status": "STATIC_SOURCE_FACTS_PLUS_ARCHIVE_AND_RUNTIME_DEFERRED",
+      "acceptanceSatisfied": false
+    },
+    {
+      "familyID": "COMPATIBLE_PLATFORM_AVAILABILITY",
+      "contracts": [
+        "CompatiblePlatformAvailabilityV1",
+        "CompatiblePlatformEvidenceV1"
+      ],
+      "status": "OWNER_CHOICE_AND_RUNTIME_EVIDENCE_DEFERRED",
+      "acceptanceSatisfied": false
+    },
+    {
+      "familyID": "FILE_PROTECTION_AND_PHYSICAL",
+      "contracts": [
+        "PhysicalValidationDispositionV1",
+        "RuntimeFileProtectionDispositionV1",
+        "FileProtectionReleaseClosureV1",
+        "InstalledFileProtectionVerificationReceiptV1"
+      ],
+      "status": "ARCHIVE_INSTALLED_RUNTIME_AND_PHYSICAL_EVIDENCE_DEFERRED",
+      "acceptanceSatisfied": false
+    },
+    {
+      "familyID": "APPLE_REQUIREMENT_SNAPSHOT",
+      "contracts": [
+        "ApplePlatformRequirementSnapshotV1",
+        "SceneLifecycleDispositionV1",
+        "LaunchScreenDispositionV1",
+        "ResizableIOSCompatibilityDispositionV1"
+      ],
+      "status": "SOURCE_GENERATION_FLAGS_OBSERVED_NATIVE_APPLICABILITY_DEFERRED",
+      "acceptanceSatisfied": false
+    },
+    {
+      "familyID": "ARCHIVE_DISCLOSURE_AND_SIGNING",
+      "contracts": [
+        "PlatformReleaseDisclosureManifestV1",
+        "ReleaseArchiveInspectionReceiptV1",
+        "ReleaseSigningFlowCapabilityV1",
+        "CrashSymbolRetentionReceiptV1"
+      ],
+      "status": "EXACT_ARCHIVE_SIGNING_FIXTURE_AND_SYMBOL_EVIDENCE_DEFERRED",
+      "acceptanceSatisfied": false
+    },
+    {
+      "familyID": "PRIVACY_AND_DEPENDENCIES",
+      "contracts": [
+        "PrivacyReconciliationReceiptV1",
+        "PrivacyPolicyClosureV1",
+        "ThirdPartySDKInventoryV1",
+        "DependencyProvenanceManifestV1"
+      ],
+      "status": "SOURCE_INVENTORY_RECORDED_ARCHIVE_POLICY_AND_STORE_FACTS_DEFERRED",
+      "acceptanceSatisfied": false
+    },
+    {
+      "familyID": "COMMERCE",
+      "contracts": [
+        "InheritedCommerceCompatibilityReceiptV1",
+        "StoreKitReleaseRegressionReceiptV1"
+      ],
+      "status": "SOURCE_WIRING_RECORDED_EXTERNAL_STORE_AND_REGRESSION_EVIDENCE_DEFERRED",
+      "acceptanceSatisfied": false
+    },
+    {
+      "familyID": "APP_COMPATIBILITY_AND_STORE_INPUTS",
+      "contracts": [
+        "AppCompatibilityManifestV1",
+        "AppStorePlatformInputManifestV1"
+      ],
+      "status": "SOURCE_FACTS_RECORDED_FINAL_STORE_INPUTS_DEFERRED",
+      "acceptanceSatisfied": false
+    },
+    {
+      "familyID": "NETWORK",
+      "contracts": [],
+      "status": "SOURCE_INVENTORY_RECORDED_IPV6_NAT64_OFFLINE_RUNTIME_DEFERRED",
+      "acceptanceSatisfied": false
+    }
+  ],
+  "deferredEvidence": [
+    {
+      "evidenceID": "ARCHIVE_UIDEVICEFAMILY",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "NATIVE_DEVICE_FAMILY_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "ARCHIVE_ORIENTATIONS",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "SHIPPING_ORIENTATION_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "ARCHIVE_INFOPLIST",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "BUILT_METADATA_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "ARCHIVE_ENTITLEMENTS_BACKGROUND",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "ENTITLEMENT_AND_BACKGROUND_MODE_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "ARCHIVE_PRIVACY_REPORT",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "PRIVACY_RECONCILIATION_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "ARCHIVE_LINKED_DEPENDENCIES",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "SDK_AND_DEPENDENCY_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "ARCHIVE_SYMBOLS",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "CRASH_SYMBOL_RETENTION_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "ARCHIVE_TEST_HOOK_SECRET_ENDPOINT_SCAN",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "RELEASE_ABSENCE_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "ARCHIVE_DEFAULT_FILE_PROTECTION",
+      "evidenceClass": "ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "DEFAULT_FILE_PROTECTION_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "SIGNING_FLOW_FIXTURE",
+      "evidenceClass": "NONRELEASE_SIGNING_FIXTURE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "NO_SOURCE_REBUILD_SIGNING_HANDOFF_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "RUNTIME_CLEAN_INSTALL_LAUNCH",
+      "evidenceClass": "INSTALLED_RUNTIME",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "LAUNCH_SCREEN_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "RUNTIME_SCENE_BACKGROUND_RESTORE",
+      "evidenceClass": "INSTALLED_RUNTIME",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "SCENE_LIFECYCLE_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "RUNTIME_ORIENTATION_MATRIX",
+      "evidenceClass": "INSTALLED_RUNTIME",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "ORIENTATION_RUNTIME_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "RUNTIME_COMPATIBILITY_RESIZABILITY",
+      "evidenceClass": "INSTALLED_RUNTIME",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "COMPATIBILITY_RESIZABILITY_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "RUNTIME_IPAD_COMPAT_COMMON_TASK",
+      "evidenceClass": "INSTALLED_RUNTIME",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "IPAD_COMPATIBILITY_ONLY_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "RUNTIME_IPV6_NAT64_OFFLINE",
+      "evidenceClass": "INSTALLED_RUNTIME",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C01",
+      "claimBoundary": "NETWORK_RUNTIME_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "INSTALLED_FILE_PROTECTION_MATRIX",
+      "evidenceClass": "INSTALLED_RUNTIME",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P05-C02",
+      "claimBoundary": "PER_KIND_FILE_PROTECTION_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "PHYSICAL_LOCKED_DEVICE_PROTECTION",
+      "evidenceClass": "PHYSICAL",
+      "status": "REQUIRED_PENDING_OWNER",
+      "promotionOwner": "OWNER",
+      "claimBoundary": "LOCKED_DEVICE_DATA_PROTECTION_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "OWNER_MAC_AVAILABILITY",
+      "evidenceClass": "OWNER",
+      "status": "REQUIRED_PENDING_OWNER",
+      "promotionOwner": "OWNER",
+      "claimBoundary": "APPLE_SILICON_MAC_AVAILABILITY_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "OWNER_VISION_AVAILABILITY",
+      "evidenceClass": "OWNER",
+      "status": "REQUIRED_PENDING_OWNER",
+      "promotionOwner": "OWNER",
+      "claimBoundary": "APPLE_VISION_PRO_AVAILABILITY_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "MAC_VERIFY_COMPATIBILITY_ACTION",
+      "evidenceClass": "EXTERNAL_STORE",
+      "status": "REQUIRED_PENDING_OWNER",
+      "promotionOwner": "OWNER",
+      "claimBoundary": "MAC_VERIFY_COMPATIBILITY_ACTION_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "OWNER_PRIVACY_POLICY_URL",
+      "evidenceClass": "OWNER",
+      "status": "REQUIRED_PENDING_OWNER",
+      "promotionOwner": "OWNER",
+      "claimBoundary": "LIVE_MATCHED_PRIVACY_POLICY_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "OWNER_APP_PRIVACY_ANSWERS",
+      "evidenceClass": "OWNER",
+      "status": "REQUIRED_PENDING_OWNER",
+      "promotionOwner": "OWNER",
+      "claimBoundary": "APP_PRIVACY_ANSWERS_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "OWNER_STOREKIT_PRODUCT_CONFIGURATION",
+      "evidenceClass": "EXTERNAL_STORE",
+      "status": "REQUIRED_PENDING_OWNER",
+      "promotionOwner": "OWNER",
+      "claimBoundary": "LIVE_STOREKIT_PRODUCT_CLAIM",
+      "blocksAcceptance": true
+    },
+    {
+      "evidenceID": "RELEASE_TEST_SUPPORT_ELIMINATION",
+      "evidenceClass": "SOURCE_AND_ARCHIVE",
+      "status": "NOT_RUN",
+      "promotionOwner": "V23-P00-C07",
+      "claimBoundary": "RELEASE_TEST_SUPPORT_ABSENCE_CLAIM",
+      "blocksAcceptance": true
+    }
+  ],
+  "releaseTestSupportBlocker": {
+    "sourceScan": "FAIL_CLOSED_ACTIVE_HOOKS",
+    "releaseAbsenceSatisfied": false,
+    "reservedFindingCount": 206,
+    "unreservedFindingCount": 79,
+    "disposition": "BLOCKS_RELEASE_AND_C06_ACCEPTANCE_PENDING_C07_REMEDIATION_AND_ARCHIVE_REPROOF"
+  },
+  "evidenceDisposition": {
+    "archiveInspection": "DEFERRED_NATIVE_ACCEPTANCE",
+    "installedRuntime": "DEFERRED_NATIVE_ACCEPTANCE",
+    "compatibilityMode": "DEFERRED_NATIVE_ACCEPTANCE",
+    "physicalLockedDevice": "REQUIRED_PENDING_OWNER",
+    "signingFlowFixture": "DEFERRED_EXACT_XCODE_NONRELEASE_FIXTURE",
+    "privacyPolicy": "DRAFT_LOCAL_RELEASE_BLOCKER",
+    "appStoreInputs": "NOT_RUN_OWNER_ONLY"
+  },
+  "nativeCompileRan": false,
+  "acceptanceEnabled": false,
+  "releaseReady": false,
+  "phase10PollingDuringParallelExecution": false,
+  "provisionalDisposition": "STATIC_PLATFORM_SCOPE_GREEN_NATIVE_ARCHIVE_RUNTIME_AND_RELEASE_TEST_SUPPORT_CLOSURE_DEFERRED",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "ba548ef8cec1be0d290c300ebf88f10239640bc57e35841843aa4632d4bbed6b"
+}

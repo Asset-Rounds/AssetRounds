@@ -1,0 +1,193 @@
+{
+  "schema": "V23P00C08ToolingManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C08",
+  "baseHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+  "baseTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+    "baseTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "fd8fa7e7266b64dde5f01f2e978bbdbf8fb69dd42d09e2474457aecedce84a1a",
+    "inheritedV21BlockDigest": "446e9257fa36c2017d8a90dfffc953e50e4c2bac3626512adf6bdce390712ce9",
+    "registerRowDigest": "463e84abc0629ce07e70454b75844a6f8d5817cd548793f832225a494463ec04",
+    "planningAuthorityImpactDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "planningAuthorityFacetDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "970c8b15ad738c1969caa4e47d104a95600bee80dccd284284cc02fc0eb076db",
+    "bootstrapPathFenceDigest": "6a227a647dfd279cbd62edaa0501ff153e5ca5676260319aa7031e91b901ef1b",
+    "provisionalPrerequisiteDigest": "4fd27cf40d362da2c7d170284618c0d6d0fb89c605f156283de152ae2de5f6e8",
+    "directPrerequisite": {
+      "cardID": "V23-P00-C06",
+      "contextDigest": "afbb364ed404d4fbd57ee66c5707c8f670a002b8d81cdc425cc6a0cfb3c53d60",
+      "fenceDigest": "ca49bcc135ddc270e18c42b808a804a6b1de71bb8a08647b32bccd3b1a9a6eca",
+      "verificationDigest": "77444d12c7a2bec4b09f16e96fcb70f8278805d58200a15cd8033263eb4d53b8",
+      "checkpointDigest": "8bdd5bcee83c136496e1ca6bd4b2a9ec79719ecf002d6f8bca9b73d853fc03ee",
+      "platformArtifactDigest": "ba548ef8cec1be0d290c300ebf88f10239640bc57e35841843aa4632d4bbed6b",
+      "toolingManifestDigest": "33e5f0043ab318261ec63ee92b0bc4360215e5fd7bd7ac279b647738b743198e",
+      "predecessorCandidateHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+      "predecessorCandidateTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+      "releaseTestSupportAbsent": false
+    },
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "e37bcca5dcad00c80cb7b160ce100d0bef2cab15362f3450b56f0a1d9bcb7ca2",
+    "ledgerCASSequence": 43,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "pathFence": [
+    "Scripts/v23/c08_contracts.py",
+    "Scripts/v23/generate_c08_contracts.py",
+    "Scripts/v23/verify_c08_contracts.py",
+    "Scripts/v23/premium-experience-policy.schema.json",
+    "Scripts/v23/common-task-journey-release.schema.json",
+    "Scripts/v23/common-task-journey-receipt.schema.json",
+    "Scripts/v23/feature-end-to-end-journey-release.schema.json",
+    "Scripts/v23/feature-end-to-end-journey-receipt.schema.json",
+    "Scripts/v23/owner-physical-journey-release.schema.json",
+    "Scripts/v23/owner-physical-journey-receipt.schema.json",
+    "Scripts/v23/journey-evidence-layer.schema.json",
+    "Scripts/v23/interaction-acceptance-receipt.schema.json",
+    "docs/design/v23/tooling/PremiumExperiencePolicyV1.json",
+    "docs/design/v23/tooling/CommonTaskJourneyReleaseV2.json",
+    "docs/design/v23/tooling/CommonTaskJourneyReceiptV2.json",
+    "docs/design/v23/tooling/FeatureEndToEndJourneyReleaseV1.json",
+    "docs/design/v23/tooling/FeatureEndToEndJourneyReceiptV1.json",
+    "docs/design/v23/tooling/OwnerPhysicalJourneyReleaseV1.json",
+    "docs/design/v23/tooling/OwnerPhysicalJourneyReceiptV1.json",
+    "docs/design/v23/tooling/JourneyEvidenceLayerV2.json",
+    "docs/design/v23/tooling/InteractionAcceptanceReceiptV2.json",
+    "docs/design/v23/tooling/V23-P00-C08-tooling-manifest.json"
+  ],
+  "artifacts": [
+    {
+      "path": "Scripts/v23/c08_contracts.py",
+      "sha256": "12a1a24abfbbff2c0bdf9d5c584f23897a6bb5fa831a449bd756bbfc52de32e9",
+      "bytes": 36231
+    },
+    {
+      "path": "Scripts/v23/generate_c08_contracts.py",
+      "sha256": "2a11ee7f5798d7b69b1993fffb2f6f31f8b78d26adf51475c1f08a236c82bc38",
+      "bytes": 1175
+    },
+    {
+      "path": "Scripts/v23/verify_c08_contracts.py",
+      "sha256": "5111f57a1e9be2380c3de84755cd853188a9c3019f788774f8001de84d6c103d",
+      "bytes": 20175
+    },
+    {
+      "path": "Scripts/v23/premium-experience-policy.schema.json",
+      "sha256": "7c85f825fb5f2f7c69afa5b8369f99a31f5f5341cbf0ac43fe99cfec35802083",
+      "bytes": 478533
+    },
+    {
+      "path": "Scripts/v23/common-task-journey-release.schema.json",
+      "sha256": "1952ab03ddedc9477106decf178a811d8a46527200333502de7a375098e72820",
+      "bytes": 48310
+    },
+    {
+      "path": "Scripts/v23/common-task-journey-receipt.schema.json",
+      "sha256": "c54197b4e87c0c5f74844e1b9880a87a76b3fa03d1f5b127332b148c19c4d0a6",
+      "bytes": 195022
+    },
+    {
+      "path": "Scripts/v23/feature-end-to-end-journey-release.schema.json",
+      "sha256": "572a2953fc4eefecae2d4dd42ce1650ab7bc5e7d869575fb4dd8e22009444f49",
+      "bytes": 19097
+    },
+    {
+      "path": "Scripts/v23/feature-end-to-end-journey-receipt.schema.json",
+      "sha256": "31b3f8d73b016c3774db4efaeae211860d0387ae78ac7dce59a3096da60601f7",
+      "bytes": 210329
+    },
+    {
+      "path": "Scripts/v23/owner-physical-journey-release.schema.json",
+      "sha256": "dd3664aae9a4c678cedab8f686058bcb150bffd989123ea7973a5da87f1af5d1",
+      "bytes": 11983
+    },
+    {
+      "path": "Scripts/v23/owner-physical-journey-receipt.schema.json",
+      "sha256": "514ad5adc880773250547edda2c78fdbe780066bb8c82bf282bbf918e08c3697",
+      "bytes": 396784
+    },
+    {
+      "path": "Scripts/v23/journey-evidence-layer.schema.json",
+      "sha256": "bdc56f2227ad488177457b2d00e5e904451c1f21cb2baa7f3cd01c34f48b1095",
+      "bytes": 9920
+    },
+    {
+      "path": "Scripts/v23/interaction-acceptance-receipt.schema.json",
+      "sha256": "0416e2627c8be84b12a9dd7fc81a0bc2e3501009bb1021c79dc4a817fbea90cb",
+      "bytes": 14533
+    },
+    {
+      "path": "docs/design/v23/tooling/PremiumExperiencePolicyV1.json",
+      "sha256": "c08fde6bdea3e3ad875be7e8763d27e0fde49975ef8d754839fe5771070637f3",
+      "bytes": 134907
+    },
+    {
+      "path": "docs/design/v23/tooling/CommonTaskJourneyReleaseV2.json",
+      "sha256": "3a233ef98d116c43a6e349f51699759d53ab3118120decbc0230a2af98427003",
+      "bytes": 18911
+    },
+    {
+      "path": "docs/design/v23/tooling/CommonTaskJourneyReceiptV2.json",
+      "sha256": "20a96a710c81e90d2cb7c65e7ebcbba981ad28f00214dcf755ca847c52dbb245",
+      "bytes": 23342
+    },
+    {
+      "path": "docs/design/v23/tooling/FeatureEndToEndJourneyReleaseV1.json",
+      "sha256": "4d13350dacbfe16568d06fa11f331741359581567d476db1dfab3cb557ea7aac",
+      "bytes": 7691
+    },
+    {
+      "path": "docs/design/v23/tooling/FeatureEndToEndJourneyReceiptV1.json",
+      "sha256": "ddc384ca563e30e28c9b47eddbaf673bca054fd54ebfccd438f96ebdc7b7ea16",
+      "bytes": 24489
+    },
+    {
+      "path": "docs/design/v23/tooling/OwnerPhysicalJourneyReleaseV1.json",
+      "sha256": "80c176a09a5dae67946a98c2eb2dae34db2ce3140c6594f8e4474b5181db1378",
+      "bytes": 4774
+    },
+    {
+      "path": "docs/design/v23/tooling/OwnerPhysicalJourneyReceiptV1.json",
+      "sha256": "38458805dde20c1098ec9682a66a1db0e92787976fd3005edcee06a091d9e5e6",
+      "bytes": 44217
+    },
+    {
+      "path": "docs/design/v23/tooling/JourneyEvidenceLayerV2.json",
+      "sha256": "39d4ced6317918c73505aca207e3e74616e5feea020ae4d72d3eb48e65f205bf",
+      "bytes": 4098
+    },
+    {
+      "path": "docs/design/v23/tooling/InteractionAcceptanceReceiptV2.json",
+      "sha256": "54116cdd15b1fbf53d3574a41224e5e1beed5321c76881c8c36a62620ced0b8d",
+      "bytes": 5668
+    }
+  ],
+  "artifactCount": 21,
+  "nativeCompileRan": false,
+  "hostedDispatchRan": false,
+  "phase10PollingDuringParallelExecution": false,
+  "acceptanceCredit": false,
+  "releaseReady": false,
+  "releaseCredit": false,
+  "artifactDigest": "6fd8daac112ee38c9405428e76e40355a4ce30e78ad0ff4ecb1d879398776a32"
+}

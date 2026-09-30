@@ -1,0 +1,27 @@
+{
+  "artifactDigest": "7aef660d570897c7740c49522f58593f8dec7c577c0e2dfc28fb52ba1db8e530",
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C49",
+  "contractDigest": "7cd27602ef788a12341ef36f8e57971c9d64fa399fac2daae158ff8b983d3cfe",
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "requiresS10_6Reconciliation": true,
+  "schema": "V23P03C49BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "shippingBrandClaimAuthorized": false,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "uiSurfaceDelta": false
+}

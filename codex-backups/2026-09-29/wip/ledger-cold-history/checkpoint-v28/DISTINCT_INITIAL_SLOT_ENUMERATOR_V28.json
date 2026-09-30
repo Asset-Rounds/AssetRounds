@@ -1,0 +1,11 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "420571cf11563eca31a74e66b5acacada02cb6ed449ecbe1498fde170b717c3d",
+  "afterSHA256": "3e3edbcebddb4a27eb6184e7d65d834d1d2b14ed036db317ed9f4995b58e995a",
+  "change": "Separate authentic Bootstrap initial slot enumerator from Lifecycle reference-bound iterator, sharing one read-only implementation",
+  "bootstrapSignature": "enumerateOriginalEraseC16InitialBornProducerSlots(plan:visit:) throws -> Int",
+  "guards": "exact private initialDerivedPlan, actual Bootstrap noProgress origin, effect referencePlan/currentOrdinal/cold permit absent; source/visitor fresh proof",
+  "semanticCompile": "due",
+  "runtime": "due"
+}

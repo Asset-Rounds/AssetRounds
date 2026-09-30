@@ -1,0 +1,203 @@
+{
+  "authority": {
+    "appBaseHead": "9292aff5edb5a763599feefec3c00f158d31d33c",
+    "cardID": "V23-P04-C10",
+    "contextDigest": "1eaab5e9c161c1fb6ae8cb27709dc5b398d47cbe6824d3548dd6496da6253b98",
+    "directPrerequisites": [
+      "V23-P04-C02"
+    ],
+    "executionPredecessor": "V23-P04-C09",
+    "existingPathCount": 97,
+    "fenceCount": 98,
+    "fencePathCount": 113,
+    "finalHashesSealed": true,
+    "hydrationCASSequence": 426,
+    "hydrationCoordinationHead": "dc343131c4c4fa08bb41ff2e8d9b6c9562f6d038",
+    "hydrationCoordinationTree": "185970332669cf127510e902cc427174c18929d3",
+    "hydrationLedgerDigest": "cf4762a7125ef0f59ee368769ca3ca7a2b114415299337762eeddbf8a92b0f1d",
+    "hydrationProjectionDigest": "13f3a13223f564576315542fcc1e9a88484e8c2912217891e99bf30c1b1ef087",
+    "hydrationTransitionDigest": "1a2dcfa6f84e26f3a7ff5c1075568a5f18895411042178f8211f2ed3025893e5",
+    "newPathCount": 16,
+    "pathFenceDigest": "acf9ae293df735c992882736812a01416d503499820d5f829b0b1179e130e89a",
+    "registerOrdinal": 98,
+    "taskStartCoordinationCASSequence": 425,
+    "taskStartCoordinationHead": "d737a6151806a6259e84888c67b5fff956483d27",
+    "taskStartLedgerDigest": "7c61b8732daca1691df10d0e34ad867e28a0d1921035a67d4b1dc26b1a481c93",
+    "taskStartProjectionDigest": "cb23d74b892b5d2d814303432ce14b5b3419efe63f8ac05d2afbd982867c63c0",
+    "title": "Deterministic Evidence Quality Coach with reasoned override and no automatic compliance judgment"
+  },
+  "cardID": "V23-P04-C10",
+  "evidenceIDs": [
+    "V23-P04-C10-G01",
+    "V23-P04-C10-A01",
+    "V23-P04-C10-H01",
+    "V23-P04-C10-I01",
+    "V23-P04-C10-R01"
+  ],
+  "provisional": false,
+  "schema": "V23P04C10EvidenceQualityContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "canonicalOwner": "V23-P04-C10_SOLE_EVIDENCE_QUALITY_WRITER_OWNER",
+    "canonicalWriterRequirements": [
+      "EXPECTED_REVISION",
+      "MUTATION_ID",
+      "ONE_CANONICAL_WRITER_TRANSACTION",
+      "DURABLE_RECEIPT",
+      "SEMANTIC_REVERSAL_OR_SUPERSESSION",
+      "EFFECT_BEFORE_RECEIPT_RECOVERY"
+    ],
+    "containedUI": "POST_S10_6_ADOPTION_SKIP_NO_CREDIT",
+    "exactAssessmentEvidenceRevisionWaiver": true,
+    "humanJudgmentRule": "NO_AUTOMATIC_COMPLIANCE_JUDGMENT_OR_AUTO_PASS",
+    "lifecycleCoverage": [
+      "MIGRATION",
+      "BACKUP",
+      "REPLACE_RESTORE",
+      "DELETE",
+      "ERASE",
+      "EXPORT",
+      "REPORT",
+      "SEARCH",
+      "REPLAY"
+    ],
+    "oneCanonicalWriter": true,
+    "persistentContractMode": "NEW_SCHEMA_VERSION",
+    "persistentContractSchema": "EvidenceQualitySchemaV1",
+    "persistentKinds": [
+      "EvidenceQualityAssessmentV1",
+      "EvidenceQualityRuleSetV1",
+      "EvidenceQualityWaiverV1"
+    ],
+    "prohibitedCapabilities": [
+      "SECOND_WRITER",
+      "SECOND_STORE",
+      "ROOT_ROUTE",
+      "RENDERER",
+      "IMPORTER",
+      "REMOTE",
+      "AUTH",
+      "HOSTED_SERVICE",
+      "AI_DIAGNOSIS",
+      "OPAQUE_CONFIDENCE",
+      "AUTOMATIC_PASS_FAIL",
+      "EVIDENCE_LAUNDERING",
+      "UNBOUNDED_MEDIA",
+      "GENERIC_JSON_EAV",
+      "ANALYTICS",
+      "TELEMETRY",
+      "MARKETING",
+      "LEGAL_OR_CERTIFICATION_CLAIMS"
+    ],
+    "statusFlags": {
+      "acceptance": false,
+      "activation": false,
+      "adoption": false,
+      "hosted": false,
+      "hostedAcceptance": false,
+      "native": false,
+      "nativeAcceptance": false,
+      "phase10PollingDuringParallelExecution": false,
+      "physicalEvidence": false,
+      "release": false
+    },
+    "uiAcceptanceCredit": false,
+    "versionedRules": true
+  },
+  "sourceProjection": {
+    "evidenceIDs": [
+      "V23-P04-C10-G01",
+      "V23-P04-C10-A01",
+      "V23-P04-C10-H01",
+      "V23-P04-C10-I01",
+      "V23-P04-C10-R01"
+    ],
+    "ownedFenceCounts": {
+      "changedPathCount": 39,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C10G01ClearlyFramedCaptureProducesExactRuleIDsAndThresholdBoundaryResults",
+      "testV23P04C10A01RetakeAcceptWithReasonWaiverBindsExactRevisionAndPreservesEvidence",
+      "testV23P04C10H01ChangedDuplicateCorruptEvidenceInvalidatesAssessmentAndWaiverWithoutAutoPass",
+      "testV23P04C10I01InterruptedAssessmentOrRetakePreservesOriginalWithoutPartialWaiver",
+      "testV23P04C10R01RebuiltAssessmentAndRestorePreserveExactFindingsAndWaiverProvenance"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "byteCount": 17158,
+        "path": "FieldEvidenceApp/Application/EvidenceQuality/EvidenceQualityCoordinatorV1.swift",
+        "sha256": "62a4759235bcef94825c52786cab6498b5e7e276bee8486098fc5da5cb1faec6",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 49332,
+        "path": "FieldEvidenceApp/Domain/EvidenceQuality/EvidenceQualityContractsV1.swift",
+        "sha256": "3bda598f9574bd0d80340609254ee8c024a00e09d5e601a41841ca2acd3d7a89",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 23055,
+        "path": "FieldEvidenceApp/Domain/Models/EvidenceQualityPersistenceModelsV1.swift",
+        "sha256": "eeffdfeb624f31a6f41f49c96112bc73a0723178d5861266b962c1796b8ee042",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 11248,
+        "path": "FieldEvidenceApp/Features/CheckRunner/EvidenceQualityCoachView.swift",
+        "sha256": "7a3654e928958350d6541cf571644d229fa5f15d4d3d23a6a51df5d76630fa9e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 19375,
+        "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceQualityLifecycleAdapterV1.swift",
+        "sha256": "473615de73b72d7a10a5c2dc7c1b8ddcb93dfeffdef7a0350b135a6d1a746145",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 11101,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/EvidenceQuality/V22P04C10EvidenceQualityCoachCorpusV1.json",
+        "sha256": "82591f431fae6c6090771251c8dcb838adee292ef58b5e2b964d6fc2a63fff9f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 27146,
+        "path": "FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests.swift",
+        "sha256": "6d380395e938e95238a2ce8fcc1f42f1c5d0cef8942be70390f4253f72741c22",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 373,
+        "path": "FieldEvidenceAppUITests/V23_P04_C10EvidenceQualityCoachUITests.swift",
+        "sha256": "8e1ccc42c4b4563b090801de234f82ffa51fbe1d2345c8a49c098e775784b439",
+        "status": "SOURCE_PRESENT"
+      }
+    ],
+    "sourceSemanticsInspected": true,
+    "sourceStatus": "SOURCE_READY"
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C10G01ClearlyFramedCaptureProducesExactRuleIDsAndThresholdBoundaryResults",
+    "testV23P04C10A01RetakeAcceptWithReasonWaiverBindsExactRevisionAndPreservesEvidence",
+    "testV23P04C10H01ChangedDuplicateCorruptEvidenceInvalidatesAssessmentAndWaiverWithoutAutoPass",
+    "testV23P04C10I01InterruptedAssessmentOrRetakePreservesOriginalWithoutPartialWaiver",
+    "testV23P04C10R01RebuiltAssessmentAndRestorePreserveExactFindingsAndWaiverProvenance"
+  ],
+  "title": "Deterministic Evidence Quality Coach with reasoned override and no automatic compliance judgment"
+}

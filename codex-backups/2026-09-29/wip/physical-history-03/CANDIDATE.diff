@@ -1,0 +1,1423 @@
+--- published/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
++++ candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
+@@ -60,6 +60,8 @@
+     private var first: Snapshot?
+     private var ingressControlURL: URL?
+     private var notificationControlURL: URL?
++    private var initialC16Scope: OriginalEraseC16InitialObservationScopeV1?
++    private var initialSupportURL: URL?
+ 
+     /// Borrowed descriptors must not be closed or retained here. The caller
+     /// brackets this entire synchronous call with its genuine named-root proof.
+@@ -88,6 +90,20 @@
+         guard one == two else { throw EraseAllServiceError.invalidAuthority }
+         first = one
+         return one
++    }
++
++    /// Distinct observation-only pre-plan route. The actual Ledger issuer
++    /// binds immutable original-P role facts plus current EX/G and source
++    /// controls. This never relaxes the ordinary capture/walker predicates.
++    func captureFirstWithInitialC16Scope(support: Int32, caches: Int32, temporary: Int32,
++        applicationSupportURL: URL, scope: OriginalEraseC16InitialObservationScopeV1) throws -> Snapshot {
++        guard !attempted else { throw EraseAllServiceError.invalidAuthority }
++        try scope.requireCurrentBinding()
++        initialC16Scope = scope; initialSupportURL = applicationSupportURL.standardizedFileURL
++        defer { initialC16Scope = nil; initialSupportURL = nil }
++        let value = try captureFirst(support: support, caches: caches, temporary: temporary,
++            applicationSupportURL: applicationSupportURL)
++        try scope.requireCurrentBinding(); return value
+     }
+ 
+     /// Returns the first complete data image. It does not reobserve, refresh,
+@@ -216,14 +232,218 @@
+ 
+     /// Only the notification owner can produce the revocation after OS
+     /// absence and checked record removal. This image projects precisely its
++    /// A separate creation permit may use this immutable-P classification
++    /// only after requireOriginalNotificationBefore has authenticated `before`.
++    /// The immutable first observation is never replaced by a created tree.
++    func requireOriginalNotificationCreationAdmission(before: Snapshot) throws {
++        let first = try firstObservation()
++        let name = AppLockNotificationControlStoreV1.rootName
++        guard first.operationsChildren[name] == nil,
++              first.notificationControlNodes == nil,
++              first.notificationControlStableDigest == nil,
++              before.operationsChildren[name] == nil,
++              before.notificationControlNodes == nil,
++              before.notificationControlStableDigest == nil,
++              case .present = first.operations,
++              case .present = before.operations,
++              Self.sameStableParent(first.operations.rootFact,
++                  before.operations.rootFact) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++    }
++
++    /// Read-only bracket while the new Notification root has no policy yet.
++    /// The actual mkdir owner supplies its checked held/named parent postfact;
++    /// no current survivor tree becomes a new first observation. The outside
++    /// digest omits only Operations metadata changed by that named mkdir.
++    func requireOriginalNotificationCreationOutsideRoot(
++        before: Snapshot, operationsFact: String,
++        rootIsPresent: Bool, outsideDigest: String?,
++        support: Int32, caches: Int32, temporary: Int32
++    ) throws -> String {
++        try requireOriginalNotificationCreationAdmission(before: before)
++        let name = AppLockNotificationControlStoreV1.rootName
++        guard Self.sameStableParent(operationsFact,
++                before.operations.rootFact),
++              rootIsPresent || operationsFact == before.operations.rootFact else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        guard let priorFact = before.operations.rootFact else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        let priorFields = priorFact.split(separator: "|", omittingEmptySubsequences: false)
++        let currentFields = operationsFact.split(separator: "|", omittingEmptySubsequences: false)
++        guard priorFields.count == 11, currentFields.count == 11,
++              let priorLinks = UInt64(priorFields[5]),
++              let currentLinks = UInt64(currentFields[5]),
++              currentLinks == priorLinks ||
++                (rootIsPresent && priorLinks < UInt64.max && currentLinks == priorLinks + 1) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        // Some supported filesystems keep directory nlink stable, others add
++        // one for this single checked mkdir. Normalize only that proved +1;
++        // the complete actual parent postfact remains receipt-bound throughout.
++        let normalizedLinks: UInt64? = rootIsPresent && currentLinks != priorLinks
++            ? priorLinks : nil
++        func scan() throws -> String {
++            guard Self.fullFact(try directoryFact(support)) == before.supportFact,
++                  try io.names(in: support) == before.supportNames,
++                  Self.identity(try directoryFact(caches)) == before.cacheIdentity,
++                  Self.identity(try directoryFact(temporary)) == before.temporaryIdentity,
++                  try tree(parent: caches, name: "FieldEvidenceApp") == before.cacheTree,
++                  try tree(parent: temporary, name: "FieldEvidenceApp") == before.temporaryTree else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            for (child, expected) in before.supportTrees {
++                guard try tree(parent: support, name: child) == expected else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++            }
++            return try io.withOpen(parent: support,
++                name: "FieldEvidenceOperations", flags: O_RDONLY | O_DIRECTORY) { operations in
++                func requireParent() throws {
++                    var held = stat(), named = stat()
++                    let names = Array(before.operationsChildren.keys)
++                        + (rootIsPresent ? [name] : [])
++                    guard Darwin.fstat(operations, &held) == 0,
++                          Darwin.fstatat(support, "FieldEvidenceOperations", &named,
++                            AT_SYMLINK_NOFOLLOW) == 0,
++                          Self.fullFact(held) == operationsFact,
++                          Self.fullFact(named) == operationsFact,
++                          try io.names(in: operations) == names.sorted() else {
++                        throw EraseAllServiceError.invalidAuthority
++                    }
++                    if !rootIsPresent {
++                        var missing = stat()
++                        guard Darwin.fstatat(operations, name, &missing,
++                            AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
++                            throw EraseAllServiceError.invalidAuthority
++                        }
++                    }
++                }
++                try requireParent()
++                for (child, expected) in before.operationsChildren {
++                    switch expected {
++                    case .directory(let fact, let digest):
++                        guard try tree(parent: operations, name: child)
++                            == .present(rootFact: fact, digest: digest) else {
++                            throw EraseAllServiceError.invalidAuthority
++                        }
++                    case .regular:
++                        // The complete checked outside digest below includes
++                        // every regular child and its exact inode/content.
++                        break
++                    }
++                }
++                if let firstIngress = before.ingressControlNodes,
++                   let entry = before.operationsChildren["ProtectedIngressReceiptsV1"],
++                   case .directory(let fact, let digest) = entry,
++                   let ingressControlURL {
++                    guard try observeControlNodes(operations: operations,
++                        name: "ProtectedIngressReceiptsV1", rootURL: ingressControlURL,
++                        notificationControl: false, expectedRootFact: fact,
++                        expectedTreeDigest: digest).0 == firstIngress else {
++                        throw EraseAllServiceError.invalidAuthority
++                    }
++                }
++                var nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode] = []
++                let digest = try io.postRetiredTree(parent: support,
++                    name: "FieldEvidenceOperations", excluding: [name],
++                    ignoringDirectoryMetadata: Set([""]),
++                    normalizingSingleTargetManifestRootLinksFrom: normalizedLinks,
++                    observeTypedNode: { node, _ in nodes.append(node) })
++                for (child, expected) in before.operationsChildren {
++                    if case .regular(let fact, let content) = expected {
++                        guard let node = nodes.first(where: { $0.path == child }),
++                              Self.fullFact(node.fact) == fact,
++                              node.sha256 == content else {
++                            throw EraseAllServiceError.invalidAuthority
++                        }
++                    }
++                }
++                try requireParent()
++                return digest
++            }
++        }
++        let one = try scan(), two = try scan()
++        try io.requireSettled()
++        guard one == two, outsideDigest == nil || outsideDigest == two else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        return two
++    }
++
++    /// Read back the exact checked mkdir/protection/sync/close postimage.
++    /// This admits exactly one empty Notification root and its actual parent
++    /// metadata transition, retaining every previously proved outside branch.
++    func requireOriginalNotificationCreatedPostimage(
++        before: Snapshot, operationsFact: String,
++        rootFact: String, treeDigest: String, stableDigest: String,
++        disposition: ProtectedFileVerificationDispositionV1,
++        support: Int32, caches: Int32, temporary: Int32
++    ) throws -> Snapshot {
++        try requireOriginalNotificationCreationAdmission(before: before)
++        let name = AppLockNotificationControlStoreV1.rootName
++        func check(_ value: Snapshot) throws {
++            guard value.supportIdentity == before.supportIdentity,
++                  value.cacheIdentity == before.cacheIdentity,
++                  value.temporaryIdentity == before.temporaryIdentity,
++                  value.supportFact == before.supportFact,
++                  value.supportNames == before.supportNames,
++                  value.supportTrees == before.supportTrees,
++                  value.cacheTree == before.cacheTree,
++                  value.temporaryTree == before.temporaryTree,
++                  value.ingressControlNodes == before.ingressControlNodes,
++                  value.operations.rootFact == operationsFact,
++                  Self.sameStableParent(operationsFact, before.operations.rootFact),
++                  Set(value.operationsChildren.keys)
++                    == Set(before.operationsChildren.keys).union([name]),
++                  value.operationsChildren[name]
++                    == .directory(rootFact: rootFact, digest: treeDigest),
++                  let nodes = value.notificationControlNodes,
++                  nodes.count == 1, let root = nodes.first,
++                  root.path.isEmpty, root.contentSHA256 == nil,
++                  root.fullFact == rootFact,
++                  root.policy.isDirectory == true,
++                  root.policy.backupExcluded == true,
++                  root.policy.state == .strictComplete ||
++                    (disposition == .simulatorFileProtectionUnsupported &&
++                     root.policy.state == .pendingSimulatorRequest),
++                  value.notificationControlStableDigest == stableDigest else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            for (child, expected) in before.operationsChildren {
++                guard value.operationsChildren[child] == expected else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++            }
++        }
++        let one = try observe(support: support, caches: caches, temporary: temporary)
++        let two = try observe(support: support, caches: caches, temporary: temporary)
++        try io.requireSettled()
++        try check(one)
++        guard one == two else { throw EraseAllServiceError.invalidAuthority }
++        return two
++    }
++
++    private func originalNotificationAnchor(
++        creation: OriginalEraseNotificationRootCreationReceiptV1?
++    ) throws -> Snapshot {
++        guard let creation else { return try firstObservation() }
++        try creation.requireObserver(self)
++        try requireOriginalNotificationCreationAdmission(before: creation.before)
++        return creation.after
++    }
++
+     /// one Operations child; all other first-roster branches remain bound.
+     func requireOriginalNotificationAfter(
+         before: Snapshot,
+         revocation: NotificationEraseRevocationV1,
+         removal: OriginalEraseNotificationRecordRemovalReceiptV1,
++        creation: OriginalEraseNotificationRootCreationReceiptV1? = nil,
+         support: Int32, caches: Int32, temporary: Int32
+     ) throws -> Snapshot {
+-        let first = try firstObservation()
++        let first = try originalNotificationAnchor(creation: creation)
+         guard let old = before.operationsChildren[
+                 AppLockNotificationControlStoreV1.rootName],
+               case .directory(let oldRootFact, _) = old,
+@@ -313,9 +533,10 @@
+     /// boundary while retaining its one-use original EX/G permit.
+     func requireOriginalNotificationRootPolicyBranches(
+         before: Snapshot, allowRootCtime: Bool,
++        creation: OriginalEraseNotificationRootCreationReceiptV1? = nil,
+         support: Int32, caches: Int32, temporary: Int32
+     ) throws -> Snapshot {
+-        let first = try firstObservation()
++        let first = try originalNotificationAnchor(creation: creation)
+         let name = AppLockNotificationControlStoreV1.rootName
+         guard let firstNodes = first.notificationControlNodes,
+               let stable = first.notificationControlStableDigest,
+@@ -415,23 +636,65 @@
+     /// must precede the first call; `outsideDigest` is then retained by the
+     /// same original operation, never captured from a later survivor tree.
+     func requireOriginalNotificationOutsideRoot(
+-        afterPolicy: Snapshot, outsideDigest: String?,
++        afterPolicy: Snapshot, originalBefore: Snapshot,
++        searchWriter: OriginalEraseAuxiliarySearchWriterV1, searchBytes: Data,
++        outsideDigest: String?,
++        creation: OriginalEraseNotificationRootCreationReceiptV1? = nil,
+         support: Int32, caches: Int32, temporary: Int32
+     ) throws -> String {
+-        let first = try firstObservation()
++        let first = try originalNotificationAnchor(creation: creation)
++        let immutable = try firstObservation()
++        let searchName = LocalSearchIndexStoreV1.directoryName
++        let searchWasAbsent = immutable.supportTrees[searchName] == .absent
++        let expectedSupportNames = Set(immutable.supportNames)
++            .union(searchWasAbsent ? [searchName] : [])
+         let name = AppLockNotificationControlStoreV1.rootName
+         guard let policyNodes = afterPolicy.notificationControlNodes,
+               let firstNodes = first.notificationControlNodes,
+               policyNodes.count == firstNodes.count,
+               policyNodes.dropFirst() == firstNodes.dropFirst(),
+-              afterPolicy.supportFact == first.supportFact,
+-              afterPolicy.supportNames == first.supportNames,
+-              afterPolicy.operations.rootFact
+-                == first.operations.rootFact,
++              // This retained image was authenticated by the original-before
++              // observer with the actual checked Search writer on both sides.
++              // Search's owned creation may change Support metadata/names;
++              // its private published receipt fixes the exact postfact below.
++              originalBefore.supportIdentity == immutable.supportIdentity,
++              originalBefore.cacheIdentity == immutable.cacheIdentity,
++              originalBefore.temporaryIdentity == immutable.temporaryIdentity,
++              originalBefore.cacheTree == immutable.cacheTree,
++              originalBefore.temporaryTree == immutable.temporaryTree,
++              Self.sameStableParent(originalBefore.supportFact, immutable.supportFact),
++              Set(originalBefore.supportNames) == expectedSupportNames,
++              originalBefore.supportFact == searchWriter.projectedSupportFact,
++              searchWriter.publishedBytes == searchBytes,
++              originalBefore.notificationControlNodes == firstNodes,
++              originalBefore.notificationControlStableDigest
++                == first.notificationControlStableDigest,
++              originalBefore.operationsChildren[name] == first.operationsChildren[name],
++              afterPolicy.supportFact == originalBefore.supportFact,
++              afterPolicy.supportNames == originalBefore.supportNames,
++              afterPolicy.supportIdentity == originalBefore.supportIdentity,
++              afterPolicy.cacheIdentity == originalBefore.cacheIdentity,
++              afterPolicy.temporaryIdentity == originalBefore.temporaryIdentity,
++              afterPolicy.supportTrees == originalBefore.supportTrees,
++              afterPolicy.cacheTree == originalBefore.cacheTree,
++              afterPolicy.temporaryTree == originalBefore.temporaryTree,
++              afterPolicy.ingressControlNodes == originalBefore.ingressControlNodes,
++              afterPolicy.operations.rootFact == originalBefore.operations.rootFact,
+               Set(afterPolicy.operationsChildren.keys)
+-                == Set(first.operationsChildren.keys) else {
+-            throw EraseAllServiceError.invalidAuthority
+-        }
++                == Set(originalBefore.operationsChildren.keys) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        for (child, tree) in originalBefore.operationsChildren where child != name {
++            guard afterPolicy.operationsChildren[child] == tree else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++        }
++        for (child, tree) in immutable.supportTrees where child != searchName {
++            guard originalBefore.supportTrees[child] == tree else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++        }
++        try searchWriter.requirePublished(searchBytes, supportFD: support)
+         func scan() throws -> String {
+             var heldSupport = stat()
+             guard Darwin.fstat(support, &heldSupport) == 0,
+@@ -487,7 +750,9 @@
+             }
+         }
+         let one = try scan()
++        try searchWriter.requirePublished(searchBytes, supportFD: support)
+         let two = try scan()
++        try searchWriter.requirePublished(searchBytes, supportFD: support)
+         try io.requireSettled()
+         guard one == two, outsideDigest == nil || outsideDigest == two else {
+             throw EraseAllServiceError.invalidAuthority
+@@ -1110,6 +1375,31 @@
+         notificationControl: Bool,
+         expectedRootFact: String,
+         expectedTreeDigest: String) throws -> ([ControlNode], String?) {
++        if !notificationControl, let scope = initialC16Scope {
++            var parent = stat()
++            guard Darwin.fstat(operations, &parent) == 0 else { throw EraseAllServiceError.invalidAuthority }
++            let one = try io.schema2ColdCurrentOwnedTree(parent: operations, name: name,
++                rootURL: rootURL, expectedUser: parent.st_uid, expectedGroup: parent.st_gid,
++                initialScope: scope, operationsRelativePrefix: name,
++                requireBinding: { try scope.requireCurrentBinding() },
++                poison: { scope.poisonOnUncertainObservation() })
++            guard one.rootFact == expectedRootFact, one.digest == expectedTreeDigest else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            var values: [ControlNode] = []
++            for node in one.nodes {
++                guard let policy = node.policy else { throw EraseAllServiceError.invalidAuthority }
++                values.append(.init(path: node.path, fullFact: node.fullFact, policy: policy,
++                    contentSHA256: node.sha256))
++            }
++            let two = try io.schema2ColdCurrentOwnedTree(parent: operations, name: name,
++                rootURL: rootURL, expectedUser: parent.st_uid, expectedGroup: parent.st_gid,
++                initialScope: scope, operationsRelativePrefix: name,
++                requireBinding: { try scope.requireCurrentBinding() },
++                poison: { scope.poisonOnUncertainObservation() })
++            guard one == two else { throw EraseAllServiceError.invalidAuthority }
++            return (values, nil)
++        }
+         var nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode] = []
+         let digest = try io.postRetiredTree(parent: operations,
+             name: name,
+@@ -1258,6 +1548,24 @@
+         guard before.st_mode & S_IFMT == S_IFDIR else {
+             throw EraseAllServiceError.invalidAuthority
+         }
++        if let scope = initialC16Scope, let supportURL = initialSupportURL,
++           name == "FieldEvidenceOperations" || name == "ScratchDataV1" || name == "ProtectedIngressReceiptsV1" {
++            let rootURL: URL
++            let rolePrefix: String
++            if name == "FieldEvidenceOperations" {
++                rootURL = supportURL.appendingPathComponent(name, isDirectory: true); rolePrefix = ""
++            } else {
++                rootURL = supportURL.appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
++                    .appendingPathComponent(name, isDirectory: true); rolePrefix = name
++            }
++            let parentFact = try directoryFact(parent)
++            let value = try io.schema2ColdCurrentOwnedTree(parent: parent, name: name, rootURL: rootURL,
++                expectedUser: parentFact.st_uid, expectedGroup: parentFact.st_gid,
++                initialScope: scope, operationsRelativePrefix: rolePrefix,
++                requireBinding: { try scope.requireCurrentBinding() }, poison: { scope.poisonOnUncertainObservation() })
++            guard value.rootFact == Self.fullFact(before) else { throw EraseAllServiceError.invalidAuthority }
++            return .present(rootFact: value.rootFact, digest: value.digest)
++        }
+         // Existing checked walker streams file bytes and rejects links/special
+         // nodes. No excluded paths or relaxed directory projections are used.
+         let digest = try io.postRetiredTree(parent: parent, name: name)
+@@ -1286,3 +1594,732 @@
+         "\(value.st_dev)|\(value.st_ino)|\(value.st_mode)|\(value.st_uid)|\(value.st_gid)|\(value.st_nlink)|\(value.st_size)|\(value.st_mtimespec.tv_sec)|\(value.st_mtimespec.tv_nsec)|\(value.st_ctimespec.tv_sec)|\(value.st_ctimespec.tv_nsec)"
+     }
+ }
++
++/// A receipt is minted only by the retained physical owner after its one
++/// declared unlink (or positively original-absent no-effect), sync, complete
++/// postimage and every checked close. It is data for the Router's next CAS.
++@MainActor
++final class EraseSchema2ColdPhysicalEffectReceiptV1 {
++    enum Effect: Equatable { case unlinked, originallyAbsent, resumedPreparingAbsence }
++    let ownerID: UUID
++    let originalPAuxiliaryRosterSHA256: String
++    let planSHA256: String
++    let progressSHA256: String
++    let targetIndex: Int
++    let target: EraseSchema2ColdCleanupProgressV1.Target
++    let effect: Effect
++    let before: [EraseSchema2ColdCleanupProgressV1.Projection]
++    let after: [EraseSchema2ColdCleanupProgressV1.Projection]
++    fileprivate init(owner: EraseSchema2ColdPhysicalCleanupOwnerV1,
++        progressSHA256: String, targetIndex: Int,
++        target: EraseSchema2ColdCleanupProgressV1.Target, effect: Effect,
++        before: [EraseSchema2ColdCleanupProgressV1.Projection],
++        after: [EraseSchema2ColdCleanupProgressV1.Projection]) {
++        ownerID = owner.ownerID; originalPAuxiliaryRosterSHA256 = owner.originalP.canonicalSHA256
++        planSHA256 = owner.planSHA256; self.progressSHA256 = progressSHA256
++        self.targetIndex = targetIndex; self.target = target; self.effect = effect
++        self.before = before; self.after = after
++    }
++    func requireBound(owner: EraseSchema2ColdPhysicalCleanupOwnerV1,
++        progress: EraseSchema2ColdCleanupProgressV1) throws {
++        try owner.requireReceipt(self, progress: progress)
++    }
++}
++
++/// Complete auxiliary namespace witness and one-effect postorder executor.
++/// This owner owns only its transient checked IO; all three root descriptors
++/// are lent by the actual cold/original operation, never closed or duplicated
++/// into an independent EX owner here. Router's private permit is indispensable
++/// at every boundary and authenticates current Store, Registry, Search,
++/// Notification and retirement receipts. Neither a snapshot nor this class
++/// can create EX/G, an OS result, a source receipt or a retirement proof.
++@MainActor
++final class EraseSchema2ColdPhysicalCleanupOwnerV1 {
++    typealias Progress = EraseSchema2ColdCleanupProgressV1
++    typealias Node = EraseAbortCheckedSnapshotIOV1.Schema2ColdCurrentTreeV1.Node
++    fileprivate let ownerID = UUID()
++    fileprivate let originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1
++    fileprivate let planSHA256: String
++    private let plan: OriginalEraseC16PlanV1
++    private let initial: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
++    private let supportURL: URL, cachesURL: URL, temporaryURL: URL
++    private let targets: [Progress.Target]
++    private let targetsSHA256: String
++    private let io = EraseAbortCheckedSnapshotIOV1()
++    private var closed = false, closeAttempted = false, uncertain = false
++    private var inFlight = false
++    private var lastEffect: EraseSchema2ColdPhysicalEffectReceiptV1?
++    private var attemptedTargetIndices = Set<Int>()
++
++    private struct Image: Equatable {
++        let projection: [Progress.Projection]
++        let nodes: [String: Node]
++        let supportNames: [String]
++    }
++
++    init(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        initial: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
++        applicationSupportURL: URL, cachesURL: URL, temporaryURL: URL,
++        fixedTargets: [Progress.Target], c16Plan: OriginalEraseC16PlanV1,
++        targetGenerationID: UUID, planSHA256: String) throws {
++        try c16Plan.validate()
++        guard applicationSupportURL.isFileURL, cachesURL.isFileURL, temporaryURL.isFileURL,
++              originalP.canonicalBytes == (try StoreMigrationCanonicalJSONV1.encode(originalP.record)),
++              originalP.canonicalSHA256 == StoreMigrationCanonicalJSONV1.sha256(originalP.canonicalBytes),
++              planSHA256 == (try CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(c16Plan))),
++              fixedTargets.count <= 100_000 else { throw EraseAllServiceError.invalidAuthority }
++        let c16 = fixedTargets.filter { $0.kind == .c16 }
++        guard c16.count == c16Plan.steps.count,
++              c16.map(\.ordinal) == Array(c16Plan.steps.indices),
++              fixedTargets.filter({ $0.kind != .c16 }) == (try Self.fixedNonC16Targets(originalP: originalP, c16Plan: c16Plan, targetGenerationID: targetGenerationID)),
++              Int64(initial.supportIdentity.device) == originalP.record.supportDevice,
++              UInt64(initial.supportIdentity.inode) == originalP.record.supportInode,
++              UInt32(initial.supportIdentity.mode) == originalP.record.supportMode,
++              UInt32(initial.supportIdentity.user) == originalP.record.supportUser,
++              UInt32(initial.supportIdentity.group) == originalP.record.supportGroup,
++              Int64(initial.cacheIdentity.device) == originalP.record.cachesDevice,
++              UInt64(initial.cacheIdentity.inode) == originalP.record.cachesInode,
++              UInt32(initial.cacheIdentity.mode) == originalP.record.cachesMode,
++              UInt32(initial.cacheIdentity.user) == originalP.record.cachesUser,
++              UInt32(initial.cacheIdentity.group) == originalP.record.cachesGroup,
++              Int64(initial.temporaryIdentity.device) == originalP.record.temporaryDevice,
++              UInt64(initial.temporaryIdentity.inode) == originalP.record.temporaryInode,
++              UInt32(initial.temporaryIdentity.mode) == originalP.record.temporaryMode,
++              UInt32(initial.temporaryIdentity.user) == originalP.record.temporaryUser,
++              UInt32(initial.temporaryIdentity.group) == originalP.record.temporaryGroup else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        for (ordinal, target) in c16.enumerated() {
++            guard target.semanticSHA256 == (try CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(c16Plan.steps[ordinal]))) else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++        }
++        self.originalP = originalP; self.initial = initial; self.plan = c16Plan
++        self.planSHA256 = planSHA256; targets = fixedTargets
++        targetsSHA256 = StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(fixedTargets))
++        supportURL = applicationSupportURL.standardizedFileURL
++        self.cachesURL = cachesURL.standardizedFileURL; self.temporaryURL = temporaryURL.standardizedFileURL
++    }
++
++    /// Construct once from the immutable original record and canonical plan.
++    /// No surviving Q/R name is enumerated to mint another target. Prospective
++    /// Search/Notification leaves are fixed owner-produced names; their actual
++    /// presence/content/absence still requires the respective typed receipt.
++    static func fixedNonC16Targets(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        c16Plan: OriginalEraseC16PlanV1, targetGenerationID: UUID) throws -> [Progress.Target] {
++        try c16Plan.validate()
++        var result: [Progress.Target] = []
++        func add(_ kind: Progress.Target.Kind, _ path: String,
++            source: EraseSchema2ColdAuxiliaryPhysicalRosterV1.Node?) throws {
++            struct Binding: Codable { let rosterSHA256: String; let path: String; let source: EraseSchema2ColdAuxiliaryPhysicalRosterV1.Node? }
++            let bytes = try StoreMigrationCanonicalJSONV1.encode(Binding(
++                rosterSHA256: originalP.canonicalSHA256, path: path, source: source))
++            result.append(.init(kind: kind, ordinal: result.count, path: path,
++                semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(bytes),
++                dependencyPaths: [], allowedBirthPaths: []))
++        }
++        let operationsKey = "support/FieldEvidenceOperations"
++        guard let operations = originalP.record.trees.first(where: { $0.key == operationsKey }) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        let ownNames = Set(c16Plan.ownedLeaseNames)
++        let operationsNodes = Dictionary(uniqueKeysWithValues: (operations.nodes ?? []).map { ($0.path, $0) })
++        let scratchPrefix = "ScratchDataV1/"
++        for path in operations.deletionOrder ?? [] where path.hasPrefix(scratchPrefix) {
++            let suffix = String(path.dropFirst(scratchPrefix.count))
++            guard let rootName = suffix.split(separator: "/").first else { throw EraseAllServiceError.invalidAuthority }
++            if ownNames.contains(String(rootName)) { continue }
++            let isLease = operationsNodes[scratchPrefix + String(rootName)]?.kind == "directory"
++            try add(isLease ? .scratchLease : .scratchOrphan, operationsKey + "/" + path, source: operationsNodes[path])
++        }
++        for tree in originalP.record.trees where tree.key != operationsKey {
++            let nodes = Dictionary(uniqueKeysWithValues: (tree.nodes ?? []).map { ($0.path, $0) })
++            var order = tree.deletionOrder ?? [""]
++            if tree.key == "support/" + LocalSearchIndexStoreV1.directoryName,
++               !order.contains(LocalSearchIndexStoreV1.fileName) {
++                order.insert(LocalSearchIndexStoreV1.fileName, at: max(0, order.count - 1))
++            }
++            for path in order {
++                try add(path.isEmpty ? .auxiliaryRoot : .auxiliaryNode,
++                    path.isEmpty ? tree.key : tree.key + "/" + path, source: nodes[path])
++            }
++        }
++        // C16 has already consumed its semantic descendants. Registry's
++        // actual drain consumes owner-token descendants. Notification's
++        // authentic removal consumes its obsolete mapping/record leaves.
++        let excluded = ["ScratchDataV1/", "ProtectedIngressReceiptsV1/", "generation-leases/",
++            AppLockNotificationControlStoreV1.rootName + "/"]
++        for path in operations.deletionOrder ?? [] where !path.isEmpty {
++            if excluded.contains(where: { path.hasPrefix($0) }) { continue }
++            if path == "schema-migration/manifest-" + targetGenerationID.uuidString.lowercased() + ".json" { continue }
++            if path == AppLockNotificationControlStoreV1.rootName {
++                try add(.auxiliaryNode, operationsKey + "/" + path + "/" + AppLockNotificationControlStoreV1.eraseName, source: nil)
++            }
++            try add(.auxiliaryNode, operationsKey + "/" + path, source: operationsNodes[path])
++        }
++        if operationsNodes[AppLockNotificationControlStoreV1.rootName] == nil {
++            try add(.auxiliaryNode, operationsKey + "/" + AppLockNotificationControlStoreV1.rootName + "/" + AppLockNotificationControlStoreV1.eraseName, source: nil)
++            try add(.auxiliaryNode, operationsKey + "/" + AppLockNotificationControlStoreV1.rootName, source: nil)
++        }
++        try add(.auxiliaryRoot, operationsKey, source: operationsNodes[""])
++        guard result.count <= 100_000, Set(result.map(\.path)).count == result.count else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        return result
++    }
++
++    private func requireMemory() throws {
++        guard !closed, !closeAttempted, !uncertain else { throw EraseAllServiceError.invalidAuthority }
++        try io.requireSettled()
++    }
++    private func requireBinding(_ permit: EraseSchema2ColdPhysicalPermitV1,
++        progress: Progress) throws {
++        try requireMemory()
++        guard progress.originalPAuxiliaryRosterSHA256 == originalP.canonicalSHA256,
++              progress.targets == targets, progress.eraseID == originalP.record.eraseID,
++              progress.completedPrefixCount >= 0, progress.completedPrefixCount <= targets.count else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        try permit.requireBinding(originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256,
++            planSHA256: planSHA256,
++            progressSHA256: StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(progress)),
++            mixedTargetIndex: progress.activeTargetIndex)
++    }
++    private static func fact(_ f: stat) -> String {
++        [String(f.st_dev), String(f.st_ino), String(f.st_mode), String(f.st_uid), String(f.st_gid),
++         String(f.st_nlink), String(f.st_size), String(f.st_mtimespec.tv_sec), String(f.st_mtimespec.tv_nsec),
++         String(f.st_ctimespec.tv_sec), String(f.st_ctimespec.tv_nsec)].joined(separator: "|")
++    }
++    private static func fields(_ fact: String, count: Int = 11) throws -> [String] {
++        let values = fact.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
++        guard values.count == count, count == 9 || count == 11,
++              let device = Int64(values[0]), device >= 0,
++              let inode = UInt64(values[1]), inode > 0,
++              let mode = UInt32(values[2]), mode > 0 else { throw EraseAllServiceError.invalidAuthority }
++        let linkIndex = count == 11 ? 5 : 3, sizeIndex = count == 11 ? 6 : 4
++        let modifiedIndex = count == 11 ? 7 : 5, changedIndex = count == 11 ? 9 : 7
++        guard let links = UInt64(values[linkIndex]), links > 0,
++              let size = Int64(values[sizeIndex]), size >= 0,
++              Int64(values[modifiedIndex]) != nil, Int64(values[changedIndex]) != nil,
++              let modifiedNanos = Int64(values[modifiedIndex + 1]), (0..<1_000_000_000).contains(modifiedNanos),
++              let changedNanos = Int64(values[changedIndex + 1]), (0..<1_000_000_000).contains(changedNanos),
++              count != 11 || (UInt32(values[3]) != nil && UInt32(values[4]) != nil) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        return values
++    }
++    private static func nine(_ full: String) throws -> String {
++        let f = try fields(full); return [f[0],f[1],f[2],f[5],f[6],f[7],f[8],f[9],f[10]].joined(separator: "|")
++    }
++    private static func stable(_ actual: String, _ expected: String) throws -> Bool {
++        Array(try fields(actual).prefix(5)) == Array(try fields(expected).prefix(5))
++    }
++    private func external(_ path: String) -> Bool {
++        path == "support/" + LocalSearchIndexStoreV1.directoryName || path.hasPrefix("support/" + LocalSearchIndexStoreV1.directoryName + "/")
++            || path == "support/FieldEvidenceOperations/generation-leases" || path.hasPrefix("support/FieldEvidenceOperations/generation-leases/")
++            || path == "support/FieldEvidenceOperations/schema-migration" || path.hasPrefix("support/FieldEvidenceOperations/schema-migration/")
++            || path == "support/FieldEvidenceOperations/" + AppLockNotificationControlStoreV1.rootName
++            || path.hasPrefix("support/FieldEvidenceOperations/" + AppLockNotificationControlStoreV1.rootName + "/")
++    }
++    private func c16(_ path: String) -> Bool {
++        ["ScratchDataV1", "ProtectedIngressReceiptsV1"].contains { name in
++            path == "support/FieldEvidenceOperations/" + name || path.hasPrefix("support/FieldEvidenceOperations/" + name + "/")
++        }
++    }
++
++    private func requireScanBinding(_ permit: EraseSchema2ColdPhysicalPermitV1,
++        progress: Progress?) throws {
++        if let progress { try requireBinding(permit, progress: progress) }
++        else {
++            try requireMemory()
++            try permit.requireBootstrapBinding(originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256,
++                planSHA256: planSHA256,
++                targetsSHA256: targetsSHA256)
++        }
++    }
++
++    private func scan(support: Int32, caches: Int32, temporary: Int32,
++        c16Scope: OriginalEraseC16CurrentObservationScopeV1?, permit: EraseSchema2ColdPhysicalPermitV1,
++        progress: Progress?, initialScope: OriginalEraseC16InitialObservationScopeV1? = nil) throws -> Image {
++        guard initialScope == nil || (progress == nil && c16Scope == nil) else { throw EraseAllServiceError.invalidAuthority }
++        try requireScanBinding(permit, progress: progress)
++        let canonicalProgressSHA = try progress.map { StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode($0)) }
++        func bound() throws {
++            try requireMemory()
++            if let progress, let canonicalProgressSHA {
++                try permit.requireBinding(originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256,
++                    planSHA256: planSHA256, progressSHA256: canonicalProgressSHA,
++                    mixedTargetIndex: progress.activeTargetIndex)
++            } else {
++                try permit.requireBootstrapBinding(originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256,
++                    planSHA256: planSHA256, targetsSHA256: targetsSHA256)
++            }
++        }
++        var values: [Progress.Projection] = [], nodes: [String: Node] = [:]
++        let parents: [(String,Int32,URL,Int64,UInt64,UInt32,UInt32,UInt32)] = [
++            ("support", support, supportURL, originalP.record.supportDevice, originalP.record.supportInode,
++                originalP.record.supportMode, originalP.record.supportUser, originalP.record.supportGroup),
++            ("caches", caches, cachesURL, originalP.record.cachesDevice, originalP.record.cachesInode,
++                originalP.record.cachesMode, originalP.record.cachesUser, originalP.record.cachesGroup),
++            ("temporary", temporary, temporaryURL, originalP.record.temporaryDevice, originalP.record.temporaryInode,
++                originalP.record.temporaryMode, originalP.record.temporaryUser, originalP.record.temporaryGroup)]
++        var parentFacts: [String: String] = [:]
++        for (key, fd, _, dev, ino, mode, user, group) in parents {
++            var held = stat()
++            guard Darwin.fstat(fd, &held) == 0, Int64(held.st_dev) == dev,
++                  UInt64(held.st_ino) == ino, UInt32(held.st_mode) == mode,
++                  UInt32(held.st_uid) == user, UInt32(held.st_gid) == group,
++                  held.st_uid == Darwin.geteuid(), held.st_mode & S_IFMT == S_IFDIR else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            parentFacts[key] = Self.fact(held)
++            values.append(.init(path: key, fullFact: Self.fact(held), sha256: nil))
++        }
++        let supportNames = try io.names(in: support)
++        let assigned = Set(originalP.record.trees.filter { $0.key.hasPrefix("support/") }
++            .map { String($0.key.dropFirst("support/".count)) }).union(["FieldEvidenceData", "FieldEvidenceErase"])
++        guard Set(supportNames).isSubset(of: assigned), Set(supportNames).isSuperset(of: ["FieldEvidenceData", "FieldEvidenceErase"]) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        for tree in originalP.record.trees {
++            let parts = tree.key.split(separator: "/").map(String.init)
++            guard parts.count == 2, let parent = parents.first(where: { $0.0 == parts[0] }) else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            var named = stat()
++            if Darwin.fstatat(parent.1, parts[1], &named, AT_SYMLINK_NOFOLLOW) != 0 {
++                guard errno == ENOENT else { throw EraseAllServiceError.invalidAuthority }
++                continue
++            }
++            let isOperations = tree.key == "support/FieldEvidenceOperations"
++            let observed = try io.schema2ColdCurrentOwnedTree(parent: parent.1, name: parts[1],
++                rootURL: parent.2.appendingPathComponent(parts[1], isDirectory: true),
++                expectedUser: uid_t(parent.6), expectedGroup: gid_t(parent.7),
++                scope: isOperations ? c16Scope : nil,
++                initialScope: isOperations ? initialScope : nil,
++                operationsRelativePrefix: isOperations && (c16Scope != nil || initialScope != nil) ? "" : nil,
++                requireBinding: bound,
++                poison: { self.uncertain = true; permit.poisonOnUncertainEffect() })
++            for node in observed.nodes {
++                let path = node.path.isEmpty ? tree.key : tree.key + "/" + node.path
++                guard nodes.updateValue(node, forKey: path) == nil else { throw EraseAllServiceError.invalidAuthority }
++                values.append(.init(path: path, fullFact: node.fullFact, sha256: node.sha256))
++            }
++        }
++        guard try io.names(in: support) == supportNames else { throw EraseAllServiceError.invalidAuthority }
++        for (key, fd, _, _, _, _, _, _) in parents {
++            var held = stat()
++            guard Darwin.fstat(fd, &held) == 0,
++                  Self.fact(held) == parentFacts[key] else { throw EraseAllServiceError.invalidAuthority }
++        }
++        try bound()
++        let projection = values.sorted { $0.path < $1.path }
++        guard Set(projection.map(\.path)).count == projection.count else { throw EraseAllServiceError.invalidAuthority }
++        // Data/Erase descendants are the actual generation/Store owners'
++        // independent typed domains. Parent identities and closed child names
++        // are checked here; no self-containing Store leaf digest is invented.
++        try permit.requireExternalBranches(projection)
++        return Image(projection: projection, nodes: nodes, supportNames: supportNames)
++    }
++
++    private func originalNodes() -> [String: EraseSchema2ColdAuxiliaryPhysicalRosterV1.Node] {
++        Dictionary(uniqueKeysWithValues: originalP.record.trees.flatMap { tree in
++            (tree.nodes ?? []).map { (node: EraseSchema2ColdAuxiliaryPhysicalRosterV1.Node) in
++                (node.path.isEmpty ? tree.key : tree.key + "/" + node.path, node)
++            }
++        })
++    }
++    private func currentCutDeleted(_ image: Image, progress: Progress) throws -> Set<String> {
++        var removed = Set(targets.prefix(progress.completedPrefixCount).filter { $0.kind != .c16 }.map(\.path))
++        if let index = progress.activeTargetIndex, targets.indices.contains(index), targets[index].kind != .c16,
++           image.nodes[targets[index].path] == nil {
++            guard index == progress.completedPrefixCount,
++                  progress.stage == .preparing || progress.stage == .preparingCaptured else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            removed.insert(targets[index].path)
++        }
++        return removed
++    }
++    private func requireFinite(_ image: Image, boundary: OriginalEraseC16BoundaryObservationV1?,
++        progress: Progress) throws {
++        let original = originalNodes(), deleted = try currentCutDeleted(image, progress: progress)
++        let originalInodes = Dictionary(grouping: original.filter { $0.value.kind == "file" }, by: { entry in
++            entry.value.fact.split(separator: "|").prefix(2).joined(separator: "|")
++        })
++        let expected = Dictionary(uniqueKeysWithValues: progress.physicalProjection.map { ($0.path, $0) })
++        guard expected.count == progress.physicalProjection.count else { throw EraseAllServiceError.invalidAuthority }
++        var activeParent: String?
++        if let index = progress.activeTargetIndex, targets.indices.contains(index), targets[index].kind != .c16,
++           deleted.contains(targets[index].path) {
++            activeParent = targets[index].path.split(separator: "/").dropLast().joined(separator: "/")
++        }
++        // Exactly the original immutable subtree survives after the declared
++        // mixed prefix. The active PREPARING cut may have lost its ONE node;
++        // no later target absence, unrecorded birth or current-name rebase.
++        for (path, node) in original where !external(path) && !c16(path) {
++            if deleted.contains(path) {
++                guard image.nodes[path] == nil else { throw EraseAllServiceError.invalidAuthority }
++                continue
++            }
++            guard let actual = image.nodes[path], actual.sha256 == node.sha256 else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            if node.kind == "file" {
++                guard try Self.nine(actual.fullFact) == node.fact else { throw EraseAllServiceError.invalidAuthority }
++            } else {
++                let old = try Self.fields(node.fact, count: 9), now = try Self.fields(actual.fullFact)
++                guard old[0] == now[0], old[1] == now[1], old[2] == now[2] else { throw EraseAllServiceError.invalidAuthority }
++                var members = node.members ?? []
++                members.removeAll { deleted.contains(path + "/" + $0) }
++                if path == "support/FieldEvidenceOperations" {
++                    members = Array(Set(members).subtracting(["ScratchDataV1", "ProtectedIngressReceiptsV1", "generation-leases", "schema-migration", AppLockNotificationControlStoreV1.rootName]))
++                    for name in ["ScratchDataV1", "ProtectedIngressReceiptsV1", "generation-leases", "schema-migration", AppLockNotificationControlStoreV1.rootName]
++                        where image.nodes[path + "/" + name] != nil { members.append(name) }
++                }
++                guard actual.names == members.sorted() else { throw EraseAllServiceError.invalidAuthority }
++            }
++        }
++        for path in image.nodes.keys where !external(path) && !c16(path) {
++            guard original[path] != nil else { throw EraseAllServiceError.invalidAuthority }
++        }
++        if let boundary {
++            guard boundary.planSHA256 == planSHA256, boundary.ordinal == progress.activeC16Ordinal,
++                  boundary.projection.currentOrdinal == boundary.ordinal else { throw EraseAllServiceError.invalidAuthority }
++            guard boundary.stepSHA256 == (try CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(plan.steps[boundary.ordinal]))) else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            if let born = boundary.bornSource {
++                guard let index = progress.activeTargetIndex, targets.indices.contains(index),
++                      targets[index].allowedBirthPaths.contains(born.path),
++                      progress.stage == .preparing || progress.stage == .preparingCaptured,
++                      let actual = image.nodes["support/FieldEvidenceOperations/" + born.path],
++                      actual.fullFact == born.fullFact, actual.sha256 == born.sha256,
++                      born.sha256 == (try CompatibilityCanonicalV1.sha256(born.bytes)) else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++            }
++            let prefix = "support/FieldEvidenceOperations/"
++            let finite = boundary.projection
++            var expectedPaths = Set(finite.files.map { prefix + $0.path }).union(finite.directories.map { prefix + $0.path })
++            // Generic leases/orphans coexist in the same Scratch root; they
++            // remain immutable except their separately declared mixed prefix.
++            let generic = original.filter { path, _ in path.hasPrefix(prefix + "ScratchDataV1/") && !plan.ownedLeaseNames.contains(String(path.dropFirst((prefix + "ScratchDataV1/").count).split(separator: "/").first ?? "")) }
++            expectedPaths.formUnion(generic.keys.filter { !deleted.contains($0) })
++            if image.nodes[prefix + "ScratchDataV1"] != nil { expectedPaths.insert(prefix + "ScratchDataV1") }
++            guard Set(image.nodes.keys.filter(c16)) == expectedPaths else { throw EraseAllServiceError.invalidAuthority }
++            for file in finite.files {
++                guard let actual = image.nodes[prefix + file.path], actual.names == nil,
++                      let sha = actual.sha256 else { throw EraseAllServiceError.invalidAuthority }
++                switch file.source {
++                case let .firstP(sourcePath, allowSettlement):
++                    guard let first = original[prefix + sourcePath], first.kind == "file", first.sha256 == sha else {
++                        throw EraseAllServiceError.invalidAuthority
++                    }
++                    let nine = try Self.nine(actual.fullFact)
++                    if nine != first.fact {
++                        let a = try Self.fields(nine, count: 9), b = try Self.fields(first.fact, count: 9)
++                        // An assigned exact first-P pair settlement may change
++                        // only nlink2→1 and ctime, never bytes/mtime/identity.
++                        let partial = originalInodes[b.prefix(2).joined(separator: "|")]?.first { candidate in
++                            candidate.key != prefix + sourcePath && candidate.value.kind == "file"
++                                && candidate.value.fact == first.fact && candidate.value.sha256 == first.sha256
++                        }
++                        guard allowSettlement, b[3] == "2", a[3] == "1",
++                              Array(a.prefix(3)) == Array(b.prefix(3)), Array(a[4...6]) == Array(b[4...6]),
++                              let partial, finite.consumedFirstPPaths.contains(String(partial.key.dropFirst(prefix.count))),
++                              plan.steps.prefix(boundary.ordinal + 1).contains(where: { step in
++                                  if case let .settleFirstPPartial(_, name, device, inode, _) = step {
++                                      return partial.key.hasSuffix("/" + name) && b[0] == String(device) && b[1] == String(inode)
++                                  }; return false
++                              }) else { throw EraseAllServiceError.invalidAuthority }
++                    }
++                case let .postPDeterministic(_, fact, expectedSHA):
++                    guard actual.fullFact == fact, sha == expectedSHA else { throw EraseAllServiceError.invalidAuthority }
++                }
++            }
++            for directory in finite.directories {
++                guard let actual = image.nodes[prefix + directory.path],
++                      actual.names == directory.expectedMembers,
++                      let first = original[prefix + directory.firstPSourcePath] else { throw EraseAllServiceError.invalidAuthority }
++                let a = try Self.fields(actual.fullFact), b = try Self.fields(first.fact, count: 9)
++                guard a[0] == b[0], a[1] == b[1], a[2] == b[2],
++                      a[5] == String(directory.expectedLinkCount) else { throw EraseAllServiceError.invalidAuthority }
++            }
++            for (path, node) in generic where !deleted.contains(path) {
++                guard let actual = image.nodes[path], actual.sha256 == node.sha256,
++                      let prior = expected[path], actual.fullFact == prior.fullFact else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                if node.kind == "file" {
++                    guard try Self.nine(actual.fullFact) == node.fact else { throw EraseAllServiceError.invalidAuthority }
++                } else {
++                    let first = try Self.fields(node.fact, count: 9), current = try Self.fields(actual.fullFact)
++                    let members = (node.members ?? []).filter { !deleted.contains(path + "/" + $0) }
++                    guard first[0] == current[0], first[1] == current[1], first[2] == current[2],
++                          actual.names == members.sorted() else { throw EraseAllServiceError.invalidAuthority }
++                }
++            }
++            if let scratch = image.nodes[prefix + "ScratchDataV1"] {
++                let names = expectedPaths.filter { $0.hasPrefix(prefix + "ScratchDataV1/") }
++                    .map { String($0.dropFirst((prefix + "ScratchDataV1/").count).split(separator: "/").first!) }
++                guard scratch.names == Array(Set(names)).sorted() else { throw EraseAllServiceError.invalidAuthority }
++            }
++            for consumed in finite.consumedFirstPPaths {
++                guard original[prefix + consumed] != nil,
++                      !finite.files.contains(where: { $0.path == consumed }),
++                      image.nodes[prefix + consumed] == nil else { throw EraseAllServiceError.invalidAuthority }
++            }
++        } else {
++            // Outside an active C16 boundary, the authenticated canonical
++            // postimage is exact for every C16 path. Later generic deletions
++            // have their own one-node/prefix proof below.
++            for (path, actual) in image.nodes where c16(path) && !deleted.contains(path) && path != activeParent {
++                guard let old = expected[path], actual.fullFact == old.fullFact, actual.sha256 == old.sha256 else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++            }
++            for path in expected.keys where c16(path) && !deleted.contains(path) && path != activeParent {
++                guard image.nodes[path] != nil else { throw EraseAllServiceError.invalidAuthority }
++            }
++        }
++        let expectedSupportRoots = Set(expected.keys.filter { $0.hasPrefix("support/") && $0.split(separator: "/").count == 2 }
++            .filter { !deleted.contains($0) }.map { String($0.dropFirst("support/".count)) })
++        let observedExternalSearch = image.nodes["support/" + LocalSearchIndexStoreV1.directoryName] != nil
++        var expectedSupportNames = expectedSupportRoots.union(["FieldEvidenceData", "FieldEvidenceErase"])
++        if observedExternalSearch { expectedSupportNames.insert(LocalSearchIndexStoreV1.directoryName) }
++        guard Set(image.supportNames) == expectedSupportNames else { throw EraseAllServiceError.invalidAuthority }
++        if let activeParent, let node = image.nodes[activeParent], let names = node.names {
++            let direct = expected.keys.filter {
++                $0.split(separator: "/").dropLast().joined(separator: "/") == activeParent && !deleted.contains($0)
++            }.map { String($0.split(separator: "/").last!) }
++            guard names == direct.sorted() else { throw EraseAllServiceError.invalidAuthority }
++        }
++        for value in image.projection where !external(value.path) && !(boundary != nil && c16(value.path)) {
++            guard let old = expected[value.path] else { throw EraseAllServiceError.invalidAuthority }
++            let c16OperationsParent = boundary != nil && value.path == "support/FieldEvidenceOperations"
++            if value.path == activeParent || c16OperationsParent {
++                guard try Self.stable(value.fullFact, old.fullFact), value.sha256 == old.sha256 else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                // Child membership above, plus actual link law, constrain
++                // parent metadata drift to this one declared child effect.
++                if let node = image.nodes[value.path], let names = node.names {
++                    let prior = try Self.fields(old.fullFact), now = try Self.fields(value.fullFact)
++                    let oldChildDirectories = expected.values.filter { entry in
++                        entry.path.split(separator: "/").dropLast().joined(separator: "/") == value.path
++                            && entry.sha256 == nil
++                    }.count
++                    let newChildDirectories = names.filter { image.nodes[value.path + "/" + $0]?.names != nil }.count
++                    guard let oldLinks = Int64(prior[5]), let newLinks = Int64(now[5]),
++                          newLinks == oldLinks || newLinks == oldLinks + Int64(newChildDirectories - oldChildDirectories) else {
++                        throw EraseAllServiceError.invalidAuthority
++                    }
++                }
++            } else if value.path == "caches" || value.path == "temporary" {
++                // Sibling apps are outside our ownership; exact identity is
++                // held while only their FieldEvidenceApp child is compared.
++                guard try Self.stable(value.fullFact, old.fullFact) else { throw EraseAllServiceError.invalidAuthority }
++            } else {
++                guard value == old else { throw EraseAllServiceError.invalidAuthority }
++            }
++        }
++        let actualPaths = Set(image.projection.map(\.path))
++        for path in expected.keys where !actualPaths.contains(path)
++            && !external(path) && !(boundary != nil && c16(path)) {
++            guard deleted.contains(path) else { throw EraseAllServiceError.invalidAuthority }
++        }
++    }
++
++    /// Initial source/bootstrap witness precedes createProgress. The permit
++    /// authenticates existing canonical Transfer/Sources/Plan and progress
++    /// absence, never a hash of a yet-unpublished future record.
++    func observeInitialComplete(support: Int32, caches: Int32, temporary: Int32,
++        initialScope: OriginalEraseC16InitialObservationScopeV1?,
++        permit: EraseSchema2ColdPhysicalPermitV1) throws -> [Progress.Projection] {
++        let one = try scan(support: support, caches: caches, temporary: temporary,
++            c16Scope: nil, permit: permit, progress: nil, initialScope: initialScope)
++        let original = originalNodes()
++        for (path, node) in original where !external(path) {
++            guard let actual = one.nodes[path], try Self.nine(actual.fullFact) == node.fact,
++                  actual.names == node.members, actual.sha256 == node.sha256 else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++        }
++        for path in one.nodes.keys where !external(path) {
++            guard original[path] != nil else { throw EraseAllServiceError.invalidAuthority }
++        }
++        guard let supportFact = one.projection.first(where: { $0.path == "support" }),
++              supportFact.fullFact == originalP.record.firstSupportFact else { throw EraseAllServiceError.invalidAuthority }
++        let two = try scan(support: support, caches: caches, temporary: temporary,
++            c16Scope: nil, permit: permit, progress: nil, initialScope: initialScope)
++        guard one == two else { throw EraseAllServiceError.invalidAuthority }
++        return two.projection
++    }
++
++    func observeComplete(support: Int32, caches: Int32, temporary: Int32,
++        c16Scope: OriginalEraseC16CurrentObservationScopeV1?,
++        permit: EraseSchema2ColdPhysicalPermitV1, progress: Progress) throws -> [Progress.Projection] {
++        let one = try scan(support: support, caches: caches, temporary: temporary,
++            c16Scope: c16Scope, permit: permit, progress: progress)
++        let two = try scan(support: support, caches: caches, temporary: temporary,
++            c16Scope: c16Scope, permit: permit, progress: progress)
++        guard one == two else { throw EraseAllServiceError.invalidAuthority }
++        return two.projection
++    }
++    func requireComplete(support: Int32, caches: Int32, temporary: Int32,
++        c16Scope: OriginalEraseC16CurrentObservationScopeV1?,
++        permit: EraseSchema2ColdPhysicalPermitV1, boundary: OriginalEraseC16BoundaryObservationV1?,
++        progress: Progress) throws -> [Progress.Projection] {
++        let one = try scan(support: support, caches: caches, temporary: temporary,
++            c16Scope: c16Scope, permit: permit, progress: progress)
++        try requireFinite(one, boundary: boundary, progress: progress)
++        let two = try scan(support: support, caches: caches, temporary: temporary,
++            c16Scope: c16Scope, permit: permit, progress: progress)
++        guard one == two else { throw EraseAllServiceError.invalidAuthority }
++        try requireBinding(permit, progress: progress)
++        return two.projection
++    }
++
++    private func withTargetParent<Value>(path: String, image: Image,
++        support: Int32, caches: Int32, temporary: Int32,
++        requireBinding: () throws -> Void, _ body: (Int32,String) throws -> Value) throws -> Value {
++        let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
++        guard parts.count >= 2, parts.count <= 66,
++              parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." && !$0.utf8.contains(0) }) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        let root: Int32
++        switch parts[0] { case "support": root = support; case "caches": root = caches; case "temporary": root = temporary
++        default: throw EraseAllServiceError.invalidAuthority }
++        func descend(_ fd: Int32, _ index: Int) throws -> Value {
++            try requireBinding()
++            if index == parts.count - 1 { return try body(fd, parts[index]) }
++            let prefix = parts.prefix(index + 1).joined(separator: "/")
++            guard let expected = image.nodes[prefix], expected.names != nil else { throw EraseAllServiceError.invalidAuthority }
++            return try io.withOpen(parent: fd, name: parts[index], flags: O_RDONLY | O_DIRECTORY | O_NONBLOCK) { child in
++                var held = stat(), named = stat()
++                guard Darwin.fstat(child, &held) == 0,
++                      Darwin.fstatat(fd, parts[index], &named, AT_SYMLINK_NOFOLLOW) == 0,
++                      Self.fact(held) == expected.fullFact, Self.fact(named) == expected.fullFact,
++                      try io.names(in: child) == expected.names else { throw EraseAllServiceError.invalidAuthority }
++                let value = try descend(child, index + 1)
++                try requireBinding()
++                return value
++            }
++        }
++        return try descend(root, 1)
++    }
++
++    /// One fixed mixed ordinal, including fresh-process PREPARING replay of
++    /// its exact already-absent node. Parent sync and actual ENOENT are checked
++    /// even on that replay. The finite suffix prevents skipping a later node.
++    func performOneTarget(support: Int32, caches: Int32, temporary: Int32,
++        progress: Progress, c16Scope: OriginalEraseC16CurrentObservationScopeV1?,
++        permit: EraseSchema2ColdPhysicalPermitV1) throws -> EraseSchema2ColdPhysicalEffectReceiptV1 {
++        try requireBinding(permit, progress: progress)
++        guard !inFlight, let index = progress.activeTargetIndex, targets.indices.contains(index),
++              index == progress.completedPrefixCount, targets[index].kind != .c16,
++              progress.stage == .preparing || progress.stage == .preparingCaptured,
++              !attemptedTargetIndices.contains(index) else { throw EraseAllServiceError.invalidAuthority }
++        let target = targets[index]
++        let before = try scan(support: support, caches: caches, temporary: temporary,
++            c16Scope: c16Scope, permit: permit, progress: progress)
++        try requireFinite(before, boundary: nil, progress: progress)
++        let beforeAgain = try scan(support: support, caches: caches, temporary: temporary,
++            c16Scope: c16Scope, permit: permit, progress: progress)
++        guard before == beforeAgain else { throw EraseAllServiceError.invalidAuthority }
++        let progressSHA = StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(progress))
++        attemptedTargetIndices.insert(index); inFlight = true
++        defer { inFlight = false }
++        do {
++            var effect: EraseSchema2ColdPhysicalEffectReceiptV1.Effect = .originallyAbsent
++            // If a prospective owner root is positively absent, prove the
++            // nearest absent ancestor with nofollow and sync its actual held
++            // parent. Never traverse an unexplained path through a symlink.
++            var physicalPath = target.path
++            if before.nodes[target.path] == nil {
++                let components = target.path.split(separator: "/").map(String.init)
++                for depth in 2...components.count {
++                    let candidate = components.prefix(depth).joined(separator: "/")
++                    if before.nodes[candidate] == nil { physicalPath = candidate; break }
++                }
++            }
++            try withTargetParent(path: physicalPath, image: before, support: support, caches: caches, temporary: temporary,
++                requireBinding: { try self.requireBinding(permit, progress: progress) }) { parent, name in
++                try requireBinding(permit, progress: progress)
++                if let node = before.nodes[target.path] {
++                    let directory = node.names != nil
++                    guard !directory || node.names == [] else { throw EraseAllServiceError.invalidAuthority }
++                    try io.withOpen(parent: parent, name: name,
++                        flags: O_RDONLY | O_NONBLOCK | (directory ? O_DIRECTORY : 0)) { fd in
++                        var held = stat(), named = stat()
++                        guard Darwin.fstat(fd, &held) == 0,
++                              Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
++                              Self.fact(held) == node.fullFact, Self.fact(named) == node.fullFact,
++                              directory ? held.st_mode & S_IFMT == S_IFDIR : held.st_mode & S_IFMT == S_IFREG && held.st_nlink == 1,
++                              !directory || (try io.names(in: fd)).isEmpty else { throw EraseAllServiceError.invalidAuthority }
++                        try requireBinding(permit, progress: progress)
++                        guard Darwin.unlinkat(parent, name, directory ? AT_REMOVEDIR : 0) == 0 else {
++                            throw EraseAllServiceError.cleanupFailed
++                        }
++                        effect = .unlinked
++                        guard Darwin.fsync(parent) == 0,
++                              Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0,
++                              errno == ENOENT else { throw EraseAllServiceError.cleanupFailed }
++                        try requireBinding(permit, progress: progress)
++                    }
++                } else {
++                    var named = stat()
++                    guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0,
++                          errno == ENOENT, Darwin.fsync(parent) == 0 else { throw EraseAllServiceError.cleanupFailed }
++                    if originalNodes()[target.path] != nil { effect = .resumedPreparingAbsence }
++                }
++                try requireBinding(permit, progress: progress)
++            }
++            let after = try scan(support: support, caches: caches, temporary: temporary,
++                c16Scope: c16Scope, permit: permit, progress: progress)
++            try requireFinite(after, boundary: nil, progress: progress)
++            let afterAgain = try scan(support: support, caches: caches, temporary: temporary,
++                c16Scope: c16Scope, permit: permit, progress: progress)
++            guard after == afterAgain, after.nodes[target.path] == nil else { throw EraseAllServiceError.invalidAuthority }
++            let parentPath = target.path.split(separator: "/").dropLast().joined(separator: "/")
++            for (path, node) in before.nodes where path != target.path && path != parentPath {
++                guard after.nodes[path] == node else { throw EraseAllServiceError.invalidAuthority }
++            }
++            guard Set(after.nodes.keys) == Set(before.nodes.keys).subtracting([target.path]) else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            try io.requireSettled(); try requireBinding(permit, progress: progress)
++            let receipt = EraseSchema2ColdPhysicalEffectReceiptV1(owner: self, progressSHA256: progressSHA,
++                targetIndex: index, target: target, effect: effect, before: before.projection, after: after.projection)
++            lastEffect = receipt
++            return receipt
++        } catch {
++            // A failed syscall, close or postimage check is permanent. Neither
++            // this owner nor deinit inspects/retries a possibly reused FD.
++            uncertain = true; permit.poisonOnUncertainEffect(); throw error
++        }
++    }
++
++    fileprivate func requireReceipt(_ receipt: EraseSchema2ColdPhysicalEffectReceiptV1, progress: Progress) throws {
++        try requireMemory()
++        guard lastEffect === receipt, receipt.ownerID == ownerID,
++              receipt.originalPAuxiliaryRosterSHA256 == originalP.canonicalSHA256,
++              receipt.planSHA256 == planSHA256, targets.indices.contains(receipt.targetIndex),
++              receipt.target == targets[receipt.targetIndex],
++              receipt.progressSHA256 == StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(progress)),
++              progress.activeTargetIndex == receipt.targetIndex else { throw EraseAllServiceError.invalidAuthority }
++    }
++
++    /// All transient descriptors have already been checked-closed per scan
++    /// and effect. This closes the observer lifetime only; the genuine owner
++    /// remains the sole closer of borrowed EX/Support/cache/temp resources.
++    func closeObservationChecked(permit: EraseSchema2ColdPhysicalPermitV1, progress: Progress) throws {
++        try requireBinding(permit, progress: progress)
++        guard !inFlight else { throw EraseAllServiceError.invalidAuthority }
++        closeAttempted = true // Permanent memory fence precedes any further IO.
++        do { try io.requireSettled(); closed = true }
++        catch { uncertain = true; permit.poisonOnUncertainEffect(); throw error }
++    }
++}
+--- published/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift
++++ candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift
+@@ -1592,6 +1592,241 @@
+     /// Nonmutating, checked-close walk of an exact owner-held directory tree.
+     /// Every transient descriptor remains here on an ambiguous close. This is
+     /// intentionally independent of the generation-only path classifier.
++    /// Whole current tree data for the cold fixed C16 projection. Ordinary
++    /// paths keep strict one-link predicates. Only the actual engine's private
++    /// role scope may describe a pair or unpublished zero/prefix; those remain
++    /// observations and never accepted policy or deletion authority.
++    struct Schema2ColdCurrentTreeV1: Equatable {
++        struct Node: Equatable {
++            let path: String
++            let fullFact: String
++            let names: [String]?
++            let sha256: String?
++            let policy: TemporalPolicyObservationV1?
++            let publicationRole: OriginalEraseC16CurrentPathRoleV1
++        }
++        let rootFact: String
++        let digest: String
++        let nodes: [Node]
++    }
++
++    @MainActor
++    func schema2ColdCurrentC16Tree(parent: Int32, name: String,
++        operationsURL: URL,
++        scope: OriginalEraseC16CurrentObservationScopeV1
++    ) throws -> Schema2ColdCurrentTreeV1 {
++        guard name == "ScratchDataV1" || name == "ProtectedIngressReceiptsV1" else {
++            throw StoreGenerationFailure.dataPointerInvalid
++        }
++        var parentFact = stat()
++        guard Darwin.fstat(parent, &parentFact) == 0 else {
++            throw StoreGenerationFailure.dataPointerInvalid
++        }
++        return try schema2ColdCurrentOwnedTree(parent: parent, name: name,
++            rootURL: operationsURL.appendingPathComponent(name, isDirectory: true),
++            expectedUser: parentFact.st_uid, expectedGroup: parentFact.st_gid,
++            scope: scope, operationsRelativePrefix: name,
++            requireBinding: { try scope.requireCurrentBinding() },
++            poison: { scope.poisonOnUncertainObservation() })
++    }
++
++    /// Complete data image of one fixed, private auxiliary tree. This adds no
++    /// ordinary-walker exemption: the default remains a one-link regular file.
++    /// The sole exceptional path is a Ledger-issued exact C16 role. A caller
++    /// retains this checked IO owner before the first call and brackets every
++    /// observation with its actual EX/G and current canonical Store record.
++    @MainActor
++    func schema2ColdCurrentOwnedTree(parent: Int32, name: String,
++        rootURL: URL, expectedUser: uid_t, expectedGroup: gid_t,
++        scope: OriginalEraseC16CurrentObservationScopeV1? = nil,
++        initialScope: OriginalEraseC16InitialObservationScopeV1? = nil,
++        operationsRelativePrefix: String? = nil,
++        requireBinding: @MainActor () throws -> Void,
++        poison: @MainActor () -> Void
++    ) throws -> Schema2ColdCurrentTreeV1 {
++        try requireSettled(); try requireBinding()
++        guard rootURL.isFileURL, rootURL.lastPathComponent == name,
++              !name.isEmpty, name != ".", name != "..",
++              !name.contains("/"), !name.utf8.contains(0),
++              expectedUser == Darwin.geteuid(),
++              scope == nil || initialScope == nil,
++              ((scope == nil && initialScope == nil) == (operationsRelativePrefix == nil)) else {
++            throw StoreGenerationFailure.dataPointerInvalid
++        }
++        var parentFact = stat()
++        guard Darwin.fstat(parent, &parentFact) == 0,
++              parentFact.st_mode & S_IFMT == S_IFDIR,
++              parentFact.st_uid == expectedUser, parentFact.st_gid == expectedGroup else {
++            throw StoreGenerationFailure.dataPointerInvalid
++        }
++        var nodes: [Schema2ColdCurrentTreeV1.Node] = [], tokens: [String] = []
++        var count = 0, totalBytes: Int64 = 0
++        var rootFact: String?
++        func fullFact(_ f: stat) -> String {
++            [String(f.st_dev), String(f.st_ino), String(f.st_mode),
++             String(f.st_uid), String(f.st_gid), String(f.st_nlink), String(f.st_size),
++             String(f.st_mtimespec.tv_sec), String(f.st_mtimespec.tv_nsec),
++             String(f.st_ctimespec.tv_sec), String(f.st_ctimespec.tv_nsec)].joined(separator: "|")
++        }
++        func nine(_ f: stat) -> String {
++            [String(f.st_dev), String(f.st_ino), String(f.st_mode),
++             String(f.st_nlink), String(f.st_size), String(f.st_mtimespec.tv_sec),
++             String(f.st_mtimespec.tv_nsec), String(f.st_ctimespec.tv_sec),
++             String(f.st_ctimespec.tv_nsec)].joined(separator: "|")
++        }
++        func encoded(_ x: String) -> String { x.utf8.map { String(format: "%02x", $0) }.joined() }
++        func bound() throws { try requireSettled(); try requireBinding(); try scope?.requireCurrentBinding(); try initialScope?.requireCurrentBinding() }
++        func retain(_ fd: Int32) { retainUncertainDescriptor(fd); scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); poison() }
++        func named(_ parent: Int32, _ name: String, _ fd: Int32, _ before: stat) throws {
++            try bound()
++            var held = stat(), path = stat()
++            guard Darwin.fstat(fd, &held) == 0,
++                  Darwin.fstatat(parent, name, &path, AT_SYMLINK_NOFOLLOW) == 0,
++                  fullFact(held) == fullFact(before), fullFact(path) == fullFact(before) else {
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++        }
++        func policy(_ url: URL, _ f: stat) throws -> TemporalPolicyObservationV1 {
++            try bound()
++            let directory = f.st_mode & S_IFMT == S_IFDIR
++            let value = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
++                directory ? .stagingDirectory : .temporaryFile, at: url,
++                retainUncertainDescriptor: retain)
++            try bound()
++            guard value.device == UInt64(f.st_dev), value.inode == UInt64(f.st_ino),
++                  value.mode == UInt16(f.st_mode), value.linkCount == UInt64(f.st_nlink),
++                  value.isDirectory == directory, value.backupExcluded == true,
++                  value.state == .strictComplete || value.state == .pendingSimulatorRequest else {
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++            return value
++        }
++        func walk(_ parent: Int32, _ leaf: String, _ path: String, _ depth: Int) throws {
++            try bound()
++            guard count < 100_000 else { throw StoreGenerationFailure.dataPointerInvalid }
++            count += 1
++            var before = stat()
++            guard Darwin.fstatat(parent, leaf, &before, AT_SYMLINK_NOFOLLOW) == 0,
++                  before.st_dev == parentFact.st_dev, before.st_uid == expectedUser,
++                  before.st_gid == expectedGroup else { throw StoreGenerationFailure.dataPointerInvalid }
++            let directory = before.st_mode & S_IFMT == S_IFDIR
++            guard depth <= (directory ? 64 : 65),
++                  directory || before.st_mode & S_IFMT == S_IFREG,
++                  before.st_mode & 0o777 == (directory ? 0o700 : 0o600),
++                  directory ? before.st_nlink > 0 : before.st_nlink == 1 || before.st_nlink == 2 else {
++                throw StoreGenerationFailure.dataPointerInvalid
++            }
++            let url = path.isEmpty ? rootURL : rootURL.appendingPathComponent(path, isDirectory: directory)
++            try withOpen(parent: parent, name: leaf,
++                flags: O_RDONLY | O_NONBLOCK | (directory ? O_DIRECTORY : 0)) { fd in
++                try named(parent, leaf, fd, before)
++                if directory {
++                    let namesBefore = try names(in: fd)
++                    let observedPolicy = try policy(url, before)
++                    if path.isEmpty { rootFact = fullFact(before) }
++                    nodes.append(.init(path: path, fullFact: fullFact(before), names: namesBefore,
++                        sha256: nil, policy: observedPolicy, publicationRole: .ordinary))
++                    tokens.append("D|\(encoded(path))|\(nine(before))|\(namesBefore.map(encoded).joined(separator: ","))")
++                    for child in namesBefore {
++                        guard !child.isEmpty, child != ".", child != "..", !child.contains("/"),
++                              !child.utf8.contains(0) else { throw StoreGenerationFailure.dataPointerInvalid }
++                        try walk(fd, child, path.isEmpty ? child : path + "/" + child, depth + 1)
++                    }
++                    guard try names(in: fd) == namesBefore else { throw StoreGenerationFailure.dataPointerInvalid }
++                } else {
++                    guard before.st_size >= 0, before.st_size <= 1_073_741_824,
++                          totalBytes <= 1_073_741_824 - Int64(before.st_size) else {
++                        throw StoreGenerationFailure.dataPointerInvalid
++                    }
++                    totalBytes += Int64(before.st_size) // Each recorded alias consumes its own tree allowance.
++                    let sha = try digestFile(fd, before: before)
++                    try named(parent, leaf, fd, before)
++                    let rolePath = operationsRelativePrefix.map { path.isEmpty ? $0 : ($0.isEmpty ? path : $0 + "/" + path) }
++                    let role: OriginalEraseC16CurrentPathRoleV1
++                    if let rolePath, let scope { role = try scope.roleFor(path: rolePath, fullFact: fullFact(before), sha256: sha) }
++                    else if let rolePath, let initialScope { role = try initialScope.roleFor(path: rolePath, fullFact: fullFact(before), sha256: sha) }
++                    else { role = .ordinary }
++                    let observedPolicy: TemporalPolicyObservationV1?
++                    switch role {
++                    case .ordinary:
++                        guard before.st_nlink == 1 else { throw StoreGenerationFailure.dataPointerInvalid }
++                        observedPolicy = try policy(url, before)
++                    case .pair(let pair):
++                        guard let scope, before.st_nlink == 2,
++                              url == pair.finalURL || url == pair.partialURL else { throw StoreGenerationFailure.dataPointerInvalid }
++                        let values = try ProtectedFilePolicyV1.observeEraseC16CurrentTemporalPairWithCheckedClose(
++                            finalURL: pair.finalURL, partialURL: pair.partialURL, scope: scope,
++                            retainUncertainDescriptor: retain)
++                        guard values.count == 2, values.allSatisfy({
++                            $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
++                        }) else { throw StoreGenerationFailure.dataPointerInvalid }
++                        observedPolicy = values[0]
++                    case .firstPPair(let pair):
++                        guard let scope, before.st_nlink == 2,
++                              url == pair.finalURL || url == pair.partialURL else { throw StoreGenerationFailure.dataPointerInvalid }
++                        let firstP = try scope.requireFirstPObservationScope()
++                        let values = try ProtectedFilePolicyV1.observeEraseC16FirstPTemporalPairWithCheckedClose(
++                            finalURL: pair.finalURL, partialURL: pair.partialURL, scope: firstP,
++                            retainUncertainDescriptor: retain)
++                        guard values.count == 2, values.allSatisfy({
++                            $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
++                        }), pair.expectedSHA256 == sha,
++                              pair.expectedByteCount == Int64(before.st_size) else { throw StoreGenerationFailure.dataPointerInvalid }
++                        observedPolicy = values[0]
++                    case .initialPair(let pair):
++                        guard let initialScope, scope == nil, before.st_nlink == 2,
++                              url == pair.finalURL || url == pair.partialURL else { throw StoreGenerationFailure.dataPointerInvalid }
++                        let values = try ProtectedFilePolicyV1.observeEraseC16InitialTemporalPairWithCheckedClose(
++                            finalURL: pair.finalURL, partialURL: pair.partialURL, scope: initialScope,
++                            retainUncertainDescriptor: retain)
++                        guard values.count == 2, values.allSatisfy({
++                            $0.device == UInt64(before.st_dev) && $0.inode == UInt64(before.st_ino) && $0.linkCount == 2
++                        }), pair.expectedSHA256 == sha,
++                              pair.expectedByteCount == Int64(before.st_size) else { throw StoreGenerationFailure.dataPointerInvalid }
++                        observedPolicy = values[0]
++                    case .unacceptedEmptyPublication(let zero):
++                        guard before.st_nlink == 1, before.st_size == 0, url == zero.temporaryURL,
++                              zero.finalURL.deletingLastPathComponent() == url.deletingLastPathComponent() else {
++                            throw StoreGenerationFailure.dataPointerInvalid
++                        }
++                        var final = stat()
++                        guard Darwin.fstatat(parent, zero.finalURL.lastPathComponent, &final,
++                            AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else { throw StoreGenerationFailure.dataPointerInvalid }
++                        observedPolicy = nil
++                    case .publicationPrefix(let prefix):
++                        guard before.st_nlink == 1, url == prefix.temporaryURL,
++                              Int64(before.st_size) == Int64(prefix.observedBytes.count),
++                              !prefix.observedBytes.isEmpty, prefix.observedBytes.count < prefix.expectedBytes.count,
++                              prefix.expectedBytes.starts(with: prefix.observedBytes),
++                              prefix.finalURL.deletingLastPathComponent() == url.deletingLastPathComponent() else {
++                            throw StoreGenerationFailure.dataPointerInvalid
++                        }
++                        var final = stat()
++                        guard Darwin.fstatat(parent, prefix.finalURL.lastPathComponent, &final,
++                            AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else { throw StoreGenerationFailure.dataPointerInvalid }
++                        observedPolicy = nil
++                    }
++                    try bound()
++                    nodes.append(.init(path: path, fullFact: fullFact(before), names: nil,
++                        sha256: sha, policy: observedPolicy, publicationRole: role))
++                    tokens.append("F|\(encoded(path))|\(nine(before))|\(sha)")
++                }
++                try named(parent, leaf, fd, before)
++            }
++            try bound()
++        }
++        do {
++            try walk(parent, name, "", 0); try bound()
++            guard let rootFact else { throw StoreGenerationFailure.dataPointerInvalid }
++            return .init(rootFact: rootFact,
++                digest: SHA256.hash(data: Data(tokens.joined(separator: "\n").utf8)).map { String(format: "%02x", $0) }.joined(),
++                nodes: nodes.sorted { $0.path < $1.path })
++        } catch {
++            if (try? requireSettled()) == nil { scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); poison() }
++            throw error
++        }
++    }
++
+     func postRetiredTree(parent: Int32, name: String,
+         excluding excludedPaths: Set<String> = [],
+         ignoringDirectoryMetadata ignoredDirectories: Set<String> = [],
+@@ -11961,6 +12196,39 @@
+             try authority.requireOriginalErasePointerPostimage(self)
+         }
+ 
++        /// Exact bytes from this retained, checked Data writer receipt. The
++        /// current→retired successor is the same authentic receipt lineage;
++        /// observing its live postimage rechecks held roots before returning.
++        func currentPointerSHA256(authority: StoreRestoreGenerationAuthority,
++            operation: EraseRouterOperationV1) throws -> String {
++            try requireBound(authority: authority, operation: operation,
++                stage: stage, predecessor: predecessor)
++            let bytes = stage == .current ? published.data : other.data
++            _ = try CurrentPointerCodecV1.decode(bytes)
++            let sha = StoreMigrationCanonicalJSONV1.sha256(bytes)
++            try requireBound(authority: authority, operation: operation,
++                stage: stage, predecessor: predecessor)
++            return sha
++        }
++
++        func canonicalCurrentPointerBytes() throws -> Data {
++            guard let authority else { throw StoreGenerationFailure.dataPointerInvalid }
++            if stage == .current, let successor {
++                guard successor.predecessor === self,
++                      successor.authority === authority,
++                      successor.operationID == operationID,
++                      successor.stage == .retired,
++                      successor.other.data == published.data else {
++                    throw StoreGenerationFailure.dataPointerInvalid
++                }
++                return try successor.canonicalCurrentPointerBytes()
++            }
++            try authority.requireOriginalErasePointerPostimage(self)
++            let bytes = stage == .current ? published.data : other.data
++            _ = try CurrentPointerCodecV1.decode(bytes)
++            return bytes
++        }
++
+         func currentGenerationID() throws -> UUID {
+             let bytes = stage == .current ? published.data : other.data
+             let value = try CurrentPointerCodecV1.decode(bytes)

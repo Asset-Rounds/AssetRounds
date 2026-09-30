@@ -1,0 +1,181 @@
+{
+  "acceptanceCredit": false,
+  "adoptionEnabled": false,
+  "aggregateAcquisitionEvidence": {
+    "path": "docs/product/discovery/V23P04C15AggregateAcquisitionEvidenceV1.json",
+    "sha256": "5696c7edc2cf318a4f0002af45bf46cd6385ddb12c3849dbabbf9bea11c08be7"
+  },
+  "appStoreCategories": {
+    "primary": "BUSINESS",
+    "schema": "AppStoreCategorySetV1",
+    "secondary": "PRODUCTIVITY",
+    "status": "DISABLED_OR_DEFERRED"
+  },
+  "brandBaselineReference": {
+    "authorityPath": "docs/design/v23/foundation/policies/V23-P00-C02-policy-manifest.json",
+    "authoritySHA256": "e00aefce6896b778ec87d74ba7f1e177ca042582cd8e1f319921b39f23349fd4",
+    "disposition": "INHERITED_BASELINE_REFERENCE_ONLY"
+  },
+  "brandRevisionReference": {
+    "authorityPath": "docs/design/v23/foundation/policies/BrandRevisionContractsV1.schema.json",
+    "authoritySHA256": "ee629c15af03d2e7382ee637d7634be1e70cbc249258fc030fd630a41012d8aa",
+    "disposition": "DISABLED_OR_DEFERRED",
+    "ownerApprovalReference": null
+  },
+  "brandedStaticProof": {
+    "path": "docs/product/discovery/V23P04C15BrandedStaticProofManifestV1.json",
+    "sha256": "3675918ba2d7ff2037dedd790f53827d85b66184a5907c4d482955b98b744a11"
+  },
+  "candidateReference": {
+    "acceptedS10Candidate": false,
+    "head": "1a5d77d1452eb18c5d2a2a8b053c9be94963ee3f",
+    "status": "PROVISIONAL_NONCANDIDATE",
+    "tree": "235ed3880c9d0616d608727dbd4a363c6f6c3782"
+  },
+  "cardID": "V23-P04-C15",
+  "claims": [
+    {
+      "brandSHA256": "3675918ba2d7ff2037dedd790f53827d85b66184a5907c4d482955b98b744a11",
+      "capabilitySHA256": "98a205edc22421ec4a4f2a5494628f4f40be7117a95cdd3cc94e2d6eab7c98ef",
+      "claimEvidenceSHA256": "5696c7edc2cf318a4f0002af45bf46cd6385ddb12c3849dbabbf9bea11c08be7",
+      "claimID": "private-system-discovery-read-navigation-v1",
+      "expiresAt": null,
+      "optionalOwnerApprovalReference": null,
+      "privacySHA256": "3a4f5f8afe44daed06cbe8a95ccb16be7610495af780b8df36b4138b7beaeb4b",
+      "publishEligibility": false,
+      "receiptSHA256": "a2be42fc9708cb3e6c648750ff4eeef66150451393ba660aed1f186ae50b88fc",
+      "status": "DISABLED_OR_DEFERRED",
+      "supersededByClaimDigest": null,
+      "supersedesClaimDigest": null,
+      "syntheticSHA256": "41e17b55277dfb4758e6a185074c1ea91eaa84f6bded7e0ce322eca0a10ae384"
+    }
+  ],
+  "curatedAppTags": {
+    "schema": "CuratedAppTagSetV1",
+    "status": "DISABLED_OR_DEFERRED",
+    "tags": [
+      "EVIDENCE",
+      "FIELD_WORK"
+    ]
+  },
+  "deploymentEnabled": false,
+  "evidenceBindings": [
+    {
+      "kind": "CAPABILITY",
+      "sha256": "98a205edc22421ec4a4f2a5494628f4f40be7117a95cdd3cc94e2d6eab7c98ef"
+    },
+    {
+      "kind": "EVIDENCE",
+      "sha256": "5696c7edc2cf318a4f0002af45bf46cd6385ddb12c3849dbabbf9bea11c08be7"
+    },
+    {
+      "kind": "BRAND",
+      "sha256": "3675918ba2d7ff2037dedd790f53827d85b66184a5907c4d482955b98b744a11"
+    },
+    {
+      "kind": "CANDIDATE",
+      "sha256": "47ec42f675c92b994e301bf4218a53223a91b8ad49a0a0b4fa9478e0ab1dc8e3"
+    },
+    {
+      "disposition": "DISABLED_OR_DEFERRED",
+      "kind": "APPROVAL",
+      "sha256": null
+    },
+    {
+      "disposition": "DISABLED_OR_DEFERRED",
+      "kind": "EXPIRY_SUPERSESSION",
+      "sha256": null
+    }
+  ],
+  "locales": [
+    {
+      "description": "Organize field evidence, asset checks, and clear reports in a local workspace. This provisional copy is not approved for publication.",
+      "keywords": "inspection,evidence,assets,offline,reports",
+      "locale": "en-US",
+      "name": "AssetRounds",
+      "promotionalText": "Provisional discovery copy for local field evidence workflows. Not approved for publication.",
+      "publishEligibility": false,
+      "status": "DISABLED_OR_DEFERRED",
+      "subtitle": "Field evidence, organized"
+    },
+    {
+      "description": "AssetRounds clarifie les inspections avec des exemples synthétiques et bornés. Cette déclaration est un brouillon de preuve des limites localisées et ne représente pas une fiche envoyée ou publiée.",
+      "keywords": "terrain,preuve,inspection,rapport",
+      "locale": "fr-FR",
+      "name": "AssetRounds",
+      "promotionalText": "Répétez les inspections avec des preuves synthétiques privées.",
+      "publishEligibility": false,
+      "status": "DISABLED_OR_DEFERRED",
+      "subtitle": "Des preuves claires"
+    }
+  ],
+  "metadataLimits": {
+    "descriptionMaximumCharacters": 4000,
+    "keywordsMaximumUTF8Bytes": 100,
+    "nameMaximumCharacters": 30,
+    "promotionalTextMaximumCharacters": 170,
+    "subtitleMaximumCharacters": 30
+  },
+  "networkProviderEnabled": false,
+  "optionalOwnerApprovalReference": null,
+  "persistentContractMode": "DECLARATION_ONLY",
+  "persistentContractSchema": "DISCOVERY_TRUTH_CATALOG_V1",
+  "provisional": true,
+  "publicationEligible": false,
+  "publish": false,
+  "releaseCredit": false,
+  "schema": "DiscoveryTruthCatalogV1",
+  "schemaVersion": 1,
+  "screenshots": [
+    {
+      "proofID": "c15-accessibility-proof-v1",
+      "proofKind": "ACCESSIBILITY",
+      "referenceType": "WIRE_FRAME_SHOT_LIST_SYNTHETIC_NONCANDIDATE"
+    },
+    {
+      "proofID": "c15-home-proof-v1",
+      "proofKind": "HOME",
+      "referenceType": "WIRE_FRAME_SHOT_LIST_SYNTHETIC_NONCANDIDATE"
+    },
+    {
+      "proofID": "c15-privacy-proof-v1",
+      "proofKind": "PRIVACY",
+      "referenceType": "WIRE_FRAME_SHOT_LIST_SYNTHETIC_NONCANDIDATE"
+    },
+    {
+      "proofID": "c15-sample-report-proof-v1",
+      "proofKind": "SAMPLE_REPORT",
+      "referenceType": "WIRE_FRAME_SHOT_LIST_SYNTHETIC_NONCANDIDATE"
+    },
+    {
+      "proofID": "c15-support-proof-v1",
+      "proofKind": "SUPPORT",
+      "referenceType": "WIRE_FRAME_SHOT_LIST_SYNTHETIC_NONCANDIDATE"
+    },
+    {
+      "proofID": "c15-use-case-proof-v1",
+      "proofKind": "USE_CASE",
+      "referenceType": "WIRE_FRAME_SHOT_LIST_SYNTHETIC_NONCANDIDATE"
+    }
+  ],
+  "signingEnabled": false,
+  "status": "DISABLED_OR_DEFERRED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publish": false,
+    "release": false
+  },
+  "syntheticSamples": {
+    "path": "docs/product/discovery/V23P04C15SyntheticSampleManifestV1.json",
+    "sha256": "41e17b55277dfb4758e6a185074c1ea91eaa84f6bded7e0ce322eca0a10ae384"
+  },
+  "upload": false
+}

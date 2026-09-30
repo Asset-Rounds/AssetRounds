@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "authorModel": "gpt-6.1-sol",
+  "authorReasoningEffort": "xhigh",
+  "head": "dbdb4649e3e405eb50a1d2b443c8d7c061831a1a",
+  "compiledOriginalSourceMap": "b24e/root7341 exact baseline recorded in BASELINE.json",
+  "ownedTrackedPath": "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+  "candidateOnlyIgnoredPacket": true,
+  "tier": "DEVELOPMENT",
+  "inputs": {
+    "beforeStore": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sha256": "253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90"
+    },
+    "baseline": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-author-baseline-v1/BASELINE.json",
+      "sha256": "489696294d0d446f624cba649d5418deabb5a35d65721ceb6ae17f0100ce5da4"
+    },
+    "contractV2": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/COLD_CONTINUATION_CONTRACT_V2.md",
+      "sha256": "e275b2d2c0c719cbe039c5cf93d79ce67da0f64abd3973ddda8e25c840131692"
+    },
+    "contractV21": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/COLD_CONTINUATION_CONTRACT_V2_1_ADDENDUM.md",
+      "sha256": "6bd86d68cbeec45ad3b3317c500d2aec0d2973a745aee586232fece44b498a5f"
+    },
+    "contractC16V1": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/C16_INTERFACE.md",
+      "sha256": "bd9671abebe0df0782ff186edd7003df278d7958ecd8939efcb946284e65234a"
+    },
+    "contractStoreV1": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/STORE_INTERFACE.md",
+      "sha256": "9da3b897d4592c9d2693df228db021e94d617c602f4b891ef28055386c7006d4"
+    },
+    "independentContractReviewV2": {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-continuation-interface-review-sol61-xhigh-v2/REVIEW.md",
+      "sha256": "2c3a4828d53ab2808d3d0695d23a498dfe8aa55f34f80b07aa8937f6049e4ab8"
+    }
+  },
+  "outputs": {
+    "STORE_CONTINUATION_V3_ADDENDUM.md": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_CONTINUATION_V3_ADDENDUM.md",
+      "sha256": "c1ae7f8edb8dc81ae50a4428dccc904a3988596554c5b68ea928b9dac1d16ca7"
+    },
+    "STORE_TYPES_V3_FINAL.swift.fragment": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_TYPES_V3_FINAL.swift.fragment",
+      "sha256": "bb8e24801ddd69366beb5683206b7c4879e4831a380338e8085e359a930e785f"
+    },
+    "STORE_APIS_V3_FINAL.swift.fragment": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/STORE_APIS_V3_FINAL.swift.fragment",
+      "sha256": "69b4d3cb3292eebb566554990147118a18a2968dcc2fac69d9d8b677cdc38164"
+    },
+    "CASE_MATRIX.md": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/CASE_MATRIX.md",
+      "sha256": "a2b75040e1ef5c155a8d4c47465a3cb9222094bd0427c93084b61c88842af9f0"
+    },
+    "PARSE.json": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/PARSE.json",
+      "sha256": "b4c797924bc1bcba426b829c5aec2297b7e21e137cfec74c295e06e8ee9bd603"
+    },
+    "EraseIntentStore.diff": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/EraseIntentStore.diff",
+      "sha256": "0243bc15920a2404b3c933717f0442655bc9419cfeafcf9a6714fbcc42fe5126"
+    },
+    "candidateStore": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sha256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4"
+    }
+  },
+  "verification": {
+    "parse": [
+      {
+        "mode": "DEBUG",
+        "command": [
+          "xcrun",
+          "swiftc",
+          "-frontend",
+          "-parse",
+          "-D",
+          "DEBUG",
+          "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift"
+        ],
+        "exitCode": 0,
+        "elapsedSeconds": 0.05065933399600908,
+        "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sourceSHA256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+        "kind": "sourceParseOnly",
+        "tier": "DEVELOPMENT"
+      },
+      {
+        "mode": "nonDEBUG",
+        "command": [
+          "xcrun",
+          "swiftc",
+          "-frontend",
+          "-parse",
+          "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift"
+        ],
+        "exitCode": 0,
+        "elapsedSeconds": 0.06017700000666082,
+        "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "sourceSHA256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+        "kind": "sourceParseOnly",
+        "tier": "DEVELOPMENT"
+      }
+    ],
+    "typecheck": false,
+    "compilation": false,
+    "nativeRuntime": false,
+    "independentSourceReview": false,
+    "imported": false,
+    "acceptance": false
+  },
+  "retainedHistoricalPacket": "terminal-fd-fence-successor-v1/Store01d was read for narrow FD semantics only; no whole import or inherited approval",
+  "limits": {
+    "componentMetadataBytes": 100663296,
+    "sourceCount": 100000,
+    "birthCount": 100000,
+    "controlCount": 200016,
+    "terminalBytes": 877654016,
+    "physicalPerFileBytes": 1073741824,
+    "physicalPerRecordedTreeBytes": 1073741824,
+    "physicalNodeCount": 100000,
+    "physicalDepth": 64
+  },
+  "remaining": "Root coupled API/type/issuer integration, independent exact-source review, DEBUG/nonDEBUG compilation and affected native/fault/capacity checks. Gates remain open."
+}

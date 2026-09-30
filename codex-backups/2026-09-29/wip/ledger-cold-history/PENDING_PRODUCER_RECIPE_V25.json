@@ -1,0 +1,12 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "fbb01e58432b4ce123c779213e2b1150dddf86360bc73f0086d710f7302d2b03",
+  "afterSHA256": "fa437ebaf58613ee7d9d74abb46c5b405bfc2aec2b12bd1b62d32d6b5cc08ee1",
+  "change": "Actual borrowed FreshE and scratch marker producers consume retained pending payload, matching fixed plan/real unaffected files; ordinary producers unchanged",
+  "limitations": [
+    "Actual required Store pending slot callback/readback not implemented",
+    "No compile/runtime proof",
+    "Current capacity and complete generic directory lineage remain due"
+  ]
+}

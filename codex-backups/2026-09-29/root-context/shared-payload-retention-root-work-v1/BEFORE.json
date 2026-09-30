@@ -1,0 +1,11 @@
+{
+  "head": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "files": {
+    "Scripts/dev/v23-original.py": "08e7ea3f05b8f97adeadc353b606c2126991b45c398eaac6c3325931c2756366",
+    "Scripts/dev/test_v23_original.py": "bc0ce6d3442465ba101aceb64124e064a48c3794b219d160b3ca9f74dcb977bb",
+    "Scripts/v23-native-ci.py": "0188014035a79e620cc9e2d902c22f55cf991f3f4b046547e34dbd5084f7fd95",
+    "Scripts/v23-phase1-gates.py": "e72117104442bb6698b9d75bfacd806a488718c546816dc1a33f3caff06a6af2",
+    "Scripts/s10-4-build-payload.py": "ea731fd64278d3ab242956bf2f36d486254903a10f5f8bc17c65de3d10397521"
+  },
+  "scope": "Root-owned dormant authenticated shared payload validation helper; existing CLI/collector/gate eligibility unchanged until separate reviewed lifecycle activation"
+}

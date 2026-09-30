@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "versions": [
+    {
+      "packet": "cold-control-continuation-successor-v1",
+      "relativePath": "before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sourcePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "restorePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "snapshotObjectPath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-backup-handoff-v1/objects/253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90",
+      "archiveObjectRelativePath": "objects/253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90",
+      "sha256": "253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90",
+      "byteCount": 478209,
+      "originalMode": "0o444",
+      "originalModifiedNanoseconds": 1790719024520919271
+    },
+    {
+      "packet": "cold-control-continuation-successor-v1",
+      "relativePath": "candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sourcePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "restorePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "snapshotObjectPath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-backup-handoff-v1/objects/c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "archiveObjectRelativePath": "objects/c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "sha256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "byteCount": 622434,
+      "originalMode": "0o444",
+      "originalModifiedNanoseconds": 1790721159910539363
+    },
+    {
+      "packet": "cold-control-continuation-successor-v1",
+      "relativePath": "frozen-v1/EraseIntentStore.swift",
+      "sourcePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/frozen-v1/EraseIntentStore.swift",
+      "restorePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/frozen-v1/EraseIntentStore.swift",
+      "snapshotObjectPath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-backup-handoff-v1/objects/368e65bc96cb19b861be4c5b5611d96658995965f1b7dd1993befc80f60289b8",
+      "archiveObjectRelativePath": "objects/368e65bc96cb19b861be4c5b5611d96658995965f1b7dd1993befc80f60289b8",
+      "sha256": "368e65bc96cb19b861be4c5b5611d96658995965f1b7dd1993befc80f60289b8",
+      "byteCount": 545385,
+      "originalMode": "0o644",
+      "originalModifiedNanoseconds": 1790719489862375464
+    },
+    {
+      "packet": "cold-control-continuation-successor-v4",
+      "relativePath": "before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sourcePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "restorePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "snapshotObjectPath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-backup-handoff-v1/objects/c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "archiveObjectRelativePath": "objects/c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "sha256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "byteCount": 622434,
+      "originalMode": "0o444",
+      "originalModifiedNanoseconds": 1790721469675461222
+    },
+    {
+      "packet": "cold-control-continuation-successor-v4",
+      "relativePath": "candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sourcePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "restorePath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "snapshotObjectPath": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-backup-handoff-v1/objects/b3a2edfb29caf3792baa39db52e1fb0dc78a6333807025207b816e001d0cb607",
+      "archiveObjectRelativePath": "objects/b3a2edfb29caf3792baa39db52e1fb0dc78a6333807025207b816e001d0cb607",
+      "sha256": "b3a2edfb29caf3792baa39db52e1fb0dc78a6333807025207b816e001d0cb607",
+      "byteCount": 624679,
+      "originalMode": "0o644",
+      "originalModifiedNanoseconds": 1790723085080957517
+    }
+  ],
+  "note": "These are exact source versions. None is inferred compiled, installed, runtime-qualified, approved or a gate result."
+}

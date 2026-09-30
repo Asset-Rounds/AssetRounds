@@ -1,0 +1,333 @@
+// Exact working Ledger source excerpt, no callable/installable claim.
+struct OriginalEraseScratchCleanupImageV1: Equatable {
+    struct Node: Equatable {
+        let path: String // Relative to this root; empty only for the root node.
+        let fullFact: String // Actual eleven-field held/named fact.
+        let contentSHA256: String?
+        let policy: TemporalPolicyObservationV1?
+        // nil only for the exact active O_EXCL temporary prior to its actual
+        // checked policy request; never for an existing or unassigned node.
+    }
+    struct Root: Equatable {
+        let fullFact: String
+        let digest: String
+        let nodes: [Node] // Complete canonical path order, including root.
+    }
+    let operationsFullFact: String
+    let operationsNames: [String]
+    let scratch: Root?
+    let ingress: Root?
+}
+
+@MainActor
+final class OriginalEraseScratchCleanupPrimitiveIntentV1 {
+    enum Root: String { case scratch = "ScratchDataV1", ingress = "ProtectedIngressReceiptsV1" }
+    enum Kind {
+        // All paths below are canonical Operations-relative paths. Only the
+        // fixed cleanup engine creates an intent; caller DATA cannot mint it.
+        case createTemporary(path: String, finalPath: String, bytes: Data,
+            sha256: String, mode: mode_t, exclusiveFinalRename: Bool)
+        case writeTemporary(path: String, offset: Int, requestedByteCount: Int)
+        case requestPolicy(path: String, kind: OwnedFileKindV1)
+        case linkPublication(temporaryPath: String, finalPath: String)
+        case renamePublication(sourcePath: String, finalPath: String, exclusive: Bool)
+        case renameLeaseDirectory(originalPath: String, tombstonePath: String)
+        case removeLeaf(path: String)
+        case removeDirectory(path: String)
+        case synchronize(path: String)
+        case lockOwnedDirectory(path: String)
+        case closeOwnedResource(path: String, resourceID: UUID)
+    }
+    let requestID: UUID
+    let attemptID: UUID
+    let operationID: UUID
+    let sequence: UInt64
+    let before: OriginalEraseScratchCleanupImageV1
+    let kind: Kind
+    fileprivate init(attemptID: UUID, operationID: UUID, sequence: UInt64,
+        before: OriginalEraseScratchCleanupImageV1, kind: Kind) {
+        requestID = UUID(); self.attemptID = attemptID
+        self.operationID = operationID; self.sequence = sequence
+        self.before = before; self.kind = kind
+    }
+}
+
+@MainActor
+final class OriginalEraseScratchCleanupPrimitiveOutcomeV1 {
+    let intent: OriginalEraseScratchCleanupPrimitiveIntentV1
+    let result: Int64 // Actual syscall count/result or checked policy success0.
+    let syscallErrno: Int32 // Saved immediately before any callback/close.
+    fileprivate init(intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        result: Int64, syscallErrno: Int32) {
+        self.intent = intent; self.result = result; self.syscallErrno = syscallErrno
+    }
+}
+
+
+struct OriginalEraseScratchCleanupCanonicalSourceV1 {
+    let path: String
+    let bytes: Data
+    let fullFact: String
+    let sha256: String
+}
+
+/// Retained by the actual original operation before any open. Its public
+/// surface exposes DATA and checked settlement only, never a Store or raw FD.
+@MainActor
+final class OriginalEraseScratchCleanupAttemptV1 {
+    enum Lifetime { case active, closing, closed, uncertain }
+    fileprivate enum ResourceState { case open, closeEntered, closed, uncertain }
+    fileprivate final class Resource {
+        let resourceID = UUID()
+        let descriptor: Int32
+        var path: String
+        var state = ResourceState.open
+        var close: () -> Int32
+        init(descriptor: Int32, path: String, close: @escaping () -> Int32) {
+            self.descriptor = descriptor; self.path = path; self.close = close
+        }
+    }
+    let attemptID = UUID()
+    let operationID: UUID
+    let initialImage: OriginalEraseScratchCleanupImageV1
+    fileprivate let permit: OriginalEraseScratchCleanupEffectPermitV1
+    fileprivate let retainedIO: EraseAbortCheckedSnapshotIOV1
+    fileprivate private(set) var lifetime = Lifetime.active
+    fileprivate private(set) var image: OriginalEraseScratchCleanupImageV1
+    fileprivate var store: ScratchDataLeaseStoreV1?
+    fileprivate var resources: [Int32: Resource] = [:]
+    fileprivate var resourceOrder: [Resource] = []
+    fileprivate var sequence: UInt64 = 0
+    fileprivate var sourcesCaptured = false
+    fileprivate var canonicalSources: [String: OriginalEraseScratchCleanupCanonicalSourceV1] = [:]
+    fileprivate var publications: [String: OriginalEraseScratchCleanupPrimitiveIntentV1] = [:]
+    fileprivate var activeIntent: OriginalEraseScratchCleanupPrimitiveIntentV1?
+    fileprivate var activeOutcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
+
+    fileprivate init(operationID: UUID, image: OriginalEraseScratchCleanupImageV1,
+        retainedIO: EraseAbortCheckedSnapshotIOV1,
+        permit: OriginalEraseScratchCleanupEffectPermitV1) {
+        self.operationID = operationID; initialImage = image; self.image = image
+        self.retainedIO = retainedIO; self.permit = permit
+    }
+
+    fileprivate func requireActive() throws {
+        guard lifetime == .active else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireHeld()
+    }
+
+    /// Nonrecursive actual EX/G/frame proof. Physical policy readers use only
+    /// this retained active request/outcome, before the complete readback exists.
+    func requireObservationFrame(
+        intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
+    ) throws {
+        guard lifetime == .active || lifetime == .closing,
+              activeIntent === intent, intent.attemptID == attemptID,
+              intent.operationID == operationID,
+              activeOutcome === outcome else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireHeld()
+    }
+
+    func retainedCanonicalSources() throws -> [OriginalEraseScratchCleanupCanonicalSourceV1] {
+        try requireActive()
+        let value = canonicalSources.values.sorted { $0.path < $1.path }
+        try permit.requireHeld()
+        return value
+    }
+
+    func retainedPublicationIntent(temporaryPath: String)
+        throws -> OriginalEraseScratchCleanupPrimitiveIntentV1? {
+        guard lifetime == .active || lifetime == .closing else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try permit.requireHeld()
+        let value = publications[temporaryPath]
+        try permit.requireHeld()
+        return value // DATA lookup only; nil grants no absence/effect permission.
+    }
+
+    fileprivate func retainCanonicalSource(path: String, bytes: Data, fullFact: String) throws {
+        try requireActive()
+        guard !sourcesCaptured else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireCanonicalSource(path: path, bytes: bytes, fullFact: fullFact)
+        let sha = try CompatibilityCanonicalV1.sha256(bytes)
+        if let old = canonicalSources[path] {
+            guard old.bytes == bytes, old.fullFact == fullFact, old.sha256 == sha else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+        } else {
+            canonicalSources[path] = .init(path: path, bytes: bytes, fullFact: fullFact, sha256: sha)
+        }
+        try permit.requireHeld()
+    }
+
+    fileprivate func observe<Value>(_ body: () throws -> Value) throws -> Value {
+        let incomingErrno = errno
+        do {
+            try requireActive()
+            errno = incomingErrno
+            let value = Result { try body() }
+            let actualErrno = errno
+            try permit.requireHeld()
+            errno = actualErrno
+            return try value.get()
+        } catch { poison(); throw error }
+    }
+
+    fileprivate func retainDescriptor(_ descriptor: Int32, path: String) throws {
+        guard lifetime == .active, descriptor >= 0, resources[descriptor] == nil else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        let resource = Resource(descriptor: descriptor, path: path,
+            close: { Darwin.close(descriptor) })
+        resources[descriptor] = resource; resourceOrder.append(resource)
+    }
+
+    fileprivate func requireDescriptor(_ descriptor: Int32) throws -> Resource {
+        try requireActive()
+        guard let resource = resources[descriptor], resource.state == .open else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        return resource
+    }
+
+    fileprivate func perform(_ kind: OriginalEraseScratchCleanupPrimitiveIntentV1.Kind,
+        _ syscall: () -> Int64) throws -> Int64 {
+        let incomingErrno = errno
+        do {
+            try requireActive()
+            guard sourcesCaptured, activeIntent == nil, activeOutcome == nil else {
+                throw ScratchDataLeaseStoreFailureV1.invalidRoot
+            }
+            let next = sequence.addingReportingOverflow(1)
+            guard !next.overflow else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+            let intent = OriginalEraseScratchCleanupPrimitiveIntentV1(attemptID: attemptID,
+                operationID: operationID, sequence: next.partialValue, before: image, kind: kind)
+            // These exact producer bytes and nonce path precede the first syscall.
+            if case .createTemporary(let path, _, let bytes, let sha, _, _) = kind {
+                guard publications[path] == nil,
+                      try CompatibilityCanonicalV1.sha256(bytes) == sha else {
+                    throw ScratchDataLeaseStoreFailureV1.invalidRoot
+                }
+                publications[path] = intent
+            }
+            activeIntent = intent
+            try permit.willPerform(intent)
+            errno = incomingErrno
+            let result = syscall()
+            let actualErrno = errno
+            let outcome = OriginalEraseScratchCleanupPrimitiveOutcomeV1(intent: intent,
+                result: result, syscallErrno: actualErrno)
+            activeOutcome = outcome
+            let readback = try permit.didPerform(outcome)
+            try readback.requireBound(to: outcome)
+            image = readback.after
+            sequence = next.partialValue
+            activeOutcome = nil; activeIntent = nil
+            try permit.requireHeld()
+            errno = actualErrno
+            return result
+        } catch { poison(); throw error }
+    }
+
+    fileprivate func closeResource(_ resource: Resource, terminalCleanup: Bool) throws {
+        guard resource.state == .open else { return }
+        // Fence and detach before first close; its integer is never retried or
+        // inspected after success or an ambiguous failure.
+        resource.state = .closeEntered
+        resources.removeValue(forKey: resource.descriptor)
+        let result = resource.close()
+        let actualErrno = errno
+        if result == 0 {
+            resource.state = .closed
+        } else {
+            resource.state = .uncertain
+            retainedIO.retainUncertainDescriptor(resource.descriptor)
+            poison()
+            errno = actualErrno
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        // Typed before/after close intent wiring is mandatory before use by the
+        // live controller. This owner method currently only drains exact owned
+        // slots safely; terminalCleanup never authorizes another effect.
+        _ = terminalCleanup
+        errno = actualErrno
+    }
+
+    fileprivate func drainOwnedResources() throws {
+        if lifetime == .active { lifetime = .closing }
+        var failure: Error?
+        for resource in resourceOrder.reversed() where resource.state == .open {
+            do { try closeResource(resource, terminalCleanup: true) }
+            catch { if failure == nil { failure = error } }
+        }
+        guard failure == nil, resourceOrder.allSatisfy({ $0.state == .closed }) else {
+            poison(); throw failure ?? ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+    }
+
+    fileprivate func markClosed() throws {
+        guard lifetime == .closing,
+              resources.isEmpty, resourceOrder.allSatisfy({ $0.state == .closed }),
+              activeIntent == nil, activeOutcome == nil,
+              image.scratch == nil, image.ingress == nil else {
+            poison(); throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try retainedIO.requireSettled()
+        lifetime = .closed
+        store = nil
+    }
+
+    func requireCheckedSettlement() throws {
+        guard lifetime == .closed, resources.isEmpty,
+              resourceOrder.allSatisfy({ $0.state == .closed }),
+              activeIntent == nil, activeOutcome == nil,
+              image.scratch == nil, image.ingress == nil else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try retainedIO.requireSettled()
+    }
+
+    fileprivate func poison() {
+        if lifetime != .uncertain {
+            lifetime = .uncertain
+            permit.poisonOnUncertainCleanup()
+        }
+    }
+}
+
+@MainActor
+final class OriginalEraseScratchCleanupReceiptV1 {
+    let operationID: UUID
+    let attempt: OriginalEraseScratchCleanupAttemptV1
+    let initialImage: OriginalEraseScratchCleanupImageV1
+    let finalImage: OriginalEraseScratchCleanupImageV1
+    private weak var permit: OriginalEraseScratchCleanupEffectPermitV1?
+    fileprivate init(attempt: OriginalEraseScratchCleanupAttemptV1) throws {
+        try attempt.requireCheckedSettlement()
+        operationID = attempt.operationID; self.attempt = attempt
+        initialImage = attempt.initialImage; finalImage = attempt.image
+        permit = attempt.permit
+    }
+    func requireCheckedSettlement() throws { try attempt.requireCheckedSettlement() }
+    func requireBound(operationID: UUID,
+        attempt: OriginalEraseScratchCleanupAttemptV1,
+        finalImage: OriginalEraseScratchCleanupImageV1) throws {
+        guard self.operationID == operationID, self.attempt === attempt,
+              self.finalImage == finalImage, permit != nil else {
+            throw ScratchDataLeaseStoreFailureV1.invalidRoot
+        }
+        try requireCheckedSettlement()
+    }
+    func requireBound(operation: EraseRouterOperationV1, store: EraseIntentStore,
+        registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1) throws {
+        guard let permit else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        try permit.requireOrigin(operation: operation, store: store,
+            registry: registry, exclusion: exclusion, activity: activity)
+        try requireCheckedSettlement()
+    }
+}
+

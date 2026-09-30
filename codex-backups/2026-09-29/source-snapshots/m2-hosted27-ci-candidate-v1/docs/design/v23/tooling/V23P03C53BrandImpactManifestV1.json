@@ -1,0 +1,54 @@
+{
+  "authority": {
+    "appBaseHead": "0ecc7daf4b329b3aeb90a8e457e2700bf9d4fcbd",
+    "appBaseTree": "d063df00d73dc432be3c0d506dcf1baea7a28a88",
+    "contextDigest": "e2cdd39366c42ceda098600bd0f5bf4f03dd7a6dc5fbe487ad7bb9e4da29e021",
+    "coordinationCASSequence": 355,
+    "coordinationHead": "4941f4f636c5103948487ce3b0cf889aa5d26999",
+    "coordinationTree": "8cb83a946372b82a2fd7786e23682f223a563197",
+    "directPrerequisiteFences": {
+      "V23-P03-C19": "4b39fc01e6f5a3a5c05ff754192369243c5ece0d021421adfc21dd93b0cdc4b1"
+    },
+    "inheritedV21PayloadPresent": false,
+    "pathFenceDigest": "1a2efea842b850f3b8a0a773b4ff904f43d763d7b087bdf4a53e3cc621618892",
+    "provisionalPrerequisiteDigest": "d2dce0eafd998405c462de14bfdf85648a354c37ae7dab8852d099b6679d09e8",
+    "registerOrdinal": 84
+  },
+  "automaticReleaseToService": false,
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C53",
+  "evidenceIDs": [
+    "V23-P03-C53-G01",
+    "V23-P03-C53-A01",
+    "V23-P03-C53-H01",
+    "V23-P03-C53-I01",
+    "V23-P03-C53-R01"
+  ],
+  "priorPrerequisiteProof": {
+    "cards": [
+      "V23-P03-C19"
+    ],
+    "fences": {
+      "V23-P03-C19": "4b39fc01e6f5a3a5c05ff754192369243c5ece0d021421adfc21dd93b0cdc4b1"
+    },
+    "liveResealRequired": false
+  },
+  "s10ReservationOverlapCount": 0,
+  "s10ReservedPathCount": 86,
+  "schema": "V23P03C53BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "telemetryOrPredictiveMaintenance": false,
+  "uiSurfaceDelta": true
+}

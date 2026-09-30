@@ -1,0 +1,1 @@
+{"schemaVersion":1,"taskID":"S10.1","tier":"F25","runUISmoke":true,"setupArtifactTimeoutSeconds":300,"buildTimeoutSeconds":900,"testTimeoutSeconds":1200,"uiTimeoutSeconds":1800,"totalBudgetSeconds":4500,"unitTestSelectors":["FieldEvidenceAppTests/S10_1BrandInventoryTests"],"uiTestSelectors":["FieldEvidenceAppUITests/S10_1BrandInventoryUITests"]}

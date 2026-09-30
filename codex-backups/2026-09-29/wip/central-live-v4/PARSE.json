@@ -1,0 +1,20 @@
+{
+  "parseOnly": true,
+  "noTypecheckBuildNative": true,
+  "results": [
+    {
+      "file": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "mode": "DEBUG",
+      "exit": 0,
+      "log": "PARSE-Service-DEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+      "mode": "nonDEBUG",
+      "exit": 0,
+      "log": "PARSE-Service-nonDEBUG.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

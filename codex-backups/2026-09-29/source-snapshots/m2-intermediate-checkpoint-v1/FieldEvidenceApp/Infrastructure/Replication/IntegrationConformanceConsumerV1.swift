@@ -1,0 +1,289 @@
+import Foundation
+
+/// Provider-free orchestration for the canonical reference consumer. Its
+/// output is disposable derived state, never a delivery queue or mutation.
+struct IntegrationConformanceConsumerV1: Sendable {
+    enum InterruptionPointV1: Equatable, Sendable {
+        case none
+        case afterEffectBeforeCheckpoint
+    }
+
+    private let projection: IntegrationEventProjectionV1
+    private let consumer: IntegrationEventConformanceConsumerV1
+    private let registry: IntegrationContractRegistryV1
+    private let limits: IntegrationEventLimitsV1
+    private let store: any IntegrationProjectionOperationalStoreV1
+    private let interruptionPoint: @Sendable () -> InterruptionPointV1
+
+    init(
+        registry: IntegrationContractRegistryV1,
+        limits: IntegrationEventLimitsV1 = try! IntegrationEventLimitsV1(),
+        consumerID: String = "assetrounds.local.conformance",
+        consumerVersion: Int = 1,
+        store: any IntegrationProjectionOperationalStoreV1,
+        interruptionPoint: @escaping @Sendable () -> InterruptionPointV1 = { .none }
+    ) throws {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate(),
+              C51ScheduleExceptionIntegrationConsumerBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
+        try registry.validate(limits: limits)
+        self.registry = registry
+        self.limits = limits
+        projection = try IntegrationEventProjectionV1(registry: registry, limits: limits)
+        consumer = try IntegrationEventConformanceConsumerV1(
+            consumerID: consumerID, consumerVersion: consumerVersion
+        )
+        self.store = store
+        self.interruptionPoint = interruptionPoint
+    }
+
+    /// Replays from the last verified checkpoint. The disposable local effect
+    /// ledger is updated idempotently before checkpoint publication, so a
+    /// process stop at that boundary retries the same event IDs without a
+    /// duplicate logical effect.
+    func advance(
+        workspaceID: WorkspaceID,
+        acceptedReceipts: [MutationReceiptV1]
+    ) async throws -> IntegrationEventConsumerResultV1 {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate(),
+              C51ScheduleExceptionIntegrationConsumerBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
+        guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
+            throw IntegrationEventFailureV1.limitExceeded
+        }
+        try projection.validatePackagePromotionReplay(acceptedReceipts)
+        try projection.validateMeasurementIntegrityReplay(acceptedReceipts)
+        try projection.validatePrivacyTransformReplay(acceptedReceipts)
+        try projection.validateEvidenceMetadataReplay(acceptedReceipts)
+        try projection.validateClientCapabilityReplay(acceptedReceipts)
+        try projection.validateFieldReferenceReplay(acceptedReceipts)
+        try projection.validateAccessibleDocumentAssessmentReplay(acceptedReceipts)
+        try projection.validateSurveyDefinitionReplay(acceptedReceipts)
+        try projection.validateSurveySessionReplay(acceptedReceipts)
+        try projection.validateAssetLocatorReplay(acceptedReceipts)
+        try projection.validateScheduleReplay(acceptedReceipts)
+        try projection.validatePlanReplay(acceptedReceipts)
+        try projection.validatePlacementPoseReplay(acceptedReceipts)
+        try projection.validateEvidenceContextReplay(acceptedReceipts)
+        try projection.validateLightingReplay(acceptedReceipts)
+        try projection.validateTemporalEvidenceReplay(acceptedReceipts)
+        try projection.validatePortableReviewReconciliationReplay(acceptedReceipts)
+        try projection.validateMyDayReplay(acceptedReceipts)
+        let prior = try await store.checkpoint(
+            consumerID: consumer.consumerID, workspaceID: workspaceID
+        )
+        let events = try projection.events(
+            after: prior, workspaceID: workspaceID,
+            acceptedReceipts: acceptedReceipts
+        )
+        guard events.count <= limits.maximumEventsPerReplay else {
+            throw IntegrationEventFailureV1.limitExceeded
+        }
+        let result = try consumer.consume(
+            workspaceID: workspaceID, registry: registry,
+            events: events, priorCheckpoint: prior
+        )
+        try await store.recordDerivedConsumerEffects(
+            events: events,
+            consumerID: consumer.consumerID,
+            workspaceID: workspaceID
+        )
+        if interruptionPoint() == .afterEffectBeforeCheckpoint {
+            throw IntegrationEventFailureV1.staleCheckpoint
+        }
+        try await store.replaceDerivedProjection(
+            events: events, checkpoint: result.checkpoint,
+            consumerID: consumer.consumerID, workspaceID: workspaceID
+        )
+        let readBack = try await store.checkpoint(
+            consumerID: consumer.consumerID, workspaceID: workspaceID
+        )
+        guard readBack == result.checkpoint else {
+            throw IntegrationEventFailureV1.invalidDigest
+        }
+        return result
+    }
+
+    /// A bounded, disposable rebuild. A crash after the drop is safe because
+    /// the next attempt starts from the immutable receipt history again.
+    func rebuild(
+        workspaceID: WorkspaceID,
+        acceptedReceipts: [MutationReceiptV1]
+    ) async throws -> IntegrationEventConsumerResultV1 {
+        guard C50IncumbentFileExchangeIntegrationConsumerBoundaryV1.validate(),
+              C51ScheduleExceptionIntegrationConsumerBoundaryV1.validate() else {
+            throw IntegrationEventFailureV1.invalidValue
+        }
+        guard acceptedReceipts.count <= ChangeJournalLimitsV1.productionMaximumEntitiesPerCheckpoint else {
+            throw IntegrationEventFailureV1.limitExceeded
+        }
+        try projection.validatePackagePromotionReplay(acceptedReceipts)
+        try projection.validateMeasurementIntegrityReplay(acceptedReceipts)
+        try projection.validatePrivacyTransformReplay(acceptedReceipts)
+        try projection.validateEvidenceMetadataReplay(acceptedReceipts)
+        try projection.validateClientCapabilityReplay(acceptedReceipts)
+        try projection.validateFieldReferenceReplay(acceptedReceipts)
+        try projection.validateAccessibleDocumentAssessmentReplay(acceptedReceipts)
+        try projection.validateSurveyDefinitionReplay(acceptedReceipts)
+        try projection.validateSurveySessionReplay(acceptedReceipts)
+        try projection.validateAssetLocatorReplay(acceptedReceipts)
+        try projection.validateScheduleReplay(acceptedReceipts)
+        try projection.validatePlanReplay(acceptedReceipts)
+        try projection.validatePlacementPoseReplay(acceptedReceipts)
+        try projection.validateEvidenceContextReplay(acceptedReceipts)
+        try projection.validateLightingReplay(acceptedReceipts)
+        try projection.validateTemporalEvidenceReplay(acceptedReceipts)
+        try projection.validatePortableReviewReconciliationReplay(acceptedReceipts)
+        try projection.validateMyDayReplay(acceptedReceipts)
+        try await store.dropDerivedProjection(
+            consumerID: consumer.consumerID, workspaceID: workspaceID
+        )
+        return try await advance(
+            workspaceID: workspaceID, acceptedReceipts: acceptedReceipts
+        )
+    }
+
+    func drop(workspaceID: WorkspaceID) async throws {
+        try await store.dropDerivedProjection(
+            consumerID: consumer.consumerID, workspaceID: workspaceID
+        )
+    }
+}
+
+enum LightingIntegrationConformancePolicyV1 { static let durableKinds:Set<WorkspaceEntityKindV1>=[.lightingSystem,.lightingObservation,.lightingIssue,.lightingMeasurementPlan,.lightingClaimState];static func accepts(_ event:IntegrationEventV1)->Bool{durableKinds.contains(event.subject.kind)} }
+
+enum C31LightingConformanceBoundaryV1 {
+    static let canonicalLightingKindsRemainClosed = true
+    static let reportAndSearchConsumersAreDerivedOnly = true
+    static let noPartialLightingActivation = true
+    static func accepts(_ event: IntegrationEventV1) -> Bool {
+        LightingIntegrationConformancePolicyV1.accepts(event)
+    }
+}
+
+
+enum C33TemporalEvidenceConformanceBoundaryV1 {
+    static let durableKinds = C33TemporalEvidenceIntegrationEventBoundaryV1.projectedKinds
+    static let derivedConsumerNeverReceivesOriginalBytes = true
+
+    static func accepts(_ event: IntegrationEventV1) -> Bool {
+        durableKinds.contains(event.subject.kind)
+    }
+}
+
+/// C32 keeps assistance candidates outside every durable and derived surface;
+/// only explicit acceptance may reach the existing canonical writer/receipt path.
+enum C32AssistanceCompatibility_Replication_IntegrationConformanceConsumerV1 {
+    enum ProposalDispositionV1: Sendable {
+        case nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+    }
+
+    enum AcceptanceDispositionV1: Sendable {
+        case durableThroughExistingCanonicalWriter
+    }
+
+    static func disposition(
+        for proposal: AssistanceProposalV1
+    ) throws -> ProposalDispositionV1 {
+        try proposal.validate()
+        guard !AssistancePersistenceEnrollmentV1.proposalIsPersistent,
+              !AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent else {
+            throw AssistanceContractFailureV1.nonCanonicalData
+        }
+        switch proposal.verificationState {
+        case .unverified:
+            return .nonpersistentUnverifiedExcludedFromStorageSearchReportBackup
+        }
+    }
+
+    static func disposition(
+        for receipt: AssistanceAcceptanceReceiptV1
+    ) throws -> AcceptanceDispositionV1 {
+        try receipt.validate()
+        guard AssistancePersistenceEnrollmentV1.durableModelCount == 1 else {
+            throw AssistanceContractFailureV1.invalidReceipt
+        }
+        return .durableThroughExistingCanonicalWriter
+    }
+
+    static let capabilityScratchIsDiscardedOnTerminalReview = true
+    static let manualFallbackRemainsAvailable = true
+    static let interruptionNeverPromotesAProposal = true
+    static let createsParallelStoreOrWriter = false
+}
+
+enum C45AcceptedLabelIntegrationConsumerBoundaryV1 { static let cannotActivateHistoricCloneSnapshot=true;static let cannotInferHandoffPossession=true }
+
+enum C46OperationalContactBoundary_51{static let commandKind:WorkspaceCommandKindV1 = .applyOperationalContact;static let platformOutcomesProjected=false}
+enum C47ActivityContractIntegrationConsumerBoundaryV2 { static let commandKind:WorkspaceCommandKindV1 = .applyActivityContract;static let historicRestoreCannotInferNewCompletionClaims=true;static let receiptIsolation=true }
+enum C48PortableReviewIntegrationConsumerBoundaryV1 { static let consumesExistingC14ReceiptsOnly=true;static let capabilityProofAndResponseBytesNeverEnterDerivedState=true;static let originMetadataIsSelfAssertedOnly=true;static let noPortableWriterOrIdentityClaim=true }
+
+// MARK: - C49 work-resource integration conformance
+
+enum C49WorkResourceIntegrationConformanceBoundaryV1 {
+    static let canonicalRecordType = "WorkResourceEntryV1"
+    static let directCostType = "DirectCostEntryV1"
+    static let canonicalKinds: Set<WorkspaceEntityKindV1> = [.workResourceEntry]
+    static let acceptsOnlyCanonicalReceiptPostimages = true
+    static let directCostIsInsideEntryPostimage = true
+    static let createsSecondWriterOrLedger = false
+    static let directCostProjectsToCustomerByDefault = false
+    static let liveInventoryLookup = false
+
+    static func accepts(_ kind: WorkspaceEntityKindV1) -> Bool {
+        canonicalKinds.contains(kind)
+    }
+}
+
+enum C50IncumbentFileExchangeIntegrationConsumerBoundaryV1 {
+    static let profileSelectionSessionSourceQuarantineDisposition = "NONPERSISTENT"
+    static let consumesCanonicalImportedEffectsThroughExistingOwner = true
+    static let adapterStateIsNotConsumed = true
+    static let sourceAndQuarantineBytesAreExcluded = true
+    static let newConsumerSubjects = 0
+    static let syncDisposition = "NOT_APPLICABLE"
+    static let backupRestoreDisposition = "NOT_APPLICABLE"
+
+    static func validate() -> Bool {
+        profileSelectionSessionSourceQuarantineDisposition == "NONPERSISTENT"
+            && consumesCanonicalImportedEffectsThroughExistingOwner
+            && adapterStateIsNotConsumed
+            && sourceAndQuarantineBytesAreExcluded
+            && newConsumerSubjects == 0
+            && syncDisposition == "NOT_APPLICABLE"
+            && backupRestoreDisposition == "NOT_APPLICABLE"
+            && C50IncumbentFileExchangeIntegrationEventBoundaryV1.validate()
+    }
+}
+
+enum C51ScheduleExceptionIntegrationConsumerBoundaryV1 {
+    static let canonicalKinds: Set<WorkspaceEntityKindV1> = [
+        .exceptionCalendarRelease, .scheduleOverrideEvent
+    ]
+    static let consumesOnlyCanonicalReceiptPostImages = true
+    static let derivedConsumerCreatesNoCalendarOrOverrideWriter = true
+    static let checkpointRecoveryReplaysImmutableReceiptHistory = true
+
+    static func validate() -> Bool {
+        canonicalKinds == [.exceptionCalendarRelease, .scheduleOverrideEvent]
+            && consumesOnlyCanonicalReceiptPostImages
+            && derivedConsumerCreatesNoCalendarOrOverrideWriter
+            && checkpointRecoveryReplaysImmutableReceiptHistory
+    }
+}
+
+enum C34SceneNavigationIntegrationConsumerBoundaryV1 {
+    static let consumedRouteEventKindCount = 0
+    static let consumesSceneState = false
+    static func validate() -> Bool { consumedRouteEventKindCount == 0 && !consumesSceneState && C34SceneNavigationIntegrationEventBoundaryV1.validate() }
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-conformance
+enum C52ServiceRequestIntegrationConformanceBoundaryV1 {
+    static let requiredFamilies = ServiceRequestPersistenceEnrollmentV1.durableFamilies
+    static let rawCapabilitySubjectCount = 0
+    static let duplicateProjectionSubjectCount = 0
+    static let requiresExactlyOnceWorkLinkAndReversal = true
+}
+enum C53AssetServiceReliabilityIntegrationConformanceBoundaryV1{static let requiredFamilies=AssetServiceReliabilityPersistenceEnrollmentV1.durableFamilies;static let derivedProjectionSubjectCount=0;static let requiresAppendOnlyRevisionAndDigest=true}

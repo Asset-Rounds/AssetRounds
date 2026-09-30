@@ -1,0 +1,139 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactCount": 6,
+  "artifactDigest": "2bcd15b356fdb0b2fc641ba1fb42429562fb3b853b49b27eefc19ca962b66570",
+  "artifacts": [
+    {
+      "bytes": 14383,
+      "path": "Scripts/v23/p01_c02_contracts.py",
+      "sha256": "e8c85219c9298fb2c2d740829e5cc5fe4a6d35a2f6599e62f496676fa9f7f190"
+    },
+    {
+      "bytes": 1113,
+      "path": "Scripts/v23/generate_p01_c02_contracts.py",
+      "sha256": "7303e8bb8287d202769ff310972f7b4585bc60a0866a0214b9fd13dda4e8ea3e"
+    },
+    {
+      "bytes": 13156,
+      "path": "Scripts/v23/verify_p01_c02_contracts.py",
+      "sha256": "0accc55ab403d23bf30793d8d82419e7bbf2be095a86397be86a3f992d1af434"
+    },
+    {
+      "bytes": 41969,
+      "path": "Scripts/v23/owned-file-protection.schema.json",
+      "sha256": "952a7127e31697944ad6d43ced597797915a2892517d6a2c0dcaf48f502d1b5a"
+    },
+    {
+      "bytes": 14376,
+      "path": "docs/design/v23/tooling/V23P01C02OwnedFileProtectionContractV1.json",
+      "sha256": "eb22874cc12f59d4fb2b7edd489a4a8daea686a1f1b293b5f5f88523f7c5d9ba"
+    },
+    {
+      "bytes": 8267,
+      "path": "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json",
+      "sha256": "161eaa8d6d360a09b1f68cbcf51ea3be21af0ce3252301587c81107ea1ccccb6"
+    }
+  ],
+  "authority": {
+    "acceptedS10_6BaselineDigest": null,
+    "authorizedPriorFenceOverlaps": [
+      {
+        "cardID": "V23-P01-C01",
+        "disposition": "DIRECT_INVALIDATION_AND_REPROOF",
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+      },
+      {
+        "cardID": "V23-P00-C11",
+        "disposition": "ARCHITECTURE_CONCURRENCY_TARGETED_REPROOF",
+        "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+      }
+    ],
+    "baseHead": "fd303030608600443c8a0151f8f93c27e5cc928e",
+    "baseTree": "cb5f5fc41379e61ed51dc1b3890ad55c63e98433",
+    "branch": "phase/v23-expansion",
+    "contextDigest": "156b0f066a284225ee2a7a569d70b57d8495427f45660c29efc308e3e09eaaee",
+    "coordinationHydrationHead": "86d6325f6eef5b7cae880f314fdc72aa67d6e3b7",
+    "deterministicEvidenceIDs": [
+      "V23-P01-C02-G01",
+      "V23-P01-C02-A01",
+      "V23-P01-C02-H01",
+      "V23-P01-C02-I01",
+      "V23-P01-C02-R01"
+    ],
+    "directPrerequisites": [
+      "V23-P01-C01"
+    ],
+    "dossierDigest": "c1995aa55b9acb0543d7c533d7ae3c37eab766c45861e5941ad48f73d0c341ba",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "e3d5f770500dca343d53dd22c87bdefa54e74e6e5ad172f31e20bcca38478482",
+    "lineage": "REFINED_WITHOUT_LOSS",
+    "pathFenceDigest": "516df34be4e6c68ff8a6d1737c8ced37e2eb1b5ebfd6110542a60b9579c36809",
+    "provisionalPrerequisiteDigest": "927b5353927db5fd57d22973f31e3b7e5ecb4381f91e680dfc0f8b537881cef4",
+    "registerRowDigest": "03010bdab18420ecc5ddd2f4b9ebc17b2af7722753253340379c3742ac813d6c",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "reservationOverlapCount": 0,
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+  },
+  "cardID": "V23-P01-C02",
+  "fullCardFence": [
+    "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift",
+    "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Diagnostics/DiagnosticsStore.swift",
+    "FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift",
+    "FieldEvidenceApp/Infrastructure/Reporting/ReportRenderService.swift",
+    "FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift",
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceAppTests/V9_02FileAuthorityTests.swift",
+    "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json",
+    "Scripts/v23/p01_c02_contracts.py",
+    "Scripts/v23/generate_p01_c02_contracts.py",
+    "Scripts/v23/verify_p01_c02_contracts.py",
+    "Scripts/v23/owned-file-protection.schema.json",
+    "docs/design/v23/tooling/V23P01C02OwnedFileProtectionContractV1.json",
+    "docs/design/v23/tooling/V23-P01-C02-tooling-manifest.json"
+  ],
+  "hostedDispatchRan": false,
+  "lifecycle": {
+    "interruption": "FAIL_CLOSED_NO_PARTIAL_ACCEPTANCE",
+    "persistence": "IMMUTABLE_SOURCE_BOUND_CONTRACT",
+    "recovery": "REGENERATE_FROM_CURRENT_SOURCES_OR_ISSUE_SUCCESSOR",
+    "successorTriggers": [
+      "SOURCE_CHANGE",
+      "PATH_CLASS_CHANGE",
+      "PROTECTION_POLICY_CHANGE",
+      "BACKUP_ELIGIBILITY_CHANGE",
+      "SECRET_INVENTORY_CHANGE",
+      "EVIDENCE_CHANGE"
+    ],
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_ARTIFACT"
+  },
+  "nativeCompileRan": false,
+  "pathFence": [
+    "Scripts/v23/p01_c02_contracts.py",
+    "Scripts/v23/generate_p01_c02_contracts.py",
+    "Scripts/v23/verify_p01_c02_contracts.py",
+    "Scripts/v23/owned-file-protection.schema.json",
+    "docs/design/v23/tooling/V23P01C02OwnedFileProtectionContractV1.json",
+    "docs/design/v23/tooling/V23-P01-C02-tooling-manifest.json",
+    "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json"
+  ],
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "V23P01C02ToolingManifestV1",
+  "schemaVersion": 1
+}

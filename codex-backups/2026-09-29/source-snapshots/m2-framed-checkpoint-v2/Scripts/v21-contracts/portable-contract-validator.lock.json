@@ -1,0 +1,142 @@
+{
+  "schema": "PortableContractValidatorLockV1",
+  "schemaVersion": 1,
+  "tool": {
+    "toolID": "ASSETROUNDS_PYTHON_JSON_SCHEMA_DRAFT_2020_12_V1",
+    "implementationLanguage": "PYTHON_STDLIB",
+    "minimumPython": "3.11",
+    "stdlibOnly": true,
+    "entryPoint": "Scripts/v21-contracts/run-portable-contracts.py",
+    "lockChecker": "Scripts/v21-contracts/check-portable-contract-lock.py",
+    "networkPolicy": "DENY_ALL"
+  },
+  "officialMetaSchema": {
+    "draft": "JSON_SCHEMA_DRAFT_2020_12",
+    "rootURI": "https://json-schema.org/draft/2020-12/schema",
+    "registry": [
+      {
+        "uri": "https://json-schema.org/draft/2020-12/schema",
+        "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/schema.json"
+      },
+      {
+        "uri": "https://json-schema.org/draft/2020-12/meta/core",
+        "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/core.json"
+      },
+      {
+        "uri": "https://json-schema.org/draft/2020-12/meta/applicator",
+        "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/applicator.json"
+      },
+      {
+        "uri": "https://json-schema.org/draft/2020-12/meta/unevaluated",
+        "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/unevaluated.json"
+      },
+      {
+        "uri": "https://json-schema.org/draft/2020-12/meta/validation",
+        "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/validation.json"
+      },
+      {
+        "uri": "https://json-schema.org/draft/2020-12/meta/meta-data",
+        "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/meta-data.json"
+      },
+      {
+        "uri": "https://json-schema.org/draft/2020-12/meta/format-annotation",
+        "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/format-annotation.json"
+      },
+      {
+        "uri": "https://json-schema.org/draft/2020-12/meta/content",
+        "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/content.json"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "Scripts/v21-contracts/portable_contract_validator_v1.py",
+      "role": "VALIDATOR_IMPLEMENTATION",
+      "byteCount": 28832,
+      "sha256": "7a6ce17a71e55933a121e60ee11c373b77720f33eddc9d55d4597c19452f0173"
+    },
+    {
+      "path": "Scripts/v21-contracts/run-portable-contracts.py",
+      "role": "RUNNER",
+      "byteCount": 5878,
+      "sha256": "6d19911672fa50ef9bfc934b4ff61cb0fbc78d87148e414ddcc52b2567215180"
+    },
+    {
+      "path": "Scripts/v21-contracts/check-portable-contract-lock.py",
+      "role": "LOCK_CHECKER",
+      "byteCount": 9063,
+      "sha256": "097b7118267b45a624f5419d19c0a80d36f2d73e29c728c220dd7484bd74537d"
+    },
+    {
+      "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/schema.json",
+      "role": "OFFICIAL_META_SCHEMA",
+      "byteCount": 1841,
+      "sha256": "cb6b42e97f6c87ad90b165ce04b38f3727b05c212ae466b8b01bfd16804527c5"
+    },
+    {
+      "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/core.json",
+      "role": "OFFICIAL_META_SCHEMA",
+      "byteCount": 971,
+      "sha256": "5781b96ecc3e5be0dab30f418c38121cae124013f69502b96429ed551b40b990"
+    },
+    {
+      "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/applicator.json",
+      "role": "OFFICIAL_META_SCHEMA",
+      "byteCount": 1076,
+      "sha256": "bc9f704973c01c7a713619403fc531230654a9f759d404e8a2c559e526b8f304"
+    },
+    {
+      "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/unevaluated.json",
+      "role": "OFFICIAL_META_SCHEMA",
+      "byteCount": 336,
+      "sha256": "dac00f2c270438d44b530e83fdbf32fa25e4e36e0389f37aa16194344c0e82b3"
+    },
+    {
+      "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/validation.json",
+      "role": "OFFICIAL_META_SCHEMA",
+      "byteCount": 1593,
+      "sha256": "acba4fd564918a28b75032823f4d54fbdaeeeb4e1a5ff524945441569890da2b"
+    },
+    {
+      "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/meta-data.json",
+      "role": "OFFICIAL_META_SCHEMA",
+      "byteCount": 485,
+      "sha256": "7d7c490de25fa53e92e74ea08d97fafaacea84ab75184cad258014877b8f9c26"
+    },
+    {
+      "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/format-annotation.json",
+      "role": "OFFICIAL_META_SCHEMA",
+      "byteCount": 285,
+      "sha256": "0b87f795ef5af5049897b08b4a744d8511fa34a0d4086e03675f50b0703140c9"
+    },
+    {
+      "path": "TestSupport/PortableContracts/JSONSchemaDraft202012/meta/content.json",
+      "role": "OFFICIAL_META_SCHEMA",
+      "byteCount": 339,
+      "sha256": "26b318ebf9b9e6662e177056611edc88acfd7112c6e21ebd3f424852d08bdfb3"
+    }
+  ],
+  "inventoryPolicy": {
+    "lockedFileCount": 11,
+    "selfHashDisposition": "LOCK_FILE_EXCLUDED_TO_AVOID_RECURSION",
+    "unexpectedOwnedFileDisposition": "REJECT",
+    "lineEndingPolicy": "EXACT_BYTES"
+  },
+  "referencePolicy": {
+    "remoteResolution": "FORBIDDEN",
+    "allowedAbsoluteURIs": [
+      "https://json-schema.org/draft/2020-12/schema",
+      "https://json-schema.org/draft/2020-12/meta/core",
+      "https://json-schema.org/draft/2020-12/meta/applicator",
+      "https://json-schema.org/draft/2020-12/meta/unevaluated",
+      "https://json-schema.org/draft/2020-12/meta/validation",
+      "https://json-schema.org/draft/2020-12/meta/meta-data",
+      "https://json-schema.org/draft/2020-12/meta/format-annotation",
+      "https://json-schema.org/draft/2020-12/meta/content"
+    ],
+    "allowedRelativeReferencePrefixes": [
+      "#",
+      "meta/"
+    ]
+  }
+}

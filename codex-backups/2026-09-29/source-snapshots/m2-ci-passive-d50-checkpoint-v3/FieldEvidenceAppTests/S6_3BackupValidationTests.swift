@@ -1,0 +1,3142 @@
+import Combine
+import CoreGraphics
+import CryptoKit
+import Darwin
+import Foundation
+import ImageIO
+import SwiftData
+import UniformTypeIdentifiers
+import XCTest
+@testable import FieldEvidenceApp
+
+private enum C52ServiceRequestBoundary_S6_3BackupValidationTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
+private enum C53AssetServiceReliabilityBoundary_S6_3BackupValidationTests {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
+final class C45BackupValidationCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityValidatesCanonicalMutationAndSnapshotDigests() {
+        XCTAssertEqual(AssetLabelMutationV1.schemaVersion, 1)
+        XCTAssertEqual(AcceptedLabelGenerationSnapshotV1.schemaVersion, 1)
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.recordsSchemaVersion, 33)
+    }
+}
+
+final class C30EvidenceContextAnchorS6_3BackupValidation: XCTestCase {
+    func testTypedEvidenceContextContractAnchor() throws {
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.durableModelCount, 2)
+        XCTAssertEqual(EvidenceLightingConditionV1.allCases.count, 6)
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyEvidenceContext))
+        try EvidenceContextLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+final class S6_3BackupValidationTests: XCTestCase {
+    @MainActor
+    func testImportPreservesSupportedSchemaPairsAndRejectsForeignPairs() throws {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "import-schema-pairs-\(UUID().uuidString)", isDirectory: true)
+        let support = root.appendingPathComponent("Application Support", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        let importer = try BackupImportService(generationRootURL: session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in Int64.max }),
+            scopedAccess: .alreadyAuthorized)
+        let workspaceID = WorkspaceID(rawValue: uuid(91_001))
+        let replicaID = uuid(91_002), generationID = uuid(91_003)
+        // Independent compatibility expectations: Evidence Context, Temporal Evidence and Rounds.
+        for (persistentVersion, recordsVersion) in [(30, 29), (33, 32), (45, 44)] {
+            let parts: PartsStockBackupSnapshotV1?
+            if recordsVersion >= 40 {
+                parts = try .init(workspaceID: workspaceID,
+                    parts: [], locations: [], movements: [], uses: [], reversals: [],
+                    returns: [], abandonments: [])
+            } else {
+                parts = nil
+            }
+            let records = V4BackupRecordsV1(assets: [], deletionLedger: .empty,
+                evidenceFiles: [], issues: [],
+                mutationHistory: .init(workspaceRevision: 0, lastLocalSequence: 0,
+                    receipts: [], quarantines: [], entityRevisions: []),
+                packets: [], recordsSchemaVersion: recordsVersion, reports: [], sites: [],
+                workflowRecords: [], partsStockSnapshot: parts)
+            let recordsData = try BackupCanonicalEncoderV1().encodeRecords(records).data
+            let entry = V4BackupEntryV1(byteCount: recordsData.count, mimeType: "application/json",
+                path: "records.json", sha256: KernelCanonicalHashV1.sha256(recordsData))
+            func manifest(persistent: Int, version: Int) -> V4BackupManifestV1 {
+                V4BackupManifestV1(backupSchemaVersion: 4, consumedEvaluationRootIDs: [],
+                    declaredPayloadByteCount: recordsData.count, entries: [entry],
+                    exportedAt: Date(timeIntervalSince1970: 1_788_134_400), packs: [],
+                    source: .init(appBuild: "import-compatibility-tests", appVersion: "23",
+                        persistentSchemaVersion: persistent, replicaID: replicaID,
+                        recordsSchemaVersion: version, sourceGenerationID: generationID,
+                        workspaceID: workspaceID.rawValue))
+            }
+            let package = root.appendingPathComponent("schema-\(recordsVersion).fieldrecordbackup",
+                isDirectory: true)
+            try fileManager.createDirectory(at: package, withIntermediateDirectories: false)
+            try recordsData.write(to: package.appendingPathComponent("records.json"), options: .atomic)
+            let manifestURL = package.appendingPathComponent("manifest.json")
+            let manifestData = try BackupCanonicalEncoderV1().encodeManifest(
+                manifest(persistent: persistentVersion, version: recordsVersion)).data
+            try manifestData.write(to: manifestURL, options: .atomic)
+            let checked = try BackupPackageValidatorV1().validate(stagedPackageURL: package)
+            XCTAssertEqual(checked.records, records)
+            let staged = try importer.stageAndValidate(selectedPackageURL: package)
+            XCTAssertEqual(staged.records, records)
+            XCTAssertEqual(staged.manifest, checked.manifest)
+            XCTAssertNotEqual(staged.stagedPackageURL, package)
+            XCTAssertEqual(try Data(contentsOf: manifestURL), manifestData)
+            XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent("records.json")), recordsData)
+            try importer.discard(staged)
+            XCTAssertFalse(fileManager.fileExists(atPath: staged.stagedPackageURL.path))
+
+            // Write hostile manifest bytes directly; the canonical encoder must not sanitize them.
+            let hostileEncoder = JSONEncoder()
+            hostileEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            hostileEncoder.dateEncodingStrategy = .millisecondsSince1970
+            for (persistent, version) in [(persistentVersion + 1, recordsVersion), (54, 53)] {
+                let hostile: Data = try hostileEncoder.encode(manifest(persistent: persistent, version: version))
+                try hostile.write(to: manifestURL, options: .atomic)
+                XCTAssertThrowsError(try importer.stageAndValidate(selectedPackageURL: package)) {
+                    XCTAssertEqual($0 as? BackupImportServiceError, .invalidSource)
+                }
+                XCTAssertEqual(try Data(contentsOf: manifestURL), hostile)
+                XCTAssertEqual(try Data(contentsOf: package.appendingPathComponent("records.json")), recordsData)
+                let staging = try StoreGenerationFactory.backupImportStagingDirectory(
+                    containing: session.generationRootURL)
+                XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: staging.path), [])
+            }
+        }
+    }
+
+    func testPhotoBackupMemberStreamingIsBoundedCancellableAndAnchored() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent("photo-backup-stream-\(UUID().uuidString)", isDirectory: true)
+        try manager.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? manager.removeItem(at: root) }
+        let file = root.appendingPathComponent("raw.bin")
+        XCTAssertTrue(manager.createFile(atPath: file.path, contents: nil))
+        let writer = try FileHandle(forWritingTo: file)
+        let block = Data(repeating: 0x63, count: 1_024 * 1_024)
+        var expectedDigest = SHA256()
+        for _ in 0..<80 {
+            try writer.write(contentsOf: block)
+            expectedDigest.update(data: block)
+        }
+        try writer.close()
+        let count = Int64(MediaContractV1.sourceByteCountMaximum)
+        let digest = expectedDigest.finalize().map { String(format: "%02x", $0) }.joined()
+        let identity = try BackupPackageAnchoredFile.rootIdentity(at: root)
+        let members = ValidatedV4BackupMembersV1(rootURL: root, rootIdentity: identity,
+            descriptors: ["raw.bin": .init(byteCount: count, sha256: digest)], maximumMemberByteCount: count)
+        try members.verify("raw.bin", expectedByteCount: count, expectedSHA256: digest, maximumByteCount: count)
+        var total: Int64 = 0
+        var largestChunk = 0
+        try BackupPackageAnchoredFile.readRegularFileChunks("raw.bin", within: root,
+            rootIdentity: identity, expectedByteCount: count, maximumByteCount: count) {
+            total += Int64($0.count); largestChunk = max(largestChunk, $0.count)
+        }
+        XCTAssertEqual(total, count)
+        XCTAssertGreaterThan(largestChunk, 0)
+        XCTAssertLessThanOrEqual(largestChunk, 64 * 1_024)
+        XCTAssertThrowsError(try members.verify("raw.bin", maximumByteCount: count - 1))
+        XCTAssertThrowsError(try members.verify("raw.bin", expectedByteCount: count - 1))
+        XCTAssertThrowsError(try members.verify("raw.bin", expectedSHA256: String(repeating: "0", count: 64)))
+        XCTAssertThrowsError(try members.verify("absent.bin"))
+
+        enum Interrupted: Error { case requested }
+        var checkpoints = 0
+        XCTAssertThrowsError(try members.verify("raw.bin", cancellation: .init {
+            checkpoints += 1
+            if checkpoints == 4 { throw Interrupted.requested }
+        })) { XCTAssertTrue($0 is Interrupted) }
+        XCTAssertEqual(checkpoints, 4)
+
+        let link = root.appendingPathComponent("link.bin")
+        try manager.createSymbolicLink(at: link, withDestinationURL: file)
+        XCTAssertThrowsError(try BackupPackageAnchoredFile.readRegularFileChunks("link.bin", within: root,
+            rootIdentity: identity) { _ in XCTFail("A link must not be consumed") })
+        let pipe = root.appendingPathComponent("pipe.bin")
+        XCTAssertEqual(mkfifo(pipe.path, mode_t(0o600)), 0)
+        XCTAssertThrowsError(try BackupPackageAnchoredFile.readRegularFileChunks("pipe.bin", within: root,
+            rootIdentity: identity) { _ in XCTFail("A FIFO must not be consumed") })
+
+        let directory = root.appendingPathComponent("nested", isDirectory: true)
+        try manager.createDirectory(at: directory, withIntermediateDirectories: false)
+        let source = directory.appendingPathComponent("value.bin")
+        try block.write(to: source)
+        var replaced = false
+        XCTAssertThrowsError(try BackupPackageAnchoredFile.readRegularFileChunks("nested/value.bin", within: root,
+            rootIdentity: identity, expectedByteCount: Int64(block.count)) { _ in
+            guard !replaced else { return }
+            replaced = true
+            try manager.moveItem(at: directory, to: root.appendingPathComponent("retained", isDirectory: true))
+            try manager.createDirectory(at: directory, withIntermediateDirectories: false)
+            try block.write(to: source)
+        })
+        XCTAssertTrue(replaced)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("retained/value.bin")), block)
+        XCTAssertEqual(try Data(contentsOf: source), block)
+    }
+
+    func testV23P03C37TypedPoseContractAnchor() throws {
+        let axis = try PoseAxisDescriptorV1(
+            axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
+            localizedLabelKey: "pose.c37.anchor",
+            semanticRole: .otherDeclaredAxis,
+            requiredComponents: .azimuthOnly,
+            observationRequirement: .optional,
+            applicability: .applicable
+        )
+        let registry = try PoseAxisDescriptorRegistryV1(descriptors: [axis])
+        XCTAssertEqual(try registry.descriptor(for: axis.axisID), axis)
+    }
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
+    @MainActor
+    func testV23P03C40Records10GraphRequiresExactPredecessorRevision() throws {
+        let root = try C40BackupLifecycleTestValues.source()
+        let successor = try C40BackupLifecycleTestValues.source(
+            releaseID: C40BackupLifecycleTestValues.id(90_004),
+            supersedes: root.releaseID,
+            revision: 2,
+            mutationID: MutationIDV1(rawValue: C40BackupLifecycleTestValues.id(90_006))
+        )
+        let records = try C40BackupLifecycleTestValues.writerRecords([root, successor])
+        let decoded = try BackupCanonicalDecoderV1().decodeRecords(
+            BackupCanonicalEncoderV1().encodeRecords(records).data
+        )
+        XCTAssertEqual(decoded, records)
+        XCTAssertEqual(try XCTUnwrap(decoded.mutationHistory).receipts.count, 2)
+        XCTAssertEqual(try XCTUnwrap(decoded.mutationHistory).workspaceRevision, 2)
+        XCTAssertNotNil(decoded.deletionLedger)
+        XCTAssertNotEqual(root.mutationID, successor.mutationID)
+        let values = try decoded.authorityCriterion.map {
+            try AuthorityCriterionCanonicalCodecV1.decode(
+                AuthoritySourceReleaseV1.self, from: $0.canonicalData
+            )
+        }
+        let byID = Dictionary(uniqueKeysWithValues: values.map { ($0.releaseID, $0) })
+        let restoredSuccessor = try XCTUnwrap(byID[successor.releaseID])
+        let restoredRoot = try XCTUnwrap(byID[restoredSuccessor.supersedesReleaseID!])
+        XCTAssertEqual(restoredRoot.revision + 1, restoredSuccessor.revision)
+
+        let dangling = try C40BackupLifecycleTestValues.source(
+            releaseID: C40BackupLifecycleTestValues.id(90_005),
+            supersedes: C40BackupLifecycleTestValues.id(90_099),
+            revision: 2
+        )
+        let danglingValues = [dangling]
+        let danglingByID = Dictionary(uniqueKeysWithValues: danglingValues.map { ($0.releaseID, $0) })
+        XCTAssertNil(danglingByID[dangling.supersedesReleaseID!])
+    }
+
+    private let fileManager = FileManager.default
+
+    @MainActor
+    func testGoldenMixedPackageStagesValidatesAndRecomputesSummary() async throws {
+        let draftHarness = try await makeHarness(
+            "active-work-draft",
+            stopAfterWorkDraft: true
+        )
+        let draftPackage = try await exportCurrentArchive(
+            draftHarness,
+            name: "active-work-draft-source"
+        )
+        let draftBefore = try archiveFact(draftPackage)
+        let draftExtracted = try independentlyExtractArchive(draftPackage)
+        let draftMembersBefore = try treeFacts(draftExtracted)
+        let draftImporter = try makeImporter(
+            draftHarness,
+            capacity: .max,
+            operationID: uuid(798),
+            scopedAccess: .alreadyAuthorized
+        )
+        let validatedDraft = try draftImporter.stageAndValidate(
+            selectedPackageURL: draftPackage
+        )
+        let workDraft = try XCTUnwrap(validatedDraft.records.workflowRecords.first {
+            $0.state == WorkflowState.draft.rawValue
+        })
+        XCTAssertEqual(workDraft.stage, WorkflowStage.work.rawValue)
+        XCTAssertNil(workDraft.draftStepKey)
+        for entry in validatedDraft.manifest.entries {
+            XCTAssertEqual(try XCTUnwrap(validatedDraft.members[entry.path]),
+                try Data(contentsOf: draftExtracted.appendingPathComponent(entry.path)), entry.path)
+        }
+        try draftImporter.discard(validatedDraft)
+        XCTAssertEqual(try archiveFact(draftPackage), draftBefore)
+        XCTAssertEqual(try treeFacts(draftExtracted), draftMembersBefore)
+
+        let harness = try await makeHarness("golden", deferPendingFinalizationUntilExport: true)
+        let fixture = try loadFixture()
+        let package = try await exportCurrentArchive(harness, name: "golden-source")
+        let extracted = try independentlyExtractArchive(package)
+        let sourceFacts = try payloadFacts(extracted)
+        let sourceBefore = try archiveFact(package)
+        let extractedBefore = try treeFacts(extracted)
+        let liveBefore = try treeFacts(harness.session.generationRootURL)
+        var starts: [URL] = []
+        var stops: [URL] = []
+        let importer = try makeImporter(
+            harness,
+            capacity: .max,
+            scopedAccess: .init(
+                start: { starts.append($0); return true },
+                stop: { stops.append($0) }
+            )
+        )
+
+        let validated = try importer.stageAndValidate(selectedPackageURL: package)
+        XCTAssertEqual(starts, [package.standardizedFileURL])
+        XCTAssertEqual(stops, [package.standardizedFileURL])
+        XCTAssertEqual(validated.summary.incomingSignCount, fixture.expected.incomingSignCount)
+        XCTAssertEqual(validated.summary.incomingReportCount, fixture.expected.incomingReportCount)
+        XCTAssertEqual(validated.summary.incomingPhotoCount, fixture.expected.incomingPhotoCount)
+        XCTAssertEqual(validated.summary.consumedRootCount, fixture.expected.consumedRootCount)
+        XCTAssertEqual(validated.summary.liveSlotCount, fixture.expected.liveSlotCount)
+        XCTAssertEqual(validated.summary.tombstonedSlotCount, fixture.expected.tombstonedSlotCount)
+        XCTAssertEqual(validated.summary.exportedAt, fixture.exportedAt)
+        XCTAssertEqual(validated.summary.packs, [fixture.pack])
+        XCTAssertEqual(validated.records.issues.count, fixture.expected.incomingIssueCount)
+        XCTAssertEqual(validated.records.workflowRecords.count, fixture.expected.incomingWorkflowRecordCount)
+
+        let recomputed = sourceFacts.reduce(0) { $0 + $1.byteCount }
+        XCTAssertEqual(validated.summary.declaredPayloadByteCount, recomputed)
+        XCTAssertEqual(validated.manifest.declaredPayloadByteCount, recomputed)
+        XCTAssertEqual(validated.manifest.entries.map(\.path), sourceFacts.map(\.path))
+        XCTAssertEqual(validated.manifest.entries.map(\.byteCount), sourceFacts.map(\.byteCount))
+        XCTAssertEqual(validated.manifest.entries.map(\.sha256), sourceFacts.map(\.sha256))
+        XCTAssertEqual(validated.manifest.entries.map(\.mimeType), sourceFacts.map(\.mimeType))
+        XCTAssertEqual(
+            Set(validated.members.keys),
+            Set(["manifest.json"] + validated.manifest.entries.map(\.path))
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(validated.members["manifest.json"]),
+            try BackupCanonicalEncoderV1().encodeManifest(validated.manifest).data
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(validated.members["records.json"]),
+            try BackupCanonicalEncoderV1().encodeRecords(validated.records).data
+        )
+        for entry in validated.manifest.entries {
+            XCTAssertEqual(
+                try XCTUnwrap(validated.members[entry.path]),
+                try Data(contentsOf: extracted.appendingPathComponent(entry.path)),
+                entry.path
+            )
+        }
+        XCTAssertEqual(
+            validated.manifest.consumedEvaluationRootIDs,
+            validated.records.packets.filter { $0.evaluationCounted }.map(\.stableRootID)
+                .sorted { $0.uuidString < $1.uuidString }
+        )
+        let paths = Set(validated.manifest.entries.map(\.path))
+        XCTAssertEqual(paths.filter { $0.hasPrefix("snapshots/") }.count, fixture.expected.snapshotCount)
+        XCTAssertEqual(paths.filter { $0.hasPrefix("pdfs/") }.count, fixture.expected.readyPDFCount)
+        for report in validated.records.reports {
+            XCTAssertTrue(paths.contains(report.snapshotRelativePath))
+            XCTAssertEqual(report.pdfRelativePath.map(paths.contains) ?? false, report.pdfState == "ready")
+        }
+        try assertMixedGraph(validated.records, expected: fixture.expected)
+        for evidence in validated.records.evidenceFiles {
+            let id = evidence.id.uuidString.lowercased()
+            XCTAssertEqual(validated.members["media/\(id).jpg"]?.sha256, evidence.sha256)
+            XCTAssertEqual(validated.members["thumbnails/\(id).jpg"]?.sha256, evidence.thumbnailSHA256)
+        }
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore)
+        XCTAssertTrue(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+        try importer.discard(validated)
+        XCTAssertFalse(fileManager.fileExists(atPath: validated.stagedPackageURL.path))
+        XCTAssertEqual(try archiveFact(package), sourceBefore)
+        XCTAssertEqual(try treeFacts(extracted), extractedBefore)
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore)
+    }
+
+    @MainActor
+    func testInvalidFamiliesAndCapacityFailClosedAndCleanStage() async throws {
+        let harness = try await makeHarness("invalid")
+        let canonical = try copyFrozenLegacyDirectory(to: harness.supportURL.appendingPathComponent(
+            "canonical-source.fieldrecordbackup", isDirectory: true))
+        let liveBefore = try treeFacts(harness.session.generationRootURL)
+        let modelsBefore = try modelFacts(harness.context)
+        XCTAssertTrue(modelsBefore.contains { $0.hasPrefix("packet|") })
+        XCTAssertTrue(modelsBefore.contains { $0.hasPrefix("report|") })
+        XCTAssertTrue(modelsBefore.contains { $0.hasPrefix("evidence|") })
+        let canonicalBefore = try directorySourceFacts(canonical)
+        let fixture = try loadFixture()
+        var baselineStarts: [URL] = [], baselineStops: [URL] = []
+        let baselineImporter = try makeImporter(harness, capacity: .max, operationID: uuid(797),
+            scopedAccess: .init(start: { baselineStarts.append($0); return true },
+                stop: { baselineStops.append($0) }))
+        let baseline = try baselineImporter.stageAndValidate(selectedPackageURL: canonical)
+        XCTAssertEqual(baselineStarts, [canonical.standardizedFileURL])
+        XCTAssertEqual(baselineStops, [canonical.standardizedFileURL])
+        XCTAssertEqual(baseline.manifest.source.persistentSchemaVersion, 1)
+        XCTAssertEqual(baseline.manifest.source.recordsSchemaVersion, 1)
+        XCTAssertEqual(baseline.records.recordsSchemaVersion, 1)
+        XCTAssertEqual(baseline.summary.incomingSignCount, fixture.expected.incomingSignCount)
+        XCTAssertEqual(baseline.summary.incomingReportCount, fixture.expected.incomingReportCount)
+        XCTAssertEqual(baseline.summary.incomingPhotoCount, fixture.expected.incomingPhotoCount)
+        XCTAssertEqual(baseline.summary.consumedRootCount, fixture.expected.consumedRootCount)
+        XCTAssertEqual(baseline.summary.liveSlotCount, fixture.expected.liveSlotCount)
+        XCTAssertEqual(baseline.summary.tombstonedSlotCount, fixture.expected.tombstonedSlotCount)
+        XCTAssertEqual(baseline.summary.exportedAt, fixture.exportedAt)
+        XCTAssertEqual(baseline.summary.packs, [fixture.pack])
+        XCTAssertEqual(baseline.records.issues.count, fixture.expected.incomingIssueCount)
+        XCTAssertEqual(baseline.records.workflowRecords.count, fixture.expected.incomingWorkflowRecordCount)
+        try assertMixedGraph(baseline.records, expected: fixture.expected)
+        let legacyFacts = try payloadFacts(canonical)
+        XCTAssertEqual(baseline.manifest.entries.map(\.path), legacyFacts.map(\.path))
+        XCTAssertEqual(baseline.manifest.entries.map(\.byteCount), legacyFacts.map(\.byteCount))
+        XCTAssertEqual(baseline.manifest.entries.map(\.sha256), legacyFacts.map(\.sha256))
+        XCTAssertEqual(baseline.manifest.entries.map(\.mimeType), legacyFacts.map(\.mimeType))
+        XCTAssertEqual(baseline.summary.declaredPayloadByteCount, legacyFacts.reduce(0) { $0 + $1.byteCount })
+        let legacyPaths = Set(baseline.manifest.entries.map(\.path))
+        XCTAssertEqual(legacyPaths.filter { $0.hasPrefix("snapshots/") }.count, fixture.expected.snapshotCount)
+        XCTAssertEqual(legacyPaths.filter { $0.hasPrefix("pdfs/") }.count, fixture.expected.readyPDFCount)
+        XCTAssertEqual(Set(baseline.members.keys), legacyPaths.union(["manifest.json"]))
+        for path in baseline.members.keys {
+            XCTAssertEqual(try XCTUnwrap(baseline.members[path]),
+                try Data(contentsOf: canonical.appendingPathComponent(path)), path)
+        }
+        try baselineImporter.discard(baseline)
+        XCTAssertFalse(fileManager.fileExists(atPath: baseline.stagedPackageURL.path))
+        XCTAssertEqual(try stagedPackages(harness).count, 0)
+        XCTAssertEqual(try directorySourceFacts(canonical), canonicalBefore)
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore)
+        XCTAssertEqual(try modelFacts(harness.context), modelsBefore)
+        let cases: [(String, (URL) throws -> Void)] = [
+            ("path/member", { try Data([0]).write(to: $0.appendingPathComponent("unexpected.bin")) }),
+            ("missing-member", { root in try self.fileManager.removeItem(at: try self.firstMember(in: root, prefix: "media/")) }),
+            ("duplicate/case-fold", { root in
+                try self.fileManager.copyItem(
+                    at: root.appendingPathComponent("records.json"),
+                    to: root.appendingPathComponent("\u{ff52}ecords.json")
+                )
+            }),
+            ("symlink", { root in
+                let member = try self.firstMember(in: root, prefix: "media/")
+                try self.fileManager.removeItem(at: member)
+                try self.fileManager.createSymbolicLink(at: member, withDestinationURL: root.appendingPathComponent("records.json"))
+            }),
+            ("ancestor-substitution/special", { root in
+                let directory = root.appendingPathComponent("media", isDirectory: true)
+                let retained = root.deletingLastPathComponent().appendingPathComponent("retained-media-\(UUID().uuidString)", isDirectory: true)
+                try self.fileManager.copyItem(at: directory, to: retained)
+                try self.fileManager.removeItem(at: directory)
+                try self.fileManager.createSymbolicLink(at: directory, withDestinationURL: retained)
+            }),
+            ("hard-link", { root in
+                let member = try self.firstMember(in: root, prefix: "thumbnails/")
+                let source = root.appendingPathComponent("records.json")
+                try self.fileManager.removeItem(at: member)
+                try self.fileManager.linkItem(at: source, to: member)
+            }),
+            ("hash/bytes/media", { root in try self.flipFirstByte(at: try self.firstMember(in: root, prefix: "media/")) }),
+            ("MIME", { root in
+                let url = root.appendingPathComponent("manifest.json")
+                var text = try String(contentsOf: url, encoding: .utf8)
+                guard text.contains("\"mimeType\":\"image/jpeg\"") else { throw FixtureError.invalid }
+                text = text.replacingOccurrences(of: "\"mimeType\":\"image/jpeg\"", with: "\"mimeType\":\"application/pdf\"")
+                try XCTUnwrap(text.data(using: .utf8)).write(to: url)
+            }),
+            ("canonical-json", { root in
+                let recordsURL = root.appendingPathComponent("records.json")
+                var bytes = try Data(contentsOf: recordsURL); bytes.append(0x20)
+                try bytes.write(to: recordsURL); try self.rebuildManifest(at: root)
+            }),
+            ("schema", { root in
+                try self.replaceRecordsText(at: root, from: "\"recordsSchemaVersion\":1", to: "\"recordsSchemaVersion\":2")
+            }),
+            ("site-time-zone", { root in
+                try self.setInvalidSiteTimeZone(at: root)
+            }),
+            ("scalar-time", { root in
+                try self.moveAssetUpdateBeforeCreation(at: root)
+            }),
+            ("scalar-text", { root in
+                try self.padAssetLabel(at: root)
+            }),
+            ("pack", { root in
+                try self.replaceRecordsText(
+                    at: root,
+                    from: "field.evidence.illuminated_sign.v1",
+                    to: "field.evidence.unknown_sign.v1"
+                )
+            }),
+            ("template", { root in
+                try self.replaceRecordsText(at: root, from: "\"pdfTemplateVersion\":1", to: "\"pdfTemplateVersion\":99")
+            }),
+            ("ids/relationships", { root in
+                try self.replaceRecordsText(
+                    at: root,
+                    from: "\"siteID\":\"63000000-0000-0000-0000-000000000001\"",
+                    to: "\"siteID\":\"63000000-0000-0000-0000-000000000777\""
+                )
+            }),
+            ("ID-collision", { root in try self.collideEvidenceIDs(at: root) }),
+            ("evidence-time", { root in
+                try self.moveEvidenceBeforeRecord(at: root)
+            }),
+            ("mutation-ID-collision", { root in
+                try self.collideFinalizationMutationIDs(at: root)
+            }),
+            ("draft-fork", { root in try self.addDuplicateCheckDrafts(at: root) }),
+            ("draft-shape", { root in try self.addInvalidReviewDraft(at: root) }),
+            ("draft-preflight", { root in
+                try self.addInvalidDraftPreflight(at: root)
+            }),
+            ("issue-ambiguity", { root in
+                try self.makeTwoOpenIssueLineages(at: root)
+            }),
+            ("duplicate-issue-opener", { root in
+                try self.duplicateDifferentIssueOpener(at: root)
+            }),
+            ("report-source-coverage", { root in
+                try self.omitPriorCorrectionReport(at: root)
+            }),
+            ("correction-copy", { root in
+                try self.mutateCorrectionStartedAt(at: root)
+            }),
+            ("chain-time", { root in
+                try self.moveWorkBeforeParent(at: root)
+            }),
+            ("work-date", { root in
+                try self.setInvalidWorkLocalDate(at: root)
+            }),
+            ("cycle/fork", { root in try self.makeParentCycle(at: root) }),
+            ("counted-root", { root in try self.replaceConsumedRoot(at: root) }),
+            ("tombstone-time", { root in
+                try self.moveTombstoneDeletionBeforeCreation(at: root)
+            }),
+            ("packet-time", { root in
+                try self.changeLivePacketCreation(at: root)
+            }),
+            ("snapshot", { root in
+                try self.flipFirstByte(at: try self.firstMember(in: root, prefix: "snapshots/"))
+            }),
+            ("cnv-snapshot", { root in
+                try self.injectCouldNotVerifySnapshot(at: root)
+            }),
+            ("history-cnv", { root in
+                try self.injectHistoryCouldNotVerifySnapshot(at: root)
+            }),
+            ("report-delivery", { root in
+                try self.flipFirstByte(at: try self.firstMember(in: root, prefix: "pdfs/"))
+            }),
+            ("fake-pdf", { root in
+                try self.replaceReadyPDFWithFake(at: root)
+            }),
+        ]
+
+        for (index, item) in cases.enumerated() {
+            let source = harness.supportURL.appendingPathComponent("invalid-\(index).fieldrecordbackup", isDirectory: true)
+            try fileManager.copyItem(at: canonical, to: source)
+            let beforeMutation = try directorySourceFacts(source)
+            XCTAssertEqual(beforeMutation, canonicalBefore, item.0)
+            try item.1(source)
+            let mutatedSource = try directorySourceFacts(source)
+            XCTAssertNotEqual(mutatedSource, beforeMutation, "Mutation must change the intended legacy source: \(item.0)")
+            var starts = 0, stops = 0
+            let importer = try makeImporter(
+                harness,
+                capacity: .max,
+                operationID: uuid(800 + index),
+                scopedAccess: .init(start: { _ in starts += 1; return true }, stop: { _ in stops += 1 })
+            )
+            XCTAssertThrowsError(try importer.stageAndValidate(selectedPackageURL: source), item.0)
+            XCTAssertEqual(starts, 1, item.0)
+            XCTAssertEqual(stops, 1, item.0)
+            XCTAssertEqual(try directorySourceFacts(source), mutatedSource, item.0)
+            XCTAssertEqual(try directorySourceFacts(canonical), canonicalBefore, item.0)
+            XCTAssertEqual(try stagedPackages(harness).count, 0, item.0)
+            XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore, item.0)
+            XCTAssertEqual(try modelFacts(harness.context), modelsBefore, item.0)
+        }
+
+        var starts = 0, stops = 0
+        let capacityImporter = try makeImporter(
+            harness,
+            capacity: 0,
+            operationID: uuid(899),
+            scopedAccess: .init(start: { _ in starts += 1; return true }, stop: { _ in stops += 1 })
+        )
+        XCTAssertThrowsError(try capacityImporter.stageAndValidate(selectedPackageURL: canonical)) { error in
+            guard let typed = error as? StoragePreflightError,
+                  case .insufficientCapacity = typed else {
+                return XCTFail("Expected exact insufficient-capacity failure, got \(error)")
+            }
+        }
+        XCTAssertEqual(starts, 1)
+        XCTAssertEqual(stops, 1)
+        XCTAssertEqual(try directorySourceFacts(canonical), canonicalBefore)
+        XCTAssertEqual(try stagedPackages(harness).count, 0)
+        XCTAssertEqual(try treeFacts(harness.session.generationRootURL), liveBefore)
+        XCTAssertEqual(try modelFacts(harness.context), modelsBefore)
+    }
+}
+
+final class C27S63TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumCandidates, 32)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.scanMutatesCanonicalState)
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testC24AccessibleDocumentTypedAnchor() throws {
+        XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)
+        XCTAssertEqual(AccessibleDocumentRoleV1.allCases.count, 13)
+        XCTAssertEqual(AccessibleDocumentAssessmentStateV1.allCases.count, 4)
+        XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.externalCopyAvailabilityClaimed)
+        XCTAssertEqual(RecoverabilityVerificationLifecycleV1.stagingPersistence, "DERIVED_ONLY_DROP_AND_REBUILD")
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C18SemanticReleaseChangeRoundTripsCanonically() throws {
+        let change = try PackageSemanticChangeV1(
+            kind: .semanticReleaseChanged,
+            stableSubjectID: "package.semantic.releases"
+        )
+        let bytes = try PackageEvolutionCanonicalCodecV1.encode(change)
+        XCTAssertEqual(
+            try PackageEvolutionCanonicalCodecV1.decode(
+                PackageSemanticChangeV1.self,
+                from: bytes
+            ),
+            change
+        )
+        XCTAssertTrue(PackageEvolutionLifecycleV1.migrationRequired)
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C17RestoreDropsAndRebuildsDerivedProjection() throws {
+        XCTAssertNoThrow(try IntegrationProjectionBackupRestoreExclusionV1.validate())
+        XCTAssertEqual(IntegrationProjectionSchemaV1.downgradeDisposition, "DROP_AND_REBUILD")
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C36CanonicalDecoderRejectsNonCanonicalCheckpointBytes() throws {
+        XCTAssertThrowsError(try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self,from:Data("{}".utf8)))
+        XCTAssertEqual(Set(V16BackupFieldDraftRecordV1.Kind.allCases.map(\.rawValue)).count,6)
+        XCTAssertEqual(
+            [
+                DraftCommitSagaStateV1.prepared,
+                .contentPromotedUnbound,
+                .targetCommitted,
+                .draftRetirePending,
+                .draftRetired,
+            ].map(\.rawValue),
+            [
+                "PREPARED",
+                "CONTENT_PROMOTED_UNBOUND",
+                "TARGET_COMMITTED",
+                "DRAFT_RETIRE_PENDING",
+                "DRAFT_RETIRED",
+            ]
+        )
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C34ScenePayloadDeclaresNoBackupOrJournalTruth() throws {
+        let workspace = WorkspaceID(rawValue: UUID(uuid: (0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x47, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x09)))
+        let target = try NavigationTargetV1(workspaceID: workspace, destination: .today)
+        let work = try NavigationTargetV1(workspaceID: workspace, destination: .work)
+        let assets = try NavigationTargetV1(workspaceID: workspace, destination: .assets)
+        let reports = try NavigationTargetV1(workspaceID: workspace, destination: .reports)
+        let snapshot = try SceneNavigationSnapshotV1(workspaceID: workspace, selectedRoot: .today, paths: [
+            .init(root: .today, targets: [target]),
+            .init(root: .work, targets: [work]),
+            .init(root: .assets, targets: [assets]),
+            .init(root: .reports, targets: [reports])
+        ], snapshotID: UUID())
+        XCTAssertFalse(try RouteCanonicalCodecV1.encode(snapshot).isEmpty)
+        let lifecycle = SceneNavigationLifecycleDispositionV1()
+        XCTAssertFalse(lifecycle.backupIncluded)
+        XCTAssertFalse(lifecycle.journalIncluded)
+        XCTAssertFalse(lifecycle.reportIncluded)
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C15BackupValidationUsesV15SchemaAndTypedRows() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_163)
+        let rows: [Data] = [
+            try WorkPacketCanonicalCodecV1.encode(fixture.manifest),
+            try WorkPacketCanonicalCodecV1.encode(fixture.claim),
+            try WorkPacketCanonicalCodecV1.encode(fixture.lease),
+            try WorkPacketCanonicalCodecV1.encode(fixture.completedRelease),
+            try WorkPacketCanonicalCodecV1.encode(fixture.handoff)
+        ]
+        XCTAssertEqual(rows.count, 5)
+        XCTAssertTrue(rows.allSatisfy { !$0.isEmpty && $0.count <= WorkPacketLimitsV1.maximumCanonicalBytes })
+        XCTAssertEqual(PersistentSchemaV15.versionIdentifier, Schema.Version(15, 0, 0))
+        XCTAssertEqual(PersistentSchemaV15.models.count, 58)
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C13BackupValidationRejectsNonCanonicalAssuranceBytes() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_630)
+        var bytes = try EvidenceAssuranceCanonicalCodecV1.encode(fixture.customerManifest)
+        bytes.append(0x0A)
+
+        XCTAssertThrowsError(
+            try EvidenceAssuranceCanonicalCodecV1.decode(AssuranceManifestV1.self, from: bytes)
+        ) { error in
+            XCTAssertEqual(error as? EvidenceAssuranceFailureV1, .nonCanonicalData)
+        }
+        XCTAssertEqual(fixture.customerManifest.manifestSHA256.count, 64)
+        XCTAssertEqual(fixture.customerManifest.revision, 1)
+    }
+}
+
+private extension S6_3BackupValidationTests {
+    // Weak observations never extend the store lifetime. Failed or partially
+    // observed acquisition/closure retains the owned root for diagnosis.
+    @MainActor
+    final class MixedFixtureLifetime {
+        let ownedRoot: URL
+        let support: URL
+        weak var session: StoreGenerationSession?
+        weak var context: ModelContext?
+        weak var container: ModelContainer?
+        weak var owner: StoreSessionCoordinator?
+        var acquisitionCompleted = false
+        var fixtureCompleted = false
+        var exporterDrained = true
+        private(set) var writerCloseAttempted = false
+        private var writerClosed = false
+
+        init(ownedRoot: URL, support: URL) {
+            self.ownedRoot = ownedRoot
+            self.support = support
+        }
+
+        func observe(_ session: StoreGenerationSession) {
+            self.session = session
+            context = session.modelContext
+            container = session.modelContext.container
+        }
+
+        func closeWriter(_ owner: StoreSessionCoordinator) throws {
+            writerCloseAttempted = true
+            try owner.invalidateAndReleaseWriter()
+            writerClosed = true
+        }
+
+        func removeRootIfDrained() throws {
+            guard acquisitionCompleted, fixtureCompleted, writerClosed, exporterDrained,
+                  session == nil, context == nil, container == nil, owner == nil else {
+                XCTFail("S6_3 cleanup proof unavailable; fixture retained at \(ownedRoot.path) "
+                    + "acquired=\(acquisitionCompleted) completed=\(fixtureCompleted) writerClosed=\(writerClosed) "
+                    + "session=\(session != nil) context=\(context != nil) container=\(container != nil) owner=\(owner != nil) "
+                    + "exporterDrained=\(exporterDrained)")
+                return
+            }
+            if FileManager.default.fileExists(atPath: ownedRoot.path) {
+                try FileManager.default.removeItem(at: ownedRoot)
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: ownedRoot.path),
+                "S6_3_FIXTURE_LAYOUT_V1 phase=cleanup owned container remains")
+        }
+    }
+
+    // Immutable fixture input only: no context, owner, access token or cached
+    // validation crosses startup. The current writer revalidates the draft.
+    struct PendingFinalization: Sendable {
+        let assetID: UUID
+        let draftID: UUID
+        let completedAt: Date
+        let snapshotCreatedAt: Date
+        let identifiers: FinalizationIdentifiers
+    }
+
+    struct Harness {
+        let supportURL: URL
+        let session: StoreGenerationSession
+        let context: ModelContext
+        let lifetime: MixedFixtureLifetime
+        let pendingFinalization: PendingFinalization?
+    }
+    struct Fixture: Decodable {
+        struct Expected: Decodable {
+            let clericalCorrectionCount: Int
+            let consumedRootCount: Int
+            let failedReportCount: Int
+            let incomingIssueCount: Int
+            let incomingPhotoCount: Int
+            let incomingReportCount: Int
+            let incomingSignCount: Int
+            let incomingWorkflowRecordCount: Int
+            let liveSlotCount: Int
+            let pendingReportCount: Int
+            let readyPDFCount: Int
+            let recheckCount: Int
+            let snapshotCount: Int
+            let tombstonedSlotCount: Int
+        }
+        let exportedAt: Date
+        let expected: Expected
+        let fixtureSchemaVersion: Int
+        let pack: V4BackupPackV1
+    }
+    struct PayloadFact {
+        let path: String
+        let byteCount: Int
+        let mimeType: String
+        let sha256: String
+    }
+
+    @MainActor
+    func makeHarness(
+        _ name: String,
+        stopAfterWorkDraft: Bool = false,
+        deferPendingFinalizationUntilExport: Bool = false,
+        siteAddress: String? = nil
+    ) async throws -> Harness {
+        let ownedRoot = fileManager.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("S6_3BackupValidationTests-\(name)-\(UUID().uuidString)", isDirectory: true)
+        let support = ownedRoot.appendingPathComponent("Application Support", isDirectory: true)
+        let caches = ownedRoot.appendingPathComponent("Caches", isDirectory: true)
+        try fileManager.createDirectory(at: ownedRoot, withIntermediateDirectories: false)
+        let lifetime = MixedFixtureLifetime(ownedRoot: ownedRoot, support: support)
+        addTeardownBlock {
+            try await MainActor.run { try lifetime.removeRootIfDrained() }
+        }
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: false)
+        try fileManager.createDirectory(at: caches, withIntermediateDirectories: false)
+        try assertFixtureLayout(ownedRoot: ownedRoot, support: support, phase: "created")
+        var phase = "open-session"
+        defer {
+            if phase != "done" {
+                FileHandle.standardError.write(Data("S6_3_MIXED_FIXTURE_FAILURE_V1 phase=\(phase)\n".utf8))
+            }
+        }
+        let session = try StoreGenerationFactory(applicationSupportURL: support).openOrBootstrapCurrent()
+        lifetime.observe(session)
+        let context = session.modelContext
+        let pack = SignPack.illuminatedSignV1
+        let siteID = uuid(1), assetID = uuid(2)
+        let owner = try StoreSessionCoordinator(validatingSession: session)
+        lifetime.owner = owner
+        lifetime.acquisitionCompleted = true
+        defer {
+            if !lifetime.writerCloseAttempted {
+                do { try lifetime.closeWriter(owner) }
+                catch { XCTFail("S6_3 writer close failed; fixture retained: \(error)") }
+            }
+        }
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(package: pack)
+        let dependencies = try owner.packageLifecycleDependencies(
+            profileRegistry: WorkspacePackageLifecycleProfileRegistryV1(profiles: [profile]))
+        phase = "create-first-sign"
+        let placementMutationID = try MutationIDV1(rawValue: UUID())
+        _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID, newSite: .init(id: siteID, label: "Import Site",
+                address: siteAddress, timeZoneID: "America/New_York"),
+            assetID: assetID, assetLabel: "One Live Sign", packID: pack.packID,
+            packSchemaVersion: pack.schemaVersion, packContentVersion: pack.contentVersion,
+            createdAt: Date(timeIntervalSince1970: 1_776_420_001),
+            initialPlacementMutationID: placementMutationID, initialPlacementEventID: UUID(),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID()))),
+            mutationID: placementMutationID)
+        let coordinator = try CheckRunnerCoordinator(modelContext: context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
+        coordinator.configureCapture(generationRootURL: session.generationRootURL)
+        let openingObserved = Date(timeIntervalSince1970: 1_780_000_000)
+        phase = "opening-begin"
+        _ = try coordinator.beginCheck(assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true, observedAt: openingObserved)
+        phase = "opening-photos"
+        try await acceptPair(coordinator, assetID: assetID, observedAt: openingObserved, seeds: (31, 71))
+        let issueID = uuid(15)
+        phase = "opening-finalize"
+        let opening = try await coordinator.finalize(
+            assetID: assetID,
+            selection: .visibleIssue(labelKey: "dark_section"),
+            completedAt: openingObserved.addingTimeInterval(30),
+            snapshotCreatedAt: openingObserved.addingTimeInterval(31),
+            sourceApp: .init(build: "42", version: "4.0"),
+            identifiers: .init(mutationID: uuid(11), packetID: uuid(12), stableRootID: uuid(13), reportID: uuid(14), issueID: issueID)
+        )
+        phase = "opening-pdf-state"
+        if stopAfterWorkDraft {
+            guard case .ready = try coordinator.prepareReportDelivery(result: opening) else { throw FixtureError.invalid }
+        } else {
+            // The golden archive requires one failed report. Produce that state
+            // through the real pending-to-failed writer path, never a row edit
+            // over a ready report's authenticated postimage.
+            let failedRenderer = try ReportRenderService(modelContext: context,
+                lifecycleDependencies: dependencies, lifecycleProfile: profile,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                failureInjection: .init(failOnceAt: .render))
+            guard case .failed = try failedRenderer.attemptPendingReport(id: opening.reportID) else {
+                throw FixtureError.invalid
+            }
+        }
+
+        phase = "work-begin"
+        let workObserved = openingObserved.addingTimeInterval(60)
+        _ = try coordinator.beginOrResumeDraft(.init(
+            assetID: assetID,
+            requestedStage: .work,
+            issueID: issueID,
+            observedAtUTC: workObserved,
+            confirmedTimeZoneID: nil,
+            afterDarkAccepted: false,
+            safePositionAccepted: false
+        ))
+        let workCoordinator = try WorkCoordinator(
+            modelContext: context,
+            signPack: pack,
+            generationRootURL: session.generationRootURL,
+            checkRunnerCoordinator: coordinator,
+            lifecycleDependencies: dependencies,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+        )
+        let workDraft = try workCoordinator.beginWork(issueID: issueID)
+        if stopAfterWorkDraft {
+            lifetime.fixtureCompleted = true
+            phase = "done"
+            return Harness(supportURL: support, session: session, context: context, lifetime: lifetime, pendingFinalization: nil)
+        }
+        let workCompleted = workDraft.startedAt.addingTimeInterval(30)
+        phase = "work-save"
+        _ = try await workCoordinator.saveWork(
+            draftID: workDraft.recordID,
+            submission: .init(
+                performedLocalDate: "2026-08-14",
+                description: "Replaced failed power supply",
+                note: "Fixture work authority",
+                photos: [.init(purposeKey: "work_context", sourceData: try makePNG(seed: 91), createdAt: workDraft.startedAt.addingTimeInterval(10))],
+                completedAt: workCompleted
+            ),
+            identifiers: .init(mutationID: uuid(16), evidenceID: uuid(17))
+        )
+
+        phase = "recheck-begin"
+        let recheckObserved = workCompleted.addingTimeInterval(60)
+        _ = try coordinator.beginOrResumeDraft(.init(
+            assetID: assetID,
+            requestedStage: .recheck,
+            issueID: issueID,
+            observedAtUTC: recheckObserved,
+            confirmedTimeZoneID: "America/New_York",
+            afterDarkAccepted: true,
+            safePositionAccepted: true
+        ))
+        phase = "recheck-photos"
+        try await acceptPair(coordinator, assetID: assetID, observedAt: recheckObserved, seeds: (41, 81))
+        phase = "recheck-finalize"
+        let recheck = try await coordinator.finalize(
+            assetID: assetID,
+            selection: .resolved(note: "Illumination remained steady."),
+            completedAt: recheckObserved.addingTimeInterval(30),
+            snapshotCreatedAt: recheckObserved.addingTimeInterval(31),
+            sourceApp: .init(build: "42", version: "4.0"),
+            identifiers: .init(mutationID: uuid(21), packetID: uuid(22), stableRootID: uuid(23), reportID: uuid(24), issueID: issueID)
+        )
+        guard case .ready = try coordinator.prepareReportDelivery(result: recheck) else { throw FixtureError.invalid }
+
+        phase = "correction"
+        let delivery = try ReportDeliveryCoordinator(modelContext: context,
+            lifecycleDependencies: dependencies, lifecycleProfile: profile)
+        let correctionSource = try delivery.correctionSource(reportID: recheck.reportID)
+        guard case .ready = try await delivery.submitCorrection(
+            from: correctionSource,
+            note: "Clerical note corrected.",
+            snapshotCreatedAt: recheckObserved.addingTimeInterval(40),
+            sourceApp: .init(build: "42", version: "4.0"),
+            identifiers: .init(mutationID: uuid(26), recordID: uuid(27), reportID: uuid(28))
+        ) else { throw FixtureError.invalid }
+
+        let openingReport = try XCTUnwrap(
+            try context.fetch(FetchDescriptor<Report>()).first { $0.id == opening.reportID }
+        )
+        XCTAssertEqual(openingReport.pdfState, ReportPDFState.failed.rawValue)
+        XCTAssertNil(openingReport.pdfRelativePath)
+        XCTAssertNil(openingReport.pdfSHA256)
+
+        phase = "later-begin"
+        let laterObserved = recheckObserved.addingTimeInterval(120)
+        let laterCoordinator = try CheckRunnerCoordinator(modelContext: context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
+        laterCoordinator.configureCapture(
+            generationRootURL: session.generationRootURL
+        )
+        let laterDraft = try laterCoordinator.beginCheck(assetID: assetID, timeZoneID: "America/New_York", isTimeZoneConfirmed: true, afterDarkAccepted: true, safePositionAccepted: true, observedAt: laterObserved)
+        phase = "later-photos"
+        try await acceptPair(laterCoordinator, assetID: assetID, observedAt: laterObserved, seeds: (51, 101))
+        let pendingFinalization: PendingFinalization?
+        if deferPendingFinalizationUntilExport {
+            phase = "later-finalization-deferred"
+            pendingFinalization = PendingFinalization(
+                assetID: assetID, draftID: laterDraft.id,
+                completedAt: laterObserved.addingTimeInterval(30),
+                snapshotCreatedAt: laterObserved.addingTimeInterval(31),
+                identifiers: .init(mutationID: uuid(31), packetID: uuid(32),
+                    stableRootID: uuid(33), reportID: uuid(34), issueID: nil))
+            XCTAssertEqual(laterDraft.state, WorkflowState.draft.rawValue)
+            XCTAssertFalse(try context.fetch(FetchDescriptor<Report>()).contains { $0.id == self.uuid(34) })
+        } else {
+            pendingFinalization = nil
+            phase = "later-finalize"
+            _ = try await laterCoordinator.finalize(
+                assetID: assetID,
+                selection: .noVisibleIssue,
+                completedAt: laterObserved.addingTimeInterval(30),
+                snapshotCreatedAt: laterObserved.addingTimeInterval(31),
+                sourceApp: .init(build: "42", version: "4.0"),
+                identifiers: .init(mutationID: uuid(31), packetID: uuid(32), stableRootID: uuid(33), reportID: uuid(34), issueID: nil)
+            )
+        }
+        // Create the counted tombstone with the real finalizer and incumbent
+        // fenced deletion path; preserve the golden packet/root identities.
+        phase = "tombstone-create-asset"
+        let deletedAssetID = uuid(88)
+        let deletedPlacement = try MutationIDV1(rawValue: UUID())
+        _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+            siteID: siteID, newSite: nil, assetID: deletedAssetID, assetLabel: "Deleted Sign",
+            packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+            packContentVersion: pack.contentVersion, createdAt: laterObserved.addingTimeInterval(60),
+            initialPlacementMutationID: deletedPlacement, initialPlacementEventID: UUID(),
+            initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID()))),
+            mutationID: deletedPlacement)
+        phase = "tombstone-begin"
+        let deletedObserved = laterObserved.addingTimeInterval(61)
+        _ = try laterCoordinator.beginCheck(assetID: deletedAssetID,
+            timeZoneID: "America/New_York", isTimeZoneConfirmed: true,
+            afterDarkAccepted: true, safePositionAccepted: true, observedAt: deletedObserved)
+        let reason = try XCTUnwrap(pack.couldNotVerifyReasons.entries.first)
+        phase = "tombstone-finalize"
+        _ = try await laterCoordinator.finalize(assetID: deletedAssetID,
+            selection: .couldNotVerify(reasonKey: reason.key, note: nil),
+            completedAt: deletedObserved.addingTimeInterval(5),
+            snapshotCreatedAt: deletedObserved.addingTimeInterval(6),
+            sourceApp: .init(build: "42", version: "4.0"),
+            identifiers: .init(mutationID: uuid(91), packetID: uuid(89),
+                stableRootID: uuid(90), reportID: uuid(92), issueID: nil))
+        phase = "tombstone-release-writer"
+        try lifetime.closeWriter(owner)
+        phase = "tombstone-delete"
+        var deletion: WholeSignDeletionService? = WholeSignDeletionService(
+            modelContext: context, generationRootURL: session.generationRootURL,
+            now: { deletedObserved.addingTimeInterval(10) })
+        _ = try await XCTUnwrap(deletion).delete(assetID: deletedAssetID)
+        deletion = nil
+        let tombstones = try context.fetch(FetchDescriptor<Packet>()).filter { $0.id == self.uuid(89) }
+        let tombstone = try XCTUnwrap(tombstones.first)
+        XCTAssertEqual(tombstones.count, 1)
+        XCTAssertEqual(tombstone.stableRootID, uuid(90))
+        XCTAssertNil(tombstone.currentRecordID)
+        XCTAssertTrue(tombstone.evaluationCounted)
+        XCTAssertNotNil(tombstone.contentDeletedAt)
+        phase = "journal-validation"
+        let journal = try MutationJournalStoreV1(modelContext: context,
+            identity: session.workspaceIdentity, generationID: session.generationID,
+            allowStateBootstrap: false)
+        try journal.validateAll()
+        try MutationJournalStoreV1.validateImportedSnapshot(journal.exportSnapshot(),
+            sourcePersistentSchemaVersion: session.storeSchemaRelease.versionIdentifier.major)
+        lifetime.fixtureCompleted = true
+        phase = "done"
+        return Harness(supportURL: support, session: session, context: context, lifetime: lifetime, pendingFinalization: pendingFinalization)
+    }
+
+    @MainActor
+    func acceptPair(
+        _ coordinator: CheckRunnerCoordinator,
+        assetID: UUID,
+        observedAt: Date,
+        seeds: (UInt8, UInt8)
+    ) async throws {
+        let wide = try await coordinator.importCandidate(assetID: assetID, sourceData: try makePNG(seed: seeds.0), createdAt: observedAt.addingTimeInterval(1))
+        _ = try await coordinator.accept(candidate: wide, assetID: assetID)
+        let close = try await coordinator.importCandidate(assetID: assetID, sourceData: try makePNG(seed: seeds.1), createdAt: observedAt.addingTimeInterval(2))
+        _ = try await coordinator.accept(candidate: close, assetID: assetID)
+    }
+
+    // Mirror the real app-directory relationship used by StartupRouter's
+    // EraseAllService. These checks diagnose the fixture; they grant no authority.
+    func assertFixtureLayout(ownedRoot: URL, support: URL, phase: String) throws {
+        let temporary = fileManager.temporaryDirectory.standardizedFileURL
+        let root = ownedRoot.standardizedFileURL
+        let expectedSupport = root.appendingPathComponent("Application Support", isDirectory: true)
+        let caches = support.deletingLastPathComponent().appendingPathComponent("Caches", isDirectory: true)
+        guard root.deletingLastPathComponent() == temporary.resolvingSymlinksInPath(),
+              root != temporary.resolvingSymlinksInPath(),
+              support.standardizedFileURL == expectedSupport,
+              caches.deletingLastPathComponent() == root else {
+            XCTFail("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) invalid owned container relationship")
+            throw FixtureError.invalid
+        }
+        for (role, url) in [("owned-root", root), ("application-support", support),
+                            ("caches", caches), ("temporary", temporary)] {
+            let descriptor = Darwin.open(url.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard descriptor >= 0 else {
+                let failure = errno
+                XCTFail("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) role=\(role) open errno=\(failure) path=\(url.path)")
+                throw FixtureError.invalid
+            }
+            defer { Darwin.close(descriptor) }
+            var info = stat()
+            guard Darwin.fstat(descriptor, &info) == 0 else {
+                let failure = errno
+                XCTFail("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) role=\(role) fstat errno=\(failure)")
+                throw FixtureError.invalid
+            }
+            guard (info.st_mode & S_IFMT) == S_IFDIR else {
+                XCTFail("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) role=\(role) not a directory")
+                throw FixtureError.invalid
+            }
+        }
+        print("S6_3_FIXTURE_LAYOUT_V1 phase=\(phase) owned-root/application-support/caches/temporary verified")
+    }
+
+    @MainActor
+    func finalizePendingReportAfterStartup(
+        _ pending: PendingFinalization,
+        coordinator: StoreSessionCoordinator
+    ) async throws {
+        let context = coordinator.modelContext
+        let profile = try WorkspacePackageLifecycleCompatibilityV1.legacyV3Profile(
+            package: SignPack.illuminatedSignV1)
+        let dependencies = try coordinator.packageLifecycleDependencies()
+        let finalizer = try CheckRunnerCoordinator(modelContext: context,
+            packageLifecycleDependencies: dependencies, packageLifecycleProfile: profile)
+        finalizer.configureCapture(generationRootURL: coordinator.generationRootURL)
+        let draft = try XCTUnwrap(try finalizer.existingDraft(assetID: pending.assetID),
+            "S6_3_PENDING_TIMING_V1 accepted-photo draft missing after startup")
+        guard draft.id == pending.draftID, draft.state == WorkflowState.draft.rawValue,
+              draft.stage == WorkflowStage.check.rawValue,
+              !(try context.fetch(FetchDescriptor<Report>()).contains { $0.id == pending.identifiers.reportID }) else {
+            XCTFail("S6_3_PENDING_TIMING_V1 expected original unfinalized draft after startup")
+            throw FixtureError.invalid
+        }
+        print("S6_3_PENDING_TIMING_V1 phase=after-startup-finalize report=\(pending.identifiers.reportID)")
+        let result = try await finalizer.finalize(
+            assetID: pending.assetID, selection: .noVisibleIssue,
+            completedAt: pending.completedAt, snapshotCreatedAt: pending.snapshotCreatedAt,
+            sourceApp: .init(build: "42", version: "4.0"), identifiers: pending.identifiers)
+        XCTAssertEqual(result.recordID, pending.draftID)
+        XCTAssertEqual(result.packetID, pending.identifiers.packetID)
+        XCTAssertEqual(result.stableRootID, pending.identifiers.stableRootID)
+        XCTAssertEqual(result.reportID, pending.identifiers.reportID)
+        let reports = try context.fetch(FetchDescriptor<Report>()).filter { $0.id == result.reportID }
+        let report = try XCTUnwrap(reports.count == 1 ? reports.first : nil,
+            "S6_3_PENDING_TIMING_V1 expected one genuinely finalized report")
+        XCTAssertEqual(report.pdfState, ReportPDFState.pending.rawValue,
+            "S6_3_PENDING_TIMING_V1 pending report must exist before export")
+        XCTAssertNil(report.pdfRelativePath)
+        XCTAssertNil(report.pdfSHA256)
+        guard report.pdfState == ReportPDFState.pending.rawValue,
+              report.pdfRelativePath == nil, report.pdfSHA256 == nil else { throw FixtureError.invalid }
+        // Validate the extended real journal through the current writer. Do not
+        // ask delivery preparation or another startup pass to render this state.
+        _ = try coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+        print("S6_3_PENDING_TIMING_V1 phase=before-export pending/nilPDF verified")
+    }
+
+    @MainActor
+    func exportCurrentArchive(_ harness: Harness, name: String) async throws -> URL {
+        try assertFixtureLayout(ownedRoot: harness.lifetime.ownedRoot,
+            support: harness.supportURL, phase: "before-startup-\(name)")
+        let suite = "S6_3BackupValidationTests.access.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let router = StartupRouter(applicationSupportURL: harness.supportURL) { step in
+            print("S6_3_BACKUP_ACCESS_STEP_V1 context=\(name) step=\(step)")
+        }
+        router.startupFailureDiagnosticForTesting = { detail in
+            print("S6_3_BACKUP_ACCESS_FAILURE_V1 context=\(name) \(detail)")
+        }
+        let session = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: harness.supportURL, startupRouter: router,
+            defaults: defaults, authenticationClient: S63BackupAuthentication(),
+            notificationSystem: S63BackupNotifications())
+        let presentation = AppAccessPresentationV1(startupRouter: router, sessionFactory: { session })
+        harness.lifetime.exporterDrained = false
+        do {
+            let published = expectation(description: "S6_3 production backup access published")
+            let publication = presentation.$permitsContentPresentation
+                .filter { $0 }.prefix(1).sink { _ in published.fulfill() }
+            defer { publication.cancel() }
+            await presentation.bootstrapIfNeeded()
+            await fulfillment(of: [published], timeout: 30)
+            guard case .ready(let coordinator, _, _) = router.route,
+                  coordinator.generationID == harness.session.generationID,
+                  coordinator.generationRootURL == harness.session.generationRootURL else {
+                throw FixtureError.invalid
+            }
+            let access = try XCTUnwrap(presentation.backupPreviewAccess)
+            if let pending = harness.pendingFinalization {
+                try access.withRead {}
+                try await finalizePendingReportAfterStartup(pending, coordinator: coordinator)
+                try access.withRead {}
+            }
+            let destination = harness.supportURL.appendingPathComponent(name, isDirectory: true)
+            try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+            let service = BackupExportService(
+                modelContext: coordinator.modelContext,
+                generationRootURL: coordinator.generationRootURL,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }),
+                now: { Date(timeIntervalSince1970: 1_786_708_800) },
+                makeUUID: { self.uuid(99) }, appVersion: { "4.0" }, appBuild: { "42" })
+            let preview = try access.withRead { try service.prepare() }
+            let archive = try await service.export(previewID: preview.id, to: destination,
+                contentAccess: access)
+            harness.lifetime.exporterDrained = await presentation.terminateAndDrainForTesting()
+            guard harness.lifetime.exporterDrained else {
+                XCTFail("S6_3 backup owner did not drain; fixture retained")
+                throw FixtureError.invalid
+            }
+            XCTAssertTrue(try StreamingArchiveService.hasFormatMagic(at: archive))
+            return archive
+        } catch {
+            harness.lifetime.exporterDrained = await presentation.terminateAndDrainForTesting()
+            if !harness.lifetime.exporterDrained {
+                XCTFail("S6_3 backup owner did not drain; fixture retained")
+            }
+            throw error
+        }
+    }
+
+    func independentlyExtractArchive(_ archive: URL) throws -> URL {
+        let before = try archiveFact(archive)
+        let directory = archive.deletingLastPathComponent().appendingPathComponent(
+            "independent-members-\(UUID().uuidString)", isDirectory: true)
+        let extraction = try StreamingArchiveService().extract(archive, to: directory)
+        XCTAssertEqual(extraction.archiveSHA256, before.sha256)
+        XCTAssertEqual(try archiveFact(archive), before)
+        return directory
+    }
+
+    struct ArchiveFact: Equatable {
+        let byteCount: Int
+        let sha256: String
+    }
+
+    // Independently stream the complete source, avoiding whole-archive loading.
+    func archiveFact(_ archive: URL) throws -> ArchiveFact {
+        let handle = try FileHandle(forReadingFrom: archive)
+        defer { try? handle.close() }
+        var digest = SHA256(), count = 0
+        while let bytes = try handle.read(upToCount: 64 * 1_024), !bytes.isEmpty {
+            digest.update(data: bytes)
+            count += bytes.count
+        }
+        return ArchiveFact(byteCount: count,
+            sha256: digest.finalize().map { String(format: "%02x", $0) }.joined())
+    }
+
+    struct LegacyProvenance: Decodable {
+        struct Member: Decodable {
+            let path: String
+            let resourceName: String
+            let byteCount: Int
+            let sha256: String
+        }
+        let producerCommit: String
+        let memberCount: Int
+        let totalMemberByteCount: Int
+        let members: [Member]
+    }
+
+    // Xcode's synchronized resources flatten subdirectories. Opaque unique names
+    // avoid media/thumbnail basename collisions and preserve producer bytes.
+    func copyFrozenLegacyDirectory(to destination: URL) throws -> URL {
+        let bundle = Bundle(for: Self.self)
+        func resource(_ name: String) throws -> URL {
+            let url = URL(fileURLWithPath: name)
+            return try XCTUnwrap(bundle.url(forResource: url.deletingPathExtension().lastPathComponent,
+                withExtension: url.pathExtension, subdirectory: "Fixtures/S6_3LegacyV1")
+                ?? bundle.url(forResource: url.deletingPathExtension().lastPathComponent,
+                    withExtension: url.pathExtension))
+        }
+        let provenanceBytes = try Data(contentsOf: resource("S6_3LegacyV1-provenance.json"))
+        guard provenanceBytes.sha256 == "bf97743b71a9d9e012fa584ec7831332c3546a9b49ecc393ba197074a8d2e535" else { throw FixtureError.invalid }
+        let provenance = try JSONDecoder().decode(LegacyProvenance.self, from: provenanceBytes)
+        guard provenance.producerCommit == "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+              provenance.memberCount == 22, provenance.totalMemberByteCount == 189_923,
+              provenance.members.count == provenance.memberCount else { throw FixtureError.invalid }
+        var validated: [(String, Data)] = [], paths = Set<String>(), names = Set<String>()
+        for member in provenance.members {
+            let parts = member.path.split(separator: "/", omittingEmptySubsequences: false)
+            guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+                  !member.path.contains("\\"), !member.path.contains("\0"),
+                  paths.insert(member.path.lowercased()).inserted,
+                  member.resourceName.hasPrefix("S6_3LegacyV1-member-"),
+                  member.resourceName.hasSuffix(".bin"),
+                  !member.resourceName.contains("/"), !member.resourceName.contains("\\"),
+                  names.insert(member.resourceName).inserted else { throw FixtureError.invalid }
+            if parts.count == 1 {
+                guard member.path == "manifest.json" || member.path == "records.json" else { throw FixtureError.invalid }
+            } else {
+                guard parts.count == 2,
+                      ["media", "thumbnails", "snapshots", "pdfs"].contains(String(parts[0])) else {
+                    throw FixtureError.invalid
+                }
+                let suffix = parts[0] == "snapshots" ? ".json" : (parts[0] == "pdfs" ? ".pdf" : ".jpg")
+                let name = String(parts[1])
+                guard name.hasSuffix(suffix), let id = UUID(uuidString: String(name.dropLast(suffix.count))),
+                      name == id.uuidString.lowercased() + suffix else { throw FixtureError.invalid }
+            }
+            let bytes = try Data(contentsOf: resource(member.resourceName))
+            guard bytes.count == member.byteCount, bytes.sha256 == member.sha256 else {
+                throw FixtureError.invalid
+            }
+            validated.append((member.path, bytes))
+        }
+        guard validated.reduce(0, { $0 + $1.1.count }) == provenance.totalMemberByteCount else {
+            throw FixtureError.invalid
+        }
+        // Nothing is extracted until every path, digest and length has passed.
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: false)
+        for (path, bytes) in validated {
+            let member = destination.appendingPathComponent(path)
+            try fileManager.createDirectory(at: member.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try bytes.write(to: member, options: .withoutOverwriting)
+        }
+        XCTAssertEqual(try treeFacts(destination), validated.map { "\($0.0)|\($0.1.sha256)" }.sorted())
+        return destination
+    }
+
+    // Capture links as links, including their targets/counts; never traverse them.
+    func directorySourceFacts(_ root: URL) throws -> [String] {
+        var facts: [String] = []
+        func walk(_ directory: URL, prefix: String) throws {
+            for name in try fileManager.contentsOfDirectory(atPath: directory.path).sorted() {
+                let url = directory.appendingPathComponent(name), path = prefix + name
+                var value = stat()
+                guard lstat(url.path, &value) == 0 else { throw FixtureError.invalid }
+                switch value.st_mode & S_IFMT {
+                case S_IFDIR:
+                    facts.append("\(path)|directory")
+                    try walk(url, prefix: path + "/")
+                case S_IFLNK:
+                    facts.append("\(path)|symlink|\(try fileManager.destinationOfSymbolicLink(atPath: url.path))")
+                case S_IFREG:
+                    facts.append("\(path)|file|\(value.st_nlink)|\(value.st_size)|\((try Data(contentsOf: url)).sha256)")
+                default: throw FixtureError.invalid
+                }
+            }
+        }
+        try walk(root, prefix: "")
+        return facts.sorted()
+    }
+
+    @MainActor
+    func makeImporter(
+        _ harness: Harness,
+        capacity: Int64,
+        operationID: UUID? = nil,
+        scopedAccess: BackupSecurityScopedAccessV1
+    ) throws -> BackupImportService {
+        try BackupImportService(
+            generationRootURL: harness.session.generationRootURL,
+            storagePreflight: StoragePreflightService(capacityProvider: { _ in capacity }),
+            makeUUID: { operationID ?? self.uuid(799) },
+            scopedAccess: scopedAccess
+        )
+    }
+
+    func loadFixture() throws -> Fixture {
+        let bundle = Bundle(for: Self.self)
+        let url = try XCTUnwrap(bundle.url(forResource: "S6_3V4BackupPackageV1", withExtension: "json", subdirectory: "Fixtures") ?? bundle.url(forResource: "S6_3V4BackupPackageV1", withExtension: "json"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid fixture date")
+            }
+            return value
+        }
+        let value = try decoder.decode(Fixture.self, from: Data(contentsOf: url))
+        XCTAssertEqual(value.fixtureSchemaVersion, 1)
+        return value
+    }
+
+    func payloadFacts(_ root: URL) throws -> [PayloadFact] {
+        let urls = try XCTUnwrap(fileManager.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey])).compactMap { $0 as? URL }
+        return try urls.filter { try $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true && $0.lastPathComponent != "manifest.json" }.map { url in
+            let data = try Data(contentsOf: url)
+            let path = String(url.path.dropFirst(root.path.count + 1)).replacingOccurrences(of: "\\", with: "/")
+            let mime: String
+            switch url.pathExtension {
+            case "jpg": mime = "image/jpeg"
+            case "pdf": mime = "application/pdf"
+            case "json": mime = "application/json"
+            case "bin":
+                // Independent closed raw-photo role, not the production MIME accessor.
+                let parts = path.split(separator: "/").map(String.init)
+                guard parts.count == 3, parts[0] == "draft-staging",
+                      let child = UUID(uuidString: parts[1]), child.uuidString.lowercased() == parts[1],
+                      let stage = UUID(uuidString: String(parts[2].dropLast(4))),
+                      parts[2] == stage.uuidString.lowercased() + ".bin" else { throw FixtureError.invalid }
+                mime = "application/octet-stream"
+            default: throw FixtureError.invalid
+            }
+            return PayloadFact(path: path, byteCount: data.count, mimeType: mime, sha256: data.sha256)
+        }.sorted { $0.path < $1.path }
+    }
+
+    func assertMixedGraph(
+        _ records: V4BackupRecordsV1,
+        expected: Fixture.Expected,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let issue = try XCTUnwrap(
+            records.issues.count == 1 ? records.issues.first : nil,
+            file: file,
+            line: line
+        )
+        let opening = try XCTUnwrap(
+            records.workflowRecords.first { $0.id == issue.openedByRecordID },
+            file: file,
+            line: line
+        )
+        let work = try XCTUnwrap(
+            records.workflowRecords.first { $0.stage == WorkflowStage.work.rawValue },
+            file: file,
+            line: line
+        )
+        let rechecks = records.workflowRecords.filter {
+            $0.stage == WorkflowStage.recheck.rawValue
+                && $0.revisionKind == WorkflowRevisionKind.original.rawValue
+        }
+        let recheck = try XCTUnwrap(
+            rechecks.count == 1 ? rechecks.first : nil,
+            file: file,
+            line: line
+        )
+        let corrections = records.workflowRecords.filter {
+            $0.revisionKind == WorkflowRevisionKind.clericalCorrection.rawValue
+        }
+        let correction = try XCTUnwrap(
+            corrections.count == 1 ? corrections.first : nil,
+            file: file,
+            line: line
+        )
+
+        XCTAssertEqual(rechecks.count, expected.recheckCount, file: file, line: line)
+        XCTAssertEqual(corrections.count, expected.clericalCorrectionCount, file: file, line: line)
+        XCTAssertEqual(opening.stage, WorkflowStage.check.rawValue, file: file, line: line)
+        XCTAssertEqual(opening.outcomeKey, "visible_issue", file: file, line: line)
+        XCTAssertEqual(opening.issueID, issue.id, file: file, line: line)
+        XCTAssertEqual(work.parentRecordID, opening.id, file: file, line: line)
+        XCTAssertEqual(work.issueID, issue.id, file: file, line: line)
+        XCTAssertEqual(work.outcomeKey, "work_recorded", file: file, line: line)
+        XCTAssertNil(work.packetID, file: file, line: line)
+        XCTAssertEqual(recheck.parentRecordID, work.id, file: file, line: line)
+        XCTAssertEqual(recheck.issueID, issue.id, file: file, line: line)
+        XCTAssertEqual(recheck.outcomeKey, "resolved", file: file, line: line)
+        XCTAssertEqual(correction.revisesRecordID, recheck.id, file: file, line: line)
+        XCTAssertEqual(correction.evidenceSourceRecordID, recheck.id, file: file, line: line)
+        XCTAssertEqual(correction.recordRevisionRootID, recheck.recordRevisionRootID, file: file, line: line)
+        XCTAssertEqual(correction.packetID, recheck.packetID, file: file, line: line)
+        XCTAssertEqual(issue.status, IssueStatus.resolved.rawValue, file: file, line: line)
+        XCTAssertEqual(issue.resolvedByRecordID, recheck.id, file: file, line: line)
+
+        let minimalLive = try XCTUnwrap(
+            records.workflowRecords.first {
+                $0.stage == WorkflowStage.check.rawValue
+                    && $0.outcomeKey == "no_visible_issue"
+            },
+            file: file,
+            line: line
+        )
+        let minimalPacketID = try XCTUnwrap(
+            minimalLive.packetID,
+            file: file,
+            line: line
+        )
+        let minimalPacket = try XCTUnwrap(
+            records.packets.first { $0.id == minimalPacketID },
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(minimalPacket.currentRecordID, minimalLive.id, file: file, line: line)
+        XCTAssertTrue(minimalPacket.evaluationCounted, file: file, line: line)
+
+        let openingReport = try XCTUnwrap(
+            records.reports.first { $0.sourceRecordID == opening.id },
+            file: file,
+            line: line
+        )
+        let recheckReport = try XCTUnwrap(
+            records.reports.first { $0.sourceRecordID == recheck.id },
+            file: file,
+            line: line
+        )
+        let correctionReport = try XCTUnwrap(
+            records.reports.first { $0.sourceRecordID == correction.id },
+            file: file,
+            line: line
+        )
+        let pendingReport = try XCTUnwrap(
+            records.reports.first { $0.sourceRecordID == minimalLive.id },
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(openingReport.pdfState, ReportPDFState.failed.rawValue, file: file, line: line)
+        XCTAssertNil(openingReport.pdfRelativePath, file: file, line: line)
+        XCTAssertNil(openingReport.pdfSHA256, file: file, line: line)
+        XCTAssertEqual(recheckReport.pdfState, ReportPDFState.ready.rawValue, file: file, line: line)
+        XCTAssertEqual(correctionReport.pdfState, ReportPDFState.ready.rawValue, file: file, line: line)
+        XCTAssertEqual(correctionReport.replacesReportID, recheckReport.id, file: file, line: line)
+        XCTAssertEqual(correctionReport.packetID, recheckReport.packetID, file: file, line: line)
+        XCTAssertEqual(pendingReport.pdfState, ReportPDFState.pending.rawValue, file: file, line: line)
+        XCTAssertNil(pendingReport.pdfRelativePath, file: file, line: line)
+        XCTAssertNil(pendingReport.pdfSHA256, file: file, line: line)
+        XCTAssertEqual(
+            records.reports.filter { $0.pdfState == ReportPDFState.pending.rawValue }.count,
+            expected.pendingReportCount,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            records.reports.filter { $0.pdfState == ReportPDFState.failed.rawValue }.count,
+            expected.failedReportCount,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            records.reports.filter { $0.pdfState == ReportPDFState.ready.rawValue }.count,
+            expected.readyPDFCount,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            records.evidenceFiles.filter { $0.purposeKey == "wide_context" }.count,
+            3,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            records.evidenceFiles.filter { $0.purposeKey == "close_detail" }.count,
+            3,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            records.evidenceFiles.filter { $0.purposeKey == "work_context" }.count,
+            1,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            records.packets.filter { $0.currentRecordID == nil && $0.contentDeletedAt != nil }.count,
+            expected.tombstonedSlotCount,
+            file: file,
+            line: line
+        )
+        let tombstone = try XCTUnwrap(
+            records.packets.first { $0.currentRecordID == nil },
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(tombstone.evaluationCounted, file: file, line: line)
+        XCTAssertNotNil(tombstone.contentDeletedAt, file: file, line: line)
+    }
+
+    func treeFacts(_ root: URL) throws -> [String] {
+        let urls = try XCTUnwrap(fileManager.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey])).compactMap { $0 as? URL }
+        return try urls.filter { try $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true }.map {
+            "\(String($0.path.dropFirst(root.path.count + 1)))|\((try Data(contentsOf: $0)).sha256)"
+        }.sorted()
+    }
+
+    @MainActor
+    func modelFacts(_ context: ModelContext) throws -> [String] {
+        let packets = try context.fetch(FetchDescriptor<Packet>()).map {
+            "packet|\($0.id)|\($0.currentRecordID?.uuidString ?? "nil")|\($0.evaluationCounted)|\($0.contentDeletedAt?.timeIntervalSince1970 ?? -1)"
+        }
+        let reports = try context.fetch(FetchDescriptor<Report>()).map {
+            "report|\($0.id)|\($0.sourceRecordID)|\($0.pdfState)|\($0.pdfSHA256 ?? "nil")"
+        }
+        let evidence = try context.fetch(FetchDescriptor<EvidenceFile>()).map {
+            "evidence|\($0.id)|\($0.recordID)|\($0.relativePath)|\($0.sha256)"
+        }
+        return (packets + reports + evidence).sorted()
+    }
+
+    @MainActor
+    func stagedPackages(_ harness: Harness) throws -> [URL] {
+        let directory = try StoreGenerationFactory.backupImportStagingDirectory(containing: harness.session.generationRootURL)
+        guard fileManager.fileExists(atPath: directory.path) else { return [] }
+        return try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil).filter { $0.pathExtension == "fieldrecordbackup" }
+    }
+
+    func firstMember(in root: URL, prefix: String) throws -> URL {
+        let facts = try payloadFacts(root)
+        return root.appendingPathComponent(try XCTUnwrap(facts.first { $0.path.hasPrefix(prefix) }?.path))
+    }
+
+    func flipFirstByte(at url: URL) throws {
+        var data = try Data(contentsOf: url)
+        guard !data.isEmpty else { throw FixtureError.invalid }
+        data[0] ^= 0xff
+        try data.write(to: url)
+    }
+
+    func replaceReadyPDFWithFake(at root: URL) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        let index = try XCTUnwrap(reports.firstIndex {
+            $0["pdfState"] as? String == ReportPDFState.ready.rawValue
+        })
+        let path = try XCTUnwrap(reports[index]["pdfRelativePath"] as? String)
+        let fake = Data("%PDF-not-a-document".utf8)
+        try fake.write(to: root.appendingPathComponent(path))
+        reports[index]["pdfSHA256"] = fake.sha256
+        object["reports"] = reports
+        let loose = try JSONSerialization.data(withJSONObject: object)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try decoder.decode(V4BackupRecordsV1.self, from: loose)
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(
+            to: recordsURL
+        )
+        try rebuildManifest(at: root)
+    }
+
+    func injectCouldNotVerifySnapshot(at root: URL) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        guard let reportIndex = reports.indices.first else {
+            throw FixtureError.invalid
+        }
+        let path = try XCTUnwrap(
+            reports[reportIndex]["snapshotRelativePath"] as? String
+        )
+        let snapshotURL = root.appendingPathComponent(path)
+        var snapshot = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: snapshotURL))
+                as? [String: Any]
+        )
+        let reasons = SignPack.illuminatedSignV1.couldNotVerifyReasons
+        let reason = try XCTUnwrap(reasons.entries.first)
+        snapshot["couldNotVerify"] = [
+            "display": reason.display,
+            "key": reason.key,
+            "registryVersion": reasons.version,
+        ]
+        let looseSnapshot = try JSONSerialization.data(withJSONObject: snapshot)
+        let snapshotDecoder = JSONDecoder()
+        snapshotDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let value = try snapshotDecoder.decode(
+            ReportSnapshotV1.self,
+            from: looseSnapshot
+        )
+        let encoded = try ReportSnapshotEncoderV1().encode(value)
+        try encoded.data.write(to: snapshotURL)
+        reports[reportIndex]["snapshotSHA256"] = encoded.sha256
+        object["reports"] = reports
+
+        let looseRecords = try JSONSerialization.data(withJSONObject: object)
+        let recordsDecoder = JSONDecoder()
+        recordsDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try recordsDecoder.decode(
+            V4BackupRecordsV1.self,
+            from: looseRecords
+        )
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(
+            to: recordsURL
+        )
+        try rebuildManifest(at: root)
+    }
+
+    func injectHistoryCouldNotVerifySnapshot(at root: URL) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        var target: (index: Int, url: URL, snapshot: [String: Any])?
+        for index in reports.indices {
+            let path = try XCTUnwrap(
+                reports[index]["snapshotRelativePath"] as? String
+            )
+            let url = root.appendingPathComponent(path)
+            let snapshot = try XCTUnwrap(
+                try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                    as? [String: Any]
+            )
+            if let history = snapshot["history"] as? [[String: Any]],
+               !history.isEmpty {
+                target = (index, url, snapshot)
+                break
+            }
+        }
+        let selected = try XCTUnwrap(target)
+        var snapshot = selected.snapshot
+        var history = try XCTUnwrap(
+            snapshot["history"] as? [[String: Any]]
+        )
+        let reasons = SignPack.illuminatedSignV1.couldNotVerifyReasons
+        let reason = try XCTUnwrap(reasons.entries.first)
+        history[0]["couldNotVerify"] = [
+            "display": reason.display,
+            "key": reason.key,
+            "registryVersion": reasons.version,
+        ]
+        snapshot["history"] = history
+        let looseSnapshot = try JSONSerialization.data(withJSONObject: snapshot)
+        let snapshotDecoder = JSONDecoder()
+        snapshotDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let value = try snapshotDecoder.decode(
+            ReportSnapshotV1.self,
+            from: looseSnapshot
+        )
+        let encoded = try ReportSnapshotEncoderV1().encode(value)
+        try encoded.data.write(to: selected.url)
+        reports[selected.index]["snapshotSHA256"] = encoded.sha256
+        object["reports"] = reports
+
+        let looseRecords = try JSONSerialization.data(withJSONObject: object)
+        let recordsDecoder = JSONDecoder()
+        recordsDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try recordsDecoder.decode(
+            V4BackupRecordsV1.self,
+            from: looseRecords
+        )
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(
+            to: recordsURL
+        )
+        try rebuildManifest(at: root)
+    }
+
+    func moveEvidenceBeforeRecord(at root: URL) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        var evidenceFiles = try XCTUnwrap(
+            object["evidenceFiles"] as? [[String: Any]]
+        )
+        guard let evidenceIndex = evidenceFiles.indices.first else {
+            throw FixtureError.invalid
+        }
+        let evidenceID = try XCTUnwrap(
+            evidenceFiles[evidenceIndex]["id"] as? String
+        )
+        let early = "2020-01-01T00:00:00.000Z"
+        evidenceFiles[evidenceIndex]["createdAt"] = early
+
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        var updatedSnapshots = 0
+        for reportIndex in reports.indices {
+            let path = try XCTUnwrap(
+                reports[reportIndex]["snapshotRelativePath"] as? String
+            )
+            let snapshotURL = root.appendingPathComponent(path)
+            var snapshotObject = try XCTUnwrap(
+                try JSONSerialization.jsonObject(
+                    with: Data(contentsOf: snapshotURL)
+                ) as? [String: Any]
+            )
+            var evidence = try XCTUnwrap(
+                snapshotObject["evidence"] as? [[String: Any]]
+            )
+            var changed = false
+            for index in evidence.indices where
+                evidence[index]["evidenceID"] as? String == evidenceID {
+                evidence[index]["createdAt"] = early
+                changed = true
+            }
+            guard changed else { continue }
+            snapshotObject["evidence"] = evidence
+            let looseSnapshot = try JSONSerialization.data(
+                withJSONObject: snapshotObject
+            )
+            let snapshotDecoder = JSONDecoder()
+            snapshotDecoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let string = try container.decode(String.self)
+                guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container,
+                        debugDescription: "Invalid fixture date"
+                    )
+                }
+                return value
+            }
+            let snapshot = try snapshotDecoder.decode(
+                ReportSnapshotV1.self,
+                from: looseSnapshot
+            )
+            let encoded = try ReportSnapshotEncoderV1().encode(snapshot)
+            try encoded.data.write(to: snapshotURL)
+            reports[reportIndex]["snapshotSHA256"] = encoded.sha256
+            updatedSnapshots += 1
+        }
+        guard updatedSnapshots > 0 else { throw FixtureError.invalid }
+
+        object["evidenceFiles"] = evidenceFiles
+        object["reports"] = reports
+        let looseRecords = try JSONSerialization.data(withJSONObject: object)
+        let recordsDecoder = JSONDecoder()
+        recordsDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try recordsDecoder.decode(
+            V4BackupRecordsV1.self,
+            from: looseRecords
+        )
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(
+            to: recordsURL
+        )
+        try rebuildManifest(at: root)
+    }
+
+    func replaceRecordsText(at root: URL, from: String, to: String) throws {
+        let url = root.appendingPathComponent("records.json")
+        var text = try String(contentsOf: url, encoding: .utf8)
+        guard text.contains(from) else { throw FixtureError.invalid }
+        text = text.replacingOccurrences(of: from, with: to)
+        try XCTUnwrap(text.data(using: .utf8)).write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func setInvalidSiteTimeZone(at root: URL) throws {
+        let url = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                as? [String: Any]
+        )
+        var sites = try XCTUnwrap(object["sites"] as? [[String: Any]])
+        guard sites.count == 1 else { throw FixtureError.invalid }
+        sites[0]["timeZoneID"] = "Mars/Olympus"
+        object["sites"] = sites
+        let loose = try JSONSerialization.data(withJSONObject: object)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try decoder.decode(V4BackupRecordsV1.self, from: loose)
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func moveAssetUpdateBeforeCreation(at root: URL) throws {
+        let url = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                as? [String: Any]
+        )
+        var assets = try XCTUnwrap(object["assets"] as? [[String: Any]])
+        guard assets.count == 1 else { throw FixtureError.invalid }
+        assets[0]["updatedAt"] = "2020-01-01T00:00:00.000Z"
+        object["assets"] = assets
+        let loose = try JSONSerialization.data(withJSONObject: object)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try decoder.decode(V4BackupRecordsV1.self, from: loose)
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func padAssetLabel(at root: URL) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        var assets = try XCTUnwrap(object["assets"] as? [[String: Any]])
+        guard assets.count == 1 else { throw FixtureError.invalid }
+        let padded = " Padded sign "
+        assets[0]["label"] = padded
+
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        for index in reports.indices {
+            let path = try XCTUnwrap(
+                reports[index]["snapshotRelativePath"] as? String
+            )
+            let snapshotURL = root.appendingPathComponent(path)
+            var snapshot = try XCTUnwrap(
+                try JSONSerialization.jsonObject(
+                    with: Data(contentsOf: snapshotURL)
+                ) as? [String: Any]
+            )
+            var asset = try XCTUnwrap(snapshot["asset"] as? [String: Any])
+            asset["label"] = padded
+            snapshot["asset"] = asset
+            let looseSnapshot = try JSONSerialization.data(withJSONObject: snapshot)
+            let snapshotDecoder = JSONDecoder()
+            snapshotDecoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let string = try container.decode(String.self)
+                guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container,
+                        debugDescription: "Invalid fixture date"
+                    )
+                }
+                return value
+            }
+            let value = try snapshotDecoder.decode(
+                ReportSnapshotV1.self,
+                from: looseSnapshot
+            )
+            let encoded = try ReportSnapshotEncoderV1().encode(value)
+            try encoded.data.write(to: snapshotURL)
+            reports[index]["snapshotSHA256"] = encoded.sha256
+        }
+
+        object["assets"] = assets
+        object["reports"] = reports
+        let looseRecords = try JSONSerialization.data(withJSONObject: object)
+        let recordsDecoder = JSONDecoder()
+        recordsDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try recordsDecoder.decode(
+            V4BackupRecordsV1.self,
+            from: looseRecords
+        )
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(
+            to: recordsURL
+        )
+        try rebuildManifest(at: root)
+    }
+
+    func moveTombstoneDeletionBeforeCreation(at root: URL) throws {
+        let url = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                as? [String: Any]
+        )
+        var packets = try XCTUnwrap(
+            object["packets"] as? [[String: Any]]
+        )
+        let index = try XCTUnwrap(packets.firstIndex {
+            $0["currentRecordID"] is NSNull
+        })
+        packets[index]["contentDeletedAt"] = "2020-01-01T00:00:00.000Z"
+        object["packets"] = packets
+        let loose = try JSONSerialization.data(withJSONObject: object)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try decoder.decode(V4BackupRecordsV1.self, from: loose)
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func changeLivePacketCreation(at root: URL) throws {
+        let url = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                as? [String: Any]
+        )
+        var packets = try XCTUnwrap(
+            object["packets"] as? [[String: Any]]
+        )
+        let index = try XCTUnwrap(packets.firstIndex {
+            !($0["currentRecordID"] is NSNull)
+        })
+        packets[index]["createdAt"] = "2020-01-01T00:00:00.000Z"
+        object["packets"] = packets
+        let loose = try JSONSerialization.data(withJSONObject: object)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try decoder.decode(V4BackupRecordsV1.self, from: loose)
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func rebuildManifest(
+        at root: URL,
+        excludingPaths: Set<String> = []
+    ) throws {
+        let url = root.appendingPathComponent("manifest.json")
+        let old = try BackupCanonicalDecoderV1().decodeManifest(Data(contentsOf: url))
+        let entries = try old.entries.filter {
+            !excludingPaths.contains($0.path)
+        }.map { entry -> V4BackupEntryV1 in
+            let data = try Data(contentsOf: root.appendingPathComponent(entry.path))
+            return .init(byteCount: data.count, mimeType: entry.mimeType, path: entry.path, sha256: data.sha256)
+        }
+        let manifest = V4BackupManifestV1(
+            backupSchemaVersion: old.backupSchemaVersion,
+            consumedEvaluationRootIDs: old.consumedEvaluationRootIDs,
+            declaredPayloadByteCount: entries.reduce(0) { $0 + $1.byteCount },
+            entries: entries,
+            exportedAt: old.exportedAt,
+            packs: old.packs,
+            source: old.source
+        )
+        try BackupCanonicalEncoderV1().encodeManifest(manifest).data.write(to: url)
+    }
+
+    func replaceConsumedRoot(at root: URL) throws {
+        let url = root.appendingPathComponent("manifest.json")
+        let old = try BackupCanonicalDecoderV1().decodeManifest(Data(contentsOf: url))
+        var roots = old.consumedEvaluationRootIDs
+        roots[0] = uuid(778)
+        roots.sort { $0.uuidString < $1.uuidString }
+        let manifest = V4BackupManifestV1(
+            backupSchemaVersion: old.backupSchemaVersion,
+            consumedEvaluationRootIDs: roots,
+            declaredPayloadByteCount: old.declaredPayloadByteCount,
+            entries: old.entries,
+            exportedAt: old.exportedAt,
+            packs: old.packs,
+            source: old.source
+        )
+        try BackupCanonicalEncoderV1().encodeManifest(manifest).data.write(to: url)
+    }
+
+    func collideEvidenceIDs(at root: URL) throws {
+        let url = root.appendingPathComponent("records.json")
+        let records = try BackupCanonicalDecoderV1().decodeRecords(Data(contentsOf: url))
+        guard records.evidenceFiles.count >= 2 else { throw FixtureError.invalid }
+        var text = try String(contentsOf: url, encoding: .utf8)
+        text = text.replacingOccurrences(
+            of: records.evidenceFiles[0].id.uuidString.lowercased(),
+            with: records.evidenceFiles[1].id.uuidString.lowercased()
+        )
+        try XCTUnwrap(text.data(using: .utf8)).write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func collideFinalizationMutationIDs(at root: URL) throws {
+        let url = root.appendingPathComponent("records.json")
+        let records = try BackupCanonicalDecoderV1().decodeRecords(
+            Data(contentsOf: url)
+        )
+        let values = records.workflowRecords.compactMap(\.finalizationMutationID)
+        guard values.count >= 2 else { throw FixtureError.invalid }
+        var text = try String(contentsOf: url, encoding: .utf8)
+        text = text.replacingOccurrences(
+            of: values[0].uuidString.lowercased(),
+            with: values[1].uuidString.lowercased()
+        )
+        try XCTUnwrap(text.data(using: .utf8)).write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func addDuplicateCheckDrafts(at root: URL) throws {
+        try addCheckDrafts(
+            at: root,
+            suffixes: [901, 902],
+            step: WorkflowDraftStep.wide.rawValue
+        )
+    }
+
+    func addInvalidReviewDraft(at root: URL) throws {
+        try addCheckDrafts(
+            at: root,
+            suffixes: [903],
+            step: WorkflowDraftStep.review.rawValue
+        )
+    }
+
+    func addInvalidDraftPreflight(at root: URL) throws {
+        try addCheckDrafts(
+            at: root,
+            suffixes: [904],
+            step: WorkflowDraftStep.wide.rawValue
+        ) { draft in
+            draft["afterDarkAcknowledgementCopy"] = "Forged acknowledgement"
+        }
+    }
+
+    func addCheckDrafts(
+        at root: URL,
+        suffixes: [Int],
+        step: String,
+        mutate: ((inout [String: Any]) -> Void)? = nil
+    ) throws {
+        let url = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                as? [String: Any]
+        )
+        var records = try XCTUnwrap(
+            object["workflowRecords"] as? [[String: Any]]
+        )
+        let template = try XCTUnwrap(records.first {
+            $0["stage"] as? String == WorkflowStage.check.rawValue
+                && $0["state"] as? String == WorkflowState.completed.rawValue
+        })
+        for suffix in suffixes {
+            let id = uuid(suffix).uuidString.lowercased()
+            var draft = template
+            draft["completedAt"] = NSNull()
+            draft["draftStepKey"] = step
+            draft["evidenceSourceRecordID"] = NSNull()
+            draft["finalizationMutationID"] = NSNull()
+            draft["id"] = id
+            draft["issueID"] = NSNull()
+            draft["outcomeKey"] = NSNull()
+            draft["packetID"] = NSNull()
+            draft["parentRecordID"] = NSNull()
+            draft["recordRevisionRootID"] = id
+            draft["revisesRecordID"] = NSNull()
+            draft["revisionKind"] = WorkflowRevisionKind.original.rawValue
+            draft["state"] = WorkflowState.draft.rawValue
+            mutate?(&draft)
+            records.append(draft)
+        }
+        object["workflowRecords"] = records.sorted {
+            ($0["id"] as? String ?? "") < ($1["id"] as? String ?? "")
+        }
+        let loose = try JSONSerialization.data(withJSONObject: object)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let value = try decoder.decode(V4BackupRecordsV1.self, from: loose)
+        try BackupCanonicalEncoderV1().encodeRecords(value).data.write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func makeTwoOpenIssueLineages(at root: URL) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        var workflow = try XCTUnwrap(
+            object["workflowRecords"] as? [[String: Any]]
+        )
+        let recheckIndex = try XCTUnwrap(workflow.firstIndex {
+            $0["stage"] as? String == WorkflowStage.recheck.rawValue
+                && $0["revisionKind"] as? String
+                    == WorkflowRevisionKind.original.rawValue
+                && $0["outcomeKey"] as? String == "resolved"
+        })
+        let recheckID = try XCTUnwrap(workflow[recheckIndex]["id"] as? String)
+        let originalIssueID = try XCTUnwrap(
+            workflow[recheckIndex]["issueID"] as? String
+        )
+        let recheckCompletedAt = try XCTUnwrap(
+            workflow[recheckIndex]["completedAt"] as? String
+        )
+        workflow[recheckIndex]["outcomeKey"] = "issue_still_visible"
+        for index in workflow.indices where
+            workflow[index]["revisionKind"] as? String
+                == WorkflowRevisionKind.clericalCorrection.rawValue
+                && workflow[index]["revisesRecordID"] as? String == recheckID {
+            workflow[index]["outcomeKey"] = "issue_still_visible"
+        }
+
+        let separateIndex = try XCTUnwrap(workflow.firstIndex {
+            $0["stage"] as? String == WorkflowStage.check.rawValue
+                && $0["revisionKind"] as? String
+                    == WorkflowRevisionKind.original.rawValue
+                && $0["outcomeKey"] as? String == "no_visible_issue"
+        })
+        let separateID = try XCTUnwrap(
+            workflow[separateIndex]["id"] as? String
+        )
+        let separateCompletedAt = try XCTUnwrap(
+            workflow[separateIndex]["completedAt"] as? String
+        )
+        let assetID = try XCTUnwrap(
+            workflow[separateIndex]["assetID"] as? String
+        )
+        let newIssueID = uuid(906).uuidString.lowercased()
+        workflow[separateIndex]["outcomeKey"] = "visible_issue"
+        workflow[separateIndex]["issueID"] = newIssueID
+
+        var issues = try XCTUnwrap(object["issues"] as? [[String: Any]])
+        let originalIssueIndex = try XCTUnwrap(issues.firstIndex {
+            $0["id"] as? String == originalIssueID
+        })
+        let labelKey = try XCTUnwrap(
+            issues[originalIssueIndex]["labelKey"] as? String
+        )
+        let labelDisplay = try XCTUnwrap(
+            issues[originalIssueIndex]["labelDisplaySnapshot"] as? String
+        )
+        issues[originalIssueIndex]["status"] = IssueStatus.open.rawValue
+        issues[originalIssueIndex]["resolvedByRecordID"] = NSNull()
+        issues[originalIssueIndex]["updatedAt"] = recheckCompletedAt
+        issues.append([
+            "assetID": assetID,
+            "createdAt": separateCompletedAt,
+            "id": newIssueID,
+            "labelDisplaySnapshot": labelDisplay,
+            "labelKey": labelKey,
+            "openedByRecordID": separateID,
+            "resolvedByRecordID": NSNull(),
+            "schemaVersion": 1,
+            "status": IssueStatus.open.rawValue,
+            "updatedAt": separateCompletedAt,
+        ])
+        issues.sort {
+            ($0["id"] as? String ?? "") < ($1["id"] as? String ?? "")
+        }
+
+        let pack = SignPack.illuminatedSignV1
+        let stillVisibleDisplay = try XCTUnwrap(
+            pack.outcomeDisplays.first { $0.key == "issue_still_visible" }?.display
+        )
+        let visibleDisplay = try XCTUnwrap(
+            pack.outcomeDisplays.first { $0.key == "visible_issue" }?.display
+        )
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        var updatedSnapshots = 0
+        let correctionIDs = Set(workflow.compactMap { record in
+            record["revisesRecordID"] as? String == recheckID
+                ? record["id"] as? String
+                : nil
+        })
+        for reportIndex in reports.indices {
+            let sourceID = try XCTUnwrap(
+                reports[reportIndex]["sourceRecordID"] as? String
+            )
+            let primary = sourceID == recheckID || correctionIDs.contains(sourceID)
+            let secondary = sourceID == separateID
+            guard primary || secondary else { continue }
+            let path = try XCTUnwrap(
+                reports[reportIndex]["snapshotRelativePath"] as? String
+            )
+            let snapshotURL = root.appendingPathComponent(path)
+            var snapshot = try XCTUnwrap(
+                try JSONSerialization.jsonObject(
+                    with: Data(contentsOf: snapshotURL)
+                ) as? [String: Any]
+            )
+            var display = try XCTUnwrap(snapshot["display"] as? [String: Any])
+            if primary {
+                snapshot["outcome"] = "issue_still_visible"
+                display["outcome"] = stillVisibleDisplay
+                var snapshots = try XCTUnwrap(
+                    snapshot["issues"] as? [[String: Any]]
+                )
+                let index = try XCTUnwrap(snapshots.firstIndex {
+                    $0["issueID"] as? String == originalIssueID
+                })
+                snapshots[index]["status"] = IssueStatus.open.rawValue
+                snapshots[index]["resolvedByRecordID"] = NSNull()
+                snapshots[index]["updatedAt"] = recheckCompletedAt
+                snapshot["issues"] = snapshots
+            } else {
+                snapshot["outcome"] = "visible_issue"
+                display["outcome"] = visibleDisplay
+                snapshot["issues"] = [[
+                    "createdAt": separateCompletedAt,
+                    "display": labelDisplay,
+                    "issueID": newIssueID,
+                    "key": labelKey,
+                    "openedByRecordID": separateID,
+                    "resolvedByRecordID": NSNull(),
+                    "status": IssueStatus.open.rawValue,
+                    "updatedAt": separateCompletedAt,
+                ]]
+            }
+            snapshot["display"] = display
+            let looseSnapshot = try JSONSerialization.data(withJSONObject: snapshot)
+            let snapshotDecoder = JSONDecoder()
+            snapshotDecoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let string = try container.decode(String.self)
+                guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container,
+                        debugDescription: "Invalid fixture date"
+                    )
+                }
+                return value
+            }
+            let value = try snapshotDecoder.decode(
+                ReportSnapshotV1.self,
+                from: looseSnapshot
+            )
+            let encoded = try ReportSnapshotEncoderV1().encode(value)
+            try encoded.data.write(to: snapshotURL)
+            reports[reportIndex]["snapshotSHA256"] = encoded.sha256
+            updatedSnapshots += 1
+        }
+        guard updatedSnapshots >= 3 else { throw FixtureError.invalid }
+
+        object["workflowRecords"] = workflow
+        object["issues"] = issues
+        object["reports"] = reports
+        let looseRecords = try JSONSerialization.data(withJSONObject: object)
+        let recordsDecoder = JSONDecoder()
+        recordsDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try recordsDecoder.decode(
+            V4BackupRecordsV1.self,
+            from: looseRecords
+        )
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(
+            to: recordsURL
+        )
+        try rebuildManifest(at: root)
+    }
+
+    func duplicateDifferentIssueOpener(at root: URL) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        var workflow = try XCTUnwrap(
+            object["workflowRecords"] as? [[String: Any]]
+        )
+        let recheckIndex = try XCTUnwrap(workflow.firstIndex {
+            $0["stage"] as? String == WorkflowStage.recheck.rawValue
+                && $0["revisionKind"] as? String
+                    == WorkflowRevisionKind.original.rawValue
+                && $0["outcomeKey"] as? String == "resolved"
+        })
+        let recheckID = try XCTUnwrap(workflow[recheckIndex]["id"] as? String)
+        let assetID = try XCTUnwrap(
+            workflow[recheckIndex]["assetID"] as? String
+        )
+        let completedAt = try XCTUnwrap(
+            workflow[recheckIndex]["completedAt"] as? String
+        )
+        workflow[recheckIndex]["outcomeKey"] =
+            "original_resolved_different_issue"
+        var correctionIDs = Set<String>()
+        for index in workflow.indices where
+            workflow[index]["revisionKind"] as? String
+                == WorkflowRevisionKind.clericalCorrection.rawValue
+                && workflow[index]["revisesRecordID"] as? String == recheckID {
+            workflow[index]["outcomeKey"] =
+                "original_resolved_different_issue"
+            correctionIDs.insert(
+                try XCTUnwrap(workflow[index]["id"] as? String)
+            )
+        }
+
+        var issues = try XCTUnwrap(object["issues"] as? [[String: Any]])
+        let labelKey = try XCTUnwrap(issues.first?["labelKey"] as? String)
+        let labelDisplay = try XCTUnwrap(
+            issues.first?["labelDisplaySnapshot"] as? String
+        )
+        let newIDs = [uuid(907), uuid(908)].map {
+            $0.uuidString.lowercased()
+        }
+        for id in newIDs {
+            issues.append([
+                "assetID": assetID,
+                "createdAt": completedAt,
+                "id": id,
+                "labelDisplaySnapshot": labelDisplay,
+                "labelKey": labelKey,
+                "openedByRecordID": recheckID,
+                "resolvedByRecordID": NSNull(),
+                "schemaVersion": 1,
+                "status": IssueStatus.open.rawValue,
+                "updatedAt": completedAt,
+            ])
+        }
+        issues.sort {
+            ($0["id"] as? String ?? "") < ($1["id"] as? String ?? "")
+        }
+
+        let outcomeDisplay = try XCTUnwrap(
+            SignPack.illuminatedSignV1.outcomeDisplays.first {
+                $0.key == "original_resolved_different_issue"
+            }?.display
+        )
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        var updatedSnapshots = 0
+        for reportIndex in reports.indices {
+            let sourceID = try XCTUnwrap(
+                reports[reportIndex]["sourceRecordID"] as? String
+            )
+            guard sourceID == recheckID || correctionIDs.contains(sourceID) else {
+                continue
+            }
+            let path = try XCTUnwrap(
+                reports[reportIndex]["snapshotRelativePath"] as? String
+            )
+            let snapshotURL = root.appendingPathComponent(path)
+            var snapshot = try XCTUnwrap(
+                try JSONSerialization.jsonObject(
+                    with: Data(contentsOf: snapshotURL)
+                ) as? [String: Any]
+            )
+            snapshot["outcome"] = "original_resolved_different_issue"
+            var display = try XCTUnwrap(snapshot["display"] as? [String: Any])
+            display["outcome"] = outcomeDisplay
+            snapshot["display"] = display
+            var issueSnapshots = try XCTUnwrap(
+                snapshot["issues"] as? [[String: Any]]
+            )
+            for id in newIDs {
+                issueSnapshots.append([
+                    "createdAt": completedAt,
+                    "display": labelDisplay,
+                    "issueID": id,
+                    "key": labelKey,
+                    "openedByRecordID": recheckID,
+                    "resolvedByRecordID": NSNull(),
+                    "status": IssueStatus.open.rawValue,
+                    "updatedAt": completedAt,
+                ])
+            }
+            issueSnapshots.sort {
+                ($0["issueID"] as? String ?? "")
+                    < ($1["issueID"] as? String ?? "")
+            }
+            snapshot["issues"] = issueSnapshots
+            let looseSnapshot = try JSONSerialization.data(withJSONObject: snapshot)
+            let snapshotDecoder = JSONDecoder()
+            snapshotDecoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let string = try container.decode(String.self)
+                guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container,
+                        debugDescription: "Invalid fixture date"
+                    )
+                }
+                return value
+            }
+            let value = try snapshotDecoder.decode(
+                ReportSnapshotV1.self,
+                from: looseSnapshot
+            )
+            let encoded = try ReportSnapshotEncoderV1().encode(value)
+            try encoded.data.write(to: snapshotURL)
+            reports[reportIndex]["snapshotSHA256"] = encoded.sha256
+            updatedSnapshots += 1
+        }
+        guard updatedSnapshots >= 2 else { throw FixtureError.invalid }
+
+        object["workflowRecords"] = workflow
+        object["issues"] = issues
+        object["reports"] = reports
+        let looseRecords = try JSONSerialization.data(withJSONObject: object)
+        let recordsDecoder = JSONDecoder()
+        recordsDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try recordsDecoder.decode(
+            V4BackupRecordsV1.self,
+            from: looseRecords
+        )
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(
+            to: recordsURL
+        )
+        try rebuildManifest(at: root)
+    }
+
+    func omitPriorCorrectionReport(at root: URL) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        let workflow = try XCTUnwrap(
+            object["workflowRecords"] as? [[String: Any]]
+        )
+        let correctionIDs = Set(workflow.compactMap { record in
+            record["revisionKind"] as? String
+                == WorkflowRevisionKind.clericalCorrection.rawValue
+                ? record["id"] as? String
+                : nil
+        })
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        let tipIndex = try XCTUnwrap(reports.firstIndex { report in
+            guard let sourceID = report["sourceRecordID"] as? String else {
+                return false
+            }
+            return correctionIDs.contains(sourceID)
+                && !(report["replacesReportID"] is NSNull)
+        })
+        let priorID = try XCTUnwrap(reports[tipIndex]["replacesReportID"] as? String)
+        let prior = try XCTUnwrap(reports.first { $0["id"] as? String == priorID })
+        reports[tipIndex]["replacesReportID"] = NSNull()
+        reports.removeAll { $0["id"] as? String == priorID }
+        object["reports"] = reports
+        let loose = try JSONSerialization.data(withJSONObject: object)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let value = try decoder.decode(V4BackupRecordsV1.self, from: loose)
+        try BackupCanonicalEncoderV1().encodeRecords(value).data.write(to: recordsURL)
+
+        let snapshotPath = try XCTUnwrap(prior["snapshotRelativePath"] as? String)
+        let pdfPath = try XCTUnwrap(prior["pdfRelativePath"] as? String)
+        try fileManager.removeItem(at: root.appendingPathComponent(snapshotPath))
+        try fileManager.removeItem(at: root.appendingPathComponent(pdfPath))
+        try rebuildManifest(
+            at: root,
+            excludingPaths: [snapshotPath, pdfPath]
+        )
+    }
+
+    func mutateCorrectionStartedAt(at root: URL) throws {
+        let url = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+                as? [String: Any]
+        )
+        var records = try XCTUnwrap(
+            object["workflowRecords"] as? [[String: Any]]
+        )
+        let index = try XCTUnwrap(records.firstIndex {
+            $0["revisionKind"] as? String
+                == WorkflowRevisionKind.clericalCorrection.rawValue
+        })
+        records[index]["startedAt"] = "2025-01-01T00:00:00.000Z"
+        object["workflowRecords"] = records
+        let loose = try JSONSerialization.data(withJSONObject: object)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let value = try decoder.decode(V4BackupRecordsV1.self, from: loose)
+        try BackupCanonicalEncoderV1().encodeRecords(value).data.write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func moveWorkBeforeParent(at root: URL) throws {
+        let early = "2025-01-01T00:00:00.000Z"
+        try mutateWorkAndHistory(
+            at: root,
+            recordMutation: { record in
+                record["startedAt"] = early
+                record["completedAt"] = early
+            },
+            historyMutation: { history in
+                history["completedAt"] = early
+            }
+        )
+    }
+
+    func setInvalidWorkLocalDate(at root: URL) throws {
+        let invalidDate = "2026-99-99"
+        try mutateWorkAndHistory(
+            at: root,
+            recordMutation: { record in
+                record["workPerformedLocalDate"] = invalidDate
+            },
+            historyMutation: { history in
+                history["workPerformedLocalDate"] = invalidDate
+            }
+        )
+    }
+
+    func mutateWorkAndHistory(
+        at root: URL,
+        recordMutation: (inout [String: Any]) -> Void,
+        historyMutation: (inout [String: Any]) -> Void
+    ) throws {
+        let recordsURL = root.appendingPathComponent("records.json")
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(contentsOf: recordsURL))
+                as? [String: Any]
+        )
+        var workflow = try XCTUnwrap(
+            object["workflowRecords"] as? [[String: Any]]
+        )
+        let workIndex = try XCTUnwrap(workflow.firstIndex {
+            $0["stage"] as? String == WorkflowStage.work.rawValue
+                && $0["state"] as? String == WorkflowState.completed.rawValue
+                && $0["revisionKind"] as? String
+                    == WorkflowRevisionKind.original.rawValue
+        })
+        let workID = try XCTUnwrap(workflow[workIndex]["id"] as? String)
+        var work = workflow[workIndex]
+        recordMutation(&work)
+        workflow[workIndex] = work
+
+        var reports = try XCTUnwrap(object["reports"] as? [[String: Any]])
+        var updatedSnapshots = 0
+        for reportIndex in reports.indices {
+            let path = try XCTUnwrap(
+                reports[reportIndex]["snapshotRelativePath"] as? String
+            )
+            let snapshotURL = root.appendingPathComponent(path)
+            var snapshotObject = try XCTUnwrap(
+                try JSONSerialization.jsonObject(
+                    with: Data(contentsOf: snapshotURL)
+                ) as? [String: Any]
+            )
+            var history = try XCTUnwrap(
+                snapshotObject["history"] as? [[String: Any]]
+            )
+            var changed = false
+            for historyIndex in history.indices where
+                history[historyIndex]["recordID"] as? String == workID {
+                var entry = history[historyIndex]
+                historyMutation(&entry)
+                history[historyIndex] = entry
+                changed = true
+            }
+            guard changed else { continue }
+            snapshotObject["history"] = history
+            let looseSnapshot = try JSONSerialization.data(
+                withJSONObject: snapshotObject
+            )
+            let snapshotDecoder = JSONDecoder()
+            snapshotDecoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let string = try container.decode(String.self)
+                guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container,
+                        debugDescription: "Invalid fixture date"
+                    )
+                }
+                return value
+            }
+            let snapshot = try snapshotDecoder.decode(
+                ReportSnapshotV1.self,
+                from: looseSnapshot
+            )
+            let encoded = try ReportSnapshotEncoderV1().encode(snapshot)
+            try encoded.data.write(to: snapshotURL)
+            reports[reportIndex]["snapshotSHA256"] = encoded.sha256
+            updatedSnapshots += 1
+        }
+        guard updatedSnapshots > 0 else { throw FixtureError.invalid }
+
+        object["workflowRecords"] = workflow
+        object["reports"] = reports
+        let looseRecords = try JSONSerialization.data(withJSONObject: object)
+        let recordsDecoder = JSONDecoder()
+        recordsDecoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            guard let value = Self.fixtureDateFormatter.date(from: string) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Invalid fixture date"
+                )
+            }
+            return value
+        }
+        let records = try recordsDecoder.decode(
+            V4BackupRecordsV1.self,
+            from: looseRecords
+        )
+        try BackupCanonicalEncoderV1().encodeRecords(records).data.write(
+            to: recordsURL
+        )
+        try rebuildManifest(at: root)
+    }
+
+    func makeParentCycle(at root: URL) throws {
+        let url = root.appendingPathComponent("records.json")
+        let records = try BackupCanonicalDecoderV1().decodeRecords(Data(contentsOf: url))
+        let record = try XCTUnwrap(
+            records.workflowRecords.first { $0.parentRecordID == nil }
+        )
+        var text = try String(contentsOf: url, encoding: .utf8)
+        let source = "\"parentRecordID\":null"
+        guard let range = text.range(of: source) else { throw FixtureError.invalid }
+        text.replaceSubrange(
+            range,
+            with: "\"parentRecordID\":\"\(record.id.uuidString.lowercased())\""
+        )
+        try XCTUnwrap(text.data(using: .utf8)).write(to: url)
+        try rebuildManifest(at: root)
+    }
+
+    func uuid(_ suffix: Int) -> UUID {
+        UUID(uuidString: String(format: "63000000-0000-0000-0000-%012d", suffix))!
+    }
+
+    func makePNG(seed: UInt8) throws -> Data {
+        let width = 48, height = 32
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            pixels[index] = seed &+ UInt8(truncatingIfNeeded: index / 4)
+            pixels[index + 1] = seed &+ 17; pixels[index + 2] = seed &+ 43; pixels[index + 3] = 255
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4, space: space, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { throw FixtureError.invalid }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, UTType.png.identifier as CFString, 1, nil) else { throw FixtureError.invalid }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { throw FixtureError.invalid }
+        return output as Data
+    }
+
+    static let fixtureDateFormatter: ISO8601DateFormatter = {
+        let value = ISO8601DateFormatter()
+        value.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        value.timeZone = TimeZone(secondsFromGMT: 0)
+        return value
+    }()
+}
+
+private enum FixtureError: Error { case invalid }
+private extension Data {
+    var sha256: String { SHA256.hash(data: self).map { String(format: "%02x", $0) }.joined() }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C41BackupValidationRejectsNonCanonicalRelationshipBytes() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture(seed: 41_630)
+        var bytes = try FunctionalRelationshipCanonicalCodecV1.encode(fixture.added)
+        bytes.append(0x0A)
+
+        XCTAssertThrowsError(
+            try FunctionalRelationshipCanonicalCodecV1.decode(
+                AssetFunctionalRelationshipEventV1.self, from: bytes
+            )
+        ) { error in
+            XCTAssertEqual(error as? FunctionalRelationshipFailureV1, .nonCanonicalData)
+        }
+        XCTAssertEqual(fixture.added.eventSHA256.count, 64)
+        XCTAssertEqual(fixture.added.mutationID.rawValue, try C41FunctionalRelationshipTestSupportV1.mutation(41_641).rawValue)
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C14BackupValidatorRequiresRecordsSchema13AndFiveKinds() throws {
+        try V14InspectionReviewImportBoundaryV1.validate(persistent: 14, records: 13)
+        XCTAssertEqual(V14BackupInspectionReviewRecordV1.Kind.allCases.count, 5)
+        XCTAssertThrowsError(
+            try V14InspectionReviewImportBoundaryV1.validate(persistent: 14, records: 12)
+        )
+    }
+
+    func testV23P03C19BackupRowsRejectCanonicalCorruption() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        let row = try MeasurementSeriesRow(fixture.series)
+        XCTAssertEqual(try row.value(), fixture.series)
+        row.seriesSHA256 = C19MeasurementIntegrityTestSupport.digest("z")
+        XCTAssertThrowsError(try row.value())
+    }
+
+    func testC20PrivacyTransformBackupValidationRejectsDuplicateIdentity() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        let duplicate = fixture.backupRecords + [fixture.backupRecords[0]]
+        let keys = duplicate.map { "\($0.kind.rawValue)|\($0.id.uuidString)" }
+        XCTAssertNotEqual(Set(keys).count, keys.count)
+        XCTAssertThrowsError(try V19PrivacyTransformImportBoundaryV1.validate(persistent: 19, records: 17))
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testC21ClientCapabilityLifecycleAnchor() throws {
+        XCTAssertEqual(ClientCapabilityProfileV1.schemaVersion, 1)
+        XCTAssertEqual(ClientAdmissionV1.allCases.count, 5)
+        XCTAssertEqual(PackageLifecycleOperationV1.allCases.count, 9)
+        XCTAssertEqual(PersistentSchemaV20.models.count, 81)
+        XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
+    }
+}
+extension S6_3BackupValidationTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+        XCTAssertEqual(V24BackupSurveyDefinitionRecordV1.Kind.allCases.count, 2)
+        XCTAssertEqual(V24SurveyDefinitionImportBoundaryV1.recordsSchemaVersion, 23)
+    }
+}
+extension S6_3BackupValidationTests {
+    func testC26SurveySessionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindSemanticsV1(kind: .survey).completion, .typedFactCollection)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .survey).mayClaimInspectionResult)
+        XCTAssertEqual(SurveySessionStateV1.allCases.count, 8)
+        XCTAssertEqual(SurveySessionTransitionV1.allCases.count, 10)
+        XCTAssertNoThrow(try V25GuidedSurveyImportBoundaryV1.validate(persistent: 25, records: 24))
+    }
+}
+
+extension S6_3BackupValidationTests {
+    func testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent() {
+        XCTAssertEqual(OccurrenceStateV1.allCases, [.upcoming, .ready, .due, .overdue, .deferred,
+                                                    .missed, .skipped, .cancelled, .started, .completed])
+        XCTAssertEqual(ScheduleReleaseActionV1.allCases.count, 6)
+        XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
+    }
+}
+final class C31LightingAnchorS63BackupValidationTests: XCTestCase {
+    func testC31TypedLightingPackageContractAnchor() throws {
+        XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
+        XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
+        XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
+        try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+extension S6_3BackupValidationTests {
+    @MainActor
+    func testV23P03C42BackupValidationRoundTripsTypedReceiptsForBothArchetypes() async throws {
+        let receipts = [try CompositeAreaSafetyArchetypeV1.run(), try ControllerZoneDistributionArchetypeV1.run()]
+        for (offset, receipt) in receipts.enumerated() {
+            let c42Bytes = try CrossMarketCanonicalV1.data(receipt)
+            let payload = c42Bytes.base64EncodedString()
+            let harness = try await makeHarness(
+                "c42-validation-\(offset)",
+                deferPendingFinalizationUntilExport: true,
+                siteAddress: payload
+            )
+            let package = try await exportCurrentArchive(harness, name: "c42-source-\(offset)")
+            let archiveBefore = try archiveFact(package)
+            let extracted = try independentlyExtractArchive(package)
+            let extractedBefore = try treeFacts(extracted)
+            let importer = try makeImporter(
+                harness,
+                capacity: .max,
+                scopedAccess: .alreadyAuthorized
+            )
+            let validated = try importer.stageAndValidate(selectedPackageURL: package)
+            defer { try? importer.discard(validated) }
+            XCTAssertEqual(try archiveFact(package), archiveBefore)
+            for entry in validated.manifest.entries {
+                XCTAssertEqual(try XCTUnwrap(validated.members[entry.path]),
+                    try Data(contentsOf: extracted.appendingPathComponent(entry.path)), entry.path)
+            }
+            XCTAssertEqual(try treeFacts(extracted), extractedBefore)
+            let restoredPayload = try XCTUnwrap(validated.records.sites.first?.address)
+            XCTAssertEqual(restoredPayload, payload)
+            XCTAssertEqual(
+                try CrossMarketCanonicalV1.decode(
+                    ModelRunReceiptV1.self,
+                    from: try XCTUnwrap(Data(base64Encoded: restoredPayload))
+                ),
+                receipt
+            )
+            XCTAssertEqual(
+                try BackupCanonicalEncoderV1().encodeRecords(validated.records).data,
+                try XCTUnwrap(validated.members["records.json"])
+            )
+        }
+    }
+}
+
+final class C33TemporalEvidenceAnchorS63BackupValidation: XCTestCase {
+    func testC33S63BackupValidationCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "backup.validation.temporal-evidence",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "backup.validation.temporal-evidence",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
+final class C32AssistanceAnchorS63BackupValidation: XCTestCase {
+    func testC32S63BackupValidationCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .packet,
+            fieldID: "backup.version-gate",
+            value: .singleOption("RECORDS_31")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .packet,
+            fieldID: "backup.version-gate",
+            valueKind: .singleOption
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}
+final class C46S63BackupValidationCompatibilityTests: XCTestCase {
+    func testC46BackupValidationRetainsContactDigestBinding() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "backup-validation",
+            kind: .phone,
+            handoff: .call,
+            slot: 46303
+        )
+    }
+}
+
+final class C32PartyContactSiteRoleImportBackupValidationTests: XCTestCase {
+    func testV23P04C32BackupValidationUsesExistingFamiliesAndDefaultContactFreeExport() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let backup = try String(
+            contentsOf: root.appendingPathComponent(
+                "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(backup.contains("validateC32PartyContactSiteRoleImportClosure"))
+        XCTAssertTrue(backup.contains("PartyContactSiteRoleImportMutationReceiptV1"))
+        XCTAssertTrue(backup.contains("partyAccountability"))
+        XCTAssertTrue(backup.contains("operationalContacts"))
+        XCTAssertFalse(backup.contains("PartyContactSiteRoleImportBackupRecord"))
+        XCTAssertFalse(backup.contains("rawCSV"))
+        XCTAssertFalse(PartyContactsCSVContractV1.defaultExportEnabled)
+    }
+}
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift_Tests: XCTestCase {
+    func testC47S63BackupValidationTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_S6_3BackupValidationTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertEqual(ActivityContractPersistenceEnrollmentV2.persistentFamilies.count, 6)
+        XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
+    }
+}
+
+final class C48PortableReviewS63BackupValidationTests: XCTestCase {
+    func testC48BackupValidationUsesNonpersistentSessionEnvelope() {
+        XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
+        XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.persistentSchemaVersion, 36)
+        XCTAssertTrue(C48PortableExchangePersistentLifecycleBoundaryV2.acceptedResponseUsesExistingC14Writer)
+        XCTAssertTrue(C48PortableExchangeMigrationBoundaryV2.preservesExactBytes)
+    }
+}
+final class C49WorkResourceBackupValidationBoundaryTests: XCTestCase {
+    func testUnknownCurrencyAndScaleFailClosed() {
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "ZZZ", minorUnitScale: 2))
+        XCTAssertThrowsError(try ExactMoneyAmountV1(mantissa: 1, currencyCode: "JPY", minorUnitScale: 2))
+    }
+}
+
+final class C50IncumbentAdapterS63BackupValidationBoundaryTests: XCTestCase {
+    func testRestoreValidationRejectsAdapterOwnedArchiveMembers() {
+        XCTAssertTrue(C50IncumbentFileExchangeBackupImportBoundaryV1.validate())
+        XCTAssertEqual(C50IncumbentFileExchangePackageValidationBoundaryV1.allowedAdapterMemberCount, 0)
+        XCTAssertFalse(C50IncumbentFileExchangeBackupDecoderBoundaryV1.acceptsSourceScratchOrQuarantine)
+    }
+}
+
+extension C45BackupValidationCompatibilityTests {
+    func testV23P03C51BackupValidationDropsDerivedScheduleProjections() throws {
+        try ScheduleBackupRestoreRegistryV1.validate()
+        XCTAssertTrue(
+            ScheduleBackupRestoreRegistryV1.derivedProjectionDisposition == "DROP_AND_REBUILD"
+                && !ScheduleBackupRestoreRegistryV1.notificationStateIsTruth
+                && !ScheduleBackupRestoreRegistryV1
+                    .cloneForkSourceScheduleAutomaticallyActive
+        )
+    }
+}
+
+private actor S63BackupAuthentication: LocalAuthenticationClient {
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        .authenticated
+    }
+    func cancel(attemptID: UUID) {}
+}
+
+@MainActor
+private final class S63BackupNotifications: NotificationSystemPortV1 {
+    private var requests: [NotificationSystemRequestV1] = []
+    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+    func observations() async throws -> [NotificationSystemObservationV1] {
+        requests.map { .init(requestID: $0.notification.requestID, request: $0, delivered: false) }
+    }
+    func add(_ request: NotificationSystemRequestV1) async throws { requests.append(request) }
+    func remove(_ requestIDs: [String]) async throws {
+        requests.removeAll { requestIDs.contains($0.notification.requestID) }
+    }
+}

@@ -1,0 +1,78 @@
+{
+  "schema": "JourneyEvidenceLayerV2",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C08",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+    "baseTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "fd8fa7e7266b64dde5f01f2e978bbdbf8fb69dd42d09e2474457aecedce84a1a",
+    "inheritedV21BlockDigest": "446e9257fa36c2017d8a90dfffc953e50e4c2bac3626512adf6bdce390712ce9",
+    "registerRowDigest": "463e84abc0629ce07e70454b75844a6f8d5817cd548793f832225a494463ec04",
+    "planningAuthorityImpactDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "planningAuthorityFacetDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "970c8b15ad738c1969caa4e47d104a95600bee80dccd284284cc02fc0eb076db",
+    "bootstrapPathFenceDigest": "6a227a647dfd279cbd62edaa0501ff153e5ca5676260319aa7031e91b901ef1b",
+    "provisionalPrerequisiteDigest": "4fd27cf40d362da2c7d170284618c0d6d0fb89c605f156283de152ae2de5f6e8",
+    "directPrerequisite": {
+      "cardID": "V23-P00-C06",
+      "contextDigest": "afbb364ed404d4fbd57ee66c5707c8f670a002b8d81cdc425cc6a0cfb3c53d60",
+      "fenceDigest": "ca49bcc135ddc270e18c42b808a804a6b1de71bb8a08647b32bccd3b1a9a6eca",
+      "verificationDigest": "77444d12c7a2bec4b09f16e96fcb70f8278805d58200a15cd8033263eb4d53b8",
+      "checkpointDigest": "8bdd5bcee83c136496e1ca6bd4b2a9ec79719ecf002d6f8bca9b73d853fc03ee",
+      "platformArtifactDigest": "ba548ef8cec1be0d290c300ebf88f10239640bc57e35841843aa4632d4bbed6b",
+      "toolingManifestDigest": "33e5f0043ab318261ec63ee92b0bc4360215e5fd7bd7ac279b647738b743198e",
+      "predecessorCandidateHead": "e6bfa3dd047e15b71f132b76db2e358bc734bfb0",
+      "predecessorCandidateTree": "e333cf05f1256b2636f31c96cf1d74d323d61193",
+      "releaseTestSupportAbsent": false
+    },
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "e37bcca5dcad00c80cb7b160ce100d0bef2cab15362f3450b56f0a1d9bcb7ca2",
+    "ledgerCASSequence": 43,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "lifecycle": {
+    "persistence": "NONPERSISTENT_IMMUTABLE_BUNDLED_POLICY_OR_BUILD_BOUND_EVIDENCE",
+    "supersession": "APPEND_SUCCESSOR_NEVER_REWRITE_ACCEPTED_EVIDENCE",
+    "customerData": "NONE",
+    "interruption": "FAIL_CLOSED_NO_PARTIAL_ACCEPTANCE",
+    "recovery": "DETERMINISTIC_REGENERATION_OR_SUCCESSOR_RECEIPT"
+  },
+  "layers": [
+    "AUTOMATED_SEMANTIC",
+    "UNCOACHED_PILOT",
+    "OWNER_EXTERNAL_EFFECT"
+  ],
+  "closedResults": [
+    "PASS",
+    "FAIL",
+    "STOPPED_SAFETY",
+    "NOT_RUN",
+    "NOT_APPLICABLE_WITH_RATIONALE"
+  ],
+  "requiredLayerNotRunBlocks": true,
+  "automatedSemanticStatus": "NOT_RUN",
+  "uncoachedPilotStatus": "NOT_RUN",
+  "ownerExternalEffectStatus": "NOT_RUN",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "cf7dfa47bfd677a9a1ddd82d6a1cf209fa3619c73f0ede20f62a6613e2b00694"
+}

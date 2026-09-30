@@ -1,0 +1,269 @@
+{
+  "schema": "V22P03C56StructuredVoiceProposalCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P03-C56",
+  "contractRefs": [
+    "VoiceStructuringGrammarReleaseV1",
+    "StructuredVoiceProposalV1",
+    "VoiceProposalReviewPlanV1",
+    "DirectPrerequisiteEvidenceSetV1",
+    "CardAcceptanceInclusionProofV1",
+    "CardAcceptanceInclusionProofRecoveryReceiptV1",
+    "CandidateAcceptanceCompatibilityReceiptV1"
+  ],
+  "journeyRefs": ["FJ14"],
+  "evidenceIDs": [
+    "V23-P03-C56-G01",
+    "V23-P03-C56-A01",
+    "V23-P03-C56-H01",
+    "V23-P03-C56-I01",
+    "V23-P03-C56-R01"
+  ],
+  "selectors": [
+    "testV23P03C56G01DeterministicGrammarSpansAndTypedC36Acceptance",
+    "testV23P03C56A01AmbiguityLocaleAndManualFallbackUseExplicitReview",
+    "testV23P03C56H01HostileRegistrySpansValuesReplayAndGenerationFailClosed",
+    "testV23P03C56I01InterruptionAdmissionEraseAndNonpersistentLifecycleRemainClosed",
+    "testV23P03C56R01CanonicalRecoveryAndPersistenceClosureRemainDeterministic"
+  ],
+  "qualityStates": [
+    "EXACT_EXPLICIT_GRAMMAR",
+    "AMBIGUOUS_REQUIRES_MANUAL_ENTRY",
+    "UNSUPPORTED"
+  ],
+  "allowedProposalFields": [
+    "NOTE_TEXT",
+    "FINDING_TEXT",
+    "ALLOWED_ENUM",
+    "EXACT_NUMBER_AND_UNIT",
+    "DURATION",
+    "MATERIAL_DESCRIPTION_AND_QUANTITY"
+  ],
+  "forbiddenInferences": [
+    "DIAGNOSIS",
+    "COMPLIANCE",
+    "SEVERITY",
+    "IDENTITY",
+    "PLACEMENT",
+    "SCHEDULE",
+    "EXACT_STOCK_BINDING",
+    "STOCK_DECREMENT",
+    "CANONICAL_COMMAND",
+    "COMPLETION",
+    "FINALIZATION"
+  ],
+  "maximumProposalLifetimeSeconds": 1800,
+  "maximumCaptureSeconds": 60,
+  "captureUIRuntimeOwnership": "V23-P04-C45",
+  "c56OwnsCaptureUIRuntime": false,
+  "p04C45OwnsCaptureUIRuntime": true,
+  "grammar": {
+    "grammarID": "C56_STRUCTURED_VOICE_EN_US",
+    "version": 1,
+    "localeIdentifier": "en-US",
+    "aliases": [
+      {
+        "spokenAlias": "condition",
+        "fieldID": "finding.condition",
+        "fieldKind": "ALLOWED_ENUM",
+        "allowedEnumWords": ["good", "poor"]
+      },
+      {
+        "spokenAlias": "duration",
+        "fieldID": "duration",
+        "fieldKind": "DURATION",
+        "allowedEnumWords": []
+      },
+      {
+        "spokenAlias": "finding title",
+        "fieldID": "finding.title",
+        "fieldKind": "FINDING_TEXT",
+        "allowedEnumWords": []
+      },
+      {
+        "spokenAlias": "material",
+        "fieldID": "material.descriptionAndQuantity",
+        "fieldKind": "MATERIAL_DESCRIPTION_AND_QUANTITY",
+        "allowedEnumWords": []
+      },
+      {
+        "spokenAlias": "measurement",
+        "fieldID": "explicit.numberAndUnit",
+        "fieldKind": "EXACT_NUMBER_AND_UNIT",
+        "allowedEnumWords": []
+      },
+      {
+        "spokenAlias": "note",
+        "fieldID": "note",
+        "fieldKind": "NOTE_TEXT",
+        "allowedEnumWords": []
+      }
+    ]
+  },
+  "golden": {
+    "transcript": "note: Safety verified; finding title: Paint worn; condition: good; measurement: 12.5 cm; duration: 2 hours; material: 4 ea bolts",
+    "fields": [
+      {
+        "fieldID": "note",
+        "kind": "NOTE_TEXT",
+        "start": 6,
+        "length": 15,
+        "resolution": "EXACT_EXPLICIT_GRAMMAR",
+        "valueKind": "TEXT",
+        "value": "Safety verified",
+        "mantissa": null,
+        "scale": null,
+        "unitCode": null,
+        "durationSeconds": null,
+        "materialDescription": null,
+        "quantityMantissa": null,
+        "quantityScale": null,
+        "quantityUnitCode": null
+      },
+      {
+        "fieldID": "finding.title",
+        "kind": "FINDING_TEXT",
+        "start": 38,
+        "length": 10,
+        "resolution": "EXACT_EXPLICIT_GRAMMAR",
+        "valueKind": "TEXT",
+        "value": "Paint worn",
+        "mantissa": null,
+        "scale": null,
+        "unitCode": null,
+        "durationSeconds": null,
+        "materialDescription": null,
+        "quantityMantissa": null,
+        "quantityScale": null,
+        "quantityUnitCode": null
+      },
+      {
+        "fieldID": "finding.condition",
+        "kind": "ALLOWED_ENUM",
+        "start": 61,
+        "length": 4,
+        "resolution": "EXACT_EXPLICIT_GRAMMAR",
+        "valueKind": "ALLOWED_ENUM",
+        "value": "good",
+        "mantissa": null,
+        "scale": null,
+        "unitCode": null,
+        "durationSeconds": null,
+        "materialDescription": null,
+        "quantityMantissa": null,
+        "quantityScale": null,
+        "quantityUnitCode": null
+      },
+      {
+        "fieldID": "explicit.numberAndUnit",
+        "kind": "EXACT_NUMBER_AND_UNIT",
+        "start": 80,
+        "length": 7,
+        "resolution": "EXACT_EXPLICIT_GRAMMAR",
+        "valueKind": "EXACT_NUMBER",
+        "value": null,
+        "mantissa": 125,
+        "scale": 1,
+        "unitCode": "CENTIMETER",
+        "durationSeconds": null,
+        "materialDescription": null,
+        "quantityMantissa": null,
+        "quantityScale": null,
+        "quantityUnitCode": null
+      },
+      {
+        "fieldID": "duration",
+        "kind": "DURATION",
+        "start": 99,
+        "length": 7,
+        "resolution": "EXACT_EXPLICIT_GRAMMAR",
+        "valueKind": "DURATION_SECONDS",
+        "value": null,
+        "mantissa": null,
+        "scale": null,
+        "unitCode": null,
+        "durationSeconds": 7200,
+        "materialDescription": null,
+        "quantityMantissa": null,
+        "quantityScale": null,
+        "quantityUnitCode": null
+      },
+      {
+        "fieldID": "material.descriptionAndQuantity",
+        "kind": "MATERIAL_DESCRIPTION_AND_QUANTITY",
+        "start": 118,
+        "length": 10,
+        "resolution": "EXACT_EXPLICIT_GRAMMAR",
+        "valueKind": "MATERIAL",
+        "value": null,
+        "mantissa": null,
+        "scale": null,
+        "unitCode": null,
+        "durationSeconds": null,
+        "materialDescription": "bolts",
+        "quantityMantissa": 4,
+        "quantityScale": 0,
+        "quantityUnitCode": "EACH"
+      }
+    ]
+  },
+  "alternate": {
+    "ambiguousTranscript": "material: bolts",
+    "unsupportedTranscript": "duration: soon",
+    "unsupportedLocaleIdentifier": "fr-FR",
+    "manualFallback": "TYPE_MANUALLY"
+  },
+  "hostileCases": [
+    "UNREGISTERED_GRAMMAR_RELEASE",
+    "FORBIDDEN_REGISTERED_SEMANTIC_PURPOSE",
+    "DUPLICATE_NORMALIZED_ALIAS",
+    "UTF8_SPAN_MID_SCALAR",
+    "NAN_NEGATIVE_OVERFLOW_AND_GROUPING",
+    "MIXED_UNMATCHED_CLAUSES",
+    "DIVERGENT_PROPOSAL_REPLAY",
+    "DIVERGENT_FIELD_REPLAY",
+    "CROSS_WORKSPACE_CONTEXT",
+    "STALE_GENERATION",
+    "EXACT_CLEANUP_SOURCES"
+  ],
+  "lifecycleCases": [
+    "PERMISSION_DENIED",
+    "AUDIO_INTERRUPTION",
+    "PROCESS_KILL",
+    "CANCEL_RETRY",
+    "WORKSPACE_ERASE_RESET",
+    "ACTIVE_ADMISSION_CAP"
+  ],
+  "persistence": {
+    "mode": "NONPERSISTENT_PROPOSAL_EXISTING_C36_DRAFT_ACCEPTANCE",
+    "proposal": "NONPERSISTENT",
+    "scratchAudio": "NONPERSISTENT_DELETE_ON_TERMINAL_DISPOSITION",
+    "acceptedFieldCheckpoint": "P03-C36_EXISTING_DRAFT_CHECKPOINT_AND_WRITER",
+    "persistentSchemaVersionUnchanged": true,
+    "recordsSchemaVersionUnchanged": true,
+    "durableFamilyCount": 0,
+    "durableFamilies": [],
+    "newPersistentModelCount": 0,
+    "backup": "PROPOSAL_EXCLUDED_ACCEPTED_DRAFT_USES_EXISTING_C36_LIFECYCLE",
+    "restore": "PROPOSAL_EXCLUDED_ACCEPTED_DRAFT_USES_EXISTING_C36_LIFECYCLE",
+    "cloneFork": "PROPOSAL_INVALIDATED_DRAFT_AUTHORITY_REMAINS_C36",
+    "importExport": "NO_PROPOSAL_EXPORT",
+    "journalReplay": "NO_PROPOSAL_JOURNAL_ROW",
+    "search": "EXCLUDED",
+    "report": "EXCLUDED",
+    "deleteErase": "SCRATCH_DELETED_PROPOSAL_DISCARDED",
+    "retention": "NO_AUDIO_RETENTION"
+  },
+  "statusFlags": {
+    "activation": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "nativeAcceptance": false,
+    "hostedAcceptance": false,
+    "physicalEvidence": false,
+    "phase10PollingDuringParallelExecution": false
+  }
+}

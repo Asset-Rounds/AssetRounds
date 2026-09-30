@@ -1,0 +1,191 @@
+from pathlib import Path
+p=Path('.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift')
+s=p.read_text().replace('import Darwin\n','import CryptoKit\nimport Darwin\n',1)
+s=s.replace('''    static let maximumCount = 100_000
+''','''    static let maximumCount = 100_000
+    static let maximumControlCount = 2 * maximumCount + 16
+    // Existing components retain their 96 MiB ceilings. Terminal embeds at
+    // most three such JSON values, two Base64 Data controls, and a closed
+    // deletion table. Canonical JSON does not escape slash; name/fact/hash
+    // strings here are ASCII without escapes. Each table row is <=1536 bytes.
+    static let maximumTerminalEncodedBytes = 3 * maximumEncodedBytes
+        + 2 * (((maximumEncodedBytes + 2) / 3) * 4)
+        + maximumControlCount * 1_536 + 4_096
+    static func isSourceName(_ name: String) -> Bool {
+        canonicalName(name).hasPrefix("schema2-source-v1-")
+            && isControlName(name)
+    }
+    static func maximumControlBytes(_ name: String) -> Int {
+        if canonicalName(name) == terminalName { return maximumTerminalEncodedBytes }
+        if isSourceName(name) { return 32 * 1_024 * 1_024 }
+        return maximumEncodedBytes
+    }
+''',1)
+s=s.replace('''    struct OpaqueOriginalRetiredLeafV1: Equatable {
+        let bytes: Data
+        let fact: EraseColdControlLeafFactV1
+        let policy: TemporalPolicyObservationV1?
+    }''','''    struct OpaqueOriginalRetiredLeafV1: Equatable {
+        let bytes: Data
+        let fact: EraseColdControlLeafFactV1
+        let policy: TemporalPolicyObservationV1?
+        /// Raw content-addressed leaves retain an exact streamed witness,
+        /// never an empty-source claim or a second in-memory payload copy.
+        let contentSHA256: String?
+        init(bytes: Data, fact: EraseColdControlLeafFactV1,
+            policy: TemporalPolicyObservationV1?, contentSHA256: String? = nil) {
+            self.bytes = bytes; self.fact = fact; self.policy = policy
+            self.contentSHA256 = contentSHA256
+        }
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            guard lhs.fact == rhs.fact, lhs.policy == rhs.policy,
+                  lhs.contentSHA256 == rhs.contentSHA256 else { return false }
+            return lhs.contentSHA256 != nil || lhs.bytes == rhs.bytes
+        }
+        var retainingHashOnly: Self {
+            guard let contentSHA256 else { return self }
+            return .init(bytes: Data(), fact: fact, policy: policy,
+                contentSHA256: contentSHA256)
+        }
+    }''',1)
+s=s.replace('cleanupNames.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount + 8','cleanupNames.count <= EraseSchema2ColdCleanupGrammarV1.maximumControlCount',1)
+s=s.replace('''        guard held.st_size >= 0, held.st_size <= 96 * 1024 * 1024,
+''','''        guard held.st_size >= 0,
+              held.st_size <= off_t(EraseSchema2ColdCleanupGrammarV1.maximumControlBytes(name)),
+''',1)
+s=s.replace('''        let bytes = try opaqueBytes(fd, parent: erase, name: name)
+        let policy = try observeColdPolicy''','''        let isRaw = EraseSchema2ColdCleanupGrammarV1.isSourceName(name)
+        let digest = isRaw ? try opaqueContentSHA256(fd, parent: erase, name: name) : nil
+        let bytes = isRaw ? Data() : try opaqueBytes(fd, parent: erase, name: name)
+        let policy = try observeColdPolicy''',1)
+s=s.replace('''        return OpaqueOriginalRetiredLeafV1(bytes: bytes, fact: fact,
+            policy: policy)
+''','''        if isRaw {
+            // Retain the slot before IO, then clear BEFORE checked close.
+            opaqueCleanupFDs.removeValue(forKey: name)
+            if Darwin.close(fd) != 0 {
+                uncertainFDs.append(fd); throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        return OpaqueOriginalRetiredLeafV1(bytes: bytes, fact: fact,
+            policy: policy, contentSHA256: digest)
+''',1)
+s=s.replace('''              before.st_size <= 96 * 1024 * 1024,
+''','''              before.st_size <= off_t(EraseSchema2ColdCleanupGrammarV1.maximumControlBytes(name)),
+''',1)
+pos=s.index('    private func opaqueBytes(_ fd: Int32, parent: Int32,')
+s=s[:pos]+'''    private func opaqueContentSHA256(_ fd: Int32, parent: Int32, name: String) throws -> String {
+        let before = try regular(fd)
+        guard before.st_size >= 0,
+              before.st_size <= off_t(EraseSchema2ColdCleanupGrammarV1.maximumControlBytes(name)),
+              Darwin.lseek(fd, 0, SEEK_SET) == 0 else { throw EraseIntentStoreError.invalidAuthority }
+        var hasher = SHA256(), consumed: off_t = 0
+        var buffer = [UInt8](repeating: 0, count: 16 * 1_024)
+        while true {
+            let count = buffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, $0.count) }
+            if count > 0 {
+                guard off_t(count) <= before.st_size - consumed else { throw EraseIntentStoreError.invalidAuthority }
+                hasher.update(data: Data(buffer.prefix(count))); consumed += off_t(count)
+            } else if count == 0 { break }
+            else if errno != EINTR { throw EraseIntentStoreError.invalidAuthority }
+        }
+        var named = stat()
+        guard consumed == before.st_size,
+              EraseColdControlLeafFactV1(try regular(fd)) == EraseColdControlLeafFactV1(before),
+              Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+              EraseColdControlLeafFactV1(named) == EraseColdControlLeafFactV1(before) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func requireClosedRawCleanupWitness(_ name: String, at erase: Int32, root: URL,
+        first: OpaqueOriginalRetiredLeafV1) throws {
+        guard let expectedSHA = first.contentSHA256, opaqueCleanupFDs[name] == nil else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let descriptor = Darwin.openat(erase, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw EraseIntentStoreError.invalidAuthority }
+        opaqueCleanupFDs[name] = descriptor
+        do {
+            var held = stat(), named = stat()
+            guard Darwin.fstat(descriptor, &held) == 0,
+                  Darwin.fstatat(erase, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  EraseColdControlLeafFactV1(held) == first.fact,
+                  EraseColdControlLeafFactV1(named) == first.fact,
+                  try opaqueContentSHA256(descriptor, parent: erase, name: name) == expectedSHA,
+                  try observeColdPolicy(name.hasSuffix(".next") ? .journalTemporary : .journal,
+                    at: root.appendingPathComponent(name)) == first.policy else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            opaqueCleanupFDs.removeValue(forKey: name)
+            guard Darwin.close(descriptor) == 0 else {
+                uncertainFDs.append(descriptor); throw EraseIntentStoreError.invalidAuthority
+            }
+        } catch {
+            if let retained = opaqueCleanupFDs.removeValue(forKey: name), Darwin.close(retained) != 0 {
+                uncertainFDs.append(retained)
+            }
+            throw error
+        }
+    }
+
+''' + s[pos:]
+s=s.replace('''        for name in expected.opaqueCleanupNames {
+            guard let fd = opaqueCleanupFDs[name], let first = capturedOpaqueCleanup[name] else {''','''        for name in expected.opaqueCleanupNames {
+            guard let first = capturedOpaqueCleanup[name] else { throw EraseIntentStoreError.invalidAuthority }
+            if first.contentSHA256 != nil {
+                try requireClosedRawCleanupWitness(name, at: eraseFD, root: eraseURL, first: first)
+                continue
+            }
+            guard let fd = opaqueCleanupFDs[name] else {''',1)
+# Reader chooses the exact per-control ceiling (terminal differs from old
+# components); raw source reads remain at most one role-limited payload.
+s=s.replace('''        maximumBytes: Int = EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes
+    ) throws -> EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1? {
+        guard''','''        maximumBytes requestedMaximum: Int? = nil
+    ) throws -> EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1? {
+        let maximumBytes = min(requestedMaximum ?? EraseSchema2ColdCleanupGrammarV1.maximumControlBytes(name),
+            EraseSchema2ColdCleanupGrammarV1.maximumControlBytes(name))
+        guard''',1)
+s=s.replace('''            return .init(bytes: bytes, fact: first, policy: policy)
+''','''            return .init(bytes: bytes, fact: first, policy: policy,
+                contentSHA256: EraseSchema2ColdCleanupGrammarV1.isSourceName(name)
+                    ? StoreMigrationCanonicalJSONV1.sha256(bytes) : nil)
+''',1)
+s=s.replace('coldCleanupProjectedLeaves[name] = canonical\n','coldCleanupProjectedLeaves[name] = canonical.retainingHashOnly\n',1)
+s=s.replace('coldCleanupProjectedLeaves[next] = displaced\n','coldCleanupProjectedLeaves[next] = displaced.retainingHashOnly\n',1)
+# Terminal references actual observed raw size+digest, never the lightweight
+# witness's intentionally unmaterialized Data field.
+s=s.replace('''                sha256: StoreMigrationCanonicalJSONV1.sha256(leaf.bytes), byteCount: leaf.bytes.count))''','''                sha256: leaf.contentSHA256 ?? StoreMigrationCanonicalJSONV1.sha256(leaf.bytes),
+                byteCount: Int(leaf.fact.size)))''',1)
+s=s.replace('''        try sources.validate(); try progress.validate(sources: sources)
+''','''        _ = try sources.canonicalBytes(); _ = try progress.canonicalBytes(sources: sources)
+        guard cleanupIntentBytes.count <= EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes,
+              preparationBytes.count <= EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+''',1)
+s=s.replace('deletionOrder.count <= EraseSchema2ColdCleanupGrammarV1.maximumCount + 16','deletionOrder.count <= EraseSchema2ColdCleanupGrammarV1.maximumControlCount',1)
+s=s.replace('''                  leaf.name != EraseSchema2ColdCleanupGrammarV1.terminalName,
+''','''                  leaf.name != EraseSchema2ColdCleanupGrammarV1.terminalName,
+                  leaf.name.utf8.count <= 128,
+''',1)
+start=s.index('struct EraseSchema2ColdCleanupTerminalV1:');end=s.index('struct EraseSchema2ColdCleanupTerminalObservationV1:',start)
+region=s[start:end].replace('''        return try EraseSchema2ColdCleanupGrammarV1.canonicalBytes(self)
+''','''        let bytes = try StoreMigrationCanonicalJSONV1.encode(self)
+        guard !bytes.isEmpty, bytes.count <= EraseSchema2ColdCleanupGrammarV1.maximumTerminalEncodedBytes else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        return bytes
+''',1)
+s=s[:start]+region+s[end:]
+# Every terminal-only reader/publisher honors the derived terminal cap.
+start=s.index('    func publishSchema2ColdCleanupTerminal(');end=s.index('    /// Completed cleanup has removed the entire journal root.',start)
+region=s[start:end].replace('maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes, permit: permit)', 'maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumTerminalEncodedBytes, permit: permit)')
+# Notification reproof inside terminal publication retains its own old limit.
+region=region.replace('''fullFact: EraseSchema2ColdCleanupGrammarV1.fullFact(notification.fact),
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumTerminalEncodedBytes''','''fullFact: EraseSchema2ColdCleanupGrammarV1.fullFact(notification.fact),
+            maximumBytes: EraseSchema2ColdCleanupGrammarV1.maximumEncodedBytes''')
+s=s[:start]+region+s[end:]
+p.write_text(s)

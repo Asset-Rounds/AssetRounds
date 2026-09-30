@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "status": "INCOMPLETE author snapshot; immutable proposal; not execution or review credit",
+  "files": [
+    {
+      "path": "COUNTERPART_RISKS.md",
+      "sha256": "d841df37746a9f1120f8646bb0a2300ecff1c0030f63bd704317048afaa421e5",
+      "bytes": 2794
+    },
+    {
+      "path": "DRAFT.diff",
+      "sha256": "03d89ee91c039aefc56235aa68c9ded2d5f6b2d63dd58cfd2007692fbe5dbe64",
+      "bytes": 7544
+    },
+    {
+      "path": "DRAFT_BINDING.json",
+      "sha256": "2575dd5d70b7b9216ac36a9213e76d9824d17d0bc0b956655b67dab1fd412e1b",
+      "bytes": 1951
+    },
+    {
+      "path": "HANDOFF.md",
+      "sha256": "555b5549527f16ae0ad907f9a45d0081ff1c605606ad31208fdd9db7f28422d5",
+      "bytes": 5836
+    },
+    {
+      "path": "INPUT_PINS.json",
+      "sha256": "46ed4fbd76370eb0982c2db5698daea51f29d815192fa43b1884dc5b13170449",
+      "bytes": 2771
+    },
+    {
+      "path": "PARSE_DRAFT.json",
+      "sha256": "98c5f3dcfccb880ca11a0775a6f3881b961e1a28662f41bf8175aa62548598e3",
+      "bytes": 1265
+    },
+    {
+      "path": "PROPOSAL_BINDING.json",
+      "sha256": "c7a831ad2227d57680ced759c5a28c4adb80b395d2795c07ff4f87e4161392f5",
+      "bytes": 986
+    },
+    {
+      "path": "V4_INTERFACES_PROPOSED.swift.fragment",
+      "sha256": "5925afaa75588544fddac71f2a4fd2f030c0f04058baa447d1065477c41c4748",
+      "bytes": 5018
+    },
+    {
+      "path": "V4_SEGMENTATION_PROPOSAL_V1.md",
+      "sha256": "63bba9e5331ae2bbedce7853687fe669e1e550f69f96d41e0757ecf1cc82fcf1",
+      "bytes": 17752
+    },
+    {
+      "path": "before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sha256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4",
+      "bytes": 622434
+    },
+    {
+      "path": "candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+      "sha256": "b3a2edfb29caf3792baa39db52e1fb0dc78a6333807025207b816e001d0cb607",
+      "bytes": 624679
+    },
+    {
+      "path": "parse-DEBUG.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "parse-nonDEBUG.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  ]
+}

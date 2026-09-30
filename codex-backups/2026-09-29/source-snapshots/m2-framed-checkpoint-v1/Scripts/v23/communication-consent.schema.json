@@ -1,0 +1,727 @@
+{
+  "$id": "https://assetrounds.invalid/v23/communication-consent.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "archiveProofs": {
+      "items": false,
+      "maxItems": 11,
+      "minItems": 11,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "STATIC_SOURCE_SCAN_CLEAN"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "repositoryScanAggregateContentSHA256": {
+              "const": "f601e4e503666e1e6f1bbdcb02e4e1e8413b84d64e9e96d648088819b8f6df87"
+            },
+            "repositoryScanDependencyInventorySHA256": {
+              "const": "7dd6dcb0920f4832d6edc0f015f1153f92e38db0cf3a1af402c7a3e42f9414de"
+            },
+            "repositoryScanDigest": {
+              "const": "0905bfebecf976d914cfcd83f3e0fbbbad97e7a0b2e570ca07e72c9338b24419"
+            },
+            "repositoryScanPathCount": {
+              "const": 350
+            },
+            "repositoryScanPathSetSHA256": {
+              "const": "5cde2690c42fbb057eaed8f6c84ac8d5cedc60105480a6caf5ee024f62b171a2"
+            },
+            "repositoryScanProhibitedFindingCount": {
+              "const": 0
+            },
+            "surface": {
+              "const": "DEPENDENCY"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings",
+            "repositoryScanPathCount",
+            "repositoryScanPathSetSHA256",
+            "repositoryScanAggregateContentSHA256",
+            "repositoryScanDependencyInventorySHA256",
+            "repositoryScanDigest",
+            "repositoryScanProhibitedFindingCount"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "ARCHIVE"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "LINK"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "RESOURCE"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "STRING"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "ROUTE"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "SETTINGS"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "BACKGROUND_TASK"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "CREDENTIAL"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "ENDPOINT"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "disposition": {
+              "const": "PENDING_NOT_ACCEPTING"
+            },
+            "forbiddenFindings": {
+              "maxItems": 0,
+              "type": "array"
+            },
+            "surface": {
+              "const": "RUNTIME_NETWORK"
+            }
+          },
+          "required": [
+            "surface",
+            "disposition",
+            "forbiddenFindings"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "cardID": {
+      "const": "V23-P03-C44"
+    },
+    "classification": {
+      "const": "PREPARE_NOW"
+    },
+    "collectionDisposition": {
+      "const": "DISABLED_NO_SUBSCRIBER_COLLECTION_OR_TRANSMISSION"
+    },
+    "consentTruthTable": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "affirmative": {
+            "type": "boolean"
+          },
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "disclosureReleaseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expectedDisposition": {
+            "enum": [
+              "ELIGIBLE_EXPLICIT_INDEPENDENT_ENROLLMENT",
+              "REVIEW_REQUIRED",
+              "INELIGIBLE_TRANSACTIONAL_OR_SUPPORT",
+              "INELIGIBLE_NONAFFIRMATIVE",
+              "INELIGIBLE_SOURCE",
+              "INELIGIBLE_DISCLOSURE",
+              "INELIGIBLE_LAWFUL_BASIS"
+            ]
+          },
+          "inferred": {
+            "type": "boolean"
+          },
+          "prechecked": {
+            "type": "boolean"
+          },
+          "presentedLocale": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "NEWSLETTER",
+              "PRODUCT_UPDATE",
+              "RESEARCH_INVITATION",
+              "TRANSACTIONAL_OR_SUPPORT"
+            ]
+          },
+          "source": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "verificationStatus": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "purpose",
+          "source",
+          "affirmative",
+          "prechecked",
+          "inferred",
+          "disclosureReleaseID",
+          "presentedLocale",
+          "verificationStatus",
+          "expectedDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 8,
+      "type": "array"
+    },
+    "disclosureReleases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "immutable": {
+            "const": true
+          },
+          "locales": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "releaseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "superseded": {
+            "type": "boolean"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "releaseID",
+          "version",
+          "digest",
+          "locales",
+          "immutable",
+          "superseded"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C44-G01",
+        "V23-P03-C44-A01",
+        "V23-P03-C44-H01",
+        "V23-P03-C44-I01",
+        "V23-P03-C44-R01"
+      ]
+    },
+    "hostileCases": {
+      "const": [
+        "PLUS_ADDRESS_CASE_OR_UNICODE_NORMALIZATION_COLLISION",
+        "SHARED_MAILBOX",
+        "ADDRESS_CHANGE",
+        "DUPLICATE_CONSENT",
+        "PRECHECKED_CHECKBOX",
+        "STALE_DISCLOSURE",
+        "MINOR_OR_INCAPACITY_AMBIGUITY",
+        "UNKNOWN_JURISDICTION",
+        "CONSENT_AFTER_WITHDRAWAL",
+        "SEND_RACE_WITH_UNSUBSCRIBE",
+        "ERASED_OR_REIMPORTED_LIST",
+        "PROVIDER_OUTAGE_OR_DUPLICATE_WEBHOOK",
+        "CREDENTIAL_IN_BUNDLE_OR_LOG",
+        "HASHED_EMAIL_LABELED_ANONYMOUS",
+        "AUDIENCE_EXPORT_DESCRIBED_AS_NEWSLETTER",
+        "TRANSACTIONAL_COPY_CONTAINING_MARKETING"
+      ]
+    },
+    "invariants": {
+      "additionalProperties": false,
+      "properties": {
+        "adAudienceEquivalenceForbidden": {
+          "const": true
+        },
+        "collisionsRequireReview": {
+          "const": true
+        },
+        "configCannotActivate": {
+          "const": true
+        },
+        "disclosureReleaseAndLocalePinned": {
+          "const": true
+        },
+        "exactEnteredAddressPreserved": {
+          "const": true
+        },
+        "noNetworkTransmission": {
+          "const": true
+        },
+        "noSubscriberPersistence": {
+          "const": true
+        },
+        "normalizationPolicyVersioned": {
+          "const": true
+        },
+        "operationalContactsNeverConvert": {
+          "const": true
+        },
+        "ownerAcceptanceRequired": {
+          "const": true
+        },
+        "plainHashForbidden": {
+          "const": true
+        },
+        "providerPortUnbound": {
+          "const": true
+        },
+        "providerSecretsAbsentFromApp": {
+          "const": true
+        },
+        "purposeConsentNontransitive": {
+          "const": true
+        },
+        "suppressionNotAudience": {
+          "const": true
+        },
+        "suppressionSurvivesDeleteAndReimport": {
+          "const": true
+        },
+        "transactionalNeverCreatesMarketingContact": {
+          "const": true
+        },
+        "withdrawalAppendOnly": {
+          "const": true
+        }
+      },
+      "required": [
+        "purposeConsentNontransitive",
+        "transactionalNeverCreatesMarketingContact",
+        "operationalContactsNeverConvert",
+        "exactEnteredAddressPreserved",
+        "normalizationPolicyVersioned",
+        "collisionsRequireReview",
+        "disclosureReleaseAndLocalePinned",
+        "withdrawalAppendOnly",
+        "suppressionSurvivesDeleteAndReimport",
+        "plainHashForbidden",
+        "suppressionNotAudience",
+        "providerPortUnbound",
+        "providerSecretsAbsentFromApp",
+        "noSubscriberPersistence",
+        "noNetworkTransmission",
+        "configCannotActivate",
+        "ownerAcceptanceRequired",
+        "adAudienceEquivalenceForbidden"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "contracts": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "persistence": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "providerPort": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "retry": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "rollback": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "runtimeNetwork": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "runtimeProvider": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "runtimeStorage": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "supersession": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "persistence",
+        "contracts",
+        "providerPort",
+        "runtimeStorage",
+        "runtimeProvider",
+        "runtimeNetwork",
+        "retry",
+        "rollback",
+        "supersession"
+      ],
+      "type": "object"
+    },
+    "normalizationCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "collisionDisposition": {
+            "const": "REVIEW_REQUIRED"
+          },
+          "comparisonAddress": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "enteredAddress": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "policyReleaseID": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "caseID",
+          "enteredAddress",
+          "comparisonAddress",
+          "policyReleaseID",
+          "collisionDisposition"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "purposes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "consentNontransitive": {
+            "const": true
+          },
+          "createsMarketingContact": {
+            "type": "boolean"
+          },
+          "independentAffirmativeEnrollmentRequired": {
+            "type": "boolean"
+          },
+          "purpose": {
+            "enum": [
+              "NEWSLETTER",
+              "PRODUCT_UPDATE",
+              "RESEARCH_INVITATION",
+              "TRANSACTIONAL_OR_SUPPORT"
+            ]
+          },
+          "transactionalExclusionOnly": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "purpose",
+          "createsMarketingContact",
+          "independentAffirmativeEnrollmentRequired",
+          "consentNontransitive",
+          "transactionalExclusionOnly"
+        ],
+        "type": "object"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "schema": {
+      "const": "V22P03C44CommunicationConsentCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "adoption",
+        "acceptance",
+        "release"
+      ],
+      "type": "object"
+    },
+    "suppressionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "audienceUseForbidden": {
+            "const": true
+          },
+          "caseID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "channel": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "deleteReimportDisposition": {
+            "const": "BLOCKED"
+          },
+          "plainHashForbidden": {
+            "const": true
+          },
+          "purpose": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "tokenKind": {
+            "const": "CONTACT_INFO_PSEUDONYMOUS_NOT_ANONYMOUS"
+          }
+        },
+        "required": [
+          "caseID",
+          "purpose",
+          "channel",
+          "tokenKind",
+          "plainHashForbidden",
+          "deleteReimportDisposition",
+          "audienceUseForbidden"
+        ],
+        "type": "object"
+      },
+      "minItems": 3,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "classification",
+    "collectionDisposition",
+    "purposes",
+    "consentTruthTable",
+    "normalizationCases",
+    "disclosureReleases",
+    "suppressionCases",
+    "hostileCases",
+    "archiveProofs",
+    "lifecycle",
+    "invariants",
+    "evidenceIDs",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C44 Communication Consent Corpus",
+  "type": "object"
+}

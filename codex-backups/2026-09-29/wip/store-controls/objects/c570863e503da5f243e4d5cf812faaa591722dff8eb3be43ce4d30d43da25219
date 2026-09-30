@@ -1,0 +1,83 @@
+{
+  "actualImplementationPrerequisites": [
+    "Store bounded publisher/source/current getter implementations",
+    "private Router Initial/current effect issuers and owned-publication reissue",
+    "Physical direct-view permit/effect bindings using distinct logical/current identities",
+    "Ledger read-only bounded bootstrap slot page API",
+    "Migration genuine raw read-window current owned projection comparison",
+    "Service actual consumer-complete/private target/compact terminal owner issuer"
+  ],
+  "authorModel": "gpt-6.1-sol",
+  "checks": [
+    {
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        ".codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1.swift"
+      ],
+      "elapsedSeconds": 0.033151,
+      "exitCode": 0,
+      "kind": "syntax-parse-only",
+      "mode": "DEBUG",
+      "stderr": "",
+      "stdout": ""
+    },
+    {
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        ".codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1.swift"
+      ],
+      "elapsedSeconds": 0.029984,
+      "exitCode": 0,
+      "kind": "syntax-parse-only",
+      "mode": "nonDEBUG",
+      "stderr": "",
+      "stdout": ""
+    }
+  ],
+  "compileRisks": [
+    "All named external counterpart types must exist in the composed source at exact pinned API",
+    "Actor isolation/function-closure labels and Equatable conformances need root coupled typecheck",
+    "No concrete EraseIntentStore conformance or method bodies are supplied",
+    "Fixed snapshot includes a prospective Store-private first-control receipt constructor only; actual raw proof issuer is absent"
+  ],
+  "file": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-contract-v4-v1/READ_INTERFACE_V4_V1.swift",
+  "inputs": [
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v7/C16_CURRENT_RECORD_GETTER_V7.swift.fragment",
+      "sha256": "e2f4dc2b3267ba1b84733c309cb6cd0552aa1e8ce9a46b836844ba7b11a6a3c1"
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v8/FIRST_CAPTURE_CONTROL_STORE_HOOK_V8.swift.fragment",
+      "sha256": "a738d0b09e6050540435a273ec11a434afa5d1c862a70c623cc0cfa2d859719c"
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v8/SEALED_GENERIC_OBSERVATION_V1.swift.fragment",
+      "sha256": "afcccf2438ae96d12f14662c8914fc3f68bf6e2a2d9f5d05141148ee4ea624d4"
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/STORE_PENDING_REQUEST_API_V10.swift.fragment",
+      "sha256": "1e97e77cd523b96088a8679ec4083463b8d5b0cdb1684689dc3ea9523d06fd1c"
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/LEDGER_PENDING_REQUEST_SHAPE_V10.swift.fragment",
+      "sha256": "be527834e2ff704575672a61006ab37f46babe0ec577359d8970283f8cce4617"
+    },
+    {
+      "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/pending-producer-interface-v10/ORDER.md",
+      "sha256": "68ae75caa33ec7f06c33fbf43aa20af05d9631588072f6872b1d4d764d257071"
+    }
+  ],
+  "reasoningEffort": "xhigh",
+  "schemaVersion": 1,
+  "sha256": "7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669",
+  "sourceUnchanged": true,
+  "status": "IMMUTABLE INTERFACE SNAPSHOT; syntax parse only; no Store implementation, typecheck, issuer, build or runtime claim"
+}

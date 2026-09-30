@@ -1,0 +1,1651 @@
+{
+  "$id": "https://assetrounds.invalid/v23/versioned-schema-identity.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "type": "boolean"
+    },
+    "acceptanceEnabled": {
+      "type": "boolean"
+    },
+    "activeSchema": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "adoptionEnabled": {
+      "type": "boolean"
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "acceptanceEnabled": {
+          "type": "boolean"
+        },
+        "acceptedS10_6BaselineDigest": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          ]
+        },
+        "adoptionEnabled": {
+          "type": "boolean"
+        },
+        "baseHead": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "baseTree": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "branch": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "contextDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        },
+        "directPrerequisite": {
+          "additionalProperties": false,
+          "properties": {
+            "acceptanceCredit": {
+              "type": "boolean"
+            },
+            "archiveInspectionComplete": {
+              "type": "boolean"
+            },
+            "candidateHead": {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            },
+            "candidateTree": {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            },
+            "cardID": {
+              "const": "V23-P00-C06"
+            },
+            "checkpointDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "contextDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "installedRuntimeClosureComplete": {
+              "type": "boolean"
+            },
+            "nativeCompileComplete": {
+              "type": "boolean"
+            },
+            "pathFenceDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "platformScopeManifestDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "platformScopeManifestFileSHA256": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "releaseCredit": {
+              "type": "boolean"
+            },
+            "releaseHookClosureComplete": {
+              "type": "boolean"
+            },
+            "toolingManifestDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "toolingManifestFileSHA256": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "verificationReceiptDigest": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cardID",
+            "candidateHead",
+            "candidateTree",
+            "contextDigest",
+            "pathFenceDigest",
+            "verificationReceiptDigest",
+            "checkpointDigest",
+            "platformScopeManifestDigest",
+            "platformScopeManifestFileSHA256",
+            "toolingManifestDigest",
+            "toolingManifestFileSHA256",
+            "nativeCompileComplete",
+            "archiveInspectionComplete",
+            "installedRuntimeClosureComplete",
+            "releaseHookClosureComplete",
+            "acceptanceCredit",
+            "releaseCredit"
+          ],
+          "type": "object"
+        },
+        "dossierDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "executionMode": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "hostedDispatchRan": {
+          "type": "boolean"
+        },
+        "inheritedV21BlockDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "nativeCompileRan": {
+          "type": "boolean"
+        },
+        "pathFenceDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "phase10PollingDuringParallelExecution": {
+          "type": "boolean"
+        },
+        "provisionalPrerequisiteDigest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "branch",
+        "baseHead",
+        "baseTree",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "directPrerequisite",
+        "deterministicEvidenceIDs",
+        "executionMode",
+        "acceptedS10_6BaselineDigest",
+        "nativeCompileRan",
+        "hostedDispatchRan",
+        "adoptionEnabled",
+        "acceptanceEnabled",
+        "acceptanceCredit",
+        "releaseCredit",
+        "requiresAcceptedS10_6Reconciliation",
+        "phase10PollingDuringParallelExecution"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P01-C01"
+    },
+    "dormantSchema": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "exclusions": {
+      "items": false,
+      "maxItems": 6,
+      "minItems": 6,
+      "prefixItems": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "type": "boolean"
+    },
+    "identityTaxonomy": {
+      "items": false,
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "distinctFrom": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "representation": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "scope": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "representation",
+            "scope",
+            "distinctFrom"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "distinctFrom": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "representation": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "scope": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "representation",
+            "scope",
+            "distinctFrom"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "distinctFrom": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "representation": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "scope": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "representation",
+            "scope",
+            "distinctFrom"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "interruption": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "persistence": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "recovery": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "successorTriggers": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        },
+        "supersession": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "persistence",
+        "supersession",
+        "successorTriggers",
+        "interruption",
+        "recovery"
+      ],
+      "type": "object"
+    },
+    "migrationPlan": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "modelRegistration": {
+      "items": false,
+      "maxItems": 7,
+      "minItems": 7,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "applicationDeleteDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "applicationDeleteRuleOwner": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "identity": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "referenceStorageDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "references": {
+              "items": false,
+              "maxItems": 0,
+              "minItems": 0,
+              "prefixItems": [],
+              "type": "array"
+            },
+            "swiftDataDeleteRuleDisposition": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "identity",
+            "references",
+            "referenceStorageDisposition",
+            "swiftDataDeleteRuleDisposition",
+            "applicationDeleteRuleOwner",
+            "applicationDeleteDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "applicationDeleteDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "applicationDeleteRuleOwner": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "identity": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "referenceStorageDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "references": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "swiftDataDeleteRuleDisposition": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "identity",
+            "references",
+            "referenceStorageDisposition",
+            "swiftDataDeleteRuleDisposition",
+            "applicationDeleteRuleOwner",
+            "applicationDeleteDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "applicationDeleteDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "applicationDeleteRuleOwner": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "identity": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "referenceStorageDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "references": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "swiftDataDeleteRuleDisposition": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "identity",
+            "references",
+            "referenceStorageDisposition",
+            "swiftDataDeleteRuleDisposition",
+            "applicationDeleteRuleOwner",
+            "applicationDeleteDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "applicationDeleteDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "applicationDeleteRuleOwner": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "identity": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "referenceStorageDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "references": {
+              "items": false,
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "swiftDataDeleteRuleDisposition": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "identity",
+            "references",
+            "referenceStorageDisposition",
+            "swiftDataDeleteRuleDisposition",
+            "applicationDeleteRuleOwner",
+            "applicationDeleteDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "applicationDeleteDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "applicationDeleteRuleOwner": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "identity": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "referenceStorageDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "references": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "swiftDataDeleteRuleDisposition": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "identity",
+            "references",
+            "referenceStorageDisposition",
+            "swiftDataDeleteRuleDisposition",
+            "applicationDeleteRuleOwner",
+            "applicationDeleteDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "applicationDeleteDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "applicationDeleteRuleOwner": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "identity": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "referenceStorageDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "references": {
+              "items": false,
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "swiftDataDeleteRuleDisposition": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "identity",
+            "references",
+            "referenceStorageDisposition",
+            "swiftDataDeleteRuleDisposition",
+            "applicationDeleteRuleOwner",
+            "applicationDeleteDisposition"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "applicationDeleteDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "applicationDeleteRuleOwner": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "identity": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "referenceStorageDisposition": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "references": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "targetModel": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "field",
+                    "targetModel"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "swiftDataDeleteRuleDisposition": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "identity",
+            "references",
+            "referenceStorageDisposition",
+            "swiftDataDeleteRuleDisposition",
+            "applicationDeleteRuleOwner",
+            "applicationDeleteDisposition"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "nativeCompileRan": {
+      "type": "boolean"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "type": "boolean"
+    },
+    "preOpenVersionLaw": {
+      "additionalProperties": false,
+      "properties": {
+        "missingOrNoncanonical": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "pointerValidation": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "supportedSchemaVersion": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unknownFutureVersion": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "pointerValidation",
+        "unknownFutureVersion",
+        "missingOrNoncanonical",
+        "supportedSchemaVersion"
+      ],
+      "type": "object"
+    },
+    "preservation": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreContract": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "existingModelFields": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "newUserVisibleFields": {
+          "type": "boolean"
+        },
+        "persistenceWriterContract": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "reportContract": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "existingModelFields",
+        "backupRestoreContract",
+        "reportContract",
+        "persistenceWriterContract",
+        "newUserVisibleFields"
+      ],
+      "type": "object"
+    },
+    "regressionTestBindings": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "method",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "method",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "method",
+            "result"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "result": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "method",
+            "result"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "regressionTestExecution": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "releaseCredit": {
+      "type": "boolean"
+    },
+    "releaseReady": {
+      "type": "boolean"
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "type": "boolean"
+    },
+    "restoreIdentityLaw": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreBehavior": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "entities": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "persistedReplicaIDImplemented": {
+          "type": "boolean"
+        },
+        "replica": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "runtimeRetentionImplemented": {
+          "type": "boolean"
+        },
+        "scope": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sourceReplicaImport": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "workspace": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "workspace",
+        "entities",
+        "replica",
+        "runtimeRetentionImplemented",
+        "persistedReplicaIDImplemented",
+        "sourceReplicaImport",
+        "backupRestoreBehavior"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "const": "V23P01C01SchemaIdentityContractV1"
+    },
+    "schemaDescriptors": {
+      "items": false,
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "registeredModels": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "version": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "version",
+            "status",
+            "registeredModels"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "registeredModels": {
+              "items": false,
+              "maxItems": 7,
+              "minItems": 7,
+              "prefixItems": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "status": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "version": {
+              "items": false,
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "version",
+            "status",
+            "registeredModels"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "staticSwiftPaths": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        }
+      ],
+      "type": "array"
+    },
+    "storeFactoryLaw": {
+      "additionalProperties": false,
+      "properties": {
+        "automaticOrPrivateCloudKit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "cloudKitDatabase": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "configurationName": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "defaultOrConvenienceConstruction": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "soleProductionFactory": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "soleProductionFactory",
+        "configurationName",
+        "cloudKitDatabase",
+        "defaultOrConvenienceConstruction",
+        "automaticOrPrivateCloudKit"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "schemaDescriptors",
+    "activeSchema",
+    "dormantSchema",
+    "migrationPlan",
+    "modelRegistration",
+    "identityTaxonomy",
+    "restoreIdentityLaw",
+    "preOpenVersionLaw",
+    "storeFactoryLaw",
+    "preservation",
+    "regressionTestBindings",
+    "regressionTestExecution",
+    "exclusions",
+    "staticSwiftPaths",
+    "lifecycle",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation",
+    "phase10PollingDuringParallelExecution",
+    "artifactDigest"
+  ],
+  "title": "V23P01C01SchemaIdentityContractV1",
+  "type": "object"
+}

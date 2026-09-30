@@ -1,0 +1,319 @@
+{
+    "schema": "V21P03C09LocalSearchCorpusV1",
+    "schemaVersion": 1,
+    "fixedSeed": 230309,
+    "workspaceID": "00000000-0000-4000-8000-000000000309",
+    "sourceRevision": 42,
+    "bounds": {
+        "maximumResults": 100,
+        "maximumSuggestions": 5,
+        "scaleRecordCount": 10000,
+        "maximumRebuildMilliseconds": 5000,
+        "maximumQueryMilliseconds": 250,
+        "maximumIndexBytes": 16777216,
+        "maximumProjectionRows": 100000,
+        "maximumProjectionRowsPerPage": 2500
+    },
+    "sourceKindMappings": [
+        {"fieldID": "asset_identifier", "sourceKind": "ASSET"},
+        {"fieldID": "asset_label", "sourceKind": "ASSET"},
+        {"fieldID": "location_breadcrumb", "sourceKind": "LOCATION"},
+        {"fieldID": "location_identifier", "sourceKind": "LOCATION"},
+        {"fieldID": "location_label", "sourceKind": "LOCATION"},
+        {"fieldID": "report_identifier", "sourceKind": "REPORT"},
+        {"fieldID": "report_summary", "sourceKind": "REPORT"},
+        {"fieldID": "status", "sourceKind": "ASSET"},
+        {"fieldID": "status", "sourceKind": "LOCATION"},
+        {"fieldID": "status", "sourceKind": "REPORT"},
+        {"fieldID": "status", "sourceKind": "WORK"},
+        {"fieldID": "work_identifier", "sourceKind": "WORK"},
+        {"fieldID": "work_summary", "sourceKind": "WORK"}
+    ],
+    "records": [
+        {
+            "stableID": "asset-0001",
+            "kind": "ASSET",
+            "displayIdentity": "Pump Á-01",
+            "locationBreadcrumb": "North / Utility",
+            "status": "INCOMPLETE",
+            "openWorkContext": "Seal replacement",
+            "timestamp": 1700000005,
+            "fields": {
+                "asset_identifier": "Pump Á-01",
+                "asset_label": "Booster Pump",
+                "location_breadcrumb": "North / Utility",
+                "status": "Incomplete",
+                "work_summary": "Seal replacement"
+            }
+        },
+        {
+            "stableID": "asset-0002",
+            "kind": "ASSET",
+            "displayIdentity": "PUMP A-01",
+            "locationBreadcrumb": "South / Plant",
+            "status": "COMPLETE",
+            "openWorkContext": null,
+            "timestamp": 1700000004,
+            "fields": {
+                "asset_identifier": "PUMP A-01",
+                "asset_label": "Transfer Pump",
+                "location_breadcrumb": "South / Plant",
+                "status": "Complete",
+                "work_summary": null
+            }
+        },
+        {
+            "stableID": "location-0001",
+            "kind": "LOCATION",
+            "displayIdentity": "Café",
+            "locationBreadcrumb": "West / Café",
+            "status": "ACTIVE",
+            "openWorkContext": null,
+            "timestamp": 1700000003,
+            "fields": {
+                "location_identifier": "Café",
+                "location_label": "Café",
+                "location_breadcrumb": "West / Café"
+            }
+        },
+        {
+            "stableID": "work-0001",
+            "kind": "WORK",
+            "displayIdentity": "Seal replacement",
+            "locationBreadcrumb": "North / Utility",
+            "status": "RECHECK_DUE",
+            "openWorkContext": "Pump Á-01",
+            "timestamp": 1700000002,
+            "fields": {
+                "work_identifier": "WO-0001",
+                "work_summary": "Seal replacement",
+                "location_breadcrumb": "North / Utility",
+                "status": "Recheck due"
+            }
+        },
+        {
+            "stableID": "report-0001",
+            "kind": "REPORT",
+            "displayIdentity": "Inspection 42",
+            "locationBreadcrumb": "North / Utility",
+            "status": "REPORT_FAILED",
+            "openWorkContext": "Pump Á-01",
+            "timestamp": 1700000001,
+            "fields": {
+                "report_identifier": "Inspection 42",
+                "report_summary": "PDF failed",
+                "location_breadcrumb": "North / Utility",
+                "status": "Report failed"
+            }
+        },
+        {
+            "stableID": "asset-bidi",
+            "kind": "ASSET",
+            "displayIdentity": "مضخة 12",
+            "locationBreadcrumb": "الموقع / A",
+            "status": "COMPLETE",
+            "openWorkContext": null,
+            "timestamp": 1700000000,
+            "fields": {
+                "asset_identifier": "مضخة 12",
+                "asset_label": "مضخة",
+                "location_breadcrumb": "الموقع / A",
+                "status": "Complete",
+                "work_summary": null
+            }
+        }
+    ],
+    "queries": [
+        {
+            "id": "exact-identity",
+            "query": "Pump Á-01",
+            "scope": "ALL",
+            "filters": [],
+            "expectedStableIDs": [
+                "asset-0001"
+            ]
+        },
+        {
+            "id": "case-diacritic-nfd",
+            "query": "café",
+            "scope": "LOCATIONS",
+            "filters": [],
+            "expectedStableIDs": [
+                "location-0001"
+            ]
+        },
+        {
+            "id": "prefix-stable-tie",
+            "query": "pump a",
+            "scope": "ASSETS",
+            "filters": [],
+            "expectedStableIDs": [
+                "asset-0002",
+                "asset-0001"
+            ]
+        },
+        {
+            "id": "recheck-filter",
+            "query": "",
+            "scope": "WORK",
+            "filters": [
+                "RECHECK_DUE"
+            ],
+            "expectedStableIDs": [
+                "work-0001"
+            ]
+        },
+        {
+            "id": "report-failed",
+            "query": "failed",
+            "scope": "REPORTS",
+            "filters": [
+                "REPORT_FAILED"
+            ],
+            "expectedStableIDs": [
+                "report-0001"
+            ]
+        },
+        {
+            "id": "rtl-bidi-controls-removed",
+            "query": "‏مضخة‬",
+            "scope": "ASSETS",
+            "filters": [],
+            "expectedStableIDs": [
+                "asset-bidi"
+            ]
+        }
+    ],
+    "hostileCases": [
+        {
+            "id": "index-stale",
+            "sourceRevision": 42,
+            "indexRevision": 41,
+            "expected": "REBUILD_REQUIRED_NO_RESULTS"
+        },
+        {
+            "id": "index-ahead",
+            "sourceRevision": 42,
+            "indexRevision": 43,
+            "expected": "FAIL_CLOSED_NO_RESULTS"
+        },
+        {
+            "id": "duplicate-result",
+            "sourceRevision": 42,
+            "indexRevision": 42,
+            "expected": "DEDUPLICATE_BY_STABLE_ID"
+        },
+        {
+            "id": "deleted-result",
+            "sourceRevision": 43,
+            "indexRevision": 42,
+            "expected": "REBUILD_PURGES_RESULT"
+        },
+        {
+            "id": "short-typo",
+            "query": "pmp",
+            "expected": "NO_SUGGESTION"
+        },
+        {
+            "id": "bounded-typo",
+            "query": "pummp",
+            "expected": "SUGGESTION_ONLY_DISTANCE_1"
+        },
+        {
+            "id": "privacy-canary",
+            "query": "SECRET-SUPPORT-DRAFT-RAW-OCR",
+            "expected": "ZERO_RESULTS_ZERO_SUGGESTIONS"
+        },
+        {
+            "id": "ten-k-stall",
+            "recordCount": 10000,
+            "expected": "FAIL_BUDGET_NO_PARTIAL_SUCCESS"
+        }
+    ],
+    "smartViews": [
+        {
+            "id": "recent",
+            "kind": "RECENT",
+            "sort": "TIMESTAMP_DESC_STABLE_ID_ASC"
+        },
+        {
+            "id": "incomplete",
+            "kind": "INCOMPLETE",
+            "sort": "STATUS_THEN_STABLE_ID"
+        },
+        {
+            "id": "recheck-due",
+            "kind": "RECHECK_DUE",
+            "sort": "DUE_DATE_THEN_STABLE_ID"
+        },
+        {
+            "id": "report-failed",
+            "kind": "REPORT_FAILED",
+            "sort": "TIMESTAMP_DESC_STABLE_ID_ASC"
+        },
+        {
+            "id": "backup-stale",
+            "kind": "BACKUP_STALE",
+            "sort": "TIMESTAMP_DESC_STABLE_ID_ASC"
+        }
+    ],
+    "crashMatrix": [
+        {
+            "boundary": "AFTER_CANONICAL_COMMIT_BEFORE_INDEX_UPDATE",
+            "expected": "REBUILD_FROM_REVISION_42"
+        },
+        {
+            "boundary": "AFTER_REBUILD_TEMP_WRITE_BEFORE_REPLACE",
+            "expected": "DISCARD_TEMP_REBUILD"
+        },
+        {
+            "boundary": "AFTER_REPLACE_BEFORE_WATERMARK_RECEIPT",
+            "expected": "RECONCILE_AND_RETURN_SAME_INDEX"
+        }
+    ],
+    "recovery": {
+        "dropDerivedIndex": true,
+        "retainCanonicalRecords": true,
+        "retainSavedSmartViews": true,
+        "retainTransientQuery": false,
+        "rebuildDeterministic": true
+    },
+    "productionClosure": {
+        "sourceKindRegistrationCount": 13,
+        "writerInvalidationSynchronous": true,
+        "startupInvalidationSynchronous": true,
+        "assetSiteCrashRetryMarkerOrdered": true,
+        "orphanCleanupPurgesDerivedIndex": true,
+        "typedCanonicalStableKeys": true,
+        "sameSearchKindTypedIdentityCollisionSafe": true,
+        "truthfulIncompleteStatusSemantics": true,
+        "backupStaleRequiresOperationalProvider": true,
+        "rebuildPublicationTokenRequired": true,
+        "sameRevisionDeletionRaceCovered": true,
+        "swiftDataProjectionSource": "SwiftDataSearchCanonicalProjectionSourceV1",
+        "serviceSeam": "ProductionSearchServicesV1"
+    },
+    "privacy": {
+        "indexedFieldIDs": [
+            "asset_identifier",
+            "asset_label",
+            "location_identifier",
+            "location_label",
+            "location_breadcrumb",
+            "work_identifier",
+            "work_summary",
+            "report_identifier",
+            "report_summary",
+            "status"
+        ],
+        "excludedFieldIDs": [
+            "media_bytes",
+            "raw_ocr",
+            "hidden_metadata",
+            "support_draft",
+            "feedback_draft",
+            "uncommitted_c36"
+        ],
+        "diagnosticsContainCustomerContent": false
+    }
+}

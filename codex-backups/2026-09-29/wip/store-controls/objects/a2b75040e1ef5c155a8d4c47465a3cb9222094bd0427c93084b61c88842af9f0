@@ -1,0 +1,29 @@
+# Store author coverage matrix — source only
+
+Every row describes a concrete implementation/issuer obligation, not a passed test. DEBUG/nonDEBUG parsing is the only executable check performed by this helper. Root alone compiles and exercises coupled behavior. Registered family semantics remain Ledger/Router responsibilities; no Store data value issues effects.
+
+| Family/cut | Store implementation and coupled proof boundary | Runtime/fault validation due |
+|---|---|---|
+| Real original P before activation | Exact operation/roster receipt registration; no first-cold adoption; same existing writer and own control readbacks | Populated originals, EX transfer, real G closure lifetime |
+| Real cold Q and R | First-held raw controls before decode/repair; immutable bootstrap/source/index/progress lineage; actual revocable permits | Same/fresh owners, genuine Q->R/source-copy join |
+| ProtectedIngress: scratch erase | Original32MiB raw copy, exact original full fact/SHA, fixed born scratchControlErase source before dependency loss | Nonempty leases/control, effect-before-capture crash |
+| ProtectedIngress: hygiene receipt/prepare/finalizing |4096/262144 exact role caps; independent immutable original and born finalized path versions; nine-role closed birth vocabulary | Pair/prefix, false->true prepare replacement, receipt/staging loss |
+| ProtectedIngress: ingress prepare/claim/published/pending/replacement/terminal/aborted |262144 exact original-role table, immutable original getter and fixed captured born-role getter | Cross-H, claim-only, dependency deletion ordering, pair replay |
+| ProtectedIngress: erase prepare/complete |262144 source copy, dynamic actual freshIngressErasePrepare bytes retained before E disappears, ingressEraseComplete role | Dynamic modifiedAt source replay and completed engine receipts |
+| ScratchData lease metadata |65536 raw canonical metadata, fixed mixed scratch target and source dependency scope | Generic populated same/fresh leases and checked borrowed Value lifetime (Ledger-owned) |
+| Scratch and auxiliary orphans/root/node targets | Mixed immutable target table; C16 subsequence count independent; no current-name append/replan | Full registered families/orphans; actual semantic projection and ownership |
+| First-P .partial-* opaque payload | Fact/SHA-only immutable original provenance; no arbitrary opaque copy/default32MiB narrowing | Existing per-file/per-tree1GiB,node/depth bounds; actual typed pair role |
+| Bootstrap own absent/zero/prefix/complete next | Recorded attempt before first syscall; derived exact original-P declaration; no source/plan/index without canonical bootstrap | Crash/fault at each policy/write/fsync/close/rename/readback boundary |
+| Source/plan/index prefix | Closed fixed source-path order, no hole/later leaf; one active reserved next; complete resolved authentic facts before index admission | Prefix census, conflicting hash/fact/byte/policy, current survivor adoption hostile cases |
+| Initial progress partial | PREPARED canonical expected cut only, full index/plan readback, exact initial prefix digest and fixed original physical projection from issuer | Index complete/no progress genuine initial vs illegal late loss |
+| Progress zero/prefix/displaced CAS | Expected/replacement commitments; same active target/preimage; actual final postimage only on COMPLETED | Same/fresh active cut refresh via genuine typed boundary receipt |
+| Born publication-before-capture | Raw positive readback then checked PREPARING_CAPTURED CAS; exact role/path/ordinal/actual fact/SHA/projection; no generic append | Before/after raw copy and before/after capture CAS; Ledger return handshake before loss |
+| Notification present-in-P and positively absent-in-P | Actual immutable original sources/ownedIDs fields; no default IDs; exact publisher/readback/require observation | Real pre-delete owned IDs, OS await and pending+delivered readback, genuine absence receipt |
+| R->C and C-before-terminal | Same publisher exact R/C next grammar; real C bytes/fact readback before final progress/terminal | Fresh C/displaced R temp and namespace authority origin |
+| Terminal publication | Composite bound with pure final values and exact earlier leaf facts; no self-fact/SHA; own next partial grammar | Fresh terminal next partial; all controls remain until readback |
+| Every terminal deletion prefix | One newly issued ordinal effect; actual absent prefix + exact suffix; embedded IDs/source/progress survive deleted standalone leaves | Every ordinal same/fresh owner, real OS and physical/semantic reproof |
+| Last terminal/root/close | Actual terminal observation supplies final self-leaf; permanent fence before last unlink; checked root absence and sole actual closer | Close faults/numeric reuse, checked close before actual release/ready |
+| Original versus fresh terminal authority | Original close consumes exact wrapped real oldproof identity and owns FDs; cold first observer is sole borrowed closer | Genuine weak drain/namespace proof, distinct fresh no fake-incumbent authority |
+| Final empty/no-intent startup | Data-only terminal-presence Snapshot routes surviving terminal; existing ordinary observation origin after final loss | Truthful no-completion/no callback/no IDs, fresh adoption checked close |
+| Hostile records/projections | Strict canonical JSON, version1, sorted unique paths/IDs, role-derived caps, SHA/fact checks, no wrong effect/caller-only intent, monotonic phase/ordinal | Foreign temp/leaf, stale permit, substitutions, duplicates, missing IDs/raw source, uncertainty/reuse |
+| Maximum capacity | Original limits unchanged; terminal877654016 bytes; source/birth union200016 controls; streamed raw first witnesses/no FD census retention | Coupled memory/IO measurement, actual largest legal canonical values and count edges |

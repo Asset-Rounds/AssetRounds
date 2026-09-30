@@ -1,0 +1,57 @@
+{
+  "schema": "ProductPolicyBaselineV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C02",
+  "repositoryHead": "b46c58d478849eec5c7cd4b8e9dc4639dfc45853",
+  "repositoryTree": "def5ff8a7336d2a045469d003497348ecf92c85c",
+  "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+  "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+  "canonicalTruth": "DEVICE_LOCAL_APP_OWNED",
+  "defaults": {
+    "accountRequired": false,
+    "remoteSyncEnabled": false,
+    "hiddenNetworkProcessingAllowed": false,
+    "telemetryOrAnalyticsEnabled": false,
+    "advertisingIdentifierAllowed": false,
+    "silentSharingAllowed": false,
+    "completeManualPathRequired": true,
+    "optionalEvidenceMayBlockUnrelatedCore": false
+  },
+  "repositoryObservations": {
+    "privacyManifestPath": "FieldEvidenceApp/PrivacyInfo.xcprivacy",
+    "privacyManifestCollectedDataTypes": [],
+    "privacyManifestTracking": false,
+    "privacyManifestTrackingDomains": [],
+    "exportedBackupType": "com.palatis3.fieldrecordbackup",
+    "shippingNetworkAccountAnalyticsPathsObserved": 0,
+    "observationBasis": "STATIC_SOURCE_AND_MANIFEST_INSPECTION_AT_REPOSITORY_HEAD"
+  },
+  "allowedClaims": [
+    "ATTRIBUTABLE_OBSERVATION",
+    "USER_ENTERED_FACT",
+    "COMPLETE_EXTERNAL_MEASUREMENT_PROVENANCE",
+    "EXPLICITLY_SOURCED_SCREENING_RESULT",
+    "ACCEPTED_FEATURE_CAPABILITY"
+  ],
+  "prohibitedClaims": [
+    "DIAGNOSIS",
+    "ADEQUACY",
+    "SAFETY",
+    "CODE_COMPLIANCE",
+    "ADA_COMPLIANCE",
+    "IES_COMPLIANCE",
+    "CERTIFICATION",
+    "PROFESSIONAL_ATTESTATION",
+    "AHJ_ATTESTATION",
+    "UNACCEPTED_FEATURE_CAPABILITY"
+  ],
+  "brandPolicy": {
+    "currentDirection": "INHERIT_ACTIVE_PHASE10_DIRECTION_WITHOUT_MUTATING_PHASE10",
+    "materialRevisionRequiresOwnerDecision": true,
+    "sharedBrandAcceptanceStatus": "PENDING_ACCEPTED_S10_6",
+    "phase10WinsSharedConflicts": true
+  },
+  "productMutation": false,
+  "acceptanceEnabled": false,
+  "releaseCredit": false
+}

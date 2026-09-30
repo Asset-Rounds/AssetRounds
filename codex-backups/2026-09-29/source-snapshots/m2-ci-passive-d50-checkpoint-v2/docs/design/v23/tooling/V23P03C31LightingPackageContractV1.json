@@ -1,0 +1,88 @@
+{
+  "artifactDigest": "cc3618dbecb750dadac6ef9c156c7f33d0b4143f602dc370f83055f3a4ce2d5d",
+  "authority": {
+    "allowedPathCount": 208,
+    "appBaseHead": "81fb371d7774684ebcee94a8a15c675a966848d1",
+    "appBaseTree": "5db17061ee362c64b9c9dde3753108e50d365609",
+    "attemptID": 1,
+    "authorizedOverlapCount": 2537,
+    "cardID": "V23-P03-C31",
+    "contextDigest": "df713e7fb33855d75ab8eb01e95c24dbd4271aaaf9530d8fc0199725cf55cd26",
+    "coordinationCASSequence": 294,
+    "coordinationHead": "162218beead4494ea3a3ed48c79273825f7e6394",
+    "coordinationLedgerDigest": "f90518605a1fdf504733edd243475df4a2673edeee731d3c4005bea63cb360ff",
+    "coordinationProjectionDigest": "75d6335c6a5a911a666a8ebfeb0152317b4b6a62f329c29b8b40de6ea1e82c0d",
+    "coordinationTree": "95931020af8e24f4162eec3d313b63ec9ce2f7be",
+    "digestPinsPending": false,
+    "directPrerequisiteCards": [
+      "V23-P03-C28",
+      "V23-P03-C30"
+    ],
+    "existingPathCount": 194,
+    "fenceDigest": "ea730d30ec67055fcb981fa085653e9e5171e1fbb94e8f7780bfaa3c937b964a",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "3453ce470e7f6e24887162c0aa2027ba9aaf35c4697221f1d3fc8a8ddd56d6ff",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C42",
+    "prerequisiteDigest": "15a24d69743b332cf32cbb06c7d59fe29b27d9b56b11a6fd5796206e22c435b7",
+    "registerOrdinal": 69,
+    "title": "Exterior and parking-lighting package, shared topology, observational claims, and measurement boundary",
+    "unauthorizedOverlapCount": 0
+  },
+  "persistence": {
+    "backupRestoreRequired": true,
+    "cloneForkRequired": true,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V31_WRITE",
+    "durableFamilyCount": 5,
+    "exportReportRequired": true,
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "persistedFamilies": [
+      "LightingSystemRow",
+      "LightingObservationRow",
+      "LightingIssueRow",
+      "MeasurementPlanRow",
+      "LightingClaimStateRow"
+    ],
+    "persistentKindLifecycleModelCount": 109,
+    "persistentSchemaVersion": 31,
+    "recordsSchemaVersion": 30,
+    "replayRequired": true,
+    "schemaRelease": "LIGHTING_PACKAGE_V1",
+    "searchRebuildRequired": true
+  },
+  "requiredSemantics": {
+    "archiveWideC19C40ClaimProvenanceJoin": true,
+    "claimTierBoundary": true,
+    "contractNames": [
+      "LightingSystemV1",
+      "LightingZoneV1",
+      "ControlGroupV1",
+      "LuminaireAssetV1",
+      "LightingObservationV1",
+      "LightingIssueV1",
+      "MeasurementPlanV1",
+      "CriterionReferenceV1",
+      "LightingClaimStateV1"
+    ],
+    "criterionIdentityAndInconclusiveBoundary": true,
+    "duplicateSemanticKeyArchivesRejectWithoutTrap": true,
+    "electricalAndTrafficSafetyStops": true,
+    "exactFootcandleLuxConversionAndProvenance": true,
+    "fiveSelectors": [
+      "testV23P03C31G01LightingTopologyObservationAndMeasurementBoundariesAreExact",
+      "testV23P03C31A01SharedSupportsMultiHeadAndMultiAreaTopologyWithoutClones",
+      "testV23P03C31H01ForbiddenClaimsInvalidMeasurementsAndUnsafeWorkFailClosed",
+      "testV23P03C31I01InterruptedLightingMutationRecoversAsZeroOrOneCanonicalSuccess",
+      "testV23P03C31R01RestoreReplayAndHistoricLightingReportsRemainExact"
+    ],
+    "hostileMatrixClosure": true,
+    "photoExifNeverMeasurementOrCompliance": true,
+    "sharedTopologyWithoutClones": true,
+    "singleWriterReceiptLifecycleClosure": true
+  },
+  "schema": "V23P03C31LightingPackageContractV1",
+  "schemaVersion": 1
+}

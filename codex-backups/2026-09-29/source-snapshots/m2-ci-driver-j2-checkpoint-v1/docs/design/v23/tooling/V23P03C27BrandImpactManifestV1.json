@@ -1,0 +1,33 @@
+{
+  "artifactDigest": "a58813f4efe2b399ba3631c920c3484db1986886fd936f64d462323229cc2dd4",
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C27",
+  "changedStates": [
+    "MATCHED",
+    "NO_MATCH",
+    "FOREIGN_WORKSPACE",
+    "AMBIGUOUS",
+    "DAMAGED_OR_INCOMPLETE",
+    "RETIRED",
+    "REVOKED",
+    "REPLACED"
+  ],
+  "nativeIPadSurface": false,
+  "schema": "V23P03C27BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "telemetry": false,
+  "uiSurfaceDelta": false
+}

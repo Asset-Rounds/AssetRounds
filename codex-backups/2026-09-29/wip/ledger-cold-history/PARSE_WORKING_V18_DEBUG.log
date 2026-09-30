@@ -1,0 +1,15 @@
+.codex-temp/cold-ledger-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift:14304:38: error: expected '{' after 'while' condition
+14302 |         var names: [String] = []
+14303 |         errno = 0
+14304 |         while let entry = Darwin.try self.originalEraseBorrowedObservationIO { readdir(directory) } {
+      |                                      `- error: expected '{' after 'while' condition
+14305 |             guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+14306 |                 throw ScratchDataLeaseStoreFailureV1.invalidRoot
+
+.codex-temp/cold-ledger-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift:14304:100: error: consecutive statements on a line must be separated by ';'
+14302 |         var names: [String] = []
+14303 |         errno = 0
+14304 |         while let entry = Darwin.try self.originalEraseBorrowedObservationIO { readdir(directory) } {
+      |                                                                                                    `- error: consecutive statements on a line must be separated by ';'
+14305 |             guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else {
+14306 |                 throw ScratchDataLeaseStoreFailureV1.invalidRoot

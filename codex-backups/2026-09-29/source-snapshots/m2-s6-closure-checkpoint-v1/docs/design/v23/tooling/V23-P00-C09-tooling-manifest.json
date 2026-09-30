@@ -1,0 +1,143 @@
+{
+  "schema": "V23P00C09ToolingManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C09",
+  "baseHead": "506887f637679d2416657c99638069605e4ca918",
+  "baseTree": "50fe6f3696e7fd7675b4be1ae2f231cdb7c71a87",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "506887f637679d2416657c99638069605e4ca918",
+    "baseTree": "50fe6f3696e7fd7675b4be1ae2f231cdb7c71a87",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "bc821da9b06681f3682e87a11900be0a6bb0e816c40262a11c040f26c9bf9cb9",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "46c382016f5600610d421abdcf4f5a3e486bc0d8c01e791c1b31d6d33513041c",
+    "bootstrapPathFenceDigest": "7138b44784ebe79a77e3bb243e6048f50d05b4ffd37cf74664bcdb800c54b36e",
+    "provisionalPrerequisiteDigest": "d44bd9940a710ba151ce21d5e9d5b746d9443dc6bf87d7f305f6ce50aae3b2a2",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "2e042673a4eb518e480cc12a03f1f09b61b3b752ae955bf2bbcb05341132398c",
+    "ledgerCASSequence": 23,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "fencedPathCount": 25,
+  "artifacts": [
+    {
+      "path": "Scripts/v23/c09_contracts.py",
+      "sha256": "c365bdb85693b64fdf7397a1cff92946e0d7d0383a118c678991f951ac25337d"
+    },
+    {
+      "path": "Scripts/v23/generate_c09_contracts.py",
+      "sha256": "179df345c24ee924013dc70fe43ec8813435110e3f4eb043d54ed279201977ac"
+    },
+    {
+      "path": "Scripts/v23/verify_c09_contracts.py",
+      "sha256": "a19d58b94ede1df5277e36e5cfbb9afafbce7a9cdec5cd268dd605fb063d5fde"
+    },
+    {
+      "path": "Scripts/v23/test-plan-release.schema.json",
+      "sha256": "a5d522fba821a1dae98cb8fa90052513781c4fd02ab42a30a47d11ad4c31e236"
+    },
+    {
+      "path": "Scripts/v23/ui-test-scenario.schema.json",
+      "sha256": "252dcc7eafd7896a294411e689636720216f3a8912a73856ef99a018fb65076f"
+    },
+    {
+      "path": "Scripts/v23/page-robot-registry.schema.json",
+      "sha256": "befb095004ae58083bfbeecd41549a978658b918359f48b104b0d667a92da9f2"
+    },
+    {
+      "path": "Scripts/v23/viewport-contract.schema.json",
+      "sha256": "04dea0759095c628f691c16449799aa2a6c45952c08efbf2c186cad2500ba311"
+    },
+    {
+      "path": "Scripts/v23/source-lock-elimination-receipt.schema.json",
+      "sha256": "97943ca751dd99038839f2a4a0b173e64bc19311a4ecfec0cd4293325ac9fe80"
+    },
+    {
+      "path": "Scripts/v23/test-plan-acceptance-receipt.schema.json",
+      "sha256": "f66fb714296a81f17e31804d469df6f367c18af64c50be0cc2bdbf4faf6d5a03"
+    },
+    {
+      "path": "Scripts/v23/test-plan-enrollment-receipt.schema.json",
+      "sha256": "3ee6936bf02670fc1db0b9e12bf0bb9d996d893bec0fcefc3644a35a37476921"
+    },
+    {
+      "path": "Scripts/v23/ui-test-scenario-digest.schema.json",
+      "sha256": "23584b03d5d0a285aa6119da6e68aa2d82b4170afedb517a9bf82508244953d6"
+    },
+    {
+      "path": "TestPlans/V23-FastPR.xctestplan",
+      "sha256": "2f59d52fe46d8ded545b7b3bab9c8f5a5d0325775787f38bf111e8d1f4124a6e"
+    },
+    {
+      "path": "TestPlans/V23-ReleaseCandidate.xctestplan",
+      "sha256": "0539566b34917618f575650d256a2ae125fea6e8c31365c07871c52556f4b606"
+    },
+    {
+      "path": "TestPlans/V23-StoreKitRegression.xctestplan",
+      "sha256": "ecccbfc66340684503a8f7476b798b13a359e235004ff869262a23c386e2de73"
+    },
+    {
+      "path": "TestPlans/V23-Sanitizers.xctestplan",
+      "sha256": "3165a45bb7b35c173139e771792669167384bba02db583ae52385b9e8cf34c78"
+    },
+    {
+      "path": "TestPlans/V23-DiagnosticSweep.xctestplan",
+      "sha256": "d81ac4db2cba1fd143d9b4197866fad9e0c127fce6b768427cf38a9cbd5987a7"
+    },
+    {
+      "path": "docs/design/v23/tooling/TestPlanReleaseV1.json",
+      "sha256": "14cd3676901018e42f670f2ac8ce14ff1104f6956be6f251a6f6b1a23098f093"
+    },
+    {
+      "path": "docs/design/v23/tooling/UITestScenarioV1.json",
+      "sha256": "3fa8bca33a91ecb8a219058827136c5bc4929b05b285d41fd86c973d048ef1c9"
+    },
+    {
+      "path": "docs/design/v23/tooling/PageRobotRegistryV1.json",
+      "sha256": "5162c968cc3e9918612dbec9212faeaed8a7434ee3534ae671d99567948d53f2"
+    },
+    {
+      "path": "docs/design/v23/tooling/ViewportContractV1.json",
+      "sha256": "70fb653392e8140e19de7729bfe051c0e3da3500d4a38fc8ff35a38b02a63972"
+    },
+    {
+      "path": "docs/design/v23/tooling/SourceLockEliminationReceiptV1.json",
+      "sha256": "7bf80cc4ca8afc99ae936294b90c2a5b128ddf9cc08f5a1319a81fc7d5605580"
+    },
+    {
+      "path": "docs/design/v23/tooling/TestPlanAcceptanceReceiptV1.json",
+      "sha256": "2806c22b1d5e4b1c9dd4da105925a3c1150e984fe400f6c9a25770fac882b988"
+    },
+    {
+      "path": "docs/design/v23/tooling/TestPlanEnrollmentReceiptV1.json",
+      "sha256": "0029eebabcb162a85af435c9e35fd6cc1d9f89793f93f12cba25f2a606bd5df5"
+    },
+    {
+      "path": "docs/design/v23/tooling/UITestScenarioDigestV1.json",
+      "sha256": "18d5075bd3348a03982abb42b9818ebd3005a20502296261e8edbec072caeb56"
+    }
+  ],
+  "c07AllocationDigest": "a3974f7989a5efe5674af12e5d73710be06a87ac5c609a8dd504ee00c38d4a0a",
+  "c07OwnedClauseCount": 11,
+  "provisionalDisposition": "FIVE_PLANS_AND_STRICT_CONTRACT_TOOLING_CHECKED_IN; SCHEME_ENROLLMENT_ROBOT_EXTRACTION_AND_NATIVE_EXECUTION_DEFERRED",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "bcc8848789c7ee26b47f0bee4cf6e649996b5c6f709ec1958033e163e759320c"
+}

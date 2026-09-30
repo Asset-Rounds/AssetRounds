@@ -1,0 +1,142 @@
+    /// Migration retains its genuine observation owner through this method
+    /// before opening any child. The context lends only these three already
+    /// held parents for one synchronous Registry G callback; it is cleared
+    /// when that callback returns, including a throw.
+    func retainOriginalFirstCaptureObservation(
+        _ observation: OriginalEraseAuxiliaryFirstCaptureObservationOwnerV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        try requireFirstCaptureObservationContext(operation: operation)
+        guard firstCaptureObservation == nil ||
+              firstCaptureObservation === observation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        firstCaptureObservation = observation
+    }
+
+    func requireOriginalFirstCaptureObservation(
+        _ observation: OriginalEraseAuxiliaryFirstCaptureObservationOwnerV1,
+        operation: EraseRouterOperationV1
+    ) throws {
+        try requireFirstCaptureObservationContext(operation: operation)
+        guard firstCaptureObservation === observation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func requireOriginalFirstCaptureRegistryRetention(
+        operation: EraseRouterOperationV1
+    ) throws {
+        try requireFirstCaptureObservationContext(operation: operation)
+        guard firstCaptureObservation != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func failOriginalFirstCaptureObservation(operation: EraseRouterOperationV1) {
+        // A wrong identity is uncertainty too; this owner cannot reopen or
+        // replace any retained attempt after an ambiguous observation edge.
+        firstCaptureObservationUncertain = true
+        operation.failOriginalEraseFirstCaptureObservation()
+        if let actual = firstCaptureOperation, actual !== operation {
+            actual.failOriginalEraseFirstCaptureObservation()
+        }
+    }
+
+    private func requireFirstCaptureObservationContext(
+        operation: EraseRouterOperationV1
+    ) throws {
+        guard firstCaptureScopedBorrowInFlight,
+              !firstCaptureObservationUncertain,
+              let context = firstCaptureObservationContext,
+              context.operation === operation,
+              firstCaptureOperation === operation,
+              firstCaptureStore === context.store,
+              let caches, let temporary,
+              context.exclusion.owner === context.coordinator,
+              context.exclusion.matchesOriginalEraseAuxiliaryPhase(
+                registry: context.exclusion.registry,
+                activity: context.activity,
+                writer: context.exclusion.retainedWriter) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // Neither edge may reacquire G or load through the Store's busy
+        // publication owner. Migration supplies the actual strict census
+        // and canonical controls before and after each raw observation.
+        try operation.requireOriginalEraseFirstCaptureRegistrationUnderHeldG(
+            owner: self, observer: observer,
+            coordinator: context.coordinator,
+            exclusion: context.exclusion,
+            registry: context.exclusion.registry, activity: context.activity,
+            store: context.store, intent: context.intent,
+            preparation: context.preparation)
+        try requireParent(caches)
+        try requireParent(temporary)
+        try context.exclusion.physicalRoot.revalidate(
+            applicationSupportURL: context.coordinator.originalEraseAuxiliarySupportURL)
+    }
+
+    private func withOriginalEraseC16FirstCaptureObservation<Value>(
+        operation: EraseRouterOperationV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        store: EraseIntentStore,
+        _ body: @MainActor (Int32, Int32, Int32,
+            OriginalEraseC16FirstCaptureObservationScopeV1) throws -> Value
+    ) throws -> Value {
+        guard !firstCaptureScopedBorrowInFlight,
+              firstCaptureObservationContext == nil,
+              !firstCaptureObservationUncertain,
+              inFlight || rosterCaptureInFlight || rosterReproofInFlight,
+              firstCaptureOperation == nil || firstCaptureOperation === operation,
+              firstCaptureStore == nil || firstCaptureStore === store,
+              let caches, let temporary else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // Outside G, the actual exclusion owner verifies the source writer
+        // and returns its genuine activity. No new SH or EX is acquired.
+        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
+            registry: exclusion.registry, coordinator: coordinator,
+            writer: exclusion.retainedWriter)
+        try requireParent(caches)
+        try requireParent(temporary)
+        firstCaptureOperation = operation
+        firstCaptureStore = store
+        firstCaptureScopedBorrowInFlight = true
+        firstCaptureObservationContext = FirstCaptureObservationContext(
+            operation: operation, coordinator: coordinator,
+            exclusion: exclusion, activity: activity, store: store,
+            intent: intent, preparation: preparation)
+        defer {
+            firstCaptureObservationContext = nil
+            firstCaptureScopedBorrowInFlight = false
+        }
+        do {
+            let supportURL = coordinator.originalEraseAuxiliarySupportURL
+            let value = try exclusion.physicalRoot
+                .withHeldOriginalEraseAuxiliarySupport(at: supportURL) { support in
+                    try exclusion.registry.withOriginalEraseFirstCaptureObservation(
+                        activity: activity, operation: operation, store: store,
+                        coordinator: coordinator, exclusion: exclusion,
+                        owner: self, observer: observer,
+                        intent: intent, preparation: preparation,
+                        support: support, caches: caches.descriptor,
+                        temporary: temporary.descriptor,
+                        applicationSupportURL: supportURL,
+                        observation: firstCaptureObservation) { scope, retained in
+                        try requireOriginalFirstCaptureObservation(retained,
+                            operation: operation)
+                        return try body(support, caches.descriptor,
+                            temporary.descriptor, scope)
+                    }
+                }
+            try requireParent(caches)
+            try requireParent(temporary)
+            return value
+        } catch {
+            failOriginalFirstCaptureObservation(operation: operation)
+            throw error
+        }
+    }
+

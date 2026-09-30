@@ -1,0 +1,88 @@
+--- /Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v6/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
++++ /Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-pending-producer-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
+@@ -2241,9 +2241,16 @@
+     private func scan(support: Int32, caches: Int32, temporary: Int32,
+         c16Scope: OriginalEraseC16CurrentObservationScopeV1?, permit: EraseSchema2ColdPhysicalPermitV1,
+         progress: Progress?, initialScope: OriginalEraseC16InitialObservationScopeV1? = nil,
+-        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil) throws -> Image {
++        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil,
++        producerRequest: OriginalEraseC16ProducerRequestV4? = nil) throws -> Image {
+         guard initialScope == nil || (progress == nil && c16Scope == nil) else { throw EraseAllServiceError.invalidAuthority }
+         try requireScanBinding(permit, progress: progress)
++        if let producerRequest {
++            guard progress != nil, initialScope == nil else { throw EraseAllServiceError.invalidAuthority }
++            // Only the actual already-durable pending request readback may
++            // bracket a publisher replay image. A pre-pending preimage has nil.
++            try permit.requireProducerRequestBinding(producerRequest)
++        }
+         let canonicalProgressSHA = try progress.map { StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode($0)) }
+         func bound() throws {
+             try requireMemory()
+@@ -2257,6 +2264,7 @@
+             }
+             try c16Scope?.requireCurrentBinding(); try initialScope?.requireCurrentBinding()
+             try genericScope?.requireCurrentBinding()
++            if let producerRequest { try permit.requireProducerRequestBinding(producerRequest) }
+         }
+         var values: [Progress.Projection] = [], nodes: [String: Node] = [:]
+         var currentTypedPairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1] = []
+@@ -2490,6 +2498,28 @@
+                   boundary.projection.currentOrdinal == boundary.ordinal else { throw EraseAllServiceError.invalidAuthority }
+             guard boundary.stepSHA256 == (try CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(plan.steps[boundary.ordinal]))) else {
+                 throw EraseAllServiceError.invalidAuthority
++            }
++            guard boundary.bornSource == nil || boundary.producerRequest == nil else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            if let request = boundary.producerRequest {
++                guard boundary.purpose == .producerRequest,
++                      request.planSHA256 == boundary.planSHA256,
++                      request.stepSHA256 == boundary.stepSHA256,
++                      request.ordinal == boundary.ordinal,
++                      request.slot.producerOrdinal == boundary.ordinal,
++                      request.sha256 == (try CompatibilityCanonicalV1.sha256(request.bytes)),
++                      let index = progress.activeTargetIndex, targets.indices.contains(index),
++                      targets[index].kind == .c16, targets[index].ordinal == boundary.ordinal,
++                      targets[index].allowedBirthPaths.contains(request.slot.path),
++                      progress.stage == .preparing || progress.stage == .preparingCaptured else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                // Slot/temp/mode/input source equality is checked against
++                // actual private Session + canonical pending Store readback
++                // by the positive permit before each raw scanner primitive.
++            } else {
++                guard boundary.purpose != .producerRequest else { throw EraseAllServiceError.invalidAuthority }
+             }
+             if let born = boundary.bornSource {
+                 guard let index = progress.activeTargetIndex, targets.indices.contains(index),
+@@ -2687,13 +2717,18 @@
+         permit: EraseSchema2ColdPhysicalPermitV1, boundary: OriginalEraseC16BoundaryObservationV1?,
+         progress: Progress,
+         genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil) throws -> [Progress.Projection] {
++        let request = boundary?.producerRequest
++        if let request { try permit.requireProducerRequestBinding(request) }
+         let one = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
++            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope,
++            producerRequest: request)
+         try requireFinite(one, boundary: boundary, progress: progress)
+         let two = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
++            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope,
++            producerRequest: request)
+         guard one == two else { throw EraseAllServiceError.invalidAuthority }
+         try requireBinding(permit, progress: progress)
++        if let request { try permit.requireProducerRequestBinding(request) }
+         return two.projection
+     }
+ 
+@@ -2708,7 +2743,9 @@
+         for row in projection {
+             try requireBinding(permit, progress: progress)
+             try genericScope?.requireCurrentBinding(); try c16Scope?.requireCurrentBinding()
++            if let request = boundary?.producerRequest { try permit.requireProducerRequestBinding(request) }
+             try body(row)
++            if let request = boundary?.producerRequest { try permit.requireProducerRequestBinding(request) }
+         }
+         try requireBinding(permit, progress: progress)
+     }

@@ -1,0 +1,13 @@
+{
+  "schema": "root-created-exact-published-source-author-worktree-v1",
+  "head": "93159755395d697a5a9da02f41374120433c50f9",
+  "sourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "sourceInputs": 1206,
+  "authorOwnedPaths": [
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift"
+  ],
+  "frozenInputBindingSHA256": "eaa6b26f558bdff78085658b78643f6c22965eab097d554b4411041cab846be6",
+  "worktree": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds",
+  "scope": "Prospective complete cold physical observation and executors only; tracked source unchanged; no compile/runtime/approval."
+}

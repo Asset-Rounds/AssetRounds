@@ -1,0 +1,242 @@
+import Foundation
+
+enum FeaturePolicyLoaderFailureV1: Error, Equatable, Sendable {
+    case missingResource
+    case duplicateResource
+    case malformedResource
+    case noncanonicalResource
+    case digestMismatch
+}
+
+final class BundleFeaturePolicyDataProviderV1: BundledFeaturePolicyDataPortV1, @unchecked Sendable {
+    static let resourceName = "FeaturePolicyV1"
+    static let resourceExtension = "json"
+    static let releasedResourceDigest =
+        "98a205edc22421ec4a4f2a5494628f4f40be7117a95cdd3cc94e2d6eab7c98ef"
+
+    private let bundle: Bundle
+    private let expectedDigest: String
+
+    init(
+        bundle: Bundle = .main,
+        expectedDigest: String = BundleFeaturePolicyDataProviderV1.releasedResourceDigest
+    ) {
+        self.bundle = bundle
+        self.expectedDigest = expectedDigest
+    }
+
+    func canonicalFeaturePolicyData() throws -> Data {
+        let matches = (bundle.urls(
+            forResourcesWithExtension: Self.resourceExtension,
+            subdirectory: nil
+        ) ?? []).filter { $0.deletingPathExtension().lastPathComponent == Self.resourceName }
+        guard !matches.isEmpty else { throw FeaturePolicyLoaderFailureV1.missingResource }
+        guard matches.count == 1, let url = matches.first else {
+            throw FeaturePolicyLoaderFailureV1.duplicateResource
+        }
+        let bytes = try Data(contentsOf: url, options: [.mappedIfSafe])
+        guard CompatibilityCanonicalV1.validSHA256(expectedDigest),
+              CompatibilityCanonicalV1.sha256(bytes) == expectedDigest else {
+            throw FeaturePolicyLoaderFailureV1.digestMismatch
+        }
+        return bytes
+    }
+
+    func buildArtifactDigest() throws -> String {
+        CompatibilityCanonicalV1.sha256(try canonicalFeaturePolicyData())
+    }
+}
+
+enum PrivateSystemDiscoveryFeaturePolicyBoundaryV1 {
+    static let featureID = "privateSystemDiscovery"
+    static func resolve(using loader: FeaturePolicyLoaderV1) throws -> FeaturePolicyResolutionV1 {
+        let value = try loader.resolve(featureID: featureID)
+        guard value.policyState == .preparedDisabled, value.requiredCapabilities.isEmpty,
+              value.requiredPackageIDs.isEmpty, value.safeFallback == .noFallback else {
+            throw CapabilityContractFailureV1.invalidValue
+        }
+        return value
+    }
+}
+
+enum OCRProposalFeaturePolicyBoundaryV1 {
+    static let featureID = "scanOCR"
+    static func resolve(using loader: FeaturePolicyLoaderV1) throws -> FeaturePolicyResolutionV1 {
+        let value = try loader.resolve(featureID: featureID)
+        guard value.policyState == .preparedDisabled,
+              value.requiredCapabilities == [.scanOCR],
+              value.requiredPackageIDs.isEmpty,
+              value.safeFallback == .typeManually else {
+            throw CapabilityContractFailureV1.invalidValue
+        }
+        return value
+    }
+}
+
+struct DictationLocationFeaturePolicyResolutionV1:Equatable,Sendable{
+    let speech:FeaturePolicyResolutionV1
+    let location:FeaturePolicyResolutionV1
+    init(speech:FeaturePolicyResolutionV1,location:FeaturePolicyResolutionV1)throws{
+        try DictationLocationCapabilityBoundaryV1.validateSpeech(speech)
+        try DictationLocationCapabilityBoundaryV1.validateLocation(location)
+        self.speech=speech;self.location=location
+    }
+    func makePreparedDisabledPolicy(dictationCapability:AssistanceCapabilityReferenceV1,
+        locationCapability:AssistanceCapabilityReferenceV1,
+        supportedDictationLocales:[String],maximumTranscriptUTF8Bytes:Int=ResponseValueV1.maximumTextUTF8Bytes,
+        maximumHorizontalAccuracyMillimeters:UInt64=100_000)throws->DictationLocationCapabilityPolicyV1{
+        let dictationBinding=try AssistanceFeaturePolicyBindingV1.binding(for:dictationCapability)
+        let locationBinding=try AssistanceFeaturePolicyBindingV1.binding(for:locationCapability)
+        let dictationPolicy=try dictationBinding.makePolicy(capability:dictationCapability,resolution:speech)
+        let locationPolicy=try locationBinding.makePolicy(capability:locationCapability,resolution:location)
+        return try .init(dictationPolicy:dictationPolicy,locationPolicy:locationPolicy,
+            dictationActivation:.preparedDisabled,locationActivation:.preparedDisabled,
+            supportedDictationLocales:supportedDictationLocales,
+            maximumTranscriptUTF8Bytes:maximumTranscriptUTF8Bytes,
+            maximumHorizontalAccuracyMillimeters:maximumHorizontalAccuracyMillimeters)
+    }
+}
+
+enum DictationLocationFeaturePolicyBoundaryV1{
+    static func resolve(using loader:FeaturePolicyLoaderV1)throws->DictationLocationFeaturePolicyResolutionV1{
+        try .init(speech:loader.resolve(featureID:"speechDictation"),
+                  location:loader.resolve(featureID:"locationCapture"))
+    }
+}
+
+struct FeaturePolicyLoaderV1: Sendable {
+    private let provider: any BundledFeaturePolicyDataPortV1
+
+    init(provider: any BundledFeaturePolicyDataPortV1) {
+        self.provider = provider
+    }
+
+    func load() throws -> FeaturePolicyRegistryV1 {
+        try loadWithDigest().registry
+    }
+
+    private func loadWithDigest() throws -> (
+        registry: FeaturePolicyRegistryV1,
+        digest: String
+    ) {
+        let raw = try provider.canonicalFeaturePolicyData()
+        let reportedDigest = try provider.buildArtifactDigest()
+        guard CompatibilityCanonicalV1.validSHA256(reportedDigest),
+              reportedDigest == CompatibilityCanonicalV1.sha256(raw) else {
+            throw FeaturePolicyLoaderFailureV1.digestMismatch
+        }
+        let payload: Data
+        if raw.suffix(2) == Data([0x0D, 0x0A]) { payload = Data(raw.dropLast(2)) }
+        else if raw.last == 0x0A { payload = Data(raw.dropLast()) }
+        else { payload = raw }
+        let decoded: FeaturePolicyRegistryV1
+        do {
+            decoded = try JSONDecoder().decode(FeaturePolicyRegistryV1.self, from: payload)
+            try decoded.validate()
+        } catch {
+            throw FeaturePolicyLoaderFailureV1.malformedResource
+        }
+        let canonical = try CompatibilityCanonicalV1.encode(decoded)
+        guard canonical == payload else {
+            throw FeaturePolicyLoaderFailureV1.noncanonicalResource
+        }
+        return (decoded, reportedDigest)
+    }
+
+    func resolve(featureID: String) throws -> FeaturePolicyResolutionV1 {
+        let loaded = try loadWithDigest()
+        let registry = loaded.registry
+        guard let feature = registry.features.first(where: { $0.featureID == featureID }) else {
+            throw CapabilityContractFailureV1.unknownFeature
+        }
+        return FeaturePolicyResolutionV1(
+            featureID: feature.featureID,
+            policyState: feature.state,
+            requiredPackageIDs: feature.requiredPackageIDs,
+            requiredCapabilities: feature.requiredCapabilities,
+            minimumPlatformMajorVersion: feature.minimumPlatformMajorVersion,
+            safeFallback: feature.safeFallback,
+            bundleDigest: loaded.digest
+        )
+    }
+}
+
+// MARK: - C25 survey-definition feature boundary
+
+enum SurveyDefinitionFeaturePolicyBoundaryV1 {
+    static let featureID = "surveyDefinition"
+    static let safeFallback = "READ_ONLY_RELEASE_METADATA"
+    static let noImplicitWrite = true
+    static let deviceMemoryIsNotFeatureTruth = true
+    static let excludesAnswers = true
+    static let excludesPromptText = true
+    static let excludesActorIdentity = true
+
+    /// A missing feature declaration fails closed to a read-only metadata
+    /// consumer.  The loader remains the sole policy reader; this boundary
+    /// does not add a parallel resource or mutate FeaturePolicyV1.json.
+    static func resolveIfDeclared(
+        using loader: FeaturePolicyLoaderV1
+    ) throws -> FeaturePolicyResolutionV1? {
+        do {
+            return try loader.resolve(featureID: featureID)
+        } catch CapabilityContractFailureV1.unknownFeature {
+            return nil
+        }
+    }
+
+    static func validate() -> Bool {
+        noImplicitWrite && deviceMemoryIsNotFeatureTruth
+            && excludesAnswers && excludesPromptText && excludesActorIdentity
+    }
+}
+
+// MARK: - C26 guided-survey session feature boundary
+
+/// A missing C26 declaration fails closed to local, read-only session
+/// metadata.  Device preferences cannot enable canonical fact writes and a
+/// feature flag never changes the meaning of an accepted session snapshot.
+enum SurveySessionFeaturePolicyBoundaryV1 {
+    static let featureID = "surveySession"
+    static let safeFallback = "READ_ONLY_SURVEY_METADATA"
+    static let noImplicitCanonicalWrite = true
+    static let devicePreferencesAreNotCanonicalTruth = true
+    static let excludesFactValuesFromFeatureMetadata = true
+    static let excludesPromptTextFromFeatureMetadata = true
+    static let excludesActorIdentityFromFeatureMetadata = true
+    static let excludesPublicationPayloadFromFeatureMetadata = true
+
+    static func resolveIfDeclared(
+        using loader: FeaturePolicyLoaderV1
+    ) throws -> FeaturePolicyResolutionV1? {
+        do {
+            return try loader.resolve(featureID: featureID)
+        } catch CapabilityContractFailureV1.unknownFeature {
+            return nil
+        }
+    }
+
+    static func validate() -> Bool {
+        noImplicitCanonicalWrite
+            && devicePreferencesAreNotCanonicalTruth
+            && excludesFactValuesFromFeatureMetadata
+            && excludesPromptTextFromFeatureMetadata
+            && excludesActorIdentityFromFeatureMetadata
+            && excludesPublicationPayloadFromFeatureMetadata
+    }
+}
+
+enum C47ActivityContractConformance_FieldEvidenceApp_Infrastructure_Settings_FeaturePolicyLoaderV1_swift {
+    static let integrationRole = "PROVIDER_NEUTRAL_FEATURE_POLICY"
+    static let sharedReceipt = SharedActivityEnvelopeReceiptV1.self
+    static let installationReceipt = InstallationActivityContractReceiptV1.self
+    static let punchReceipt = PunchActivityContractReceiptV1.self
+    static let noPlanFallback = NoPlanFallbackV1.self
+    static let usesExistingWriterRendererStoreAndPackageInfrastructure = true
+    static let createsSecondRouteOrInspectionAlias = false
+    static func validateReadable(_ value: ActivitySessionEnvelopeV2) throws { try value.validateForRead() }
+    static func canonicalCloseoutIsPresent(_ value: ActivitySessionEnvelopeV2) throws -> Bool {
+        try ActivityContractCloseoutSettingsPolicyV2.validateCanonicalPresentation(value)
+        return value.installationCloseout != nil || value.punchReviewCloseout != nil
+    }
+}

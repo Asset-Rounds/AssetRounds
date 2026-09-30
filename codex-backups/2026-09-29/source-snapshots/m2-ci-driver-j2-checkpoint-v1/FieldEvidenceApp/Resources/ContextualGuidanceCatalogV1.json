@@ -1,0 +1,39 @@
+{
+  "catalogID": "93C0930C-B04B-4828-A62E-24EB144FB555",
+  "version": 1,
+  "entries": [
+    {
+      "entryID": "practice.share",
+      "contextKey": "practice.share",
+      "titleKey": "guidance.practice.share.title",
+      "bodyKey": "guidance.practice.share.body",
+      "actionKey": "guidance.practice.share.confirm",
+      "tags": [
+        "practice",
+        "share"
+      ]
+    },
+    {
+      "entryID": "today.empty",
+      "contextKey": "today.empty",
+      "titleKey": "guidance.today.empty.title",
+      "bodyKey": "guidance.today.empty.body",
+      "actionKey": "guidance.today.empty.start",
+      "tags": [
+        "today"
+      ]
+    },
+    {
+      "entryID": "work.resume",
+      "contextKey": "work.resume",
+      "titleKey": "guidance.work.resume.title",
+      "bodyKey": "guidance.work.resume.body",
+      "actionKey": "guidance.work.resume.review",
+      "tags": [
+        "recovery",
+        "work"
+      ]
+    }
+  ],
+  "catalogSHA256": "43bc01b7147c9e733b8a1d0ea93efa6576ed117fb612bda566b82cd6d4986e3b"
+}

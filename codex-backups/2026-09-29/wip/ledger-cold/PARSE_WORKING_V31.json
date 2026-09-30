@@ -1,0 +1,18 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "sourceSHA256": "818673231202c56f545c3d87019997d53bffee0ea52916611a75ea090fe88fe5",
+  "kind": "isolated syntax parse only; no module/typecheck/runtime",
+  "DEBUG": {
+    "exitCode": 0,
+    "seconds": 0.08444595336914062,
+    "log": "PARSE_WORKING_V31_DEBUG.log",
+    "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "nonDEBUG": {
+    "exitCode": 0,
+    "seconds": 0.04330921173095703,
+    "log": "PARSE_WORKING_V31_nonDEBUG.log",
+    "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

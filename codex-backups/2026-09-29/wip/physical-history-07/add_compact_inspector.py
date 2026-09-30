@@ -1,0 +1,292 @@
+from pathlib import Path
+p=Path('.codex-temp/cold-physical-continuation-successor-v6');f=p/'candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift';s=f.read_text()
+marker='    func postRetiredTree(parent: Int32, name: String,'
+assert s.count(marker)==1
+addition=r'''
+    /// Physical DATA only. The private initializer follows actual complete
+    /// readback and every checked close; this never supplies a semantic empty
+    /// graph, SQL context, Journal, drain, EX, OS receipt or ready capability.
+    struct Schema2CompactFirstHeldTargetPhysicalObservationV4 {
+        let operationID: UUID
+        let originBinding: String
+        let applicationSupportURL: URL
+        let supportFullFact: String
+        let supportPolicy: TemporalPolicyObservationV1
+        let dataTree: Schema2ColdCurrentTreeV1
+        let generationsFullFact: String
+        let targetTree: Schema2ColdCurrentTreeV1
+        let targetGenerationID: UUID
+        let currentPointerBytes: Data
+        let currentPointerFullFact: String
+        let currentPointerPolicy: TemporalPolicyObservationV1
+        let preservedManifestBytes: Data
+        let preservedManifestFullFact: String
+        let preservedManifestPolicy: TemporalPolicyObservationV1
+        let retiredPointerBytes: Data?
+        let retiredPointerFullFact: String?
+        let currentPointer: CurrentGenerationPointerV3
+        let preservedManifest: StoreGenerationManifestV1
+        let identity: WorkspaceReplicaIdentityV1
+        let controlPayloadReadBytes: UInt64
+        let controlReadCalls: UInt64
+        let controlEOFProbeCalls: UInt64
+        private let ioIdentity: ObjectIdentifier
+        private let permitIdentity: ObjectIdentifier
+        fileprivate init(io: EraseAbortCheckedSnapshotIOV1, permit: EraseSchema2CompactTargetReadPermitV4,
+            applicationSupportURL: URL, supportFullFact: String, supportPolicy: TemporalPolicyObservationV1,
+            dataTree: Schema2ColdCurrentTreeV1, generationsFullFact: String, targetTree: Schema2ColdCurrentTreeV1,
+            targetGenerationID: UUID, currentPointerBytes: Data, currentPointerFullFact: String,
+            currentPointerPolicy: TemporalPolicyObservationV1, preservedManifestBytes: Data,
+            preservedManifestFullFact: String, preservedManifestPolicy: TemporalPolicyObservationV1,
+            retiredPointerBytes: Data?, retiredPointerFullFact: String?, currentPointer: CurrentGenerationPointerV3,
+            preservedManifest: StoreGenerationManifestV1, identity: WorkspaceReplicaIdentityV1,
+            controlPayloadReadBytes: UInt64, controlReadCalls: UInt64, controlEOFProbeCalls: UInt64) {
+            operationID = permit.operationID; originBinding = permit.originBinding
+            self.applicationSupportURL = applicationSupportURL; self.supportFullFact = supportFullFact
+            self.supportPolicy = supportPolicy; self.dataTree = dataTree
+            self.generationsFullFact = generationsFullFact; self.targetTree = targetTree
+            self.targetGenerationID = targetGenerationID; self.currentPointerBytes = currentPointerBytes
+            self.currentPointerFullFact = currentPointerFullFact; self.currentPointerPolicy = currentPointerPolicy
+            self.preservedManifestBytes = preservedManifestBytes; self.preservedManifestFullFact = preservedManifestFullFact
+            self.preservedManifestPolicy = preservedManifestPolicy; self.retiredPointerBytes = retiredPointerBytes
+            self.retiredPointerFullFact = retiredPointerFullFact; self.currentPointer = currentPointer
+            self.preservedManifest = preservedManifest; self.identity = identity
+            self.controlPayloadReadBytes = controlPayloadReadBytes; self.controlReadCalls = controlReadCalls
+            self.controlEOFProbeCalls = controlEOFProbeCalls
+            ioIdentity = ObjectIdentifier(io); permitIdentity = ObjectIdentifier(permit)
+        }
+        @MainActor
+        func requireBound(io: EraseAbortCheckedSnapshotIOV1,
+            permit: EraseSchema2CompactTargetReadPermitV4) throws {
+            try io.requireSettled(); try permit.requireCurrentBinding()
+            guard ioIdentity == ObjectIdentifier(io), permitIdentity == ObjectIdentifier(permit),
+                  operationID == permit.operationID, originBinding == permit.originBinding,
+                  targetTree.digest == permit.subject.targetGenerationDigestSHA256 else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try permit.requireTarget(generationID: targetGenerationID,
+                pointerSHA256: StoreMigrationCanonicalJSONV1.sha256(currentPointerBytes),
+                preservedManifestSHA256: StoreMigrationCanonicalJSONV1.sha256(preservedManifestBytes))
+            try permit.requireCurrentBinding()
+        }
+    }
+
+    /// Actual first-held compact target inspection. The Router owns and lends
+    /// Support EX. There is no ordinary SH/Registry/Factory/SQL constructor,
+    /// new path, repair, policy application, write, fsync or old Intent here.
+    @MainActor
+    func inspectSchema2CompactFirstHeldTarget(support: Int32, applicationSupportURL: URL,
+        permit: EraseSchema2CompactTargetReadPermitV4
+    ) throws -> Schema2CompactFirstHeldTargetPhysicalObservationV4 {
+        permit.retainObservationAttempt(io: self) // Before any child/cursor/policy open.
+        func bound() throws { try self.requireSettled(); try permit.requireCurrentBinding() }
+        func poison() { permit.poisonOnUncertainObservation() }
+        func full(_ f: stat) -> String {
+            [String(f.st_dev), String(f.st_ino), String(f.st_mode), String(f.st_uid), String(f.st_gid),
+             String(f.st_nlink), String(f.st_size), String(f.st_mtimespec.tv_sec), String(f.st_mtimespec.tv_nsec),
+             String(f.st_ctimespec.tv_sec), String(f.st_ctimespec.tv_nsec)].joined(separator: "|")
+        }
+        func expected(_ f: EraseSchema2ConsumerCompleteSubjectV4.Fact) -> String {
+            [String(f.device), String(f.inode), String(f.mode), String(f.user), String(f.group),
+             String(f.links), String(f.size), String(f.modifiedSeconds), String(f.modifiedNanoseconds),
+             String(f.changedSeconds), String(f.changedNanoseconds)].joined(separator: "|")
+        }
+        func directoryIdentity(_ actual: String, _ completion: EraseSchema2ConsumerCompleteSubjectV4.Fact) throws {
+            let a = actual.split(separator: "|", omittingEmptySubsequences: false)
+            let b = expected(completion).split(separator: "|", omittingEmptySubsequences: false)
+            guard a.count == 11, b.count == 11, (0..<5).allSatisfy({ a[$0] == b[$0] }) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            // Directory link/time postfacts are the genuine permit's exact
+            // finite current cut, never normalized from a guessed deletion.
+            try bound()
+        }
+        func requireNamed(_ parent: Int32, _ name: String, _ fd: Int32, _ fact: String) throws {
+            try bound(); var held = stat(), named = stat()
+            guard Darwin.fstat(fd, &held) == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+            try bound()
+            guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  full(held) == fact, full(named) == fact else { throw StoreGenerationFailure.dataPointerInvalid }
+            try bound()
+        }
+        var controlBytes: UInt64 = 0, controlCalls: UInt64 = 0, controlEOF: UInt64 = 0
+        let controlLimit: UInt64 = 9 * 1_048_576 // Existing1MiB pointer + two4MiB controls.
+        func reserve(_ value: UInt64, _ counter: inout UInt64, limit: UInt64) throws {
+            let result = counter.addingReportingOverflow(value)
+            guard !result.overflow, result.partialValue <= limit else { throw StoreGenerationFailure.dataPointerInvalid }
+            counter = result.partialValue
+        }
+        func control(_ data: Int32, name: String, url: URL,
+            node: Schema2ColdCurrentTreeV1.Node, maximum: Int, kind: OwnedFileKindV1
+        ) throws -> (Data, TemporalPolicyObservationV1) {
+            guard node.names == nil, node.sha256 != nil, node.policy != nil,
+                  maximum > 0, maximum <= 4 * 1_048_576 else { throw StoreGenerationFailure.dataPointerInvalid }
+            return try schema2ColdWithOpen(parent: data, name: name, flags: O_RDONLY | O_NONBLOCK,
+                requireBinding: bound, poison: poison) { fd in
+                try bound(); var held = stat()
+                guard Darwin.fstat(fd, &held) == 0,
+                      held.st_mode & S_IFMT == S_IFREG, held.st_nlink == 1, held.st_size > 0,
+                      held.st_size <= off_t(maximum), full(held) == node.fullFact else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                try requireNamed(data, name, fd, node.fullFact)
+                guard let length = UInt64(exactly: held.st_size) else { throw StoreGenerationFailure.dataPointerInvalid }
+                try reserve(length, &controlBytes, limit: controlLimit)
+                var bytes = Data(), offset: UInt64 = 0
+                var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+                while offset < length {
+                    try bound(); let wanted = Int(min(UInt64(buffer.count), length - offset))
+                    try reserve(1, &controlCalls, limit: 147)
+                    let got = buffer.withUnsafeMutableBytes { Darwin.pread(fd, $0.baseAddress, wanted, off_t(offset)) }
+                    try bound(); guard got == wanted else { throw StoreGenerationFailure.dataPointerInvalid }
+                    bytes.append(contentsOf: buffer.prefix(got)); offset += UInt64(got)
+                }
+                try bound(); var extra: UInt8 = 0
+                try reserve(1, &controlCalls, limit: 147); try reserve(1, &controlEOF, limit: 3)
+                let end = Darwin.pread(fd, &extra, 1, off_t(length))
+                try bound(); guard end == 0, bytes.count == Int(length),
+                      StoreMigrationCanonicalJSONV1.sha256(bytes) == node.sha256 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(kind, at: url,
+                    retainUncertainDescriptor: { fd in self.retainUncertainDescriptor(fd); poison() })
+                try bound(); try requireNamed(data, name, fd, node.fullFact)
+                guard policy == node.policy else { throw StoreGenerationFailure.dataPointerInvalid }
+                return (bytes, policy)
+            }
+        }
+        do {
+            try bound(); try permit.subject.validateData()
+            guard applicationSupportURL.isFileURL, applicationSupportURL.standardizedFileURL == applicationSupportURL else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let targetID = try permit.requireExpectedTargetGenerationID(), targetName = targetID.uuidString.lowercased()
+            var supportBefore = stat(), supportNamed = stat()
+            try bound(); guard Darwin.fstat(support, &supportBefore) == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+            try bound()
+            guard Darwin.lstat(applicationSupportURL.path, &supportNamed) == 0,
+                  full(supportNamed) == full(supportBefore), supportBefore.st_mode & S_IFMT == S_IFDIR,
+                  supportBefore.st_mode & 0o7777 == 0o700, supportBefore.st_dev >= 0,
+                  supportBefore.st_uid == Darwin.geteuid() else { throw StoreGenerationFailure.dataPointerInvalid }
+            try directoryIdentity(full(supportBefore), permit.subject.supportAtCompletion)
+            let supportPolicy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(.durableDirectory,
+                at: applicationSupportURL, retainUncertainDescriptor: { fd in self.retainUncertainDescriptor(fd); poison() })
+            try bound()
+            guard supportPolicy.device == UInt64(supportBefore.st_dev), supportPolicy.inode == UInt64(supportBefore.st_ino),
+                  supportPolicy.mode == UInt16(supportBefore.st_mode), supportPolicy.isDirectory == true,
+                  supportPolicy.linkCount == UInt64(supportBefore.st_nlink), supportPolicy.backupExcluded == false,
+                  supportPolicy.state == .strictComplete || supportPolicy.state == .pendingSimulatorRequest else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let dataURL = applicationSupportURL.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            let before = try schema2ColdCurrentOwnedTree(parent: support, name: "FieldEvidenceData", rootURL: dataURL,
+                expectedUser: supportBefore.st_uid, expectedGroup: supportBefore.st_gid,
+                compactTargetReadPermit: permit, requireBinding: bound, poison: poison)
+            let byPath = Dictionary(uniqueKeysWithValues: before.nodes.map { ($0.path, $0) })
+            let targetPath = "generations/" + targetName
+            guard let dataNode = byPath[""], let generationNode = byPath["generations"], let targetNode = byPath[targetPath],
+                  let pointerNode = byPath["current.json"], let manifestNode = byPath["erase-current-manifest.json"],
+                  generationNode.names == [targetName], targetNode.names != nil,
+                  pointerNode.fullFact == expected(permit.subject.targetPointerFact),
+                  manifestNode.fullFact == expected(permit.subject.preservedManifestFact) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try directoryIdentity(dataNode.fullFact, permit.subject.dataAtCompletion)
+            try directoryIdentity(generationNode.fullFact, permit.subject.generationsAtCompletion)
+            try directoryIdentity(targetNode.fullFact, permit.subject.targetAtCompletion)
+            let inspected = try schema2ColdWithOpen(parent: support, name: "FieldEvidenceData",
+                flags: O_RDONLY | O_NONBLOCK | O_DIRECTORY, requireBinding: bound, poison: poison) { data in
+                try requireNamed(support, "FieldEvidenceData", data, before.rootFact)
+                let pointer = try control(data, name: "current.json", url: dataURL.appendingPathComponent("current.json"),
+                    node: pointerNode, maximum: 1_048_576, kind: .generationPointer)
+                let manifest = try control(data, name: "erase-current-manifest.json",
+                    url: dataURL.appendingPathComponent("erase-current-manifest.json"), node: manifestNode,
+                    maximum: 4 * 1_048_576, kind: .journal)
+                guard case .v3(let decodedPointer, let canonicalPointer) = try CurrentPointerCodecV1.decode(pointer.0),
+                      canonicalPointer == pointer.0, decodedPointer.generationID == targetName else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                let decodedManifest = try StoreGenerationManifestV1.decodeCanonical(from: manifest.0)
+                guard decodedManifest.generationID == targetID,
+                      decodedPointer.storeSchemaVersion == decodedManifest.storeSchemaRelease.versionIdentifier.major,
+                      decodedPointer.generationManifestSHA256 == StoreMigrationCanonicalJSONV1.sha256(manifest.0) else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+                try permit.requireTarget(generationID: targetID,
+                    pointerSHA256: StoreMigrationCanonicalJSONV1.sha256(pointer.0),
+                    preservedManifestSHA256: StoreMigrationCanonicalJSONV1.sha256(manifest.0))
+                var retired: Data?
+                if let retiredNode = byPath["retired.json"] {
+                    let value = try control(data, name: "retired.json", url: dataURL.appendingPathComponent("retired.json"),
+                        node: retiredNode, maximum: 4 * 1_048_576, kind: .generationPointer)
+                    let decoded = try JSONDecoder().decode(RetiredPointerV1.self, from: value.0)
+                    guard decoded.schemaVersion == 1, decoded.generationIDs.isEmpty,
+                          try StoreMigrationCanonicalJSONV1.encode(decoded) == value.0 else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    retired = value.0
+                }
+                let target = try schema2ColdWithOpen(parent: data, name: "generations",
+                    flags: O_RDONLY | O_NONBLOCK | O_DIRECTORY, requireBinding: bound, poison: poison) { generations in
+                    try requireNamed(data, "generations", generations, generationNode.fullFact)
+                    guard try schema2ColdNames(in: generations, requireBinding: bound, poison: poison) == [targetName] else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    let tree = try schema2ColdCurrentOwnedTree(parent: generations, name: targetName,
+                        rootURL: dataURL.appendingPathComponent("generations", isDirectory: true)
+                            .appendingPathComponent(targetName, isDirectory: true),
+                        expectedUser: supportBefore.st_uid, expectedGroup: supportBefore.st_gid,
+                        compactTargetReadPermit: permit, requireBinding: bound, poison: poison)
+                    guard tree.rootFact == targetNode.fullFact,
+                          tree.digest == permit.subject.targetGenerationDigestSHA256,
+                          tree.nodes.count == before.nodes.filter({ $0.path == targetPath || $0.path.hasPrefix(targetPath + "/") }).count else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    for node in tree.nodes {
+                        let wholePath = node.path.isEmpty ? targetPath : targetPath + "/" + node.path
+                        guard let original = byPath[wholePath], original.fullFact == node.fullFact,
+                              original.names == node.names, original.sha256 == node.sha256, original.policy == node.policy else {
+                            throw StoreGenerationFailure.dataPointerInvalid
+                        }
+                    }
+                    try requireNamed(data, "generations", generations, generationNode.fullFact)
+                    return tree
+                }
+                try requireNamed(support, "FieldEvidenceData", data, before.rootFact)
+                return (pointer, manifest, retired, decodedPointer, decodedManifest, target)
+            }
+            let after = try schema2ColdCurrentOwnedTree(parent: support, name: "FieldEvidenceData", rootURL: dataURL,
+                expectedUser: supportBefore.st_uid, expectedGroup: supportBefore.st_gid,
+                compactTargetReadPermit: permit, requireBinding: bound, poison: poison)
+            guard before == after else { throw StoreGenerationFailure.dataPointerInvalid }
+            for tree in [before, inspected.5, after] {
+                guard tree.typedPairs.isEmpty, let work = tree.work, work.policyPairInvocations == 0,
+                      work.policyPairPayloadReadBytes == 0, work.policyPairPayloadPasses == 0,
+                      work.physicalRegularBytes == work.pathRegularBytes,
+                      work.scannerPayloadReadBytes == work.physicalRegularBytes,
+                      work.scannerPayloadReadBytes <= 1_073_741_824 else {
+                    throw StoreGenerationFailure.dataPointerInvalid
+                }
+            }
+            try bound(); var supportAfter = stat(), supportNamedAfter = stat()
+            guard Darwin.fstat(support, &supportAfter) == 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+            try bound()
+            guard Darwin.lstat(applicationSupportURL.path, &supportNamedAfter) == 0,
+                  full(supportAfter) == full(supportBefore), full(supportNamedAfter) == full(supportBefore) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try bound(); try requireSettled()
+            return .init(io: self, permit: permit, applicationSupportURL: applicationSupportURL,
+                supportFullFact: full(supportBefore), supportPolicy: supportPolicy, dataTree: after,
+                generationsFullFact: generationNode.fullFact, targetTree: inspected.5, targetGenerationID: targetID,
+                currentPointerBytes: inspected.0.0, currentPointerFullFact: pointerNode.fullFact,
+                currentPointerPolicy: inspected.0.1, preservedManifestBytes: inspected.1.0,
+                preservedManifestFullFact: manifestNode.fullFact, preservedManifestPolicy: inspected.1.1,
+                retiredPointerBytes: inspected.2, retiredPointerFullFact: byPath["retired.json"]?.fullFact,
+                currentPointer: inspected.3, preservedManifest: inspected.4, identity: try inspected.3.identity(),
+                controlPayloadReadBytes: controlBytes, controlReadCalls: controlCalls, controlEOFProbeCalls: controlEOF)
+        } catch { poison(); throw error }
+    }
+
+'''
+s=s.replace(marker,addition+marker,1);f.write_text(s)

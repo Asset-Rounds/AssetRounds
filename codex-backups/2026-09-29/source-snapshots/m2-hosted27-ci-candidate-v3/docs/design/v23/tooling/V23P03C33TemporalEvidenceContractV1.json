@@ -1,0 +1,93 @@
+{
+  "artifactDigest": "817dc9a366c433b6b1cdf7e1725c8cb2ee09330922dc9a626ddc77c9cc006900",
+  "authority": {
+    "allowedPathCount": 220,
+    "appBaseHead": "f1cb4b2d99e77f248b89830c02ba680312082b6b",
+    "appBaseTree": "f5c1497f5962805e4a58b10c51b4de9d5774370d",
+    "attemptID": 1,
+    "authorizedOverlapCount": 2959,
+    "cardID": "V23-P03-C33",
+    "contextDigest": "c2f402e56453950280e15c1cbdfad3693caeed300d473e6785d04aa1a8264c87",
+    "coordinationCASSequence": 306,
+    "coordinationHead": "37ed1b7ea5bd5787a95d7347834b03838e43a9bf",
+    "coordinationLedgerDigest": "498dcd45c1a85a9647b3dd1d27290f460454e45636a3b7a1f0fbf2c8bd371e7d",
+    "coordinationProjectionDigest": "64f4601a5d5def5404fc4e6a3c589ec6aa29ee478ea2c99714acce2a71bb41b1",
+    "coordinationTree": "6f807016aef2b46baf4bb918bb9eb6ef9c7af300",
+    "directPrerequisiteCards": [
+      "V23-P03-C25"
+    ],
+    "existingPathCount": 206,
+    "fenceDigest": "1e194c984c3d445b719905a18a02333b0d604a7646b9b3f9d1bcfde58c254794",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "64ec1ed6a29a39a0d159f11dd93f4eb1e482654db78a663f396a168145d200ac",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C43",
+    "nextRegisterOrdinal": 73,
+    "prerequisiteDigest": "c09d765e5b57be9358248775060e9f5d5735dbc76523425b8f787bdf330d747c",
+    "registerOrdinal": 72,
+    "s10ReservationOverlapCount": 0,
+    "title": "Bounded temporal evidence clips, time-coded anchors, derivatives, retention, and recovery",
+    "unauthorizedOverlapCount": 0
+  },
+  "persistence": {
+    "backupRestoreRequired": true,
+    "cloneForkRequired": true,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V33_WRITE",
+    "durableFamilyCount": 2,
+    "exportReportRequired": true,
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "nonpersistentFamilies": [
+      "TemporalEvidenceCaptureScratchV1",
+      "TemporalEvidenceDerivativeScratchV1"
+    ],
+    "persistedFamilies": [
+      "TemporalEvidenceClipRow",
+      "TimecodedEvidenceAnchorRow"
+    ],
+    "persistentSchemaVersion": 33,
+    "recordsSchemaVersion": 32,
+    "replayRequired": true,
+    "schemaRelease": "TEMPORAL_EVIDENCE_V1",
+    "searchRebuildRequired": true
+  },
+  "requiredSemantics": {
+    "anchorsBindClipRelativeMonotonicTimeAuthorAndSourceRevision": true,
+    "contractNames": [
+      "TemporalEvidenceMediaLimitV1",
+      "TemporalEvidenceLimitProfileV1",
+      "TemporalEvidenceTargetV1",
+      "TemporalEvidenceMediaFactsV1",
+      "TemporalEvidenceClipV1",
+      "TimecodedEvidenceAnchorV1",
+      "TemporalEvidenceDerivativeV1",
+      "TemporalEvidenceRetentionEventV1",
+      "TemporalEvidenceCanonicalCodecV1",
+      "TemporalEvidencePersistenceEnrollmentV1",
+      "TemporalEvidenceAdmissionSnapshotV1",
+      "TemporalEvidenceCanonicalWorkspaceWritingV1",
+      "TemporalEvidenceAcceptanceRequestV1",
+      "TemporalEvidenceAcceptanceReceiptV1",
+      "TemporalEvidenceCoordinatorV1"
+    ],
+    "directContentBytesArchiveRestoreWithMetadata": true,
+    "fiveSelectors": [
+      "testV23P03C33G01ReviewedClipPromotesImmutableContentAndOneCanonicalMutation",
+      "testV23P03C33A01TypedLimitsAnchorsAndReplaceableDerivativesRemainBounded",
+      "testV23P03C33H01InvalidMediaStaleAuthorityAndHostileRuntimeStatesFailClosed",
+      "testV23P03C33I01EveryWriterBoundaryRecoversZeroOrCompleteWithoutOrphans",
+      "testV23P03C33R01BackupRestoreReplayDeleteEraseAndRetentionRemainExact"
+    ],
+    "leasedScratchPromotesOnlyAfterReview": true,
+    "noRuntimeProviderNetworkTranscriptionRedactionOrSecondByteStore": true,
+    "oneCanonicalWriterAndEffectBeforeReceiptReplay": true,
+    "originalsAreImmutableAndDerivativesReplaceable": true,
+    "packageProfilesBoundDurationBytesCodecsResolutionCountFreeSpaceAndProjection": true,
+    "reportLinksTypedMetadataAndAccessibleDescription": true,
+    "retentionDeleteEraseAndOrphanCleanupAreExact": true
+  },
+  "schema": "V23P03C33TemporalEvidenceContractV1",
+  "schemaVersion": 1
+}

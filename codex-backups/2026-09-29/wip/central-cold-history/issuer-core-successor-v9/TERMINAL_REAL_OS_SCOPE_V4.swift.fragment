@@ -1,0 +1,167 @@
+/// Separate genuine terminal origins. Neither a decoded subject nor a phase
+/// string constructs either origin; Router's concrete retained owner issues it.
+enum EraseSchema2TerminalSystemOriginV4: Equatable {
+    case incumbentConsumerComplete
+    case firstHeldCompactCapsule
+}
+
+/// Observation-only actual current target admission. The concrete Router
+/// issuer binds the first-held compact capsule/real held EX and exact surviving
+/// suffix before creating this lexical scope. Required checks are nonrecursive.
+@MainActor
+final class EraseSchema2CompactTargetReadPermitV4 {
+    let operationID: UUID
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    let originBinding: String
+    private let requireActualCut: @MainActor () throws -> String
+    private let retainIO: @MainActor (EraseAbortCheckedSnapshotIOV1) -> Void
+    private let retainUncertainty: @MainActor () -> Void
+    private var active = true
+    private var uncertain = false
+
+    fileprivate init(operationID: UUID,
+        subject: EraseSchema2ConsumerCompleteSubjectV4, originBinding: String,
+        requireActualCut: @escaping @MainActor () throws -> String,
+        retainIO: @escaping @MainActor (EraseAbortCheckedSnapshotIOV1) -> Void,
+        retainUncertainty: @escaping @MainActor () -> Void) throws {
+        try subject.validateData()
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(originBinding) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        self.operationID = operationID; self.subject = subject
+        self.originBinding = originBinding; self.requireActualCut = requireActualCut
+        self.retainIO = retainIO; self.retainUncertainty = retainUncertainty
+    }
+
+    func requireCurrentBinding() throws {
+        do {
+            guard active, !uncertain, try requireActualCut() == originBinding else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func requireExpectedTargetGenerationID() throws -> UUID {
+        try requireCurrentBinding()
+        let value = subject.targetGenerationID
+        try requireCurrentBinding()
+        return value
+    }
+    func requireTarget(generationID: UUID, pointerSHA256: String,
+        preservedManifestSHA256: String) throws {
+        do {
+            try requireCurrentBinding()
+            guard generationID == subject.targetGenerationID,
+                  pointerSHA256 == subject.targetPointerSHA256,
+                  preservedManifestSHA256 == subject.preservedManifestSHA256 else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireCurrentBinding()
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func retainObservationAttempt(io: EraseAbortCheckedSnapshotIOV1) {
+        // Retention precedes every child open. Revocation never discards or
+        // retries an uncertain numeric descriptor; this grants no IO itself.
+        retainIO(io)
+    }
+    func poisonOnUncertainObservation() {
+        if !uncertain { uncertain = true; retainUncertainty() }
+    }
+    fileprivate func revoke() { active = false }
+}
+
+/// One real remove/pending/delivered attempt at one current terminal prefix.
+/// Private issuance requires exact durable ID-origin readback, the complete
+/// current target/namespace cut and the actual same-held exclusion. No named
+/// Registry G is pretended after its critical controls are gone.
+@MainActor
+final class EraseSchema2TerminalSystemPermitV4 {
+    private enum State: Equatable { case available, inFlight, completed, consumed, uncertain }
+    let operationID: UUID
+    let subject: EraseSchema2ConsumerCompleteSubjectV4
+    let origin: EraseSchema2TerminalSystemOriginV4
+    let originBinding: String
+    let ownedIDs: [String]
+    private let requireActualCut: @MainActor () throws -> String
+    private let requireExactOwnedIDs: @MainActor ([String], String) throws -> Void
+    private let retainUncertainty: @MainActor () -> Void
+    private var state: State = .available
+    private var attemptID: UUID?
+    private var systemIdentity: ObjectIdentifier?
+    private weak var completedReadback: EraseSchema2TerminalNotificationReadbackReceiptV4?
+
+    fileprivate init(operationID: UUID, subject: EraseSchema2ConsumerCompleteSubjectV4,
+        origin: EraseSchema2TerminalSystemOriginV4, originBinding: String,
+        ownedIDs: [String], requireActualCut: @escaping @MainActor () throws -> String,
+        requireExactOwnedIDs: @escaping @MainActor ([String], String) throws -> Void,
+        retainUncertainty: @escaping @MainActor () -> Void) throws {
+        try subject.validateData()
+        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(originBinding) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        self.operationID = operationID; self.subject = subject; self.origin = origin
+        self.originBinding = originBinding; self.ownedIDs = ownedIDs
+        self.requireActualCut = requireActualCut; self.requireExactOwnedIDs = requireExactOwnedIDs
+        self.retainUncertainty = retainUncertainty
+    }
+    func requireCurrentBinding() throws {
+        do {
+            guard state != .uncertain, state != .consumed,
+                  try requireActualCut() == originBinding else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireExactOwnedIDs(ownedIDs, subject.selectedOwnedNotificationIDsSHA256)
+        } catch { poisonOnUncertainSystemAttempt(); throw error }
+    }
+    func beginSystemAttempt(system: any NotificationTerminalSystemPortV4) throws -> UUID {
+        do {
+            try requireCurrentBinding()
+            guard state == .available, attemptID == nil, completedReadback == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let attempt = UUID() // in-memory attempt identity, never durable owner authority
+            attemptID = attempt; systemIdentity = ObjectIdentifier(system)
+            state = .inFlight
+            try requireCurrentBinding()
+            return attempt
+        } catch { poisonOnUncertainSystemAttempt(); throw error }
+    }
+    func requireSystemAttempt(system: any NotificationTerminalSystemPortV4,
+        attempt: UUID) throws {
+        do {
+            try requireCurrentBinding()
+            guard state == .inFlight, attemptID == attempt,
+                  systemIdentity == ObjectIdentifier(system) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireCurrentBinding()
+        } catch { poisonOnUncertainSystemAttempt(); throw error }
+    }
+    func acceptActualReadback(_ receipt: EraseSchema2TerminalNotificationReadbackReceiptV4) throws {
+        do {
+            guard state == .inFlight, let attemptID else { throw EraseAllServiceError.invalidAuthority }
+            try receipt.requireActualAttempt(permit: self, attempt: attemptID,
+                systemIdentity: systemIdentity)
+            completedReadback = receipt
+            state = .completed
+            try requireCurrentBinding()
+        } catch { poisonOnUncertainSystemAttempt(); throw error }
+    }
+    func requireActualCompletedReadback(_ receipt: EraseSchema2TerminalNotificationReadbackReceiptV4,
+        attempt: UUID) throws {
+        do {
+            try requireCurrentBinding()
+            guard state == .completed, attemptID == attempt,
+                  completedReadback === receipt else { throw EraseAllServiceError.invalidAuthority }
+            try requireCurrentBinding()
+        } catch { poisonOnUncertainSystemAttempt(); throw error }
+    }
+    func consumeActualCompletedReadback(_ receipt: EraseSchema2TerminalNotificationReadbackReceiptV4,
+        attempt: UUID) throws {
+        try requireActualCompletedReadback(receipt, attempt: attempt)
+        state = .consumed
+    }
+    func poisonOnUncertainSystemAttempt() {
+        if state != .uncertain { state = .uncertain; retainUncertainty() }
+    }
+}
+

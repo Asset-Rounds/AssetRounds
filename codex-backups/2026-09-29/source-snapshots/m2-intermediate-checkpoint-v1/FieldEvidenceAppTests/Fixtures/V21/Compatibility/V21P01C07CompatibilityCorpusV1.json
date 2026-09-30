@@ -1,0 +1,1405 @@
+{
+  "appendBeforeFirstWriteRegistry": [
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "3.0.0",
+      "declarationOwner": "V23-P01-C07",
+      "family": "live_store",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "1.0.0",
+        "2.0.0",
+        "3.0.0"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "3",
+      "declarationOwner": "V23-P01-C07",
+      "family": "current_generation_pointer",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "1",
+      "declarationOwner": "V23-P01-C07",
+      "family": "store_generation_manifest",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "1",
+      "declarationOwner": "V23-P01-C07",
+      "family": "store_migration_journal",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "archive1-backup2-persistent3-records2",
+      "declarationOwner": "V23-P01-C07",
+      "family": "backup_package",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "archive1-backup2-persistent1-records1",
+        "archive1-backup2-persistent3-records2",
+        "directory-v4-backup1-persistent1-records1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "header1-index1",
+      "declarationOwner": "V23-P01-C07",
+      "family": "streaming_archive",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "header1-index1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "snapshot1",
+      "declarationOwner": "V23-P01-C07",
+      "family": "report_open_json",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "snapshot1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "template1",
+      "declarationOwner": "V23-P01-C07",
+      "family": "report_pdf",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "template1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "1",
+      "declarationOwner": "V23-P01-C07",
+      "family": "finalization_intent",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "schema1-content1",
+      "declarationOwner": "V23-P01-C07",
+      "family": "sign_pack",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "schema1-content1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "canonical-jpeg-v1",
+      "declarationOwner": "V23-P01-C07",
+      "family": "durable_media",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "canonical-jpeg-v1"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "2",
+      "declarationOwner": "V23-P01-C07",
+      "family": "deletion_ledger",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "2"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "2",
+      "declarationOwner": "V23-P01-C07",
+      "family": "deletion_intent",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "2",
+      "declarationOwner": "V23-P01-C07",
+      "family": "erase_intent",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "1",
+        "2"
+      ]
+    },
+    {
+      "appendBeforeFirstWrite": true,
+      "currentWriterVersion": "2",
+      "declarationOwner": "V23-P01-C07",
+      "family": "restore_intent",
+      "futureVersionDisposition": "REVIEWED_SUCCESSOR_CASE_ONLY",
+      "hostileCaseRequired": true,
+      "positiveCaseRequired": true,
+      "readableVersions": [
+        "1",
+        "2"
+      ]
+    }
+  ],
+  "artifactDigest": "57739970ca62eabaf2bbe4e3516e84bb3e8f5a8c85d691d158eb7abb099438c6",
+  "cases": [
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/hostile-archive-bomb-backup-package.bin",
+      "artifactSHA256": "a846728f654bca666737d91aad8ac9a7196bcb441f29f6a4660ff5463fab41d9",
+      "artifactVersion": "archive1-backup2-persistent3-records2",
+      "caseID": "hostile-archive-bomb-backup-package",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "fails_closed_invalid_data",
+      "family": "backup_package",
+      "generatorSeed": 230611,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "hostile",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "archive",
+        "bomb",
+        "hostile"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/hostile-future-backup-package.bin",
+      "artifactSHA256": "88303cbf06bd1b46968c4e22297408c6ebb4374528fa775d73d2b17d9071dc5e",
+      "artifactVersion": "future-99",
+      "caseID": "hostile-future-backup-package",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "fails_closed_unsupported_version",
+      "family": "backup_package",
+      "generatorSeed": 230607,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "hostile",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "archive",
+        "future",
+        "hostile"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/hostile-path-backup-package.bin",
+      "artifactSHA256": "cb043262637e2a076aa5b1788080ef899a6e6bb8d2d7ab06aeda0765b322b799",
+      "artifactVersion": "archive1-backup2-persistent3-records2",
+      "caseID": "hostile-path-backup-package",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "fails_closed_invalid_data",
+      "family": "backup_package",
+      "generatorSeed": 230610,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "hostile",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "archive",
+        "hostile",
+        "path"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/hostile-tamper-report-open-json.bin",
+      "artifactSHA256": "1ca3f94a0634e74618396980cf8b2ca27d49bce1999e6ac665188247d632bd5d",
+      "artifactVersion": "snapshot1",
+      "caseID": "hostile-tamper-report-open-json",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "fails_closed_invalid_data",
+      "family": "report_open_json",
+      "generatorSeed": 230608,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "hostile",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "archive",
+        "hostile",
+        "tamper"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/hostile-truncated-streaming-archive.bin",
+      "artifactSHA256": "82094706bcaa29440363e186a3b69a5a9d04921446c8bbbdb0a702e33025678b",
+      "artifactVersion": "header1-index1",
+      "caseID": "hostile-truncated-streaming-archive",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "fails_closed_invalid_data",
+      "family": "streaming_archive",
+      "generatorSeed": 230609,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "hostile",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "archive",
+        "hostile",
+        "truncated"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/interruption-erase-intent-second-launch.bin",
+      "artifactSHA256": "ecbb3ae4b9c2a0adbfa2729b34498b50927a15c6b6d48b8494acffd840f25c53",
+      "artifactVersion": "2",
+      "caseID": "interruption-erase-intent-second-launch",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "resumes_idempotently",
+      "family": "erase_intent",
+      "generatorSeed": 230836,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "interruption",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "normalizedExpectedSHA256": "ecbb3ae4b9c2a0adbfa2729b34498b50927a15c6b6d48b8494acffd840f25c53",
+      "representative": false,
+      "scenarioTags": [
+        "retry",
+        "second-launch"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-backup-package-archive1-backup2-persistent1-records1.bin",
+      "artifactSHA256": "82dfe0352d90cb5e6f92c5eb30a2c30f3edde66dc811707dff4a67f8d5284493",
+      "artifactVersion": "archive1-backup2-persistent1-records1",
+      "caseID": "positive-backup-package-archive1-backup2-persistent1-records1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [
+        "live_store"
+      ],
+      "expectedDisposition": "succeeds",
+      "family": "backup_package",
+      "generatorSeed": 230115,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "minimum"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-backup-package-archive1-backup2-persistent3-records2.bin",
+      "artifactSHA256": "ab412f9923dcfe0b07916e5d30383e23c81559958252192d5994b764d27dbc10",
+      "artifactVersion": "archive1-backup2-persistent3-records2",
+      "caseID": "positive-backup-package-archive1-backup2-persistent3-records2",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [
+        "live_store"
+      ],
+      "expectedDisposition": "succeeds",
+      "family": "backup_package",
+      "generatorSeed": 230116,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "maximal"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-backup-package-directory-v4-backup1-persistent1-records1.bin",
+      "artifactSHA256": "6cba36306ede935bfd40b747c466f3718777a5319440cf0b9e8c32a82e336ecb",
+      "artifactVersion": "directory-v4-backup1-persistent1-records1",
+      "caseID": "positive-backup-package-directory-v4-backup1-persistent1-records1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [
+        "live_store"
+      ],
+      "expectedDisposition": "succeeds",
+      "family": "backup_package",
+      "generatorSeed": 230117,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "maximal"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-current-generation-pointer-1.bin",
+      "artifactSHA256": "51abf96b5e6a62d60096b73629757bca7c494d906e5d86b15eface3386b02eb3",
+      "artifactVersion": "1",
+      "caseID": "positive-current-generation-pointer-1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [
+        "live_store"
+      ],
+      "expectedDisposition": "succeeds",
+      "family": "current_generation_pointer",
+      "generatorSeed": 230110,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "minimum"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-current-generation-pointer-2.bin",
+      "artifactSHA256": "1f216076dbfb4928a278430f191fe37e0290e8107b8c766c53bb32a765f07ed3",
+      "artifactVersion": "2",
+      "caseID": "positive-current-generation-pointer-2",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [
+        "live_store"
+      ],
+      "expectedDisposition": "succeeds",
+      "family": "current_generation_pointer",
+      "generatorSeed": 230111,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "maximal"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-current-generation-pointer-3.bin",
+      "artifactSHA256": "dae371aa9df46c3a9d6e455ab726957fc73fb7d5aec823a1a1460f124db768a8",
+      "artifactVersion": "3",
+      "caseID": "positive-current-generation-pointer-3",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [
+        "live_store"
+      ],
+      "expectedDisposition": "succeeds",
+      "family": "current_generation_pointer",
+      "generatorSeed": 230112,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "maximal"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-deletion-intent-1.bin",
+      "artifactSHA256": "2d088812e2df1da0b64ac1249afe507d9aaae61a3a0af2a26e6a126cf2e38e0a",
+      "artifactVersion": "1",
+      "caseID": "positive-deletion-intent-1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "deletion_intent",
+      "generatorSeed": 230125,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "minimum"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-deletion-intent-2.bin",
+      "artifactSHA256": "cb0eb2fafd5d9c5124d9b689b1c35d1457061a635dba2c9e62d9910947430ec1",
+      "artifactVersion": "2",
+      "caseID": "positive-deletion-intent-2",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "deletion_intent",
+      "generatorSeed": 230126,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "maximal"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-deletion-ledger-2.bin",
+      "artifactSHA256": "28d1ddccfb1388230051a99c199b75d393321a88629390cdb408ab5da93f63f1",
+      "artifactVersion": "2",
+      "caseID": "positive-deletion-ledger-2",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "deletion_ledger",
+      "generatorSeed": 230124,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-durable-media-canonical-jpeg-v1.bin",
+      "artifactSHA256": "01fee65c7d4ba1b98d5b086778ad36ccf0daf6da5c328f569fe1bcfbb6340fc6",
+      "artifactVersion": "canonical-jpeg-v1",
+      "caseID": "positive-durable-media-canonical-jpeg-v1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "durable_media",
+      "generatorSeed": 230123,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-erase-intent-1.bin",
+      "artifactSHA256": "5daf6aecc0d1edb76ea78293dc99fc81f255f0a45148541e56c399b97b00e2a5",
+      "artifactVersion": "1",
+      "caseID": "positive-erase-intent-1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "erase_intent",
+      "generatorSeed": 230127,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "minimum"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-erase-intent-2.bin",
+      "artifactSHA256": "43dfc10748a545404114c01eb477eb62d5b4192c5898b0e92ed69cbc77d3ee7a",
+      "artifactVersion": "2",
+      "caseID": "positive-erase-intent-2",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "erase_intent",
+      "generatorSeed": 230128,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "maximal"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-finalization-intent-1.bin",
+      "artifactSHA256": "1deba7d5dc75b55cb409133a7c28777fbf24f4934fb097c741a70a0f753cc165",
+      "artifactVersion": "1",
+      "caseID": "positive-finalization-intent-1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [
+        "live_store",
+        "report_open_json"
+      ],
+      "expectedDisposition": "succeeds",
+      "family": "finalization_intent",
+      "generatorSeed": 230121,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-live-store-1.0.0.bin",
+      "artifactSHA256": "c2182e81b7b85818b0936d25b72abd3e8fdcc7f739a5f4966bb45cdd6b564e0b",
+      "artifactVersion": "1.0.0",
+      "caseID": "positive-live-store-1.0.0",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "live_store",
+      "generatorSeed": 230107,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "dst",
+        "empty",
+        "long",
+        "maximal",
+        "minimum",
+        "rtl",
+        "second-launch",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-live-store-2.0.0.bin",
+      "artifactSHA256": "d448f4a79bfe36d6833be4b2a93648ebb18a022b00ef10fef43f0f1c5285b178",
+      "artifactVersion": "2.0.0",
+      "caseID": "positive-live-store-2.0.0",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "live_store",
+      "generatorSeed": 230108,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "maximal",
+        "second-launch"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-live-store-3.0.0.bin",
+      "artifactSHA256": "78b0ee8d08046f823ee693514fcd0342620755d5e740032814bdf20ad8df859b",
+      "artifactVersion": "3.0.0",
+      "caseID": "positive-live-store-3.0.0",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "live_store",
+      "generatorSeed": 230109,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "maximal",
+        "second-launch"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportOpenV1.json",
+      "artifactSHA256": "3675469de64040dd16f3312b4f8cb9c3ffa8d15645684320a0387acf4b66399a",
+      "artifactVersion": "snapshot1",
+      "caseID": "positive-report-open-json-snapshot1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "report_open_json",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "normalizedExpectedSHA256": "3675469de64040dd16f3312b4f8cb9c3ffa8d15645684320a0387acf4b66399a",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "checked_fixture",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportV1.pdf",
+      "artifactSHA256": "52503c0ec947b60ff8929d868228345bdeccd438d9426a038cd7dc0c37a9b009",
+      "artifactVersion": "template1",
+      "caseID": "positive-report-pdf-template1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "report_pdf",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "normalizedExpectedSHA256": "52503c0ec947b60ff8929d868228345bdeccd438d9426a038cd7dc0c37a9b009",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "checked_fixture",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-restore-intent-1.bin",
+      "artifactSHA256": "d6cfb9f8ca530d685bcff19cb418606a5dde94bf4372e16aca3f4a2163b02a23",
+      "artifactVersion": "1",
+      "caseID": "positive-restore-intent-1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "restore_intent",
+      "generatorSeed": 230129,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": false,
+      "scenarioTags": [
+        "current",
+        "minimum"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-restore-intent-2.bin",
+      "artifactSHA256": "948647edf9ea6539bb8907e13f54267ab271464a0db98143717b309d7100f216",
+      "artifactVersion": "2",
+      "caseID": "positive-restore-intent-2",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "restore_intent",
+      "generatorSeed": 230130,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "maximal"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-sign-pack-schema1-content1.bin",
+      "artifactSHA256": "73b9e001cac1049d802a0e38b74eb10da6d6c77b73cee6cf9bcfc01820cad887",
+      "artifactVersion": "schema1-content1",
+      "caseID": "positive-sign-pack-schema1-content1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "sign_pack",
+      "generatorSeed": 230122,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-store-generation-manifest-1.bin",
+      "artifactSHA256": "bb7ac4e511ca3e39b87dfe73f0abf76547b8c556af22245e98fff858a35e01c1",
+      "artifactVersion": "1",
+      "caseID": "positive-store-generation-manifest-1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [
+        "live_store"
+      ],
+      "expectedDisposition": "succeeds",
+      "family": "store_generation_manifest",
+      "generatorSeed": 230113,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-store-migration-journal-1.bin",
+      "artifactSHA256": "db34b21da271c0ce4c3b9d3af19670a7bbebd897eaba3dcea1b772283ba0f456",
+      "artifactVersion": "1",
+      "caseID": "positive-store-migration-journal-1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "store_migration_journal",
+      "generatorSeed": 230114,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/positive-streaming-archive-header1-index1.bin",
+      "artifactSHA256": "02ffa520dd7cc25421e0f424ef2ba0be44e869cb80a4838b258ec628813763b3",
+      "artifactVersion": "header1-index1",
+      "caseID": "positive-streaming-archive-header1-index1",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "succeeds",
+      "family": "streaming_archive",
+      "generatorSeed": 230118,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "positive",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "representative": true,
+      "scenarioTags": [
+        "current",
+        "minimum",
+        "unicode"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    },
+    {
+      "artifactRelativePath": "generatedCaseArtifacts/recovery-erase-intent-orphan.bin",
+      "artifactSHA256": "5bfcb556616307accb0ce67dafc936b3372bdd6e930390ac031687274d624a02",
+      "artifactVersion": "2",
+      "caseID": "recovery-erase-intent-orphan",
+      "containsCustomerData": false,
+      "containsSecrets": false,
+      "dependencyFamilies": [],
+      "expectedDisposition": "resumes_idempotently",
+      "family": "erase_intent",
+      "generatorSeed": 230837,
+      "generatorVersion": "p01-c07-seed-v1",
+      "immutable": true,
+      "kind": "recovery",
+      "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+      "normalizedExpectedSHA256": "5bfcb556616307accb0ce67dafc936b3372bdd6e930390ac031687274d624a02",
+      "representative": false,
+      "scenarioTags": [
+        "orphan",
+        "retry",
+        "second-launch"
+      ],
+      "schemaVersion": 1,
+      "source": "deterministic_generator",
+      "synthetic": true
+    }
+  ],
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "corpusID": "V21-P01-C07-IMMUTABLE-SYNTHETIC-CORPUS-V1",
+  "evidenceIDs": [
+    "V23-P01-C07-G01",
+    "V23-P01-C07-A01",
+    "V23-P01-C07-H01",
+    "V23-P01-C07-I01",
+    "V23-P01-C07-R01"
+  ],
+  "evidenceMapping": [
+    {
+      "caseIDs": [
+        "positive-backup-package-archive1-backup2-persistent1-records1",
+        "positive-backup-package-archive1-backup2-persistent3-records2",
+        "positive-backup-package-directory-v4-backup1-persistent1-records1",
+        "positive-current-generation-pointer-1",
+        "positive-current-generation-pointer-2",
+        "positive-current-generation-pointer-3",
+        "positive-deletion-intent-1",
+        "positive-deletion-intent-2",
+        "positive-deletion-ledger-2",
+        "positive-durable-media-canonical-jpeg-v1",
+        "positive-erase-intent-1",
+        "positive-erase-intent-2",
+        "positive-finalization-intent-1",
+        "positive-live-store-1.0.0",
+        "positive-live-store-2.0.0",
+        "positive-live-store-3.0.0",
+        "positive-report-open-json-snapshot1",
+        "positive-report-pdf-template1",
+        "positive-restore-intent-1",
+        "positive-restore-intent-2",
+        "positive-sign-pack-schema1-content1",
+        "positive-store-generation-manifest-1",
+        "positive-store-migration-journal-1",
+        "positive-streaming-archive-header1-index1"
+      ],
+      "caseKinds": [
+        "positive"
+      ],
+      "evidenceID": "V23-P01-C07-G01",
+      "family": "G01",
+      "label": "Golden",
+      "runMode": "accepting_fail_fast"
+    },
+    {
+      "caseIDs": [
+        "positive-backup-package-archive1-backup2-persistent1-records1",
+        "recovery-erase-intent-orphan"
+      ],
+      "caseKinds": [
+        "positive",
+        "recovery"
+      ],
+      "evidenceID": "V23-P01-C07-A01",
+      "family": "A01",
+      "label": "Alternate",
+      "runMode": "accepting_fail_fast"
+    },
+    {
+      "caseIDs": [
+        "hostile-archive-bomb-backup-package",
+        "hostile-future-backup-package",
+        "hostile-path-backup-package",
+        "hostile-tamper-report-open-json",
+        "hostile-truncated-streaming-archive"
+      ],
+      "caseKinds": [
+        "hostile"
+      ],
+      "evidenceID": "V23-P01-C07-H01",
+      "family": "H01",
+      "label": "Hostile",
+      "runMode": "diagnostic_continue"
+    },
+    {
+      "caseIDs": [
+        "interruption-erase-intent-second-launch"
+      ],
+      "caseKinds": [
+        "interruption"
+      ],
+      "evidenceID": "V23-P01-C07-I01",
+      "family": "I01",
+      "label": "Interruption",
+      "runMode": "diagnostic_continue"
+    },
+    {
+      "caseIDs": [
+        "recovery-erase-intent-orphan"
+      ],
+      "caseKinds": [
+        "recovery"
+      ],
+      "evidenceID": "V23-P01-C07-R01",
+      "family": "R01",
+      "label": "Recovery",
+      "runMode": "diagnostic_continue"
+    }
+  ],
+  "fixtureDigests": {
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportOpenV1.json": "3675469de64040dd16f3312b4f8cb9c3ffa8d15645684320a0387acf4b66399a",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07HistoricReportV1.pdf": "52503c0ec947b60ff8929d868228345bdeccd438d9426a038cd7dc0c37a9b009",
+    "FieldEvidenceAppTests/Fixtures/V21/Compatibility/V21P01C07PreV23SeedV1.json": "c0a82d2c36620de37f05ad342437af4aa6025c0cdfa6a7220cd7a97b3add4021"
+  },
+  "fixtureID": "V21-P01-C07-COMPATIBILITY-CORPUS-V1",
+  "futureContractDisposition": "NO_P02_PLUS_FORMAT_FABRICATION",
+  "generatedCaseArtifacts": {
+    "hostile-archive-bomb-backup-package": "eyJhcnRpZmFjdFZlcnNpb24iOiJhcmNoaXZlMS1iYWNrdXAyLXBlcnNpc3RlbnQzLXJlY29yZHMyIiwiY2FzZUlEIjoiaG9zdGlsZS1hcmNoaXZlLWJvbWItYmFja3VwLXBhY2thZ2UiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoiZmFpbHNfY2xvc2VkX2ludmFsaWRfZGF0YSIsImZhbWlseSI6ImJhY2t1cF9wYWNrYWdlIiwiZ2VuZXJhdG9yU2VlZCI6MjMwNjExLCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6Imhvc3RpbGUiLCJzY2VuYXJpb1RhZ3MiOlsiYXJjaGl2ZSIsImJvbWIiLCJob3N0aWxlIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "hostile-future-backup-package": "eyJhcnRpZmFjdFZlcnNpb24iOiJmdXR1cmUtOTkiLCJjYXNlSUQiOiJob3N0aWxlLWZ1dHVyZS1iYWNrdXAtcGFja2FnZSIsImRlcGVuZGVuY3lGYW1pbGllcyI6W10sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJmYWlsc19jbG9zZWRfdW5zdXBwb3J0ZWRfdmVyc2lvbiIsImZhbWlseSI6ImJhY2t1cF9wYWNrYWdlIiwiZ2VuZXJhdG9yU2VlZCI6MjMwNjA3LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6Imhvc3RpbGUiLCJzY2VuYXJpb1RhZ3MiOlsiYXJjaGl2ZSIsImZ1dHVyZSIsImhvc3RpbGUiXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "hostile-path-backup-package": "eyJhcnRpZmFjdFZlcnNpb24iOiJhcmNoaXZlMS1iYWNrdXAyLXBlcnNpc3RlbnQzLXJlY29yZHMyIiwiY2FzZUlEIjoiaG9zdGlsZS1wYXRoLWJhY2t1cC1wYWNrYWdlIiwiZGVwZW5kZW5jeUZhbWlsaWVzIjpbXSwiZXhwZWN0ZWREaXNwb3NpdGlvbiI6ImZhaWxzX2Nsb3NlZF9pbnZhbGlkX2RhdGEiLCJmYW1pbHkiOiJiYWNrdXBfcGFja2FnZSIsImdlbmVyYXRvclNlZWQiOjIzMDYxMCwiZ2VuZXJhdG9yVmVyc2lvbiI6InAwMS1jMDctc2VlZC12MSIsImtpbmQiOiJob3N0aWxlIiwic2NlbmFyaW9UYWdzIjpbImFyY2hpdmUiLCJob3N0aWxlIiwicGF0aCJdLCJzY2hlbWEiOiJWMjNQMDFDMDdHZW5lcmF0ZWRDYXNlQXJ0aWZhY3RWMSIsInNjaGVtYVZlcnNpb24iOjF9",
+    "hostile-tamper-report-open-json": "eyJhcnRpZmFjdFZlcnNpb24iOiJzbmFwc2hvdDEiLCJjYXNlSUQiOiJob3N0aWxlLXRhbXBlci1yZXBvcnQtb3Blbi1qc29uIiwiZGVwZW5kZW5jeUZhbWlsaWVzIjpbXSwiZXhwZWN0ZWREaXNwb3NpdGlvbiI6ImZhaWxzX2Nsb3NlZF9pbnZhbGlkX2RhdGEiLCJmYW1pbHkiOiJyZXBvcnRfb3Blbl9qc29uIiwiZ2VuZXJhdG9yU2VlZCI6MjMwNjA4LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6Imhvc3RpbGUiLCJzY2VuYXJpb1RhZ3MiOlsiYXJjaGl2ZSIsImhvc3RpbGUiLCJ0YW1wZXIiXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "hostile-truncated-streaming-archive": "eyJhcnRpZmFjdFZlcnNpb24iOiJoZWFkZXIxLWluZGV4MSIsImNhc2VJRCI6Imhvc3RpbGUtdHJ1bmNhdGVkLXN0cmVhbWluZy1hcmNoaXZlIiwiZGVwZW5kZW5jeUZhbWlsaWVzIjpbXSwiZXhwZWN0ZWREaXNwb3NpdGlvbiI6ImZhaWxzX2Nsb3NlZF9pbnZhbGlkX2RhdGEiLCJmYW1pbHkiOiJzdHJlYW1pbmdfYXJjaGl2ZSIsImdlbmVyYXRvclNlZWQiOjIzMDYwOSwiZ2VuZXJhdG9yVmVyc2lvbiI6InAwMS1jMDctc2VlZC12MSIsImtpbmQiOiJob3N0aWxlIiwic2NlbmFyaW9UYWdzIjpbImFyY2hpdmUiLCJob3N0aWxlIiwidHJ1bmNhdGVkIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "interruption-erase-intent-second-launch": "eyJhcnRpZmFjdFZlcnNpb24iOiIyIiwiY2FzZUlEIjoiaW50ZXJydXB0aW9uLWVyYXNlLWludGVudC1zZWNvbmQtbGF1bmNoIiwiZGVwZW5kZW5jeUZhbWlsaWVzIjpbXSwiZXhwZWN0ZWREaXNwb3NpdGlvbiI6InJlc3VtZXNfaWRlbXBvdGVudGx5IiwiZmFtaWx5IjoiZXJhc2VfaW50ZW50IiwiZ2VuZXJhdG9yU2VlZCI6MjMwODM2LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6ImludGVycnVwdGlvbiIsInNjZW5hcmlvVGFncyI6WyJyZXRyeSIsInNlY29uZC1sYXVuY2giXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "positive-backup-package-archive1-backup2-persistent1-records1": "eyJhcnRpZmFjdFZlcnNpb24iOiJhcmNoaXZlMS1iYWNrdXAyLXBlcnNpc3RlbnQxLXJlY29yZHMxIiwiY2FzZUlEIjoicG9zaXRpdmUtYmFja3VwLXBhY2thZ2UtYXJjaGl2ZTEtYmFja3VwMi1wZXJzaXN0ZW50MS1yZWNvcmRzMSIsImRlcGVuZGVuY3lGYW1pbGllcyI6WyJsaXZlX3N0b3JlIl0sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6ImJhY2t1cF9wYWNrYWdlIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTE1LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtaW5pbXVtIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-backup-package-archive1-backup2-persistent3-records2": "eyJhcnRpZmFjdFZlcnNpb24iOiJhcmNoaXZlMS1iYWNrdXAyLXBlcnNpc3RlbnQzLXJlY29yZHMyIiwiY2FzZUlEIjoicG9zaXRpdmUtYmFja3VwLXBhY2thZ2UtYXJjaGl2ZTEtYmFja3VwMi1wZXJzaXN0ZW50My1yZWNvcmRzMiIsImRlcGVuZGVuY3lGYW1pbGllcyI6WyJsaXZlX3N0b3JlIl0sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6ImJhY2t1cF9wYWNrYWdlIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTE2LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtYXhpbWFsIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-backup-package-directory-v4-backup1-persistent1-records1": "eyJhcnRpZmFjdFZlcnNpb24iOiJkaXJlY3RvcnktdjQtYmFja3VwMS1wZXJzaXN0ZW50MS1yZWNvcmRzMSIsImNhc2VJRCI6InBvc2l0aXZlLWJhY2t1cC1wYWNrYWdlLWRpcmVjdG9yeS12NC1iYWNrdXAxLXBlcnNpc3RlbnQxLXJlY29yZHMxIiwiZGVwZW5kZW5jeUZhbWlsaWVzIjpbImxpdmVfc3RvcmUiXSwiZXhwZWN0ZWREaXNwb3NpdGlvbiI6InN1Y2NlZWRzIiwiZmFtaWx5IjoiYmFja3VwX3BhY2thZ2UiLCJnZW5lcmF0b3JTZWVkIjoyMzAxMTcsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1heGltYWwiXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "positive-current-generation-pointer-1": "eyJhcnRpZmFjdFZlcnNpb24iOiIxIiwiY2FzZUlEIjoicG9zaXRpdmUtY3VycmVudC1nZW5lcmF0aW9uLXBvaW50ZXItMSIsImRlcGVuZGVuY3lGYW1pbGllcyI6WyJsaXZlX3N0b3JlIl0sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6ImN1cnJlbnRfZ2VuZXJhdGlvbl9wb2ludGVyIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTEwLCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtaW5pbXVtIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-current-generation-pointer-2": "eyJhcnRpZmFjdFZlcnNpb24iOiIyIiwiY2FzZUlEIjoicG9zaXRpdmUtY3VycmVudC1nZW5lcmF0aW9uLXBvaW50ZXItMiIsImRlcGVuZGVuY3lGYW1pbGllcyI6WyJsaXZlX3N0b3JlIl0sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6ImN1cnJlbnRfZ2VuZXJhdGlvbl9wb2ludGVyIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTExLCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtYXhpbWFsIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-current-generation-pointer-3": "eyJhcnRpZmFjdFZlcnNpb24iOiIzIiwiY2FzZUlEIjoicG9zaXRpdmUtY3VycmVudC1nZW5lcmF0aW9uLXBvaW50ZXItMyIsImRlcGVuZGVuY3lGYW1pbGllcyI6WyJsaXZlX3N0b3JlIl0sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6ImN1cnJlbnRfZ2VuZXJhdGlvbl9wb2ludGVyIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTEyLCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtYXhpbWFsIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-deletion-intent-1": "eyJhcnRpZmFjdFZlcnNpb24iOiIxIiwiY2FzZUlEIjoicG9zaXRpdmUtZGVsZXRpb24taW50ZW50LTEiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJkZWxldGlvbl9pbnRlbnQiLCJnZW5lcmF0b3JTZWVkIjoyMzAxMjUsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1pbmltdW0iXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "positive-deletion-intent-2": "eyJhcnRpZmFjdFZlcnNpb24iOiIyIiwiY2FzZUlEIjoicG9zaXRpdmUtZGVsZXRpb24taW50ZW50LTIiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJkZWxldGlvbl9pbnRlbnQiLCJnZW5lcmF0b3JTZWVkIjoyMzAxMjYsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1heGltYWwiXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "positive-deletion-ledger-2": "eyJhcnRpZmFjdFZlcnNpb24iOiIyIiwiY2FzZUlEIjoicG9zaXRpdmUtZGVsZXRpb24tbGVkZ2VyLTIiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJkZWxldGlvbl9sZWRnZXIiLCJnZW5lcmF0b3JTZWVkIjoyMzAxMjQsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1pbmltdW0iLCJ1bmljb2RlIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-durable-media-canonical-jpeg-v1": "eyJhcnRpZmFjdFZlcnNpb24iOiJjYW5vbmljYWwtanBlZy12MSIsImNhc2VJRCI6InBvc2l0aXZlLWR1cmFibGUtbWVkaWEtY2Fub25pY2FsLWpwZWctdjEiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJkdXJhYmxlX21lZGlhIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTIzLCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtaW5pbXVtIiwidW5pY29kZSJdLCJzY2hlbWEiOiJWMjNQMDFDMDdHZW5lcmF0ZWRDYXNlQXJ0aWZhY3RWMSIsInNjaGVtYVZlcnNpb24iOjF9",
+    "positive-erase-intent-1": "eyJhcnRpZmFjdFZlcnNpb24iOiIxIiwiY2FzZUlEIjoicG9zaXRpdmUtZXJhc2UtaW50ZW50LTEiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJlcmFzZV9pbnRlbnQiLCJnZW5lcmF0b3JTZWVkIjoyMzAxMjcsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1pbmltdW0iXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "positive-erase-intent-2": "eyJhcnRpZmFjdFZlcnNpb24iOiIyIiwiY2FzZUlEIjoicG9zaXRpdmUtZXJhc2UtaW50ZW50LTIiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJlcmFzZV9pbnRlbnQiLCJnZW5lcmF0b3JTZWVkIjoyMzAxMjgsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1heGltYWwiXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "positive-finalization-intent-1": "eyJhcnRpZmFjdFZlcnNpb24iOiIxIiwiY2FzZUlEIjoicG9zaXRpdmUtZmluYWxpemF0aW9uLWludGVudC0xIiwiZGVwZW5kZW5jeUZhbWlsaWVzIjpbImxpdmVfc3RvcmUiLCJyZXBvcnRfb3Blbl9qc29uIl0sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6ImZpbmFsaXphdGlvbl9pbnRlbnQiLCJnZW5lcmF0b3JTZWVkIjoyMzAxMjEsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1pbmltdW0iLCJ1bmljb2RlIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-live-store-1.0.0": "eyJhcnRpZmFjdFZlcnNpb24iOiIxLjAuMCIsImNhc2VJRCI6InBvc2l0aXZlLWxpdmUtc3RvcmUtMS4wLjAiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJsaXZlX3N0b3JlIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTA3LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJkc3QiLCJlbXB0eSIsImxvbmciLCJtYXhpbWFsIiwibWluaW11bSIsInJ0bCIsInNlY29uZC1sYXVuY2giLCJ1bmljb2RlIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-live-store-2.0.0": "eyJhcnRpZmFjdFZlcnNpb24iOiIyLjAuMCIsImNhc2VJRCI6InBvc2l0aXZlLWxpdmUtc3RvcmUtMi4wLjAiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJsaXZlX3N0b3JlIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTA4LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtYXhpbWFsIiwic2Vjb25kLWxhdW5jaCJdLCJzY2hlbWEiOiJWMjNQMDFDMDdHZW5lcmF0ZWRDYXNlQXJ0aWZhY3RWMSIsInNjaGVtYVZlcnNpb24iOjF9",
+    "positive-live-store-3.0.0": "eyJhcnRpZmFjdFZlcnNpb24iOiIzLjAuMCIsImNhc2VJRCI6InBvc2l0aXZlLWxpdmUtc3RvcmUtMy4wLjAiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJsaXZlX3N0b3JlIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTA5LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtYXhpbWFsIiwic2Vjb25kLWxhdW5jaCJdLCJzY2hlbWEiOiJWMjNQMDFDMDdHZW5lcmF0ZWRDYXNlQXJ0aWZhY3RWMSIsInNjaGVtYVZlcnNpb24iOjF9",
+    "positive-restore-intent-1": "eyJhcnRpZmFjdFZlcnNpb24iOiIxIiwiY2FzZUlEIjoicG9zaXRpdmUtcmVzdG9yZS1pbnRlbnQtMSIsImRlcGVuZGVuY3lGYW1pbGllcyI6W10sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6InJlc3RvcmVfaW50ZW50IiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTI5LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtaW5pbXVtIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-restore-intent-2": "eyJhcnRpZmFjdFZlcnNpb24iOiIyIiwiY2FzZUlEIjoicG9zaXRpdmUtcmVzdG9yZS1pbnRlbnQtMiIsImRlcGVuZGVuY3lGYW1pbGllcyI6W10sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6InJlc3RvcmVfaW50ZW50IiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTMwLCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtYXhpbWFsIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-sign-pack-schema1-content1": "eyJhcnRpZmFjdFZlcnNpb24iOiJzY2hlbWExLWNvbnRlbnQxIiwiY2FzZUlEIjoicG9zaXRpdmUtc2lnbi1wYWNrLXNjaGVtYTEtY29udGVudDEiLCJkZXBlbmRlbmN5RmFtaWxpZXMiOltdLCJleHBlY3RlZERpc3Bvc2l0aW9uIjoic3VjY2VlZHMiLCJmYW1pbHkiOiJzaWduX3BhY2siLCJnZW5lcmF0b3JTZWVkIjoyMzAxMjIsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1pbmltdW0iLCJ1bmljb2RlIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "positive-store-generation-manifest-1": "eyJhcnRpZmFjdFZlcnNpb24iOiIxIiwiY2FzZUlEIjoicG9zaXRpdmUtc3RvcmUtZ2VuZXJhdGlvbi1tYW5pZmVzdC0xIiwiZGVwZW5kZW5jeUZhbWlsaWVzIjpbImxpdmVfc3RvcmUiXSwiZXhwZWN0ZWREaXNwb3NpdGlvbiI6InN1Y2NlZWRzIiwiZmFtaWx5Ijoic3RvcmVfZ2VuZXJhdGlvbl9tYW5pZmVzdCIsImdlbmVyYXRvclNlZWQiOjIzMDExMywiZ2VuZXJhdG9yVmVyc2lvbiI6InAwMS1jMDctc2VlZC12MSIsImtpbmQiOiJwb3NpdGl2ZSIsInNjZW5hcmlvVGFncyI6WyJjdXJyZW50IiwibWluaW11bSIsInVuaWNvZGUiXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ==",
+    "positive-store-migration-journal-1": "eyJhcnRpZmFjdFZlcnNpb24iOiIxIiwiY2FzZUlEIjoicG9zaXRpdmUtc3RvcmUtbWlncmF0aW9uLWpvdXJuYWwtMSIsImRlcGVuZGVuY3lGYW1pbGllcyI6W10sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJzdWNjZWVkcyIsImZhbWlseSI6InN0b3JlX21pZ3JhdGlvbl9qb3VybmFsIiwiZ2VuZXJhdG9yU2VlZCI6MjMwMTE0LCJnZW5lcmF0b3JWZXJzaW9uIjoicDAxLWMwNy1zZWVkLXYxIiwia2luZCI6InBvc2l0aXZlIiwic2NlbmFyaW9UYWdzIjpbImN1cnJlbnQiLCJtaW5pbXVtIiwidW5pY29kZSJdLCJzY2hlbWEiOiJWMjNQMDFDMDdHZW5lcmF0ZWRDYXNlQXJ0aWZhY3RWMSIsInNjaGVtYVZlcnNpb24iOjF9",
+    "positive-streaming-archive-header1-index1": "eyJhcnRpZmFjdFZlcnNpb24iOiJoZWFkZXIxLWluZGV4MSIsImNhc2VJRCI6InBvc2l0aXZlLXN0cmVhbWluZy1hcmNoaXZlLWhlYWRlcjEtaW5kZXgxIiwiZGVwZW5kZW5jeUZhbWlsaWVzIjpbXSwiZXhwZWN0ZWREaXNwb3NpdGlvbiI6InN1Y2NlZWRzIiwiZmFtaWx5Ijoic3RyZWFtaW5nX2FyY2hpdmUiLCJnZW5lcmF0b3JTZWVkIjoyMzAxMTgsImdlbmVyYXRvclZlcnNpb24iOiJwMDEtYzA3LXNlZWQtdjEiLCJraW5kIjoicG9zaXRpdmUiLCJzY2VuYXJpb1RhZ3MiOlsiY3VycmVudCIsIm1pbmltdW0iLCJ1bmljb2RlIl0sInNjaGVtYSI6IlYyM1AwMUMwN0dlbmVyYXRlZENhc2VBcnRpZmFjdFYxIiwic2NoZW1hVmVyc2lvbiI6MX0=",
+    "recovery-erase-intent-orphan": "eyJhcnRpZmFjdFZlcnNpb24iOiIyIiwiY2FzZUlEIjoicmVjb3ZlcnktZXJhc2UtaW50ZW50LW9ycGhhbiIsImRlcGVuZGVuY3lGYW1pbGllcyI6W10sImV4cGVjdGVkRGlzcG9zaXRpb24iOiJyZXN1bWVzX2lkZW1wb3RlbnRseSIsImZhbWlseSI6ImVyYXNlX2ludGVudCIsImdlbmVyYXRvclNlZWQiOjIzMDgzNywiZ2VuZXJhdG9yVmVyc2lvbiI6InAwMS1jMDctc2VlZC12MSIsImtpbmQiOiJyZWNvdmVyeSIsInNjZW5hcmlvVGFncyI6WyJvcnBoYW4iLCJyZXRyeSIsInNlY29uZC1sYXVuY2giXSwic2NoZW1hIjoiVjIzUDAxQzA3R2VuZXJhdGVkQ2FzZUFydGlmYWN0VjEiLCJzY2hlbWFWZXJzaW9uIjoxfQ=="
+  },
+  "generator": {
+    "name": "p01_c07_contracts.py",
+    "seed": 230107,
+    "version": "p01-c07-seed-v1"
+  },
+  "hostileScenarioTags": [
+    "tamper",
+    "truncated",
+    "path",
+    "archive",
+    "bomb"
+  ],
+  "immutable": true,
+  "licenseIdentifier": "SYNTHETIC_INTERNAL_FIXTURE_V1",
+  "policyManifestSHA256": "4ee52447841f0063a80aab0af4b2bba3c655f9f467b54115351091bb31bee34c",
+  "provisionalSeal": {
+    "firstPublicSealOwner": "V23-P05-C01",
+    "owner": "V23-P01-C07",
+    "requiresAcceptedS10_6P05FirstPublicClosure": true,
+    "state": "provisional_pre_public"
+  },
+  "runModes": {
+    "acceptingFailFast": "FAIL_FAST_NON_DIAGNOSTIC",
+    "diagnosticContinue": "CONTINUE_ONLY_NON_ACCEPTING"
+  },
+  "schema": "V21P01C07CompatibilityCorpusV1",
+  "schemaVersion": 1,
+  "sealState": "provisional_pre_public",
+  "supportedFamilies": [
+    "live_store",
+    "current_generation_pointer",
+    "store_generation_manifest",
+    "store_migration_journal",
+    "backup_package",
+    "streaming_archive",
+    "report_open_json",
+    "report_pdf",
+    "finalization_intent",
+    "sign_pack",
+    "durable_media",
+    "deletion_ledger",
+    "deletion_intent",
+    "erase_intent",
+    "restore_intent"
+  ],
+  "supportedUpgradePaths": [
+    {
+      "currentWriterVersion": "3.0.0",
+      "family": "live_store",
+      "forwardUpgradeTransitions": [
+        {
+          "fromVersion": "1.0.0",
+          "toVersion": "2.0.0"
+        },
+        {
+          "fromVersion": "2.0.0",
+          "toVersion": "3.0.0"
+        }
+      ],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "1.0.0",
+        "2.0.0",
+        "3.0.0"
+      ],
+      "rebuildDisposition": "available",
+      "schemaVersion": 1,
+      "searchDisposition": "unavailable_at_this_head",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "3",
+      "family": "current_generation_pointer",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "1",
+        "2",
+        "3"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "1",
+      "family": "store_generation_manifest",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "1",
+      "family": "store_migration_journal",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "archive1-backup2-persistent3-records2",
+      "family": "backup_package",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "archive1-backup2-persistent1-records1",
+        "archive1-backup2-persistent3-records2",
+        "directory-v4-backup1-persistent1-records1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "header1-index1",
+      "family": "streaming_archive",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "header1-index1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "snapshot1",
+      "family": "report_open_json",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "snapshot1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "deferred_to_v23_p03_c09",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "template1",
+      "family": "report_pdf",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "template1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "deferred_to_v23_p03_c09",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "1",
+      "family": "finalization_intent",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "schema1-content1",
+      "family": "sign_pack",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "schema1-content1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "canonical-jpeg-v1",
+      "family": "durable_media",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "canonical-jpeg-v1"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "2",
+      "family": "deletion_ledger",
+      "forwardUpgradeTransitions": [],
+      "persistence": "publicly_persisted",
+      "readableVersions": [
+        "2"
+      ],
+      "rebuildDisposition": "available",
+      "schemaVersion": 1,
+      "searchDisposition": "unavailable_at_this_head",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "2",
+      "family": "deletion_intent",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1",
+        "2"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "2",
+      "family": "erase_intent",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1",
+        "2"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    },
+    {
+      "currentWriterVersion": "2",
+      "family": "restore_intent",
+      "forwardUpgradeTransitions": [],
+      "persistence": "internal_recovery",
+      "readableVersions": [
+        "1",
+        "2"
+      ],
+      "rebuildDisposition": "not_applicable",
+      "schemaVersion": 1,
+      "searchDisposition": "not_applicable",
+      "unknownVersionDisposition": "fail_closed_unsupported_version",
+      "writerDisposition": "current_version_only"
+    }
+  ],
+  "synthetic": true,
+  "workspaceScenarioTags": [
+    "dst",
+    "empty",
+    "long",
+    "maximal",
+    "minimum",
+    "rtl",
+    "unicode"
+  ]
+}

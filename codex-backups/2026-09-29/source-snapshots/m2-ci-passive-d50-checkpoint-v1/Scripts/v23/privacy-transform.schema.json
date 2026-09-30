@@ -1,0 +1,586 @@
+{
+  "$id": "https://assetrounds.invalid/v23/privacy-transform.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "alternateCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "regionCount": {
+            "type": "integer"
+          },
+          "review": {
+            "type": "string"
+          },
+          "sanitation": {
+            "type": "string"
+          },
+          "transform": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience",
+          "id",
+          "regionCount",
+          "review",
+          "sanitation",
+          "transform"
+        ],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "audiences": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "accountOrCloudState": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "automaticDetection": {
+          "type": "boolean"
+        },
+        "biometricTemplate": {
+          "type": "boolean"
+        },
+        "cloudVision": {
+          "type": "boolean"
+        },
+        "faceRecognition": {
+          "type": "boolean"
+        },
+        "guaranteedAnonymization": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "identityRecognition": {
+          "type": "boolean"
+        },
+        "legalCompliance": {
+          "type": "boolean"
+        },
+        "licensePlateRecognition": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "originalMutation": {
+          "type": "boolean"
+        },
+        "providerUpload": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        },
+        "remoteProcessor": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "acceptance",
+        "acceptanceCredit",
+        "accountOrCloudState",
+        "adoption",
+        "automaticDetection",
+        "biometricTemplate",
+        "cloudVision",
+        "faceRecognition",
+        "guaranteedAnonymization",
+        "hosted",
+        "identityRecognition",
+        "legalCompliance",
+        "licensePlateRecognition",
+        "native",
+        "originalMutation",
+        "providerUpload",
+        "release",
+        "releaseCredit",
+        "remoteProcessor",
+        "secondStore"
+      ],
+      "type": "object"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "coordinateAPITypes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "coordinateScaleRatios": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "coordinateSpaces": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "durableFamilyCount": {
+      "type": "integer"
+    },
+    "evidenceCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assertion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assertion",
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "maxItems": 12,
+      "minItems": 12,
+      "type": "array"
+    },
+    "forbiddenClaims": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 14,
+      "minItems": 14,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "goldenCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "originalImmutable": {
+            "type": "boolean"
+          },
+          "review": {
+            "type": "string"
+          },
+          "sanitation": {
+            "type": "string"
+          },
+          "separateDerivative": {
+            "type": "boolean"
+          },
+          "transform": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience",
+          "id",
+          "originalImmutable",
+          "review",
+          "sanitation",
+          "separateDerivative",
+          "transform"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 19,
+      "minItems": 19,
+      "type": "array"
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "migrationInventedPrivacyTransformCount": {
+      "type": "integer"
+    },
+    "normalizedCoordinateScale": {
+      "type": "integer"
+    },
+    "orientations": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "canonicalSourceOfTruth": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "classificationRequired": {
+          "type": "boolean"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportReportRequired": {
+          "type": "boolean"
+        },
+        "forwardFix": {
+          "type": "string"
+        },
+        "interruptionRecoveryRequired": {
+          "type": "boolean"
+        },
+        "migrationRequired": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "maxItems": 0,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "providerRows": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "replayRequired": {
+          "type": "boolean"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "searchRebuildRequired": {
+          "type": "boolean"
+        },
+        "secondStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "backupRestoreRequired",
+        "canonicalSourceOfTruth",
+        "canonicalWriter",
+        "classificationRequired",
+        "currentProjectionRowCount",
+        "deleteEraseRequired",
+        "downgrade",
+        "exportReportRequired",
+        "forwardFix",
+        "interruptionRecoveryRequired",
+        "migrationRequired",
+        "mode",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "providerRows",
+        "recordsSchemaVersion",
+        "replayRequired",
+        "schemaRelease",
+        "schemaVersion",
+        "searchRebuildRequired",
+        "secondStore",
+        "secondWriter"
+      ],
+      "type": "object"
+    },
+    "persistentKindLifecycleModelCount": {
+      "type": "integer"
+    },
+    "persistentPrivacyTransformKindCount": {
+      "type": "integer"
+    },
+    "persistentSchemaVersion": {
+      "type": "integer"
+    },
+    "projectionDispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "recordsSchemaVersion": {
+      "type": "integer"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "requiredBehaviors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "contract": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract",
+          "evidence",
+          "id",
+          "requirement"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array"
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "reviewDecisions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "sanitationDispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "sourceBoundsFields": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "transformKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "alternateCases",
+    "audiences",
+    "cardID",
+    "claims",
+    "containsCustomerData",
+    "containsSecrets",
+    "coordinateAPITypes",
+    "coordinateScaleRatios",
+    "coordinateSpaces",
+    "durableFamilyCount",
+    "evidenceCases",
+    "forbiddenClaims",
+    "goldenCases",
+    "hostileCases",
+    "interruptionCases",
+    "migrationInventedPrivacyTransformCount",
+    "normalizedCoordinateScale",
+    "orientations",
+    "persistence",
+    "persistentKindLifecycleModelCount",
+    "persistentPrivacyTransformKindCount",
+    "persistentSchemaVersion",
+    "projectionDispositions",
+    "recordsSchemaVersion",
+    "recoveryCases",
+    "requiredBehaviors",
+    "requiredContractNames",
+    "reviewDecisions",
+    "sanitationDispositions",
+    "schema",
+    "schemaVersion",
+    "sourceBoundsFields",
+    "synthetic",
+    "transformKinds"
+  ],
+  "title": "V23 P03 C20 Privacy Transform Corpus",
+  "type": "object"
+}

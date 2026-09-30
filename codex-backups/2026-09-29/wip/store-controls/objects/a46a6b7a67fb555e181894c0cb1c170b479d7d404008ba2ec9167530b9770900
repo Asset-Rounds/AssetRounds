@@ -1,0 +1,123 @@
+from pathlib import Path
+p=Path('.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift')
+s=p.read_text().replace('Set(base + coldCleanupProjectedLeaves.keys + coldCleanupOwnBytes.keys)','Set(base + Array(coldCleanupProjectedLeaves.keys) + Array(coldCleanupOwnBytes.keys))')
+s=s.replace('''    private func clearSchema2CleanupPublisherTransients() {''','''    private func clearSchema2CleanupPublisherTransients(settled: Bool = true) {''',1)
+s=s.replace('''        coldOwnPublishedIdentity = nil; coldPublishedVerified = false
+    }
+''','''        coldOwnPublishedIdentity = nil; coldPublishedVerified = false
+        if settled { coldCleanupControlAttempt = nil }
+    }
+''',1)
+s=s.replace('''                clearSchema2CleanupPublisherTransients()
+                self.coldCleanupOwnBytes[name]''','''                clearSchema2CleanupPublisherTransients(settled: false)
+                self.coldCleanupOwnBytes[name]''',1)
+# Core R->C publication is replayed from the exact first-held R or C cut.
+a=s.index('        guard expected.schemaVersion == 2, expected.phase == .sessionActivated,',s.index('    func replaceSchema2ColdCleanupPhase('))
+b=s.index('        let beforeSHA = ',a)
+s=s[:a]+'''        let before = try EraseIntentCodecV1.encode(expected)
+        let after = try EraseIntentCodecV1.encode(replacement)
+        guard expected.schemaVersion == 2, expected.phase == .sessionActivated,
+              replacement == expected.advancing(to: .cleanupComplete),
+              borrowsColdObservation || originalCleanupRegistered,
+              let currentBytes = coldExpectedIntentBytes ?? originalAuxiliaryProjectedIntentBytes,
+              let currentFact = coldExpectedIntentFact ?? originalAuxiliaryProjectedIntentFact,
+              currentBytes == before || currentBytes == after else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+''' + s[b:]
+s=s.replace('''            bytes: before, fact: beforeFact,
+''','''            bytes: currentBytes, fact: currentFact,
+''',1)
+s=s.replace('''        coldExpectedIntentBytes = after; coldExpectedIntentFact = published.fact
+''','''        coldExpectedIntentBytes = after; coldExpectedIntentFact = published.fact
+        if !borrowsColdObservation {
+            originalAuxiliaryProjectedIntentBytes = after
+            originalAuxiliaryProjectedIntentFact = published.fact
+        }
+''',1)
+# Project original intent only after exact readback in the sole publisher.
+s=s.replace('''            coldCleanupProjectedLeaves[name] = canonical
+            try settleOriginalCleanupRootProjection()
+''','''            coldCleanupProjectedLeaves[name] = canonical
+            if !borrowsColdObservation, name == Self.intentName {
+                originalAuxiliaryProjectedIntentBytes = canonical.bytes
+                originalAuxiliaryProjectedIntentFact = canonical.fact
+            }
+            try settleOriginalCleanupRootProjection()
+''',1)
+# The original close is a distinct actual incumbent proof consumer. It never
+# delegates owned descriptors to a cold observer or retries a close.
+pos=s.index('    /// Completed cleanup has removed the entire journal root.')
+s=s[:pos]+'''    @MainActor
+    func closeOriginalSchema2TerminalStoreChecked(expected: EraseIntentV1,
+        terminal: EraseSchema2ColdCleanupTerminalObservationV1,
+        retirement: EraseSchema2ColdTerminalAuthorityV1,
+        originalRetirement: ErasedRegistryRetirementProofV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdTerminalStoreCloseReceiptV1 {
+        defer { coldCleanupPermit = nil; coldCleanupEffect = nil }
+        guard !borrowsColdObservation, originalCleanupRegistered,
+              coldCleanupCompletionControlsRemoved, coldCleanupTerminalRootRemoved,
+              coldCleanupTerminalObservation == terminal,
+              coldCleanupTerminalRetirement === retirement,
+              terminal.value.cleanupIntentBytes == (try EraseIntentCodecV1.encode(expected)) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try retirement.requireOriginalRetirement(originalRetirement)
+        if let receipt = coldCleanupTerminalCloseReceipt {
+            try receipt.requireBound(store: self, expected: expected, retirement: retirement)
+            return receipt
+        }
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .closeTerminalStore,
+            inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(terminal.bytes)],
+            path: Self.directoryName), permit: permit)
+        try requireSchema2ColdCleanupEffect(permit)
+        let subject = originalRetirement.binding.subject
+        guard applicationSupportURL.standardizedFileURL == subject.applicationSupportURL.standardizedFileURL,
+              Int64(applicationSupportIdentity.device) == subject.applicationSupportDevice,
+              UInt64(applicationSupportIdentity.inode) == subject.applicationSupportInode,
+              !coldCloseAttempted, !coldClosed, !originalRecoveryCloseAttempted,
+              coldActiveFD == nil, coldEnumerationFD == nil, coldDirectoryStream == nil,
+              coldUncertainFDs.isEmpty, !coldUncertainStreamClose, !coldEffectUncertain,
+              originalAuxiliaryActiveFD == nil, originalAuxiliaryEnumerationFD == nil,
+              originalAuxiliaryDirectoryStream == nil, originalAuxiliaryUncertainFDs.isEmpty,
+              !originalAuxiliaryUncertainStreamClose, retirementUncertainReadDescriptors.isEmpty,
+              originalRecoveryUncertainPolicyDescriptors.isEmpty else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        if let originalRecoveryCheckedIO { try originalRecoveryCheckedIO.requireSettled() }
+        try retirement.requireTerminalStoreClose(expected: expected,
+            terminalSHA256: StoreMigrationCanonicalJSONV1.sha256(terminal.bytes))
+        var named = stat()
+        guard Darwin.fstatat(applicationSupportDescriptor, Self.directoryName, &named,
+                AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        // Fence BOTH numeric slots and deinit before the first actual close.
+        // A failed close is terminal; no subsequent method may touch a number.
+        coldCloseAttempted = true
+        originalRecoveryCloseAttempted = true
+        var failed = false
+        for descriptor in [eraseDescriptor, applicationSupportDescriptor] {
+            if Darwin.close(descriptor) != 0 {
+                Self.uncertainOriginalRecoveryCloseLock.withLock {
+                    Self.uncertainOriginalRecoveryDescriptors.append(descriptor)
+                }
+                failed = true
+            }
+        }
+        guard !failed else {
+            coldEffectUncertain = true; permit.poisonOnUncertainEffect()
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        coldClosed = true
+        let receipt = EraseSchema2ColdTerminalStoreCloseReceiptV1(store: self,
+            eraseID: expected.eraseID, retirement: retirement)
+        coldCleanupTerminalCloseReceipt = receipt
+        try requireSchema2ColdCleanupEffect(permit)
+        return receipt
+    }
+
+''' + s[pos:]
+p.write_text(s)

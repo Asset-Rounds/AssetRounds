@@ -1,0 +1,15 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "sourceSHA256": "d7d992666a3c932d713c48b902342f3911626ebba0cf301af552bdeee5cbf8ee",
+  "DEBUG": {
+    "exitCode": 0,
+    "log": "PARSE_WORKING_V14_DEBUG.log"
+  },
+  "nonDEBUG": {
+    "exitCode": 0,
+    "log": "PARSE_WORKING_V14_nonDEBUG.log"
+  },
+  "kind": "syntax parse only; no module/typecheck/runtime",
+  "fragmentSHA256": "6c763f0d91fca55efcabccdbf52e5944ed565bceda0db1e87442a6d08882bc23"
+}

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "background": {
+      "const": false
+    },
+    "canonicalWrites": {
+      "const": 0
+    },
+    "capturedMedia": {
+      "const": false
+    },
+    "cardID": {
+      "const": "V23-P06-C08"
+    },
+    "customerData": {
+      "const": false
+    },
+    "declarativeDescriptorsOnly": {
+      "const": true
+    },
+    "disposition": {
+      "const": "PROVISIONAL_STATIC_PREPARATION_ONLY"
+    },
+    "expiryDays": {
+      "const": 30
+    },
+    "externalActions": {
+      "const": "NONE"
+    },
+    "modelOutput": {
+      "const": false
+    },
+    "network": {
+      "const": false
+    },
+    "reconciliationRequired": {
+      "const": true
+    },
+    "redaction": {
+      "const": false
+    },
+    "schema": {
+      "const": "V23P06C08TemporalMediaStaticProtocolV1"
+    },
+    "syntheticRepositoryOnly": {
+      "const": true
+    },
+    "transcription": {
+      "const": false
+    },
+    "transformInvoked": {
+      "const": false
+    },
+    "uploadInvoked": {
+      "const": false
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "disposition",
+    "syntheticRepositoryOnly",
+    "declarativeDescriptorsOnly",
+    "capturedMedia",
+    "transcription",
+    "redaction",
+    "modelOutput",
+    "background",
+    "network",
+    "canonicalWrites",
+    "customerData",
+    "uploadInvoked",
+    "transformInvoked",
+    "externalActions",
+    "expiryDays",
+    "reconciliationRequired",
+    "evidenceIDs",
+    "flags"
+  ],
+  "type": "object"
+}

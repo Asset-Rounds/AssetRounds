@@ -1,0 +1,39 @@
+{
+  "effort": "xhigh",
+  "files": {
+    "CASE_MATRIX.md": "5f36910430d6acd7cc15b7064048bd3ac3e7084b3b7a79ebeda6a127689fa6bf",
+    "EraseAllService.diff": "468f97b77a547ca589124dfd9d0586779cb0cce5ccc8fb57501927c3e9c6816f",
+    "HANDOFF.md": "513aae023793081fc279f0346c3bc0c8f1f63fedf9890bf5e2e3b918278141a3",
+    "PARSE-EraseAllService-DEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PARSE-EraseAllService-nonDEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PARSE-StartupRouter-DEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PARSE-StartupRouter-nonDEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PARSE-StoreSessionCoordinator-DEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PARSE-StoreSessionCoordinator-nonDEBUG.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "PARSE.json": "abf1af54abb2540a6cef8b69c0ae58b7952c310e36998b091cd87dcb124384e9",
+    "ROUTER_ACTUAL_CALLER_HOOKS_V3.swift.fragment": "3be33fbbaa9002430d6187bded618033c572b32262f07d7b90cea0ec9d21f1cd",
+    "ROUTER_ADMISSION_PERMIT_READBACK_V3.swift.fragment": "9c46b37dc6a14a4a6d63cd118b34e2db213ae202d7d1141765964cf38f664e3a",
+    "ROUTER_PREPARED_TRANSFER_BOUNDARY_V3.swift.fragment": "0aa0ca7ed1ed76f5101056aae5f8a324b9fa3b6a9cd0abbe635fe640c9babd18",
+    "StartupRouter.diff": "4bdc8a4019e910d8daead71f944f21f3e4cbdf548e7bb2fdfb0b644f45d328c4",
+    "StoreSessionCoordinator.diff": "4c13c83d55b495cdd33794e1c9f44bb6cfa4997fed3fd51634f331ec59160bcb",
+    "TRACKED_UNCHANGED_AUDIT.json": "624fa67745d0b063281b795b55608a67d7e7a992f267dba8feb9ce4c3b17cb01",
+    "before/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "8890e38d76c8d1e9c8450df2d85d18f7b7660e6ede40f4118dcee49386eed338",
+    "before/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "1112d37ba1a07553f6c499515ff8c73c2d0bc2a20a9eb64cd8542b044f57b6d5",
+    "before/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "0417555056e563669c7194b0829a6ae88c7cbe923c411fb76b6fa838927c4fc4",
+    "candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": "710c4f9bd3676c339879ca25f5445e57f3400a14d3e8a0d77c638f0444abb61f",
+    "candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift": "1f8066c62a612bfdeb205fab0eccecc1e6c600c8427380c2bfc3aca5027b45dd",
+    "candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift": "026d1499fa31acdbeb42d9c2ab82454fda600f25847e469b9a331bd00583921c"
+  },
+  "full1206SourceMapSHA256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+  "model": "gpt-6.1-sol",
+  "noTypecheckBuildNative": true,
+  "ownedFiles": [
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+  ],
+  "parentHead": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "predecessorBindingSHA256": "8a0cd6b3b6585134f370bbe95e89b32237de6dcb733973cf126d62a3a8beeea2",
+  "schemaVersion": 3,
+  "status": "SOURCE_ONLY_COUPLING_CHECKPOINT_NOT_INSTALLABLE"
+}

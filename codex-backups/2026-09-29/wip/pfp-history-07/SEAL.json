@@ -1,0 +1,19 @@
+{
+  "files": {
+    "BINDING.json": "37d49a9ad33e05538fb2ecd477d95e68e5de626b23a69727b23218d9c623c7d2",
+    "CASE_MATRIX.md": "c1d07ba7fbb8bbf7767054696b5bae96f6f97937f6f89b93b1a82184d48c555f",
+    "HANDOFF.md": "186c528427aef87d165648158ffff13a119e549f964b376dfc4e76893ce9a1fe",
+    "INPUTS.json": "0ed30aad21e7df63e8a6f4d4bdc522b73de185945b64439b4f3659619201496f",
+    "ProtectedFilePolicy.diff": "cdb3a12632278ab6a03823c321c2bfa33ca1074995aa605fbc6c6104a57173d1",
+    "SEALED_GENERIC_INTERFACE_V1.md": "716f53e42847aaa965ffc87377769626c61f85dc555ac405975b8653f2cdf5c2",
+    "SOURCE_SAFETY_LEDGER.json": "9dad75d1f60b740200baaf1e3e777036dc33617ff579c9cb45734bb19aa36943",
+    "before/ProtectedFilePolicy.swift": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700",
+    "candidate/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+    "inputs/ORIGINAL_PAIR_ACCOUNTING_DATA_INPUT.swift.fragment": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+    "inputs/SEALED_GENERIC_OBSERVATION_V1.swift.fragment": "afcccf2438ae96d12f14662c8914fc3f68bf6e2a2d9f5d05141148ee4ea624d4",
+    "parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "schemaVersion": 1,
+  "scope": "Exact sealed source-only successor, no actual issuer/compiler/native/whole-recovery/gate claim. Preserve after seal."
+}

@@ -1,0 +1,128 @@
+{
+  "authority": {
+    "allocationDigest": "6564c548106ef9b93413143550ba127faed1c8a2456f61253d55b34a05481293",
+    "appBaseHead": "1a5d77d1452eb18c5d2a2a8b053c9be94963ee3f",
+    "appBaseTree": "235ed3880c9d0616d608727dbd4a363c6f6c3782",
+    "authorizedOverlapCount": 1,
+    "cardID": "V23-P04-C15",
+    "contextDigest": "8c91ab54613fdb048eb004a0c1bb986ea205c40b61d2b9cbc2092ef383acf089",
+    "coordinationHead": "b8207934334b3f0dd576281661eb4d6a64e6ead6",
+    "coordinationTree": "3879b78d32ad2f11a7d852eb3f2bf6b2a623dfdc",
+    "existingPathCount": 3,
+    "fencePathCount": 17,
+    "finalHashesSealed": true,
+    "ledgerDigest": "77f98e1a787bfc9509f6ddf257d90780fe868a5d8e286b10d7cc6ccb538cae58",
+    "newPathCount": 14,
+    "pathFenceDigest": "0bab4884aaee9d5653a6beb4f5ef9ec41ded105a7f77677a64e57eb542f0be0b",
+    "prerequisiteDigest": "805d21169a0542ae5cbadd1eeaa488832e09b05cbb12e50afc81c539f645aa8e",
+    "priorFenceCount": 4,
+    "priorOwnedPathCount": 179,
+    "projectionDigest": "cb251ffab26f2787f59e705ca5411aeec32a9646b4b8c0127d3b81766bafe623",
+    "s10OverlapCount": 0,
+    "sequence": 448,
+    "transitionDigest": "e26208f597f1043ef0483181ea5af2ce0411fee37ab20c0f11b594c7cd226bc0"
+  },
+  "cardID": "V23-P04-C15",
+  "contractDigest": "a38b88e7aaf57a82f2218b6ff65fd92f890cdd0c334969ad28d0ab6cd2d80cf9",
+  "interruptionAcceptanceEvidence": {
+    "noWorktreeMutation": true,
+    "protocol": "MANIFEST_LAST_ATOMIC_REPLACE",
+    "rows": [
+      {
+        "acceptedSetCount": 1,
+        "boundary": "BEFORE_ACCEPTED_ARTIFACT_WRITE"
+      },
+      {
+        "acceptedSetCount": 0,
+        "boundary": "AFTER_ARTIFACT_WRITE_BEFORE_RECEIPT"
+      },
+      {
+        "acceptedSetCount": 1,
+        "boundary": "AFTER_RECEIPT_BEFORE_RETURN"
+      }
+    ]
+  },
+  "provisional": true,
+  "schema": "V23P04C15DiscoveryTruthEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceContractsHostileSelfTest": {
+    "count": 8,
+    "rejected": [
+      "brand-root-opaque",
+      "synthetic-sample-opaque",
+      "aggregate-evidence-opaque",
+      "accessibility-root-opaque",
+      "privacy-artifact-opaque",
+      "catalog-ref-opaque",
+      "candidate-digest-wrong",
+      "approval-extra-key"
+    ],
+    "sourceContractsSelfTest": "PASS"
+  },
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 17,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C15G01DiscoveryTruthCatalogValidatesLocalizedLimitsAndClosedArtifactSet",
+      "testV23P04C15A01CategoriesAndAppTagsRemainSeparateTypedSets",
+      "testV23P04C15H01HostileOpaqueStaleRealDataAndDraftPublishedInputsFailClosed",
+      "testV23P04C15I01InterruptedDeclarationGenerationLeavesZeroPartialOrCompleteArtifactSet",
+      "testV23P04C15R01DeletingAndRebuildingDeclarationArtifactsLeavesProductAndPublicStateUnchanged"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "docs/product/discovery/DiscoveryTruthCatalogV1.json",
+        "sha256": "c2372225274acfc819e0293bb4ea624bd434f115bc41f46c014b605e9cc099fb",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "docs/product/discovery/V23P04C15BrandedStaticProofManifestV1.json",
+        "sha256": "3675918ba2d7ff2037dedd790f53827d85b66184a5907c4d482955b98b744a11",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "docs/product/discovery/V23P04C15SyntheticSampleManifestV1.json",
+        "sha256": "41e17b55277dfb4758e6a185074c1ea91eaa84f6bded7e0ce322eca0a10ae384",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "docs/product/discovery/V23P04C15AggregateAcquisitionEvidenceV1.json",
+        "sha256": "5696c7edc2cf318a4f0002af45bf46cd6385ddb12c3849dbabbf9bea11c08be7",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "docs/accessibility/V23P04C15StaticProofAccessibilityManifestV1.json",
+        "sha256": "1b9edc89e86716c27fb82365092112f8ce5b9794dd9a083279f0438d07361110",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json",
+        "sha256": "3a4f5f8afe44daed06cbe8a95ccb16be7610495af780b8df36b4138b7beaeb4b",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V21/DiscoveryTruth/V23P04C15DiscoveryTruthCorpusV1.json",
+        "sha256": "30ec4931f81399005fde8fe940d0272e477b87dd99fb9325b0f03188997fa89b",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "publish": false,
+    "release": false
+  }
+}

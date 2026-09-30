@@ -1,0 +1,138 @@
+{
+  "schema": "V22P04C03IlluminatedSignPlaybookCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C03",
+  "ordinal": 91,
+  "contentMode": "CONTENT_ONLY",
+  "eighthPlaybookForbidden": true,
+  "uiAdoptionEnabled": false,
+  "professionalCertificationClaimed": false,
+  "professionalCertificationRejected": true,
+  "professionalCertificationBoundary": "professional certification is rejected; this corpus never asserts professional, electrical, or safety certification.",
+  "optionalDecisionGateV1Present": false,
+  "optionalDecisionGateV1Enabled": false,
+  "optionalDecisionGateV1Forbidden": true,
+  "selectors": [
+    { "id": "G01", "selector": "V23-P04-C03-G01", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "V23-P04-C03-A01", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "V23-P04-C03-H01", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "V23-P04-C03-I01", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "V23-P04-C03-R01", "tier": "RECOVERY" }
+  ],
+  "playbookIDs": [
+    "general_visible_condition",
+    "dark_section",
+    "dim_or_uneven",
+    "flicker_or_intermittent",
+    "color_mismatch",
+    "physical_damage",
+    "other_visible_condition"
+  ],
+  "captureSlots": [
+    { "id": "wide_context", "purposeKey": "wide_context", "required": true },
+    { "id": "close_detail", "purposeKey": "close_detail", "required": true },
+    { "id": "work_context", "purposeKey": "work_context", "required": false }
+  ],
+  "visibleConditionDisplays": [
+    { "id": "general_visible_condition", "display": "General visible condition" },
+    { "id": "dark_section", "display": "Section appears dark" },
+    { "id": "dim_or_uneven", "display": "Illumination appears dim or uneven" },
+    { "id": "flicker_or_intermittent", "display": "Flicker or intermittent light" },
+    { "id": "color_mismatch", "display": "Visible color mismatch" },
+    { "id": "physical_damage", "display": "Visible physical damage" },
+    { "id": "other_visible_condition", "display": "Other visible condition" }
+  ],
+  "couldNotVerifyReasons": [
+    "conditions_changed",
+    "access_lost",
+    "unsafe_to_continue",
+    "required_view_obstructed",
+    "capture_unavailable",
+    "other"
+  ],
+  "claims": {
+    "visibleConditionsOnly": true,
+    "comparisonIsProof": false,
+    "diagnosisClaimed": false,
+    "electricalCertification": false,
+    "safetyCertification": false
+  },
+  "hashFields": [
+    "sourcePackSHA256",
+    "registrySHA256",
+    "manifestSHA256",
+    "payloadSHA256",
+    "checkpointSHA256",
+    "completionSHA256",
+    "sectionSHA256"
+  ],
+  "hostileCases": [
+    "missing-manifest",
+    "duplicate-manifest",
+    "renamed-manifest",
+    "eighth-manifest",
+    "optional-playbook-enabled",
+    "unsafe-claim",
+    "missing-capture-trace",
+    "manifest-changes-engine",
+    "unknown-outcome",
+    "wrong-purpose",
+    "wrong-frozen-display",
+    "duplicate-capture",
+    "cross-workspace-sequence",
+    "wrong-pose-axis",
+    "corrupt-digest",
+    "canonical-byte-overflow",
+    "uint64-revision-boundary"
+  ],
+  "interruptionBoundaries": [
+    "before-validation",
+    "after-validation-before-publication",
+    "after-publication-before-receipt",
+    "before-checkpoint-projection",
+    "after-checkpoint-projection",
+    "relaunch-recovery-required"
+  ],
+  "recoveryCases": [
+    "remove-affected-playbook-version",
+    "retain-kernel-and-prior-content",
+    "backup-restore-derived-authorities",
+    "journal-replay-canonical-graph",
+    "search-rebuild-no-new-store",
+    "export-report-typed-section",
+    "delete-erase-derived-sidecar",
+    "immutable-history-and-receipts"
+  ],
+  "lifecycle": {
+    "persistence": "NONPERSISTENT_DIGEST_BOUND_SIDECAR",
+    "schema": "NOT_APPLICABLE",
+    "store": "NOT_APPLICABLE",
+    "writer": "INCUMBENT_FIELD_DRAFT_AND_POSE_AUTHORITIES",
+    "evidence": "INCUMBENT_C05_EVIDENCE_METADATA_AUTHORITY",
+    "backupRestoreDeleteErase": "NOT_APPLICABLE_DERIVED_FROM_DURABLE_AUTHORITIES",
+    "networkDependency": false,
+    "certificationAuthority": false
+  },
+  "accessibility": {
+    "semanticIDCount": 16,
+    "requiredAndOptionalCaptureAreTextuallyDistinct": true,
+    "poseNeverUsesBareDirectionText": true,
+    "factsAndDisclaimerAreSpoken": true,
+    "uiConformanceClaimed": false,
+    "uiAdoptionClaimed": false
+  },
+  "forbidden": [
+    "AI_DIAGNOSIS",
+    "PROFESSIONAL_CERTIFICATION",
+    "ELECTRICAL_CERTIFICATION",
+    "SAFETY_GUARANTEE",
+    "CORE_ENGINE_CHANGE",
+    "GENERIC_JSON_OR_EAV_PERSISTENCE",
+    "UNBOUNDED_MEDIA",
+    "NETWORK_OR_REMOTE_SYNC",
+    "TELEMETRY",
+    "NEW_PLAYBOOK_STORE",
+    "BARE_DIRECTION_STORAGE"
+  ],
+  "hashAlgorithm": "SHA-256"
+}

@@ -1,0 +1,182 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "27f760ffed4c67b4924f8dc39060d6b92c88b8f75b8a47616a9e4b7090b78903",
+  "atomicity": {
+    "acceptedEffectAndEnvelopeAndBasisAndReceipt": "ONE_STORE_TRANSACTION",
+    "effectWithoutReceiptAllowed": false,
+    "failedAttemptReceiptAllowed": false,
+    "receiptCardinalityPerAcceptedMutation": 1,
+    "receiptWithoutEffectAllowed": false
+  },
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "56e53031b0f598b2395c5060dd2243136e4af66a",
+    "appBaseTree": "5989170055899a3ab5bcdfea1b2306175109199d",
+    "attemptID": 1,
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C02",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "7a640c0d6bf190ccb6f0193d09b7760e60ff5f96c66bf785f2ba971b8cf608a6",
+    "coordinationAuthorityHead": "5ab409463ed33b2c21f9c6007a5dd0fb1bffb9ef",
+    "coordinationAuthorityTree": "bdb4e2e9168e980a2ac63f7ed3c4e49fdc790a66",
+    "coordinationCASSequence": 88,
+    "coordinationLedgerDigest": "c5f704a60c123e9b71e7d95178cd410e5d884a6bf4a24ae58889da64d9fa70fe",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C02-G01",
+      "V23-P02-C02-A01",
+      "V23-P02-C02-H01",
+      "V23-P02-C02-I01",
+      "V23-P02-C02-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C01"
+    ],
+    "dossierDigest": "844d28364a666c3abb4a480ba86a11c731b4a2c105c47dc1d99cc2d70575e1af",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "5594a8413614532282f1e8507618d0ce34c0c9d90ba283669d781e363229acc2",
+    "hydrationTransitionDigest": "f04daba62cda24e4345a2def0ba0cdad9ae622bf45935e8bd20d6833856d1a02",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "fa87a8ab94d8ff3d543e48f8367c167e58eae400f6a9abfb4d5764c5676af26a",
+    "invalidationConsumers": [
+      "V23-P02-C03"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C02",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "9593de9026efe12b8b89b59c9811ba8848d445f3dc681b637e34c17e6900aaef",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "0860b9b744561a99230db53a1b4803ded94c69cb034663d658559a6ea5e3bd3b",
+    "registerOrdinal": 22,
+    "registerRowDigest": "73dd7fcd314d63bc9e9244a9da68ef67e0c81a85c09343e031117e7b0a0da577",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Portable MutationEnvelopeV1 and atomic durable MutationReceiptV1"
+  },
+  "bounds": {
+    "maximumPostImageCount": 1024
+  },
+  "cardID": "V23-P02-C02",
+  "contentDependencyBinding": "RECEIPT_CONTENT_DEPENDENCY_IDS_BYTE_SEMANTICALLY_EQUAL_ENVELOPE",
+  "durableIdempotency": {
+    "lookupKey": [
+      "workspaceID",
+      "mutationID"
+    ],
+    "persistentCompositeKey": "LOWERCASE_WORKSPACE_UUID_COLON_MUTATION_UUID",
+    "quarantineSurvivesRestart": true,
+    "receiptAndQuarantineBothUseCompositeKey": true,
+    "sameIDDifferentEnvelopeHash": "DURABLE_QUARANTINE_NO_EFFECT",
+    "sameIDSameEnvelopeHash": "RETURN_BYTE_IDENTICAL_PRIOR_RECEIPT_AFTER_RESTART",
+    "sameMutationIDDifferentWorkspace": "DISTINCT_HISTORY"
+  },
+  "entityRepresentation": {
+    "acceptedForms": [
+      "CANONICAL_POST_IMAGE",
+      "TYPED_TOMBSTONE"
+    ],
+    "forbiddenForms": [
+      "STORAGE_DIFF",
+      "JSON_PATCH",
+      "GENERIC_JSON_EAV"
+    ]
+  },
+  "evidenceIDs": [
+    "V23-P02-C02-G01",
+    "V23-P02-C02-A01",
+    "V23-P02-C02-H01",
+    "V23-P02-C02-I01",
+    "V23-P02-C02-R01"
+  ],
+  "hashFields": [
+    "envelopeSHA256",
+    "commandBodySHA256",
+    "postImages.semanticSHA256",
+    "resultSHA256"
+  ],
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "ordering": {
+    "bareSequenceIsGlobalOrder": false,
+    "committedAtOrdersReceipts": false,
+    "key": [
+      "workspaceID",
+      "replicaID",
+      "localSequence"
+    ],
+    "localSequenceStartsAt": 1,
+    "sequenceCollision": "FAIL_CLOSED_QUARANTINE_NO_EFFECT",
+    "strictlyMonotonicPerReplica": true
+  },
+  "persistentChangeMode": "NEW_SCHEMA_VERSION",
+  "persistentSchema": "MUTATION_RECEIPT_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "prohibitedFields": [
+    "accountID",
+    "authenticatedUserID",
+    "tenantID",
+    "providerOutbox",
+    "providerInbox",
+    "providerAcknowledgement",
+    "providerURL",
+    "serverCursor",
+    "serverRevision",
+    "vectorClock",
+    "remoteAcknowledgement",
+    "signedURL",
+    "uploadState",
+    "accessToken",
+    "serviceCredential"
+  ],
+  "provisional": true,
+  "quarantineIdentityContract": {
+    "acceptedAndConflictingMustDiffer": true,
+    "closedDomains": [
+      "MUTATION_ENVELOPE",
+      "SEMANTIC_REVERSAL_REPLAY_IDENTITY"
+    ],
+    "fields": [
+      "identityDomain",
+      "acceptedIdentitySHA256",
+      "conflictingIdentitySHA256"
+    ],
+    "mixedOrUnknownDomain": "FAIL_CLOSED_AS_CORRUPT_HISTORY",
+    "mutationEnvelopeAcceptedIdentity": "PERSISTED_RECEIPT_ENVELOPE_SHA256",
+    "semanticReversalAcceptedIdentity": "PERSISTED_ENVELOPE_SEMANTIC_REVERSAL_REPLAY_IDENTITY_SHA256"
+  },
+  "receiptMeaning": "OPERATIONAL_EVIDENCE_NOT_LEGAL_OR_AUTHENTICATED_USER_AUDIT",
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiredReceiptFields": [
+    "schemaVersion",
+    "identity",
+    "mutationID",
+    "envelopeSHA256",
+    "commandBodySHA256",
+    "expectedRevision",
+    "resultingRevision",
+    "postImages",
+    "contentDependencyIDs",
+    "resultSHA256",
+    "sourceKind",
+    "causationMutationID",
+    "correlationID",
+    "reversesMutationID",
+    "committedAt"
+  ],
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "MutationReceiptContractV1",
+  "schemaVersion": 1
+}

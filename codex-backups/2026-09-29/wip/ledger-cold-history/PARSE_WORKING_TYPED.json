@@ -1,0 +1,32 @@
+{
+  "sourceSHA256": "d6d9362778f597f29fed27000eaa2263b6af7bbe0622c968fa45fa09d29d0c15",
+  "results": [
+    {
+      "mode": "DEBUG",
+      "exit": 0,
+      "seconds": 0.042703457991592586,
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        ".codex-temp/cold-ledger-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift"
+      ]
+    },
+    {
+      "mode": "nonDEBUG",
+      "exit": 0,
+      "seconds": 0.041782042011618614,
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        ".codex-temp/cold-ledger-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift"
+      ]
+    }
+  ],
+  "scope": "syntax parse only; not compilation, typecheck, runtime or acceptance"
+}

@@ -1,0 +1,586 @@
+{
+  "$defs": {
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "allocationDigest": {
+          "const": "403254f93c8278d271623e978ee745050f14e0fa10d5b69e9c3c883249772703"
+        },
+        "appBaseHead": {
+          "const": "4614507edcf811e9e6ac344b2a8b24aa8fd615ba"
+        },
+        "appBaseTree": {
+          "const": "3ba84fa4c78c28a05713edf1e722da66f78b8512"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "authorizedOverlapCount": {
+          "const": 5
+        },
+        "cardID": {
+          "const": "V23-P04-C41"
+        },
+        "contextDigest": {
+          "const": "d3beeb077fbae5b2c3f89aae1b0a9bba0607cf33505faefd017f7bcce9b0f4b2"
+        },
+        "coordinationHead": {
+          "const": "faff7da3f861319d97c6c5d340e31b6f71671027"
+        },
+        "coordinationTree": {
+          "const": "56040236d7b4a3e46c632532a825d654ae4a7336"
+        },
+        "existingPathCount": {
+          "const": 4
+        },
+        "existingPaths": {
+          "const": [
+            "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+            "FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift",
+            "FieldEvidenceApp/Application/WorkspaceExperience/WorkspaceExperienceCoordinatorV1.swift",
+            "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift"
+          ],
+          "type": "array"
+        },
+        "fencePathCount": {
+          "const": 18
+        },
+        "finalHashesSealed": {
+          "const": false
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "ledgerDigest": {
+          "const": "71976ecf16483441a1f233e4cdcb0a89b93d15fd816150cd0b4c50e23e55135f"
+        },
+        "newPathCount": {
+          "const": 14
+        },
+        "newPaths": {
+          "const": [
+            "FieldEvidenceApp/Domain/MyDay/MyDayWorkflowContractsV1.swift",
+            "FieldEvidenceApp/Application/MyDay/MyDayWorkflowCoordinatorV1.swift",
+            "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "FieldEvidenceAppTests/V9_104MyDayWorkflowTests.swift",
+            "FieldEvidenceAppTests/Fixtures/V23/MyDay/V23P04C41MyDayWorkflowCorpusV1.json",
+            "FieldEvidenceAppUITests/V23_P04_C41MyDayWorkflowUITests.swift",
+            "Scripts/v23/p04_c41_contracts.py",
+            "Scripts/v23/generate_p04_c41_contracts.py",
+            "Scripts/v23/verify_p04_c41_contracts.py",
+            "Scripts/v23/my-day-workflow.schema.json",
+            "docs/design/v23/tooling/V23P04C41MyDayWorkflowContractV1.json",
+            "docs/design/v23/tooling/V23P04C41MyDayWorkflowEvidenceReceiptV1.json",
+            "docs/design/v23/tooling/V23P04C41BrandImpactManifestV1.json",
+            "docs/design/v23/tooling/V23-P04-C41-tooling-manifest.json"
+          ],
+          "type": "array"
+        },
+        "orderedPathFence": {
+          "const": [
+            "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift",
+            "FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift",
+            "FieldEvidenceApp/Application/WorkspaceExperience/WorkspaceExperienceCoordinatorV1.swift",
+            "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift",
+            "FieldEvidenceApp/Domain/MyDay/MyDayWorkflowContractsV1.swift",
+            "FieldEvidenceApp/Application/MyDay/MyDayWorkflowCoordinatorV1.swift",
+            "FieldEvidenceApp/Features/MyDay/MyDayWorkflowView.swift",
+            "FieldEvidenceAppTests/V9_104MyDayWorkflowTests.swift",
+            "FieldEvidenceAppTests/Fixtures/V23/MyDay/V23P04C41MyDayWorkflowCorpusV1.json",
+            "FieldEvidenceAppUITests/V23_P04_C41MyDayWorkflowUITests.swift",
+            "Scripts/v23/p04_c41_contracts.py",
+            "Scripts/v23/generate_p04_c41_contracts.py",
+            "Scripts/v23/verify_p04_c41_contracts.py",
+            "Scripts/v23/my-day-workflow.schema.json",
+            "docs/design/v23/tooling/V23P04C41MyDayWorkflowContractV1.json",
+            "docs/design/v23/tooling/V23P04C41MyDayWorkflowEvidenceReceiptV1.json",
+            "docs/design/v23/tooling/V23P04C41BrandImpactManifestV1.json",
+            "docs/design/v23/tooling/V23-P04-C41-tooling-manifest.json"
+          ],
+          "type": "array"
+        },
+        "pathFenceDigest": {
+          "const": "0fd62083ef3757e5d27f4e843b7f76560bfb101c5b10a7a355abb0237a3f3250"
+        },
+        "prerequisiteDigest": {
+          "const": "191c39534f95436ba49d941d7fbacabcfda8262f31a05f04ae308e9cef98c1fb"
+        },
+        "productTestUIFixturePathCount": {
+          "const": 7
+        },
+        "projectionDigest": {
+          "const": "f89e10337eea5cc59c27c9d6f93a13096c433f06277f1bd83e66fbc8b04958f9"
+        },
+        "registerOrdinal": {
+          "const": 129
+        },
+        "s10ReservationOverlapCount": {
+          "const": 0
+        },
+        "sequence": {
+          "const": 564
+        },
+        "sourcePins": {
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "title": {
+          "const": "My Day local planning, manual ordering, readiness/duration cues, resume, carryover, and due-work reconciliation"
+        },
+        "toolingPathCount": {
+          "const": 8
+        },
+        "transitionDigest": {
+          "const": "37041917308eb3aca0cd0bbe285ceb53c1272d641ae62b26ebab976b49a5ae62"
+        },
+        "unauthorizedOverlapCount": {
+          "const": 0
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationHead",
+        "coordinationTree",
+        "sequence",
+        "allocationDigest",
+        "prerequisiteDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "transitionDigest",
+        "ledgerDigest",
+        "projectionDigest",
+        "fencePathCount",
+        "existingPathCount",
+        "newPathCount",
+        "productTestUIFixturePathCount",
+        "toolingPathCount",
+        "authorizedOverlapCount",
+        "unauthorizedOverlapCount",
+        "s10ReservationOverlapCount",
+        "frozenS10ReservationDigest",
+        "orderedPathFence",
+        "existingPaths",
+        "newPaths",
+        "sourcePins",
+        "finalHashesSealed"
+      ],
+      "type": "object"
+    },
+    "flags": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance": {
+          "const": false
+        },
+        "acceptanceCredit": {
+          "const": false
+        },
+        "adoption": {
+          "const": false
+        },
+        "adoptionEvidence": {
+          "const": false
+        },
+        "hosted": {
+          "const": false
+        },
+        "hostedAcceptance": {
+          "const": false
+        },
+        "native": {
+          "const": false
+        },
+        "nativeAcceptance": {
+          "const": false
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "physicalDevice": {
+          "const": false
+        },
+        "physicalEvidence": {
+          "const": false
+        },
+        "release": {
+          "const": false
+        },
+        "releaseReadiness": {
+          "const": false
+        }
+      },
+      "required": [
+        "native",
+        "hosted",
+        "physicalDevice",
+        "adoption",
+        "acceptance",
+        "release",
+        "nativeAcceptance",
+        "hostedAcceptance",
+        "physicalEvidence",
+        "adoptionEvidence",
+        "acceptanceCredit",
+        "releaseReadiness",
+        "phase10PollingDuringParallelExecution"
+      ],
+      "type": "object"
+    },
+    "independence": {
+      "additionalProperties": false,
+      "properties": {
+        "automaticPrioritization": {
+          "const": false
+        },
+        "c22AndC12ReadOnly": {
+          "const": true
+        },
+        "c57WriterAndReplayReused": {
+          "const": true
+        },
+        "claimsFabricated": {
+          "const": false
+        },
+        "customerDataInTooling": {
+          "const": false
+        },
+        "dueAndReadinessAreReadOnlyInputs": {
+          "const": true
+        },
+        "entitlementIndependent": {
+          "const": true
+        },
+        "explicitCarryoverAndReconcile": {
+          "const": true
+        },
+        "hiddenScheduleMutation": {
+          "const": false
+        },
+        "manualOrderIsSoleAuthority": {
+          "const": true
+        },
+        "newBackend": {
+          "const": false
+        },
+        "newMigration": {
+          "const": false
+        },
+        "newModel": {
+          "const": false
+        },
+        "newNetwork": {
+          "const": false
+        },
+        "newRenderer": {
+          "const": false
+        },
+        "newRoot": {
+          "const": false
+        },
+        "newRouteEngine": {
+          "const": false
+        },
+        "newSchema": {
+          "const": false
+        },
+        "newStore": {
+          "const": false
+        },
+        "newTelemetry": {
+          "const": false
+        },
+        "newWriter": {
+          "const": false
+        },
+        "secretsInTooling": {
+          "const": false
+        },
+        "sourceMutation": {
+          "const": false
+        },
+        "summaryIsDerivedNonpersistent": {
+          "const": true
+        },
+        "typedStartResumeIntent": {
+          "const": true
+        }
+      },
+      "required": [
+        "entitlementIndependent",
+        "manualOrderIsSoleAuthority",
+        "summaryIsDerivedNonpersistent",
+        "dueAndReadinessAreReadOnlyInputs",
+        "c57WriterAndReplayReused",
+        "c22AndC12ReadOnly",
+        "typedStartResumeIntent",
+        "explicitCarryoverAndReconcile",
+        "newModel",
+        "newSchema",
+        "newStore",
+        "newWriter",
+        "newMigration",
+        "newRouteEngine",
+        "newRoot",
+        "newRenderer",
+        "newBackend",
+        "newNetwork",
+        "newTelemetry",
+        "automaticPrioritization",
+        "hiddenScheduleMutation",
+        "sourceMutation",
+        "claimsFabricated",
+        "customerDataInTooling",
+        "secretsInTooling"
+      ],
+      "type": "object"
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "automaticPrioritization": {
+          "const": false
+        },
+        "backupRestoreDisposition": {
+          "const": "PRESERVE_EXACT_PLANS"
+        },
+        "canonicalReplayOwner": {
+          "const": "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift"
+        },
+        "canonicalWriterOwner": {
+          "const": "FieldEvidenceApp/Application/MyDay/MyDayCoordinatorV1.swift"
+        },
+        "carryoverDisposition": {
+          "const": "EXPLICIT_ONLY"
+        },
+        "cloneDisposition": {
+          "const": "OMIT_PLANS"
+        },
+        "durableFamily": {
+          "const": "NONE"
+        },
+        "eraseDisposition": {
+          "const": "EXISTING_MY_DAY_TRUTH_PURGE_CONTRACT"
+        },
+        "fixtureHarnessOwner": {
+          "const": "FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift"
+        },
+        "forkDisposition": {
+          "const": "RETAIN_NONACTIVE_HISTORY_ONLY"
+        },
+        "manualOrderOnly": {
+          "const": true
+        },
+        "newBackendCount": {
+          "const": 0
+        },
+        "newDurableFamilyCount": {
+          "const": 0
+        },
+        "newMigrationCount": {
+          "const": 0
+        },
+        "newModelCount": {
+          "const": 0
+        },
+        "newRendererCount": {
+          "const": 0
+        },
+        "newRouteEngineCount": {
+          "const": 0
+        },
+        "newSchemaCount": {
+          "const": 0
+        },
+        "newStoreCount": {
+          "const": 0
+        },
+        "newWriterCount": {
+          "const": 0
+        },
+        "persistence": {
+          "const": "NONPERSISTENT_DERIVED_REBUILDABLE_SUMMARY"
+        },
+        "persistentSchemaVersion": {
+          "const": "UNCHANGED_EXISTING_C57_OWNER"
+        },
+        "policyProfile": {
+          "const": "PERSISTENT_OR_PRODUCT_DELTA"
+        },
+        "projectionDerived": {
+          "const": true
+        },
+        "projectionPersistence": {
+          "const": "NONPERSISTENT"
+        },
+        "projectionRebuildable": {
+          "const": true
+        },
+        "reconciliationDisposition": {
+          "const": "INCUMBENT_SOURCE_RECONCILIATION"
+        },
+        "recordsSchemaVersion": {
+          "const": "UNCHANGED_EXISTING_C57_OWNER"
+        },
+        "resetDisposition": {
+          "const": "EXISTING_LIFECYCLE_CONTRACT"
+        },
+        "sourceHistoryDisposition": {
+          "const": "NEVER_REWRITE"
+        },
+        "sourceTruthMutation": {
+          "const": false
+        },
+        "status": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "summaryProjection": {
+          "const": "MyDaySummaryProjectionV1"
+        },
+        "todayCompositionContractOwner": {
+          "const": "FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift"
+        },
+        "todayCompositionOwner": {
+          "const": "FieldEvidenceApp/Application/WorkspaceExperience/WorkspaceExperienceCoordinatorV1.swift"
+        }
+      },
+      "required": [
+        "status",
+        "policyProfile",
+        "persistence",
+        "persistentSchemaVersion",
+        "recordsSchemaVersion",
+        "durableFamily",
+        "summaryProjection",
+        "projectionPersistence",
+        "projectionDerived",
+        "projectionRebuildable",
+        "manualOrderOnly",
+        "automaticPrioritization",
+        "sourceTruthMutation",
+        "canonicalWriterOwner",
+        "canonicalReplayOwner",
+        "todayCompositionOwner",
+        "todayCompositionContractOwner",
+        "fixtureHarnessOwner",
+        "carryoverDisposition",
+        "reconciliationDisposition",
+        "newDurableFamilyCount",
+        "newModelCount",
+        "newSchemaCount",
+        "newMigrationCount",
+        "newStoreCount",
+        "newWriterCount",
+        "newRouteEngineCount",
+        "newRendererCount",
+        "newBackendCount",
+        "resetDisposition",
+        "eraseDisposition",
+        "backupRestoreDisposition",
+        "cloneDisposition",
+        "forkDisposition",
+        "sourceHistoryDisposition"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sourceRow": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "SOURCE_PRESENT",
+            "SOURCE_MISSING"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "cardID": {
+      "const": "V23-P04-C41"
+    },
+    "finalHashesSealed": {
+      "const": false
+    },
+    "flags": {
+      "$ref": "#/$defs/flags"
+    },
+    "independence": {
+      "$ref": "#/$defs/independence"
+    },
+    "lifecycle": {
+      "$ref": "#/$defs/lifecycle"
+    },
+    "ordinal": {
+      "const": 129
+    },
+    "scenarioEvidenceIDs": {
+      "const": [
+        "V23-P04-C41-G01",
+        "V23-P04-C41-A01",
+        "V23-P04-C41-H01",
+        "V23-P04-C41-I01",
+        "V23-P04-C41-R01"
+      ],
+      "type": "array"
+    },
+    "schema": {
+      "const": "V23P04C41MyDayWorkflowToolingV1"
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "sourceRows": {
+      "items": {
+        "$ref": "#/$defs/sourceRow"
+      },
+      "maxItems": 10,
+      "minItems": 10,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "cardID",
+    "ordinal",
+    "authority",
+    "sourceRows",
+    "sourceReady",
+    "flags",
+    "finalHashesSealed",
+    "lifecycle",
+    "independence"
+  ],
+  "title": "V23P04C41MyDayWorkflowToolingV1",
+  "type": "object"
+}

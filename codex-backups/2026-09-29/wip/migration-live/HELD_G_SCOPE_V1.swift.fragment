@@ -1,0 +1,105 @@
+/// Actual synchronous Registry G for one fixed original-owner Scratch
+/// cleanup. Migration alone constructs this witness after the real lock and
+/// checked canonical cohort read. It gives no SH, new EX or cold authority.
+@MainActor
+final class OriginalEraseScratchCleanupHeldGScopeV1 {
+    private enum State: Equatable { case held, revoked, released, uncertain }
+    private final class Associations {
+        let registry: GenerationLeaseRegistryV1
+        let operation: EraseRouterOperationV1
+        let store: EraseIntentStore
+        let exclusion: StoreTemporalNormalizationExclusionV1
+        let activity: GenerationTemporalActivityHandleV1
+        init(registry: GenerationLeaseRegistryV1,
+            operation: EraseRouterOperationV1, store: EraseIntentStore,
+            exclusion: StoreTemporalNormalizationExclusionV1,
+            activity: GenerationTemporalActivityHandleV1) {
+            self.registry = registry; self.operation = operation
+            self.store = store; self.exclusion = exclusion
+            self.activity = activity
+        }
+    }
+    let operationID: UUID
+    private let registryIdentity: ObjectIdentifier
+    private let operationIdentity: ObjectIdentifier
+    private let storeIdentity: ObjectIdentifier
+    private let exclusionIdentity: ObjectIdentifier
+    private let activityIdentity: ObjectIdentifier
+    private let cohort: [GenerationLeaseTokenV1]
+    private var associations: Associations?
+    private var state: State = .held
+
+    fileprivate init(registry: GenerationLeaseRegistryV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1,
+        cohort: [GenerationLeaseTokenV1]) {
+        operationID = operation.operationID
+        registryIdentity = ObjectIdentifier(registry)
+        operationIdentity = ObjectIdentifier(operation)
+        storeIdentity = ObjectIdentifier(store)
+        exclusionIdentity = ObjectIdentifier(exclusion)
+        activityIdentity = ObjectIdentifier(activity)
+        self.cohort = cohort
+        associations = Associations(registry: registry, operation: operation,
+            store: store, exclusion: exclusion, activity: activity)
+    }
+
+    func requireHeld(operation: EraseRouterOperationV1,
+        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1) throws {
+        do {
+            guard state == .held, let associations,
+                  associations.operation === operation,
+                  associations.store === store,
+                  associations.registry === registry,
+                  associations.exclusion === exclusion,
+                  associations.activity === activity else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try registry.requireOriginalEraseScratchCleanupEffectScopeHeld(
+                self, operation: operation, store: store,
+                exclusion: exclusion, activity: activity, cohort: cohort)
+        } catch { poisonOnUncertainCleanup(); throw error }
+    }
+
+    /// Completed lexical G release DATA only. This cannot admit a further
+    /// primitive, restore a revoked permit or prove Ledger resource close.
+    func requireCheckedRelease(operation: EraseRouterOperationV1,
+        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        activity: GenerationTemporalActivityHandleV1) throws {
+        guard state == .released, associations == nil,
+              operationID == operation.operationID,
+              operationIdentity == ObjectIdentifier(operation),
+              storeIdentity == ObjectIdentifier(store),
+              registryIdentity == ObjectIdentifier(registry),
+              exclusionIdentity == ObjectIdentifier(exclusion),
+              activityIdentity == ObjectIdentifier(activity) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    func poisonOnUncertainCleanup() {
+        guard state != .released else { return }
+        state = .uncertain
+        if let associations {
+            associations.registry.failOriginalEraseScratchCleanupEffectScope(
+                operation: associations.operation)
+        }
+    }
+
+    fileprivate func revokeBeforeUnlock() {
+        if state == .held { state = .revoked }
+    }
+
+    fileprivate func completeCheckedUnlock() throws {
+        guard state == .revoked, associations != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        state = .released
+        associations = nil // actual operation/EX/resource owners stay retained
+    }
+}
+

@@ -1,0 +1,63 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "byteNormalization": "UTF8_TEXT_CRLF_TO_LF_FOR_EVIDENCE_DIGESTS",
+  "cardID": "V23-P03-C06",
+  "evidenceIDs": [
+    "V23-P03-C06-G01",
+    "V23-P03-C06-A01",
+    "V23-P03-C06-H01",
+    "V23-P03-C06-I01",
+    "V23-P03-C06-R01"
+  ],
+  "fixtureSHA256": "bd259f713e285cc23ae0b7b474be56655b02d2b04f06f5f07ec8c81e72bcaf7a",
+  "hostedDispatchEnabled": false,
+  "hostedDispatchRan": false,
+  "nativeCompileRan": false,
+  "receiptID": "v23-p03-c06-static-receipt",
+  "registrySHA256": "c457e6df4fd806695acb793676daf4011679b60c787300dea13d61789ca1fe94",
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "result": "PASS",
+  "schemaVersion": 1,
+  "sourceArtifacts": [
+    {
+      "path": "FieldEvidenceApp/Domain/InspectionKernel/CompletedActivitySnapshotContractsV1.swift",
+      "sha256": "6d8bc5dd2e26faaf4e91c29318406006cac252c9f016530e5369525d89b23ca8"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift",
+      "sha256": "1442362350e6a013fba44546eb982ab9aaaf29acbd7e5dcae8a5be2eee974dde"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Reporting/EvidenceDetailCardContractsV1.swift",
+      "sha256": "533b6fa20c633910c68e43598bd7f24df6420c77711625e5e593ca47a7503561"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/Reporting/ContractManifestV1.swift",
+      "sha256": "0c2168d7a69cdfdebc3f9e0fb2c704838f58e99a90f37756391bdead332b4507"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicOpenJSONRendererV1.swift",
+      "sha256": "d6f924025274263feafa04018659194676a1a29cf430095f600ef395efaa9c34"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift",
+      "sha256": "7dda4e1a2c680d9460cf8b812574e500177a51917f55cfa30c4b4a53f2383f93"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift",
+      "sha256": "cc8cb06a70c0edf6a46670d1e5aa48a57663ace517a2a88cd04cf98fbd3c9bd2"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift",
+      "sha256": "42f1fd9cc101cf6edd25c2f608d7a010fc5b776a1cbbc576a626c5ce92dc5954"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V21/Contracts/V21P03C06SnapshotProjectionCorpusV1.json",
+      "sha256": "bd259f713e285cc23ae0b7b474be56655b02d2b04f06f5f07ec8c81e72bcaf7a"
+    }
+  ],
+  "verificationMode": "STATIC_ONLY"
+}

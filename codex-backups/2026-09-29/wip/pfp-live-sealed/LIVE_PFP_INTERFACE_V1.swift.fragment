@@ -1,0 +1,33 @@
+// Exact LIVE PFP-owned callable interface. Full source is candidate/PFP;
+// declarations here are not stubs, issuers, receipts, or installable modules.
+@MainActor final class OriginalEraseScratchTemporalPolicyAttemptV1 {
+    func requireCheckedObservationTerminal() throws // Resource sets ONLY.
+    func requireCheckedSettlement() throws // Actual completed call, memory ONLY.
+}
+enum OriginalEraseScratchPublicationPolicyStepV1: Equatable {
+    case completeProtection, backupExclusion
+}
+@MainActor final class OriginalEraseScratchPublicationPolicyOutcomeV1 {
+    let step: OriginalEraseScratchPublicationPolicyStepV1
+    func requireBound(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        kind: OwnedFileKindV1, at: URL, fullFact: String) throws
+}
+@MainActor final class OriginalEraseScratchPublicationPolicyAttemptV1 {
+    func requireCheckedSettlement(scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+        kind: OwnedFileKindV1, at: URL) throws
+}
+// Within ProtectedFilePolicyV1:
+// @MainActor static func observeOriginalEraseScratchTemporalPolicyWithCheckedClose(
+//  _ kind: OwnedFileKindV1, at url: URL, fullFact: String,
+//  scope: OriginalEraseScratchTemporalObservationScopeV1,
+//  retainUncertainDescriptor: (Int32) -> Void) throws -> TemporalPolicyObservationV1
+// @MainActor static func observeOriginalEraseScratchTemporalPairWithCheckedClose(
+//  aliasURLs: [URL], scope: OriginalEraseScratchTemporalObservationScopeV1,
+//  retainUncertainDescriptor: (Int32) -> Void) throws -> [TemporalPolicyObservationV1]
+// @MainActor static func applyOriginalEraseScratchPublicationPolicyWithCheckedClose(
+//  _ kind: OwnedFileKindV1, at url: URL, initialFullFact: String,
+//  scope: OriginalEraseScratchCleanupPolicyEffectScopeV1,
+//  retainUncertainDescriptor: (Int32) -> Void) throws -> TemporalPolicyObservationV1
+// Genuine physical counterpart:30a6 observation Node/Pair/Scope PLUS ce1c exact
+// directoryRole fields. Distinct effect counterpart:3f4b. Central real frame
+// counterpart:b330. Exact private constructors/issuers remain counterpart-owned.

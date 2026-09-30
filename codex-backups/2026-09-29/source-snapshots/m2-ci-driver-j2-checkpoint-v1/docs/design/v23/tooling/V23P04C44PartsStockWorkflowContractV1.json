@@ -1,0 +1,187 @@
+{
+  "authority": {
+    "allocationDigest": "ab50ea3f853bd2b5de8835d9d0b1e1fcd7568f06775b9c340c632a0ee1b56374",
+    "appBaseHead": "a0fae03c252c233b97adcd52ba68bbcbbacc7d71",
+    "appBaseTree": "78a96d36331222ae44e1ae6fc9d9fa530a698942",
+    "cardID": "V23-P04-C44",
+    "contextDigest": "933025ecbe299c3cc857ce38e92c5e155bd5c8e1361fbe8ea871f213af6aa14f",
+    "coordinationHead": "dab3f0316ec3831fa966ae1aa6bd55496b2e4f0d",
+    "coordinationTree": "2b82979d0e90b02183e59dd1a0efb43d62b3e0f9",
+    "fenceDigest": "27567c0d8cfc71832f7d56f784f8c14dc7cea96b8cf7f24f0f2b4cb571e0f5b9",
+    "ledgerDigest": "f2f8a7d3e7a0a456bd79ddc8f2b94f735e2839611e06cc3837da6573383af94f",
+    "ordinal": 132,
+    "pathFence": [
+      "FieldEvidenceApp/Domain/PartsStock/PartsStockContractsV1.swift",
+      "FieldEvidenceApp/Application/PartsStock/PartsStockCoordinatorV1.swift",
+      "FieldEvidenceApp/Application/WorkResources/ManualWorkResourceWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+      "FieldEvidenceApp/Domain/PartsStock/PartsStockWorkflowContractsV1.swift",
+      "FieldEvidenceApp/Application/PartsStock/PartsStockWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_107PartsStockWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/PartsStock/V23P04C44PartsStockWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C44PartsStockWorkflowUITests.swift",
+      "Scripts/v23/p04_c44_contracts.py",
+      "Scripts/v23/generate_p04_c44_contracts.py",
+      "Scripts/v23/verify_p04_c44_contracts.py",
+      "Scripts/v23/parts-stock-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C44PartsStockWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C44PartsStockWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C44BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C44-tooling-manifest.json"
+    ],
+    "prerequisiteDigest": "636f81e1b36b813898010f279137fbf6931e160a577e2d179879534c51f3537a",
+    "projectionDigest": "71bd8597cecd1ce69c085a2d82bd1ab07702c05554609a547a782b7866242060",
+    "sequence": 576,
+    "transitionDigest": "3b51166e1985f5a2a7936c46a8676fbbb6e644de620f5934f3abbae65e207b42"
+  },
+  "cardID": "V23-P04-C44",
+  "catalogPolicy": "LOCAL_PART_CATALOG_V1",
+  "contract": "PartsStockWorkflowContractV1",
+  "featurePolicy": "LocalStockFeaturePolicyV1",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "ordinal": 132,
+  "policy": {
+    "countAdjustTransferUseReturnArchive": true,
+    "customerReportsExposeBalancesOrInternalLocations": false,
+    "customerSafeReportsReviewedMaterialSnapshotsOnly": true,
+    "definesLocalPartCatalogV1": true,
+    "definesLocalStockFeaturePolicyV1": true,
+    "draftsAndFeatureDisablePreservation": true,
+    "exactCSVImportExport": true,
+    "explicitUseAtomicMutationOnly": true,
+    "lowStockAttention": true,
+    "newMigration": false,
+    "newModel": false,
+    "newRoot": false,
+    "newSchema": false,
+    "newStore": false,
+    "newWriter": false,
+    "rejectPartialConcurrentDoubleReturnOverflow": true,
+    "returnOnlyEligibleUseWithOutstandingQuantityAndDestination": true,
+    "reusesStockBalanceProjectionV1": true,
+    "reusesStockReturnAgainstUseReceiptV1": true,
+    "rootOrNetworkOrTelemetry": false,
+    "scanAndManualLookup": true,
+    "standaloneUnboundReturn": false,
+    "typingMaterialLineDecrementsStock": false,
+    "workLocalCatalog": true
+  },
+  "requirements": {
+    "countAdjustTransferArchive": true,
+    "csvExactResumableReceiptFirst": true,
+    "customerReportRedaction": true,
+    "explicitUseAtomic": true,
+    "featureDisablePreservesDrafts": true,
+    "lowStockUnknownNotZero": true,
+    "noNewPersistenceFamilies": true,
+    "oneExistingWriter": true,
+    "rejectStandaloneTornConcurrentDoubleExcessOverflow": true,
+    "returnFrontierOutstandingDestination": true,
+    "uiAdoptionDeferred": true,
+    "zeroWriteLookupAndTyping": true
+  },
+  "scenarioEvidenceIDs": [
+    "V23-P04-C44-G01",
+    "V23-P04-C44-A01",
+    "V23-P04-C44-H01",
+    "V23-P04-C44-I01",
+    "V23-P04-C44-R01"
+  ],
+  "scenarioRows": [
+    {
+      "evidenceID": "V23-P04-C44-G01",
+      "id": "G01",
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P04-C44-A01",
+      "id": "A01",
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P04-C44-H01",
+      "id": "H01",
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P04-C44-I01",
+      "id": "I01",
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P04-C44-R01",
+      "id": "R01",
+      "kind": "RECOVERY"
+    }
+  ],
+  "schema": "V23P04C44PartsStockWorkflowToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Domain/PartsStock/PartsStockContractsV1.swift",
+      "sha256": "2c46e9f4ce2d13a6fe669f85317503a54c0c0d49ed13003d5ed00048068d7536",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/PartsStock/PartsStockCoordinatorV1.swift",
+      "sha256": "c33b63f5dd9ba7c490cfcd532aa5c713afc8c3d13cfcac2e385d3ad196ba47a2",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/WorkResources/ManualWorkResourceWorkflowCoordinatorV1.swift",
+      "sha256": "1c09ff8b8d4071580c564dc4dd27286c2a202b774e7488aa5f440170b4ad1f6c",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift",
+      "sha256": "84cc28ffe7b87eee1459002852a04f8cca701af8726a94ca5bf032e0407759a1",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Domain/PartsStock/PartsStockWorkflowContractsV1.swift",
+      "sha256": "c6e23f880a3fe61c12b16888c1d9fd105d61f14e901c7af5aa20f358e09bd375",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Application/PartsStock/PartsStockWorkflowCoordinatorV1.swift",
+      "sha256": "81fbe46ab728517be7575ffb477d92e2d24e47032df176f847fb179a8eafc637",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/PartsStock/PartsStockWorkflowView.swift",
+      "sha256": "e64e024f682bca17ff2ae207f7a512cdeb15ea4db56377b0b8ee23a971039342",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_107PartsStockWorkflowTests.swift",
+      "sha256": "7121c1fcb5e760e453a185ac67996038994f6b25f41b48fb74366014c0abead9",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/PartsStock/V23P04C44PartsStockWorkflowCorpusV1.json",
+      "sha256": "c258e0d7c969187a2898189a357cbefb587bb5511d247227804077f275d0bd7f",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C44PartsStockWorkflowUITests.swift",
+      "sha256": "43549ef36779e9d826763164b619aebbe2dfad907e98b64efb9fc645038dde1a",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

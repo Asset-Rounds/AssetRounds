@@ -1,0 +1,127 @@
+// UNAPPROVED V4 INTERFACE PROPOSAL. Not installed, typechecked or compiled.
+// Logical table handles are data. Router/Service privately issue real permits.
+// These exact proposed names intentionally do not replace frozen V3 APIs yet.
+
+enum EraseSchema2ColdTableRoleV4: String, Codable {
+    case originalSources, targets, dependencies, producerSlots
+    case currentProjection, capturedBirths, terminalDeletionCatalog
+}
+
+struct EraseSchema2ColdPageReferenceV4: Codable, Equatable {
+    let role: EraseSchema2ColdTableRoleV4
+    let epochSHA256: String
+    let name: String
+    let contentSHA256: String
+    let fullFact: String
+    let byteCount: Int64
+    let firstRowOrdinal: Int64
+    let rowCount: Int64
+    let descendantPageCount: Int64
+    let logicalRowsSHA256: String
+}
+
+struct EraseSchema2ColdTableReferenceV4: Codable, Equatable {
+    let role: EraseSchema2ColdTableRoleV4
+    let rowCount: Int64
+    let logicalRowByteCount: Int64
+    let logicalRowsSHA256: String
+    let root: EraseSchema2ColdPageReferenceV4? // nil iff authentic empty table
+}
+
+struct EraseSchema2ColdTargetRowV4: Codable, Equatable {
+    let kind: EraseSchema2ColdCleanupProgressV1.Target.Kind
+    let ordinal: Int64
+    let path: String
+    let semanticSHA256: String
+    let dependencyFirstOrdinal: Int64
+    let dependencyCount: Int64
+    let producerSlotFirstOrdinal: Int64
+    let producerSlotCount: Int64
+}
+
+struct EraseSchema2ColdDependencyRowV4: Codable, Equatable {
+    let targetIndex: Int64
+    let dependencyOrdinal: Int64
+    let path: String
+}
+
+struct EraseSchema2ColdProducerSlotRowV4: Codable, Equatable {
+    let producerOrdinal: Int64
+    let role: String
+    let path: String
+}
+
+struct EraseSchema2ColdProgressHeaderV4: Codable, Equatable {
+    let schemaVersion: Int // 4, NEW private format only
+    let eraseID: UUID
+    let preparationSHA256: String
+    let originalPAuxiliaryRosterSHA256: String
+    let targetPointerSHA256: String
+    let sourceManifestSHA256: String
+    let sourceManifestFullFact: String
+    let targets: EraseSchema2ColdTableReferenceV4
+    let dependencies: EraseSchema2ColdTableReferenceV4
+    let producerSlots: EraseSchema2ColdTableReferenceV4
+    let currentProjection: EraseSchema2ColdTableReferenceV4
+    let capturedBirths: EraseSchema2ColdTableReferenceV4
+    let stage: OriginalScratchLifecycleRecordV1.Stage
+    let completedPrefixCount: Int64
+    let prefixSHA256: String
+    let activeTargetIndex: Int64?
+    let transition: EraseSchema2ColdCleanupProgressV1.Transition?
+    let checkedClose: Bool
+}
+
+// Data-only bounded publication recipe. visitRow MUST be deterministic and
+// authority-bound to the exact component/count/stream SHA before syscalls.
+// It returns a single canonical row <=64KiB, never a whole-table Data.
+struct EraseSchema2ColdTableRecipeV4 {
+    let role: EraseSchema2ColdTableRoleV4
+    let rowCount: Int64
+    let logicalRowByteCount: Int64
+    let logicalRowsSHA256: String
+    let visitRow: (_ ordinal: Int64) throws -> Data
+}
+
+// Service-owned opaque genuine semantic-consumer transition; issuer/method
+// shapes are intentionally withheld pending root's exact subject decision.
+// Store MUST NOT replace this missing real type with a data-only initializer.
+
+extension EraseIntentStore {
+    @MainActor func publishSchema2ColdTableV4(
+        recipe: EraseSchema2ColdTableRecipeV4,
+        expected: EraseSchema2ColdTableReferenceV4?,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdTableReferenceV4
+
+    @MainActor func enumerateSchema2ColdTableV4(
+        table: EraseSchema2ColdTableReferenceV4,
+        permit: EraseSchema2ColdControlPermitV1,
+        visit: (_ ordinal: Int64, _ canonicalRow: Data) throws -> Void
+    ) throws
+
+    @MainActor func requireSchema2ColdTableRowV4(
+        table: EraseSchema2ColdTableReferenceV4,
+        ordinal: Int64, permit: EraseSchema2ColdControlPermitV1
+    ) throws -> Data
+
+    @MainActor func compareAndSwapSchema2ColdProgressV4(
+        expected: EraseSchema2ColdProgressHeaderV4,
+        replacement: EraseSchema2ColdProgressHeaderV4,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws -> EraseSchema2ColdProgressHeaderV4
+}
+
+// Required new effect kinds (central issuer, NOT present in V3 candidate):
+// declareTableAttemptV4, publishTableV4, enumerateTableV4, readTableRowV4,
+// compareAndSwapProgressV4, captureBornV4, collectReplacedPagesV4,
+// publishTerminalCapsuleV4, requireTerminalCapsuleV4,
+// removeTerminalCatalogEntryV4, removeTerminalCapsuleV4,
+// removeTerminalRootV4, closeTerminalStoreV4.
+// Every effect commitment binds exact expected physical manifest SHA/fact,
+// proposed logical stream SHA/count/bytecount, role/epoch/program/ordinal,
+// real scope/session/reader/phase and actual complete physical projection.
+// No final publication inode/ctime/fullFact/SHA is predicted before readback.
+
+// Terminal capsule/subject/opaque authority API is NOT frozen: root must
+// inspect actual full consumer and retained-ID origin semantics first.

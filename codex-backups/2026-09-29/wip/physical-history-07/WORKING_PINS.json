@@ -1,0 +1,14 @@
+{
+  "compactFragmentSHA256": "74688616f4d5eaaec95cb34d6a96d706d26823c1cea30241eeead63469cf105b",
+  "missing": [
+    "genuine compact issuer",
+    "typed per-primitive compact PFP observer",
+    "actual A semantic/context-image/publication tuple or B genuine effect-authorized full inspection",
+    "independent source/provider primitive work bounds",
+    "root coupled compiler/native/source review/gates"
+  ],
+  "observerSHA256": "f20c8083fbac1c76cbb1bcd8a75f4f34827c4105294c434a3f8294b9fb3abff3",
+  "parseScope": "syntax_only",
+  "sourceSHA256": "8b2faac582c4aa1358f6e920b7ea76b6d297ac2a55b6ac1e77fb35a88886a2b8",
+  "status": "superseded_by_immutable_BINDING.json"
+}

@@ -1,0 +1,2 @@
+# Exact historical git blob bytes: never normalize line endings.
+* -text

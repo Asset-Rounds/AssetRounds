@@ -1,0 +1,25 @@
+{
+  "currentWriterVersion": "3.0.0",
+  "family": "live_store",
+  "forwardUpgradeTransitions": [
+    {
+      "fromVersion": "1.0.0",
+      "toVersion": "2.0.0"
+    },
+    {
+      "fromVersion": "2.0.0",
+      "toVersion": "3.0.0"
+    }
+  ],
+  "persistence": "publicly_persisted",
+  "readableVersions": [
+    "1.0.0",
+    "2.0.0",
+    "3.0.0"
+  ],
+  "rebuildDisposition": "available",
+  "schemaVersion": 1,
+  "searchDisposition": "unavailable_at_this_head",
+  "unknownVersionDisposition": "fail_closed_unsupported_version",
+  "writerDisposition": "current_version_only"
+}

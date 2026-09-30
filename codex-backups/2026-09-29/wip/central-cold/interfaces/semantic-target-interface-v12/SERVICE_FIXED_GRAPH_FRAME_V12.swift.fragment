@@ -1,0 +1,77 @@
+    /// Fixed query consumer over Factory's genuine retained target loan.
+    /// The frame has no public initializer and never returns a Context or
+    /// Journal. Actual full-image/source/drain sealing remains Factory-owned.
+    @MainActor
+    final class EraseTargetGraphQueryFrameV4 {
+        private let producer: EraseSchema2TargetSemanticContextLoanV4
+        fileprivate init(producer: EraseSchema2TargetSemanticContextLoanV4) {
+            self.producer = producer
+        }
+        func observe(producer expected: EraseSchema2TargetSemanticContextLoanV4,
+            context: ModelContext
+        ) throws -> EraseSchema2CompleteTargetGraphObservationV4 {
+            guard producer === expected else { throw EraseAllServiceError.invalidAuthority }
+            try producer.requireMatchesContext(context)
+            try producer.requireCurrentBinding()
+            guard !context.hasChanges else { throw EraseAllServiceError.invalidAuthority }
+            guard BackupRestoreService.isEmptyCurrent(context) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try EraseAllService.requireEmptyErasePublishedPolicyContentGraph(context: context)
+            // Complete global census, rather than requireState's workspace
+            // predicate alone. A foreign/extra state cannot transfer as zero.
+            let states = try context.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+            guard states.count == 1, let state = states.first,
+                  state.workspaceID == producer.workspaceIdentity.workspaceID.rawValue,
+                  state.activeReplicaID == producer.workspaceIdentity.replicaID.rawValue,
+                  state.generationID == producer.generationID,
+                  state.workspaceRevision == 0, state.lastLocalSequence == 0,
+                  !context.hasChanges else { throw EraseAllServiceError.invalidAuthority }
+            let ledger = try DeletionLedgerStore(context: context).snapshot()
+            guard ledger.entries.isEmpty,
+                  try ledger.canonicalData() == DeletionLedgerV2.empty.canonicalData() else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let data = EraseSchema2CompleteTargetGraphDataV4(
+                semanticPredicateVersion: 1, graphVocabularyVersion: 1,
+                generationID: producer.generationID,
+                workspaceID: producer.workspaceIdentity.workspaceID.rawValue,
+                replicaID: producer.workspaceIdentity.replicaID.rawValue,
+                persistentSchemaRelease: producer.storeSchemaRelease,
+                contentRecordCount: 0, deletionLedgerEntryCount: 0,
+                globalMutationStateRowCount: UInt64(states.count),
+                deletionLedgerSHA256: try CompatibilityCanonicalV1.sha256(ledger.canonicalData()),
+                mutationStateSHA256: try CompatibilityCanonicalV1.sha256(
+                    CompatibilityCanonicalV1.encode(StateData(state: state))))
+            try producer.requireMatchesContext(context)
+            try producer.requireCurrentBinding()
+            return EraseSchema2CompleteTargetGraphObservationV4(
+                producer: producer, data: data)
+        }
+        private struct StateData: Codable {
+            let workspaceID: UUID
+            let generationID: UUID
+            let activeReplicaID: UUID
+            let workspaceRevision: Int64
+            let lastLocalSequence: Int64
+            let mutableSemanticSHA256: String?
+            init(state: WorkspaceMutationStateRow) {
+                workspaceID = state.workspaceID; generationID = state.generationID
+                activeReplicaID = state.activeReplicaID
+                workspaceRevision = state.workspaceRevision
+                lastLocalSequence = state.lastLocalSequence
+                mutableSemanticSHA256 = state.mutableSemanticSHA256
+            }
+        }
+    }
+
+    static func observeEmptyEraseConsumerCompleteGraph(
+        producer: EraseSchema2TargetSemanticContextLoanV4
+    ) throws -> EraseSchema2CompleteTargetGraphObservationV4 {
+        try producer.requireCurrentBinding()
+        let frame = EraseTargetGraphQueryFrameV4(producer: producer)
+        let value = try producer.observeRegisteredGraph(frame: frame)
+        try producer.requireCurrentBinding()
+        return value
+    }
+

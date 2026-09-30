@@ -1,0 +1,309 @@
+{
+  "attemptID": 2,
+  "authority": {
+    "allocationDigest": "730f558b13aa9f41e8e2b26d32b33f7af49d7948eca235663bf6281fea3e788c",
+    "appBaseHead": "6bb5875d09e8d17076e269781ccb064451941895",
+    "appBaseTree": "ed62c3eaf2765c1dee04f33fdd09d4688ce73753",
+    "attemptID": 2,
+    "cardID": "V23-P04-C29",
+    "contextDigest": "73384822786179b49326ed94c51d0e4962aa555571655b2922e1c9d49a116688",
+    "coordinationHead": "24ae47fe78941c090e003b70487f2a9242bcf14f",
+    "coordinationTree": "fc7610930dcaadb95924633c81e8c66ed399238f",
+    "correctionReceiptDigest": "ba8ef3800ce0f502ce08300c6dfee9c9b0d1f6a02f9b670881bacd663e4f9a53",
+    "existingPathCount": 2,
+    "fencePathCount": 14,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "newPathCount": 12,
+    "orderedPathFence": [
+      "Scripts/release-preflight.sh",
+      "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json",
+      "FieldEvidenceAppTests/V9_92ExactCandidateRegressionFreezeTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Brand/V23P04C29ExactCandidateRegressionFreezeCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C29ExactCandidateRegressionFreezeUITests.swift",
+      "Scripts/v23/p04_c29_contracts.py",
+      "Scripts/v23/generate_p04_c29_contracts.py",
+      "Scripts/v23/verify_p04_c29_contracts.py",
+      "Scripts/v23/exact-candidate-regression-freeze.schema.json",
+      "docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeContractV1.json",
+      "docs/design/v23/tooling/V23P04C29ExactCandidateRegressionFreezeEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C29BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C29-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "da4ba32f2bacaf3d61032ea16bfdfe3cd12914b185070ba767eac791a4f53a5e",
+    "prerequisiteDigest": "a06b26120667c7d72be454289cc1b966ce5b770f50cf994fe962e52bfae9324e",
+    "sequence": 585
+  },
+  "cardID": "V23-P04-C29",
+  "closureManifests": [
+    {
+      "cardID": "V23-P04-C27",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json",
+      "schema": "V23P04C27ToolingManifestV1",
+      "sha256": "da8212c67b3db41a4b3cacf9b506a4ecb489224c174d131712272c5b20044012"
+    },
+    {
+      "cardID": "V23-P04-C28",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C28-tooling-manifest.json",
+      "schema": "V23P04C28ToolingManifestV1",
+      "sha256": "b2e49715b01f8c7742d273ffc47b602e659fcba6b951c6f0f8bdeb698468c14d"
+    },
+    {
+      "cardID": "V23-P04-C30",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C30-tooling-manifest.json",
+      "schema": "V23P04C30ToolingManifestV1",
+      "sha256": "9f536c40d28bb818722fe94a10a275115c17aec41eae99acc80257b728831e5e"
+    },
+    {
+      "cardID": "V23-P04-C31",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C31-tooling-manifest.json",
+      "schema": "V23P04C31ToolingManifestV1",
+      "sha256": "416055c3370ac47bb6b08d22c570949ae6ac243803102c06a3a9bfb6c452b870"
+    },
+    {
+      "cardID": "V23-P04-C32",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C32-tooling-manifest.json",
+      "schema": "V23P04C32ToolingManifestV1",
+      "sha256": "f6495166c1c878885a6a805d314b99baeb9f16068e9b300dfd6c0f17631f3859"
+    },
+    {
+      "cardID": "V23-P04-C33",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C33-tooling-manifest.json",
+      "schema": "V23P04C33ToolingManifestV1",
+      "sha256": "3b75ba6aff558c82734b6ecdedd79e1ef400151c557370891089f2607c6faba2"
+    },
+    {
+      "cardID": "V23-P04-C34",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C34-tooling-manifest.json",
+      "schema": "V23P04C34ToolingManifestV1",
+      "sha256": "2530d8cdd87a845be002119f55ee2cd5bb911c3845340e5e12ac5a4e07a45f7b"
+    },
+    {
+      "cardID": "V23-P04-C35",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C35-tooling-manifest.json",
+      "schema": "V23P04C35ToolingManifestV1",
+      "sha256": "ee29224de51af25cbd1ca08c9ba14f2759b938b49db2bbd12f0813c7e8933854"
+    },
+    {
+      "cardID": "V23-P04-C36",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C36-tooling-manifest.json",
+      "schema": "V23P04C36ToolingManifestV1",
+      "sha256": "85f88c5b4202cfd21be28e774752ecd5121c13b7af714db9eb85472dd8f06abb"
+    },
+    {
+      "cardID": "V23-P04-C37",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C37-tooling-manifest.json",
+      "schema": "V23P04C37ToolingManifestV1",
+      "sha256": "d90df523617125e90ea6a6821bb8bb88ef1260cd3909e10361e8ae6dff44a3c5"
+    },
+    {
+      "cardID": "V23-P04-C38",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C38-tooling-manifest.json",
+      "schema": "V23P04C38ToolingManifestV1",
+      "sha256": "bf158896857494e7a68545d0a091764c529e71aaffb94826e538d4f95479ffe7"
+    },
+    {
+      "cardID": "V23-P04-C39",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C39-tooling-manifest.json",
+      "schema": "V23P04C39ToolingManifestV1",
+      "sha256": "0db810a2b10ecb36295dfd43c9ed1857539969b01813d8d985855a48ccccd500"
+    },
+    {
+      "cardID": "V23-P04-C40",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C40-tooling-manifest.json",
+      "schema": "V23P04C40ToolingManifestV1",
+      "sha256": "49e1cf8d17f6a9367c4d9318a4013cfb57b929a661c2b2ff479858533d0878df"
+    },
+    {
+      "cardID": "V23-P04-C41",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C41-tooling-manifest.json",
+      "schema": "V23P04C41ToolingManifestV1",
+      "sha256": "292c44cc558b83ddbe3625e7a10f19ffb3f55330cb28ab75c70df17d0581d461"
+    },
+    {
+      "cardID": "V23-P04-C42",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C42-tooling-manifest.json",
+      "schema": "V23P04C42ToolingManifestV1",
+      "sha256": "3c9d0d2283fba5102394c05b78ec5ba8c25620dd694d591b81dfd28b7ef3a9c3"
+    },
+    {
+      "cardID": "V23-P04-C43",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C43-tooling-manifest.json",
+      "schema": "V23P04C43SignoffEnrollmentToolingV1",
+      "sha256": "2fb3d7149a519348a5f4cc57a9ce969f8e968532825df24066eda3c44c5d546f"
+    },
+    {
+      "cardID": "V23-P04-C44",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C44-tooling-manifest.json",
+      "schema": "V23P04C44PartsStockWorkflowToolingV1",
+      "sha256": "5c32511c885d0c691834a6386eef10255e63c117743561f284c80324016a36be"
+    },
+    {
+      "cardID": "V23-P04-C45",
+      "flagsAllFalse": true,
+      "path": "docs/design/v23/tooling/V23-P04-C45-tooling-manifest.json",
+      "schema": "V23P04C45StructuredVoiceCaptureToolingV1",
+      "sha256": "93bfcd1d2a1d3fe52ab112a712d9c793758fe0ac011275c7ae69893744e72f42"
+    }
+  ],
+  "contract": "ExactCandidateRegressionFreezeContractV1",
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "observedSelfTest": {
+    "authority": {
+      "allocationDigest": "730f558b13aa9f41e8e2b26d32b33f7af49d7948eca235663bf6281fea3e788c",
+      "contextDigest": "73384822786179b49326ed94c51d0e4962aa555571655b2922e1c9d49a116688",
+      "coordinationHead": "24ae47fe78941c090e003b70487f2a9242bcf14f",
+      "coordinationTree": "fc7610930dcaadb95924633c81e8c66ed399238f",
+      "correctionReceiptDigest": "ba8ef3800ce0f502ce08300c6dfee9c9b0d1f6a02f9b670881bacd663e4f9a53",
+      "pathFenceDigest": "da4ba32f2bacaf3d61032ea16bfdfe3cd12914b185070ba767eac791a4f53a5e",
+      "prerequisiteDigest": "a06b26120667c7d72be454289cc1b966ce5b770f50cf994fe962e52bfae9324e",
+      "sequence": 585
+    },
+    "candidate": {
+      "head": "6bb5875d09e8d17076e269781ccb064451941895",
+      "tree": "ed62c3eaf2765c1dee04f33fdd09d4688ce73753"
+    },
+    "canonicalResultSHA256": "809beec98533ed1293dfda25a70b1952d8b6cbf1a079126a4f695f2ae3eb5c08",
+    "cardID": "V23-P04-C29",
+    "commands": [
+      {
+        "command": "python -B Scripts/v23/generate_p04_c29_contracts.py --self-test --json",
+        "mode": "GENERATOR_MANIFEST_LAST_RECOVERY"
+      },
+      {
+        "command": "python -B Scripts/v23/verify_p04_c29_contracts.py --complete --json",
+        "mode": "COMPLETE_STATIC_PROVISIONAL"
+      }
+    ],
+    "manifestLastRows": [
+      {
+        "acceptedSetCount": 0,
+        "boundary": "BEFORE_ARTIFACTS",
+        "manifestLast": true,
+        "recoveryAcceptedSetCount": 1,
+        "retryDeterministic": true,
+        "secondRetryAcceptedSetCount": 1
+      },
+      {
+        "acceptedSetCount": 0,
+        "boundary": "AFTER_ARTIFACTS_BEFORE_MANIFEST",
+        "manifestLast": true,
+        "recoveryAcceptedSetCount": 1,
+        "retryDeterministic": true,
+        "secondRetryAcceptedSetCount": 1
+      },
+      {
+        "acceptedSetCount": 1,
+        "boundary": "AFTER_MANIFEST",
+        "manifestLast": true,
+        "recoveryAcceptedSetCount": 1,
+        "retryDeterministic": true,
+        "secondRetryAcceptedSetCount": 1
+      }
+    ],
+    "schema": "V23P04C29ObservedSelfTestV1",
+    "scripts": {
+      "generatorSHA256": "7e1391f9887f440ac1f02aa7ff4fc28bbcbaaceb5a32b95e80bbf623b6c2c202",
+      "verifierSHA256": "58c9ad1fbfbfdaa7c8a8744ca24e6e4b0cc4b8227a41af78009102021383443c"
+    },
+    "sourceRows": [
+      {
+        "path": "Scripts/release-preflight.sh",
+        "sha256": "f921d8f6589fa722ee953ad3a01a49824ea513a6cc5646009fe1a07644f3044e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+        "sha256": "a8829e174b6f5ba448fa3e3e0252ccc91994face0ce38e519c4f1456926704d1",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json",
+        "sha256": "b630bffebe0e2a365ac7e082517d587fef7361a0711425e8574f3e8286ea35c8",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_92ExactCandidateRegressionFreezeTests.swift",
+        "sha256": "cbe31756bf92c88e5a7d9fac12eb2b62c4ed54a29843616068e596a8b8c8f406",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C29ExactCandidateRegressionFreezeUITests.swift",
+        "sha256": "6bb2f6bd3578078f3e73366a15ca8625caa4374829608383c985d5bc5ec909f9",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "productSHA256": "b630bffebe0e2a365ac7e082517d587fef7361a0711425e8574f3e8286ea35c8",
+  "requirements": {
+    "candidateFrozen": true,
+    "closureC27ThroughC45Bound": true,
+    "coverageAndJourneyRemainProvisional": true,
+    "noCanonicalProductWrite": true,
+    "s10ReconciliationRequired": true
+  },
+  "schema": "V23P04C29ToolingV2",
+  "selectors": [
+    "testV23P04C29G01ExactCandidateFreezeBindsBrandHIGAccessibilityLocalizationJourneyAndReleaseState",
+    "testV23P04C29A01MinimumIOS18AndLatestStableResolveSeparatelyWithSemanticParity",
+    "testV23P04C29H01UnknownStaleCorruptCoverageContrastAccessibilityLocalizationJourneyAndReleaseDriftFailClosed",
+    "testV23P04C29I01ManifestLastInterruptionPreservesCandidateAndNoPartialReceipt",
+    "testV23P04C29R01DeterministicRetryPreservesFrozenCandidateWithoutPromotion"
+  ],
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "Scripts/release-preflight.sh",
+      "sha256": "f921d8f6589fa722ee953ad3a01a49824ea513a6cc5646009fe1a07644f3044e",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "sha256": "a8829e174b6f5ba448fa3e3e0252ccc91994face0ce38e519c4f1456926704d1",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "docs/product/brand/V23P04C29ExactCandidateRegressionFreezeV1.json",
+      "sha256": "b630bffebe0e2a365ac7e082517d587fef7361a0711425e8574f3e8286ea35c8",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_92ExactCandidateRegressionFreezeTests.swift",
+      "sha256": "cbe31756bf92c88e5a7d9fac12eb2b62c4ed54a29843616068e596a8b8c8f406",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C29ExactCandidateRegressionFreezeUITests.swift",
+      "sha256": "6bb2f6bd3578078f3e73366a15ca8625caa4374829608383c985d5bc5ec909f9",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

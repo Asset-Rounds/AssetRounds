@@ -1,0 +1,8 @@
+    func requireProducerRequestBinding(_ request: OriginalEraseC16ProducerRequestV4) throws {
+        do {
+            try requireActive()
+            try requirePendingProducer(request)
+            try requireActive()
+        } catch { poisonOnUncertainEffect(); throw error }
+    }
+

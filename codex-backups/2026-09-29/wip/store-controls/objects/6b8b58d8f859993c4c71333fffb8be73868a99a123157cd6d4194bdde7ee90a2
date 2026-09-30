@@ -1,0 +1,3 @@
+# Superseded v1 Store scaffold
+
+GPT-6.1 Sol xhigh, 2026-09-29. This immutable snapshot is an incomplete author scaffold, never reviewed, compiled, tested, imported or accepted. Exact inherited baseline253a atdbdb/sourceb24e. Root's contract review identified mandatory durable bootstrap before source/plan index and terminal source/progress/actualIDs survival through last core controls, plus typed Ledger birth handshake. v2 corrects those contracts prospectively. This v1 snapshot must not be installed or represented as completed Store functionality. All mutable v2 work remains in sibling candidate; only root composes/builds/native/tests/imports/commits/pushes/dispatches. Primary and tracked source untouched.

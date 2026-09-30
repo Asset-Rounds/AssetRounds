@@ -1,0 +1,31 @@
+{
+  "centralV9Binding": {
+    "actualPrivateGenericIssuerImplemented": false,
+    "compiled": false,
+    "path": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/BINDING.json",
+    "sha256": "6674f52568611efcd35c5cf958906e8134b36fc149d33f4e189b8178c7f707f7"
+  },
+  "immutableRow": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/inputs/ORIGINAL_PAIR_ACCOUNTING_DATA_INPUT.swift.fragment",
+    "sha256": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0"
+  },
+  "newScope": {
+    "copyPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/inputs/SEALED_GENERIC_OBSERVATION_V2.swift.fragment",
+    "sha256": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+    "sourcePath": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/SEALED_GENERIC_OBSERVATION_V2.swift.fragment"
+  },
+  "previousAuthorityInputs": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/INPUTS.json",
+    "sha256": "0ed30aad21e7df63e8a6f4d4bdc522b73de185945b64439b4f3659619201496f"
+  },
+  "priorPFPPacket": {
+    "allSealFilesExact": true,
+    "approvalNotInherited": true,
+    "bindingSHA256": "37d49a9ad33e05538fb2ecd477d95e68e5de626b23a69727b23218d9c623c7d2",
+    "candidateSHA256": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1",
+    "sealSHA256": "309096101b8efd75aa2b8bc177dee5f7f648abf75ee8ee034e1d77e6b05e5ffe"
+  },
+  "rule": "Dependency-only correction. PFP sourcefb302 EXACT/unchanged; actual complete issuer/provider/capacity/compile/native/gates remain due.",
+  "schemaVersion": 1
+}

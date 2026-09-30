@@ -1,0 +1,186 @@
+{
+  "authority": {
+    "appBaseHead": "93f327908a3f65283ba025875b0f1506efd49b1f",
+    "appBaseTree": "4fe2822a8e1b5e1bc42342eb2ebe2e551ba175b7",
+    "authorizedOverlapCount": 4118,
+    "cardID": "V23-P04-C12",
+    "contextDigest": "0a08934dce1d681d39e405f81fae85d53e81a93f57d28e2fe243aa9d609d7808",
+    "directPrerequisites": [
+      "V23-P04-C07",
+      "V23-P04-C09",
+      "V23-P04-C10",
+      "V23-P04-C11"
+    ],
+    "existingPathCount": 113,
+    "fenceCount": 100,
+    "fencePathCount": 130,
+    "finalHashesSealed": true,
+    "hydrationCoordinationHead": "608af67afb3d3afb92de0af85b1d636a59c472be",
+    "hydrationCoordinationTree": "ef78081be7991526c1ecbad501341b69d1065b7a",
+    "ledgerDigest": "4293f2eb2149c65f790edb801c1472dfeecdccdc5323b0e810c4e0d91f08f6e4",
+    "newPathCount": 17,
+    "pathFenceDigest": "c3d4facea5b867f1132da02981bb6ad14d9ce95c459cfc8ac1d56f2e80731a98",
+    "prerequisiteDigest": "61edb78a8ac8b5c4d5225f80fddcdb96d6558e87d94154954fd3b1483206802a",
+    "priorOwnedPathCount": 1579,
+    "projectionDigest": "4ff1ea0230754a2dde70123f6492415b71b1936a2173356c6f39d40ed6de3b48",
+    "registerOrdinal": 100,
+    "s10OverlapCount": 0,
+    "title": "Honest change-focused reinspection and unified deterministic exception review queue",
+    "transitionDigest": "43f443c295e46e87f377f5aab3e49f24b1aca4fdc3e5ae12763ab696aa55c996",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C12",
+  "evidenceIDs": [
+    "V23-P04-C12-G01",
+    "V23-P04-C12-A01",
+    "V23-P04-C12-H01",
+    "V23-P04-C12-I01",
+    "V23-P04-C12-R01"
+  ],
+  "provisional": true,
+  "schema": "V23P04C12ReinspectionExceptionQueueContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "canonicalOwner": "V23-P04-C12_SOLE_REINSPECTION_AND_EXCEPTION_QUEUE_WRITER_OWNER",
+    "containedUI": "POST_S10_6_ADOPTION_SKIP_NO_CREDIT",
+    "lifecycleCoverage": [
+      "MIGRATION",
+      "BACKUP",
+      "REPLACE_RESTORE",
+      "DELETE",
+      "ERASE",
+      "EXPORT",
+      "REPORT",
+      "SEARCH",
+      "REBUILD",
+      "JOURNAL",
+      "REPLAY"
+    ],
+    "namedContracts": [
+      "ReinspectionPlanV1",
+      "UnchangedAttestationV1",
+      "ExceptionQueueItemV1"
+    ],
+    "oneCanonicalWriter": true,
+    "persistentContractMode": "NEW_SCHEMA_VERSION",
+    "persistentContractSchema": "ReinspectionAndExceptionSchemaV1",
+    "preservedInvariants": [
+      "NO_COPY_FORWARD_AS_NEW_OBSERVATION",
+      "EXPLAINABLE_CHANGE_FOCUSED_SELECTION",
+      "REBUILDABLE_QUEUE_ACKNOWLEDGEMENT_NEVER_MUTATES_SOURCE"
+    ],
+    "statusFlags": {
+      "acceptance": false,
+      "activation": false,
+      "adoption": false,
+      "hosted": false,
+      "hostedAcceptance": false,
+      "native": false,
+      "nativeAcceptance": false,
+      "phase10PollingDuringParallelExecution": false,
+      "physicalEvidence": false,
+      "release": false
+    },
+    "uiAcceptanceCredit": false
+  },
+  "sourceProjection": {
+    "evidenceIDs": [
+      "V23-P04-C12-G01",
+      "V23-P04-C12-A01",
+      "V23-P04-C12-H01",
+      "V23-P04-C12-I01",
+      "V23-P04-C12-R01"
+    ],
+    "ownedFenceCounts": {
+      "changedPathCount": 42,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C12G01ChangedOpenExpiredItemsRequireFreshEvidenceAndQueueClearsOnlyOnResolution",
+      "testV23P04C12A01UnchangedAttestationBindsExactPriorCurrentRevisionsAndPolicy",
+      "testV23P04C12H01ChangedIdentityMissingEvidenceStaleAttestationDuplicateAndForgedDismissalFailClosed",
+      "testV23P04C12I01InterruptedPlanQueueRebuildOrAttestationCommitPreservesCanonicalSources",
+      "testV23P04C12R01RestoredCanonicalSourcesRebuildExactQueueDecisionsReasonsAndUnresolvedCounts"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "byteCount": 3184,
+        "path": "FieldEvidenceApp/Application/Reinspection/ReinspectionExceptionQueueCoordinatorV1.swift",
+        "sha256": "70aa3cc6e3ab7bd662722e762641696bf177d40fa6fb3d062d1d3561c78b1739",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 51320,
+        "path": "FieldEvidenceApp/Domain/Reinspection/ReinspectionExceptionQueueContractsV1.swift",
+        "sha256": "b13d16a3c97dbbcf4c41c10a9c7b73d6b3ac505eb349071267d8d7237c623c34",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 22755,
+        "path": "FieldEvidenceApp/Domain/Models/ReinspectionExceptionQueuePersistenceModelsV1.swift",
+        "sha256": "c428602c242d82d339b5ce1612851eca32a90a92b0a350760a908392905bc1dc",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 2040,
+        "path": "FieldEvidenceApp/Features/CheckRunner/ReinspectionPlanView.swift",
+        "sha256": "025912665cc6df9d730377066cf2c97c94e255cb5ce2f57af75821601b7cba4a",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 1936,
+        "path": "FieldEvidenceApp/Features/Dashboard/ExceptionReviewQueueView.swift",
+        "sha256": "e1bb1925806ccc66854cd3eafc5c85a671ff53e284439502e374ec7edd400509",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 21529,
+        "path": "FieldEvidenceApp/Infrastructure/Persistence/ReinspectionExceptionQueueLifecycleAdapterV1.swift",
+        "sha256": "c63568ee7c83032df93d0dff0b4a119b692166a6ba8071aeff81a46a6ebd648c",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 2460,
+        "path": "FieldEvidenceAppTests/Fixtures/V23/Reinspection/V23P04C12ReinspectionExceptionQueueCorpusV1.json",
+        "sha256": "392d1133ec085fac3b1ccc842b690f9206e473ab66cedf9b8ca6db9a66aebf15",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 24511,
+        "path": "FieldEvidenceAppTests/V9_76ReinspectionExceptionQueueTests.swift",
+        "sha256": "91d90868b151f2a545b321a8f88960fa0ce5fdccc13bfdbb38081ff7fbc76e2e",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "byteCount": 397,
+        "path": "FieldEvidenceAppUITests/V23_P04_C12ReinspectionExceptionQueueUITests.swift",
+        "sha256": "13e354c3577607723cacccaccc1189476a7b9244e66b758a1cfc7b83065ab97e",
+        "status": "SOURCE_PRESENT"
+      }
+    ],
+    "sourceStatus": "SOURCE_READY"
+  },
+  "status": "PROVISIONAL",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C12G01ChangedOpenExpiredItemsRequireFreshEvidenceAndQueueClearsOnlyOnResolution",
+    "testV23P04C12A01UnchangedAttestationBindsExactPriorCurrentRevisionsAndPolicy",
+    "testV23P04C12H01ChangedIdentityMissingEvidenceStaleAttestationDuplicateAndForgedDismissalFailClosed",
+    "testV23P04C12I01InterruptedPlanQueueRebuildOrAttestationCommitPreservesCanonicalSources",
+    "testV23P04C12R01RestoredCanonicalSourcesRebuildExactQueueDecisionsReasonsAndUnresolvedCounts"
+  ]
+}

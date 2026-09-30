@@ -1,0 +1,127 @@
+{
+  "artifactDigest": "89475cdc7635377c4081282f3aadd843383f99d5b4d70c131dd320e5d40163f5",
+  "authority": {
+    "allowedPathCount": 130,
+    "appBaseHead": "91ba659489b3a42707631d3a6117cab865f8fea5",
+    "appBaseTree": "6c3aaf8dee102c444aec7a7912f48b52863bc7bc",
+    "attemptID": 1,
+    "cardID": "V23-P03-C27",
+    "contextDigest": "54bfcdcddddbdd66ffcfc3c0c98d56bc404b9ffd0d6cae6b716e533d0e105851",
+    "coordinationCASSequence": 273,
+    "coordinationHead": "d141db7328861af29543264ea8624cf6148d6295",
+    "coordinationLedgerDigest": "bc0c14eaf91d78fcd59cb82f17f54391f87cdeb9c3f49071709307d0dc0545d1",
+    "coordinationProjectionDigest": "c6142df78fe58e73abde700cfe5641cb62187cc6e78163f6426c130cea711927",
+    "coordinationTree": "e4ab5d54dff9b8461277825ce78ed19bba23db11",
+    "digestPinsPending": false,
+    "directPrerequisiteCards": [
+      "V23-P03-C22"
+    ],
+    "existingPathCount": 116,
+    "fenceCorrectionReceiptDigest": "02820519bd539539fe2a1b3804e0a570c77c547390336d4024e3ded92e1e8d1b",
+    "fenceDigest": "9864db2f420a45c4497326da79d41f27cbfb187c0fb62c3fca96c051694adc0a",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 2,
+    "hydrationTransitionDigest": "81ceffdbd5a14f1a44a26d076cb4b1ab5a2a70ad4d2886482b32fcdb7f31a2a9",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C28",
+    "registerOrdinal": 64,
+    "title": "Opaque asset locators, external keys, safe resolution, rebinding, and retirement"
+  },
+  "directPrerequisiteEvidence": {
+    "acceptanceCredit": false,
+    "canonicalRelationPreserved": true,
+    "disposition": "PROVISIONALLY_SATISFIED_FOR_ORDERED_IMPLEMENTATION_AND_STATIC_TEST_ONLY",
+    "nativeCompileRan": false,
+    "nonreleaseSpecialEdgeApplied": false,
+    "ordinaryDirectEdgeCount": 1,
+    "physicalLockedState": "REQUIRED_PENDING_OWNER",
+    "predecessors": [
+      {
+        "attemptID": 1,
+        "candidateHead": "d0485977644a71e49b8d4b898bb527e0353bd81e",
+        "candidateTree": "2fc990ee64f9da6e84b07fddc2abed036f679630",
+        "cardID": "V23-P03-C22",
+        "disposition": "CHECKPOINTED_PROVISIONAL_CANONICAL_DIRECT_PREREQUISITE_AT_EXACT_C22_HEAD"
+      }
+    ],
+    "prerequisiteDigest": "849dd47256c86198df9fc3bb90ba10f822bf7398aafc08208fd724fac02482a1",
+    "releaseCredit": false,
+    "schema": "ProvisionalExecutionPrerequisiteSetReceiptV1",
+    "schemaVersion": 1,
+    "successorAttemptID": 1,
+    "successorCardID": "V23-P03-C27"
+  },
+  "persistence": {
+    "backupRestoreRequired": true,
+    "cloneForkRequired": true,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V26_WRITE",
+    "durableFamilyCount": 2,
+    "exportReportRequired": true,
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "nonPersistentFamilies": [
+      "LocatorResolutionInputV1",
+      "LocatorResolutionV1",
+      "LocatorBindingPreviewV1",
+      "FrozenAssetLocatorInterpretationV1"
+    ],
+    "persistedFamilies": [
+      "AssetLocatorV1",
+      "LocatorBindingReceiptV1"
+    ],
+    "persistentKindLifecycleModelCount": 94,
+    "persistentSchemaVersion": 26,
+    "recordsSchemaVersion": 25,
+    "replayRequired": true,
+    "schemaRelease": "ASSET_LOCATOR_V1",
+    "searchRebuildRequired": true
+  },
+  "requiredSemantics": {
+    "codeGrantsPermission": false,
+    "contractNames": [
+      "AssetLocatorV1",
+      "ExternalKeyV1",
+      "LocatorResolutionV1",
+      "LocatorBindingReceiptV1"
+    ],
+    "fiveSelectors": [
+      "testV23P03C27G01StableLocatorResolutionHasEightClosedOutcomesAndSourceParity",
+      "testV23P03C27A01CanonicalKeysSignaturesBindingsAndRowsRemainImmutable",
+      "testV23P03C27H01ForeignRevokedPartialOversizedCollisionAndStaleInputsFailClosed",
+      "testV23P03C27I01CanonicalRowsRetryFromOnlyOldOrNewStateAndReplayDeterministically",
+      "testV23P03C27R01RetirementReplacementAndFrozenHistorySurviveOfflineRecovery"
+    ],
+    "historicInterpretationFrozen": true,
+    "manualAndCameraShareResolver": true,
+    "networkOnlyResolver": false,
+    "nonPersistentFamilies": [
+      "LocatorResolutionInputV1",
+      "LocatorResolutionV1",
+      "LocatorBindingPreviewV1",
+      "FrozenAssetLocatorInterpretationV1"
+    ],
+    "opaquePayloadContainsSecrets": false,
+    "persistentFamilies": [
+      "AssetLocatorV1",
+      "LocatorBindingReceiptV1"
+    ],
+    "rebindPreviewAndReceiptRequired": true,
+    "resolutionOutcomes": [
+      "MATCHED",
+      "NO_MATCH",
+      "FOREIGN_WORKSPACE",
+      "AMBIGUOUS",
+      "DAMAGED_OR_INCOMPLETE",
+      "RETIRED",
+      "REVOKED",
+      "REPLACED"
+    ],
+    "scanMutates": false,
+    "scanStartsSession": false,
+    "silentDuplicateMerge": false
+  },
+  "schema": "V23P03C27AssetLocatorContractV1",
+  "schemaVersion": 1
+}

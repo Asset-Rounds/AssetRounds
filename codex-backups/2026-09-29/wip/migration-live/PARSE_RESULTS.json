@@ -1,0 +1,39 @@
+{
+  "scope": "Syntax-only frontend parse; no typecheck/build/native/CI",
+  "parserPath": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+  "parserSHA256": "2ed38571e92c0283091838c1649e27650ad9c99950288e883c7b2dc6c4ce89fb",
+  "runs": [
+    {
+      "mode": "DEBUG",
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-registry-effect-v1/source-checkpoint-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.04547716700471938,
+      "stdoutBytes": 0,
+      "stderrBytes": 0,
+      "sourceSHA256": "62276ff8836f6771dba4a077179ede4f4e40aeac736948767566dd46ebc1712c"
+    },
+    {
+      "mode": "nonDEBUG",
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds/.codex-temp/original-scratch-registry-effect-v1/source-checkpoint-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.04554579098476097,
+      "stdoutBytes": 0,
+      "stderrBytes": 0,
+      "sourceSHA256": "62276ff8836f6771dba4a077179ede4f4e40aeac736948767566dd46ebc1712c"
+    }
+  ]
+}

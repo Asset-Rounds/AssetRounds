@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assetrounds.invalid/v23/V21C07RequirementAllocationV1.schema.json",
+  "title": "V21C07RequirementAllocationV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "sourceAllocationSHA256",
+    "sourceInheritedPayloadSHA256",
+    "orderedAtomicClauseIDs",
+    "rows",
+    "ownerCounts",
+    "expectedClauseCount",
+    "observedClauseCount",
+    "missingClauseCount",
+    "duplicateClauseCount",
+    "orphanClauseCount",
+    "overlapClauseCount",
+    "allocationComplete",
+    "c13InheritedClauseCount",
+    "acceptanceCredit",
+    "releaseCredit",
+    "artifactDigest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "V21C07RequirementAllocationV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "cardID": {
+      "const": "V23-P00-C07"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attemptID",
+        "executionMode",
+        "baseHead",
+        "baseTree",
+        "candidateBinding",
+        "packageDigest",
+        "dossierDigest",
+        "canonicalRegisterDigest",
+        "directGraphDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "ownerOverrideReceiptDigest",
+        "frozenS10ReservationDigest",
+        "bootstrapContextDigest",
+        "bootstrapPathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "writerAuthority",
+        "ledgerDigest",
+        "ledgerCASSequence",
+        "phase10PollingDuringParallelExecution",
+        "acceptanceEnabled",
+        "hostedDispatchEnabled",
+        "adoptionEnabled",
+        "requiresAcceptedS10_6Reconciliation",
+        "releaseCredit"
+      ],
+      "properties": {
+        "attemptID": {
+          "const": 1
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "baseHead": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "baseTree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "candidateBinding": {
+          "const": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED"
+        },
+        "packageDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dossierDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "canonicalRegisterDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "directGraphDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selectorManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "relationManifestDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "dependencyDispositionDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ownerOverrideReceiptDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenS10ReservationDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bootstrapContextDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bootstrapPathFenceDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "provisionalPrerequisiteDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "writerAuthority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ownerID",
+            "writerGeneration"
+          ],
+          "properties": {
+            "ownerID": {
+              "const": "A00_BOOTSTRAP_CONTROLLER"
+            },
+            "writerGeneration": {
+              "const": 0
+            }
+          }
+        },
+        "ledgerDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledgerCASSequence": {
+          "const": 19
+        },
+        "phase10PollingDuringParallelExecution": {
+          "const": false
+        },
+        "acceptanceEnabled": {
+          "const": false
+        },
+        "hostedDispatchEnabled": {
+          "const": false
+        },
+        "adoptionEnabled": {
+          "const": false
+        },
+        "requiresAcceptedS10_6Reconciliation": {
+          "const": true
+        },
+        "releaseCredit": {
+          "const": false
+        }
+      }
+    },
+    "acceptanceCredit": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceAllocationSHA256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceInheritedPayloadSHA256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "orderedAtomicClauseIDs": {
+      "type": "array",
+      "minItems": 57,
+      "maxItems": 57,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 57,
+      "maxItems": 57,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ordinal",
+          "atomicClauseID",
+          "obligation",
+          "soleOwner",
+          "evidenceContract",
+          "acceptanceBoundary",
+          "implementationCredit"
+        ],
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "atomicClauseID": {
+            "type": "string",
+            "pattern": "^V21-C07-"
+          },
+          "obligation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "soleOwner": {
+            "enum": [
+              "V23-P00-C07",
+              "V23-P00-C09",
+              "V23-P00-C10",
+              "V23-P00-C11",
+              "V23-P00-C12"
+            ]
+          },
+          "evidenceContract": {
+            "type": "string",
+            "minLength": 1
+          },
+          "acceptanceBoundary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "implementationCredit": {
+            "const": false
+          }
+        }
+      }
+    },
+    "ownerCounts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "expectedClauseCount": {
+      "const": 57
+    },
+    "observedClauseCount": {
+      "const": 57
+    },
+    "missingClauseCount": {
+      "const": 0
+    },
+    "duplicateClauseCount": {
+      "const": 0
+    },
+    "orphanClauseCount": {
+      "const": 0
+    },
+    "overlapClauseCount": {
+      "const": 0
+    },
+    "allocationComplete": {
+      "const": true
+    },
+    "c13InheritedClauseCount": {
+      "const": 0
+    }
+  }
+}

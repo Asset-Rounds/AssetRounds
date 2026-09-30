@@ -1,0 +1,30 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "status": "INCOMPLETE source-only backup; NONINSTALLABLE",
+  "head": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "beforeLedgerSHA256": "b4eef0e28bff89de4512ed9d240ea01184a872c501c5b6b062ee1dcd69eb09c0",
+  "candidateLedgerSHA256": "a178ebe247d8346d1b99fc082c83a7353165c8d28f55387f1ed7ee063520b0a1",
+  "trackedLedgerSHA256": "b4eef0e28bff89de4512ed9d240ea01184a872c501c5b6b062ee1dcd69eb09c0",
+  "patchSHA256": "cf4f8c4196bcb7e24469bc2b27bfa339f6d83096fc75de0a028c0b74d7f6ce4e",
+  "syntaxOnly": {
+    "DEBUG": {
+      "exitCode": 0,
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "nonDEBUG": {
+      "exitCode": 0,
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "patchProof": {
+    "forwardExit": 0,
+    "forwardEqual": true,
+    "reverseExit": 0,
+    "reverseEqual": true
+  },
+  "broadV31Path": "/Users/rentamac/.codex/worktrees/cold-ledger-continuation/AssetRounds/.codex-temp/cold-ledger-continuation-successor-v1/checkpoint-v31",
+  "broadV31LedgerSHA256": "818673231202c56f545c3d87019997d53bffee0ea52916611a75ea090fe88fe5",
+  "broadV31BindingSHA256": "a8de8c12dbf176a9f5f394c715190d7b14f1d5c086468c3f8cf11d3d9fb9ab45",
+  "handoffSHA256": "e40ebf5d3f010fb2810f1f3d1b4a174231be3b548d909c402e682b215080cb22"
+}

@@ -1,0 +1,705 @@
+#!/usr/bin/env python3
+"""Observe one source-pinned hosted build. Instrumented results are diagnostic only.
+
+The existing shell watchdog owns timeouts and process-group termination. This
+helper does not dispatch, retry, cache, select tests, or claim native acceptance.
+"""
+import datetime
+import hashlib
+import json
+import math
+import os
+from pathlib import Path, PurePosixPath
+import queue
+import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+
+
+CONTRACT = "v23.integration.current-native.v1"
+SOURCE_HEAD = "f6f99acec0c6ab5b5defb80b21607bde0ef5caaf"
+SOURCE_PATHS = ("FieldEvidenceApp", "FieldEvidenceAppTests", "FieldEvidenceAppUITests",
+                "FieldEvidenceApp.xcodeproj")
+SOURCE_TREES = {
+    "FieldEvidenceApp": "3e93cb3c625cc268a045fe8320e703cc798b53b7",
+    "FieldEvidenceAppTests": "f90f0b7e6c5719816e5487d54eee32edbc5a4bbc",
+    "FieldEvidenceAppUITests": "978eced2587c6ed6cb280aa6cea7d4e3fa6e4190",
+    "FieldEvidenceApp.xcodeproj": "4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0",
+}
+SOURCE_SELECTION_HASHES = {
+    "selectionSHA256": "E1704C9587E7C9661D4E032BD380AC44A2CC79E2BF066DF2162428D08D8C0B7A",
+    "selectionMapSHA256": "09208F042EBAD8B82E09FB90973D9626DAE54FAB026E411632FE91D9B54726E8",
+    "resolvedSelectionSHA256": "428CF8C679E28D87B3CB7BD2DC42B191F02A9DB4322D9882E3DF72521179F9B1",
+}
+# Closed current-source observation; the legacy f6 profile remains immutable.
+CURRENT_PROFILE = {'schemaVersion': 2, 'mode': 'timing-current-source-v2', 'sourceHead': 'f849d15991e4520850d09a818877ba4199f25061', 'sourceTrees': {'FieldEvidenceApp': '7af267c17cc2f3f96c32b8d73211a3f60dd746db', 'FieldEvidenceAppTests': 'c9d2357d3612283c9d87d2cf424f592e30df2eb9', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0'}, 'selectionSHA256': '1F2C99A95F04D378A6FB6FB0656FC0A9A6DC6A42D711E3FDD55996F86D25D572', 'sampleIntervalSeconds': 5, 'selectionMapSHA256': 'E1128081C187ABE0B9E2B69CA3998EA79EA71B4124A8BBD14942418F066F3A4E', 'resolvedSelectionSHA256': '2AA4BE676365A3E771FC684BE16A530606DE7EE588F15BA23B9C3DED27C48FB5'}
+CURRENT_SELECTION_ID = "c36-parent-finalization-check-no-issue"
+SHALLOW_PROFILE = dict(CURRENT_PROFILE, schemaVersion=3, mode="timing-shallow-source-v3",
+                       parentHead="b8c05dc1d567ebf99cdcc4244584f7b7b78951f0")
+COMMAND_PROFILE = dict(CURRENT_PROFILE, schemaVersion=4, mode="timing-command-source-v4",
+                       parentHead="8d7a886ac1186eceac26d0c3c42f08a92280a206")
+
+# Passive observation of the exact current interruption build; historical profiles stay fixed.
+INTERRUPTION_SELECTION_ID = "notification-interruption-no-index-build30m"
+INTERRUPTION_PROFILE = {'schemaVersion': 5, 'mode': 'timing-interruption-no-index-source-v5', 'sourceHead': '1cf1d8618a2a2a410c36a328933cd22339293876', 'parentHead': '1cf1d8618a2a2a410c36a328933cd22339293876', 'sourceTrees': {'FieldEvidenceApp': '7731c5593306ce9bc2fa8ef49e928e50ad4f1ba3', 'FieldEvidenceApp.xcodeproj': '4689b1e68b6e5ab1c60c7546fe49a0ff7d1e85d0', 'FieldEvidenceAppTests': '6c326564ba3538891a086515168d7d3e2a541f28', 'FieldEvidenceAppUITests': '978eced2587c6ed6cb280aa6cea7d4e3fa6e4190'}, 'sampleIntervalSeconds': 5, 'selectionSHA256': 'CDD7411107440470C44C2AA29AC2C8139B44BBF1D7DD7F9A55D06221FE9D517E', 'selectionMapSHA256': '316967E3CF0BF31ED1F1DFE05A118D041A61C7E3FA756C35637E226506008D5B', 'resolvedSelectionSHA256': '7E4D6D273ED3002156A31A7C1B8F533721F1F62ADC4C60CD3F8CCC7EFD03CCBB'}
+INTERRUPTION_BUILD_ORDER_PROFILE = dict(INTERRUPTION_PROFILE, schemaVersion=6,
+    mode="timing-interruption-before-boot-no-index-source-v6",
+    sourceHead="cf357a4e75dce1a9bff56f4b72af60989d3df643",
+    parentHead="cf357a4e75dce1a9bff56f4b72af60989d3df643")
+
+# A separate, development-only D50 observation. This pins a direct successor
+# of e74, with the same product trees and exact fourteen-method selection.
+DEVELOPMENT_SELECTION_ID = "v23-dev-batch-no-index-d50"
+DEVELOPMENT_PROFILE = {
+    "schemaVersion": 7, "mode": "timing-development-passive-source-v7",
+    "sourceHead": "e74df72d02482ed70bc208a0a118275237c7c714",
+    "parentHead": "e74df72d02482ed70bc208a0a118275237c7c714",
+    "sourceTrees": {
+        "FieldEvidenceApp": "50202502c4b163c19f845831154cf0c2d012b61a",
+        "FieldEvidenceAppTests": "90491de005d4d9f028e453ac7e95e1e25a4ab154",
+        "FieldEvidenceAppUITests": "74b8a3c90fff8c1160a75e84222054bcedab8b0b",
+        "FieldEvidenceApp.xcodeproj": "8bfd8a246776a4e3f15b62aef29d558f2b3ee34d",
+    },
+    "selectionSHA256": "AA6FED058B963A5110857E98FD68573DCA72F20FD8D0BD19B7A50B252E957A7B",
+    "selectionMapSHA256": "2872B03CDC17B8C001CA351411FBF10954063B09F052146BECAC81BE8E831FB0",
+    "resolvedSelectionSHA256": "C14B6B32A904A5C474A0413ABF919BDABF1812FBEEC6B9963698FBC14A6A4EE0",
+    "sampleIntervalSeconds": 5,
+}
+DEVELOPMENT_J2_PROFILE = dict(DEVELOPMENT_PROFILE,
+    schemaVersion=8, mode="timing-development-driver-j2-source-v8",
+    parentHead="2338a765fee72d6e6e6ecb5a070ff3f4fb6e9ba0")
+
+SWIFT_FLAGS = ("OTHER_SWIFT_FLAGS=$(inherited) -Xfrontend -warn-long-function-bodies=500"
+               " -Xfrontend -warn-long-expression-type-checking=200")
+COMPILERS = {"xcodebuild", "swiftc", "swift-frontend", "clang", "clang++", "ld",
+             "actool", "ibtool", "assetcatalogcompiler"}
+PS_FIELDS = "pid=,ppid=,pcpu=,time=,etime=,rss=,state=,lstart=,comm="
+DEVELOPER_DIR = "/Applications/Xcode_26.6.app/Contents/Developer"
+CAPABILITY_TIMEOUT_SECONDS = 10
+CAPABILITY_FLAGS = (b"-warn-long-function-bodies", b"-warn-long-expression-type-checking")
+
+
+def require(condition, message):
+    if not condition:
+        raise ValueError("compiler timing admission: " + message)
+
+
+def unique_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, "duplicate JSON key")
+        result[key] = value
+    return result
+
+
+def read_configuration(path):
+    require(path.is_file() and not path.is_symlink(), "configuration file")
+    config = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_pairs)
+    return validate_configuration(config)
+
+
+def validate_configuration(config):
+    require(isinstance(config, dict), "configuration object")
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 8:
+        require(config == DEVELOPMENT_J2_PROFILE, "fixed development driver-j2 source profile")
+        return config
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 7:
+        require(config == DEVELOPMENT_PROFILE, "fixed development passive source profile")
+        return config
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 6:
+        require(type(config.get("sampleIntervalSeconds")) is int, "integer build-order sample interval")
+        require(config == INTERRUPTION_BUILD_ORDER_PROFILE, "fixed interruption before-boot source profile")
+        return config
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 5:
+        require(type(config.get("sampleIntervalSeconds")) is int, "integer interruption sample interval")
+        require(config == INTERRUPTION_PROFILE, "fixed interruption no-index source profile")
+        return config
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 4:
+        require(config == COMMAND_PROFILE, "fixed current command source profile")
+        return config
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 3:
+        require(config == SHALLOW_PROFILE, "fixed current shallow source profile")
+        return config
+    if type(config.get("schemaVersion")) is int and config["schemaVersion"] == 2:
+        require(config == CURRENT_PROFILE, "fixed current source profile")
+        return config
+    require(set(config) == {"schemaVersion", "mode", "sourceHead", "sourceTrees",
+                            "selectionSHA256", "selectionMapSHA256", "resolvedSelectionSHA256",
+                            "sampleIntervalSeconds"}, "configuration keys")
+    require(type(config["schemaVersion"]) is int and config["schemaVersion"] == 1, "schema")
+    require(config["mode"] == "timing-f6-source-v1", "diagnostic mode")
+    require(config["sourceHead"] == SOURCE_HEAD, "source provenance")
+    require(isinstance(config["sourceTrees"], dict)
+            and set(config["sourceTrees"]) == set(SOURCE_PATHS), "source tree roles")
+    require(all(isinstance(v, str) and re.fullmatch(r"[a-f0-9]{40}", v)
+                for v in config["sourceTrees"].values()), "source tree identities")
+    for key in ("selectionSHA256", "selectionMapSHA256", "resolvedSelectionSHA256"):
+        require(isinstance(config[key], str)
+                and re.fullmatch(r"[A-F0-9]{64}", config[key]), "selection hash")
+    require(type(config["sampleIntervalSeconds"]) is int
+            and config["sampleIntervalSeconds"] == 5, "sample interval")
+    # Configuration is a receipt of these reviewed f6 values, not an authority
+    # that can rebind the experiment to different product or selector bytes.
+    require(config["sourceTrees"] == SOURCE_TREES, "fixed f6 source trees")
+    require(all(config[key] == value for key, value in SOURCE_SELECTION_HASHES.items()),
+            "fixed f6 selector hashes")
+    return config
+
+
+def expected_command(environment, config=None):
+    e = environment
+    for key in ("PROJECT_PATH", "SCHEME", "CONFIGURATION", "CI_SIMULATOR_UDID",
+                "CI_DESTINATION", "RUNNER_TEMP", "CI_ARTIFACT_DIR"):
+        require(e.get(key) and not any(c in e[key] for c in ("\n", "\r", "\0")), key)
+    require(e["PROJECT_PATH"] == "FieldEvidenceApp.xcodeproj"
+            and e["SCHEME"] == "FieldEvidenceApp" and e["CONFIGURATION"] == "Debug", "project")
+    require(re.fullmatch(r"[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}",
+                         e["CI_SIMULATOR_UDID"]), "Simulator identity")
+    require(e["CI_DESTINATION"] == "platform=iOS Simulator,id=" + e["CI_SIMULATOR_UDID"],
+            "destination")
+    command = ["xcodebuild", "-project", e["PROJECT_PATH"], "-scheme", e["SCHEME"],
+            "-configuration", e["CONFIGURATION"], "-destination", e["CI_DESTINATION"],
+            "-derivedDataPath", e["RUNNER_TEMP"] + "/FieldEvidenceDerivedData",
+            "-resultBundlePath", e["CI_ARTIFACT_DIR"] + "/Build.xcresult",
+            "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
+    if config is not None and config["schemaVersion"] in (5, 6, 7, 8):
+        command.insert(-1, "COMPILER_INDEX_STORE_ENABLE=NO")
+    return command
+
+
+def require_direct_parent(git_output, expected):
+    # HEAD^ traverses history and fails at a shallow boundary. The original
+    # commit object still contains its parents; read those without traversal.
+    raw = git_output("cat-file", "commit", "HEAD")
+    require(b"\n\n" in raw, "direct parent commit header")
+    header = raw.split(b"\n\n", 1)[0].split(b"\n")
+    parents = [line for line in header if line.startswith(b"parent")]
+    require(parents == [b"parent " + expected.encode("ascii")], "exact single direct parent")
+
+
+def admit(config, environment, command, root, git_output, platform=sys.platform):
+    validate_configuration(config)
+    required = {
+        "CI_NATIVE_ACCEPTANCE_CONTRACT": CONTRACT,
+        "GITHUB_REPOSITORY": "Asset-Rounds/AssetRounds",
+        "GITHUB_REF": "refs/heads/codex/v23-s10-integration-20260910",
+        "CI_RUNNER_PROVIDER": "github", "CI_RUNNER_LABEL": "macos-26",
+        "NATIVE_SELECTION_ID": "catalog-file-authority",
+        "CI_TASK_ID": "V23-INTEGRATION-20260910", "CI_TIER": "N8",
+        "CI_SETUP_ARTIFACT_TIMEOUT_SECONDS": "300",
+        "CI_BUILD_TIMEOUT_SECONDS": "1200", "CI_TEST_TIMEOUT_SECONDS": "900",
+        "CI_UI_TIMEOUT_SECONDS": "0", "CI_TOTAL_BUDGET_SECONDS": "2400",
+        "CI_RUN_UI_SMOKE": "false", "CI_SELECTOR_RUN_UI_SMOKE": "false",
+        "CODE_SIGNING_ALLOWED": "NO", "RUNNER_ARCH": "ARM64",
+        "DEVELOPER_DIR": DEVELOPER_DIR,
+    }
+    if config["schemaVersion"] in (2, 3, 4):
+        required["NATIVE_SELECTION_ID"] = CURRENT_SELECTION_ID
+    if config["schemaVersion"] in (5, 6):
+        required.update(NATIVE_SELECTION_ID=INTERRUPTION_SELECTION_ID, CI_TIER="D30",
+                        CI_BUILD_TIMEOUT_SECONDS="1800", CI_TOTAL_BUDGET_SECONDS="3000")
+    if config["schemaVersion"] in (7, 8):
+        required.update(NATIVE_SELECTION_ID=DEVELOPMENT_SELECTION_ID, CI_TIER="D50",
+                        CI_BUILD_TIMEOUT_SECONDS="1800", CI_TEST_TIMEOUT_SECONDS="3000",
+                        CI_TOTAL_BUDGET_SECONDS="5100",
+                        CI_V23_COMPILER_OBSERVATION="true", CI_V23_RUN_KIND="development")
+        require(environment.get("CI_V23_SWIFT_DRIVER_JOBS_TWO", "false")
+                == ("true" if config["schemaVersion"] == 8 else "false"),
+                "exact development driver-j2 opt-in")
+    require(platform == "darwin", "host platform")
+    for key, value in required.items():
+        require(environment.get(key) == value, key)
+    require(command == expected_command(environment, config), "exact base build argv")
+    head = git_output("rev-parse", "HEAD").decode().strip()
+    require(re.fullmatch(r"[a-f0-9]{40}", head)
+            and head == environment.get("GITHUB_SHA"), "actual checkout head")
+    if config["schemaVersion"] in (2, 3, 4, 5, 6, 7, 8):
+        require_direct_parent(git_output, config.get("parentHead", config["sourceHead"]))
+    for path, tree in config["sourceTrees"].items():
+        require(git_output("rev-parse", "HEAD:" + path).decode().strip() == tree, path + " tree")
+    # Synchronized groups would also compile untracked files. Check both tracked
+    # changes and additional files in every pinned source root before building.
+    require(not git_output("diff", "HEAD", "--", *SOURCE_PATHS).strip(), "dirty tracked source")
+    require(not git_output("ls-files", "--others", "--exclude-standard", "--",
+                           *SOURCE_PATHS).strip(), "untracked source")
+    selected = (root / "Scripts/ci-selection.json").read_bytes()
+    require(hashlib.sha256(selected).hexdigest().upper() == config["selectionSHA256"],
+            "selector source bytes")
+    mapping = (root / "Scripts/ci-selection-map.json").read_bytes()
+    require(hashlib.sha256(mapping).hexdigest().upper() == config["selectionMapSHA256"],
+            "selector map source bytes")
+    resolved_path = Path(environment["CI_ARTIFACT_DIR"]) / "ci-selection.selected.json"
+    require(environment.get("CI_SELECTION_PATH") == str(resolved_path), "resolved selection path")
+    require(hashlib.sha256(resolved_path.read_bytes()).hexdigest().upper()
+            == config["resolvedSelectionSHA256"]
+            == environment.get("DISPATCH_NATIVE_SELECTION_SHA256"), "resolved selection bytes")
+    require(not (Path(environment["RUNNER_TEMP"]) / "FieldEvidenceDerivedData/Build").exists(),
+            "fresh DerivedData")
+    return head
+
+
+def diagnostic_command(command):
+    require(command[-1] == "build-for-testing", "build action")
+    return command[:-1] + ["-showBuildTimingSummary", SWIFT_FLAGS, command[-1]]
+
+
+def driver_jobs_two_command(command):
+    require(command[-1] == "build-for-testing", "build action")
+    return command[:-1] + ["OTHER_SWIFT_FLAGS=$(inherited) -j 2", command[-1]]
+
+
+def parse_processes(raw):
+    """Keep only compiler metadata; never retain unrelated process arguments.
+
+    lstart is a stable PID-reuse discriminator. CPU time is the original ps text;
+    pcpu is a decaying average, not an instantaneous core-occupancy measurement.
+    """
+    result, malformed = [], 0
+    for line in raw.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split(None, 12)
+        if len(fields) != 13:
+            malformed += 1
+            continue
+        if PurePosixPath(fields[12]).name not in COMPILERS:
+            continue
+        try:
+            pid, ppid, cpu, rss = int(fields[0]), int(fields[1]), float(fields[2]), int(fields[5])
+            require(pid > 0 and ppid >= 0 and math.isfinite(cpu) and cpu >= 0 and rss >= 0,
+                    "process values")
+            require(re.fullmatch(r"\d+(?::\d+){1,2}(?:\.\d+)?", fields[3]), "CPU time")
+            require(re.fullmatch(r"(?:\d+-)?\d+:\d+(?::\d+)?", fields[4]), "elapsed time")
+            require(re.fullmatch(r"\d{4}", fields[11]), "process start year")
+        except ValueError:
+            malformed += 1
+            continue
+        started = " ".join(fields[7:12])
+        result.append({"key": str(pid) + "@" + started, "pid": pid, "parentPID": ppid,
+                       "executable": fields[12], "startedLocal": started,
+                       "cpuPercentDecayingAverage": cpu, "cpuTime": fields[3],
+                       "elapsedTime": fields[4], "residentKiB": rss, "state": fields[6]})
+    require(len({p["key"] for p in result}) == len(result), "duplicate sampled process")
+    return result, malformed
+
+
+def sample_host():
+    env = dict(os.environ, LC_ALL="C")
+    raw = subprocess.check_output(["/bin/ps", "-axo", PS_FIELDS], env=env,
+                                  timeout=2, stderr=subprocess.STDOUT).decode("utf-8", "replace")
+    processes, malformed = parse_processes(raw)
+    return {"logicalCPUCount": os.cpu_count(), "loadAverages": list(os.getloadavg()),
+            "processes": processes, "malformedMetadataRows": malformed}
+
+
+def development_host_sampler():
+    """Five-second process samples; numeric VM pressure only every third sample."""
+    samples = 0
+
+    def sample():
+        nonlocal samples
+        result = sample_host()
+        samples += 1
+        if samples % 3 != 1:
+            return result
+        try:
+            vm = subprocess.check_output(["/usr/bin/vm_stat"], timeout=2,
+                                         stderr=subprocess.DEVNULL).decode("ascii", "replace")
+            swap = subprocess.check_output(["/usr/sbin/sysctl", "-n", "vm.swapusage"], timeout=2,
+                                           stderr=subprocess.DEVNULL).decode("ascii", "replace")
+            page = re.search(r"page size of (\d+) bytes", vm)
+            require(page is not None, "vm page size")
+            pages = {}
+            for label, count in re.findall(r"(?m)^Pages (free|active|wired down|occupied by compressor):\s*([0-9]+)\.", vm):
+                pages[label.replace(" ", "_")] = int(count)
+            require(set(pages) == {"free", "active", "wired_down", "occupied_by_compressor"}, "vm page counts")
+            usage = {}
+            for label, count in re.findall(r"\b(total|used|free)\s*=\s*([0-9]+(?:\.[0-9]+)?)M", swap):
+                usage[label] = float(count)
+            require(set(usage) == {"total", "used", "free"}, "swap usage")
+            result["hostPressure"] = {"pageBytes": int(page.group(1)), "pages": pages,
+                                      "swapMiB": usage, "sampleOrdinal": samples}
+        except (OSError, ValueError, subprocess.SubprocessError):
+            result["hostPressureError"] = "unavailable"
+        return result
+
+    return sample
+
+
+def process_commands(processes):
+    if not processes:
+        return {}
+    expected = {p["pid"]: p for p in processes}
+    result = subprocess.run(["/bin/ps", "-ww", "-p", ",".join(str(p) for p in sorted(expected)),
+                             "-o", "pid=,lstart=,command="], env=dict(os.environ, LC_ALL="C"),
+                            timeout=2, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # A short-lived process may disappear between the two observations. Missing
+    # argv stays absent, not an empty command or a successful completion claim.
+    require(result.returncode in (0, 1), "process argument observation failed")
+    commands = {}
+    for row in result.stdout.decode("utf-8", "replace").splitlines():
+        fields = row.strip().split(None, 6)
+        if len(fields) != 7 or not fields[0].isdigit() or int(fields[0]) not in expected:
+            continue
+        process = expected[int(fields[0])]
+        if " ".join(fields[1:6]) != process["startedLocal"]:
+            continue  # PID was reused between observations.
+        # Darwin truncates a non-final comm column to its display width. Keep
+        # the rendered command last, and match its complete executable prefix
+        # against the first observation after checking the same PID/start time.
+        command, executable = fields[6], process["executable"]
+        if command == executable or (command.startswith(executable)
+                and command[len(executable):].startswith((" ", "\t"))):
+            commands[process["key"]] = command
+    return commands
+
+
+def development_command_summaries(processes):
+    """Retain compiler role and bounded source identity, never raw ps argv."""
+    observed = process_commands(processes)
+    result = {}
+    for key, command in observed.items():
+        module = re.search(r"(?:^|\s)-module-name\s+([A-Za-z0-9_]+)(?:\s|$)", command)
+        primary = re.search(r"(?:^|\s)-primary-file\s+(\S+)", command)
+        filelist = re.search(r"(?:^|\s)-filelist\s+(\S+)", command)
+        source = None
+        if primary is not None:
+            # Retain only a lexical path beneath the admitted checkout roots.
+            candidate = primary.group(1).strip("'\"")
+            try:
+                relative = Path(candidate).relative_to(Path.cwd())
+                if (relative.parts and relative.parts[0] in SOURCE_PATHS[:3]
+                        and ".." not in relative.parts and relative.suffix == ".swift"):
+                    source = relative.as_posix()
+            except ValueError:
+                pass
+        module_name = module.group(1) if module else None
+        if module_name not in {"FieldEvidenceApp", "FieldEvidenceAppTests", "FieldEvidenceAppUITests"}:
+            module_name = None
+        result[key] = {"commandSHA256": hashlib.sha256(command.encode()).hexdigest(),
+                       "module": module_name,
+                       "primarySource": source,
+                       "hasFileList": filelist is not None,
+                       "phase": "typecheck" if "-typecheck" in command else
+                                "compile" if re.search(r"(?:^|\s)-c(?:\s|$)", command) else
+                                "other"}
+    return result
+
+
+class Events:
+    def __init__(self, path, sample_limit_bytes=None):
+        self.stream = path.open("x", encoding="utf-8", newline="\n")
+        self.started = time.monotonic()
+        self.sample_limit_bytes = sample_limit_bytes
+        self.sample_truncated = False
+
+    def append(self, event, **fields):
+        row = {"event": event, "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+               "elapsedSeconds": round(time.monotonic() - self.started, 6), **fields}
+        encoded = json.dumps(row, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+        if self.sample_limit_bytes is not None and event in {
+                "sample", "observation-error", "sampling-deadline-missed"}:
+            if self.sample_truncated:
+                return
+            if self.stream.tell() + len(encoded.encode()) > self.sample_limit_bytes:
+                self.sample_truncated = True
+                self.append("observation-truncated", sampleLimitBytes=self.sample_limit_bytes)
+                return
+        self.stream.write(encoded)
+        self.stream.flush()
+        os.fsync(self.stream.fileno())
+
+    def close(self):
+        self.stream.close()
+
+
+class ProcessObservations:
+    def __init__(self):
+        self.active = {}
+
+    def observe(self, sample, elapsed, commands, command_field="psRenderedCommand"):
+        current = {p["key"]: p for p in sample["processes"]}
+        first, disappeared = [], []
+        for key, process in current.items():
+            if key not in self.active:
+                first.append({**process, "firstObservedSeconds": elapsed,
+                              command_field: commands.get(process["key"]),
+                              "commandIsExactArgv": False, "exitStatus": None})
+                self.active[key] = {"firstObservedSeconds": elapsed}
+            self.active[key]["lastObservedSeconds"] = elapsed
+        for key in sorted(set(self.active) - set(current)):
+            disappeared.append({"key": key, **self.active.pop(key),
+                                "firstAbsentSeconds": elapsed, "exitStatus": None,
+                                "completionProven": False})
+        return first, disappeared
+
+
+def capability_command(environment):
+    require(environment.get("DEVELOPER_DIR") == DEVELOPER_DIR, "pinned developer directory")
+    return [DEVELOPER_DIR + "/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend",
+            "-help-hidden"]
+
+
+def run_observed_capability(command, output, metadata, interval=5,
+                            sampler=sample_host, commands_reader=process_commands,
+                            timeout_seconds=CAPABILITY_TIMEOUT_SECONDS):
+    """Observe one query; its deadline is independent of slow process sampling.
+
+    Only main supplies native argv and the fixed deadline. Test callers use
+    Python children. The sampler thread cannot write events or affect the child.
+    """
+    events = Events(output / "capability-events.jsonl")
+    observations, received_signal, previous_handlers = ProcessObservations(), [], {}
+    child, observer = None, None
+    stopped, pending = threading.Event(), queue.Queue()
+    status, code, timed_out, flags_admitted = "error", None, False, False
+    launched = None
+
+    def relay(signum, _frame):
+        received_signal.append(signum)
+        if child is not None and child.poll() is None:
+            child.send_signal(signum)
+
+    def observe():
+        while not stopped.is_set():
+            start = time.monotonic()
+            try:
+                sample = sampler()
+                commands = commands_reader(sample["processes"])
+                pending.put((start, time.monotonic(), sample, commands, None))
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                pending.put((start, time.monotonic(), None, None,
+                             {"errorType": type(error).__name__, "error": str(error)}))
+            stopped.wait(max(0, interval - (time.monotonic() - start)))
+
+    def drain():
+        while True:
+            try:
+                start, end, sample, commands, error = pending.get_nowait()
+            except queue.Empty:
+                return
+            fields = {"sampleStartElapsedSeconds": round(start - events.started, 6),
+                      "samplerSeconds": round(end - start, 6)}
+            if error is not None:
+                events.append("capability-observation-error", **fields, **error)
+            else:
+                first, disappeared = observations.observe(sample, end - events.started, commands)
+                events.append("capability-sample", **fields, **sample,
+                              newlyObserved=first, disappeared=disappeared)
+
+    try:
+        events.append("capability-query-request", command=command,
+                      timeoutSeconds=timeout_seconds, **metadata)
+        executable = Path(command[0])
+        require(executable.is_file() and os.access(executable, os.X_OK),
+                "frontend is not an executable file")
+        identity = executable.stat()
+        events.append("capability-executable", requestedPath=str(executable),
+                      resolvedPath=str(executable.resolve()), bytes=identity.st_size,
+                      modifiedNanoseconds=identity.st_mtime_ns)
+        for name in ("SIGTERM", "SIGINT", "SIGHUP"):
+            signum = getattr(signal, name, None)
+            if signum is not None:
+                previous_handlers[signum] = signal.signal(signum, relay)
+        with (output / "swift-frontend-help.txt").open("xb") as stdout, \
+                (output / "swift-frontend-help.stderr.txt").open("xb") as stderr:
+            try:
+                child = subprocess.Popen(command, stdout=stdout, stderr=stderr)
+                launched = time.monotonic()
+                deadline = launched + timeout_seconds
+                events.append("capability-process", pid=child.pid,
+                              launchElapsedSeconds=round(launched - events.started, 6),
+                              deadlineElapsedSeconds=round(deadline - events.started, 6))
+                observer = threading.Thread(target=observe, daemon=True)
+                observer.start()
+                while not received_signal:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        timed_out = True
+                        break
+                    if child.poll() is not None:
+                        break
+                    drain()
+                    try:
+                        child.wait(timeout=max(0, min(.1, deadline - time.monotonic())))
+                    except subprocess.TimeoutExpired:
+                        pass
+            finally:
+                # Kill/reap only this owned query. Never start a retry. Sampling
+                # cannot delay deadline enforcement or add a grace period.
+                if child is not None:
+                    if child.poll() is None:
+                        child.kill()
+                    code = child.wait()
+                stopped.set()
+                for stream in (stdout, stderr):
+                    stream.flush()
+                    os.fsync(stream.fileno())
+        if received_signal:
+            status = "interrupted"
+        elif timed_out:
+            status = "timeout"
+        elif code != 0:
+            status = "nonzero-exit"
+        else:
+            help_bytes = (output / "swift-frontend-help.txt").read_bytes()
+            flags_admitted = all(re.search(rb"(?m)^\s*" + re.escape(flag) + rb"(?:[=\s<]|$)",
+                                           help_bytes) for flag in CAPABILITY_FLAGS)
+            status = "supported" if flags_admitted else "missing-required-flag"
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        events.append("capability-error", errorType=type(error).__name__, error=str(error))
+    finally:
+        stopped.set()
+        drain()
+        for signum, previous in previous_handlers.items():
+            signal.signal(signum, previous)
+        events.append("capability-terminal-observation", status=status,
+                      capabilityReturnCode=code, timedOut=timed_out,
+                      queryElapsedSeconds=None if launched is None else round(time.monotonic() - launched, 6),
+                      receivedSignals=received_signal, flagsAdmitted=flags_admitted,
+                      samplerStillActive=observer is not None and observer.is_alive(),
+                      processesWithUnobservedTerminal=observations.active,
+                      nativeAcceptance=False, providerQualification=False)
+        events.close()
+    return 0 if status == "supported" else 65
+
+
+def run_observed_build(command, output, metadata, interval=5,
+                       sampler=sample_host, commands_reader=process_commands,
+                       private_commands=False, sample_limit_bytes=None):
+    events = Events(output / "events.jsonl", sample_limit_bytes=sample_limit_bytes)
+    observations, child, received_signal = ProcessObservations(), None, []
+    previous_handlers = {}
+
+    def relay(signum, _frame):
+        received_signal.append(signum)
+        if child is not None and child.poll() is None:
+            child.send_signal(signum)
+
+    try:
+        events.append("build-request", command=command, **metadata)
+        for name in ("SIGTERM", "SIGINT", "SIGHUP"):
+            signum = getattr(signal, name, None)
+            if signum is not None:
+                previous_handlers[signum] = signal.signal(signum, relay)
+        child = subprocess.Popen(command)  # Original stdout/stderr and process group are inherited.
+        events.append("build-process", pid=child.pid)
+        while child.poll() is None and not received_signal:
+            start = time.monotonic()
+            next_sample_deadline = start + interval
+            try:
+                sample = sampler()
+                elapsed = round(time.monotonic() - events.started, 6)
+                new_processes = [p for p in sample["processes"] if p["key"] not in observations.active]
+                commands = commands_reader(new_processes)
+                if private_commands:
+                    sample = {**sample, "processes": [
+                        {**p, "executable": PurePosixPath(p["executable"]).name}
+                        for p in sample["processes"]]}
+                first, disappeared = observations.observe(
+                    sample, elapsed, commands,
+                    command_field="compilerCommandSummary" if private_commands else "psRenderedCommand")
+                events.append("sample", **sample, newlyObserved=first, disappeared=disappeared,
+                              sampleStartElapsedSeconds=round(start - events.started, 6),
+                              samplerSeconds=round(time.monotonic() - start, 6))
+            except Exception as error:
+                # Schema 7 observations are advisory. Even malformed process
+                # metadata cannot replace the already launched build's result.
+                # Historical profiles retain their original exception behavior.
+                if not private_commands and not isinstance(
+                        error, (OSError, ValueError, subprocess.SubprocessError)):
+                    raise
+                if private_commands:
+                    category = ("timeout" if isinstance(error, subprocess.TimeoutExpired) else
+                                "os" if isinstance(error, OSError) else
+                                "invalid-sample" if isinstance(error, (ValueError, KeyError, TypeError,
+                                                                       IndexError)) else
+                                "subprocess" if isinstance(error, subprocess.SubprocessError) else
+                                "observer")
+                    events.append("observation-error", errorCategory=category)
+                else:
+                    events.append("observation-error", errorType=type(error).__name__, error=str(error))
+            if not received_signal:
+                remaining = next_sample_deadline - time.monotonic()
+                if remaining < 0:
+                    events.append("sampling-deadline-missed", overrunSeconds=round(-remaining, 6))
+                try:
+                    child.wait(timeout=max(0, next_sample_deadline - time.monotonic()))
+                except subprocess.TimeoutExpired:
+                    pass
+        if received_signal and child.poll() is None:
+            try:
+                child.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass  # The existing group watchdog remains the sole hard timeout owner.
+        code = child.poll()
+        terminal_active = observations.active
+        if private_commands:
+            terminal_active = dict(sorted(terminal_active.items())[:1024])
+        terminal_fields = {"buildReturnCode": code, "receivedSignals": received_signal,
+                           "processesWithUnobservedTerminal": terminal_active,
+                           "nativeAcceptance": False, "providerQualification": False}
+        if private_commands:
+            terminal_fields["unobservedTerminalCount"] = len(observations.active)
+        events.append("build-terminal-observation", **terminal_fields)
+        return (128 + received_signal[0]) if code is None else (code if code >= 0 else 128 - code)
+    finally:
+        for signum, previous in previous_handlers.items():
+            signal.signal(signum, previous)
+        events.close()
+
+
+def main():
+    require(len(sys.argv) > 2 and sys.argv[1] == "--", "usage: -- <original build argv>")
+    root = Path.cwd()
+    if os.environ.get("NATIVE_SELECTION_ID") == DEVELOPMENT_SELECTION_ID:
+        config_name = ("v23-compiler-timing-development-j2.json"
+                       if os.environ.get("CI_V23_SWIFT_DRIVER_JOBS_TWO", "false") == "true"
+                       else "v23-compiler-timing-development.json")
+    else:
+        config_name = "v23-compiler-timing.json"
+    config_path = root / "Scripts" / config_name
+    config = read_configuration(config_path)
+    command = sys.argv[2:]
+    git = lambda *args: subprocess.check_output(["git", *args], cwd=root)
+    head = admit(config, os.environ, command, root, git)
+    output = Path(os.environ["CI_ARTIFACT_DIR"]) / "v23-compiler-timing"
+    output.mkdir(exist_ok=False)
+    metadata = {"schemaVersion": 1, "purpose": "compiler-timing-diagnostic",
+                "head": head, "productSourceHead": config["sourceHead"],
+                "configuration": config,
+                "configurationSHA256": hashlib.sha256(config_path.read_bytes()).hexdigest().upper(),
+                "baseCommand": command, "nativeAcceptance": False,
+                "providerQualification": False,
+                "buildWatchdogSeconds": 1800 if config["schemaVersion"] in (5, 6, 7, 8) else 1200,
+                "limits": "Sampling gives first/last sightings, not per-process exit codes. CPU percent is a decaying average. Host compilers can be unrelated; bind rendered source/primary paths before attribution. Instrumentation may affect duration."}
+    if config["schemaVersion"] in (5, 6):
+        # No compiler flags are added, so there is no capability query.
+        return run_observed_build(command, output, metadata,
+                                  interval=config["sampleIntervalSeconds"])
+    if config["schemaVersion"] in (7, 8):
+        observed_command = (driver_jobs_two_command(command)
+                            if config["schemaVersion"] == 8 else command)
+        if config["schemaVersion"] == 8:
+            metadata["swiftDriverJobsTwo"] = True
+        return run_observed_build(observed_command, output, metadata,
+                                  interval=config["sampleIntervalSeconds"],
+                                  sampler=development_host_sampler(),
+                                  commands_reader=development_command_summaries,
+                                  private_commands=True, sample_limit_bytes=20 * 1024 * 1024)
+    # This single capability query must succeed before xcodebuild. Its durable
+    # request and stream files precede launch, including every failure path.
+    if run_observed_capability(capability_command(os.environ), output, metadata) != 0:
+        return 65
+    return run_observed_build(diagnostic_command(command), output, metadata)
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(65)

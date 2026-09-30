@@ -1,0 +1,723 @@
+import Foundation
+
+protocol LocalAuthenticationClient: Sendable {
+    func availability() async -> LocalAuthenticationAvailabilityV1
+    func authenticate(
+        _ attempt: LocalAuthenticationAttemptV1
+    ) async -> LocalAuthenticationOutcomeV1
+    func cancel(attemptID: UUID) async
+}
+
+enum DeviceLocalAppLockSettingReadV1: Equatable, Sendable {
+    case absentDisabled
+    case value(DeviceLocalAppLockSettingV1)
+    case corruptOrAmbiguous
+    case protectedDataUnavailable
+}
+
+/// Content-blind binding to the sole physical control record. The digest binds
+/// the complete immutable setting plan without exposing its storage bytes.
+struct NotificationOperationSubjectV1: Equatable, Sendable {
+    let journal: AppLockNotificationJournalV1
+    let settingWriteSHA256: String
+    let reminderPolicyContinuationSHA256: String?
+
+    init(control: AppLockNotificationControlV1) throws {
+        journal = control.journal
+        settingWriteSHA256 = CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(control.settingWrite))
+        reminderPolicyContinuationSHA256 = try control.reminderPolicyContinuation.map {
+            CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode($0))
+        }
+    }
+
+    init(journal: AppLockNotificationJournalV1, settingWriteSHA256: String,
+         reminderPolicyContinuationSHA256: String? = nil) throws {
+        guard CompatibilityCanonicalV1.validSHA256(settingWriteSHA256),
+              reminderPolicyContinuationSHA256.map(CompatibilityCanonicalV1.validSHA256) ?? true else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        self.journal = journal
+        self.settingWriteSHA256 = settingWriteSHA256
+        self.reminderPolicyContinuationSHA256 = reminderPolicyContinuationSHA256
+    }
+
+    func hasSameImmutableSubject(as other: Self) -> Bool {
+        journal.operationID == other.journal.operationID
+            && journal.targetEnabled == other.journal.targetEnabled
+            && journal.priorPolicy == other.journal.priorPolicy
+            && journal.projections == other.journal.projections
+            && settingWriteSHA256 == other.settingWriteSHA256
+            && reminderPolicyContinuationSHA256 == other.reminderPolicyContinuationSHA256
+    }
+
+    func immutableSHA256() throws -> String {
+        struct Basis: Encodable {
+            let operationID: UUID
+            let targetEnabled: Bool
+            let priorPolicy: AppLockNotificationCanonicalPolicyV1
+            let projections: [AppLockGenericNotificationV1]
+            let settingWriteSHA256: String
+            let reminderPolicyContinuationSHA256: String?
+        }
+        return CompatibilityCanonicalV1.sha256(try CompatibilityCanonicalV1.encode(Basis(
+            operationID: journal.operationID, targetEnabled: journal.targetEnabled,
+            priorPolicy: journal.priorPolicy, projections: journal.projections,
+            settingWriteSHA256: settingWriteSHA256,
+            reminderPolicyContinuationSHA256: reminderPolicyContinuationSHA256)))
+    }
+}
+
+/// Unserializable, original-proof authorization. Ordinary content reads can
+/// schedule reminders but can never complete an AppLock setting transition.
+struct NotificationOperationAuthorizationV1: Sendable {
+    enum Proof: Sendable {
+        case content(AppAccessGateV1.ContentReadToken)
+        case toggle(AppAccessGateV1.ToggleAuthenticationToken, targetEnabled: Bool)
+        case repair(AppAccessGateV1.ConfigurationAuthenticationToken, targetEnabled: Bool)
+    }
+    let gate: AppAccessGateV1
+    let proof: Proof
+    let operationID: UUID
+    let subject: NotificationOperationSubjectV1?
+    let startupRecoveryToken: AppAccessGateV1.ConfigurationStartupRecoveryToken?
+
+    init(
+        gate: AppAccessGateV1,
+        proof: Proof,
+        operationID: UUID,
+        subject: NotificationOperationSubjectV1?,
+        startupRecoveryToken: AppAccessGateV1.ConfigurationStartupRecoveryToken? = nil
+    ) {
+        self.gate = gate
+        self.proof = proof
+        self.operationID = operationID
+        self.subject = subject
+        self.startupRecoveryToken = startupRecoveryToken
+    }
+
+    func validateRead() async throws {
+        guard operationID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.invalidValue }
+        switch proof {
+        case .content(let token): try await gate.validateContentRead(token, for: .render)
+        case .toggle(let token, let target): try await gate.validateToggleAuthentication(token, targetEnabled: target)
+        case .repair(let token, _):
+            guard subject != nil else { throw AppAccessContractFailureV1.effectMismatch }
+            try await gate.validateConfigurationAuthentication(token)
+        }
+    }
+
+    func validateMutation(operationID: UUID, targetEnabled: Bool) async throws {
+        guard self.operationID == operationID else { throw AppAccessContractFailureV1.effectMismatch }
+        switch proof {
+        case .content: throw AppAccessContractFailureV1.accessDenied
+        case .toggle(_, let target), .repair(_, let target):
+            guard target == targetEnabled else { throw AppAccessContractFailureV1.effectMismatch }
+        }
+        try await validateRead()
+    }
+
+    /// Configuration repair may enter only the explicitly bound startup
+    /// recovery pipeline. Neither content nor toggle authorization can mint
+    /// this capability, and an ordinary repair authorization without it stays
+    /// content-blind.
+    func validateStartupRecovery() async throws {
+        guard case .repair(let configuration, _) = proof,
+              let startupRecoveryToken,
+              subject?.journal.operationID == operationID else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        try await gate.validateConfigurationStartupRecovery(
+            startupRecoveryToken,
+            configuration: configuration,
+            operationID: operationID
+        )
+    }
+
+    func binding(to subject: NotificationOperationSubjectV1) throws -> Self {
+        guard subject.journal.operationID == operationID else { throw AppAccessContractFailureV1.effectMismatch }
+        if let original = self.subject, original.journal.operationID == operationID {
+            guard original.hasSameImmutableSubject(as: subject) else { throw AppAccessContractFailureV1.effectMismatch }
+        }
+        return .init(
+            gate: gate,
+            proof: proof,
+            operationID: operationID,
+            subject: subject,
+            startupRecoveryToken: startupRecoveryToken
+        )
+    }
+}
+
+struct DeviceLocalAppLockSettingWriteReceiptV1: Equatable, Sendable {
+    let operationID: UUID
+    let value: DeviceLocalAppLockSettingV1
+    let adoptedExistingEffect: Bool
+}
+
+protocol DeviceLocalAppLockSettingPortV1: Sendable {
+    func readAppLockSetting() async -> DeviceLocalAppLockSettingReadV1
+    func writeAppLockSetting(
+        _ value: DeviceLocalAppLockSettingV1,
+        operationID: UUID,
+        authorization: NotificationOperationAuthorizationV1
+    ) async throws -> DeviceLocalAppLockSettingWriteReceiptV1
+    func eraseAppLockSetting(operationID: UUID) async throws
+}
+
+struct ProtectedIngressStageRequestV1: Equatable, Sendable {
+    let intentID: UUID
+    let operationID: UUID
+    let kind: LockedIngressKindV1
+    let byteCount: UInt64
+    let receivedAt: Date
+    let expiresAt: Date
+}
+
+struct ProtectedIngressStageReceiptV1: Equatable, Sendable {
+    let intent: PendingLockedExternalIntentV1
+    let disposition: LockedIngressDispositionV1
+    let adoptedExistingEffect: Bool
+}
+
+struct ProtectedIngressStartupHygieneReceiptV1: Codable, Equatable, Sendable {
+    static let maximumInspectedCount = 128
+    let operationID: UUID
+    /// Counts bounded scratch artifacts inspected by the metadata-only hygiene
+    /// effect. This domain is independent of the device-local pending intents.
+    let inspectedCount: Int
+    let removedKnownOwnedCount: Int
+    let retainedValidCount: Int
+    let deferredAmbiguousCount: Int
+    let contentRead: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case operationID
+        case inspectedCount
+        case removedKnownOwnedCount
+        case retainedValidCount
+        case deferredAmbiguousCount
+        case contentRead
+    }
+
+    init(
+        operationID: UUID,
+        inspectedCount: Int,
+        removedKnownOwnedCount: Int,
+        retainedValidCount: Int,
+        deferredAmbiguousCount: Int,
+        contentRead: Bool
+    ) throws {
+        self.operationID = operationID
+        self.inspectedCount = inspectedCount
+        self.removedKnownOwnedCount = removedKnownOwnedCount
+        self.retainedValidCount = retainedValidCount
+        self.deferredAmbiguousCount = deferredAmbiguousCount
+        self.contentRead = contentRead
+        guard operationID != SettingsValidationV1.zeroUUID,
+              inspectedCount >= 0,
+              inspectedCount <= Self.maximumInspectedCount,
+              removedKnownOwnedCount >= 0,
+              removedKnownOwnedCount <= Self.maximumInspectedCount,
+              retainedValidCount >= 0,
+              retainedValidCount <= Self.maximumInspectedCount,
+              deferredAmbiguousCount >= 0,
+              deferredAmbiguousCount <= Self.maximumInspectedCount,
+              removedKnownOwnedCount + retainedValidCount
+                + deferredAmbiguousCount == inspectedCount,
+              !contentRead else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            operationID: values.decode(UUID.self, forKey: .operationID),
+            inspectedCount: values.decode(Int.self, forKey: .inspectedCount),
+            removedKnownOwnedCount: values.decode(Int.self, forKey: .removedKnownOwnedCount),
+            retainedValidCount: values.decode(Int.self, forKey: .retainedValidCount),
+            deferredAmbiguousCount: values.decode(Int.self, forKey: .deferredAmbiguousCount),
+            contentRead: values.decode(Bool.self, forKey: .contentRead)
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        let validated = try Self(
+            operationID: operationID,
+            inspectedCount: inspectedCount,
+            removedKnownOwnedCount: removedKnownOwnedCount,
+            retainedValidCount: retainedValidCount,
+            deferredAmbiguousCount: deferredAmbiguousCount,
+            contentRead: contentRead
+        )
+        guard validated == self else { throw AppAccessContractFailureV1.invalidValue }
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(operationID, forKey: .operationID)
+        try values.encode(inspectedCount, forKey: .inspectedCount)
+        try values.encode(removedKnownOwnedCount, forKey: .removedKnownOwnedCount)
+        try values.encode(retainedValidCount, forKey: .retainedValidCount)
+        try values.encode(deferredAmbiguousCount, forKey: .deferredAmbiguousCount)
+        try values.encode(contentRead, forKey: .contentRead)
+    }
+
+    var requiresAuthenticatedRecovery: Bool { deferredAmbiguousCount > 0 }
+}
+
+protocol ProtectedIngressStoreV1: Sendable {
+    /// Metadata-only startup hygiene. It may inspect bounded ownership,
+    /// protection, age, and identity metadata, but never payload bytes. Receipt
+    /// counts describe inspected scratch artifacts, not `pendingIntents()`.
+    func performBlindStartupHygiene(
+        now: Date,
+        operationID: UUID
+    ) async throws -> ProtectedIngressStartupHygieneReceiptV1
+    /// The effect must copy bytes without parsing, previewing, indexing,
+    /// deserializing, logging, or deriving work/customer facts.
+    func stageContentBlind(
+        _ request: ProtectedIngressStageRequestV1,
+        source: URL
+    ) async throws -> ProtectedIngressStageReceiptV1
+    func pendingIntents() async throws -> [PendingLockedExternalIntentV1]
+    func markReadyForAuthenticatedValidation(intentID: UUID) async throws
+        -> PendingLockedExternalIntentV1
+    func remove(intentID: UUID, disposition: LockedIngressDispositionV1) async throws
+    func eraseAllProtectedIngress(operationID: UUID) async throws
+}
+
+/// Low-level authority for an adopted durable ingress implementation. Each
+/// mutation must be descriptor-pinned, atomic, idempotent by the supplied
+/// expected value, and return only after an exact durable readback.
+protocol ProtectedIngressDurableEffectPortV1: Sendable {
+    /// Atomically removes only proven-owned expired/interrupted staging and
+    /// reports ambiguous metadata for authenticated recovery. Payload content
+    /// must not be opened, parsed, decrypted, previewed, or indexed. Its receipt
+    /// count domain is the bounded scratch inventory and is independent of the
+    /// device-local pending-intent snapshot returned by `loadPendingIntentsEffect`.
+    func performBlindStartupHygieneEffect(
+        now: Date,
+        operationID: UUID
+    ) async throws -> ProtectedIngressStartupHygieneReceiptV1
+    func readBlindStartupHygieneReceiptEffect(
+        operationID: UUID
+    ) async throws -> ProtectedIngressStartupHygieneReceiptV1
+    func loadPendingIntentsEffect() async throws -> [PendingLockedExternalIntentV1]
+    func stageContentBlindEffect(
+        _ request: ProtectedIngressStageRequestV1,
+        source: URL
+    ) async throws -> PendingLockedExternalIntentV1
+    func replacePendingIntentEffect(
+        expected: PendingLockedExternalIntentV1,
+        replacement: PendingLockedExternalIntentV1
+    ) async throws
+    func removePendingIntentEffect(
+        expected: PendingLockedExternalIntentV1,
+        disposition: LockedIngressDispositionV1
+    ) async throws
+    func erasePendingIntentsEffect(operationID: UUID) async throws
+}
+
+struct AppLockNotificationCanonicalPolicyV1: Codable, Equatable, Sendable {
+    let policyID: String
+    let revision: UInt64
+    let canonicalDigest: String
+
+    func validate() throws {
+        guard SettingsValidationV1.validToken(policyID, maximumBytes: 160),
+              CompatibilityCanonicalV1.validSHA256(canonicalDigest) else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+    }
+
+    init(policyID: String, revision: UInt64, canonicalDigest: String) {
+        self.policyID = policyID
+        self.revision = revision
+        self.canonicalDigest = canonicalDigest
+    }
+
+    private enum CodingKeys: String, CodingKey { case policyID, revision, canonicalDigest }
+
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            policyID: try values.decode(String.self, forKey: .policyID),
+            revision: try values.decode(UInt64.self, forKey: .revision),
+            canonicalDigest: try values.decode(String.self, forKey: .canonicalDigest)
+        )
+        try validate()
+    }
+}
+
+struct AppLockGenericNotificationV1: Codable, Equatable, Sendable {
+    let requestID: String
+    let opaqueCorrelationToken: String
+    let title: String
+    let body: String
+
+    func validate() throws {
+        guard SettingsValidationV1.validToken(requestID, maximumBytes: 160),
+              CompatibilityCanonicalV1.validSHA256(opaqueCorrelationToken),
+              title == AppLockCopyV1.genericNotificationTitle,
+              body == AppLockCopyV1.genericNotificationBody else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+    }
+
+    init(
+        requestID: String,
+        opaqueCorrelationToken: String,
+        title: String = AppLockCopyV1.genericNotificationTitle,
+        body: String = AppLockCopyV1.genericNotificationBody
+    ) {
+        self.requestID = requestID
+        self.opaqueCorrelationToken = opaqueCorrelationToken
+        self.title = title
+        self.body = body
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case requestID, opaqueCorrelationToken, title, body
+    }
+
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            requestID: try values.decode(String.self, forKey: .requestID),
+            opaqueCorrelationToken: try values.decode(String.self, forKey: .opaqueCorrelationToken),
+            title: try values.decode(String.self, forKey: .title),
+            body: try values.decode(String.self, forKey: .body)
+        )
+        try validate()
+    }
+}
+
+struct AppLockNotificationJournalV1: Codable, Equatable, Sendable {
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let operationID: UUID
+    let targetEnabled: Bool
+    let priorPolicy: AppLockNotificationCanonicalPolicyV1
+    let projections: [AppLockGenericNotificationV1]
+    let disposition: AppLockNotificationPrivacyDispositionV1
+
+    init(
+        operationID: UUID,
+        targetEnabled: Bool,
+        priorPolicy: AppLockNotificationCanonicalPolicyV1,
+        projections: [AppLockGenericNotificationV1],
+        disposition: AppLockNotificationPrivacyDispositionV1
+    ) throws {
+        schemaVersion = Self.schemaVersion
+        self.operationID = operationID
+        self.targetEnabled = targetEnabled
+        self.priorPolicy = priorPolicy
+        self.projections = projections.sorted { $0.requestID < $1.requestID }
+        self.disposition = disposition
+        guard operationID != SettingsValidationV1.zeroUUID,
+              self.projections.count <= 1_024,
+              Set(self.projections.map(\.requestID)).count == self.projections.count,
+              Self.valid(disposition: disposition, targetEnabled: targetEnabled) else {
+            throw AppAccessContractFailureV1.invalidValue
+        }
+        try priorPolicy.validate()
+        try self.projections.forEach { try $0.validate() }
+    }
+
+    private static func valid(
+        disposition: AppLockNotificationPrivacyDispositionV1,
+        targetEnabled: Bool
+    ) -> Bool {
+        switch disposition {
+        case .enablingPrepared, .genericProjectionApplied, .genericProjectionAdopted:
+            return targetEnabled
+        case .disablingPrepared, .priorPolicyRebuilt:
+            return !targetEnabled
+        case .interruptedRecoveryRequired:
+            return true
+        case .unchangedDisabled, .erased:
+            return false
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, operationID, targetEnabled, priorPolicy, projections, disposition
+    }
+
+    init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try self.init(
+            operationID: values.decode(UUID.self, forKey: .operationID),
+            targetEnabled: values.decode(Bool.self, forKey: .targetEnabled),
+            priorPolicy: values.decode(
+                AppLockNotificationCanonicalPolicyV1.self,
+                forKey: .priorPolicy
+            ),
+            projections: values.decode(
+                [AppLockGenericNotificationV1].self,
+                forKey: .projections
+            ),
+            disposition: values.decode(
+                AppLockNotificationPrivacyDispositionV1.self,
+                forKey: .disposition
+            )
+        )
+    }
+}
+
+protocol AppLockNotificationPrivacyPortV1: Sendable {
+    func bindNotificationGate(_ gate: AppAccessGateV1) async throws
+    func loadAuthenticationSubject() async throws -> NotificationOperationSubjectV1?
+    func validatesLocalConfiguration(_ setting: DeviceLocalAppLockSettingReadV1) async throws -> Bool
+    func loadJournal() async throws -> AppLockNotificationJournalV1?
+    func prepareEnable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1
+    func applyGenericProjection(
+        _ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
+    ) async throws -> AppLockNotificationPrivacyDispositionV1
+    func prepareDisable(operationID: UUID, authorization: NotificationOperationAuthorizationV1) async throws -> AppLockNotificationJournalV1
+    func rebuildPriorPolicy(
+        _ journal: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
+    ) async throws -> AppLockNotificationPrivacyDispositionV1
+    func resolveOpaqueTokenAfterAuthentication(
+        _ token: String,
+        now: Date, authorization: NotificationOperationAuthorizationV1
+    ) async throws -> String?
+    func eraseNotificationsAndMappings(operationID: UUID) async throws
+}
+
+/// Evidence of a completed, authorized Preferences effect. This value cannot
+/// authorize another policy write or prove an operating-system notification effect.
+struct AppLockReminderPolicyEditStampV1: Codable, Equatable, Sendable {
+    let rootIdentity: String
+    let expectedControlSHA256: String
+    let settingWrite: AppLockSettingWritePlanV1
+    let operationID: UUID
+    let expectedPolicy: DeviceLocalReminderPolicyV1
+    let successorPolicy: DeviceLocalReminderPolicyV1
+
+    init(rootIdentity: String, expectedControlSHA256: String,
+         settingWrite: AppLockSettingWritePlanV1, operationID: UUID,
+         expectedPolicy: DeviceLocalReminderPolicyV1,
+         successorPolicy: DeviceLocalReminderPolicyV1) throws {
+        self.rootIdentity = rootIdentity
+        self.expectedControlSHA256 = expectedControlSHA256
+        self.settingWrite = settingWrite
+        self.operationID = operationID
+        self.expectedPolicy = expectedPolicy
+        self.successorPolicy = successorPolicy
+        try validate()
+    }
+
+    func validate() throws {
+        try expectedPolicy.validate()
+        try successorPolicy.validate()
+        // Reconstruct the closed plan so a decoded stamp cannot bypass its
+        // operation/predecessor/setting validation.
+        let plan = try AppLockSettingWritePlanV1(expectedSetting: settingWrite.expectedSetting,
+            expectedReminderPolicy: settingWrite.expectedReminderPolicy,
+            target: settingWrite.target, operationID: settingWrite.operationID)
+        guard plan == settingWrite, !rootIdentity.isEmpty, rootIdentity.utf8.count <= 160,
+              rootIdentity.split(separator: ":", omittingEmptySubsequences: false).count == 4,
+              rootIdentity.split(separator: ":").allSatisfy({ UInt64($0) != nil }),
+              MutationEnvelopeV1.isSHA256(expectedControlSHA256),
+              operationID != SettingsValidationV1.zeroUUID,
+              operationID != settingWrite.operationID,
+              expectedPolicy.instanceID == settingWrite.expectedReminderPolicy.instanceID,
+              expectedPolicy.revision >= settingWrite.expectedReminderPolicy.revision,
+              expectedPolicy.revision < UInt64.max,
+              successorPolicy.instanceID == expectedPolicy.instanceID,
+              successorPolicy.revision == expectedPolicy.revision + 1 else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case rootIdentity, expectedControlSHA256, settingWrite, operationID, expectedPolicy, successorPolicy
+    }
+    init(from decoder: any Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(rootIdentity: values.decode(String.self, forKey: .rootIdentity),
+            expectedControlSHA256: values.decode(String.self, forKey: .expectedControlSHA256),
+            settingWrite: values.decode(AppLockSettingWritePlanV1.self, forKey: .settingWrite),
+            operationID: values.decode(UUID.self, forKey: .operationID),
+            expectedPolicy: values.decode(DeviceLocalReminderPolicyV1.self, forKey: .expectedPolicy),
+            successorPolicy: values.decode(DeviceLocalReminderPolicyV1.self, forKey: .successorPolicy))
+    }
+}
+
+/// Device-local recovery control, separate from the unchanged legacy journal.
+/// Completion metadata never proves OS delivery or projection.
+struct AppLockNotificationControlV1: Codable, Equatable, Sendable {
+    enum Phase: String, Codable, Sendable { case prepared, settingCommitted }
+    static let schemaVersion = 1
+    let schemaVersion: Int
+    let journal: AppLockNotificationJournalV1
+    let priorReminderPolicy: DeviceLocalReminderPolicyV1
+    let settingWrite: AppLockSettingWritePlanV1
+    let phase: Phase
+    let reminderPolicyContinuation: AppLockReminderPolicyEditStampV1?
+
+    var currentReminderPolicy: DeviceLocalReminderPolicyV1 {
+        reminderPolicyContinuation?.successorPolicy ?? settingWrite.expectedReminderPolicy
+    }
+
+    init(journal: AppLockNotificationJournalV1,
+         priorReminderPolicy: DeviceLocalReminderPolicyV1,
+         settingWrite: AppLockSettingWritePlanV1, phase: Phase = .prepared,
+         reminderPolicyContinuation: AppLockReminderPolicyEditStampV1? = nil) throws {
+        let validatedJournal = try AppLockNotificationJournalV1(operationID: journal.operationID,
+            targetEnabled: journal.targetEnabled, priorPolicy: journal.priorPolicy,
+            projections: journal.projections, disposition: journal.disposition)
+        guard validatedJournal == journal,
+              try priorReminderPolicy.appLockReference() == journal.priorPolicy,
+              priorReminderPolicy.instanceID == settingWrite.expectedReminderPolicy.instanceID,
+              journal.operationID == settingWrite.operationID,
+              journal.targetEnabled == settingWrite.target.isEnabled else {
+            throw AppAccessContractFailureV1.effectMismatch
+        }
+        // The caller must supply an existing disposition from the OS owner.
+        // This foundation never advances the notification state machine.
+        if journal.targetEnabled, phase == .settingCommitted {
+            guard journal.disposition == .genericProjectionApplied
+                    || journal.disposition == .genericProjectionAdopted else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        } else if !journal.targetEnabled {
+            guard journal.disposition == .disablingPrepared
+                    || (phase == .settingCommitted && journal.disposition == .priorPolicyRebuilt) else {
+                throw AppAccessContractFailureV1.notificationReconciliationRequired
+            }
+        }
+        if let continuation = reminderPolicyContinuation {
+            try continuation.validate()
+            guard phase == .settingCommitted, continuation.settingWrite == settingWrite,
+                  journal.targetEnabled || journal.disposition == .priorPolicyRebuilt else {
+                throw AppAccessContractFailureV1.effectMismatch
+            }
+        }
+        schemaVersion = Self.schemaVersion
+        self.journal = journal
+        self.priorReminderPolicy = priorReminderPolicy
+        self.settingWrite = settingWrite
+        self.phase = phase
+        self.reminderPolicyContinuation = reminderPolicyContinuation
+    }
+
+    func committingSetting() throws -> Self {
+        try .init(journal: journal, priorReminderPolicy: priorReminderPolicy,
+            settingWrite: settingWrite, phase: .settingCommitted,
+            reminderPolicyContinuation: reminderPolicyContinuation)
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case schemaVersion, journal, priorReminderPolicy, settingWrite, phase, reminderPolicyContinuation }
+    init(from decoder: any Decoder) throws {
+        try ClosedContractDecodingV1.rejectUnknownKeys(decoder, allowed: Set(CodingKeys.allCases.map(\.rawValue)))
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == Self.schemaVersion else {
+            throw AppAccessContractFailureV1.configurationUnknown
+        }
+        try self.init(journal: values.decode(AppLockNotificationJournalV1.self, forKey: .journal),
+            priorReminderPolicy: values.decode(DeviceLocalReminderPolicyV1.self, forKey: .priorReminderPolicy),
+            settingWrite: values.decode(AppLockSettingWritePlanV1.self, forKey: .settingWrite),
+            phase: values.decode(Phase.self, forKey: .phase),
+            reminderPolicyContinuation: values.decodeIfPresent(AppLockReminderPolicyEditStampV1.self,
+                forKey: .reminderPolicyContinuation))
+    }
+}
+
+/// Injected durable/system boundary used by the production privacy
+/// coordinator. Implementations atomically persist the journal before changing
+/// notification state, and every returned journal is an exact readback.
+/// Preparation must compare the current journal to expectedPredecessor inside
+/// the same durable transaction that validates and publishes its successor.
+/// A disable successor retains that predecessor's priorPolicy. Failed
+/// validation or comparison leaves the original journal untouched.
+protocol AppLockNotificationEffectPortV1: Sendable {
+    func bindNotificationGateEffect(_ gate: AppAccessGateV1) async throws
+    func loadAuthenticationSubjectEffect() async throws -> NotificationOperationSubjectV1?
+    func validatesLocalConfigurationEffect(_ setting: DeviceLocalAppLockSettingReadV1) async throws -> Bool
+    func loadJournalEffect() async throws -> AppLockNotificationJournalV1?
+    func prepareEnableEffect(
+        operationID: UUID,
+        expectedPredecessor: AppLockNotificationJournalV1?, authorization: NotificationOperationAuthorizationV1
+    ) async throws -> AppLockNotificationJournalV1
+    func publishGenericEffect(
+        expected: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
+    ) async throws -> AppLockNotificationJournalV1
+    func prepareDisableEffect(
+        operationID: UUID,
+        expectedPredecessor: AppLockNotificationJournalV1?, authorization: NotificationOperationAuthorizationV1
+    ) async throws -> AppLockNotificationJournalV1
+    func rebuildPriorPolicyEffect(
+        expected: AppLockNotificationJournalV1, authorization: NotificationOperationAuthorizationV1
+    ) async throws -> AppLockNotificationJournalV1
+    func resolveOpaqueTokenEffect(_ token: String, now: Date, authorization: NotificationOperationAuthorizationV1) async throws -> String?
+    func eraseNotificationsAndMappingsEffect(operationID: UUID) async throws
+}
+
+protocol AppAccessGatePortV1: Sendable {
+    func currentState() async -> AppAccessStateV1
+    func lock(reason: AppLockReasonV1) async
+    func authenticate(trigger: LocalAuthenticationTriggerV1) async
+        -> LocalAuthenticationOutcomeV1
+    func requireContentAccess() async throws
+    /// Must be one gate operation: implementations may not read a state and
+    /// later mint a permit from a second actor turn.
+    func requireContentAccess(
+        for surface: AppAccessContentReadSurfaceV1
+    ) async throws -> AppAccessContentPermitV1
+}
+
+extension AppAccessGatePortV1 {
+    /// Compatibility implementation for nonproduction test doubles. The
+    /// production actor overrides this protocol requirement atomically.
+    func requireContentAccess(
+        for surface: AppAccessContentReadSurfaceV1
+    ) async throws -> AppAccessContentPermitV1 {
+        try await requireContentAccess()
+        return .legacyAuthorized(surface: surface)
+    }
+
+    func requirePrivateSystemDiscoveryAccess() async throws {
+        _ = try await requireContentAccess(for: .privateSystemDiscovery)
+    }
+
+    /// C23's OCR provider may inspect source bytes only after this ephemeral,
+    /// actor-atomic permit is minted. It is not a proposal, source, or log.
+    func requireOCRProposalContentAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .ocrProposal)
+        try OCRProposalAppAccessBoundaryV1.validate(permit)
+        return permit
+    }
+
+    /// Dictation has a distinct permit from one-shot location. The provider's
+    /// microphone and speech authorization is evaluated separately after this
+    /// app-lock/content permit has been minted.
+    func requireDictationProposalContentAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .dictationProposal)
+        try DictationLocationProposalAppAccessBoundaryV1.validateDictation(permit)
+        return permit
+    }
+
+    /// One-shot foreground location is independently permitted. A dictation
+    /// denial therefore cannot prevent its manual or on-device fallback path.
+    func requireOneShotLocationProposalContentAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .oneShotLocationProposal)
+        try DictationLocationProposalAppAccessBoundaryV1.validateOneShotLocation(permit)
+        return permit
+    }
+
+    func requireTemporalAudioCaptureAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .temporalAudioCapture)
+        try TemporalEvidenceCaptureAppAccessBoundaryV1.validateAudio(permit)
+        return permit
+    }
+
+    func requireTemporalVideoCaptureAccess() async throws -> AppAccessContentPermitV1 {
+        let permit = try await requireContentAccess(for: .temporalVideoCapture)
+        try TemporalEvidenceCaptureAppAccessBoundaryV1.validateVideo(permit)
+        return permit
+    }
+}

@@ -1,0 +1,44 @@
+{
+  "afterFullSourceMapSHA256": "dce4a14a8074da730051dcf9a674db5dbf6951bac017c9e317cc488f6e319d75",
+  "artifacts": {
+    "AFTER_SOURCE_MAP.json": "dce4a14a8074da730051dcf9a674db5dbf6951bac017c9e317cc488f6e319d75",
+    "CANDIDATE.diff": "0fd7703ead65f0dd84753be9fc3e99d4f182fe1b3546e11114941daacd5cf34d",
+    "CASE_MATRIX.md": "0a180dcb289e74de922566439d9d664b4e33c8126ea0e250312ec9f31fd9208d",
+    "HANDOFF.md": "d23c8662bb4e6601e032998a90b47dc040c84c59cad965be737d90fd49e79ac0",
+    "INTERFACES.md": "55ed4e86d0183d113bdae7f33ed6958e04325fff656a3bab18614dbe6739bec1",
+    "PARSE.json": "03da3e8b3a74196c812f1abaca7b2dbc5406d9f15493cd8b28a2311f40fe4dcf",
+    "RECORDED_ROOT_CENSUS_V3.md": "28c13c91a6846ab23951e3aa2f2672327c008bbadab2796e1de020e59433eede",
+    "SOURCE_SUCCESSION.json": "9d3ebd8f0a90bfcc3be9120f44d71a460e323c4239a092d5341aae5d46ee3839",
+    "SUCCESSOR.diff": "d5e9cb49a601d95b878b56d604f3b641bed3d625474520811b1b24e5bfe0d7dd"
+  },
+  "authorModel": "gpt-6.1-sol",
+  "beforeFullSourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "bytes": 150092,
+      "candidateSHA256": "be12586882e2f15fa22df6448cc17a5a50a90c5958b06ac8369ee4a023822ae0",
+      "immediateBeforeSHA256": "3facc42d4e0df669ed50c8fb053d7f7f4675aff17f24be7cce6dbeeca4fde5ec",
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "bytes": 1895497,
+      "candidateSHA256": "e8c5f1e3b9a07460c2f16ca492f126f9e56c60fac1ba0cf76ceb48ac9b7b6883",
+      "immediateBeforeSHA256": "117e111caeda31673ce4b4b7b9e930e6d55e297b79408f71ef079d0cec594618",
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e"
+    }
+  },
+  "head": "93159755395d697a5a9da02f41374120433c50f9",
+  "openObligations": [
+    "Root/reviewer frozen physical budget interpretation for exact typed sameinode aliases, including payload plus metadata; current code charges each namespace entry.",
+    "Store lossless segmented controls implementation and bounded authenticated logical commitment helper.",
+    "Real Migration private FirstCapture owner and complete finite producer premises/pair decoder; fresh original and cold G/exclusion scope.",
+    "Real Router initial/bootstrap/current source/phase/progress/plan and birth role/version permit bindings, complete actual external Notification/OS/Registry/reader/drain/Manifest receipts and populated original/cold/terminal tail.",
+    "Root coupled semantic compilation/fullbuild, affected native development, independent GPT-6.1 Sol xhigh review and all five same-head gates."
+  ],
+  "parentBindingSHA256": "0746c9d65961dd9916cd4bd2520580bb0cfe1bdfc925dd0289e4ff6f375ad89c",
+  "reasoningEffort": "xhigh",
+  "schemaVersion": 3,
+  "sourceInputs": 1206,
+  "status": "sealed_source_only_NONINSTALLABLE_authentic_companion_prerequisites_due",
+  "trackedSourceDrift": {}
+}

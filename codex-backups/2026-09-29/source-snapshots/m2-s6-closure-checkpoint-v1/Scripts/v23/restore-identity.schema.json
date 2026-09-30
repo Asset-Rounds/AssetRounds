@@ -1,0 +1,334 @@
+{
+  "$id": "urn:assetrounds:v23:p01:c05:restore-identity:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "activationPhases": {
+      "items": false,
+      "maxItems": 9,
+      "minItems": 9,
+      "prefixItems": [
+        {
+          "const": "intentPrepared"
+        },
+        {
+          "const": "sourceValidated"
+        },
+        {
+          "const": "identityPlanFrozen"
+        },
+        {
+          "const": "generationStaged"
+        },
+        {
+          "const": "generationValidated"
+        },
+        {
+          "const": "pointerPublished"
+        },
+        {
+          "const": "firstLaunchReconciled"
+        },
+        {
+          "const": "secondLaunchReconciled"
+        },
+        {
+          "const": "exportReconciled"
+        }
+      ],
+      "type": "array"
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P01-C05"
+    },
+    "collisionPolicy": {
+      "type": "object"
+    },
+    "crashRecoveryMatrix": {
+      "const": [
+        {
+          "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+          "phase": "intentPrepared",
+          "publicationState": "PRE_PUBLICATION"
+        },
+        {
+          "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+          "phase": "sourceValidated",
+          "publicationState": "PRE_PUBLICATION"
+        },
+        {
+          "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+          "phase": "identityPlanFrozen",
+          "publicationState": "PRE_PUBLICATION"
+        },
+        {
+          "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+          "phase": "generationStaged",
+          "publicationState": "PRE_PUBLICATION"
+        },
+        {
+          "expectedRecovery": "DISCARD_OR_RESUME_FROZEN_STAGING_NO_CANONICAL_CHANGE",
+          "phase": "generationValidated",
+          "publicationState": "PRE_PUBLICATION"
+        },
+        {
+          "expectedRecovery": "FORWARD_ONLY_RECONCILE_NEVER_REVERSE_MIGRATE",
+          "phase": "pointerPublished",
+          "publicationState": "POST_PUBLICATION"
+        },
+        {
+          "expectedRecovery": "FORWARD_ONLY_RECONCILE_NEVER_REVERSE_MIGRATE",
+          "phase": "firstLaunchReconciled",
+          "publicationState": "POST_PUBLICATION"
+        },
+        {
+          "expectedRecovery": "FORWARD_ONLY_RECONCILE_NEVER_REVERSE_MIGRATE",
+          "phase": "secondLaunchReconciled",
+          "publicationState": "POST_PUBLICATION"
+        },
+        {
+          "expectedRecovery": "FORWARD_ONLY_RECONCILE_NEVER_REVERSE_MIGRATE",
+          "phase": "exportReconciled",
+          "publicationState": "POST_PUBLICATION"
+        }
+      ]
+    },
+    "failureRecovery": {
+      "items": {
+        "required": [
+          "failure",
+          "expectedOutcome"
+        ],
+        "type": "object"
+      },
+      "minItems": 16,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "fullCardFence": {
+      "items": false,
+      "maxItems": 25,
+      "minItems": 25,
+      "prefixItems": [
+        {
+          "const": "FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Domain/Backup/RestoreIntentV1.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/RestoreIntentStore.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Persistence/WorkspaceIdentity.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationContracts.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+        },
+        {
+          "const": "FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift"
+        },
+        {
+          "const": "FieldEvidenceAppTests/V9_01VersionedSchemaIdentityTests.swift"
+        },
+        {
+          "const": "FieldEvidenceAppTests/V9_03MigrationRecoveryTests.swift"
+        },
+        {
+          "const": "FieldEvidenceAppTests/Fixtures/V21/Restore/V21P01C05IdentityTransformationsV1.json"
+        },
+        {
+          "const": "Scripts/v23/p01_c05_contracts.py"
+        },
+        {
+          "const": "Scripts/v23/generate_p01_c05_contracts.py"
+        },
+        {
+          "const": "Scripts/v23/verify_p01_c05_contracts.py"
+        },
+        {
+          "const": "Scripts/v23/restore-identity.schema.json"
+        },
+        {
+          "const": "Scripts/v23/restore-identity-fixture.schema.json"
+        },
+        {
+          "const": "docs/design/v23/tooling/V23P01C05RestoreIdentityContractV1.json"
+        },
+        {
+          "const": "docs/design/v23/tooling/V23P01C05IdentityTransformationManifestV1.json"
+        },
+        {
+          "const": "docs/design/v23/tooling/V23-P01-C05-tooling-manifest.json"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "identityTable": {
+      "items": false,
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "const": {
+            "destinationPrecondition": "NO_CANONICAL_WORKSPACE",
+            "existingDestinationContent": "MUST_BE_EMPTY",
+            "mode": "EMPTY",
+            "recordIDs": "PRESERVE_SOURCE",
+            "replicaID": "MINT_DESTINATION_OWNED",
+            "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+            "sourceWorkspaceLineage": "CONTINUATION_SOURCE_WORKSPACE",
+            "workspaceID": "PRESERVE_SOURCE"
+          }
+        },
+        {
+          "const": {
+            "destinationPrecondition": "EXPLICIT_MATCHED_DESTINATION_AUTHORITY",
+            "existingDestinationContent": "REPLACE_UNDER_DELETION_WINS",
+            "mode": "REPLACE",
+            "recordIDs": "PRESERVE_SOURCE_REPLACEMENT_UNION",
+            "replicaID": "RETAIN_DESTINATION_OR_MINT_IF_ABSENT",
+            "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+            "sourceWorkspaceLineage": "SOURCE_ARCHIVE_PROVENANCE_ONLY",
+            "workspaceID": "PRESERVE_DESTINATION"
+          }
+        },
+        {
+          "const": {
+            "destinationPrecondition": "EXPLICIT_CLONE_AUTHORIZATION",
+            "existingDestinationContent": "NEW_GENERATION_ONLY",
+            "mode": "CLONE",
+            "recordIDs": "PRESERVE_SOURCE",
+            "replicaID": "MINT_DESTINATION_OWNED",
+            "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+            "sourceWorkspaceLineage": "SOURCE_ARCHIVE_PROVENANCE_ONLY",
+            "workspaceID": "MINT_DESTINATION_OWNED"
+          }
+        },
+        {
+          "const": {
+            "destinationPrecondition": "EXPLICIT_FORK_AUTHORIZATION",
+            "existingDestinationContent": "NEW_GENERATION_ONLY",
+            "mode": "FORK",
+            "recordIDs": "PRESERVE_RAW_UUID_RESCOPED_BY_NEW_WORKSPACE",
+            "replicaID": "MINT_DESTINATION_OWNED",
+            "sourceReplicaID": "PROVENANCE_ONLY_NEVER_ACTIVE",
+            "sourceWorkspaceLineage": "REQUIRED_EXPLICIT_SOURCE_WORKSPACE_LINEAGE",
+            "workspaceID": "MINT_DESTINATION_OWNED"
+          }
+        }
+      ],
+      "type": "array"
+    },
+    "lifecycle": {
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "protocolVersions": {
+      "type": "object"
+    },
+    "reconciliation": {
+      "type": "object"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "V23P01C05RestoreIdentityContractV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceBindings": {
+      "maxItems": 17,
+      "minItems": 17,
+      "type": "array"
+    },
+    "sourceReplicaPolicy": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "protocolVersions",
+    "identityTable",
+    "sourceReplicaPolicy",
+    "collisionPolicy",
+    "activationPhases",
+    "crashRecoveryMatrix",
+    "reconciliation",
+    "failureRecovery",
+    "lifecycle",
+    "sourceBindings",
+    "fullCardFence",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation",
+    "phase10PollingDuringParallelExecution",
+    "artifactDigest"
+  ],
+  "title": "V23P01C05RestoreIdentityContractV1",
+  "type": "object"
+}

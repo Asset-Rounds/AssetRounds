@@ -1,0 +1,51 @@
+{
+  "acceptanceState": "PENDING_NOT_ACCEPTING",
+  "adoptionState": "PENDING_NOT_ACCEPTING",
+  "artifactDigest": "1a84502401ebd5917c027c3550d1dfbcf42a5ddf352404a8f75a0b215b302562",
+  "cardID": "V23-P03-C46",
+  "classification": "IMPLEMENT_NOW",
+  "evidenceIDs": [
+    "V23-P03-C46-G01",
+    "V23-P03-C46-A01",
+    "V23-P03-C46-H01",
+    "V23-P03-C46-I01",
+    "V23-P03-C46-R01"
+  ],
+  "nativeEvidenceState": "PENDING_NOT_ACCEPTING",
+  "persistence": {
+    "durableFamilies": [
+      "ServiceContactPointRow",
+      "SystemHandoffIntentRow"
+    ],
+    "persistentModelCount": 115,
+    "persistentSchemaVersion": 35,
+    "recordsSchemaVersion": 34
+  },
+  "physicalEvidenceState": "REQUIRED_PENDING_OWNER",
+  "releaseState": "PENDING_NOT_ACCEPTING",
+  "requiredSemanticsDigest": "2ca2a5081156e77098e405dc10d0465bc073f49d3f26df9e393653fe46af0e55",
+  "schema": "V23P03C46OperationalContactEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C46G01CanonicalOperationalContactAndExplicitHandoffUseOneWorkspaceMutation",
+    "testV23P03C46A01CSVImportPreviewPurposeSeparationAndCancelRemainBounded",
+    "testV23P03C46H01StaleMalformedDuplicateAndMarketingIdentityInputsFailClosed",
+    "testV23P03C46I01InterruptedContactWriteAndHandoffRecoverIdempotently",
+    "testV23P03C46R01BackupRestoreCloneForkDeleteEraseExportSearchAndReplayRemainExact"
+  ]
+}

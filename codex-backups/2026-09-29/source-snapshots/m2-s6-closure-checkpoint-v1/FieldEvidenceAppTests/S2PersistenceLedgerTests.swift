@@ -1,0 +1,2522 @@
+import Foundation
+import SwiftData
+import UIKit
+import XCTest
+@testable import FieldEvidenceApp
+
+final class S2PersistenceLedgerTests: XCTestCase {
+    private let fileManager = FileManager.default
+    @MainActor private static var retainedRestoreProviderControls:
+        [(URL, StoreGenerationFactory, StoreGenerationSession)] = []
+
+    @MainActor
+    func testRestoreReaderCaptureRequiresActualOpeningProvider() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        let opening = StoreGenerationFactory(applicationSupportURL: root)
+        let session = try opening.openOrBootstrapCurrent()
+        let originalContext = session.modelContext
+        let originalContainer = originalContext.container
+        Self.retainedRestoreProviderControls.append((root, opening, session))
+        let reader = try session.retainedReaderForOriginalRestoreTransition(
+            factory: opening)
+        XCTAssertEqual(reader.token.role, .reader)
+        let foreign = StoreGenerationFactory(applicationSupportURL: root)
+        XCTAssertThrowsError(try session.retainedReaderForOriginalRestoreTransition(
+            factory: foreign))
+        XCTAssertTrue(session.modelContext === originalContext)
+        XCTAssertTrue(session.modelContext.container === originalContainer)
+    }
+
+    @MainActor
+    func testRestoreReaderCaptureRejectsRetiredDurableToken() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        let opening = StoreGenerationFactory(applicationSupportURL: root)
+        let session = try opening.openOrBootstrapCurrent()
+        Self.retainedRestoreProviderControls.append((root, opening, session))
+        let reader = try session.retainedReaderForOriginalRestoreTransition(
+            factory: opening)
+        try reader.close()
+        XCTAssertThrowsError(try session.validatedOpeningFactoryForWriter(),
+            "The retained wrapper is insufficient after its durable token is retired")
+        XCTAssertThrowsError(try session.retainedReaderForOriginalRestoreTransition(
+            factory: opening))
+    }
+
+    @MainActor
+    func testLegitimatelyWrittenActiveStoreReopensWithoutRepinningItsActivationManifest() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let generationID: UUID
+        let pointerBytes: Data
+        let manifestBytes: Data
+        let siteID = UUID(), assetID = UUID(), placementID = UUID()
+        do {
+            let session = try factory.openOrBootstrapCurrent()
+            generationID = session.generationID
+            pointerBytes = try Data(contentsOf: currentPointerURL(in: root))
+            let store = try StoreMigrationJournalStoreV1(applicationSupportURL: root)
+            manifestBytes = try XCTUnwrap(store.loadManifestIfPresent(targetGenerationID: generationID)).manifest.canonicalData()
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            let writer = coordinator.workspaceWriter
+            let current = try writer.currentRevision()
+            let mutation = try MutationIDV1(rawValue: UUID())
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+                generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision, entityRevisions: [
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0),
+                ])
+            let outcome = try writer.execute(.init(mutationID: mutation, expectedRevision: expected,
+                command: .createFirstSign(.init(siteID: siteID,
+                    newSite: .init(id: siteID, label: "Written current site", address: nil, timeZoneID: "UTC"),
+                    assetID: assetID, assetLabel: "Written current asset", packID: "test.pack",
+                    packSchemaVersion: 1, packContentVersion: 1,
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+                    initialPlacementMutationID: mutation, initialPlacementEventID: placementID,
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())))))
+            XCTAssertEqual(outcome.after.revision, 1)
+            _ = try factory.reconcileGenerationLeasesAndPrune()
+            XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointerBytes)
+            XCTAssertEqual(try XCTUnwrap(store.loadManifestIfPresent(targetGenerationID: generationID)).manifest.canonicalData(), manifestBytes)
+            try coordinator.invalidateAndReleaseWriter()
+        }
+        let reopened = try await factory.openForStartup { _ in XCTFail("Active current store must not enter migration") }
+        guard case .ready(let session) = reopened else { return XCTFail("Already accepted active store must reopen") }
+        XCTAssertEqual(session.generationID, generationID)
+        XCTAssertEqual(session.storeSchemaRelease, .v53)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<Site>()).map(\.id), [siteID])
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<Asset>()).map(\.id), [assetID])
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count, 1)
+        XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointerBytes)
+        XCTAssertEqual(try XCTUnwrap(StoreMigrationJournalStoreV1(applicationSupportURL: root).loadManifestIfPresent(targetGenerationID: generationID)).manifest.canonicalData(), manifestBytes)
+    }
+
+    @MainActor
+    func testBootstrapPersistsReleasesAndReopensTheExactGenerationLedger() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+
+        let siteID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        let assetID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let createdAt = Date(timeIntervalSince1970: 1_723_456_789)
+        let updatedAt = Date(timeIntervalSince1970: 1_723_460_000)
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+
+        let generationID: UUID
+        let publishedPointer: Data
+        do {
+            var session: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+            let opened = try XCTUnwrap(session)
+            generationID = opened.generationID
+
+            opened.modelContext.insert(
+                Site(
+                    id: siteID,
+                    label: "North Campus",
+                    address: "10 Main Street",
+                    timeZoneID: "America/New_York",
+                    createdAt: createdAt,
+                    updatedAt: updatedAt
+                )
+            )
+            opened.modelContext.insert(
+                Asset(
+                    id: assetID,
+                    siteID: siteID,
+                    packID: "field.evidence.illuminated_sign.v1",
+                    packSchemaVersion: 1,
+                    packContentVersion: 1,
+                    label: "Monument Sign",
+                    createdAt: createdAt,
+                    updatedAt: updatedAt
+                )
+            )
+            try opened.modelContext.save()
+
+            // The bootstrap now publishes CurrentGenerationPointerV3 (identity +
+            // manifest digest); the exact bytes are derived from its codec
+            // instead of pinning the retired 73-byte V1 pointer.
+            try assertCanonicalV3CurrentPointer(in: root, generationID: generationID)
+            publishedPointer = try Data(contentsOf: currentPointerURL(in: root))
+            XCTAssertEqual(
+                try Data(contentsOf: retiredPointerURL(in: root)),
+                Data("{\"generationIDs\":[],\"schemaVersion\":1}".utf8)
+            )
+            XCTAssertTrue(
+                fileManager.fileExists(
+                    atPath: generationURL(generationID, in: root)
+                        .appendingPathComponent("model.sqlite", isDirectory: false).path
+                )
+            )
+
+            session = nil
+        }
+
+        let reopened = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, generationID)
+
+        let sites = try reopened.modelContext.fetch(FetchDescriptor<Site>())
+        let assets = try reopened.modelContext.fetch(FetchDescriptor<Asset>())
+        XCTAssertEqual(sites.count, 1)
+        XCTAssertEqual(assets.count, 1)
+
+        let site = try XCTUnwrap(sites.first)
+        XCTAssertEqual(site.id, siteID)
+        XCTAssertEqual(site.schemaVersion, 1)
+        XCTAssertEqual(site.label, "North Campus")
+        XCTAssertEqual(site.address, "10 Main Street")
+        XCTAssertEqual(site.timeZoneID, "America/New_York")
+        XCTAssertEqual(site.createdAt, createdAt)
+        XCTAssertEqual(site.updatedAt, updatedAt)
+
+        let asset = try XCTUnwrap(assets.first)
+        XCTAssertEqual(asset.id, assetID)
+        XCTAssertEqual(asset.schemaVersion, 1)
+        XCTAssertEqual(asset.siteID, siteID)
+        XCTAssertEqual(asset.packID, "field.evidence.illuminated_sign.v1")
+        XCTAssertEqual(asset.packSchemaVersion, 1)
+        XCTAssertEqual(asset.packContentVersion, 1)
+        XCTAssertEqual(asset.label, "Monument Sign")
+        XCTAssertEqual(asset.createdAt, createdAt)
+        XCTAssertEqual(asset.updatedAt, updatedAt)
+
+        try assertCanonicalV3CurrentPointer(in: root, generationID: generationID)
+        XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), publishedPointer)
+        XCTAssertEqual(
+            try Data(contentsOf: retiredPointerURL(in: root)),
+            Data("{\"generationIDs\":[],\"schemaVersion\":1}".utf8)
+        )
+    }
+
+    @MainActor
+    func testInvalidGenerationLedgerFailsClosedWithoutMutationOrNewestGuessing() throws {
+        // The V3 current-pointer codec (CurrentPointerCodecV1.decode) rejects
+        // hostile current.json bytes as StoreMigrationFailure (maintenance
+        // invalid_pointer / future_version, or canonicalDecodingFailed), not
+        // StoreGenerationFailure; StartupRouter.openCurrentGeneration still maps
+        // every such rejection to .dataPointerInvalid. Each case pins the exact
+        // fail-closed rejection and the no-mutation checks below are unchanged.
+        enum LedgerFailure: Equatable {
+            case generation(StoreGenerationFailure)
+            case migration(StoreMigrationFailure)
+        }
+
+        struct InvalidLedgerCase {
+            let name: String
+            let expectedFailures: [LedgerFailure]
+            let mutate: (URL, UUID) throws -> Void
+
+            init(
+                name: String,
+                expectedFailures: [LedgerFailure],
+                mutate: @escaping (URL, UUID) throws -> Void
+            ) {
+                self.name = name
+                self.expectedFailures = expectedFailures
+                self.mutate = mutate
+            }
+
+            init(
+                name: String,
+                expectedFailure: StoreGenerationFailure,
+                mutate: @escaping (URL, UUID) throws -> Void
+            ) {
+                self.init(name: name, expectedFailures: [.generation(expectedFailure)], mutate: mutate)
+            }
+        }
+
+        let cases: [InvalidLedgerCase] = [
+            .init(name: "missing current pointer", expectedFailure: .dataPointerInvalid) { root, _ in
+                try self.fileManager.removeItem(at: self.currentPointerURL(in: root))
+            },
+            .init(name: "missing retired pointer", expectedFailure: .dataPointerInvalid) { root, _ in
+                try self.fileManager.removeItem(at: self.retiredPointerURL(in: root))
+            },
+            // Hostile current pointers are derived from the published canonical
+            // CurrentGenerationPointerV3 bytes rather than the retired V1 shape.
+            .init(name: "malformed current pointer",
+                  expectedFailures: [.migration(.maintenanceRequired(.invalidPointer))]) { root, _ in
+                try Data("{".utf8).write(to: self.currentPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "noncanonical current pointer",
+                  expectedFailures: [.migration(.canonicalDecodingFailed)]) { root, _ in
+                let canonical = try self.canonicalV3CurrentPointerBytes(in: root)
+                try self.inserting(" ", after: "{", in: canonical)
+                    .write(to: self.currentPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "extra current key",
+                  expectedFailures: [.migration(.canonicalDecodingFailed)]) { root, _ in
+                let canonical = try self.canonicalV3CurrentPointerBytes(in: root)
+                try self.inserting("\"extra\":0,", after: "{", in: canonical)
+                    .write(to: self.currentPointerURL(in: root), options: .atomic)
+            },
+            // Foundation's JSONDecoder accepts the duplicate key, so the
+            // canonical re-encoding rejects it (observed on iOS 26.5 Simulator).
+            .init(name: "duplicate current key",
+                  expectedFailures: [.migration(.canonicalDecodingFailed)]) { root, id in
+                let canonical = try self.canonicalV3CurrentPointerBytes(in: root)
+                try self.inserting("\"generationID\":\"\(id.uuidString.lowercased())\",", after: "{", in: canonical)
+                    .write(to: self.currentPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "unsupported current schema",
+                  expectedFailures: [.migration(.maintenanceRequired(.futureVersion))]) { root, _ in
+                let canonical = try self.canonicalV3CurrentPointerBytes(in: root)
+                let future = self.replacing("\"schemaVersion\":3", with: "\"schemaVersion\":4", in: canonical)
+                XCTAssertNotEqual(future, canonical, "unsupported current schema")
+                try future.write(to: self.currentPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "malformed retired pointer", expectedFailure: .dataPointerInvalid) { root, _ in
+                try Data("[]".utf8).write(to: self.retiredPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "noncanonical retired pointer", expectedFailure: .dataPointerInvalid) { root, _ in
+                try Data("{ \"generationIDs\" : [], \"schemaVersion\" : 1 }".utf8)
+                    .write(to: self.retiredPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "extra retired key", expectedFailure: .dataPointerInvalid) { root, _ in
+                try Data("{\"extra\":0,\"generationIDs\":[],\"schemaVersion\":1}".utf8)
+                    .write(to: self.retiredPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "duplicate retired key", expectedFailure: .dataPointerInvalid) { root, _ in
+                try Data("{\"generationIDs\":[],\"generationIDs\":[],\"schemaVersion\":1}".utf8)
+                    .write(to: self.retiredPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "unsupported retired schema", expectedFailure: .dataPointerInvalid) { root, _ in
+                try Data("{\"generationIDs\":[],\"schemaVersion\":2}".utf8)
+                    .write(to: self.retiredPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "missing current generation", expectedFailure: .dataGenerationMissing) { root, id in
+                try self.fileManager.removeItem(at: self.generationURL(id, in: root))
+            },
+            .init(name: "missing current store", expectedFailure: .dataGenerationMissing) { root, id in
+                try self.fileManager.removeItem(
+                    at: self.generationURL(id, in: root)
+                        .appendingPathComponent("model.sqlite", isDirectory: false)
+                )
+            },
+            .init(name: "current generation also retired", expectedFailure: .dataPointerInvalid) { root, id in
+                try Data("{\"generationIDs\":[\"\(id.uuidString.lowercased())\"],\"schemaVersion\":1}".utf8)
+                    .write(to: self.retiredPointerURL(in: root), options: .atomic)
+            },
+            .init(name: "unclassified newest generation", expectedFailure: .dataPointerInvalid) { root, _ in
+                let unclassified = self.generationsURL(in: root)
+                    .appendingPathComponent(UUID().uuidString.lowercased(), isDirectory: true)
+                try self.fileManager.createDirectory(at: unclassified, withIntermediateDirectories: false)
+            },
+        ]
+
+        for testCase in cases {
+            let root = try makeTemporaryApplicationSupportURL()
+            defer { try? fileManager.removeItem(at: root) }
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            let generationID: UUID
+            do {
+                var session: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+                generationID = try XCTUnwrap(session).generationID
+                session = nil
+            }
+
+            try testCase.mutate(root, generationID)
+            let currentBefore = try optionalData(contentsOf: currentPointerURL(in: root))
+            let retiredBefore = try optionalData(contentsOf: retiredPointerURL(in: root))
+            let generationNamesBefore = try fileManager.contentsOfDirectory(
+                atPath: generationsURL(in: root).path
+            ).sorted()
+
+            XCTAssertThrowsError(try factory.openOrBootstrapCurrent(), testCase.name) { error in
+                let observed: LedgerFailure?
+                if let failure = error as? StoreGenerationFailure {
+                    observed = .generation(failure)
+                } else if let failure = error as? StoreMigrationFailure {
+                    observed = .migration(failure)
+                } else {
+                    observed = nil
+                }
+                XCTAssertTrue(
+                    observed.map { testCase.expectedFailures.contains($0) } ?? false,
+                    "\(testCase.name): unexpected failure \(error)"
+                )
+            }
+
+            XCTAssertEqual(try optionalData(contentsOf: currentPointerURL(in: root)), currentBefore, testCase.name)
+            XCTAssertEqual(try optionalData(contentsOf: retiredPointerURL(in: root)), retiredBefore, testCase.name)
+            XCTAssertEqual(
+                try fileManager.contentsOfDirectory(atPath: generationsURL(in: root).path).sorted(),
+                generationNamesBefore,
+                testCase.name
+            )
+        }
+    }
+
+    @MainActor
+    func testStoreSessionCoordinatorActivationChangesContextAndMonotonicallyAdvancesToken() throws {
+        let firstRoot = try makeTemporaryApplicationSupportURL()
+        let secondRoot = try makeTemporaryApplicationSupportURL()
+        defer {
+            try? fileManager.removeItem(at: firstRoot)
+            try? fileManager.removeItem(at: secondRoot)
+        }
+
+        let firstSession = try StoreGenerationFactory(applicationSupportURL: firstRoot)
+            .openOrBootstrapCurrent()
+        let secondSession = try StoreGenerationFactory(applicationSupportURL: firstRoot)
+            .openOrBootstrapCurrent()
+        let foreignSession = try StoreGenerationFactory(applicationSupportURL: secondRoot)
+            .openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: firstSession)
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+        let firstContext = coordinator.modelContext
+        let initialToken = coordinator.uiGenerationToken
+
+        try coordinator.activateValidating(session: secondSession)
+
+        XCTAssertEqual(coordinator.generationID, secondSession.generationID)
+        XCTAssertEqual(coordinator.generationRootURL, secondSession.generationRootURL)
+        XCTAssertFalse(coordinator.modelContext === firstContext)
+        XCTAssertEqual(coordinator.uiGenerationToken, initialToken + 1)
+
+        let secondWriter = coordinator.workspaceWriter
+        XCTAssertThrowsError(try coordinator.activateValidating(session: foreignSession)) {
+            XCTAssertEqual($0 as? GenerationLeaseRegistryFailureV1, .invalidPath)
+        }
+        XCTAssertTrue(coordinator.workspaceWriter === secondWriter)
+        XCTAssertNoThrow(try secondWriter.currentRevision())
+        XCTAssertEqual(coordinator.uiGenerationToken, initialToken + 1)
+        try coordinator.activateValidating(session: firstSession)
+        XCTAssertEqual(coordinator.generationID, firstSession.generationID)
+        XCTAssertEqual(coordinator.uiGenerationToken, initialToken + 2)
+    }
+
+    func testDiagnosticsCreatesExactZeroBytesAndReloadsEveryCounterAndBucket() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let countersURL = diagnosticsCountersURL(in: root)
+        let now = Date(timeIntervalSince1970: 1_777_777_777)
+        let store = DiagnosticsStore(applicationSupportURL: root, now: { now })
+
+        await store.prepare()
+        let initialSnapshot = await store.snapshot()
+        XCTAssertEqual(initialSnapshot, .zero)
+        let initialOperationalSnapshot = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(initialOperationalSnapshot.schemaVersion, 2)
+        XCTAssertEqual(initialOperationalSnapshot.counters, .zero)
+        XCTAssertEqual(initialOperationalSnapshot.health.generatedAt, now)
+        let initialV3Bytes = try await store.canonicalOperationalSupportEnvelopeDataV3()
+        XCTAssertEqual(
+            try Data(contentsOf: countersURL),
+            initialV3Bytes
+        )
+
+        let v2MigrationRoot = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: v2MigrationRoot) }
+        let v2MigrationURL = diagnosticsCountersURL(in: v2MigrationRoot)
+        try fileManager.createDirectory(
+            at: v2MigrationURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let v2Bytes = try canonicalOperationalSupportData(initialOperationalSnapshot)
+        try v2Bytes.write(to: v2MigrationURL, options: .atomic)
+        let v2MigrationStore = DiagnosticsStore(
+            applicationSupportURL: v2MigrationRoot,
+            now: { now }
+        )
+        let migratedV2Snapshot = try await v2MigrationStore.operationalSupportSnapshot()
+        XCTAssertEqual(migratedV2Snapshot.schemaVersion, 2)
+        XCTAssertEqual(migratedV2Snapshot.counters, .zero)
+        let migratedV3Bytes = try await v2MigrationStore
+            .canonicalOperationalSupportEnvelopeDataV3()
+        let migratedV3Object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: migratedV3Bytes) as? [String: Any]
+        )
+        XCTAssertEqual(
+            (migratedV3Object["schemaVersion"] as? NSNumber)?.intValue,
+            3
+        )
+        XCTAssertEqual(try Data(contentsOf: v2MigrationURL), migratedV3Bytes)
+
+        for counter in allCounters {
+            await store.increment(counter)
+        }
+        for result in allPurchaseResults {
+            await store.incrementPurchaseResult(result)
+        }
+
+        let expected = DiagnosticsV1(
+            firstSignCreated: 1,
+            onboardingCompleted: 1,
+            paywallPresented: 1,
+            purchaseResult: .init(
+                cancelled: 1,
+                failed: 1,
+                pending: 1,
+                unverified: 1,
+                verified: 1
+            ),
+            recheckCompleted: 1,
+            reportSaved: 1,
+            reportShareSheetPresented: 1,
+            schemaVersion: 1
+        )
+        let incrementedSnapshot = await store.snapshot()
+        XCTAssertEqual(incrementedSnapshot, expected)
+
+        let persistedBytes = try Data(contentsOf: countersURL)
+        let incrementedOperationalSnapshot = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(incrementedOperationalSnapshot.counters, expected)
+        let incrementedV3Bytes = try await store.canonicalOperationalSupportEnvelopeDataV3()
+        XCTAssertEqual(
+            persistedBytes,
+            incrementedV3Bytes
+        )
+        let reloaded = DiagnosticsStore(applicationSupportURL: root, now: { now })
+        let reloadedSnapshot = await reloaded.snapshot()
+        XCTAssertEqual(reloadedSnapshot, expected)
+        let reloadedOperationalSnapshot = try await reloaded.operationalSupportSnapshot()
+        XCTAssertEqual(reloadedOperationalSnapshot, incrementedOperationalSnapshot)
+        XCTAssertEqual(try Data(contentsOf: countersURL), persistedBytes)
+    }
+
+    func testDiagnosticsCountersAndPurchaseBucketsSaturateAtInt64Max() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let countersURL = diagnosticsCountersURL(in: root)
+        try fileManager.createDirectory(
+            at: countersURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        let maximum = Int64.max
+        let maximumValue = DiagnosticsV1(
+            firstSignCreated: maximum,
+            onboardingCompleted: maximum,
+            paywallPresented: maximum,
+            purchaseResult: .init(
+                cancelled: maximum,
+                failed: maximum,
+                pending: maximum,
+                unverified: maximum,
+                verified: maximum
+            ),
+            recheckCompleted: maximum,
+            reportSaved: maximum,
+            reportShareSheetPresented: maximum,
+            schemaVersion: 1
+        )
+        let maximumBytes = try canonicalDiagnosticsData(maximumValue)
+        try maximumBytes.write(to: countersURL, options: .atomic)
+
+        let now = Date(timeIntervalSince1970: 1_777_777_778)
+        let store = DiagnosticsStore(applicationSupportURL: root, now: { now })
+        for counter in allCounters {
+            await store.increment(counter)
+        }
+        for result in allPurchaseResults {
+            await store.incrementPurchaseResult(result)
+        }
+
+        let saturatedSnapshot = await store.snapshot()
+        XCTAssertEqual(saturatedSnapshot, maximumValue)
+        let migrated = try await store.operationalSupportSnapshot()
+        XCTAssertEqual(migrated.schemaVersion, 2)
+        XCTAssertEqual(migrated.counters, maximumValue)
+        XCTAssertEqual(migrated.health.generatedAt, now)
+        XCTAssertNotEqual(try Data(contentsOf: countersURL), maximumBytes)
+        let saturatedV3Bytes = try await store.canonicalOperationalSupportEnvelopeDataV3()
+        XCTAssertEqual(
+            try Data(contentsOf: countersURL),
+            saturatedV3Bytes
+        )
+    }
+
+    func testMalformedDiagnosticsResetOnlyDiagnosticsAndPreserveDomainSentinels() async throws {
+        let canonicalZero = exactZeroDiagnosticsData
+        let now = Date(timeIntervalSince1970: 1_777_777_779)
+        let malformedCases: [(name: String, data: Data)] = [
+            ("malformed", Data("{".utf8)),
+            ("unknown top-level key", inserting("\"unknown\":0,", after: "{", in: canonicalZero)),
+            ("missing counter", removing("\"first_sign_created\":0,", from: canonicalZero)),
+            ("negative counter", replacing("\"first_sign_created\":0", with: "\"first_sign_created\":-1", in: canonicalZero)),
+            ("duplicate counter", inserting("\"first_sign_created\":0,", after: "{", in: canonicalZero)),
+            ("noncanonical whitespace", Data(" \(String(decoding: canonicalZero, as: UTF8.self))".utf8)),
+            ("malformed legacy schema", replacing("\"schemaVersion\":1", with: "\"schemaVersion\":2", in: canonicalZero)),
+            (
+                "unknown purchase bucket",
+                replacing(
+                    "\"purchase_result\":{",
+                    with: "\"purchase_result\":{\"unknown\":0,",
+                    in: canonicalZero
+                )
+            ),
+        ]
+
+        for testCase in malformedCases {
+            let root = try makeTemporaryApplicationSupportURL()
+            defer { try? fileManager.removeItem(at: root) }
+
+            let currentURL = currentPointerURL(in: root)
+            let retiredURL = retiredPointerURL(in: root)
+            let modelURL = generationsURL(in: root)
+                .appendingPathComponent("sentinel", isDirectory: true)
+                .appendingPathComponent("model.sqlite", isDirectory: false)
+            let countersURL = diagnosticsCountersURL(in: root)
+            let currentSentinel = Data("current-pointer-sentinel".utf8)
+            let retiredSentinel = Data("retired-pointer-sentinel".utf8)
+            let modelSentinel = Data("domain-model-sentinel".utf8)
+
+            try fileManager.createDirectory(
+                at: modelURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try fileManager.createDirectory(
+                at: countersURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try currentSentinel.write(to: currentURL)
+            try retiredSentinel.write(to: retiredURL)
+            try modelSentinel.write(to: modelURL)
+            try testCase.data.write(to: countersURL)
+
+            let store = DiagnosticsStore(applicationSupportURL: root, now: { now })
+            let resetSnapshot = try await store.operationalSupportSnapshot()
+            XCTAssertEqual(resetSnapshot.schemaVersion, 2, testCase.name)
+            XCTAssertEqual(resetSnapshot.counters, .zero, testCase.name)
+            XCTAssertEqual(resetSnapshot.health.generatedAt, now, testCase.name)
+            let persistedEnvelope = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: Data(contentsOf: countersURL))
+                    as? [String: Any]
+            )
+            XCTAssertEqual(
+                (persistedEnvelope["schemaVersion"] as? NSNumber)?.intValue,
+                3,
+                testCase.name
+            )
+            XCTAssertEqual(
+                (persistedEnvelope["feedbackDraftRecoveryRequired"] as? NSNumber)?.boolValue,
+                true,
+                testCase.name
+            )
+            let persistedV3Bytes = try await store
+                .canonicalOperationalSupportEnvelopeDataV3()
+            XCTAssertEqual(
+                try Data(contentsOf: countersURL),
+                persistedV3Bytes,
+                testCase.name
+            )
+            let recoverySnapshot = try await store.supportFeedbackDraftSnapshot()
+            XCTAssertEqual(recoverySnapshot.state, .recoveryRequired, testCase.name)
+            XCTAssertTrue(recoverySnapshot.safeCopyAvailable, testCase.name)
+            XCTAssertEqual(try Data(contentsOf: currentURL), currentSentinel, testCase.name)
+            XCTAssertEqual(try Data(contentsOf: retiredURL), retiredSentinel, testCase.name)
+            XCTAssertEqual(try Data(contentsOf: modelURL), modelSentinel, testCase.name)
+        }
+
+        let forwardRoot = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: forwardRoot) }
+        let seed = DiagnosticsStore(applicationSupportURL: forwardRoot, now: { now })
+        let releasedBytes = try await seed.canonicalOperationalSupportEnvelopeDataV3()
+        let forwardBytes = replacing(
+            "\"schemaVersion\":3",
+            with: "\"schemaVersion\":4",
+            in: releasedBytes
+        )
+        try forwardBytes.write(to: diagnosticsCountersURL(in: forwardRoot), options: .atomic)
+        let forwardStore = DiagnosticsStore(applicationSupportURL: forwardRoot, now: { now })
+        do {
+            _ = try await forwardStore.operationalSupportSnapshot()
+            XCTFail("Expected the future diagnostics envelope to fail closed")
+        } catch {
+            XCTAssertEqual(
+                try Data(contentsOf: diagnosticsCountersURL(in: forwardRoot)),
+                forwardBytes
+            )
+        }
+    }
+
+    func testDiagnosticsWriteFailureIsNonGatingAndDoesNotInventAnIncrement() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let countersURL = diagnosticsCountersURL(in: root)
+        try fileManager.createDirectory(at: countersURL, withIntermediateDirectories: true)
+
+        let store = DiagnosticsStore(applicationSupportURL: root)
+        await store.prepare()
+        await store.increment(.firstSignCreated)
+        await store.incrementPurchaseResult(.verified)
+
+        let snapshot = await store.snapshot()
+        XCTAssertEqual(snapshot, .zero)
+        var isDirectory = ObjCBool(false)
+        XCTAssertTrue(fileManager.fileExists(atPath: countersURL.path, isDirectory: &isDirectory))
+        XCTAssertTrue(isDirectory.boolValue)
+    }
+
+    @MainActor
+    func testStartupUsesTheFrozenOrderBeforeEnablingWrites() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+
+        var observedSteps: [StartupStep] = []
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            didBeginStep: { observedSteps.append($0) }
+        )
+        defer { router.failClosedPDFRecovery() }
+
+        await router.retryChecks()
+
+        XCTAssertEqual(
+            observedSteps,
+            [.erase, .restore, .currentOpen, .fieldDraft, .finalization, .deletion, .media, .pdf]
+        )
+        guard case .ready = router.route else {
+            return XCTFail("A clean application-support root must become writable.")
+        }
+    }
+
+    @MainActor
+    func testPendingEraseAndRestoreRootsRouteToTheirExactMaintenanceReasons() async throws {
+        let cases: [(directoryName: String, expectedReason: StartupMaintenanceReason, expectedSteps: [StartupStep])] = [
+            ("FieldEvidenceErase", .eraseInconsistent, [.erase]),
+            ("FieldEvidenceRestore", .restoreInconsistent, [.erase, .restore]),
+        ]
+
+        for testCase in cases {
+            let root = try makeStartupApplicationSupportURL()
+            defer { try? fileManager.removeItem(at: root) }
+
+            let pendingRoot = root.appendingPathComponent(testCase.directoryName, isDirectory: true)
+            try fileManager.createDirectory(
+                at: pendingRoot,
+                withIntermediateDirectories: true
+            )
+            try Data("pending".utf8).write(
+                to: pendingRoot.appendingPathComponent("pending.json", isDirectory: false)
+            )
+
+            var observedSteps: [StartupStep] = []
+            let router = StartupRouter(
+                applicationSupportURL: root,
+                didBeginStep: { observedSteps.append($0) }
+            )
+            await router.retryChecks()
+
+            XCTAssertEqual(observedSteps, testCase.expectedSteps, testCase.directoryName)
+            guard case let .maintenance(reason) = router.route else {
+                XCTFail("\(testCase.directoryName) must block startup.")
+                continue
+            }
+            XCTAssertEqual(reason, testCase.expectedReason, testCase.directoryName)
+        }
+    }
+
+    @MainActor
+    func testInvalidPointerAndMissingGenerationRouteToExactMaintenanceReasons() async throws {
+        let cases: [(name: String, expectedReason: StartupMaintenanceReason, mutate: (URL, UUID) throws -> Void)] = [
+            ("invalid pointer", .dataPointerInvalid, { root, _ in
+                try self.fileManager.removeItem(at: self.currentPointerURL(in: root))
+            }),
+            ("missing generation", .dataGenerationMissing, { root, generationID in
+                try self.fileManager.removeItem(at: self.generationURL(generationID, in: root))
+            }),
+        ]
+
+        for testCase in cases {
+            let root = try makeStartupApplicationSupportURL()
+            defer { try? fileManager.removeItem(at: root) }
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            let generationID: UUID
+            do {
+                var session: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+                generationID = try XCTUnwrap(session).generationID
+                session = nil
+            }
+            try testCase.mutate(root, generationID)
+
+            var observedSteps: [StartupStep] = []
+            let router = StartupRouter(
+                applicationSupportURL: root,
+                didBeginStep: { observedSteps.append($0) }
+            )
+            await router.retryChecks()
+
+            XCTAssertEqual(observedSteps, [.erase, .restore, .currentOpen], testCase.name)
+            guard case let .maintenance(reason) = router.route else {
+                XCTFail("\(testCase.name) must block startup.")
+                continue
+            }
+            XCTAssertEqual(reason, testCase.expectedReason, testCase.name)
+        }
+    }
+
+    /// A damaged receipt history makes the writer uninstallable. Startup must
+    /// fail closed to maintenance (never trap on relaunch), keep the writer
+    /// uninstalled, write nothing, and not offer an Erase that needs a writer.
+    @MainActor
+    func testCorruptReceiptHistoryRoutesToMaintenanceWithoutWriterOrCrash() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let siteID = UUID(), assetID = UUID(), placementID = UUID()
+        do {
+            let session = try factory.openOrBootstrapCurrent()
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            let writer = coordinator.workspaceWriter
+            let current = try writer.currentRevision()
+            let mutation = try MutationIDV1(rawValue: UUID())
+            let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+                generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision, entityRevisions: [
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                    .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0),
+                ])
+            _ = try writer.execute(.init(mutationID: mutation, expectedRevision: expected,
+                command: .createFirstSign(.init(siteID: siteID,
+                    newSite: .init(id: siteID, label: "Damaged site", address: nil, timeZoneID: "UTC"),
+                    assetID: assetID, assetLabel: "Damaged asset", packID: "test.pack",
+                    packSchemaVersion: 1, packContentVersion: 1,
+                    createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+                    initialPlacementMutationID: mutation, initialPlacementEventID: placementID,
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())))))
+            try coordinator.invalidateAndReleaseWriter()
+            let row = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).first)
+            row.receiptData = Data("corrupt canonical receipt".utf8)
+            try session.modelContext.save()
+        }
+
+        let router = StartupRouter(applicationSupportURL: root)
+        await router.retryChecks()
+
+        guard case let .maintenance(reason) = router.route else {
+            return XCTFail("A corrupt receipt history must block startup, got \(router.route)")
+        }
+        XCTAssertEqual(reason, .finalizationInconsistent)
+        XCTAssertNil(router.maintenanceEraseSession, "Erase needs an installable writer")
+        let reopened = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        XCTAssertEqual(try reopened.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).map(\.receiptData),
+                       [Data("corrupt canonical receipt".utf8)], "startup must not rewrite the damaged history")
+        XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession: reopened),
+                             "the writer stays uninstallable; nothing proceeds on the corrupt store")
+    }
+
+    /// Blueprint: post-activation failures enter maintenance/export/support.
+    /// With a corrupt receipt history the backup format cannot be produced
+    /// (it carries the validated history); the backup export fails closed with
+    /// no writes. The support path, a privacy-safe diagnostics export, works
+    /// read-only from maintenance with no writer or lease.
+    @MainActor
+    func testCorruptReceiptHistoryMaintenanceSupportExportIsReadOnlyAndPrivacySafe() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        try seedCorruptReceiptHistoryStore(root)
+        let router = StartupRouter(applicationSupportURL: root)
+        await router.retryChecks()
+        guard case .maintenance(.finalizationInconsistent) = router.route else {
+            return XCTFail("Expected maintenance, got \(router.route)")
+        }
+        let data = root.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+        let before = try directoryFacts(data)
+
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let backup = BackupExportService(modelContext: session.modelContext,
+            generationRootURL: session.generationRootURL)
+        XCTAssertThrowsError(try backup.prepare()) {
+            XCTAssertEqual($0 as? BackupExportServiceError, .invalidAuthority)
+        }
+        XCTAssertFalse(session.modelContext.hasChanges)
+
+        let adapter = MetricKitDiagnosticsAdapter(manager: nil,
+            logger: DiagnosticsLogger(sink: { _ in }, operationalSink: { _ in }))
+        let prepared = try await DiagnosticExportService(
+            diagnosticsStore: router.maintenanceDiagnosticsStore, metricKitAdapter: adapter
+        ).prepare()
+        XCTAssertEqual(try DiagnosticExportCanonicalEncoderV1.encode(prepared.value), prepared.canonicalData)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: prepared.canonicalData) as? [String: Any])
+        XCTAssertTrue(Set(object.keys).isSubset(of: [
+            "app", "counters", "device", "diagnosticSchemaVersion", "generatedAt", "metricKit",
+        ]), "\(object.keys.sorted())")
+        let text = try XCTUnwrap(String(data: prepared.canonicalData, encoding: .utf8))
+        for forbidden in ["Damaged site", "Damaged asset", "corrupt canonical receipt", root.path,
+                          "model.sqlite", "FieldEvidenceData"] {
+            XCTAssertFalse(text.contains(forbidden), forbidden)
+        }
+        XCTAssertEqual(try directoryFacts(data), before, "maintenance export must not write the store")
+        XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession: session))
+    }
+
+    /// Plain-files salvage from maintenance: the user's photos and report PDFs
+    /// from the last accepted generation, byte-identical, with readable names,
+    /// no writes to Application Support, no writer, and a labelled button.
+    @MainActor
+    func testCorruptReceiptHistoryMaintenanceSalvageSavesPhotosAndReportsReadOnly() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        try seedCorruptReceiptHistoryStore(root)
+        let generationRoot = try StoreGenerationFactory(applicationSupportURL: root)
+            .openOrBootstrapCurrent().generationRootURL
+        let photoID = UUID(), reportID = UUID()
+        // A canonical normalized original (JFIF APP0 only) and a PDF.
+        let photo = Data([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
+                          0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xda, 0x00, 0x02, 0x01, 0x02, 0xff, 0xd9])
+        let report = Data("%PDF-1.7 salvage".utf8)
+        // A photo still carrying EXIF (APP1, e.g. GPS) is never salvaged.
+        let exifDirectory = generationRoot.appendingPathComponent("evidence/\(UUID().uuidString.lowercased())")
+        try fileManager.createDirectory(at: exifDirectory, withIntermediateDirectories: true)
+        try Data([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x08, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
+                  0xff, 0xda, 0x00, 0x02, 0xff, 0xd9]).write(to: exifDirectory.appendingPathComponent("original.jpg"))
+        let photoDirectory = generationRoot.appendingPathComponent("evidence/\(photoID.uuidString.lowercased())")
+        try fileManager.createDirectory(at: photoDirectory, withIntermediateDirectories: true)
+        try photo.write(to: photoDirectory.appendingPathComponent("original.jpg"))
+        try Data("thumb".utf8).write(to: photoDirectory.appendingPathComponent("thumbnail.jpg"))
+        let pdfs = generationRoot.appendingPathComponent("pdfs")
+        try fileManager.createDirectory(at: pdfs, withIntermediateDirectories: true)
+        try report.write(to: pdfs.appendingPathComponent("\(reportID.uuidString.lowercased()).pdf"))
+        // Hostile or foreign entries are skipped, never followed.
+        try fileManager.createDirectory(at: generationRoot.appendingPathComponent("evidence/not-an-id"),
+                                        withIntermediateDirectories: true)
+        try fileManager.createSymbolicLink(at: pdfs.appendingPathComponent("\(UUID().uuidString.lowercased()).pdf"),
+                                           withDestinationURL: root.appendingPathComponent("FieldEvidenceData/current.json"))
+
+        let router = StartupRouter(applicationSupportURL: root)
+        await router.retryChecks()
+        guard case .maintenance = router.route else { return XCTFail("Expected maintenance, got \(router.route)") }
+        let data = root.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+        let before = try directoryFacts(data)
+
+        let salvage = MaintenanceSalvageExportV1(applicationSupportURL: root)
+        XCTAssertThrowsError(try salvage.materialize(into: root.appendingPathComponent("inside"))) {
+            XCTAssertEqual($0 as? MaintenanceSalvageExportV1.Failure, .unsafeDestination)
+        }
+        let parent = fileManager.temporaryDirectory.appendingPathComponent("salvage-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: parent) }
+        let result = try salvage.materialize(into: parent)
+        XCTAssertEqual(result.folder.lastPathComponent, "AssetRounds Photos and Reports")
+        XCTAssertEqual(result.saved.map(\.kind), [.photo, .report])
+        XCTAssertEqual(result.saved.map(\.id), [photoID, reportID])
+        let names = try fileManager.contentsOfDirectory(atPath: result.folder.path).sorted()
+        XCTAssertEqual(names.count, 2)
+        XCTAssertTrue(names[0].hasPrefix("Photo ") && names[0].hasSuffix(" \(photoID.uuidString.lowercased().prefix(8)).jpg"), names[0])
+        XCTAssertTrue(names[1].hasPrefix("Report ") && names[1].hasSuffix(" \(reportID.uuidString.lowercased().prefix(8)).pdf"), names[1])
+        XCTAssertEqual(try Data(contentsOf: result.folder.appendingPathComponent(names[0])), photo)
+        XCTAssertEqual(try Data(contentsOf: result.folder.appendingPathComponent(names[1])), report)
+        for name in names { XCTAssertFalse(name.contains("/") || name.contains("FieldEvidence"), name) }
+        XCTAssertEqual(try directoryFacts(data), before, "salvage must not write the store")
+        // The damaged store still cannot open a writer (open or install fails closed).
+        XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession:
+            StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()))
+
+        XCTAssertEqual(StartupMaintenanceView.savePhotosAndReportsButtonText, "Save photos and reports")
+        XCTAssertEqual(StartupMaintenanceView.savePhotosAndReportsHintText,
+            "Saves copies of your photos and report PDFs as ordinary files. This is not a backup and cannot be restored.")
+        XCTAssertEqual(StartupMaintenanceView.savePhotosAndReportsAccessibilityIdentifier,
+                       "s2.maintenance.save-photos-and-reports")
+    }
+
+    /// The save action never ends silently: with no photos or reports it
+    /// reports a brief status, writes nothing and creates no folder.
+    @MainActor
+    func testMaintenanceSalvageWithNothingToSaveReportsStatus() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        try seedCorruptReceiptHistoryStore(root)
+        let data = root.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+        let before = try directoryFacts(data)
+        let parent = fileManager.temporaryDirectory.appendingPathComponent("salvage-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: parent) }
+        XCTAssertThrowsError(try MaintenanceSalvageExportV1(applicationSupportURL: root).materialize(into: parent)) {
+            XCTAssertEqual($0 as? MaintenanceSalvageExportV1.Failure, .nothingToSave)
+            XCTAssertEqual(StartupMaintenanceView.salvageStatusText(for: $0),
+                           "No photos or reports were found to save.")
+        }
+        XCTAssertEqual(StartupMaintenanceView.salvageStatusText(for: CocoaError(.fileWriteNoPermission)),
+                       "Photos and reports could not be saved. Try again.")
+        XCTAssertEqual(StartupMaintenanceView.salvageStatusAccessibilityIdentifier,
+                       "s2.maintenance.save-photos-and-reports.status")
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: parent.path), [])
+        XCTAssertEqual(try directoryFacts(data), before)
+    }
+
+    private func directoryFacts(_ url: URL) throws -> [String: Data] {
+        var facts: [String: Data] = [:]
+        let keys: [URLResourceKey] = [.isRegularFileKey]
+        guard let enumerator = fileManager.enumerator(at: url, includingPropertiesForKeys: keys) else { return facts }
+        for case let file as URL in enumerator
+            where try file.resourceValues(forKeys: Set(keys)).isRegularFile == true
+                && !file.lastPathComponent.hasSuffix("-shm") {
+            facts[file.path] = try Data(contentsOf: file)
+        }
+        return facts
+    }
+
+    @MainActor
+    private func seedCorruptReceiptHistoryStore(_ root: URL) throws {
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let siteID = UUID(), assetID = UUID(), placementID = UUID()
+        let session = try factory.openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        let writer = coordinator.workspaceWriter
+        let current = try writer.currentRevision()
+        let mutation = try MutationIDV1(rawValue: UUID())
+        let expected = try WorkspaceExpectedRevisionV1(workspaceID: current.workspaceID,
+            generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision, entityRevisions: [
+                .init(identity: WorkspaceEntityIdentityV1(kind: .site, id: siteID), revision: 0),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .asset, id: assetID), revision: 0),
+                .init(identity: WorkspaceEntityIdentityV1(kind: .assetPlacementEvent, id: placementID), revision: 0),
+            ])
+        _ = try writer.execute(.init(mutationID: mutation, expectedRevision: expected,
+            command: .createFirstSign(.init(siteID: siteID,
+                newSite: .init(id: siteID, label: "Damaged site", address: nil, timeZoneID: "UTC"),
+                assetID: assetID, assetLabel: "Damaged asset", packID: "test.pack",
+                packSchemaVersion: 1, packContentVersion: 1,
+                createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+                initialPlacementMutationID: mutation, initialPlacementEventID: placementID,
+                initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: UUID())))))
+        try coordinator.invalidateAndReleaseWriter()
+        let row = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).first)
+        row.receiptData = Data("corrupt canonical receipt".utf8)
+        try session.modelContext.save()
+    }
+
+    @MainActor
+    func testMaintenanceReasonAndCopyContractIsClosedAndExact() {
+        XCTAssertEqual(
+            StartupMaintenanceReason.allCases.map(\.rawValue),
+            [
+                "data_pointer_invalid",
+                "data_generation_missing",
+                "finalization_inconsistent",
+                "media_inconsistent",
+                "restore_inconsistent",
+                "erase_inconsistent",
+                // Added with the field-draft startup step (StartupStep.fieldDraft).
+                "field_draft_inconsistent",
+            ]
+        )
+        XCTAssertEqual(StartupMaintenanceView.titleText, "Local data needs attention")
+        XCTAssertEqual(
+            StartupMaintenanceView.messageText,
+            "The app stopped to avoid changing or losing local records."
+        )
+        XCTAssertEqual(StartupMaintenanceView.retryButtonText, "Retry checks")
+        XCTAssertEqual(StartupMaintenanceView.recoveryButtonText, "Recovery steps")
+        XCTAssertEqual(
+            StartupMaintenanceView.recoveryStepsText,
+            "If Retry cannot recover this device, delete and reinstall the app. This removes all local app data and does not cancel your Apple subscription. A backup stored outside this app can be restored from Welcome after reinstalling."
+        )
+    }
+
+    private func makeTemporaryApplicationSupportURL() throws -> URL {
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("S2PersistenceLedgerTests-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    /// Real-startup roots: StartupRouter's erase step opens the Caches
+    /// directory that is the sibling of Application Support and fails closed
+    /// (eraseInconsistent) when it is absent, exactly as on device. A bare temp
+    /// root only passed while an ambient tmp/Caches happened to exist. Returns
+    /// the ApplicationSupport directory of an owned sandbox that also holds a
+    /// sibling Caches directory; the whole sandbox is removed at teardown, so
+    /// callers may keep removing the returned root early.
+    private func makeStartupApplicationSupportURL() throws -> URL {
+        let sandbox = try makeTemporaryApplicationSupportURL()
+        addTeardownBlock { try? FileManager.default.removeItem(at: sandbox) }
+        return try makeEraseApplicationSupportURL(in: sandbox)
+    }
+
+    /// Derives the expected current pointer from the production V3 codec:
+    /// the published bytes must be the canonical encoding of a valid
+    /// CurrentGenerationPointerV3 naming this generation at the active store
+    /// schema, bound to the digest of that generation's stored manifest.
+    @MainActor
+    private func assertCanonicalV3CurrentPointer(
+        in applicationSupportURL: URL,
+        generationID: UUID,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let bytes = try Data(contentsOf: currentPointerURL(in: applicationSupportURL))
+        let pointer = try CurrentGenerationPointerV3.decodeCanonical(from: bytes)
+        XCTAssertEqual(try pointer.canonicalData(), bytes, file: file, line: line)
+        XCTAssertEqual(pointer.schemaVersion, 3, file: file, line: line)
+        XCTAssertEqual(pointer.generationID, generationID.uuidString.lowercased(), file: file, line: line)
+        XCTAssertEqual(
+            pointer.storeSchemaVersion,
+            PersistentSchemaReleaseRegistryV1.activeVersionIdentifier.major,
+            file: file, line: line
+        )
+        let manifest = try XCTUnwrap(
+            StoreMigrationJournalStoreV1(applicationSupportURL: applicationSupportURL)
+                .loadManifestIfPresent(targetGenerationID: generationID),
+            file: file, line: line
+        )
+        XCTAssertEqual(pointer.generationManifestSHA256, manifest.digest, file: file, line: line)
+    }
+
+    /// Reads the published current pointer and proves it is canonical V3
+    /// before a test derives hostile variants from it.
+    private func canonicalV3CurrentPointerBytes(in applicationSupportURL: URL) throws -> Data {
+        let bytes = try Data(contentsOf: currentPointerURL(in: applicationSupportURL))
+        let pointer = try CurrentGenerationPointerV3.decodeCanonical(from: bytes)
+        guard try pointer.canonicalData() == bytes else {
+            throw StoreMigrationFailure.canonicalDecodingFailed
+        }
+        return bytes
+    }
+
+    /// Match startup's Application Support/Caches sibling layout inside one
+    /// owned sandbox; never create a shared Caches directory under system tmp.
+    private func makeEraseApplicationSupportURL(in sandbox: URL) throws -> URL {
+        let support = sandbox.appendingPathComponent("ApplicationSupport", isDirectory: true)
+        let caches = sandbox.appendingPathComponent("Caches", isDirectory: true)
+        try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: caches, withIntermediateDirectories: true)
+        return support
+    }
+
+    private func dataRootURL(in applicationSupportURL: URL) -> URL {
+        applicationSupportURL.appendingPathComponent("FieldEvidenceData", isDirectory: true)
+    }
+
+    private func currentPointerURL(in applicationSupportURL: URL) -> URL {
+        dataRootURL(in: applicationSupportURL).appendingPathComponent("current.json", isDirectory: false)
+    }
+
+    private func retiredPointerURL(in applicationSupportURL: URL) -> URL {
+        dataRootURL(in: applicationSupportURL).appendingPathComponent("retired.json", isDirectory: false)
+    }
+
+    private func generationsURL(in applicationSupportURL: URL) -> URL {
+        dataRootURL(in: applicationSupportURL).appendingPathComponent("generations", isDirectory: true)
+    }
+
+    private func generationURL(_ generationID: UUID, in applicationSupportURL: URL) -> URL {
+        generationsURL(in: applicationSupportURL)
+            .appendingPathComponent(generationID.uuidString.lowercased(), isDirectory: true)
+    }
+
+    private func optionalData(contentsOf url: URL) throws -> Data? {
+        guard fileManager.fileExists(atPath: url.path) else {
+            return nil
+        }
+        return try Data(contentsOf: url)
+    }
+
+    private var allCounters: [Counter] {
+        [
+            .firstSignCreated,
+            .onboardingCompleted,
+            .paywallPresented,
+            .recheckCompleted,
+            .reportSaved,
+            .reportShareSheetPresented,
+        ]
+    }
+
+    private var allPurchaseResults: [PurchaseResult] {
+        [.cancelled, .failed, .pending, .unverified, .verified]
+    }
+
+    private var exactZeroDiagnosticsData: Data {
+        Data("{\"first_sign_created\":0,\"onboarding_completed\":0,\"paywall_presented\":0,\"purchase_result\":{\"cancelled\":0,\"failed\":0,\"pending\":0,\"unverified\":0,\"verified\":0},\"recheck_completed\":0,\"report_saved\":0,\"report_share_sheet_presented\":0,\"schemaVersion\":1}".utf8)
+    }
+
+    private func diagnosticsCountersURL(in applicationSupportURL: URL) -> URL {
+        applicationSupportURL
+            .appendingPathComponent("FieldEvidenceDiagnostics", isDirectory: true)
+            .appendingPathComponent("counters.json", isDirectory: false)
+    }
+
+    private func canonicalDiagnosticsData(_ value: DiagnosticsV1) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+
+    private func canonicalOperationalSupportData(
+        _ value: DeviceOperationalSupportSnapshotV2
+    ) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+
+    private func inserting(_ insertion: String, after marker: String, in data: Data) -> Data {
+        let source = String(decoding: data, as: UTF8.self)
+        let range = source.range(of: marker)!
+        var changed = source
+        changed.insert(contentsOf: insertion, at: range.upperBound)
+        return Data(changed.utf8)
+    }
+
+    private func removing(_ target: String, from data: Data) -> Data {
+        replacing(target, with: "", in: data)
+    }
+
+    private func replacing(_ target: String, with replacement: String, in data: Data) -> Data {
+        Data(String(decoding: data, as: UTF8.self).replacingOccurrences(of: target, with: replacement).utf8)
+    }
+}
+
+extension S2PersistenceLedgerTests {
+    @MainActor
+    func testStartupRecoversPendingPDFAndPublishesItsSingleWriter() async throws {
+        let harness = try await S42CurrentReportHarness.make("startup-single-writer") { seed in
+            UIGraphicsImageRenderer(size: CGSize(width: 48, height: 32)).pngData { context in
+                UIColor(red: CGFloat(seed) / 255, green: 0.4, blue: 0.7, alpha: 1).setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 48, height: 32))
+            }
+        }
+        let root = harness.applicationSupportURL
+        defer { try? fileManager.removeItem(at: root) }
+        let reportID = harness.report.id
+        let initialHistory = try harness.context.fetch(FetchDescriptor<MutationReceiptRow>())
+        let initialEnvelopes = Set(initialHistory.map(\.envelopeData))
+        XCTAssertEqual(harness.report.pdfState, ReportPDFState.pending.rawValue)
+        try harness.close()
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        var recoveryWriterID: UUID?
+        var leaseCountAtBoundary: Int?
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime,
+            beforeCommerceActivation: { writerID in
+                recoveryWriterID = writerID
+                leaseCountAtBoundary = try? self.writerLeaseIDs(in: root).count
+            })
+        defer { router.failClosedPDFRecovery() }
+        await router.retryChecks()
+        guard case let .ready(coordinator, _, _) = router.route else {
+            return XCTFail("A canonical finalized pending report must recover before startup publishes its writer")
+        }
+        XCTAssertEqual(recoveryWriterID, try coordinator.workspaceWriter.currentRevision().writerInstanceID)
+        XCTAssertEqual(leaseCountAtBoundary, 1)
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+        let report = try XCTUnwrap(coordinator.modelContext.fetch(FetchDescriptor<Report>()).first { $0.id == reportID })
+        XCTAssertEqual(report.pdfState, ReportPDFState.ready.rawValue)
+        let path = try XCTUnwrap(report.pdfRelativePath)
+        XCTAssertFalse(try Data(contentsOf: coordinator.generationRootURL.appendingPathComponent(path)).isEmpty)
+        let finalHistory = try coordinator.workspaceWriter.sourceMutationHistorySnapshot()
+        XCTAssertEqual(finalHistory.receipts.count, initialHistory.count + 1)
+        XCTAssertTrue(initialEnvelopes.isSubset(of: Set(finalHistory.receipts.map(\.envelopeData))))
+        let pdfEnvelopes = try finalHistory.receipts.map { try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData) }
+            .filter { $0.command.kind == .transitionReportPDF }
+        XCTAssertEqual(pdfEnvelopes.count, 1)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+    }
+
+    @MainActor
+    func testStartupRetryAndUnsafePDFFailureExplicitlyReleaseRetainedPublishedWriters() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
+        defer { router.failClosedPDFRecovery() }
+        await router.retryChecks()
+        guard case let .ready(first, _, _) = router.route else { return XCTFail("Initial startup") }
+        let firstWriter = first.workspaceWriter
+        let firstLeases = try writerLeaseIDs(in: root)
+        XCTAssertEqual(firstLeases.count, 1)
+        await router.retryChecks()
+        guard case let .ready(second, _, _) = router.route else { return XCTFail("Explicit retry") }
+        XCTAssertFalse(first === second)
+        XCTAssertThrowsError(try firstWriter.currentRevision()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        let secondLeases = try writerLeaseIDs(in: root)
+        XCTAssertEqual(secondLeases.count, 1)
+        XCTAssertTrue(firstLeases.isDisjoint(with: secondLeases))
+        let processor = try XCTUnwrap(router.entitlementProcessor)
+        router.failClosedPDFRecovery()
+        XCTAssertFalse(processor.isStarted)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertThrowsError(try second.workspaceWriter.currentRevision())
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertNil(router.maintenanceRestoreSession)
+        XCTAssertNil(router.maintenanceEraseSession)
+        guard case .maintenance(.finalizationInconsistent) = router.route else {
+            return XCTFail("Unsafe PDF recovery must stay closed")
+        }
+    }
+
+    @MainActor
+    func testStartupReleaseFailureRemainsOwnedAndBlocksRetryUntilOriginalRegistryIsReadable() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
+        defer { router.failClosedPDFRecovery() }
+        await router.retryChecks()
+        guard case let .ready(coordinator, _, _) = router.route else { return XCTFail("Initial startup") }
+        let writer = coordinator.workspaceWriter
+        let originalLeaseIDs = try writerLeaseIDs(in: root)
+        let registryURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")
+        let originalRegistry = try Data(contentsOf: registryURL)
+        let pointer = try Data(contentsOf: currentPointerURL(in: root))
+        // A real unreadable control file makes close throw; no test-only
+        // success flag or synthetic registry/checkpoint substitutes for it.
+        try Data("invalid registry transport".utf8).write(to: registryURL)
+        var registryNeedsRestoring = true
+        defer { if registryNeedsRestoring { try? originalRegistry.write(to: registryURL) } }
+        router.failClosedPDFRecovery()
+        XCTAssertTrue(router.hasPendingWriterCleanup)
+        XCTAssertNotNil(router.lastWriterCleanupFailure)
+        XCTAssertThrowsError(try writer.currentRevision()) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+        }
+        await router.retryChecks()
+        XCTAssertTrue(router.hasPendingWriterCleanup)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertNil(router.maintenanceRestoreSession)
+        XCTAssertNil(router.maintenanceEraseSession)
+        XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointer)
+        try originalRegistry.write(to: registryURL)
+        registryNeedsRestoring = false
+        await router.retryChecks()
+        guard case let .ready(retried, _, _) = router.route else { return XCTFail("Release retry must recover") }
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertNil(router.lastWriterCleanupFailure)
+        XCTAssertFalse(retried.workspaceWriter === writer)
+        let currentLeaseIDs = try writerLeaseIDs(in: root)
+        XCTAssertEqual(currentLeaseIDs.count, 1)
+        XCTAssertTrue(currentLeaseIDs.isDisjoint(with: originalLeaseIDs))
+        XCTAssertEqual(try Data(contentsOf: currentPointerURL(in: root)), pointer)
+    }
+
+    @MainActor
+    func testSupersededStartupCannotPublishOrClearTheNewReadyOperation() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let pause = S2StartupPublicationPause()
+        var observedWriterIDs: [UUID] = []
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime,
+            beforeCommerceActivation: { writerID in
+                observedWriterIDs.append(writerID)
+                if observedWriterIDs.count == 1 { await pause.suspend() }
+            })
+        defer { pause.resume(); router.failClosedPDFRecovery() }
+        let original = Task { await router.retryChecks() }
+        let reached = await XCTWaiter.fulfillment(of: [pause.reached], timeout: 20)
+        XCTAssertEqual(reached, .completed)
+        router.failClosedPDFRecovery()
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        XCTAssertNil(router.entitlementProcessor)
+        await router.retryChecks()
+        guard case let .ready(current, _, _) = router.route else {
+            pause.resume(); await original.value
+            return XCTFail("New operation should complete while the previous continuation is held")
+        }
+        let currentLeases = try writerLeaseIDs(in: root)
+        pause.resume()
+        await original.value
+        guard case let .ready(stillCurrent, _, _) = router.route else { return XCTFail("Stale completion overwrote ready") }
+        XCTAssertTrue(stillCurrent === current)
+        XCTAssertEqual(observedWriterIDs.count, 2)
+        XCTAssertNotEqual(observedWriterIDs.first, observedWriterIDs.last)
+        XCTAssertEqual(try current.workspaceWriter.currentRevision().writerInstanceID, observedWriterIDs.last)
+        XCTAssertEqual(try writerLeaseIDs(in: root), currentLeases)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+    }
+
+    @MainActor
+    func testAppAccessRevocationDuringSuspendedStartupCannotPublishOrReviveCommerce() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let pause = S2StartupPublicationPause()
+        let authentication = S2StartupAuthentication(outcomes: [.authenticated, .authenticated])
+        let gate = AppAccessGateV1(
+            setting: .value(.init(isEnabled: true)), authentication: authentication,
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        let initialUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(initialUnlock, .authenticated)
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            beforeCommerceActivation: { _ in await pause.suspend() }
+        )
+        try router.bindStartupAccessGate(gate)
+        defer { pause.resume(); router.failClosedPDFRecovery() }
+
+        let original = Task<Error?, Never> {
+            do {
+                try await router.startIfNeeded(accessGate: gate)
+                return nil
+            } catch {
+                return error
+            }
+        }
+        let paused = await XCTWaiter.fulfillment(of: [pause.reached], timeout: 20)
+        XCTAssertEqual(paused, .completed)
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+
+        await gate.lock(reason: .returnedFromBackground)
+        let renewedUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(renewedUnlock, .authenticated)
+        pause.resume()
+        let originalFailure = await original.value
+        XCTAssertNotNil(originalFailure)
+        XCTAssertEqual(router.lastStartupAccessFailure as? AppAccessContractFailureV1, .accessDenied)
+
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        guard case .checking = router.route else {
+            return XCTFail("A revoked startup continuation must remain covered")
+        }
+    }
+
+    @MainActor
+    func testToggleNotificationUsesSettledPreparedOwnerThenOrdinaryStartupAdoptsIt() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        var observedSteps: [StartupStep] = []
+        let gate = AppAccessGateV1(
+            setting: .absentDisabled,
+            authentication: S2StartupAuthentication(outcomes: [.authenticated, .authenticated]),
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            didBeginStep: { observedSteps.append($0) }
+        )
+        try router.bindStartupAccessGate(gate)
+        defer { router.failClosedPDFRecovery() }
+
+        try await router.startIfNeeded(accessGate: gate)
+        guard case let .ready(initial, _, _) = router.route else {
+            return XCTFail("Disabled startup must become ready")
+        }
+        let writerID = try initial.workspaceWriter.currentRevision().writerInstanceID
+        let startupStepCount = observedSteps.count
+        XCTAssertEqual(startupStepCount, StartupStep.allCases.count)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+
+        await gate.sceneBecameInactive()
+        router.pauseForAppAccess(discardPrepared: false)
+        await gate.sceneBecameActive()
+        XCTAssertNil(router.entitlementProcessor)
+        guard case .checking = router.route else {
+            return XCTFail("Inactive cover must retain the settled owner privately")
+        }
+
+        let enableAuthentication = await gate.authenticate(trigger: .enableAppLock)
+        XCTAssertEqual(enableAuthentication, .authenticated)
+        let toggle = try await gate.toggleAuthenticationToken(targetEnabled: true)
+        let toggleAuthorization = NotificationOperationAuthorizationV1(
+            gate: gate,
+            proof: .toggle(toggle, targetEnabled: true),
+            operationID: UUID(),
+            subject: nil
+        )
+        let toggleSource = try await router.notificationSource(authorization: toggleAuthorization)
+        let toggleSnapshot = try await toggleSource.notificationSnapshot(
+            authorization: toggleAuthorization,
+            evaluatedAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        XCTAssertEqual(toggleSnapshot.writerRevision.writerInstanceID, writerID)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+        XCTAssertNil(router.entitlementProcessor)
+        guard case .checking = router.route else {
+            return XCTFail("Toggle source must not publish or restart startup")
+        }
+
+        let content = try await gate.beginContentRead(for: .render)
+        let contentAuthorization = NotificationOperationAuthorizationV1(
+            gate: gate, proof: .content(content), operationID: UUID(), subject: nil
+        )
+        do {
+            _ = try await router.notificationSource(authorization: contentAuthorization)
+            XCTFail("Ordinary content must not open a prepared startup owner")
+        } catch {
+            XCTAssertEqual(error as? AppAccessContractFailureV1, .configurationUnknown)
+        }
+
+        try await gate.setEnabledAfterAuthenticated(true, toggleToken: toggle)
+        try await gate.markRecoveryComplete(enabled: true)
+        let ordinaryUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(ordinaryUnlock, .authenticated)
+        try await router.startIfNeeded(accessGate: gate)
+
+        guard case let .ready(adopted, _, _) = router.route else {
+            return XCTFail("Ordinary startup must publish the prepared owner")
+        }
+        XCTAssertEqual(try adopted.workspaceWriter.currentRevision().writerInstanceID, writerID)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+    }
+
+    @MainActor
+    func testConfigurationNotificationStartupPreparesThenOrdinaryStartupAdoptsTheSameWriter() async throws {
+        let root = try makeStartupApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        var observedSteps: [StartupStep] = []
+        let operationID = UUID()
+        let gate = AppAccessGateV1(
+            setting: .corruptOrAmbiguous,
+            authentication: S2StartupAuthentication(outcomes: [.authenticated, .authenticated]),
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        let repair = await gate.authenticate(trigger: .repairConfiguration)
+        XCTAssertEqual(repair, .authenticated)
+        let configuration = try await gate.configurationAuthenticationToken()
+        let startupRecovery = try await gate.beginConfigurationStartupRecovery(
+            configuration, operationID: operationID
+        )
+        let authorization = NotificationOperationAuthorizationV1(
+            gate: gate,
+            proof: .repair(configuration, targetEnabled: true),
+            operationID: operationID,
+            subject: try s2NotificationSubject(operationID: operationID),
+            startupRecoveryToken: startupRecovery
+        )
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            didBeginStep: { observedSteps.append($0) }
+        )
+        try router.bindStartupAccessGate(gate)
+        defer { router.failClosedPDFRecovery() }
+
+        XCTAssertFalse(fileManager.fileExists(atPath: currentPointerURL(in: root).path))
+        let source = try await router.notificationSource(authorization: authorization)
+        let preparedSnapshot = try await source.notificationSnapshot(
+            authorization: authorization,
+            evaluatedAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        XCTAssertEqual(Set(observedSteps), Set(StartupStep.allCases))
+        XCTAssertEqual(observedSteps.count, StartupStep.allCases.count)
+        XCTAssertNil(router.entitlementProcessor)
+        guard case .checking = router.route else {
+            return XCTFail("Configuration startup must keep its recovered owner unpublished")
+        }
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+
+        let preparedStepCount = observedSteps.count
+        try await gate.setEnabledAfterAuthenticated(true, configurationToken: configuration)
+        try await gate.markRecoveryComplete(enabled: true)
+        let ordinaryUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(ordinaryUnlock, .authenticated)
+        try await router.startIfNeeded(accessGate: gate)
+
+        guard case let .ready(coordinator, _, _) = router.route else {
+            return XCTFail("Ordinary startup must adopt the prepared recovery owner")
+        }
+        XCTAssertEqual(
+            try coordinator.workspaceWriter.currentRevision().writerInstanceID,
+            preparedSnapshot.writerRevision.writerInstanceID
+        )
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+        XCTAssertEqual(observedSteps.count, preparedStepCount)
+    }
+
+    @MainActor
+    func testDeferredEraseRetainsLiveOldContextAcrossAppAccessResumeUntilDrain() async throws {
+        let traceStartedAt = DispatchTime.now().uptimeNanoseconds
+        var traceLines: [String] = []
+        traceLines.reserveCapacity(32)
+        let trace: (String) -> Void = { phase in
+            let elapsedMilliseconds = (DispatchTime.now().uptimeNanoseconds - traceStartedAt) / 1_000_000
+            let line = "S2EraseDrain phase=\(phase) elapsedMs=\(elapsedMilliseconds)"
+            if traceLines.count < 32 { traceLines.append(line) }
+            FileHandle.standardError.write(Data((line + "\n").utf8))
+        }
+        trace("entry")
+        // Registered first so the final observation includes existing cleanup.
+        defer {
+            trace("exit")
+            let attachment = XCTAttachment(string: traceLines.joined(separator: "\n") + "\n")
+            attachment.name = "S2EraseDrainTiming-v1"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        let sandbox = try makeTemporaryApplicationSupportURL()
+        let root = try makeEraseApplicationSupportURL(in: sandbox)
+        var observedSteps: [StartupStep] = []
+        let authentication = S2StartupAuthentication(outcomes: [.authenticated, .authenticated])
+        let gate = AppAccessGateV1(
+            setting: .value(.init(isEnabled: true)), authentication: authentication,
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        let initialUnlock = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(initialUnlock, .authenticated)
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            didBeginStep: { observedSteps.append($0) }
+        )
+        var firstStartupFailure: String?
+        router.startupFailureDiagnosticForTesting = { observation in
+            guard firstStartupFailure == nil else { return }
+            firstStartupFailure = observation
+            print("EraseStartup.failure " + observation)
+        }
+        try router.bindStartupAccessGate(gate)
+        // Register the actual Router/root before any admission or preparation.
+        // Optional fixture deletion cannot outlive an uncertain retirement owner.
+        let retainedOwner = S2EraseRootRetentionV1(root: sandbox, router: router)
+
+        trace("router-start")
+        try await router.startIfNeeded(accessGate: gate)
+        guard case .ready = router.route else {
+                let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
+                let reason: String
+                if case .maintenance(let maintenance) = router.route { reason = maintenance.rawValue }
+                else { reason = "non-maintenance-not-ready" }
+                print("EraseStartup.notReady phase=\(phase) reason=\(reason)")
+            return XCTFail("Initial startup must publish the erase owner")
+        }
+        if case let .ready(coordinator, _, _) = router.route {
+            retainedOwner.coordinator = coordinator
+        }
+        trace("router-ready")
+        let oldGenerationID = try XCTUnwrap(retainedOwner.coordinator).generationID
+        let oldWriterInstanceID = try XCTUnwrap(retainedOwner.coordinator)
+            .workspaceWriter.currentRevision().writerInstanceID
+        weak var oldCoordinator = retainedOwner.coordinator
+        weak var oldWriter = retainedOwner.coordinator?.workspaceWriter
+        var retainedOldContext: ModelContext? = try XCTUnwrap(retainedOwner.coordinator).modelContext
+        var retainedOldContainer: ModelContainer? = retainedOldContext?.container
+        let oldStateIsReleased: () -> Bool = {
+            [weak observedContext = retainedOldContext,
+             weak observedContainer = retainedOldContainer] in
+            observedContext == nil && observedContainer == nil
+        }
+        XCTAssertEqual(try XCTUnwrap(retainedOldContext).fetchCount(FetchDescriptor<Site>()), 0)
+        let startupStepCount = observedSteps.count
+        XCTAssertEqual(startupStepCount, StartupStep.allCases.count)
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+
+        let eraseTicket = try await router.beginEraseOperation(
+            coordinator: try XCTUnwrap(retainedOwner.coordinator), accessGate: gate
+        )
+        let operation = try router.eraseRetirementOperation(for: eraseTicket)
+        let erasedGenerationID = UUID()
+        let eraseOperationID = UUID()
+        let erasedWorkspaceID = UUID()
+        let erasedReplicaID = UUID()
+        var eraseIdentifiers = [
+            erasedGenerationID,
+            eraseOperationID,
+            erasedWorkspaceID,
+            erasedReplicaID,
+        ]
+        let admissionPause = S2StartupPublicationPause()
+        var eraseReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedEraseReceipt: CompletedEraseReceiptV1?
+        var completionCount = 0
+        var callbackFailure: Error?
+        let service = try router.configureEraseService(EraseAllService(
+            applicationSupportURL: root,
+            makeUUID: { eraseIdentifiers.removeFirst() },
+            admitErase: { subject in
+                if let authorization = try await router.eraseAdmissionAuthorization(
+                    eraseTicket, subject: subject
+                ) {
+                    let reservation = try await gate.reserveEraseAdoption(
+                        subject: subject, authorization: authorization
+                    )
+                    try router.recordEraseReservation(eraseTicket, reservation: reservation)
+                    eraseReservation = reservation
+                    // Suspend after the real reservation.  Background therefore
+                    // revokes content without invalidating the original Erase
+                    // cleanup authority which the service must revalidate.
+                    trace("admission-reserved")
+                    await admissionPause.suspend()
+                    return reservation
+                }
+                guard let reservation = eraseReservation,
+                      reservation.subject == subject else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+                return reservation
+            },
+            didCompleteErase: {
+                completionCount += 1
+                if completedEraseReceipt == nil { completedEraseReceipt = $0 }
+            }
+        ), operation: operation)
+        let eraseTask = Task {
+            let coordinator = try XCTUnwrap(retainedOwner.coordinator)
+            let lifecycleDependencies = try coordinator.packageLifecycleDependencies()
+            trace("erase-entry")
+            return try await service.erase(
+                confirmation: "ERASE",
+                coordinator: coordinator,
+                diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                operation: operation,
+                activate: { session in
+                do {
+                    try router.activateErasePreparationSession(
+                        session, coordinator: coordinator, operation: operation
+                    )
+                    // Keep the genuine target only for the hostile alternate-
+                    // activation checks below; release it before real drain.
+                    retainedOwner.preparedSession = session
+                } catch {
+                    callbackFailure = error
+                }
+            },
+                lifecycleDependencies: lifecycleDependencies
+            )
+        }
+        trace("admission-wait")
+        let admissionReached = await XCTWaiter.fulfillment(
+            of: [admissionPause.reached], timeout: 20
+        )
+        trace("admission-observed")
+        XCTAssertEqual(admissionReached, .completed)
+        await gate.sceneBecameInactive()
+        router.pauseForAppAccess()
+        await gate.sceneBecameActive()
+        admissionPause.resume()
+        trace("await-erase-result")
+        let eraseOutcome = try await eraseTask.value
+        trace("erase-returned")
+        XCTAssertNil(callbackFailure)
+
+        XCTAssertTrue(eraseOutcome.operation === operation)
+        let pendingWhileRetained = try await operation.advanceCleanup()
+        XCTAssertFalse(pendingWhileRetained, "A live old context must delay physical cleanup")
+        XCTAssertEqual(retainedOwner.preparedSession?.generationID, erasedGenerationID)
+        XCTAssertNotNil(retainedOldContext)
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: generationURL(oldGenerationID, in: root)
+                .appendingPathComponent("model.sqlite", isDirectory: false).path
+        ))
+        let deferredIntent = try XCTUnwrap(
+            try EraseIntentStore(applicationSupportURL: root).load()
+        )
+        XCTAssertEqual(deferredIntent.phase, .sessionActivated)
+        guard case let .eraseCleanupPending(.retiring(pendingCoordinator)) = router.route else {
+            return XCTFail("Deferred erase must remain visibly pending")
+        }
+        XCTAssertTrue(pendingCoordinator === operation)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+
+        await gate.sceneBecameInactive()
+        router.pauseForAppAccess()
+        await gate.sceneBecameActive()
+        guard case let .eraseCleanupPending(.retiring(heldCoordinator)) = router.route else {
+            return XCTFail("App-access resume must not turn a live old context into cold cleanup")
+        }
+        XCTAssertTrue(heldCoordinator === operation)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: generationURL(oldGenerationID, in: root)
+                .appendingPathComponent("model.sqlite", isDirectory: false).path
+        ))
+        let heldIntent = try XCTUnwrap(try EraseIntentStore(applicationSupportURL: root).load())
+        XCTAssertEqual(heldIntent.phase, .sessionActivated)
+
+        do {
+            try await router.beginErasedSessionActivation(
+                try XCTUnwrap(retainedOwner.preparedSession),
+                coordinator: try XCTUnwrap(retainedOwner.coordinator), ticket: eraseTicket
+            )
+            XCTFail("A deferred erase must reject a second activation")
+        } catch { }
+        do {
+            try await router.activateRestoredSession(
+                try XCTUnwrap(retainedOwner.preparedSession),
+                coordinator: try XCTUnwrap(retainedOwner.coordinator), ticket: eraseTicket
+            )
+            XCTFail("A pending erase drain proof must reject restore activation")
+        } catch { }
+        guard case let .eraseCleanupPending(.retiring(recoveredHeldCoordinator)) = router.route else {
+            return XCTFail("Rejected alternate activation must retain the deferred cleanup hold")
+        }
+        XCTAssertTrue(recoveredHeldCoordinator === operation)
+        XCTAssertNil(router.entitlementProcessor)
+        XCTAssertEqual(observedSteps.count, startupStepCount)
+        XCTAssertTrue(fileManager.fileExists(
+            atPath: generationURL(oldGenerationID, in: root)
+                .appendingPathComponent("model.sqlite", isDirectory: false).path
+        ))
+        let alternateHeldIntent = try XCTUnwrap(
+            try EraseIntentStore(applicationSupportURL: root).load()
+        )
+        XCTAssertEqual(alternateHeldIntent.phase, .sessionActivated)
+        do {
+            guard let liveOldContext = retainedOldContext,
+                  let liveOldContainer = retainedOldContainer else {
+                return XCTFail("The original context and backing container must remain live until explicit release")
+            }
+            trace("old-context-read")
+            try withExtendedLifetime(liveOldContainer) {
+                XCTAssertTrue(liveOldContext.container === liveOldContainer)
+                let liveOldSiteCount = try liveOldContext.fetchCount(FetchDescriptor<Site>())
+                XCTAssertEqual(liveOldSiteCount, 0)
+            }
+            trace("old-context-read-complete")
+        }
+        // Detachment revoked the actual preparation writer. Test it while
+        // held, then release every owner alias before testing reader drain.
+        XCTAssertThrowsError(try XCTUnwrap(retainedOwner.coordinator).workspaceWriter.currentRevision())
+        retainedOwner.preparedSession = nil
+        retainedOwner.coordinator = nil
+        trace("old-context-release")
+        retainedOldContext = nil
+        retainedOldContainer = nil
+        let drained = expectation(
+            for: NSPredicate { _, _ in oldStateIsReleased() }, evaluatedWith: NSObject())
+        await fulfillment(of: [drained], timeout: 30)
+        XCTAssertTrue(oldStateIsReleased())
+        guard oldStateIsReleased() else {
+            trace("old-state-still-retained")
+            return
+        }
+        XCTAssertNil(oldCoordinator, "The retired coordinator must not survive reader drain")
+        XCTAssertNil(oldWriter, "The retired writer must not survive reader drain")
+        trace("old-state-drained")
+        // Detached cleanup resumes the exact original operation, without
+        // constructing another service or minting a new reservation.
+        trace("recovery-entry")
+        let completed = try await operation.advanceCleanup()
+        XCTAssertTrue(completed)
+        guard completed else { throw AppAccessContractFailureV1.staleAttempt }
+        trace("recovery-returned")
+        let (_, _, actualReceipt) = try operation.completedRetirement()
+        let receipt = try XCTUnwrap(actualReceipt)
+        let callbackReceipt = try XCTUnwrap(completedEraseReceipt,
+            "The actual cleanup callback must deliver the completed receipt")
+        XCTAssertEqual(callbackReceipt.subject, receipt.subject)
+        XCTAssertEqual(callbackReceipt.reservation, receipt.reservation)
+        XCTAssertEqual(completionCount, 1)
+        let repeatedCleanup = try await operation.advanceCleanup()
+        XCTAssertTrue(repeatedCleanup)
+        XCTAssertEqual(completionCount, 1, "A completed cleanup retry must not repeat the callback")
+        let repeatedReceipt = try XCTUnwrap(operation.completedRetirement().2)
+        XCTAssertEqual(repeatedReceipt.subject, receipt.subject)
+        XCTAssertEqual(repeatedReceipt.reservation, receipt.reservation)
+        let reservation = try XCTUnwrap(eraseReservation)
+        trace("adoption-entry")
+        try await gate.adoptCompletedErase(receipt, token: reservation)
+        await gate.sceneBecameInactive()
+        do {
+            try await router.finishRetiredEraseActivation(
+                operation, accessGate: gate
+            )
+            XCTFail("Inactive post-adoption finish must retain its ticket for retry")
+        } catch { }
+        await gate.sceneBecameActive()
+        try await router.finishRetiredEraseActivation(
+            operation, accessGate: gate
+        )
+        trace("finish-ready")
+        guard case let .ready(recoveredCoordinator, _, _) = router.route else {
+            return XCTFail("A drained deferred erase must recover through its original ticket")
+        }
+        XCTAssertNotEqual(recoveredCoordinator.generationID, oldGenerationID)
+        XCTAssertNotEqual(try recoveredCoordinator.workspaceWriter.currentRevision().writerInstanceID,
+            oldWriterInstanceID)
+        XCTAssertEqual(recoveredCoordinator.generationID, erasedGenerationID)
+        XCTAssertNoThrow(try recoveredCoordinator.workspaceWriter.currentRevision())
+        XCTAssertTrue(router.entitlementProcessor?.isStarted == true)
+        XCTAssertFalse(fileManager.fileExists(
+            atPath: generationURL(oldGenerationID, in: root).path
+        ))
+        XCTAssertFalse(fileManager.fileExists(
+            atPath: root.appendingPathComponent("FieldEvidenceErase", isDirectory: true).path
+        ))
+    }
+
+    @MainActor
+    func testSuspendedRestoredActivationCannotReleaseANewerBindingInTheSameCoordinator() async throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        let session = try factory.openOrBootstrapCurrent()
+        let coordinator = try StoreSessionCoordinator(validatingSession: session)
+        defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+        let pause = S2StartupPublicationPause()
+        let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime,
+            beforeCommerceActivation: { _ in await pause.suspend() })
+        defer { pause.resume(); router.failClosedPDFRecovery() }
+        let activation = Task { await router.activateRestoredSession(session, coordinator: coordinator) }
+        let reached = await XCTWaiter.fulfillment(of: [pause.reached], timeout: 20)
+        XCTAssertEqual(reached, .completed)
+        let suspendedWriter = coordinator.workspaceWriter
+        router.failClosedPDFRecovery()
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        let reopened = try factory.openOrBootstrapCurrent()
+        try coordinator.activateValidating(session: reopened)
+        let replacementWriter = coordinator.workspaceWriter
+        let replacementLeases = try writerLeaseIDs(in: root)
+        XCTAssertFalse(replacementWriter === suspendedWriter)
+        pause.resume()
+        await activation.value
+        XCTAssertTrue(coordinator.workspaceWriter === replacementWriter)
+        XCTAssertNoThrow(try replacementWriter.currentRevision())
+        XCTAssertEqual(try writerLeaseIDs(in: root), replacementLeases)
+        XCTAssertEqual(replacementLeases.count, 1)
+        XCTAssertFalse(router.hasPendingWriterCleanup)
+        XCTAssertNil(router.entitlementProcessor)
+        guard case .maintenance(.finalizationInconsistent) = router.route else {
+            return XCTFail("The superseded restored activation must not publish its borrowed replacement")
+        }
+    }
+
+    @MainActor
+    func testRepeatedLifecyclePausesRetainPostAdoptionActivationForExactRetry() async throws {
+        let fixture = try await makePostAdoptionEraseFixture()
+        defer { cleanupPostAdoptionEraseFixture(fixture) }
+
+        await fixture.gate.sceneBecameInactive()
+        do {
+            try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
+            )
+            XCTFail("Inactive post-adoption recovery must remain covered")
+        } catch { }
+        fixture.router.pauseForAppAccess()
+        await fixture.gate.lock(reason: .returnedFromBackground)
+        fixture.router.pauseForAppAccess()
+        XCTAssertNil(fixture.router.entitlementProcessor)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 0,
+            "Inactive or revoked pre-read execution must not construct a fresh writer")
+        guard case .checking = fixture.router.route else {
+            return XCTFail("Repeated inactive/background pauses must retain the private activation")
+        }
+
+        await fixture.gate.sceneBecameActive()
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
+        )
+        guard case let .ready(ready, _, _) = fixture.router.route else {
+            return XCTFail("The exact retained ticket must publish after a fresh active-scene token")
+        }
+        XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+        XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+        XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+        XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
+        XCTAssertTrue(fixture.router.entitlementProcessor?.isStarted == true)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+    }
+
+    @MainActor
+    func testPostAdoptionExecutionRevokedAtFirstAwaitCannotInstallAStaleTokenOrRead() async throws {
+        let firstAwait = S2StartupPublicationPause()
+        var claimedExecutions = 0
+        var canonicalReadCount = 0
+        let fixture = try await makePostAdoptionEraseFixture(
+            beforePostAdoptionContentRead: { _ in
+                claimedExecutions += 1
+                if claimedExecutions == 1 { await firstAwait.suspend() }
+            },
+            willReadPostAdoptionCanonicalContent: { _ in canonicalReadCount += 1 }
+        )
+        defer { firstAwait.resume(); cleanupPostAdoptionEraseFixture(fixture) }
+
+        let stale = Task<Error?, Never> { @MainActor in
+            do {
+                try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
+                )
+                return nil
+            } catch {
+                return error
+            }
+        }
+        let reached = await XCTWaiter.fulfillment(of: [firstAwait.reached], timeout: 20)
+        XCTAssertEqual(reached, .completed)
+        await fixture.gate.sceneBecameInactive()
+        fixture.router.pauseForAppAccess()
+        await fixture.gate.lock(reason: .returnedFromBackground)
+        fixture.router.pauseForAppAccess()
+        await fixture.gate.sceneBecameActive()
+        firstAwait.resume()
+
+        let staleFailure = await stale.value
+        XCTAssertNotNil(staleFailure)
+        XCTAssertEqual(canonicalReadCount, 0)
+        XCTAssertNil(fixture.router.entitlementProcessor)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 0,
+            "Inactive or revoked pre-read execution must not construct a fresh writer")
+        guard case .checking = fixture.router.route else {
+            return XCTFail("The revoked pre-read execution must leave the activation unpublished")
+        }
+
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
+        )
+        XCTAssertEqual(claimedExecutions, 2)
+        XCTAssertGreaterThan(canonicalReadCount, 0)
+        guard case let .ready(ready, _, _) = fixture.router.route else {
+            return XCTFail("Only a newly claimed execution may recover and publish")
+        }
+        XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+        XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+        XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+        XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
+        XCTAssertTrue(fixture.router.entitlementProcessor?.isStarted == true)
+    }
+
+    @MainActor
+    func testSupersededPostAdoptionCatchCannotOverwriteNewReadyExecution() async throws {
+        let firstCommerce = S2StartupPublicationPause()
+        var commerceExecutions = 0
+        let fixture = try await makePostAdoptionEraseFixture(
+            beforeCommerceActivation: { _ in
+                commerceExecutions += 1
+                if commerceExecutions == 1 { await firstCommerce.suspend() }
+            }
+        )
+        defer { firstCommerce.resume(); cleanupPostAdoptionEraseFixture(fixture) }
+
+        let stale = Task<Error?, Never> { @MainActor in
+            do {
+                try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
+                )
+                return nil
+            } catch {
+                return error
+            }
+        }
+        let reached = await XCTWaiter.fulfillment(of: [firstCommerce.reached], timeout: 20)
+        XCTAssertEqual(reached, .completed)
+
+        await fixture.gate.sceneBecameInactive()
+        fixture.router.pauseForAppAccess()
+        await fixture.gate.sceneBecameActive()
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate
+        )
+        guard case let .ready(fresh, _, _) = fixture.router.route else {
+            firstCommerce.resume()
+            _ = await stale.value
+            return XCTFail("The fresh execution must reach ready while the old execution is suspended")
+        }
+        let freshProcessor = try XCTUnwrap(fixture.router.entitlementProcessor)
+        let freshLeases = try writerLeaseIDs(in: fixture.root)
+        XCTAssertEqual(commerceExecutions, 2)
+
+        firstCommerce.resume()
+        let staleFailure = await stale.value
+        XCTAssertNotNil(staleFailure)
+        guard case let .ready(stillFresh, _, _) = fixture.router.route else {
+            return XCTFail("A superseded catch must not overwrite the newer ready route")
+        }
+        XCTAssertTrue(stillFresh === fresh)
+        XCTAssertTrue(fixture.router.entitlementProcessor === freshProcessor)
+        XCTAssertTrue(freshProcessor.isStarted)
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root), freshLeases)
+        XCTAssertFalse(fixture.router.hasPendingWriterCleanup)
+    }
+
+    @MainActor
+    func testEraseCleanupReleaseFailureRetainsOriginalOwnerAndRetries() async throws {
+        for failure in [EraseCleanupCase.releaseFailure, .rebindFailure] {
+            let fixture = try await makePostAdoptionEraseFixture(cleanupCase: failure)
+            defer { cleanupPostAdoptionEraseFixture(fixture) }
+            try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate)
+            guard case let .ready(ready, _, _) = fixture.router.route else {
+                return XCTFail("Actual post-adoption startup must publish the fresh owner")
+            }
+            XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+            XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+            XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+            XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
+            XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+        }
+    }
+
+    @MainActor
+    func testEraseCleanupInterruptionAfterRetirementResumesOriginalTicket() async throws {
+        let fixture = try await makePostAdoptionEraseFixture(cleanupCase: .afterRetirement)
+        defer { cleanupPostAdoptionEraseFixture(fixture) }
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate)
+        guard case let .ready(ready, _, _) = fixture.router.route else {
+                return XCTFail("Actual post-adoption startup must publish the fresh owner")
+            }
+            XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+            XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+            XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+            XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+    }
+
+    @MainActor
+    func testImmediateEraseCleanupReplacesRetiredWriterBeforePublication() async throws {
+        let fixture = try await makePostAdoptionEraseFixture(cleanupCase: .immediate)
+        defer { cleanupPostAdoptionEraseFixture(fixture) }
+        try await fixture.router.finishRetiredEraseActivation(
+                fixture.operation, accessGate: fixture.gate)
+        guard case let .ready(ready, _, _) = fixture.router.route else {
+                return XCTFail("Actual post-adoption startup must publish the fresh owner")
+            }
+            XCTAssertNotEqual(ready.generationID, fixture.oldGenerationID)
+            XCTAssertEqual(ready.generationID, fixture.expectedGenerationID)
+            XCTAssertNotEqual(try ready.workspaceWriter.currentRevision().writerInstanceID,
+            fixture.oldWriterInstanceID)
+            XCTAssertNoThrow(try ready.workspaceWriter.currentRevision())
+        XCTAssertEqual(try writerLeaseIDs(in: fixture.root).count, 1)
+    }
+
+    private enum EraseCleanupCase { case ordinary, releaseFailure, rebindFailure, afterRetirement, immediate }
+
+    @MainActor
+    private func makePostAdoptionEraseFixture(
+        beforePostAdoptionContentRead: @escaping @MainActor (UUID) async -> Void = { _ in },
+        willReadPostAdoptionCanonicalContent: @escaping @MainActor (UUID) -> Void = { _ in },
+        beforeCommerceActivation: @escaping @MainActor (UUID) async -> Void = { _ in },
+        cleanupCase: EraseCleanupCase = .ordinary
+    ) async throws -> S2PostAdoptionEraseFixture {
+        var cleanupDiagnosticPhase = "fixture.setup"
+        let sandbox = try makeTemporaryApplicationSupportURL()
+        let root = try makeEraseApplicationSupportURL(in: sandbox)
+        let caches = root.deletingLastPathComponent().appendingPathComponent(
+            "Caches", isDirectory: true
+        )
+        let temporary = root.deletingLastPathComponent().appendingPathComponent(
+            "S2PostAdoptionTemporary-\(UUID().uuidString)", isDirectory: true
+        )
+        try fileManager.createDirectory(at: caches, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: temporary, withIntermediateDirectories: true)
+        let defaultsSuiteName = "S2PostAdoptionDefaults.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
+        let gate = AppAccessGateV1(
+            setting: .absentDisabled,
+            authentication: S2StartupAuthentication(outcomes: []),
+            clock: S2StartupClock(), identifiers: SystemApplicationIDSource()
+        )
+        var forwardsPostAdoptionHooks = false
+        let router = StartupRouter(
+            applicationSupportURL: root,
+            entitlementRuntime: isolatedStartupRuntime,
+            beforePostAdoptionContentRead: { executionID in
+                guard forwardsPostAdoptionHooks else { return }
+                await beforePostAdoptionContentRead(executionID)
+            },
+            willReadPostAdoptionCanonicalContent: willReadPostAdoptionCanonicalContent,
+            beforeCommerceActivation: { writerID in
+                guard forwardsPostAdoptionHooks else { return }
+                await beforeCommerceActivation(writerID)
+            }
+        )
+        let retainedOwner = S2EraseRootRetentionV1(root: sandbox, router: router)
+        var firstStartupFailure: String?
+        router.startupFailureDiagnosticForTesting = { observation in
+            guard firstStartupFailure == nil else { return }
+            firstStartupFailure = observation
+            print("EraseStartup.failure " + observation)
+        }
+        try router.bindStartupAccessGate(gate)
+        do {
+            try await router.startIfNeeded(accessGate: gate)
+            forwardsPostAdoptionHooks = true
+            guard case .ready = router.route else {
+                let phase = router.runtimeObservation?.phase.rawValue ?? "unobserved"
+                let reason: String
+                if case .maintenance(let maintenance) = router.route { reason = maintenance.rawValue }
+                else { reason = "non-maintenance-not-ready" }
+                print("EraseStartup.notReady phase=\(phase) reason=\(reason)")
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            if case let .ready(coordinator, _, _) = router.route {
+                retainedOwner.coordinator = coordinator
+            }
+            let oldGenerationID = try XCTUnwrap(retainedOwner.coordinator).generationID
+            let oldWriterInstanceID = try XCTUnwrap(retainedOwner.coordinator)
+                .workspaceWriter.currentRevision().writerInstanceID
+            weak var oldCoordinator = retainedOwner.coordinator
+            weak var oldWriter = retainedOwner.coordinator?.workspaceWriter
+            let ticket = try await router.beginEraseOperation(
+                coordinator: try XCTUnwrap(retainedOwner.coordinator), accessGate: gate
+            )
+            let operation = try router.eraseRetirementOperation(for: ticket)
+            var reservation: AppAccessGateV1.EraseAdoptionToken?
+            var receipt: CompletedEraseReceiptV1?
+            var completionCount = 0
+            var activationFailure: Error?
+            var retainedOldContext: ModelContext? = (cleanupCase == .releaseFailure || cleanupCase == .afterRetirement)
+                ? try XCTUnwrap(retainedOwner.coordinator).modelContext : nil
+            let oldContextIsReleased: () -> Bool = { [weak observedContext = retainedOldContext] in
+                observedContext == nil
+            }
+            // This distinct production point is after the genuine retirement
+            // proof and before deletion. The older .beforeCleanup point remains
+            // a preparation fault and cannot witness this boundary.
+            let cleanupFailure = cleanupCase == .afterRetirement
+                ? EraseAllFailureInjection(failOnceAt: .afterSessionRetirementBeforeCleanup) : nil
+            let makeService: @MainActor () -> EraseAllService = {
+                EraseAllService(
+                    applicationSupportURL: root,
+                    cachesDirectoryURL: caches,
+                    temporaryDirectoryURL: temporary,
+                    userDefaults: defaults,
+                    bundleIdentifier: "com.palatis3.fieldrecord",
+                    defaultsDomainName: defaultsSuiteName,
+                    failureInjection: cleanupFailure,
+                    privateSystemDiscoveryIndex: nil,
+                    notificationSystem: S2EmptyNotificationSystem(),
+                    admitErase: { subject in
+                        if let authorization = try await router.eraseAdmissionAuthorization(
+                            ticket, subject: subject
+                        ) {
+                            let token = try await gate.reserveEraseAdoption(
+                                subject: subject, authorization: authorization
+                            )
+                            try router.recordEraseReservation(ticket, reservation: token)
+                            reservation = token
+                            return token
+                        }
+                        guard let reservation, reservation.subject == subject else {
+                            throw AppAccessContractFailureV1.staleAttempt
+                        }
+                        return reservation
+                    },
+                    didCompleteErase: { completed in
+                        completionCount += 1
+                        if receipt == nil { receipt = completed }
+                    }
+                )
+            }
+            cleanupDiagnosticPhase = "erase.initial"
+            let start: @MainActor () async throws -> EraseAllOutcome = {
+                let coordinator = try XCTUnwrap(retainedOwner.coordinator)
+                let service = try router.configureEraseService(makeService(), operation: operation)
+                let activate: @MainActor (StoreGenerationSession) async -> Void = { [weak coordinator] session in
+                    do {
+                        try router.activateErasePreparationSession(session,
+                            coordinator: try XCTUnwrap(coordinator), operation: operation)
+                    } catch { activationFailure = error }
+                }
+                if cleanupCase == .immediate {
+                    // Real compatibility entry, followed by the same authentic
+                    // retirement after this source-owning frame has returned.
+                    return try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                        diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                        operation: operation, activate: activate)
+                }
+                let dependencies = try coordinator.packageLifecycleDependencies()
+                return try await service.erase(confirmation: "ERASE", coordinator: coordinator,
+                    diagnosticsStore: DiagnosticsStore(applicationSupportURL: root),
+                    operation: operation, activate: activate, lifecycleDependencies: dependencies)
+            }
+            let outcome = try await start()
+            if let activationFailure { throw activationFailure }
+            XCTAssertTrue(outcome.operation === operation)
+            let expectedGenerationID = try XCTUnwrap(reservation).subject.newGenerationID
+            // Prove revocation while the genuine old writer is still held.
+            // Its model alias must then disappear before retirement can pass.
+            XCTAssertThrowsError(try XCTUnwrap(retainedOwner.coordinator).workspaceWriter.currentRevision())
+            retainedOwner.coordinator = nil
+            // Retirement must release its source owner, independently of any
+            // context alias that these two fault cases deliberately retain.
+            let sourceOwnerReleased = expectation(for: NSPredicate { _, _ in
+                oldCoordinator == nil && oldWriter == nil
+            }, evaluatedWith: NSObject())
+            await fulfillment(of: [sourceOwnerReleased], timeout: 30)
+            XCTAssertNil(oldCoordinator)
+            XCTAssertNil(oldWriter)
+            guard oldCoordinator == nil, oldWriter == nil else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+            if cleanupCase == .releaseFailure || cleanupCase == .afterRetirement {
+                XCTAssertNotNil(retainedOldContext)
+                let pending = try await operation.advanceCleanup()
+                XCTAssertFalse(pending, "The recovery regression must exercise deferred cleanup")
+                retainedOldContext = nil
+                let drained = expectation(for: NSPredicate { _, _ in oldContextIsReleased() }, evaluatedWith: NSObject())
+                await fulfillment(of: [drained], timeout: 30)
+                XCTAssertTrue(oldContextIsReleased())
+                guard oldContextIsReleased() else { throw AppAccessContractFailureV1.staleAttempt }
+                cleanupDiagnosticPhase = "cleanup.intent-and-registry-read"
+                let intentBefore = try EraseIntentStore(applicationSupportURL: root).load()
+                let registryURL = root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json")
+                let registryBytes = try Data(contentsOf: registryURL)
+                if cleanupCase == .releaseFailure {
+                    // Corrupt only the original held registry inode, preserving
+                    // the real owner/lock for the checked close retry.
+                    try Data("invalid-registry".utf8).write(to: registryURL)
+                }
+                cleanupDiagnosticPhase = "cleanup.injected-resume"
+                do {
+                    _ = try await operation.advanceCleanup()
+                    XCTFail("The injected cleanup failure must not complete")
+                } catch { }
+                cleanupDiagnosticPhase = "cleanup.retained-owner-check"
+                XCTAssertEqual(try EraseIntentStore(applicationSupportURL: root).load(), intentBefore)
+                XCTAssertNil(receipt)
+                XCTAssertThrowsError(try operation.completedRetirement())
+                if cleanupCase == .releaseFailure {
+                    XCTAssertEqual(try Data(contentsOf: registryURL), Data("invalid-registry".utf8))
+                    cleanupDiagnosticPhase = "cleanup.registry-restore"
+                    try registryBytes.write(to: registryURL)
+                    cleanupDiagnosticPhase = "cleanup.registry-restored-readback"
+                    XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+                } else {
+                    XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+                }
+                guard case let .eraseCleanupPending(.retiring(held)) = router.route else {
+                    throw AppAccessContractFailureV1.staleAttempt
+                }
+                XCTAssertTrue(held === operation)
+            }
+            cleanupDiagnosticPhase = "cleanup.final-resume"
+            let completedCleanup = try await operation.advanceCleanup()
+            XCTAssertTrue(completedCleanup)
+            guard completedCleanup else { throw AppAccessContractFailureV1.staleAttempt }
+            cleanupDiagnosticPhase = "cleanup.completed-receipt"
+            let (_, _, actualReceipt) = try operation.completedRetirement()
+            let completed = try XCTUnwrap(actualReceipt)
+            let callbackReceipt = try XCTUnwrap(receipt,
+                "The actual completion callback must deliver this exact receipt")
+            XCTAssertEqual(callbackReceipt.subject, completed.subject)
+            XCTAssertEqual(callbackReceipt.reservation, completed.reservation)
+            XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+            XCTAssertEqual(completionCount, 1, "Cleanup retry must not repeat physical completion")
+            let adopted = try XCTUnwrap(reservation)
+            cleanupDiagnosticPhase = "cleanup.gate-adoption"
+            try await gate.adoptCompletedErase(completed, token: adopted)
+            if cleanupCase == .rebindFailure {
+                // Fail actual fresh construction after receipt adoption. Keep
+                // the genuine retirement owner for a binding-only retry.
+                let operationsRoot = root.appendingPathComponent("FieldEvidenceOperations")
+                XCTAssertFalse(fileManager.fileExists(atPath: operationsRoot.path))
+                let blocker = Data("not-an-operations-directory".utf8)
+                try blocker.write(to: operationsRoot)
+                do {
+                    try await router.finishRetiredEraseActivation(operation, accessGate: gate)
+                    XCTFail("Fresh activation must reject a file in place of its operations directory")
+                } catch { }
+                XCTAssertEqual(try Data(contentsOf: operationsRoot), blocker)
+                XCTAssertTrue(try router.eraseRetirementOperation(for: ticket) === operation)
+                XCTAssertTrue(try EraseIntentStore.completedCleanupRootIsAbsent(applicationSupportURL: root))
+                XCTAssertEqual(completionCount, 1)
+                try fileManager.removeItem(at: operationsRoot)
+            }
+            return S2PostAdoptionEraseFixture(
+                root: root, caches: caches, temporary: temporary,
+                defaultsSuiteName: defaultsSuiteName, gate: gate, router: router,
+                operation: operation, expectedGenerationID: expectedGenerationID,
+                oldGenerationID: oldGenerationID, oldWriterInstanceID: oldWriterInstanceID
+            )
+        } catch {
+            let originalError = error
+            let failureType = String(reflecting: type(of: originalError))
+            let failureDomain = (originalError as NSError).domain
+            let failureCode = (originalError as NSError).code
+            let failureRecord = "S2EraseCleanup.caught phase=\(String(describing: cleanupCase) + "/" + cleanupDiagnosticPhase) type=\(failureType) domain=\(failureDomain) code=\(failureCode)"
+            XCTContext.runActivity(named: "Retained original failure before cleanup") { activity in
+                let attachment = XCTAttachment(string: failureRecord)
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
+            }
+            XCTFail(failureRecord)
+            // The registered actual Router/root retains any uncertain owner.
+            // Failure does not authorize optional physical fixture removal.
+            defaults.removePersistentDomain(forName: defaultsSuiteName)
+            throw originalError
+        }
+    }
+
+    @MainActor
+    private func cleanupPostAdoptionEraseFixture(_ fixture: S2PostAdoptionEraseFixture) {
+        UserDefaults(suiteName: fixture.defaultsSuiteName)?
+            .removePersistentDomain(forName: fixture.defaultsSuiteName)
+        // S2EraseRootRetentionV1 retains the actual fresh/failed owner and root
+        // until host termination; no unproved close or root deletion occurs.
+    }
+
+    private var isolatedStartupRuntime: StoreKitEntitlementRuntimeV1 {
+        StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+            transactionUpdates: { AsyncStream { $0.finish() } },
+            statusUpdates: { AsyncStream { $0.finish() } })
+    }
+
+    @MainActor
+    func testErasedActivationMismatchAndRepeatedBeginReleaseOnlyTheAcquiredWriter() async throws {
+        for action in ["finish", "defer", "begin"] {
+            let root = try makeTemporaryApplicationSupportURL()
+            let foreignRoot = try makeTemporaryApplicationSupportURL()
+            defer {
+                try? fileManager.removeItem(at: root)
+                try? fileManager.removeItem(at: foreignRoot)
+            }
+            let factory = StoreGenerationFactory(applicationSupportURL: root)
+            let initial = try factory.openOrBootstrapCurrent()
+            let owner = try StoreSessionCoordinator(validatingSession: initial)
+            let activeSession = try factory.openOrBootstrapCurrent()
+            let foreignSession = try StoreGenerationFactory(applicationSupportURL: foreignRoot).openOrBootstrapCurrent()
+            let borrowed = try StoreSessionCoordinator(validatingSession: foreignSession)
+            defer {
+                XCTAssertNoThrow(try owner.invalidateAndReleaseWriter())
+                XCTAssertNoThrow(try borrowed.invalidateAndReleaseWriter())
+            }
+            let router = StartupRouter(applicationSupportURL: root, entitlementRuntime: isolatedStartupRuntime)
+            await router.beginErasedSessionActivation(activeSession, coordinator: owner)
+            let acquiredWriter = owner.workspaceWriter
+            let borrowedWriter = borrowed.workspaceWriter
+            let borrowedLeases = try writerLeaseIDs(in: foreignRoot)
+            XCTAssertEqual(try writerLeaseIDs(in: root).count, 1)
+            switch action {
+            case "finish": await router.finishErasedSessionActivation(foreignSession, coordinator: borrowed)
+            case "defer": router.deferErasedSessionCleanup(foreignSession, coordinator: borrowed)
+            default: await router.beginErasedSessionActivation(foreignSession, coordinator: borrowed)
+            }
+            guard case .maintenance(.eraseInconsistent) = router.route else {
+                return XCTFail("Mismatched or repeated erased activation must fail closed: \(action)")
+            }
+            XCTAssertThrowsError(try acquiredWriter.currentRevision()) {
+                XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .writerInvalidated)
+            }
+            XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+            XCTAssertTrue(borrowed.workspaceWriter === borrowedWriter)
+            XCTAssertNoThrow(try borrowedWriter.currentRevision())
+            XCTAssertEqual(try writerLeaseIDs(in: foreignRoot), borrowedLeases)
+            XCTAssertFalse(router.hasPendingWriterCleanup)
+            XCTAssertNil(router.entitlementProcessor)
+            XCTAssertNil(router.maintenanceRestoreSession)
+            XCTAssertNil(router.maintenanceEraseSession)
+        }
+    }
+
+    @MainActor
+    func testValidatingCoordinatorConstructionReleasesLeaseAfterRealJournalFailure() throws {
+        let root = try makeTemporaryApplicationSupportURL()
+        defer { try? fileManager.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let checkpoint = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+            .mutableSemanticSHA256
+        let corruptRow = Site(id: UUID(), label: "Unjournaled corruption", address: nil, timeZoneID: "UTC")
+        session.modelContext.insert(corruptRow)
+        try session.modelContext.save()
+        XCTAssertThrowsError(try StoreSessionCoordinator(validatingSession: session)) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+        XCTAssertEqual(try writerLeaseIDs(in: root).count, 0)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<Site>()).map(\.id), [corruptRow.id])
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<MutationReceiptRow>()).count, 0)
+        XCTAssertEqual(try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<WorkspaceMutationStateRow>()).first)
+            .mutableSemanticSHA256, checkpoint)
+    }
+
+    private func writerLeaseIDs(in root: URL) throws -> Set<String> {
+        let data = try Data(contentsOf: root.appendingPathComponent("FieldEvidenceOperations/generation-leases/registry.json"))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let leases = try XCTUnwrap(object["leases"] as? [[String: Any]])
+        return Set(try leases.filter { $0["role"] as? String == GenerationLeaseRoleV1.writer.rawValue }
+            .map { try XCTUnwrap($0["leaseID"] as? String) })
+    }
+
+    func testV23P03C54EncryptedEnvelopeAddsNoPersistentModelWriterOrLedgerFamily() {
+        XCTAssertTrue(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.validate())
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.storeEnrollmentCount, 0)
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.writerEnrollmentCount, 0)
+        XCTAssertEqual(C54EncryptedPortableEnvelopeSyncClassificationBoundaryV1.persistentModelCountAdded, 0)
+        XCTAssertFalse(EphemeralSecretHandlingDispositionV1.passphraseIsPersisted)
+        XCTAssertFalse(EphemeralSecretHandlingDispositionV1.derivedKeyIsPersisted)
+    }
+}
+
+@MainActor
+private final class S2StartupPublicationPause {
+    let reached = XCTestExpectation(description: "Actual writer recovered, before commerce publication")
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isResumed = false
+
+    func suspend() async {
+        guard !isResumed else { return }
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            reached.fulfill()
+        }
+    }
+
+    func resume() {
+        isResumed = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+@MainActor
+private struct S2PostAdoptionEraseFixture {
+    let root: URL
+    let caches: URL
+    let temporary: URL
+    let defaultsSuiteName: String
+    let gate: AppAccessGateV1
+    let router: StartupRouter
+    let operation: EraseRouterOperationV1
+    let expectedGenerationID: UUID
+    let oldGenerationID: UUID
+    let oldWriterInstanceID: UUID
+}
+
+@MainActor
+private final class S2EmptyNotificationSystem: NotificationSystemPortV1 {
+    func authorization() async throws -> LocalReminderAuthorizationV1 { .authorized }
+    func observations() async throws -> [NotificationSystemObservationV1] { [] }
+    func add(_ request: NotificationSystemRequestV1) async throws { }
+    func remove(_ requestIDs: [String]) async throws { }
+}
+
+private actor S2StartupAuthentication: LocalAuthenticationClient {
+    private var outcomes: [LocalAuthenticationOutcomeV1]
+
+    init(outcomes: [LocalAuthenticationOutcomeV1]) {
+        self.outcomes = outcomes
+    }
+
+    func availability() -> LocalAuthenticationAvailabilityV1 {
+        .systemValue(status: .available, biometry: .faceID)
+    }
+
+    func authenticate(_ attempt: LocalAuthenticationAttemptV1) -> LocalAuthenticationOutcomeV1 {
+        guard !outcomes.isEmpty else { return .unavailable }
+        return outcomes.removeFirst()
+    }
+
+    func cancel(attemptID: UUID) {}
+}
+
+private struct S2StartupClock: ApplicationClock {
+    func now() -> Date { Date(timeIntervalSince1970: 1_800_000_000) }
+}
+
+private func s2NotificationSubject(operationID: UUID) throws -> NotificationOperationSubjectV1 {
+    let digest = String(repeating: "a", count: 64)
+    let journal = try AppLockNotificationJournalV1(
+        operationID: operationID,
+        targetEnabled: true,
+        priorPolicy: .init(policyID: "s2-startup", revision: 1, canonicalDigest: digest),
+        projections: [],
+        disposition: .enablingPrepared
+    )
+    return try NotificationOperationSubjectV1(journal: journal, settingWriteSHA256: digest)
+}
+
+// Conservative fixture retention is not operation success. Required cleanup,
+// weak-drain and receipt assertions still execute; optional physical root removal
+// is withheld because the test has no checked close proof for the fresh owner.
+@MainActor
+private final class S2EraseRootRetentionV1 {
+    private static var retained: [S2EraseRootRetentionV1] = []
+    let root: URL
+    let router: StartupRouter
+    var coordinator: StoreSessionCoordinator?
+    var preparedSession: StoreGenerationSession?
+
+    init(root: URL, router: StartupRouter) {
+        self.root = root
+        self.router = router
+        Self.retained.append(self)
+        FileHandle.standardError.write(Data(("S2Erase.fixtureRootRetained " + root.path + "\n").utf8))
+    }
+}

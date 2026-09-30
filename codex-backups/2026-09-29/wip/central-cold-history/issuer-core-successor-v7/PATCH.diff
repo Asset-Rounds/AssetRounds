@@ -1,0 +1,2001 @@
+--- a/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift
++++ b/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift
+@@ -785,6 +785,44 @@
+         try auxiliary.removeFrozenTargets(expectedOperationsIdentity: binding.registryIdentity)
+         try requireOperationsAbsent()
+         phase = .namespaceRemoved
++    }
++
++    /// The genuine incumbent cold proof remains the sole retirement owner.
++    /// This narrow inside-G admission cannot reconstruct a drain from progress
++    /// or grant a fresh terminal origin. Registry itself proves its exact
++    /// still-named bytes, policy and empty cohort around the synchronous body.
++    func requireSchema2ColdCleanupHeldGObservation(
++        binding expectedBinding: EraseRetirementBindingV1,
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        drain expectedDrain: EraseSessionDrainWitnessV1
++    ) throws {
++        guard binding == expectedBinding, drain === expectedDrain,
++              frozenIntent.schemaVersion == 2,
++              frozenIntent.phase == .sessionActivated,
++              phase == .ready || phase == .readyWithOriginalManifest
++                || phase == .manifestPreserved || phase == .removingNamespace else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        try exclusion.requireSchema2ColdCleanupHeldGOwnership(
++            binding: binding, registry: registry, activity: activity,
++            drain: expectedDrain)
++    }
++
++    /// Full admission is repeated outside an already-held G. The inside-G
++    /// counterpart above deliberately cannot recurse through this actual
++    /// source/Manifest/drain and Registry census.
++    func requireSchema2ColdCleanupRegistryBoundary(
++        binding expectedBinding: EraseRetirementBindingV1,
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        drain expectedDrain: EraseSessionDrainWitnessV1
++    ) throws {
++        try requireSchema2ColdCleanupHeldGObservation(binding: expectedBinding,
++            registry: registry, activity: activity, drain: expectedDrain)
++        try exclusion.requireNoLeasesAfterDrain(proof: expectedDrain)
++        try requireSchema2ColdCleanupHeldGObservation(binding: expectedBinding,
++            registry: registry, activity: activity, drain: expectedDrain)
+     }
+ 
+     func requireCurrentGenerationValidation() throws {
+@@ -4462,6 +4500,24 @@
+                     throw EraseAllServiceError.invalidAuthority
+                 }
+             }
++            // Capture the actual Caches/Temporary parent owners before the
++            // first Q/R private await, including an already rostered partial
++            // generation cut. This is a first cold observation, not a new
++            // auxiliary authority: replay is rooted in the durable original-P
++            // roster and later checks its complete permitted projection.
++            if let intent = observed.intent,
++               intent.phase == .pointerSwitched ||
++                 intent.phase == .sessionActivated {
++                guard observed.preparation?.matches(intent) == true,
++                      retainedRegistry != nil,
++                      retainedActivity != nil,
++                      originalColdTokens != nil else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                try captureSchema2ColdForwardAuxiliaryParents(
++                    operation: operation, store: store,
++                    manifest: manifestOwner)
++            }
+             if observed.opaqueRosterPresent ||
+                 observed.opaqueRosterNextPresent {
+                 // A durable R roster can survive loss of model.sqlite in a
+@@ -8014,6 +8070,32 @@
+         throw EraseAllServiceError.recoveryRequired
+     }
+ 
++    private func captureSchema2ColdForwardAuxiliaryParents(
++        operation: EraseColdPreparationOperationV1,
++        store: EraseIntentStore,
++        manifest: EraseSchema2ColdManifestOwnerV1
++    ) throws {
++        // The initial caller runs before any private-copy suspension. Retried
++        // forwards use the retained physical projection owner; they never
++        // recapture a current survivor tree as the original-P baseline.
++        guard !operation.hasSchema2ColdAuxiliaryParentsObservation else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        let observer = EraseSchema2ColdAuxiliaryFirstObserverV1()
++        try operation.retainSchema2ColdAuxiliaryFirstObserver(
++            observer, store: store, manifest: manifest)
++        let first = try manifest.withHeldSchema2ColdAuxiliaryCapture(
++            cachesDirectoryURL: cachesDirectoryURL,
++            temporaryDirectoryURL: temporaryDirectoryURL,
++            operation: operation) { support, caches, temporary in
++            try observer.captureFirst(support: support,
++                caches: caches, temporary: temporary,
++                applicationSupportURL: applicationSupportURL)
++        }
++        try operation.bindSchema2ColdAuxiliaryFirstObservation(
++            first, observer: observer, store: store, manifest: manifest)
++    }
++
+     /// A same-operation retry after the exact P→R publication may re-enter
+     /// only with the original preparation, held target session and checked
+     /// reader. The later cold cleanup owner consumes this typed continuation;
+@@ -11895,6 +11977,21 @@
+     private var diagnosticsZero: Data?
+     private var phase: Phase = .prepared
+     private var running = false
++
++    func retirementObservationForSchema2ColdTransfer(
++        store: EraseIntentStore, intent expected: EraseIntentV1
++    ) throws -> EraseIntentStore.RetirementObservation {
++        guard phase == .prepared, !running,
++              intentStore === store, intent == expected,
++              expected.schemaVersion == 2,
++              expected.phase == .sessionActivated,
++              reservation == nil, completion == nil,
++              exclusion == nil, retirement == nil, proof == nil else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        try store.requireRetirementObservation(observation)
++        return observation
++    }
+ 
+     func requireTerminalAuthorityCloseAdmission(
+         authority expectedAuthority: StoreRestoreGenerationAuthority,
+--- a/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift
++++ b/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift
+@@ -5974,6 +5974,12 @@
+         EraseOriginalAuxiliaryRosterPublicationAdmissionV1?
+     private var originalAuxiliaryProjectedIntent: EraseIntentV1?
+     private var originalAuxiliaryFirstLeaseCensus: [GenerationLeaseTokenV1]?
++    // Actual strict G observation before an auxiliary roster exists. This
++    // is data from the same original cohort, never a proposed P authority.
++    private var originalFirstCaptureLeaseCensus: [GenerationLeaseTokenV1]?
++    private var originalFirstCaptureObservationUncertain = false
++    private var originalFirstCaptureRegistryObservations:
++        [EraseSchema2ColdRegistryObservationAttemptV1] = []
+     private var originalAuxiliaryPhaseCASInFlight = false
+     private var originalAuxiliaryPhaseCASUncertain = false
+     private var originalAuxiliaryRegistryObservations:
+@@ -6030,6 +6036,11 @@
+         EraseAbortCheckedSnapshotIOV1?
+     private var originalNotificationOSAbsence:
+         OriginalEraseNotificationOSAbsenceReceiptV1?
++    // Retained only from the actual checked pre-delete Store publication.
++    // The value alone never supplies Notification OS or whole-tree authority.
++    private var originalSchema2SurvivingNotificationObservation:
++        EraseSchema2ColdSurvivingNotificationObservationV1?
++    private weak var originalSchema2SurvivingNotificationStore: EraseIntentStore?
+     private var originalNotificationRemovalReceipt:
+         OriginalEraseNotificationRecordRemovalReceiptV1?
+     private var originalAuxiliaryScratchControlPolicyInFlight = false
+@@ -6796,6 +6807,7 @@
+         store: EraseIntentStore
+     ) throws {
+         guard let router, !detached, !detaching,
++              !originalFirstCaptureObservationUncertain,
+               originalAuxiliaryFirstCaptureAttempted,
+               originalAuxiliaryFirstObserver === observer,
+               originalAuxiliaryFirstCaptureOwner === owner,
+@@ -6817,6 +6829,147 @@
+         }
+         try router.requireLiveEraseRecovery(self, coordinator: coordinator)
+         try exclusion.revalidate()
++    }
++
++    /// Migration calls this while its genuine synchronous G is held. It
++    /// proves the actual original allocation/phase/owner identities without
++    /// Store loads, a new census, or a recursive auxiliary observation.
++    func requireOriginalEraseFirstCaptureRegistrationUnderHeldG(
++        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
++        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
++        coordinator: StoreSessionCoordinator,
++        exclusion: StoreTemporalNormalizationExclusionV1,
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        store: EraseIntentStore, intent: EraseIntentV1,
++        preparation: ErasePreparationV2
++    ) throws {
++        guard let router, !detached, !detaching,
++              !originalFirstCaptureObservationUncertain,
++              originalAuxiliaryFirstCaptureAttempted,
++              originalAuxiliaryFirstCaptureOwner === owner,
++              originalAuxiliaryFirstObserver === observer,
++              originalAuxiliaryFirstIntent == intent,
++              originalAuxiliaryFirstPreparation == preparation,
++              originalAuxiliaryStore === store,
++              originalExclusion === exclusion,
++              transferredExclusion == nil,
++              preparationCoordinator === coordinator,
++              preparationRegistry === registry,
++              preparationServiceFrame,
++              preparationWriterPhase == .absent,
++              preparationTargetWriter == nil,
++              preparationWriterAllocation == nil,
++              preparationFailureWitness == nil,
++              originalTargetReaderAllocation == nil,
++              originalWriterTransition == nil,
++              intent.schemaVersion == 2,
++              intent.phase == .emptyGenerationPrepared,
++              preparation.matches(intent),
++              let source = preparationSourceWriter,
++              exclusion.matchesOriginalEraseAuxiliaryPhase(
++                registry: registry, activity: activity,
++                writer: source.token) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try router.requireLiveEraseRecovery(self, coordinator: coordinator)
++        try source.requireExactRegistry(registry)
++    }
++
++    /// The Registry's real checked reader supplies this exact current
++    /// census. A pre-roster operation cannot claim the later published P
++    /// census already exists. Subsequent observations and publication must
++    /// match this complete first checked cohort.
++    func requireOriginalEraseFirstCaptureUnderHeldG(
++        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
++        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        store: EraseIntentStore, intent: EraseIntentV1,
++        preparation: ErasePreparationV2,
++        observedTokens: [GenerationLeaseTokenV1]
++    ) throws {
++        guard let coordinator = preparationCoordinator,
++              let exclusion = originalExclusion,
++              let source = preparationSourceWriter else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireOriginalEraseFirstCaptureRegistrationUnderHeldG(
++            owner: owner, observer: observer, coordinator: coordinator,
++            exclusion: exclusion, registry: registry, activity: activity,
++            store: store, intent: intent, preparation: preparation)
++        // This existing mode performs pure exact handle/provider checks.
++        // The caller has positively read the durable census under real G;
++        // invoking ordinary live identity here would recursively enter G.
++        try inventory.requirePreparationCensus(observedTokens,
++            registry: registry, sourceWriter: source, writer: nil,
++            checkedOriginalRecovery: true)
++        guard Set(observedTokens.map(\.leaseID)).count == observedTokens.count,
++              observedTokens.filter({ $0.role == .writer }) == [source.token] else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        if let first = originalFirstCaptureLeaseCensus {
++            guard observedTokens.count == first.count,
++                  observedTokens.allSatisfy({ first.contains($0) }) else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++        } else {
++            originalFirstCaptureLeaseCensus = observedTokens
++        }
++        if let published = originalAuxiliaryFirstLeaseCensus {
++            guard observedTokens.count == published.count,
++                  observedTokens.allSatisfy({ published.contains($0) }) else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++        }
++    }
++
++    func failOriginalEraseFirstCaptureObservation() {
++        originalFirstCaptureObservationUncertain = true
++    }
++
++    /// Separate from the first-roster census route: no first snapshot or
++    /// auxiliary publication exists at initial capture. The genuine parent
++    /// callback and Migration observation owner are already retained before
++    /// this exact checked Registry read attempt may open a descriptor.
++    func retainOriginalEraseFirstCaptureRegistryObservation(
++        attempt: EraseSchema2ColdRegistryObservationAttemptV1,
++        registry: GenerationLeaseRegistryV1
++    ) throws {
++        guard let router, !detached, !detaching,
++              !originalFirstCaptureObservationUncertain,
++              originalAuxiliaryFirstCaptureAttempted,
++              let owner = originalAuxiliaryFirstCaptureOwner,
++              originalAuxiliaryFirstObserver != nil,
++              originalAuxiliaryFirstIntent?.phase == .emptyGenerationPrepared,
++              originalAuxiliaryFirstPreparation != nil,
++              originalAuxiliaryStore != nil,
++              originalExclusion?.registry === registry,
++              preparationRegistry === registry,
++              transferredExclusion == nil,
++              preparationServiceFrame,
++              preparationWriterPhase == .absent,
++              preparationFailureWitness == nil,
++              preparationSourceWriter != nil,
++              preparationWriterAllocation == nil,
++              preparationTargetWriter == nil,
++              originalTargetReaderAllocation == nil,
++              originalWriterTransition == nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try router.requireEraseRetirementOperation(self)
++        try owner.requireOriginalFirstCaptureRegistryRetention(operation: self)
++        originalFirstCaptureRegistryObservations.removeAll { $0.isCheckedClosed }
++        guard originalFirstCaptureRegistryObservations.isEmpty else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        originalFirstCaptureRegistryObservations.append(attempt)
++    }
++
++    fileprivate func requireOriginalFirstCaptureCertain() throws {
++        guard !originalFirstCaptureObservationUncertain else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
+     }
+ 
+     func captureOriginalEraseAuxiliaryPhysicalRoster(
+@@ -7076,6 +7229,12 @@
+             guard firstLeases.filter({ $0.role == .writer }) == [source.token],
+                   Set(firstLeases.map(\.leaseID)).count == firstLeases.count else {
+                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            if let captured = originalFirstCaptureLeaseCensus {
++                guard firstLeases.count == captured.count,
++                      firstLeases.allSatisfy({ captured.contains($0) }) else {
++                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                }
+             }
+             let admission = EraseOriginalAuxiliaryRosterPublicationAdmissionV1(
+                 seal: seal, receipt: receipt)
+@@ -9043,6 +9202,12 @@
+                                 supportFD: support)
+                         }
+                         try reproveOutside()
++                        try publishOriginalSchema2SurvivingNotificationUnderHeldRemoval(
++                            absence: absence, marker: marker, control: control,
++                            store: store, registry: registry, activity: activity,
++                            exclusion: exclusion, firstNodes: firstNodes,
++                            support: support, io: io, removalPermit: permit,
++                            reproveOutside: reproveOutside)
+                         let value = try control
+                             .removeOriginalEraseNotificationRecordsAfterOSAbsence(
+                                 absence, marker: marker,
+@@ -9062,6 +9227,272 @@
+             originalAuxiliaryNotificationUncertain = true
+             throw error
+         }
++    }
++
++    /// Transfer the exact actual OS-owned IDs before their mapping/control
++    /// sources disappear. The original first-P roster remains authority for
++    /// existing leaves; a genuine empty present/created root has no sources
++    /// only when those exact original-P leaves are positively absent.
++    private func publishOriginalSchema2SurvivingNotificationUnderHeldRemoval(
++        absence: OriginalEraseNotificationOSAbsenceReceiptV1,
++        marker: OriginalEraseNotificationMarkerPublicationReceiptV1,
++        control: AppLockNotificationControlStoreV1,
++        store: EraseIntentStore, registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        exclusion: StoreTemporalNormalizationExclusionV1,
++        firstNodes: [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode],
++        support: Int32, io: EraseAbortCheckedSnapshotIOV1,
++        removalPermit: OriginalEraseNotificationRemovalPermitV1,
++        reproveOutside: @escaping @MainActor () throws -> Void
++    ) throws {
++        guard let router,
++              let subject = try router.originalEraseRecoverySubject(self),
++              originalNotificationOSAbsence === absence,
++              originalNotificationRemovalInFlight,
++              !originalNotificationRemovalUncertain,
++              originalNotificationRemovalIO === io,
++              originalAuxiliaryStore === store,
++              originalExclusion === exclusion,
++              preparationRegistry === registry,
++              let admission = originalAuxiliaryRosterAdmission,
++              let firstIntent = originalAuxiliaryFirstIntent,
++              let preparation = originalAuxiliaryFirstPreparation,
++              let originalP = originalAuxiliaryFirstPhysicalRoster,
++              let pointerAuthority = originalPointerAuthority,
++              let pointer = originalCurrentPointerReceipt,
++              firstIntent.schemaVersion == 2,
++              firstIntent.phase == .emptyGenerationPrepared,
++              preparation.matches(firstIntent),
++              subject.eraseID == firstIntent.eraseID,
++              subject.newGenerationID == firstIntent.newGenerationID,
++              marker.checkedSettled,
++              marker.revocation == absence.revocation else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        let pTree = originalP.record.trees.first {
++            $0.key == "support/FieldEvidenceOperations"
++        }
++        guard let pTree, pTree.state == "present", let pNodes = pTree.nodes else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        let rootName = AppLockNotificationControlStoreV1.rootName
++        let sourceNames = [AppLockNotificationControlStoreV1.mappingName,
++            AppLockNotificationControlStoreV1.recordName].sorted()
++        let nodes = firstNodes.filter { sourceNames.contains($0.path) }
++        let pSources = pNodes.filter { sourceNames.contains(
++            String($0.path.dropFirst(rootName.count + 1)))
++            && $0.path.hasPrefix(rootName + "/") }
++        guard nodes.count == pSources.count,
++              Set(nodes.map(\.path)) == Set(pSources.map {
++                  String($0.path.dropFirst(rootName.count + 1))
++              }),
++              Set((absence.mapping?.ownedRequestIDs ?? []) +
++                  (absence.journal?.projections.map(\.requestID) ?? []))
++                == absence.ownedRequestIDs
++        else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
++        // Workflow privately checked its actual add drain immediately before
++        // issuing this exact absence receipt and invoking this synchronous
++        // callback. No suspension or second OS owner is introduced here.
++        try absence.requireBound(control: control, revocation: marker.revocation)
++
++        func nineFields(_ full: String) throws -> String {
++            let fields = full.split(separator: "|", omittingEmptySubsequences: false)
++            guard fields.count == 11 else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            return ([fields[0], fields[1], fields[2]] + Array(fields[5...]))
++                .map(String.init).joined(separator: "|")
++        }
++        @MainActor func currentSources() throws
++            -> [EraseSchema2ColdSurvivingNotificationProvenanceV1.Source] {
++            try removalPermit.requireHeld()
++            try reproveOutside()
++            try absence.requireBound(control: control, revocation: marker.revocation)
++            try marker.requireBound(control: control, operation: self,
++                store: store, registry: registry, exclusion: exclusion,
++                activity: activity)
++            return try io.withOpen(parent: support,
++                name: "FieldEvidenceOperations", flags: O_RDONLY | O_DIRECTORY
++            ) { operations in
++                try io.withOpen(parent: operations, name: rootName,
++                    flags: O_RDONLY | O_DIRECTORY
++                ) { root in
++                    var namedRoot = stat(), heldRoot = stat()
++                    guard Darwin.fstat(root, &heldRoot) == 0,
++                          Darwin.fstatat(operations, rootName, &namedRoot,
++                            AT_SYMLINK_NOFOLLOW) == 0,
++                          EraseSchema2ColdCleanupGrammarV1.fullFact(
++                            EraseColdControlLeafFactV1(heldRoot))
++                            == marker.projectedRootFact,
++                          EraseColdControlLeafFactV1(namedRoot)
++                            == EraseColdControlLeafFactV1(heldRoot) else {
++                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                    }
++                    let names = try io.names(in: root)
++                    guard names == Set(firstNodes.filter { !$0.path.isEmpty }
++                        .map(\.path)).union([AppLockNotificationControlStoreV1.eraseName])
++                        .sorted() else {
++                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                    }
++                    var result: [EraseSchema2ColdSurvivingNotificationProvenanceV1.Source] = []
++                    for name in sourceNames {
++                        guard let node = nodes.first(where: { $0.path == name }) else {
++                            var absent = stat()
++                            guard Darwin.fstatat(root, name, &absent,
++                                    AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT,
++                                  name != AppLockNotificationControlStoreV1.mappingName
++                                    || absence.mapping == nil,
++                                  name != AppLockNotificationControlStoreV1.recordName
++                                    || absence.journal == nil else {
++                                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                            }
++                            continue
++                        }
++                        guard let original = pSources.first(where: {
++                                $0.path == rootName + "/" + name
++                              }), original.kind == "file",
++                              try nineFields(node.fullFact) == original.fact,
++                              node.contentSHA256 == original.sha256,
++                              let expectedSHA = node.contentSHA256 else {
++                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                        }
++                        var before = stat(), after = stat()
++                        guard Darwin.fstatat(root, name, &before,
++                            AT_SYMLINK_NOFOLLOW) == 0,
++                              EraseSchema2ColdCleanupGrammarV1.fullFact(
++                                EraseColdControlLeafFactV1(before)) == node.fullFact
++                        else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
++                        let bytes = try io.control(parent: root, name: name,
++                            maximum: AppLockNotificationControlStoreV1.maximumRecordBytes).0
++                        guard StoreMigrationCanonicalJSONV1.sha256(bytes) == expectedSHA else {
++                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                        }
++                        if name == AppLockNotificationControlStoreV1.mappingName {
++                            let value = try JSONDecoder().decode(
++                                NotificationPrivateMappingV1.self, from: bytes)
++                            guard value == absence.mapping,
++                                  try CompatibilityCanonicalV1.encode(value) == bytes else {
++                                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                            }
++                        } else {
++                            let value = try JSONDecoder().decode(
++                                AppLockNotificationControlV1.self, from: bytes)
++                            guard value.journal == absence.journal,
++                                  try CompatibilityCanonicalV1.encode(value) == bytes else {
++                                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                            }
++                        }
++                        let url = subject.applicationSupportURL
++                            .appendingPathComponent("FieldEvidenceOperations", isDirectory: true)
++                            .appendingPathComponent(rootName, isDirectory: true)
++                            .appendingPathComponent(name)
++                        let policy = try ProtectedFilePolicyV1
++                            .observeTemporalPolicyWithCheckedClose(.journal, at: url,
++                                retainUncertainDescriptor: { io.retainUncertainDescriptor($0) })
++                        guard policy == node.policy,
++                              Darwin.fstatat(root, name, &after,
++                                AT_SYMLINK_NOFOLLOW) == 0,
++                              EraseColdControlLeafFactV1(after)
++                                == EraseColdControlLeafFactV1(before) else {
++                            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                        }
++                        result.append(.init(path: rootName + "/" + name,
++                            fullFact: node.fullFact, sha256: expectedSHA))
++                    }
++                    guard try io.names(in: root) == names,
++                          Darwin.fstat(root, &heldRoot) == 0,
++                          EraseSchema2ColdCleanupGrammarV1.fullFact(
++                            EraseColdControlLeafFactV1(heldRoot)) == marker.projectedRootFact
++                    else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
++                    try removalPermit.requireHeld()
++                    try reproveOutside()
++                    return result.sorted { $0.path < $1.path }
++                }
++            }
++        }
++        let sources = try currentSources()
++        let pointerSHA = try pointer.currentPointerSHA256(
++            authority: pointerAuthority, operation: self)
++        let value = EraseSchema2ColdSurvivingNotificationProvenanceV1(
++            schemaVersion: 1, eraseID: firstIntent.eraseID.uuidString.lowercased(),
++            preparationSHA256: StoreMigrationCanonicalJSONV1.sha256(
++                try ErasePreparationCodecV2.encode(preparation)),
++            originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256,
++            targetPointerSHA256: pointerSHA, originalSources: sources,
++            markerIdentity: marker.canonicalLeafFact,
++            revocationIdentity: StoreMigrationCanonicalJSONV1.sha256(
++                try CompatibilityCanonicalV1.encode(marker.revocation)),
++            ownedIDs: absence.ownedRequestIDs.sorted())
++        @MainActor func requireActualCut() throws {
++            guard self.originalNotificationOSAbsence === absence,
++                  self.originalNotificationRemovalInFlight,
++                  !self.originalNotificationRemovalUncertain,
++                  self.originalAuxiliaryStore === store,
++                  self.originalExclusion === exclusion,
++                  self.originalAuxiliaryRosterAdmission === admission,
++                  try currentSources() == sources,
++                  try pointer.currentPointerSHA256(authority: pointerAuthority,
++                    operation: self) == pointerSHA else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try admission.receipt.requireBound(store: store,
++                operation: self, seal: admission.seal)
++        }
++        func withControlEffect<Value>(_ effect: EraseSchema2ColdControlEffectV1,
++            _ body: (EraseSchema2ColdControlPermitV1) throws -> Value
++        ) throws -> Value {
++            let permit = EraseSchema2ColdControlPermitV1(effect: effect,
++                requireActualCut: requireActualCut, retainUncertainty: {
++                    removalPermit.poisonOnUncertainEffect()
++                    self.failOriginalEraseNotificationRemoval()
++                })
++            defer { permit.revoke() }
++            try permit.requireHeld()
++            let result = try body(permit)
++            try permit.requireHeld()
++            return result
++        }
++        if let retained = originalSchema2SurvivingNotificationObservation {
++            guard originalSchema2SurvivingNotificationStore === store,
++                  retained.value == value else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++        } else {
++            let register = try EraseSchema2ColdCleanupCommitmentV1.makeEffect(
++                kind: .registerOriginalScope,
++                inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(admission.receipt.canonicalBytes),
++                    StoreMigrationCanonicalJSONV1.sha256(try EraseIntentCodecV1.encode(firstIntent)),
++                    value.preparationSHA256])
++            try withControlEffect(register) { permit in
++                try store.registerOriginalSchema2CleanupControlScope(operation: self,
++                    roster: admission.receipt, intent: firstIntent,
++                    preparation: preparation, permit: permit)
++            }
++            let publish = try EraseSchema2ColdCleanupCommitmentV1.makeEffect(
++                kind: .publishNotification,
++                inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(try value.canonicalBytes())],
++                path: EraseSchema2ColdCleanupGrammarV1.notificationName)
++            let observation = try withControlEffect(publish) { permit in
++                try store.publishSchema2ColdSurvivingNotificationProvenance(value,
++                    permit: permit)
++            }
++            originalSchema2SurvivingNotificationObservation = observation
++            originalSchema2SurvivingNotificationStore = store
++        }
++        guard let observation = originalSchema2SurvivingNotificationObservation else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        let readback = try EraseSchema2ColdCleanupCommitmentV1.makeEffect(
++            kind: .requireNotification,
++            inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(observation.bytes)],
++            path: EraseSchema2ColdCleanupGrammarV1.notificationName)
++        let checked = try withControlEffect(readback) { permit in
++            try store.requireSchema2ColdSurvivingNotificationProvenance(
++                observation, permit: permit)
++        }
++        guard checked == value else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
++        try io.requireSettled()
++        try requireActualCut()
+     }
+ 
+     func requireOriginalEraseNotificationRemovalContext() throws -> (
+@@ -11637,6 +12068,7 @@
+     }
+ 
+     fileprivate func requireEraseRetirementOperation(_ value: EraseRouterOperationV1) throws {
++        try value.requireOriginalFirstCaptureCertain()
+         let ticket = value.ticket
+ #if DEBUG
+         guard value.permitsOriginalEffectForTesting else { throw AppAccessContractFailureV1.staleAttempt }
+@@ -13063,6 +13495,538 @@
+     let preparation: ErasePreparationV2
+     let digest: String
+     let nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]
++}
++
++/// A one-operation bridge from schema2's existing EX/G/reader cohort to
++/// actual retirement. Its private issuer captures the concrete prepared owner
++/// and target while service admission is live; binding the joined drain closes
++/// admission and never invents a reader, writer, physical root or alias proof.
++/// A canonical input commitment is data only. The privately issued permit
++/// binds it to one actual operation/physical cut and repeats that proof at
++/// every Store boundary; possession of a digest never grants EX/G or ready.
++struct EraseSchema2ColdControlEffectV1: Equatable {
++    enum Kind: String, Codable {
++        case registerOriginalScope
++        case publishSources, loadSources, requireSources
++        case readTransferredSource, readBornTransferredSource
++        case loadProgress, createProgress, replaceProgress, captureBornSource
++        case publishNotification, loadNotification, requireNotification
++        case publishTerminal, loadTerminal, requireTerminal
++        case replaceCleanupPhase, removeTerminalControls, removeCompletionControls
++        case removeTerminalRoot, closeTerminalStore
++    }
++    let kind: Kind
++    let commitmentSHA256: String
++    let expectedCanonicalSHA256: String?
++    let path: String?
++}
++
++/// Lexical, one-effect capability. Only Router's concrete owner can construct
++/// it. A failed effect permanently poisons both this permit and that retained
++/// owner; revocation never releases or recreates an uncertain descriptor.
++@MainActor
++final class EraseSchema2ColdControlPermitV1 {
++    private let effect: EraseSchema2ColdControlEffectV1
++    private let requireActualCut: @MainActor () throws -> Void
++    private let retainUncertainty: @MainActor () -> Void
++    private var revoked = false
++    private var uncertain = false
++
++    fileprivate init(effect: EraseSchema2ColdControlEffectV1,
++        requireActualCut: @escaping @MainActor () throws -> Void,
++        retainUncertainty: @escaping @MainActor () -> Void) {
++        self.effect = effect
++        self.requireActualCut = requireActualCut
++        self.retainUncertainty = retainUncertainty
++    }
++
++    func requireHeld() throws {
++        guard !revoked, !uncertain else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireActualCut()
++    }
++
++    func requireEffect(_ expected: EraseSchema2ColdControlEffectV1) throws {
++        guard expected == effect else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireHeld()
++    }
++
++    func poisonOnUncertainEffect() {
++        if !uncertain {
++            uncertain = true
++            retainUncertainty()
++        }
++    }
++
++    fileprivate func revoke() { revoked = true }
++}
++
++/// Observation-only original-P origin before a C16 plan/progress exists.
++/// Its issuer binds the complete immutable first-P partial role list and the
++/// actual current source/control projection under the genuine owner. No
++/// proposed plan hash, future ordinal or durable progress is fabricated.
++@MainActor
++final class EraseSchema2ColdScratchBootstrapPermitV1 {
++    private let requireActualCut: @MainActor () throws -> Void
++    private let initialBinding: @MainActor ([OriginalEraseC16StepV1]) throws -> String
++    private let firstPFact: @MainActor (String) throws -> String?
++    private let firstPSHA256: @MainActor (String) throws -> String
++    private let firstPPaths: @MainActor (String) throws -> [String]
++    private let sourceAdmission: @MainActor (String, Data, String) throws -> Void
++    private let retainUncertainty: @MainActor () -> Void
++    private var active = true
++    private var uncertain = false
++
++    fileprivate init(
++        requireActualCut: @escaping @MainActor () throws -> Void,
++        initialBinding: @escaping @MainActor ([OriginalEraseC16StepV1]) throws -> String,
++        firstPFact: @escaping @MainActor (String) throws -> String?,
++        firstPSHA256: @escaping @MainActor (String) throws -> String,
++        firstPPaths: @escaping @MainActor (String) throws -> [String],
++        sourceAdmission: @escaping @MainActor (String, Data, String) throws -> Void,
++        retainUncertainty: @escaping @MainActor () -> Void
++    ) {
++        self.requireActualCut = requireActualCut
++        self.initialBinding = initialBinding
++        self.firstPFact = firstPFact
++        self.firstPSHA256 = firstPSHA256
++        self.firstPPaths = firstPPaths
++        self.sourceAdmission = sourceAdmission
++        self.retainUncertainty = retainUncertainty
++    }
++
++    private func requireCurrent() throws {
++        guard active, !uncertain else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireActualCut()
++    }
++
++    func requireInitialC16ObservationBinding(
++        firstPPartials: [OriginalEraseC16StepV1]
++    ) throws -> String {
++        try requireCurrent()
++        let token = try initialBinding(firstPPartials)
++        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(token) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireCurrent()
++        return token
++    }
++
++    func originalPPhysicalFact(path: String) throws -> String? {
++        try requireCurrent()
++        let value = try firstPFact(path)
++        try requireCurrent()
++        return value
++    }
++
++    func originalPPhysicalSHA256(path: String) throws -> String {
++        try requireCurrent()
++        let value = try firstPSHA256(path)
++        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(value) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireCurrent()
++        return value
++    }
++
++    func originalPPhysicalPaths(prefix: String) throws -> [String] {
++        try requireCurrent()
++        let value = try firstPPaths(prefix)
++        try Self.requireImmutablePaths(value, prefix: prefix)
++        try requireCurrent()
++        return value
++    }
++
++    fileprivate static func requireImmutablePaths(_ paths: [String], prefix: String) throws {
++        let components = prefix.split(separator: "/", omittingEmptySubsequences: false)
++        guard !prefix.isEmpty, !prefix.hasPrefix("/"), !prefix.hasSuffix("/"),
++              components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
++              paths.count <= 100_000, paths == paths.sorted(),
++              Set(paths).count == paths.count,
++              paths.allSatisfy({ path in
++                  let parts = path.split(separator: "/", omittingEmptySubsequences: false)
++                  return (path == prefix || path.hasPrefix(prefix + "/"))
++                    && parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." })
++              }) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++    }
++
++    func requireOriginalPSource(path: String, bytes: Data,
++        fullFact: String) throws {
++        try requireCurrent()
++        try sourceAdmission(path, bytes, fullFact)
++        try requireCurrent()
++    }
++
++    func poisonOnUncertainEffect() {
++        if !uncertain {
++            uncertain = true
++            retainUncertainty()
++        }
++    }
++
++    fileprivate func revoke() { active = false }
++}
++
++/// The physical owner observes and executes only its immutable mixed
++/// order. Router issues this lexical capability under the actual held owner;
++/// exact binding requests are rechecked against real Store readback and
++/// independent Registry/Notification/Search receipts at each call.
++@MainActor
++final class EraseSchema2ColdPhysicalPermitV1 {
++    private let requireRecord: @MainActor (String, String, String, Int?) throws -> Void
++    private let requireBootstrap: @MainActor (String, String, String) throws -> Void
++    private let requireBranches: @MainActor ([EraseSchema2ColdCleanupProgressV1.Projection]) throws -> Void
++    private let retainUncertainty: @MainActor () -> Void
++    private var active = true
++    private var uncertain = false
++
++    fileprivate init(
++        requireRecord: @escaping @MainActor (String, String, String, Int?) throws -> Void,
++        requireBootstrap: @escaping @MainActor (String, String, String) throws -> Void,
++        requireBranches: @escaping @MainActor ([EraseSchema2ColdCleanupProgressV1.Projection]) throws -> Void,
++        retainUncertainty: @escaping @MainActor () -> Void
++    ) {
++        self.requireRecord = requireRecord
++        self.requireBootstrap = requireBootstrap
++        self.requireBranches = requireBranches
++        self.retainUncertainty = retainUncertainty
++    }
++
++    private func requireActive() throws {
++        guard active, !uncertain else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++    }
++
++    func requireBinding(originalPAuxiliaryRosterSHA256: String,
++        planSHA256: String, progressSHA256: String, mixedTargetIndex: Int?
++    ) throws {
++        try requireActive()
++        guard [originalPAuxiliaryRosterSHA256, planSHA256, progressSHA256]
++                .allSatisfy(StoreMigrationCanonicalJSONV1.isLowercaseSHA256),
++              mixedTargetIndex.map({ $0 >= 0 }) ?? true else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireRecord(originalPAuxiliaryRosterSHA256, planSHA256,
++            progressSHA256, mixedTargetIndex)
++        try requireActive()
++    }
++
++    /// Before first progress exists, its future physical facts/SHA cannot
++    /// authenticate a scan. This separate positive scope is issued only from
++    /// actual checked Transfer/Sources/Plan and closed initial-progress
++    /// absence/publisher disposition, with no lost dependency effect.
++    func requireBootstrapBinding(originalPAuxiliaryRosterSHA256: String,
++        planSHA256: String, targetsSHA256: String
++    ) throws {
++        try requireActive()
++        guard [originalPAuxiliaryRosterSHA256, planSHA256, targetsSHA256]
++                .allSatisfy(StoreMigrationCanonicalJSONV1.isLowercaseSHA256) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireBootstrap(originalPAuxiliaryRosterSHA256, planSHA256,
++            targetsSHA256)
++        try requireActive()
++    }
++
++    func requireExternalBranches(
++        _ projection: [EraseSchema2ColdCleanupProgressV1.Projection]
++    ) throws {
++        try requireActive()
++        try requireBranches(projection)
++        try requireActive()
++    }
++
++    func poisonOnUncertainEffect() {
++        if !uncertain {
++            uncertain = true
++            retainUncertainty()
++        }
++    }
++
++    fileprivate func revoke() { active = false }
++}
++
++/// The shared C16 engine borrows this lexical capability under its actual
++/// operation's EX/G. Immutable source getters return only assigned data;
++/// each access still requires the same freshly authenticated physical cut.
++@MainActor
++final class EraseSchema2ColdScratchLifecyclePermitV1 {
++    private let observationBinding: @MainActor () throws -> Void
++    private let c16ObservationBinding: @MainActor (String, Int) throws -> String
++    private let c16CurrentRecordBinding: @MainActor (String, Int) throws
++        -> (recordBindingSHA256: String, logicalProgressSHA256: String,
++            progress: OriginalEraseC16ReferenceProgressV1)
++    private let wholeProjection: @MainActor () throws -> Void
++    private let sourceAdmission: @MainActor (String, Data, String) throws -> Void
++    private let originalSource: @MainActor (String) throws -> (bytes: Data, fullFact: String)
++    private let bornSource: @MainActor (String, String) throws -> (bytes: Data, fullFact: String)
++    private let capturedBornSource: @MainActor (OriginalEraseC16BornProducerSlotV1) throws -> (bytes: Data, fullFact: String)?
++    private let firstPFact: @MainActor (String) throws -> String?
++    private let firstPSHA256: @MainActor (String) throws -> String
++    private let firstPPaths: @MainActor (String) throws -> [String]
++    private let retainUncertainty: @MainActor () -> Void
++    private var revoked = false
++    private var uncertain = false
++
++    fileprivate init(
++        observationBinding: @escaping @MainActor () throws -> Void,
++        c16ObservationBinding: @escaping @MainActor (String, Int) throws -> String,
++        c16CurrentRecordBinding: @escaping @MainActor (String, Int) throws
++            -> (recordBindingSHA256: String, logicalProgressSHA256: String,
++                progress: OriginalEraseC16ReferenceProgressV1),
++        wholeProjection: @escaping @MainActor () throws -> Void,
++        sourceAdmission: @escaping @MainActor (String, Data, String) throws -> Void,
++        originalSource: @escaping @MainActor (String) throws -> (bytes: Data, fullFact: String),
++        bornSource: @escaping @MainActor (String, String) throws -> (bytes: Data, fullFact: String),
++        capturedBornSource: @escaping @MainActor (OriginalEraseC16BornProducerSlotV1) throws -> (bytes: Data, fullFact: String)?,
++        firstPFact: @escaping @MainActor (String) throws -> String?,
++        firstPSHA256: @escaping @MainActor (String) throws -> String,
++        firstPPaths: @escaping @MainActor (String) throws -> [String],
++        retainUncertainty: @escaping @MainActor () -> Void) {
++        self.observationBinding = observationBinding
++        self.c16ObservationBinding = c16ObservationBinding
++        self.c16CurrentRecordBinding = c16CurrentRecordBinding
++        self.wholeProjection = wholeProjection
++        self.sourceAdmission = sourceAdmission
++        self.originalSource = originalSource
++        self.bornSource = bornSource
++        self.capturedBornSource = capturedBornSource
++        self.firstPFact = firstPFact
++        self.firstPSHA256 = firstPSHA256
++        self.firstPPaths = firstPPaths
++        self.retainUncertainty = retainUncertainty
++    }
++
++    /// The role-scoped observer uses this nonrecursive binding proof. The
++    /// outer whole-tree check calls the observer, so invoking it here would
++    /// recurse and could skip an actual boundary instead of proving it.
++    func requireObservationBinding() throws {
++        guard !revoked, !uncertain else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try observationBinding()
++    }
++
++    /// A scope is current only at this exact canonical plan and actual
++    /// authenticated C16 ordinal. The issuer compares the Store stage and
++    /// mixed target subsequence; a still-live lexical capability cannot keep
++    /// an old or future scope valid after the monotonic record advances.
++    func requireC16ObservationBinding(planSHA256: String, ordinal: Int) throws -> String {
++        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(planSHA256),
++              ordinal >= 0 else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireObservationBinding()
++        let recordSHA256 = try c16ObservationBinding(planSHA256, ordinal)
++        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(recordSHA256) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireObservationBinding()
++        return recordSHA256
++    }
++
++    /// The actual Store readback supplies both canonical record identity and
++    /// its current C16 stage/subsequence. An admitted initial DATA progress
++    /// value cannot prove a later uncaptured-birth or completed inspection.
++    /// Ledger validates this projection against the fixed plan on every use.
++    func requireC16CurrentRecordBinding(planSHA256: String, ordinal: Int) throws
++        -> (recordBindingSHA256: String, logicalProgressSHA256: String,
++            progress: OriginalEraseC16ReferenceProgressV1) {
++        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(planSHA256),
++              ordinal >= 0 else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireObservationBinding()
++        let current = try c16CurrentRecordBinding(planSHA256, ordinal)
++        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(current.recordBindingSHA256),
++              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(current.logicalProgressSHA256),
++              try c16ObservationBinding(planSHA256, ordinal) == current.recordBindingSHA256 else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireObservationBinding()
++        return current
++    }
++
++    func requireHeld() throws {
++        try requireObservationBinding()
++        try wholeProjection()
++        try requireObservationBinding()
++    }
++
++    func requireTransferredSource(path: String, bytes: Data,
++        fullFact: String) throws {
++        try requireObservationBinding()
++        try sourceAdmission(path, bytes, fullFact)
++        try requireObservationBinding()
++    }
++
++    func canonicalTransferredSource(path: String) throws
++        -> (bytes: Data, fullFact: String) {
++        try requireObservationBinding()
++        let value = try originalSource(path)
++        try sourceAdmission(path, value.bytes, value.fullFact)
++        try requireObservationBinding()
++        return value
++    }
++
++    func canonicalBornTransferredSource(path: String, role: String) throws
++        -> (bytes: Data, fullFact: String) {
++        try requireObservationBinding()
++        let value = try bornSource(path, role)
++        try sourceAdmission(path, value.bytes, value.fullFact)
++        try requireObservationBinding()
++        return value
++    }
++
++    /// Optional absence is authenticated for one fixed producer slot by the
++    /// Store's actual retained slot table and current record. A path/role
++    /// lookup, missing survivor or latest captured version cannot supply it.
++    func canonicalCapturedBornSource(slot: OriginalEraseC16BornProducerSlotV1)
++        throws -> (bytes: Data, fullFact: String)? {
++        guard slot.producerOrdinal >= 0,
++              EraseSchema2ColdCleanupGrammarV1.validPath(slot.path) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try EraseSchema2ColdCleanupGrammarV1.requireBirthRole(slot.role,
++            path: slot.path)
++        try requireObservationBinding()
++        let value = try capturedBornSource(slot)
++        if let value {
++            try sourceAdmission(slot.path, value.bytes, value.fullFact)
++        }
++        try requireObservationBinding()
++        return value
++    }
++
++    func originalPPhysicalFact(path: String) throws -> String? {
++        try requireObservationBinding()
++        let value = try firstPFact(path)
++        try requireObservationBinding()
++        return value
++    }
++
++    func originalPPhysicalSHA256(path: String) throws -> String {
++        try requireObservationBinding()
++        let value = try firstPSHA256(path)
++        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(value) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireObservationBinding()
++        return value
++    }
++
++    func originalPPhysicalPaths(prefix: String) throws -> [String] {
++        try requireObservationBinding()
++        let value = try firstPPaths(prefix)
++        try EraseSchema2ColdScratchBootstrapPermitV1.requireImmutablePaths(value, prefix: prefix)
++        try requireObservationBinding()
++        return value
++    }
++
++    func poisonOnUncertainEffect() {
++        if !uncertain {
++            uncertain = true
++            retainUncertainty()
++        }
++    }
++
++    fileprivate func revoke() { revoked = true }
++}
++
++/// The sole return across an actual C16 inspection/capture boundary. Only
++/// Router can issue it after the concrete Store readback and whole-tree proof.
++/// A canonical record is retained as data, while the closure repeats the
++/// genuine operation proof at consumption; this is not a cached decision.
++@MainActor
++final class OriginalEraseC16BoundaryReceiptV1 {
++    private let observation: OriginalEraseC16BoundaryObservationV1
++    private let requireActualReadback: @MainActor () throws -> Void
++    let progressSHA256: String
++    let recordStage: OriginalScratchLifecycleRecordV1.Stage
++    private var consumed = false
++
++    fileprivate init(observation: OriginalEraseC16BoundaryObservationV1,
++        progressSHA256: String,
++        recordStage: OriginalScratchLifecycleRecordV1.Stage,
++        requireActualReadback: @escaping @MainActor () throws -> Void) throws {
++        guard StoreMigrationCanonicalJSONV1.isLowercaseSHA256(progressSHA256),
++              observation.bornSource == nil || recordStage == .preparingCaptured else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        self.observation = observation
++        self.progressSHA256 = progressSHA256
++        self.recordStage = recordStage
++        self.requireActualReadback = requireActualReadback
++    }
++
++    func requireBound(to expected: OriginalEraseC16BoundaryObservationV1) throws {
++        guard !consumed, observation === expected,
++              observation.bornSource == nil || recordStage == .preparingCaptured else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireActualReadback()
++        consumed = true
++    }
++}
++
++@MainActor
++final class EraseSchema2ColdRetirementTransferV1 {
++    fileprivate weak var operation: EraseColdPreparationOperationV1?
++    fileprivate let prepared: EraseCleanupAfterRetirementV1
++    let binding: EraseRetirementBindingV1
++    fileprivate let intent: EraseIntentV1
++    fileprivate let store: EraseIntentStore
++    fileprivate let observation: EraseIntentStore.RetirementObservation
++    fileprivate let targetReader: GenerationLeaseHandleV1
++    fileprivate weak var targetSession: StoreGenerationSession?
++    fileprivate let registry: GenerationLeaseRegistryV1
++    fileprivate let activity: GenerationTemporalActivityHandleV1
++    fileprivate let physical: EraseSchema2ColdPhysicalExclusionV1
++    fileprivate var drain: EraseSessionDrainWitnessV1?
++
++    fileprivate init(operation: EraseColdPreparationOperationV1,
++        prepared: EraseCleanupAfterRetirementV1, intent: EraseIntentV1,
++        store: EraseIntentStore,
++        observation: EraseIntentStore.RetirementObservation,
++        session: StoreGenerationSession, reader: GenerationLeaseHandleV1,
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        physical: EraseSchema2ColdPhysicalExclusionV1) {
++        self.operation = operation; self.prepared = prepared
++        binding = prepared.binding; self.intent = intent; self.store = store
++        self.observation = observation; targetSession = session
++        targetReader = reader; self.registry = registry
++        self.activity = activity; self.physical = physical
++    }
++
++    fileprivate func bindActualDrain(_ actual: EraseSessionDrainWitnessV1) throws {
++        guard drain == nil, actual.binding == binding,
++              let session = targetSession, actual.observes(session: session),
++              actual.capturedReaders.contains(where: { $0 === targetReader }) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        drain = actual
++    }
++
++    func requireHeld(physical expectedPhysical: EraseSchema2ColdPhysicalExclusionV1,
++        drain expectedDrain: EraseSessionDrainWitnessV1,
++        registry expectedRegistry: GenerationLeaseRegistryV1,
++        activity expectedActivity: GenerationTemporalActivityHandleV1) throws {
++        guard let operation, physical === expectedPhysical,
++              drain === expectedDrain, registry === expectedRegistry,
++              activity === expectedActivity else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try operation.requireSchema2ColdRetirementTransfer(self)
++    }
+ }
+ 
+ /// Actual startup ownership before the first cold Erase reader is allocated.
+@@ -13203,6 +14167,11 @@
+         [EraseSchema2ColdRegistryObservationAttemptV1] = []
+     private var schema2ColdGuardProbes:
+         [EraseSchema2ColdGuardProbeV1] = []
++    // Distinct attempts survive the genuine same-EX retirement transfer.
++    // An ambiguous checked read/unlock remains permanent for this operation.
++    private var schema2ColdCleanupRegistryObservations:
++        [EraseSchema2ColdRegistryObservationAttemptV1] = []
++    private var schema2ColdCleanupRegistryUncertain = false
+     private var c05ColdJobStore: LocalJobStoreV1?
+     /// One real cold producer is retained before its first store observation.
+     /// A failed effect or uncertain close keeps the same actor fenced here.
+@@ -13223,6 +14192,7 @@
+     private var coldAuthority: EraseColdRetirementAuthorityV1?
+     private var exclusion: EraseRetirementExclusionV1?
+     private var retirement: EraseSessionRetirementV1?
++    private var schema2ColdRetirementTransfer: EraseSchema2ColdRetirementTransferV1?
+     private var detached = false
+     private var advancingCleanup = false
+ 
+@@ -13279,6 +14249,10 @@
+         prepared = value
+         preparedIntentStore = intentStore
+         preparedIntent = intent
++        if schema2ColdIntentStore != nil {
++            try registerSchema2ColdRetirementStartingCut(
++                prepared: value, store: intentStore, intent: intent)
++        }
+         try finishPreparedRegistration()
+     }
+ 
+@@ -13295,9 +14269,122 @@
+             admissionSealed = true
+         }
+         guard let drain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+-        if coldAuthority == nil {
++        if let transfer = schema2ColdRetirementTransfer {
++            if transfer.drain == nil { try transfer.bindActualDrain(drain) }
++            if exclusion == nil {
++                // No unlock/reacquire gap: the physical owner transfers its
++                // exact root description and this already retained activity.
++                retirementAcquisitionStarted = true
++                exclusion = try transfer.physical.transferForRetirement(
++                    transfer: transfer, drain: drain,
++                    registry: transfer.registry, activity: transfer.activity)
++            }
++        } else if coldAuthority == nil {
+             coldAuthority = try router.prepareColdEraseRetirement(binding: prepared.binding,
+                 registry: registry, drain: drain, intentStore: preparedIntentStore, intent: preparedIntent)
++        }
++    }
++
++    private func registerSchema2ColdRetirementStartingCut(
++        prepared value: EraseCleanupAfterRetirementV1,
++        store: EraseIntentStore, intent: EraseIntentV1
++    ) throws {
++        try requireServiceAccess()
++        guard schema2ColdRetirementTransfer == nil,
++              prepared === value, preparedIntentStore === store,
++              schema2ColdIntentStore === store,
++              preparedIntent == intent, intent.schemaVersion == 2,
++              intent.phase == .sessionActivated,
++              let preparation = try store.loadPreparation(),
++              preparation.matches(intent), preparation.c05JobDrainV3 == nil,
++              let session = schema2ColdActivatedTargetSession,
++              let reader = schema2ColdTargetReaderHandle,
++              let registry, let activity = schema2ColdActivity,
++              let physical = schema2ColdPhysicalExclusion,
++              let identity = schema2ColdSupportIdentity,
++              let manifest = schema2ColdManifestOwner,
++              let executor = schema2ColdDeletionExecutor,
++              schema2ColdDeletionSourcesClosed,
++              value.binding.operationID == operationID,
++              value.binding.ownerMint == ownerMint,
++              session.generationEpoch == value.binding.generationEpoch,
++              session.workspaceIdentity == value.binding.workspaceIdentity,
++              session.readerLeaseToken == reader.token,
++              reader.token.role == .reader,
++              try store.load() == intent else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireSchema2ColdTargetReaderTokenCensus(registry: registry)
++        try requireSchema2ColdNotificationDrained(store: store)
++        guard try executor.nextStep() == nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try manifest.requireSchema2ColdFinalPointerCut(
++            intent: intent, operation: self)
++        try physical.requireHeld(expectedDevice: identity.device,
++            expectedInode: identity.inode)
++        let observation = try value.retirementObservationForSchema2ColdTransfer(
++            store: store, intent: intent)
++        schema2ColdRetirementTransfer = EraseSchema2ColdRetirementTransferV1(
++            operation: self, prepared: value, intent: intent,
++            store: store, observation: observation,
++            session: session, reader: reader, registry: registry,
++            activity: activity, physical: physical)
++    }
++
++    func requireSchema2ColdRetirementTransfer(
++        _ transfer: EraseSchema2ColdRetirementTransferV1
++    ) throws {
++        try requireLive()
++        guard schema2ColdRetirementTransfer === transfer,
++              transfer.operation === self,
++              prepared === transfer.prepared,
++              preparedIntentStore === transfer.store,
++              schema2ColdIntentStore === transfer.store,
++              !schema2ColdIntentStoreClosed,
++              preparedIntent == transfer.intent,
++              let actualDrain = drain, transfer.drain === actualDrain,
++              admissionSealed, retirementAcquisitionStarted,
++              !detached,
++              transfer.binding == transfer.prepared.binding,
++              transfer.binding.operationID == operationID,
++              transfer.binding.ownerMint == ownerMint,
++              schema2ColdPhysicalExclusion === transfer.physical,
++              registry === transfer.registry,
++              schema2ColdActivity === transfer.activity,
++              let identity = schema2ColdSupportIdentity,
++              !schema2ColdPhysicalExclusionClosed,
++              transfer.intent.phase == .sessionActivated,
++              try transfer.store.load() == transfer.intent,
++              actualDrain.binding == transfer.binding,
++              actualDrain.capturedReaders.contains(where: {
++                  $0 === transfer.targetReader
++              }) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try authorization.withMediaRecovery { try requireLive() }
++        try transfer.store.requireRetirementObservation(transfer.observation)
++        try transfer.physical.requireHeld(expectedDevice: identity.device,
++            expectedInode: identity.inode)
++        try transfer.registry.requireTemporalEraseNamespace(
++            transfer.binding.registryIdentity)
++        let actual = try transfer.registry.observeEraseSchema2ColdRegistry(
++            operation: self, activity: transfer.activity)
++        var captured = actualDrain.capturedReaders.map(\.token)
++        for allocation in actualDrain.capturedAllocations {
++            guard allocation.sealedForRetirement else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            if let token = try allocation.observedRetirementToken(
++                activity: transfer.activity), !captured.contains(token) {
++                captured.append(token)
++            }
++        }
++        guard Set(captured.map(\.leaseID)).count == captured.count,
++              captured.allSatisfy({ $0.role == .reader }),
++              actual.count == captured.count,
++              actual.allSatisfy({ captured.contains($0) }) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+         }
+     }
+ 
+@@ -13314,6 +14401,9 @@
+ 
+     func requireStartupContinuation() throws {
+         try requireLive()
++        guard !schema2ColdCleanupRegistryUncertain else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
+         try authorization.withMediaRecovery { try requireLive() }
+     }
+ 
+@@ -13332,20 +14422,37 @@
+         defer { advancingCleanup = false }
+         try requireStartupContinuation()
+         try finishPreparedRegistration()
+-        guard let prepared, let drain, let coldAuthority else {
++        guard let prepared, let drain,
++              coldAuthority != nil || schema2ColdRetirementTransfer != nil else {
+             throw GenerationLeaseRegistryFailureV1.uncertainOwner
+         }
+         if exclusion == nil {
+             // Monotonic before first lock attempt. Ordinary failure disposal
+             // is forbidden even when acquisition throws before returning EX.
+             retirementAcquisitionStarted = true
++            guard let coldAuthority,
++                  schema2ColdRetirementTransfer == nil else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
+             exclusion = try await coldAuthority.acquire()
+             try requireStartupContinuation()
+         }
+         guard let exclusion else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+         if !detached {
+             retirement = try prepared.retainTransferredExclusion(exclusion, drain: drain)
+-            try coldAuthority.sealForRetirement(exclusion: exclusion)
++            if let coldAuthority {
++                try coldAuthority.sealForRetirement(exclusion: exclusion)
++            } else {
++                guard let transfer = schema2ColdRetirementTransfer else {
++                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
++                }
++                try transfer.physical.requireTransferredRetirement(exclusion,
++                    transfer: transfer)
++                // Only after actual transfer registration can the operation
++                // release its context-bearing target alias. The joined weak
++                // drain still independently blocks every physical close.
++                schema2ColdActivatedTargetSession = nil
++            }
+             detached = true
+         }
+         let completed = try await prepared.advance()
+@@ -13651,6 +14758,207 @@
+               !schema2ColdManifestOwnerClosed else {
+             throw GenerationLeaseRegistryFailureV1.uncertainOwner
+         }
++    }
++
++    /// The borrowed Journal is created only while the genuine incumbent
++    /// target reader/session and same physical EX are still held. Its owner
++    /// remains Manifest; after actual drain/transfer the Journal must switch
++    /// to the real retirement proof, never reconstruct this admission.
++    func requireSchema2ColdBorrowedManifestJournalAdmission(
++        manifest: EraseSchema2ColdManifestOwnerV1,
++        binding: EraseRetirementBindingV1, intent: EraseIntentV1
++    ) throws {
++        try requireServiceAccess()
++        guard !admissionSealed, !detached, retirement == nil,
++              exclusion == nil, schema2ColdRetirementTransfer == nil,
++              schema2ColdManifestOwner === manifest,
++              !schema2ColdManifestOwnerClosed,
++              let store = schema2ColdIntentStore,
++              !schema2ColdIntentStoreClosed,
++              intent.schemaVersion == 2, intent.phase == .sessionActivated,
++              try store.load() == intent,
++              let preparation = try store.loadPreparation(),
++              preparation.matches(intent), preparation.c05JobDrainV3 == nil,
++              let session = schema2ColdActivatedTargetSession,
++              let reader = schema2ColdTargetReaderHandle,
++              let registry, let activity = schema2ColdActivity,
++              let physical = schema2ColdPhysicalExclusion,
++              let identity = schema2ColdSupportIdentity,
++              !schema2ColdPhysicalExclusionClosed,
++              let executor = schema2ColdDeletionExecutor,
++              schema2ColdDeletionSourcesClosed,
++              binding.operationID == operationID, binding.ownerMint == ownerMint,
++              binding.subject.eraseID == intent.eraseID,
++              binding.subject.newGenerationID == intent.newGenerationID,
++              binding.subject.applicationSupportURL
++                == factory.restoreApplicationSupportURL.standardizedFileURL,
++              binding.subject.applicationSupportDevice == Int64(identity.device),
++              binding.subject.applicationSupportInode == UInt64(identity.inode),
++              session.generationID == intent.newGenerationID,
++              session.generationEpoch == binding.generationEpoch,
++              session.workspaceIdentity == binding.workspaceIdentity,
++              session.readerLeaseToken == reader.token,
++              reader.token.role == .reader,
++              reader.token.epoch == binding.generationEpoch,
++              try executor.nextStep() == nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireSchema2ColdOriginalAuthority()
++        try requireSchema2ColdTargetReaderTokenCensus(registry: registry)
++        try requireSchema2ColdNotificationDrained(store: store)
++        try registry.requireEraseSchema2ColdExcluded(operation: self, activity: activity)
++        try physical.requireHeld(expectedDevice: identity.device, expectedInode: identity.inode)
++        try manifest.requireSchema2ColdFinalPointerCut(intent: intent, operation: self)
++        try requireServiceAccess()
++    }
++
++    /// Pure operation/phase binding for Registry's real synchronous G.
++    /// No census, Manifest projection or whole observer may enter here.
++    /// Registry supplies actual strict before/after bytes and the outer issuer
++    /// separately supplies current Store/source/physical projection proofs.
++    func requireSchema2ColdCleanupHeldGObservation(
++        registry expectedRegistry: GenerationLeaseRegistryV1,
++        activity expectedActivity: GenerationTemporalActivityHandleV1,
++        retirement expectedProof: ErasedRegistryRetirementProofV1?,
++        expectedTokens: [GenerationLeaseTokenV1]
++    ) throws {
++        try requireLive()
++        guard !schema2ColdCleanupRegistryUncertain,
++              registry === expectedRegistry,
++              schema2ColdActivity === expectedActivity,
++              let physical = schema2ColdPhysicalExclusion,
++              let identity = schema2ColdSupportIdentity,
++              !schema2ColdPhysicalExclusionClosed,
++              let store = schema2ColdIntentStore,
++              !schema2ColdIntentStoreClosed,
++              schema2ColdManifestOwner != nil,
++              !schema2ColdManifestOwnerClosed,
++              Set(expectedTokens.map(\.leaseID)).count == expectedTokens.count else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        if let expectedProof {
++            guard !serviceFrame, admissionSealed, retirementAcquisitionStarted,
++                  detached, let prepared,
++                  preparedIntentStore === store,
++                  let expectedIntent = preparedIntent,
++                  expectedIntent.schemaVersion == 2,
++                  expectedIntent.phase == .sessionActivated,
++                  prepared.proof === expectedProof,
++                  let retirement, retirement.ownsProof(expectedProof),
++                  let exclusion, let drain,
++                  let transfer = schema2ColdRetirementTransfer,
++                  transfer.operation === self, transfer.prepared === prepared,
++                  transfer.store === store, transfer.intent == expectedIntent,
++                  transfer.registry === expectedRegistry,
++                  transfer.activity === expectedActivity,
++                  transfer.physical === physical, transfer.drain === drain,
++                  transfer.binding == expectedProof.binding,
++                  drain.binding == transfer.binding,
++                  schema2ColdActivatedTargetSession == nil,
++                  expectedTokens.isEmpty else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try physical.requireTransferredRetirement(exclusion, transfer: transfer)
++            try expectedProof.requireSchema2ColdCleanupHeldGObservation(
++                binding: transfer.binding, registry: expectedRegistry,
++                activity: expectedActivity, drain: drain)
++        } else {
++            guard serviceFrame, !admissionSealed, !retirementAcquisitionStarted,
++                  !detached, prepared == nil, retirement == nil, exclusion == nil,
++                  schema2ColdRetirementTransfer == nil,
++                  let actual = schema2ColdTargetReaderTokenCensus,
++                  actual == expectedTokens,
++                  let reader = schema2ColdTargetReaderHandle,
++                  let session = schema2ColdActivatedTargetSession,
++                  actual.contains(reader.token), reader.token.role == .reader,
++                  session.readerLeaseToken == reader.token,
++                  session.generationEpoch == reader.token.epoch,
++                  schema2ColdPublishedIntent?.phase == .sessionActivated
++                    || schema2ColdActivatedEntryContinuation?.intent.phase
++                        == .sessionActivated else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++        }
++        try physical.requireHeld(expectedDevice: identity.device,
++            expectedInode: identity.inode)
++    }
++
++    /// Full real admission around an actual Registry G interval. Call this
++    /// outside that interval: reader/drain and Manifest checks may enter G.
++    /// Store R/preparation remain actual bytes throughout this named-Registry
++    /// stage; final control/Registry-name loss uses its separate typed tail.
++    func requireSchema2ColdCleanupRegistryBoundary(
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        retirement: ErasedRegistryRetirementProofV1?,
++        expectedTokens: [GenerationLeaseTokenV1]
++    ) throws {
++        try requireStartupContinuation()
++        try requireSchema2ColdCleanupHeldGObservation(registry: registry,
++            activity: activity, retirement: retirement,
++            expectedTokens: expectedTokens)
++        guard let store = schema2ColdIntentStore,
++              let intent = try store.load(),
++              intent.schemaVersion == 2, intent.phase == .sessionActivated,
++              let preparation = try store.loadPreparation(),
++              preparation.matches(intent), preparation.c05JobDrainV3 == nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        if let retirement {
++            guard let transfer = schema2ColdRetirementTransfer,
++                  transfer.intent == intent, let drain,
++                  transfer.drain === drain else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try store.requireRetirementObservation(transfer.observation)
++            try retirement.requireSchema2ColdCleanupRegistryBoundary(
++                binding: transfer.binding, registry: registry,
++                activity: activity, drain: drain)
++        } else {
++            try requireServiceAccess()
++            try requireSchema2ColdOriginalAuthority()
++            try requireSchema2ColdTargetReaderTokenCensus(registry: registry)
++            guard schema2ColdTargetReaderTokenCensus == expectedTokens,
++                  let manifest = schema2ColdManifestOwner else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
++            try manifest.requireSchema2ColdFinalPointerCut(intent: intent,
++                operation: self)
++        }
++        try requireSchema2ColdCleanupHeldGObservation(registry: registry,
++            activity: activity, retirement: retirement,
++            expectedTokens: expectedTokens)
++        guard try store.load() == intent,
++              try store.loadPreparation() == preparation else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try requireStartupContinuation()
++    }
++
++    /// Each current named Registry read is registered before its first FD
++    /// open. A checked-closed attempt may be retired; uncertain ones cannot.
++    func retainSchema2ColdCleanupRegistryObservation(
++        _ attempt: EraseSchema2ColdRegistryObservationAttemptV1,
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1,
++        retirement: ErasedRegistryRetirementProofV1?,
++        expectedTokens: [GenerationLeaseTokenV1]
++    ) throws {
++        try requireSchema2ColdCleanupHeldGObservation(registry: registry,
++            activity: activity, retirement: retirement,
++            expectedTokens: expectedTokens)
++        schema2ColdCleanupRegistryObservations.removeAll { $0.isCheckedClosed }
++        guard schema2ColdCleanupRegistryObservations.count < 8,
++              !schema2ColdCleanupRegistryObservations.contains(where: {
++                  $0 === attempt
++              }) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        schema2ColdCleanupRegistryObservations.append(attempt)
++    }
++
++    func poisonSchema2ColdCleanupRegistryObservation() {
++        schema2ColdCleanupRegistryUncertain = true
+     }
+ 
+     func requireSchema2ColdOriginalControls(
+@@ -13810,9 +15118,16 @@
+                 intent: intent, preparation: preparation)
+         }
+         try requireSchema2ColdOriginalAuthority()
+-        guard try registry.observeEraseSchema2ColdRegistry(
+-                operation: self, activity: activity) == tokens else {
+-            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        if schema2ColdTargetReaderHandle != nil {
++            // Forward observation still binds the immutable first census,
++            // plus exactly this actual checked target-reader publication.
++            // A later current census cannot replace either authority.
++            try requireSchema2ColdTargetReaderTokenCensus(registry: registry)
++        } else {
++            guard try registry.observeEraseSchema2ColdRegistry(
++                    operation: self, activity: activity) == tokens else {
++                throw GenerationLeaseRegistryFailureV1.uncertainOwner
++            }
+         }
+     }
+ 
+@@ -13825,6 +15140,12 @@
+         }
+         try requireSchema2ColdAuxiliaryCaptureAdmission(
+             store: store, manifest: manifest)
++    }
++
++    /// This latch selects construction only. Authority remains the exact
++    /// retained observer/Manifest/Store and the physical parent reproofs.
++    var hasSchema2ColdAuxiliaryParentsObservation: Bool {
++        schema2ColdAuxiliaryFirstObserver != nil
+     }
+ 
+     func retainSchema2ColdAuxiliaryFirstObserver(
+@@ -17170,7 +18491,8 @@
+ 
+     func requireServiceAccess() throws {
+         try requireLive()
+-        guard serviceFrame, !admissionSealed, !retirementAcquisitionStarted else {
++        guard serviceFrame, !admissionSealed, !retirementAcquisitionStarted,
++              !schema2ColdCleanupRegistryUncertain else {
+             throw AppAccessContractFailureV1.staleAttempt
+         }
+         try authorization.withMediaRecovery { try requireLive() }
+--- a/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift
++++ b/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift
+@@ -5173,6 +5173,22 @@
+         EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+     private var postwriterBorrowInFlight = false
+     private var postwriterBorrowFailed = false
++    private struct FirstCaptureObservationContext {
++        let operation: EraseRouterOperationV1
++        let coordinator: StoreSessionCoordinator
++        let exclusion: StoreTemporalNormalizationExclusionV1
++        let activity: GenerationTemporalActivityHandleV1
++        let store: EraseIntentStore
++        let intent: EraseIntentV1
++        let preparation: ErasePreparationV2
++    }
++    private var firstCaptureObservationContext: FirstCaptureObservationContext?
++    private var firstCaptureScopedBorrowInFlight = false
++    private var firstCaptureObservationUncertain = false
++    private weak var firstCaptureOperation: EraseRouterOperationV1?
++    private weak var firstCaptureStore: EraseIntentStore?
++    private var firstCaptureObservation:
++        OriginalEraseAuxiliaryFirstCaptureObservationOwnerV1?
+ 
+     init(cachesURL: URL, temporaryURL: URL,
+          observer: EraseSchema2ColdAuxiliaryFirstObserverV1) throws {
+@@ -5211,14 +5227,15 @@
+         }
+         try requireParent(caches)
+         try requireParent(temporary)
+-        let supportURL = coordinator.originalEraseAuxiliarySupportURL
+         let outcome = Result<EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot, Error> {
+-            try exclusion.physicalRoot.withHeldOriginalEraseAuxiliarySupport(
+-                at: supportURL) { support in
+-                try observer.captureFirst(support: support,
+-                    caches: caches.descriptor,
+-                    temporary: temporary.descriptor,
+-                    applicationSupportURL: supportURL)
++            try withOriginalEraseC16FirstCaptureObservation(operation: operation,
++                coordinator: coordinator, exclusion: exclusion,
++                intent: intent, preparation: preparation, store: store) {
++                    support, heldCaches, heldTemporary, scope in
++                try observer.captureFirstWithFirstCaptureScope(support: support,
++                    caches: heldCaches, temporary: heldTemporary,
++                    applicationSupportURL: coordinator.originalEraseAuxiliarySupportURL,
++                    scope: scope)
+             }
+         }
+         try operation.requireOriginalEraseAuxiliaryFirstCaptureOwner(
+@@ -5234,7 +5251,8 @@
+     }
+ 
+     func requireFirst() throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+-        guard attempted, !inFlight, let firstSnapshot,
++        guard attempted, !inFlight, !firstCaptureObservationUncertain,
++              let firstSnapshot,
+               let caches, let temporary,
+               try observer.firstObservation() == firstSnapshot else {
+             throw GenerationLeaseRegistryFailureV1.uncertainOwner
+@@ -5270,15 +5288,18 @@
+         rosterCaptureInFlight = true
+         try requireParent(caches)
+         try requireParent(temporary)
+-        let supportURL = coordinator.originalEraseAuxiliarySupportURL
+         let outcome = Result<EraseSchema2ColdAuxiliaryPhysicalRosterV1, Error> {
+-            try exclusion.physicalRoot.withHeldOriginalEraseAuxiliarySupport(
+-                at: supportURL) { support in
+-                try capture.captureFirst(intent: intent,
+-                    preparation: preparation, observer: observer,
+-                    snapshot: snapshot, support: support,
+-                    caches: caches.descriptor,
+-                    temporary: temporary.descriptor)
++            try withOriginalEraseC16FirstCaptureObservation(operation: operation,
++                coordinator: coordinator, exclusion: exclusion,
++                intent: intent, preparation: preparation, store: store) {
++                    support, heldCaches, heldTemporary, scope in
++                try observer.withFirstCaptureScope(scope: scope,
++                    applicationSupportURL: coordinator.originalEraseAuxiliarySupportURL) {
++                    try capture.captureFirst(intent: intent,
++                        preparation: preparation, observer: observer,
++                        snapshot: snapshot, support: support,
++                        caches: heldCaches, temporary: heldTemporary)
++                }
+             }
+         }
+         try operation.requireOriginalEraseAuxiliaryRosterCapture(
+@@ -5307,7 +5328,9 @@
+     ) throws -> EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+         guard rosterCaptureAttempted, !rosterCaptureInFlight,
+               !rosterReproofInFlight, !rosterReproofFailed,
++              !firstCaptureObservationUncertain,
+               let firstRoster, let caches, let temporary,
++              let store = firstCaptureStore,
+               let snapshot = firstSnapshot else {
+             throw GenerationLeaseRegistryFailureV1.uncertainOwner
+         }
+@@ -5320,15 +5343,19 @@
+                 preparation: preparation)
+             try requireParent(caches)
+             try requireParent(temporary)
+-            let supportURL = coordinator.originalEraseAuxiliarySupportURL
+-            let observed = try exclusion.physicalRoot
+-                .withHeldOriginalEraseAuxiliarySupport(at: supportURL) { support in
++            let observed = try withOriginalEraseC16FirstCaptureObservation(
++                operation: operation, coordinator: coordinator,
++                exclusion: exclusion, intent: intent,
++                preparation: preparation, store: store) {
++                    support, heldCaches, heldTemporary, scope in
++                try observer.withFirstCaptureScope(scope: scope,
++                    applicationSupportURL: coordinator.originalEraseAuxiliarySupportURL) {
+                     try capture.requireSameFirstSourceFacts(intent: intent,
+                         preparation: preparation, observer: observer,
+                         snapshot: snapshot, support: support,
+-                        caches: caches.descriptor,
+-                        temporary: temporary.descriptor)
++                        caches: heldCaches, temporary: heldTemporary)
+                 }
++            }
+             try requireParent(caches)
+             try requireParent(temporary)
+             guard observed.canonicalSHA256 == firstRoster.canonicalSHA256,
+@@ -5339,6 +5366,148 @@
+             return observed
+         } catch {
+             rosterReproofFailed = true
++            throw error
++        }
++    }
++
++    /// Migration retains its genuine observation owner through this method
++    /// before opening any child. The context lends only these three already
++    /// held parents for one synchronous Registry G callback; it is cleared
++    /// when that callback returns, including a throw.
++    func retainOriginalFirstCaptureObservation(
++        _ observation: OriginalEraseAuxiliaryFirstCaptureObservationOwnerV1,
++        operation: EraseRouterOperationV1
++    ) throws {
++        try requireFirstCaptureObservationContext(operation: operation)
++        guard firstCaptureObservation == nil ||
++              firstCaptureObservation === observation else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        firstCaptureObservation = observation
++    }
++
++    func requireOriginalFirstCaptureObservation(
++        _ observation: OriginalEraseAuxiliaryFirstCaptureObservationOwnerV1,
++        operation: EraseRouterOperationV1
++    ) throws {
++        try requireFirstCaptureObservationContext(operation: operation)
++        guard firstCaptureObservation === observation else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++    }
++
++    func requireOriginalFirstCaptureRegistryRetention(
++        operation: EraseRouterOperationV1
++    ) throws {
++        try requireFirstCaptureObservationContext(operation: operation)
++        guard firstCaptureObservation != nil else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++    }
++
++    func failOriginalFirstCaptureObservation(operation: EraseRouterOperationV1) {
++        // A wrong identity is uncertainty too; this owner cannot reopen or
++        // replace any retained attempt after an ambiguous observation edge.
++        firstCaptureObservationUncertain = true
++        operation.failOriginalEraseFirstCaptureObservation()
++        if let actual = firstCaptureOperation, actual !== operation {
++            actual.failOriginalEraseFirstCaptureObservation()
++        }
++    }
++
++    private func requireFirstCaptureObservationContext(
++        operation: EraseRouterOperationV1
++    ) throws {
++        guard firstCaptureScopedBorrowInFlight,
++              !firstCaptureObservationUncertain,
++              let context = firstCaptureObservationContext,
++              context.operation === operation,
++              firstCaptureOperation === operation,
++              firstCaptureStore === context.store,
++              let caches, let temporary,
++              context.exclusion.owner === context.coordinator,
++              context.exclusion.matchesOriginalEraseAuxiliaryPhase(
++                registry: context.exclusion.registry,
++                activity: context.activity,
++                writer: context.exclusion.retainedWriter) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        // Neither edge may reacquire G or load through the Store's busy
++        // publication owner. Migration supplies the actual strict census
++        // and canonical controls before and after each raw observation.
++        try operation.requireOriginalEraseFirstCaptureRegistrationUnderHeldG(
++            owner: self, observer: observer,
++            coordinator: context.coordinator,
++            exclusion: context.exclusion,
++            registry: context.exclusion.registry, activity: context.activity,
++            store: context.store, intent: context.intent,
++            preparation: context.preparation)
++        try requireParent(caches)
++        try requireParent(temporary)
++        try context.exclusion.physicalRoot.revalidate(
++            applicationSupportURL: context.coordinator.originalEraseAuxiliarySupportURL)
++    }
++
++    private func withOriginalEraseC16FirstCaptureObservation<Value>(
++        operation: EraseRouterOperationV1,
++        coordinator: StoreSessionCoordinator,
++        exclusion: StoreTemporalNormalizationExclusionV1,
++        intent: EraseIntentV1, preparation: ErasePreparationV2,
++        store: EraseIntentStore,
++        _ body: @MainActor (Int32, Int32, Int32,
++            OriginalEraseC16FirstCaptureObservationScopeV1) throws -> Value
++    ) throws -> Value {
++        guard !firstCaptureScopedBorrowInFlight,
++              firstCaptureObservationContext == nil,
++              !firstCaptureObservationUncertain,
++              inFlight || rosterCaptureInFlight || rosterReproofInFlight,
++              firstCaptureOperation == nil || firstCaptureOperation === operation,
++              firstCaptureStore == nil || firstCaptureStore === store,
++              let caches, let temporary else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        // Outside G, the actual exclusion owner verifies the source writer
++        // and returns its genuine activity. No new SH or EX is acquired.
++        let activity = try exclusion.requireOriginalEraseAuxiliaryPhaseActivity(
++            registry: exclusion.registry, coordinator: coordinator,
++            writer: exclusion.retainedWriter)
++        try requireParent(caches)
++        try requireParent(temporary)
++        firstCaptureOperation = operation
++        firstCaptureStore = store
++        firstCaptureScopedBorrowInFlight = true
++        firstCaptureObservationContext = FirstCaptureObservationContext(
++            operation: operation, coordinator: coordinator,
++            exclusion: exclusion, activity: activity, store: store,
++            intent: intent, preparation: preparation)
++        defer {
++            firstCaptureObservationContext = nil
++            firstCaptureScopedBorrowInFlight = false
++        }
++        do {
++            let supportURL = coordinator.originalEraseAuxiliarySupportURL
++            let value = try exclusion.physicalRoot
++                .withHeldOriginalEraseAuxiliarySupport(at: supportURL) { support in
++                    try exclusion.registry.withOriginalEraseFirstCaptureObservation(
++                        activity: activity, operation: operation, store: store,
++                        coordinator: coordinator, exclusion: exclusion,
++                        owner: self, observer: observer,
++                        intent: intent, preparation: preparation,
++                        support: support, caches: caches.descriptor,
++                        temporary: temporary.descriptor,
++                        applicationSupportURL: supportURL,
++                        observation: firstCaptureObservation) { scope, retained in
++                        try requireOriginalFirstCaptureObservation(retained,
++                            operation: operation)
++                        return try body(support, caches.descriptor,
++                            temporary.descriptor, scope)
++                    }
++                }
++            try requireParent(caches)
++            try requireParent(temporary)
++            return value
++        } catch {
++            failOriginalFirstCaptureObservation(operation: operation)
+             throw error
+         }
+     }
+@@ -5738,10 +5907,12 @@
+     private weak var operation: EraseColdPreparationOperationV1?
+     private let applicationSupportURL: URL
+     private enum Phase: Equatable {
+-        case registered, acquiring, held, uncertain, closed
++        case registered, acquiring, held, transferring, transferred, uncertain, closed
+     }
+     private var phase: Phase = .registered
+     private var root: StoreTemporalPhysicalRootExclusionV1?
++    private var retirement: EraseRetirementExclusionV1?
++    private weak var retirementTransfer: EraseSchema2ColdRetirementTransferV1?
+ 
+     init(applicationSupportURL: URL,
+          operation: EraseColdPreparationOperationV1) throws {
+@@ -5774,12 +5945,56 @@
+     }
+ 
+     func requireHeld(expectedDevice: dev_t, expectedInode: ino_t) throws {
+-        guard phase == .held, let operation, let root else {
++        guard phase == .held || phase == .transferring || phase == .transferred,
++              let operation, let root else {
+             throw GenerationLeaseRegistryFailureV1.uncertainOwner
+         }
+         try operation.requireSchema2ColdPhysicalExclusion(self)
+         try root.requireSchema2ColdSupport(device: expectedDevice,
+             inode: expectedInode)
++    }
++
++    /// Transfer only the actual held description/activity and joined target
++    /// drain. No new descriptor, flock, Registry or ordinary SH is created.
++    func transferForRetirement(
++        transfer: EraseSchema2ColdRetirementTransferV1,
++        drain: EraseSessionDrainWitnessV1,
++        registry: GenerationLeaseRegistryV1,
++        activity: GenerationTemporalActivityHandleV1
++    ) throws -> EraseRetirementExclusionV1 {
++        guard phase == .held, retirement == nil,
++              retirementTransfer == nil, let root else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        try transfer.requireHeld(physical: self, drain: drain,
++            registry: registry, activity: activity)
++        phase = .transferring
++        retirementTransfer = transfer
++        do {
++            let result = EraseRetirementExclusionV1(
++                coldBinding: transfer.binding, drain: drain,
++                registry: registry, activity: activity,
++                physicalRoot: root)
++            retirement = result // retain before any further physical read
++            try transfer.requireHeld(physical: self, drain: drain,
++                registry: registry, activity: activity)
++            try result.requireColdAcquisitionRetry()
++            phase = .transferred
++            return result
++        } catch {
++            // Keep both exact owners and the same root held. A failed transfer
++            // may not retry through an ordinary acquisition or numeric FD.
++            phase = .uncertain
++            throw error
++        }
++    }
++
++    func requireTransferredRetirement(_ expected: EraseRetirementExclusionV1,
++        transfer: EraseSchema2ColdRetirementTransferV1) throws {
++        guard phase == .transferred, retirement === expected,
++              retirementTransfer === transfer else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
+     }
+ 
+     func requireOperationsAbsent(expectedDevice: dev_t,
+@@ -5801,6 +6016,11 @@
+ 
+     func closeAfterNamespaceRemovalChecked(expectedDevice: dev_t,
+         expectedInode: ino_t) throws {
++        // Once transferred, only the consuming retirement owner may release
++        // this description. Its old acquisition wrapper cannot double-close.
++        guard phase == .held else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
+         try requireOperationsAbsent(expectedDevice: expectedDevice,
+             expectedInode: expectedInode)
+         guard let root else {
+@@ -6175,6 +6395,35 @@
+             throw GenerationLeaseRegistryFailureV1.uncertainOwner
+         }
+     }
++    /// A Registry observer calls this only inside its actual checked G.
++    /// It checks the genuine transferred cold ownership and real completed
++    /// handle-close sets without entering a second Registry or Manifest read.
++    /// The enclosing boundary independently repeats the complete drain and
++    /// physical census before and after acquiring this observation interval.
++    func requireSchema2ColdCleanupHeldGOwnership(
++        binding expectedBinding: EraseRetirementBindingV1,
++        registry expectedRegistry: GenerationLeaseRegistryV1,
++        activity expectedActivity: GenerationTemporalActivityHandleV1,
++        drain expectedDrain: EraseSessionDrainWitnessV1
++    ) throws {
++        guard case .absentAtColdAdmission = writer,
++              binding == expectedBinding, registry === expectedRegistry,
++              activity === expectedActivity, drain === expectedDrain,
++              !released, !coldFailureClosing, retirementStarted, writerClosed,
++              drain.binding == binding, drain.isActuallyDrained,
++              drain.capturedAllocations.allSatisfy({
++                  closedAllocationIDs.contains(ObjectIdentifier($0))
++              }),
++              drain.capturedReaders.allSatisfy({
++                  closedReaderIDs.contains(ObjectIdentifier($0))
++              }) else {
++            throw GenerationLeaseRegistryFailureV1.uncertainOwner
++        }
++        // This reads only the held/named Support inode and the existing EX
++        // lifetime. It neither enumerates tokens nor reacquires G or EX.
++        try physicalRoot.requireEraseSupport(binding.subject)
++    }
++
+     /// Initial transfer admission still uses the complete joined witness.
+     /// No namespace mutation occurs until both actual owners have registered
+     /// this exact pair and advanced their own monotonic transfer phases.

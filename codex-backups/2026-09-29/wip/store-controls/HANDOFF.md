@@ -1,0 +1,13 @@
+# Broad Store archival handoff
+
+This sealed content-addressed snapshot preserves the owned broad Store baseline, frozen V3/V4 drafts, current V4 contract work, READ7028, wire schemas, capacity arithmetic, terminal/API prototypes and exact copied counterpart input fragments. It is incomplete and noninstallable. It conveys no semantic compilation, runtime, independent source approval or gate credit.
+
+Root alone publishes and verifies the separate archival GitHub backup. `INVENTORY.json` records each absolute source/restore path, exact SHA-256, byte count, original mode and snapshot object. `CONTENT_GROUPS.json` records content equality without deleting or changing any original file. `STORE_VERSIONS.json` names every preserved Store source version. Snapshot objects are immutable; ongoing contract work may continue at the original paths after this boundary.
+
+V3 remains frozen and BLOCKED by review728679: two compile-risk findings, permanent descriptor fencing and mixed lawful-population capacity. The narrow V4 draft remains frozen and uninstalled. The current V4 packet is a working segmented binary contract and pure API prototype packet. Its READ interface is immutable SHA7028aba3b6e7f2c3013dd1d35747c73d27d2238bec3e07a94ad1d4ae94518669. New effect framing is a pending agreement; its prototype is preserved rather than claimed approved.
+
+Outstanding work includes actual bounded codec and checked publisher, authentic bootstrap/source/progress/pending-birth admissions, real private Router/Service/Registry/consumer-complete/semantic-target producers, complete fresh terminal OS and every deletion-prefix reproof, permanent Store/first-held observer close fences, genuine full legacy fallback and historical lost-source disposition, whole coupled heap/work proof, root-only coupled typecheck/build/runtime/fault/capacity verification and all unchanged gates. A decoded control or digest never issues OS, drain, retirement, alias-policy, ready or completion authority.
+
+The capture performed only file reads, content copies to this ignored snapshot, hashes and immutable snapshot metadata. It did not modify tracked Store/source, original packets, Products, tests, CI, docs, Git refs/index, evidence or owner drafts. It performed no compiler, native test, Git publication or deletion. Local hash equality is not verified GitHub backup.
+
+Restore using the inventory mapping after root coordinates with any active work: verify each archived object SHA/count, copy it to the recorded restore path and restore the recorded mode. Keep every distinct version and all logical paths. Do not reset Git, prune, reclaim originals or infer disposal eligibility from duplicate content.

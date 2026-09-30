@@ -1,0 +1,140 @@
+{
+  "schema": "V21P03C21ClientCapabilityPackageLifecycleCorpusV1",
+  "schemaVersion": 1,
+  "corpusID": "V21-P03-C21-CLIENT-CAPABILITY-PACKAGE-LIFECYCLE-V1",
+  "cardID": "V23-P03-C21",
+  "records": 19,
+  "recordsSchemaVersion": 19,
+  "persistentSchemaVersion": 20,
+  "persistentModelCount": 81,
+  "evidenceIDs": [
+    "V23-P03-C21-G01",
+    "V23-P03-C21-A01",
+    "V23-P03-C21-H01",
+    "V23-P03-C21-I01",
+    "V23-P03-C21-R01"
+  ],
+  "admissions": [
+    "READ_WRITE",
+    "READ_ONLY",
+    "MIGRATION_REQUIRED",
+    "QUARANTINE",
+    "REJECT"
+  ],
+  "operations": [
+    "START",
+    "RESUME",
+    "FINALIZE",
+    "AMEND",
+    "VIEW",
+    "EXPORT",
+    "RESTORE",
+    "REPLAY",
+    "UPGRADE_DRAFT"
+  ],
+  "states": [
+    "ACTIVE",
+    "DEPRECATED",
+    "WITHDRAWN",
+    "QUARANTINED",
+    "SUPERSEDED"
+  ],
+  "capabilityDomains": [
+    "SCHEMA",
+    "CONTRACT",
+    "PACKAGE",
+    "MEDIA",
+    "CANONICALIZATION",
+    "DIGEST"
+  ],
+  "evidenceSelectors": [
+    {
+      "id": "V23-P03-C21-G01",
+      "selector": "V9_35ClientCapabilityPackageLifecycleTests.testV23P03C21G01CapabilityAdmissionAndImmutableReleaseLifecycle",
+      "focus": "All six platform-neutral capability domains, stable ranges, immutable package bytes, and canonical digests."
+    },
+    {
+      "id": "V23-P03-C21-A01",
+      "selector": "V9_35ClientCapabilityPackageLifecycleTests.testV23P03C21A01ClosedAdmissionAndOperationMatrixIsDeterministic",
+      "focus": "All five admissions across all nine operations and five package lifecycle states."
+    },
+    {
+      "id": "V23-P03-C21-H01",
+      "selector": "V9_35ClientCapabilityPackageLifecycleTests.testV23P03C21H01UnknownCapabilityAndForbiddenRemoteStateFailClosed",
+      "focus": "Unknown, stale, unsupported, duplicate, incomplete, wrong-release, and forged canonical inputs."
+    },
+    {
+      "id": "V23-P03-C21-I01",
+      "selector": "V9_35ClientCapabilityPackageLifecycleTests.testV23P03C21I01CapabilityAdmissionAndPackageMutationIsAtomicAndRecoverable",
+      "focus": "Typed mutations, linked persistence decoding, successor activation, interruption, retry, and idempotent receipt adoption."
+    },
+    {
+      "id": "V23-P03-C21-R01",
+      "selector": "V9_35ClientCapabilityPackageLifecycleTests.testV23P03C21R01V20BackupRestoreDeleteEraseReplayAndWithdrawalPreserveHistory",
+      "focus": "Withdrawal blocks new work while historic view/export/restore/replay and exact package release bytes remain usable."
+    }
+  ],
+  "coverage": [
+    "V20_TO_V23_ZERO_INVENTION_MIGRATION",
+    "PERSISTENT_SCHEMA_V20_RECORDS_SCHEMA_19",
+    "PROFILE_POLICY_DISPOSITION_DECISION_RECEIPTS",
+    "EXPECTED_REVISION_MUTATION_ID_SINGLE_WRITER",
+    "POLICY_SUCCESSOR_ACTIVATION_AND_PRE_ACTIVATION_DISCARD",
+    "WITHDRAWN_RELEASE_HISTORIC_READ_RESTORE_EXPORT_REPLAY",
+    "BACKUP_RESTORE_CLONE_FORK_DELETE_ERASE_SEARCH_REBUILD_COMPATIBILITY",
+    "IMMUTABLE_PACKAGE_RELEASE_BYTES_AND_WORKFLOW_BYTES",
+    "NO_REMOTE_CLIENT_REGISTRY_OR_PROVIDER_FOOTPRINT"
+  ],
+  "interruptionBoundaries": [
+    "BEFORE_PROFILE_WRITE",
+    "AFTER_PROFILE_COMMIT_BEFORE_RECEIPT",
+    "BEFORE_POLICY_WRITE",
+    "AFTER_POLICY_COMMIT_BEFORE_RECEIPT",
+    "BEFORE_DISPOSITION_WRITE",
+    "AFTER_DISPOSITION_COMMIT_BEFORE_RECEIPT",
+    "BEFORE_DECISION_WRITE",
+    "AFTER_DECISION_COMMIT_BEFORE_RECEIPT",
+    "PARTIAL_SUCCESSOR_ACTIVATION"
+  ],
+  "recoveryDispositions": [
+    "RETAIN_CANONICAL_HISTORY",
+    "QUARANTINE_DIVERGENT_RETRY",
+    "EXACT_RECEIPT_REPLAY",
+    "OLD_OR_NEW_COMPLETE_ONLY"
+  ],
+  "lifecycleConsumers": [
+    "PACKAGE_START",
+    "PACKAGE_RESUME",
+    "PACKAGE_FINALIZE",
+    "PACKAGE_AMEND",
+    "PACKAGE_VIEW",
+    "PACKAGE_EXPORT",
+    "PACKAGE_RESTORE",
+    "PACKAGE_REPLAY",
+    "PACKAGE_DRAFT_UPGRADE",
+    "BACKUP_RESTORE_CLONE_FORK",
+    "DELETE_ERASE",
+    "SEARCH_REBUILD",
+    "COMPATIBILITY"
+  ],
+  "privacyExclusions": [
+    "REMOTE_DEVICE_OR_CLIENT_REGISTRY",
+    "ACCOUNT_USER_TENANT_ENDPOINT_PROVIDER_CREDENTIAL",
+    "HEARTBEAT_UPLOAD_ACKNOWLEDGEMENT_TELEMETRY",
+    "CLOUD_NETWORK_OR_LEGAL_CLAIM"
+  ],
+  "forbiddenProductionSymbols": [
+    "ClientRegistryV1",
+    "RemoteCapabilityServiceV1",
+    "ClientCredentialV1",
+    "URLSession",
+    "CloudKit"
+  ],
+  "platformNeutral": true,
+  "localeAndOrderingIndependent": true,
+  "immutablePackageBytes": true,
+  "historicWithdrawalReadable": true,
+  "noRemoteIdentity": true,
+  "noSecondWriter": true,
+  "noSecondStore": true
+}

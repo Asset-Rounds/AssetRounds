@@ -1,0 +1,125 @@
+{
+  "$id": "https://schemas.assetrounds.local/v23/p03/c06/report-projection-evidence/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "byteNormalization": {
+      "const": "UTF8_TEXT_CRLF_TO_LF_FOR_EVIDENCE_DIGESTS"
+    },
+    "cardID": {
+      "const": "V23-P03-C06"
+    },
+    "evidenceIDs": {
+      "const": [
+        "V23-P03-C06-G01",
+        "V23-P03-C06-A01",
+        "V23-P03-C06-H01",
+        "V23-P03-C06-I01",
+        "V23-P03-C06-R01"
+      ]
+    },
+    "fixtureSHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "hostedDispatchEnabled": {
+      "const": false
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "receiptID": {
+      "const": "v23-p03-c06-static-receipt"
+    },
+    "registrySHA256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "result": {
+      "const": "PASS"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceArtifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\ufffe\\uffff]*$",
+            "type": "string",
+            "x_assetrounds_forbiddenUnicodeScalarClasses": [
+              "C0",
+              "C1",
+              "BIDI_CONTROL",
+              "NONCHARACTER"
+            ],
+            "x_assetrounds_maxLengthSemantics": "SOUND_CODE_POINT_CEILING_NOT_UTF8_BYTE_PARITY",
+            "x_assetrounds_maximumUTF8Bytes": 256,
+            "x_assetrounds_noncharacterPolicy": "REJECT_ALL_UNICODE_NONCHARACTERS",
+            "x_assetrounds_requiresNFC": true
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "verificationMode": {
+      "const": "STATIC_ONLY"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "receiptID",
+    "cardID",
+    "byteNormalization",
+    "registrySHA256",
+    "fixtureSHA256",
+    "sourceArtifacts",
+    "evidenceIDs",
+    "result",
+    "verificationMode",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "hostedDispatchEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation"
+  ],
+  "title": "ProvisionalP03C06ProjectionEvidenceReceiptV1",
+  "type": "object",
+  "x_assetrounds_productManifestDerived": false,
+  "x_assetrounds_schemaClass": "OPERATIONAL_EVIDENCE_TOOLING"
+}

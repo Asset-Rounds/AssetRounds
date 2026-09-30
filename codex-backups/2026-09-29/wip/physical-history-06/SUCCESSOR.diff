@@ -1,0 +1,1034 @@
+--- /Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
++++ /Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v5/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift
+@@ -62,6 +62,7 @@
+     private var notificationControlURL: URL?
+     private var initialC16Scope: OriginalEraseC16InitialObservationScopeV1?
+     private var firstCaptureC16Scope: OriginalEraseC16FirstCaptureObservationScopeV1?
++    private var sealedGenericScope: OriginalEraseSealedGenericObservationScopeV1?
+     private var firstCaptureOperationID: UUID?
+     private var firstCaptureSupportURL: URL?
+     private var initialSupportURL: URL?
+@@ -99,14 +100,40 @@
+     /// binds immutable original-P role facts plus current EX/G and source
+     /// controls. This never relaxes the ordinary capture/walker predicates.
+     func captureFirstWithInitialC16Scope(support: Int32, caches: Int32, temporary: Int32,
+-        applicationSupportURL: URL, scope: OriginalEraseC16InitialObservationScopeV1) throws -> Snapshot {
+-        guard !attempted, firstCaptureC16Scope == nil else { throw EraseAllServiceError.invalidAuthority }
++        applicationSupportURL: URL, scope: OriginalEraseC16InitialObservationScopeV1,
++        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil) throws -> Snapshot {
++        guard !attempted, firstCaptureC16Scope == nil, sealedGenericScope == nil else { throw EraseAllServiceError.invalidAuthority }
+         try scope.requireCurrentBinding()
+-        initialC16Scope = scope; initialSupportURL = applicationSupportURL.standardizedFileURL
+-        defer { initialC16Scope = nil; initialSupportURL = nil }
++        try genericScope?.requireCurrentBinding()
++        initialC16Scope = scope; sealedGenericScope = genericScope
++        initialSupportURL = applicationSupportURL.standardizedFileURL
++        defer { initialC16Scope = nil; sealedGenericScope = nil; initialSupportURL = nil }
+         let value = try captureFirst(support: support, caches: caches, temporary: temporary,
+             applicationSupportURL: applicationSupportURL)
+-        try scope.requireCurrentBinding(); return value
++        try scope.requireCurrentBinding(); try genericScope?.requireCurrentBinding(); return value
++    }
++
++    /// A separate real sealed source/current-record scope can reprove the
++    /// same retained image in one synchronous owner/G callback. No new first
++    /// snapshot or future source/publication authority is minted here.
++    func withSealedGenericScope<Value>(scope: OriginalEraseSealedGenericObservationScopeV1,
++        applicationSupportURL: URL, _ body: @MainActor () throws -> Value) throws -> Value {
++        guard firstCaptureC16Scope == nil, initialC16Scope == nil, sealedGenericScope == nil,
++              applicationSupportURL.isFileURL else { throw EraseAllServiceError.invalidAuthority }
++        try scope.requireCurrentBinding()
++        sealedGenericScope = scope; initialSupportURL = applicationSupportURL.standardizedFileURL
++        defer { sealedGenericScope = nil; initialSupportURL = nil }
++        let result = try body()
++        try scope.requireCurrentBinding(); try io.requireSettled(); return result
++    }
++
++    func captureFirstWithSealedGenericScope(support: Int32, caches: Int32, temporary: Int32,
++        applicationSupportURL: URL, scope: OriginalEraseSealedGenericObservationScopeV1) throws -> Snapshot {
++        guard !attempted else { throw EraseAllServiceError.invalidAuthority }
++        return try withSealedGenericScope(scope: scope, applicationSupportURL: applicationSupportURL) {
++            try captureFirst(support: support, caches: caches, temporary: temporary,
++                applicationSupportURL: applicationSupportURL)
++        }
+     }
+ 
+     /// Distinct data origin before the auxiliary P exists. Migration's
+@@ -126,7 +153,7 @@
+     /// refreshes or changes it and never holds a G scope across an await.
+     func withFirstCaptureScope<Value>(scope: OriginalEraseC16FirstCaptureObservationScopeV1,
+         applicationSupportURL: URL, _ body: @MainActor () throws -> Value) throws -> Value {
+-        guard firstCaptureC16Scope == nil, initialC16Scope == nil, applicationSupportURL.isFileURL,
++        guard firstCaptureC16Scope == nil, initialC16Scope == nil, sealedGenericScope == nil, applicationSupportURL.isFileURL,
+               firstCaptureOperationID == nil || firstCaptureOperationID == scope.operationID,
+               firstCaptureSupportURL == nil || firstCaptureSupportURL == applicationSupportURL.standardizedFileURL else {
+             throw EraseAllServiceError.invalidAuthority
+@@ -1295,14 +1322,14 @@
+             }
+             let names = try io.names(in: directory)
+             let scopedTree: EraseAbortCheckedSnapshotIOV1.Schema2ColdCurrentTreeV1?
+-            if (initialC16Scope != nil || firstCaptureC16Scope != nil), let supportURL = initialSupportURL {
+-                let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope
++            if (initialC16Scope != nil || firstCaptureC16Scope != nil || sealedGenericScope != nil), let supportURL = initialSupportURL {
++                let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope, genericScope = sealedGenericScope
+                 scopedTree = try io.schema2ColdCurrentOwnedTree(parent: parent, name: "FieldEvidenceOperations",
+                     rootURL: supportURL.appendingPathComponent("FieldEvidenceOperations", isDirectory: true),
+                     expectedUser: held.st_uid, expectedGroup: held.st_gid,
+-                    initialScope: initialScope, firstCaptureScope: captureScope, operationsRelativePrefix: "",
+-                    requireBinding: { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding() },
+-                    poison: { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation() })
++                    initialScope: initialScope, firstCaptureScope: captureScope, genericScope: genericScope, operationsRelativePrefix: "",
++                    requireBinding: { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding(); try genericScope?.requireCurrentBinding() },
++                    poison: { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation(); genericScope?.poisonOnUncertainObservation() })
+                 guard case .present(_, let expectedDigest) = operations,
+                       scopedTree?.rootFact == rootFact, scopedTree?.digest == expectedDigest else { throw EraseAllServiceError.invalidAuthority }
+             } else { scopedTree = nil }
+@@ -1431,15 +1458,15 @@
+         notificationControl: Bool,
+         expectedRootFact: String,
+         expectedTreeDigest: String) throws -> ([ControlNode], String?) {
+-        if !notificationControl, initialC16Scope != nil || firstCaptureC16Scope != nil {
+-            let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope
+-            func bound() throws { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding() }
+-            func poison() { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation() }
++        if !notificationControl, initialC16Scope != nil || firstCaptureC16Scope != nil || sealedGenericScope != nil {
++            let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope, genericScope = sealedGenericScope
++            func bound() throws { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding(); try genericScope?.requireCurrentBinding() }
++            func poison() { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation(); genericScope?.poisonOnUncertainObservation() }
+             var parent = stat()
+             guard Darwin.fstat(operations, &parent) == 0 else { throw EraseAllServiceError.invalidAuthority }
+             let one = try io.schema2ColdCurrentOwnedTree(parent: operations, name: name,
+                 rootURL: rootURL, expectedUser: parent.st_uid, expectedGroup: parent.st_gid,
+-                initialScope: initialScope, firstCaptureScope: captureScope, operationsRelativePrefix: name,
++                initialScope: initialScope, firstCaptureScope: captureScope, genericScope: genericScope, operationsRelativePrefix: name,
+                 requireBinding: bound, poison: poison)
+             guard one.rootFact == expectedRootFact, one.digest == expectedTreeDigest else {
+                 throw EraseAllServiceError.invalidAuthority
+@@ -1452,7 +1479,7 @@
+             }
+             let two = try io.schema2ColdCurrentOwnedTree(parent: operations, name: name,
+                 rootURL: rootURL, expectedUser: parent.st_uid, expectedGroup: parent.st_gid,
+-                initialScope: initialScope, firstCaptureScope: captureScope, operationsRelativePrefix: name,
++                initialScope: initialScope, firstCaptureScope: captureScope, genericScope: genericScope, operationsRelativePrefix: name,
+                 requireBinding: bound, poison: poison)
+             guard one == two else { throw EraseAllServiceError.invalidAuthority }
+             return (values, nil)
+@@ -1606,11 +1633,11 @@
+             throw EraseAllServiceError.invalidAuthority
+         }
+         if let supportURL = initialSupportURL,
+-           (initialC16Scope != nil || firstCaptureC16Scope != nil),
++           (initialC16Scope != nil || firstCaptureC16Scope != nil || sealedGenericScope != nil),
+            name == "FieldEvidenceOperations" || operationsChild {
+-            let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope
+-            func bound() throws { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding() }
+-            func poison() { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation() }
++            let initialScope = initialC16Scope, captureScope = firstCaptureC16Scope, genericScope = sealedGenericScope
++            func bound() throws { try initialScope?.requireCurrentBinding(); try captureScope?.requireCurrentBinding(); try genericScope?.requireCurrentBinding() }
++            func poison() { initialScope?.poisonOnUncertainObservation(); captureScope?.poisonOnUncertainObservation(); genericScope?.poisonOnUncertainObservation() }
+             let rootURL: URL
+             let rolePrefix: String
+             if name == "FieldEvidenceOperations" {
+@@ -1622,7 +1649,7 @@
+             let parentFact = try directoryFact(parent)
+             let value = try io.schema2ColdCurrentOwnedTree(parent: parent, name: name, rootURL: rootURL,
+                 expectedUser: parentFact.st_uid, expectedGroup: parentFact.st_gid,
+-                initialScope: initialScope, firstCaptureScope: captureScope, operationsRelativePrefix: rolePrefix,
++                initialScope: initialScope, firstCaptureScope: captureScope, genericScope: genericScope, operationsRelativePrefix: rolePrefix,
+                 requireBinding: bound, poison: poison)
+             guard value.rootFact == Self.fullFact(before) else { throw EraseAllServiceError.invalidAuthority }
+             return .present(rootFact: value.rootFact, digest: value.digest)
+@@ -1662,6 +1689,45 @@
+ @MainActor
+ final class EraseSchema2ColdPhysicalEffectReceiptV1 {
+     enum Effect: Equatable { case unlinked, originallyAbsent, resumedPreparingAbsence }
++    struct GenericPairLoss: Equatable {
++        enum Kind: Equatable { case ownedUnlink, preparingAbsenceReadback }
++        let kind: Kind
++        let originalAccountingRow: OriginalEraseAuxiliaryPairAccountingDataV1.Row
++        let accountingSHA256: String
++        let consumedOriginalPath: String
++        let consumedActualPath: String
++        let survivorActualPath: String
++        let actualBeforeSurvivorFact: String
++        let actualAfterSurvivorFact: String
++        let sha256: String
++        fileprivate init(kind: Kind, originalAccountingRow: OriginalEraseAuxiliaryPairAccountingDataV1.Row,
++            accountingSHA256: String, consumedOriginalPath: String, consumedActualPath: String,
++            survivorActualPath: String, actualBeforeSurvivorFact: String, actualAfterSurvivorFact: String,
++            sha256: String) {
++            self.kind = kind; self.originalAccountingRow = originalAccountingRow
++            self.accountingSHA256 = accountingSHA256; self.consumedOriginalPath = consumedOriginalPath
++            self.consumedActualPath = consumedActualPath; self.survivorActualPath = survivorActualPath
++            self.actualBeforeSurvivorFact = actualBeforeSurvivorFact
++            self.actualAfterSurvivorFact = actualAfterSurvivorFact; self.sha256 = sha256
++        }
++    }
++    struct GenericPairFinalLoss: Equatable {
++        enum Kind: Equatable { case ownedUnlink, preparingAbsenceReadback }
++        let kind: Kind
++        let originalAccountingRow: OriginalEraseAuxiliaryPairAccountingDataV1.Row
++        let accountingSHA256: String
++        let lastActualPath: String
++        let actualBeforeFullFact: String?
++        let sha256: String
++        let consumed: [OriginalEraseSealedGenericConsumedMemberV1]
++        fileprivate init(kind: Kind, originalAccountingRow: OriginalEraseAuxiliaryPairAccountingDataV1.Row,
++            accountingSHA256: String, lastActualPath: String, actualBeforeFullFact: String?,
++            sha256: String, consumed: [OriginalEraseSealedGenericConsumedMemberV1]) {
++            self.kind = kind; self.originalAccountingRow = originalAccountingRow; self.accountingSHA256 = accountingSHA256
++            self.lastActualPath = lastActualPath; self.actualBeforeFullFact = actualBeforeFullFact
++            self.sha256 = sha256; self.consumed = consumed
++        }
++    }
+     let ownerID: UUID
+     let originalPAuxiliaryRosterSHA256: String
+     let planSHA256: String
+@@ -1669,16 +1735,20 @@
+     let targetIndex: Int
+     let target: EraseSchema2ColdCleanupProgressV1.Target
+     let effect: Effect
++    let genericPairLoss: GenericPairLoss?
++    let genericPairFinalLoss: GenericPairFinalLoss?
+     let before: [EraseSchema2ColdCleanupProgressV1.Projection]
+     let after: [EraseSchema2ColdCleanupProgressV1.Projection]
+     fileprivate init(owner: EraseSchema2ColdPhysicalCleanupOwnerV1,
+         progressSHA256: String, targetIndex: Int,
+         target: EraseSchema2ColdCleanupProgressV1.Target, effect: Effect,
++        genericPairLoss: GenericPairLoss?, genericPairFinalLoss: GenericPairFinalLoss?,
+         before: [EraseSchema2ColdCleanupProgressV1.Projection],
+         after: [EraseSchema2ColdCleanupProgressV1.Projection]) {
+         ownerID = owner.ownerID; originalPAuxiliaryRosterSHA256 = owner.originalP.canonicalSHA256
+         planSHA256 = owner.planSHA256; self.progressSHA256 = progressSHA256
+         self.targetIndex = targetIndex; self.target = target; self.effect = effect
++        self.genericPairLoss = genericPairLoss; self.genericPairFinalLoss = genericPairFinalLoss
+         self.before = before; self.after = after
+     }
+     func requireBound(owner: EraseSchema2ColdPhysicalCleanupOwnerV1,
+@@ -1800,7 +1870,7 @@
+             throw EraseAllServiceError.invalidAuthority
+         }
+         try originalPairAccounting?.requireOriginalPBinding(originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256)
+-        var typedPairByPath: [String: EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1] = [:]
++        var typedPairByPath: [String: EraseSchema2ColdOriginalPairAccountingRosterV1.Pair] = [:]
+         for pair in originalPairAccounting?.pairs ?? [] {
+             guard pair.operationsRelativeMemberPaths.count == 2, pair.observedFacts.count == 2,
+                   pair.observedFacts[0] == pair.observedFacts[1], pair.byteCount >= 0,
+@@ -2006,21 +2076,37 @@
+     /// No surviving Q/R name is enumerated to mint another target. Prospective
+     /// Search/Notification leaves are fixed owner-produced names; their actual
+     /// presence/content/absence still requires the respective typed receipt.
+-    static func fixedNonC16Targets(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++    static func visitFixedNonC16Targets(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
+         c16Plan: OriginalEraseC16PlanV1, targetGenerationID: UUID,
+-        originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1? = nil) throws -> [Progress.Target] {
++        originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1? = nil,
++        body: @MainActor (Progress.Target) throws -> Void) throws {
+         try c16Plan.validate()
+-        var result: [Progress.Target] = []
++        let census = try requireOriginalRootCensus(originalP, originalPairAccounting: originalPairAccounting)
++        var maximum = 0
++        for (nodes, _) in census {
++            let added = maximum.addingReportingOverflow(nodes)
++            guard !added.overflow else { throw EraseAllServiceError.invalidAuthority }
++            maximum = added.partialValue
++        }
++        // Absent registered roots remain fixed no-effect targets. At most
++        // three extra names are Search projection and Notification marker/root.
++        let prospective = originalP.record.trees.filter { $0.state == "absent" }.count + 3
++        let total = maximum.addingReportingOverflow(prospective)
++        guard !total.overflow else { throw EraseAllServiceError.invalidAuthority }
++        maximum = total.partialValue
++        var emitted = 0, seen = Set<String>()
+         func add(_ kind: Progress.Target.Kind, _ path: String,
+             source: EraseSchema2ColdAuxiliaryPhysicalRosterV1.Node?) throws {
+             struct Binding: Codable { let rosterSHA256: String; let path: String; let source: EraseSchema2ColdAuxiliaryPhysicalRosterV1.Node? }
+             let bytes = try StoreMigrationCanonicalJSONV1.encode(Binding(
+                 rosterSHA256: originalP.canonicalSHA256, path: path, source: source))
+-            result.append(.init(kind: kind, ordinal: result.count, path: path,
++            guard emitted < maximum, seen.insert(path).inserted else { throw EraseAllServiceError.invalidAuthority }
++            let value = Progress.Target(kind: kind, ordinal: emitted, path: path,
+                 semanticSHA256: StoreMigrationCanonicalJSONV1.sha256(bytes),
+-                dependencyPaths: [], allowedBirthPaths: []))
+-        }
+-        _ = try requireOriginalRootCensus(originalP, originalPairAccounting: originalPairAccounting)
++                dependencyPaths: [], allowedBirthPaths: [])
++            emitted += 1
++            try body(value)
++        }
+         let operationsKey = "support/FieldEvidenceOperations"
+         guard let operations = originalP.record.trees.first(where: { $0.key == operationsKey }) else {
+             throw EraseAllServiceError.invalidAuthority
+@@ -2048,9 +2134,12 @@
+             }
+         }
+         // C16 has already consumed its semantic descendants. Registry's
+-        // actual drain consumes owner-token descendants. Notification's
++        // actual drain consumes only its positively receipted subset, so ALL
++        // original Registry descendants remain fixed postorder targets. Its
++        // genuine external projection proves consumed/replaced paths and new
++        // control births; no current survivor scan removes a target. Notification's
+         // authentic removal consumes its obsolete mapping/record leaves.
+-        let excluded = ["ScratchDataV1/", "ProtectedIngressReceiptsV1/", "generation-leases/",
++        let excluded = ["ScratchDataV1/", "ProtectedIngressReceiptsV1/",
+             AppLockNotificationControlStoreV1.rootName + "/"]
+         for path in operations.deletionOrder ?? [] where !path.isEmpty {
+             if excluded.contains(where: { path.hasPrefix($0) }) { continue }
+@@ -2065,9 +2154,17 @@
+             try add(.auxiliaryNode, operationsKey + "/" + AppLockNotificationControlStoreV1.rootName, source: nil)
+         }
+         try add(.auxiliaryRoot, operationsKey, source: operationsNodes[""])
+-        guard Set(result.map(\.path)).count == result.count else {
+-            throw EraseAllServiceError.invalidAuthority
+-        }
++        guard seen.count == emitted else { throw EraseAllServiceError.invalidAuthority }
++    }
++
++    /// Array compatibility only for existing callers. The logical Store codec
++    /// should consume the visitor and never encode a complete mixed array.
++    static func fixedNonC16Targets(originalP: EraseSchema2ColdAuxiliaryPhysicalRosterV1,
++        c16Plan: OriginalEraseC16PlanV1, targetGenerationID: UUID,
++        originalPairAccounting: EraseSchema2ColdOriginalPairAccountingRosterV1? = nil) throws -> [Progress.Target] {
++        var result: [Progress.Target] = []
++        try visitFixedNonC16Targets(originalP: originalP, c16Plan: c16Plan,
++            targetGenerationID: targetGenerationID, originalPairAccounting: originalPairAccounting) { result.append($0) }
+         return result
+     }
+ 
+@@ -2143,7 +2240,8 @@
+ 
+     private func scan(support: Int32, caches: Int32, temporary: Int32,
+         c16Scope: OriginalEraseC16CurrentObservationScopeV1?, permit: EraseSchema2ColdPhysicalPermitV1,
+-        progress: Progress?, initialScope: OriginalEraseC16InitialObservationScopeV1? = nil) throws -> Image {
++        progress: Progress?, initialScope: OriginalEraseC16InitialObservationScopeV1? = nil,
++        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil) throws -> Image {
+         guard initialScope == nil || (progress == nil && c16Scope == nil) else { throw EraseAllServiceError.invalidAuthority }
+         try requireScanBinding(permit, progress: progress)
+         let canonicalProgressSHA = try progress.map { StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode($0)) }
+@@ -2157,6 +2255,8 @@
+                 try permit.requireBootstrapBinding(originalPAuxiliaryRosterSHA256: originalP.canonicalSHA256,
+                     planSHA256: planSHA256, targetsSHA256: targetsSHA256)
+             }
++            try c16Scope?.requireCurrentBinding(); try initialScope?.requireCurrentBinding()
++            try genericScope?.requireCurrentBinding()
+         }
+         var values: [Progress.Projection] = [], nodes: [String: Node] = [:]
+         var currentTypedPairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1] = []
+@@ -2167,7 +2267,9 @@
+                 originalP.record.cachesMode, originalP.record.cachesUser, originalP.record.cachesGroup),
+             ("temporary", temporary, temporaryURL, originalP.record.temporaryDevice, originalP.record.temporaryInode,
+                 originalP.record.temporaryMode, originalP.record.temporaryUser, originalP.record.temporaryGroup)]
+-        func poison() { self.uncertain = true; permit.poisonOnUncertainEffect() }
++        func poison() { self.uncertain = true; permit.poisonOnUncertainEffect()
++            c16Scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation()
++            genericScope?.poisonOnUncertainObservation() }
+         var parentFacts: [String: String] = [:]
+         for (key, fd, _, dev, ino, mode, user, group) in parents {
+             try bound()
+@@ -2207,7 +2309,8 @@
+                 expectedUser: uid_t(parent.6), expectedGroup: gid_t(parent.7),
+                 scope: isOperations ? c16Scope : nil,
+                 initialScope: isOperations ? initialScope : nil,
+-                operationsRelativePrefix: isOperations && (c16Scope != nil || initialScope != nil) ? "" : nil,
++                genericScope: isOperations ? genericScope : nil,
++                operationsRelativePrefix: isOperations && (c16Scope != nil || initialScope != nil || genericScope != nil) ? "" : nil,
+                 requireBinding: bound,
+                 poison: { self.uncertain = true; permit.poisonOnUncertainEffect() })
+             if isOperations { currentTypedPairs.append(contentsOf: observed.typedPairs) }
+@@ -2254,6 +2357,89 @@
+         }
+         return removed
+     }
++    private func genericCurrentPath(_ original: String,
++        mapping: OriginalEraseSealedGenericPathMappingV1) throws -> String {
++        switch mapping {
++        case .unchanged: return original
++        case .c16ParentRename(let before, let after, let ordinal, let binding):
++            guard before != after, plan.steps.indices.contains(ordinal),
++                  StoreMigrationCanonicalJSONV1.isLowercaseSHA256(binding),
++                  original.hasPrefix(before + "/") else { throw EraseAllServiceError.invalidAuthority }
++            // The privately issued scope already proves the actual rename and
++            // source/record tuple. This pure path mapping supplies no effect.
++            return after + String(original.dropFirst(before.count))
++        }
++    }
++
++    /// A current scanner node can carry only the genuine scope's exact
++    /// declared survivor. Immutable source facts are never rewritten. Drift
++    /// from an already captured progress fact is allowed solely for the ONE
++    /// active PREPARING loss; completed postimages remain exact.
++    private func genericSurvivor(_ node: Node, path: String, image: Image,
++        progress: Progress, sourcePath: String? = nil,
++        allowingActiveProgressDrift: Bool = false) throws -> Bool {
++        guard case .ownedGenericSingleSurvivor(let single)? = node.sealedGenericRole else { return false }
++        let prefix = "support/FieldEvidenceOperations/"
++        guard node.names == nil, path == prefix + single.member.operationsRelativePath,
++              node.fullFact == single.member.fullFact, node.sha256 == single.sha256,
++              single.original.kind == "observedOwnedGenericAliases",
++              single.original.members.count == 2,
++              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(single.originBinding),
++              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(single.accountingSHA256),
++              StoreMigrationCanonicalJSONV1.isLowercaseSHA256(single.consumed.recordBindingSHA256) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        let originals = originalNodes()
++        var source: OriginalEraseAuxiliaryPairAccountingDataV1.Member?
++        for member in single.original.members {
++            guard let original = originals[prefix + member.operationsRelativePath],
++                  original.kind == "file", original.fact == member.observedFact,
++                  original.sha256 == single.sha256,
++                  try Self.nine(member.fullFact) == member.observedFact else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            if try genericCurrentPath(member.operationsRelativePath, mapping: single.pathMapping)
++                == single.member.operationsRelativePath { source = member }
++        }
++        guard let source, sourcePath == nil || sourcePath == source.operationsRelativePath,
++              source.operationsRelativePath != single.consumed.operationsRelativePath,
++              single.original.members.contains(where: { $0.operationsRelativePath == single.consumed.operationsRelativePath }) else {
++            throw EraseAllServiceError.invalidAuthority
++        }
++        let before = try Self.fields(source.fullFact), after = try Self.fields(node.fullFact)
++        guard before[5] == "2", after[5] == "1",
++              [0,1,2,3,4,6,7,8].allSatisfy({ before[$0] == after[$0] }),
++              try Self.nine(node.fullFact) == single.member.observedFact,
++              image.nodes[prefix + (try genericCurrentPath(single.consumed.operationsRelativePath,
++                mapping: single.pathMapping))] == nil else { throw EraseAllServiceError.invalidAuthority }
++        switch single.consumed.target {
++        case .mixedTarget(let index):
++            let consumedPath = prefix + (try genericCurrentPath(single.consumed.operationsRelativePath,
++                mapping: single.pathMapping))
++            guard targets.indices.contains(index), targets[index].kind != .c16,
++                  targets[index].path == consumedPath else { throw EraseAllServiceError.invalidAuthority }
++            switch single.consumed.disposition {
++            case .completedPostimage:
++                guard index < progress.completedPrefixCount, !allowingActiveProgressDrift else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++            case .activePreparingAbsence:
++                guard index == progress.activeTargetIndex, index == progress.completedPrefixCount,
++                      progress.stage == .preparing || progress.stage == .preparingCaptured else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++            }
++        case .c16Step(let ordinal):
++            guard !allowingActiveProgressDrift, plan.steps.indices.contains(ordinal),
++                  let current = progress.activeC16Ordinal, ordinal <= current else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            // Exact effect/record/path membership was positively proved by
++            // the real generic scope, never inferred from this range check.
++        }
++        return true
++    }
++
+     private func requireFinite(_ image: Image, boundary: OriginalEraseC16BoundaryObservationV1?,
+         progress: Progress) throws {
+         let original = originalNodes(), deleted = try currentCutDeleted(image, progress: progress)
+@@ -2279,7 +2465,10 @@
+                 throw EraseAllServiceError.invalidAuthority
+             }
+             if node.kind == "file" {
+-                guard try Self.nine(actual.fullFact) == node.fact else { throw EraseAllServiceError.invalidAuthority }
++                guard try Self.nine(actual.fullFact) == node.fact
++                    || genericSurvivor(actual, path: path, image: image, progress: progress) else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
+             } else {
+                 let old = try Self.fields(node.fact, count: 9), now = try Self.fields(actual.fullFact)
+                 guard old[0] == now[0], old[1] == now[1], old[2] == now[2] else { throw EraseAllServiceError.invalidAuthority }
+@@ -2330,7 +2519,9 @@
+                         throw EraseAllServiceError.invalidAuthority
+                     }
+                     let nine = try Self.nine(actual.fullFact)
+-                    if nine != first.fact {
++                    if nine != first.fact,
++                       !(try genericSurvivor(actual, path: prefix + file.path,
++                            image: image, progress: progress, sourcePath: sourcePath)) {
+                         let a = try Self.fields(nine, count: 9), b = try Self.fields(first.fact, count: 9)
+                         // An assigned exact first-P pair settlement may change
+                         // only nlink2→1 and ctime, never bytes/mtime/identity.
+@@ -2361,11 +2552,14 @@
+             }
+             for (path, node) in generic where !deleted.contains(path) {
+                 guard let actual = image.nodes[path], actual.sha256 == node.sha256,
+-                      let prior = expected[path], actual.fullFact == prior.fullFact else {
++                      let prior = expected[path], actual.fullFact == prior.fullFact
++                        || (try genericSurvivor(actual, path: path, image: image,
++                            progress: progress, allowingActiveProgressDrift: true)) else {
+                     throw EraseAllServiceError.invalidAuthority
+                 }
+                 if node.kind == "file" {
+-                    guard try Self.nine(actual.fullFact) == node.fact else { throw EraseAllServiceError.invalidAuthority }
++                    guard try Self.nine(actual.fullFact) == node.fact
++                        || genericSurvivor(actual, path: path, image: image, progress: progress) else { throw EraseAllServiceError.invalidAuthority }
+                 } else {
+                     let first = try Self.fields(node.fact, count: 9), current = try Self.fields(actual.fullFact)
+                     let members = (node.members ?? []).filter { !deleted.contains(path + "/" + $0) }
+@@ -2388,7 +2582,10 @@
+             // postimage is exact for every C16 path. Later generic deletions
+             // have their own one-node/prefix proof below.
+             for (path, actual) in image.nodes where c16(path) && !deleted.contains(path) && path != activeParent {
+-                guard let old = expected[path], actual.fullFact == old.fullFact, actual.sha256 == old.sha256 else {
++                guard let old = expected[path], actual.sha256 == old.sha256,
++                      actual.fullFact == old.fullFact
++                        || (try genericSurvivor(actual, path: path, image: image,
++                            progress: progress, allowingActiveProgressDrift: true)) else {
+                     throw EraseAllServiceError.invalidAuthority
+                 }
+             }
+@@ -2434,7 +2631,10 @@
+                 // held while only their FieldEvidenceApp child is compared.
+                 guard try Self.stable(value.fullFact, old.fullFact) else { throw EraseAllServiceError.invalidAuthority }
+             } else {
+-                guard value == old else { throw EraseAllServiceError.invalidAuthority }
++                guard value == old || ((try image.nodes[value.path].map { node in
++                    try genericSurvivor(node, path: value.path, image: image,
++                        progress: progress, allowingActiveProgressDrift: true)
++                }) == true) else { throw EraseAllServiceError.invalidAuthority }
+             }
+         }
+         let actualPaths = Set(image.projection.map(\.path))
+@@ -2449,9 +2649,10 @@
+     /// absence, never a hash of a yet-unpublished future record.
+     func observeInitialComplete(support: Int32, caches: Int32, temporary: Int32,
+         initialScope: OriginalEraseC16InitialObservationScopeV1?,
++        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil,
+         permit: EraseSchema2ColdPhysicalPermitV1) throws -> [Progress.Projection] {
+         let one = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: nil, permit: permit, progress: nil, initialScope: initialScope)
++            c16Scope: nil, permit: permit, progress: nil, initialScope: initialScope, genericScope: genericScope)
+         let original = originalNodes()
+         for (path, node) in original where !external(path) {
+             guard let actual = one.nodes[path], try Self.nine(actual.fullFact) == node.fact,
+@@ -2465,33 +2666,51 @@
+         guard let supportFact = one.projection.first(where: { $0.path == "support" }),
+               supportFact.fullFact == originalP.record.firstSupportFact else { throw EraseAllServiceError.invalidAuthority }
+         let two = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: nil, permit: permit, progress: nil, initialScope: initialScope)
++            c16Scope: nil, permit: permit, progress: nil, initialScope: initialScope, genericScope: genericScope)
+         guard one == two else { throw EraseAllServiceError.invalidAuthority }
+         return two.projection
+     }
+ 
+     func observeComplete(support: Int32, caches: Int32, temporary: Int32,
+         c16Scope: OriginalEraseC16CurrentObservationScopeV1?,
+-        permit: EraseSchema2ColdPhysicalPermitV1, progress: Progress) throws -> [Progress.Projection] {
++        permit: EraseSchema2ColdPhysicalPermitV1, progress: Progress,
++        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil) throws -> [Progress.Projection] {
+         let one = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: c16Scope, permit: permit, progress: progress)
++            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
+         let two = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: c16Scope, permit: permit, progress: progress)
++            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
+         guard one == two else { throw EraseAllServiceError.invalidAuthority }
+         return two.projection
+     }
+     func requireComplete(support: Int32, caches: Int32, temporary: Int32,
+         c16Scope: OriginalEraseC16CurrentObservationScopeV1?,
+         permit: EraseSchema2ColdPhysicalPermitV1, boundary: OriginalEraseC16BoundaryObservationV1?,
+-        progress: Progress) throws -> [Progress.Projection] {
++        progress: Progress,
++        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil) throws -> [Progress.Projection] {
+         let one = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: c16Scope, permit: permit, progress: progress)
++            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
+         try requireFinite(one, boundary: boundary, progress: progress)
+         let two = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: c16Scope, permit: permit, progress: progress)
++            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
+         guard one == two else { throw EraseAllServiceError.invalidAuthority }
+         try requireBinding(permit, progress: progress)
+         return two.projection
++    }
++
++    func visitCompleteProjection(support: Int32, caches: Int32, temporary: Int32,
++        c16Scope: OriginalEraseC16CurrentObservationScopeV1?,
++        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil,
++        permit: EraseSchema2ColdPhysicalPermitV1, boundary: OriginalEraseC16BoundaryObservationV1?,
++        progress: Progress, body: @MainActor (Progress.Projection) throws -> Void) throws {
++        let projection = try requireComplete(support: support, caches: caches, temporary: temporary,
++            c16Scope: c16Scope, permit: permit, boundary: boundary, progress: progress,
++            genericScope: genericScope)
++        for row in projection {
++            try requireBinding(permit, progress: progress)
++            try genericScope?.requireCurrentBinding(); try c16Scope?.requireCurrentBinding()
++            try body(row)
++        }
++        try requireBinding(permit, progress: progress)
+     }
+ 
+     private func withTargetParent<Value>(path: String, image: Image,
+@@ -2533,20 +2752,25 @@
+     /// even on that replay. The finite suffix prevents skipping a later node.
+     func performOneTarget(support: Int32, caches: Int32, temporary: Int32,
+         progress: Progress, c16Scope: OriginalEraseC16CurrentObservationScopeV1?,
+-        permit: EraseSchema2ColdPhysicalPermitV1) throws -> EraseSchema2ColdPhysicalEffectReceiptV1 {
++        permit: EraseSchema2ColdPhysicalPermitV1,
++        genericScopeProvider: @MainActor () throws -> OriginalEraseSealedGenericObservationScopeV1? = { nil }
++    ) throws -> EraseSchema2ColdPhysicalEffectReceiptV1 {
+         try requireBinding(permit, progress: progress)
+         guard !inFlight, let index = progress.activeTargetIndex, targets.indices.contains(index),
+               index == progress.completedPrefixCount, targets[index].kind != .c16,
+               progress.stage == .preparing || progress.stage == .preparingCaptured,
+               !attemptedTargetIndices.contains(index) else { throw EraseAllServiceError.invalidAuthority }
+-        func bound() throws { try self.requireBinding(permit, progress: progress); try c16Scope?.requireCurrentBinding() }
+-        func poison() { self.uncertain = true; permit.poisonOnUncertainEffect(); c16Scope?.poisonOnUncertainObservation() }
++        var genericScope = try genericScopeProvider()
++        try genericScope?.requireCurrentBinding()
++        func bound() throws { try self.requireBinding(permit, progress: progress)
++            try c16Scope?.requireCurrentBinding(); try genericScope?.requireCurrentBinding() }
++        func poison() { self.uncertain = true; permit.poisonOnUncertainEffect(); c16Scope?.poisonOnUncertainObservation(); genericScope?.poisonOnUncertainObservation() }
+         let target = targets[index]
+         let before = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: c16Scope, permit: permit, progress: progress)
++            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
+         try requireFinite(before, boundary: nil, progress: progress)
+         let beforeAgain = try scan(support: support, caches: caches, temporary: temporary,
+-            c16Scope: c16Scope, permit: permit, progress: progress)
++            c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
+         guard before == beforeAgain else { throw EraseAllServiceError.invalidAuthority }
+         let progressSHA = StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(progress))
+         attemptedTargetIndices.insert(index); inFlight = true
+@@ -2570,6 +2794,19 @@
+                 if let node = before.nodes[target.path] {
+                     let directory = node.names != nil
+                     guard !directory || node.names == [] else { throw EraseAllServiceError.invalidAuthority }
++                    let exactPair: OriginalEraseSealedOwnedGenericAliasPairV1?
++                    if case .observedOwnedGenericAliases(let pair)? = node.sealedGenericRole {
++                        guard !directory, let genericScope,
++                              pair.operationID == genericScope.operationID,
++                              pair.originBinding == genericScope.originBinding,
++                              pair.accountingSHA256 == genericScope.accountingSHA256,
++                              pair.members.contains(where: { "support/FieldEvidenceOperations/" + $0.operationsRelativePath == target.path }),
++                              case .intact(let currentPair) = try genericScope.requireOwnedGenericEvolution(
++                                accountingRowIndex: pair.original.index), currentPair == pair else {
++                            throw EraseAllServiceError.invalidAuthority
++                        }
++                        exactPair = pair
++                    } else { exactPair = nil }
+                     try io.schema2ColdWithOpen(parent: parent, name: name,
+                         flags: O_RDONLY | O_NONBLOCK | (directory ? O_DIRECTORY : 0), requireBinding: bound, poison: poison) { fd in
+                         var held = stat(), named = stat()
+@@ -2578,13 +2815,20 @@
+                         try bound()
+                         guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                               Self.fact(held) == node.fullFact, Self.fact(named) == node.fullFact,
+-                              directory ? held.st_mode & S_IFMT == S_IFDIR : held.st_mode & S_IFMT == S_IFREG && held.st_nlink == 1,
++                              directory ? held.st_mode & S_IFMT == S_IFDIR : held.st_mode & S_IFMT == S_IFREG
++                                && (held.st_nlink == 1 || (held.st_nlink == 2 && exactPair != nil)),
+                               !directory || (try io.schema2ColdNames(in: fd, requireBinding: bound, poison: poison)).isEmpty else { throw EraseAllServiceError.invalidAuthority }
+                         try requireBinding(permit, progress: progress)
+                         guard Darwin.unlinkat(parent, name, directory ? AT_REMOVEDIR : 0) == 0 else {
+                             throw EraseAllServiceError.cleanupFailed
+                         }
+                         effect = .unlinked
++                        // The real central provider revokes the preimage
++                        // scope and proves this ONE owned PREPARING loss.
++                        genericScope = try genericScopeProvider()
++                        if exactPair != nil || node.sealedGenericRole != nil && node.sealedGenericRole != .ordinary {
++                            guard genericScope != nil else { throw EraseAllServiceError.invalidAuthority }
++                        }
+                         try bound()
+                         guard Darwin.fsync(parent) == 0 else { throw EraseAllServiceError.cleanupFailed }
+                         try bound()
+@@ -2605,21 +2849,125 @@
+                 try requireBinding(permit, progress: progress)
+             }
+             let after = try scan(support: support, caches: caches, temporary: temporary,
+-                c16Scope: c16Scope, permit: permit, progress: progress)
++                c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
+             try requireFinite(after, boundary: nil, progress: progress)
+             let afterAgain = try scan(support: support, caches: caches, temporary: temporary,
+-                c16Scope: c16Scope, permit: permit, progress: progress)
++                c16Scope: c16Scope, permit: permit, progress: progress, genericScope: genericScope)
+             guard after == afterAgain, after.nodes[target.path] == nil else { throw EraseAllServiceError.invalidAuthority }
+             let parentPath = target.path.split(separator: "/").dropLast().joined(separator: "/")
+             for (path, node) in before.nodes where path != target.path && path != parentPath {
+-                guard after.nodes[path] == node else { throw EraseAllServiceError.invalidAuthority }
++                if let next = after.nodes[path], next.fullFact == node.fullFact,
++                   next.names == node.names, next.sha256 == node.sha256, next.policy == node.policy { continue }
++                guard effect == .unlinked, before.nodes[target.path] != nil,
++                      case .observedOwnedGenericAliases(let beforePair)? = node.sealedGenericRole,
++                      case .observedOwnedGenericAliases(let targetPair)? = before.nodes[target.path]?.sealedGenericRole,
++                      beforePair == targetPair,
++                      let survivor = after.nodes[path],
++                      case .ownedGenericSingleSurvivor(let single)? = survivor.sealedGenericRole,
++                      single.original == beforePair.original,
++                      case .mixedTarget(let lostIndex) = single.consumed.target, lostIndex == index,
++                      try genericSurvivor(survivor, path: path, image: after, progress: progress,
++                        allowingActiveProgressDrift: true) else { throw EraseAllServiceError.invalidAuthority }
+             }
+             guard Set(after.nodes.keys) == Set(before.nodes.keys).subtracting([target.path]) else {
+                 throw EraseAllServiceError.invalidAuthority
++            }
++            var pairLoss: EraseSchema2ColdPhysicalEffectReceiptV1.GenericPairLoss?
++            let originalPrefix = "support/FieldEvidenceOperations/"
++            for (path, node) in after.nodes {
++                guard case .ownedGenericSingleSurvivor(let single)? = node.sealedGenericRole,
++                      case .mixedTarget(let consumedIndex) = single.consumed.target,
++                      consumedIndex == index else { continue }
++                guard pairLoss == nil, let prior = before.nodes[path],
++                      try genericSurvivor(node, path: path, image: after, progress: progress,
++                        allowingActiveProgressDrift: true),
++                      originalPrefix + (try genericCurrentPath(single.consumed.operationsRelativePath,
++                        mapping: single.pathMapping)) == target.path else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                let kind: EraseSchema2ColdPhysicalEffectReceiptV1.GenericPairLoss.Kind
++                if effect == .unlinked {
++                    guard case .observedOwnedGenericAliases(let originalPair)? = before.nodes[target.path]?.sealedGenericRole,
++                          originalPair.original == single.original else { throw EraseAllServiceError.invalidAuthority }
++                    kind = .ownedUnlink
++                } else {
++                    guard effect == .resumedPreparingAbsence, before.nodes[target.path] == nil,
++                          prior.fullFact == node.fullFact, prior.sha256 == node.sha256 else {
++                        throw EraseAllServiceError.invalidAuthority
++                    }
++                    kind = .preparingAbsenceReadback
++                }
++                pairLoss = .init(kind: kind, originalAccountingRow: single.original,
++                    accountingSHA256: single.accountingSHA256,
++                    consumedOriginalPath: single.consumed.operationsRelativePath,
++                    consumedActualPath: target.path, survivorActualPath: path,
++                    actualBeforeSurvivorFact: prior.fullFact, actualAfterSurvivorFact: node.fullFact,
++                    sha256: single.sha256)
++            }
++            var finalLoss: EraseSchema2ColdPhysicalEffectReceiptV1.GenericPairFinalLoss?
++            if case .ownedGenericSingleSurvivor(let priorSingle)? = before.nodes[target.path]?.sealedGenericRole {
++                guard effect == .unlinked, pairLoss == nil, let genericScope,
++                      case .bothMembersConsumed(let row, let consumed, _, let mapping,
++                        let operationID, let originBinding, let accountingSHA) =
++                        try genericScope.requireOwnedGenericEvolution(accountingRowIndex: priorSingle.original.index),
++                      row == priorSingle.original, consumed.count == 2,
++                      operationID == genericScope.operationID, originBinding == genericScope.originBinding,
++                      accountingSHA == genericScope.accountingSHA256,
++                      try row.members.allSatisfy({ member in
++                          try after.nodes[originalPrefix + genericCurrentPath(member.operationsRelativePath, mapping: mapping)] == nil
++                      }),
++                      try consumed.contains(where: { item in
++                          guard item.disposition == .activePreparingAbsence,
++                                originalPrefix + (try genericCurrentPath(item.operationsRelativePath, mapping: mapping)) == target.path else { return false }
++                          if case .mixedTarget(let actualIndex) = item.target { return actualIndex == index }
++                          return false
++                      }), let actualBefore = before.nodes[target.path] else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                finalLoss = .init(kind: .ownedUnlink, originalAccountingRow: row, accountingSHA256: accountingSHA,
++                    lastActualPath: target.path, actualBeforeFullFact: actualBefore.fullFact,
++                    sha256: priorSingle.sha256, consumed: consumed)
++            }
++            if before.nodes[target.path] == nil, effect == .resumedPreparingAbsence, pairLoss == nil,
++               target.path.hasPrefix(originalPrefix) {
++                let originalPath = String(target.path.dropFirst(originalPrefix.count))
++                let knownGeneric = originalPairAccounting?.pairs.first(where: {
++                    $0.genericMetadata != nil && $0.operationsRelativeMemberPaths.contains(originalPath)
++                })
++                let evolution = try genericScope?.requireOwnedGenericEvolutionForOriginalPath(path: originalPath)
++                if knownGeneric != nil { guard evolution != nil else { throw EraseAllServiceError.invalidAuthority } }
++                if let evolution, case .bothMembersConsumed(let row, let consumed, _, let mapping,
++                    let actualOperation, let binding, let accounting) = evolution {
++                    guard pairLoss == nil, finalLoss == nil, let genericScope,
++                          actualOperation == genericScope.operationID, binding == genericScope.originBinding,
++                          accounting == genericScope.accountingSHA256, row.members.count == 2,
++                          row.members.contains(where: { $0.operationsRelativePath == originalPath }),
++                          consumed.count == 2,
++                          try row.members.allSatisfy({ member in
++                              let source = originalNodes()[originalPrefix + member.operationsRelativePath]
++                              let current = originalPrefix + (try genericCurrentPath(member.operationsRelativePath, mapping: mapping))
++                              return source?.fact == member.observedFact && source?.sha256 == row.sha256
++                                  && before.nodes[current] == nil && after.nodes[current] == nil
++                          }),
++                          consumed.contains(where: { item in
++                              guard item.operationsRelativePath == originalPath,
++                                    item.disposition == .activePreparingAbsence else { return false }
++                              if case .mixedTarget(let actualIndex) = item.target { return actualIndex == index }
++                              return false
++                          }) else { throw EraseAllServiceError.invalidAuthority }
++                    finalLoss = .init(kind: .preparingAbsenceReadback, originalAccountingRow: row,
++                        accountingSHA256: accounting, lastActualPath: target.path, actualBeforeFullFact: nil,
++                        sha256: row.sha256, consumed: consumed)
++                } else if evolution != nil {
++                    // A last-name absence cannot be proved by an intact/single
++                    // row while its two actual members are missing.
++                    throw EraseAllServiceError.invalidAuthority
++                }
+             }
+             try io.requireSettled(); try requireBinding(permit, progress: progress)
+             let receipt = EraseSchema2ColdPhysicalEffectReceiptV1(owner: self, progressSHA256: progressSHA,
+-                targetIndex: index, target: target, effect: effect, before: before.projection, after: after.projection)
++                targetIndex: index, target: target, effect: effect, genericPairLoss: pairLoss, genericPairFinalLoss: finalLoss,
++                before: before.projection, after: after.projection)
+             lastEffect = receipt
+             return receipt
+         } catch {
+--- /Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v4/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift
++++ /Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v5/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift
+@@ -917,9 +917,29 @@
+     let originalPAuxiliaryRosterSHA256: String
+     let operationID: UUID
+     let captureOriginBinding: String
+-    let pairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1]
++    /// Immutable source DATA only. A restarted source never recreates the
++    /// earlier process's runtime policy observations or reader capabilities.
++    struct Pair: Equatable {
++        let operationsRelativeMemberPaths: [String]
++        let fullFacts: [String]
++        let observedFacts: [String]
++        let sha256: String
++        let byteCount: Int64
++        let device: UInt64
++        let inode: UInt64
++        let genericMetadata: OriginalEraseOwnedScratchMetadataV1?
++        fileprivate init(operationsRelativeMemberPaths: [String], fullFacts: [String], observedFacts: [String],
++            sha256: String, byteCount: Int64, device: UInt64, inode: UInt64,
++            genericMetadata: OriginalEraseOwnedScratchMetadataV1?) {
++            self.operationsRelativeMemberPaths = operationsRelativeMemberPaths
++            self.fullFacts = fullFacts; self.observedFacts = observedFacts
++            self.sha256 = sha256; self.byteCount = byteCount; self.device = device; self.inode = inode
++            self.genericMetadata = genericMetadata
++        }
++    }
++    let pairs: [Pair]
+     fileprivate init(rosterSHA256: String, operationID: UUID, captureOriginBinding: String,
+-        pairs: [EraseAbortCheckedSnapshotIOV1.Schema2ColdAuthenticatedPairObservationV1]) {
++        pairs: [Pair]) {
+         originalPAuxiliaryRosterSHA256 = rosterSHA256; self.operationID = operationID
+         self.captureOriginBinding = captureOriginBinding; self.pairs = pairs
+     }
+@@ -1722,17 +1742,23 @@
+         let originBinding: String
+         let policyObservations: [TemporalPolicyObservationV1]
+         let genericMetadata: OriginalEraseOwnedScratchMetadataV1?
++        let sealedOriginalAccountingRow: OriginalEraseAuxiliaryPairAccountingDataV1.Row?
++        let sealedMetadataRelation: OriginalEraseSealedScratchMetadataRelationV1?
+         fileprivate init(treeRelativeMemberPaths: [String], operationsRelativeMemberPaths: [String],
+             fullFacts: [String], observedFacts: [String], sha256: String, byteCount: Int64,
+             device: UInt64, inode: UInt64, operationID: UUID, originKind: String,
+             originBinding: String, policyObservations: [TemporalPolicyObservationV1],
+-            genericMetadata: OriginalEraseOwnedScratchMetadataV1?) {
++            genericMetadata: OriginalEraseOwnedScratchMetadataV1?,
++            sealedOriginalAccountingRow: OriginalEraseAuxiliaryPairAccountingDataV1.Row?,
++            sealedMetadataRelation: OriginalEraseSealedScratchMetadataRelationV1?) {
+             self.treeRelativeMemberPaths = treeRelativeMemberPaths
+             self.operationsRelativeMemberPaths = operationsRelativeMemberPaths
+             self.fullFacts = fullFacts; self.observedFacts = observedFacts; self.sha256 = sha256
+             self.byteCount = byteCount; self.device = device; self.inode = inode
+             self.operationID = operationID; self.originKind = originKind; self.originBinding = originBinding
+             self.policyObservations = policyObservations; self.genericMetadata = genericMetadata
++            self.sealedOriginalAccountingRow = sealedOriginalAccountingRow
++            self.sealedMetadataRelation = sealedMetadataRelation
+         }
+     }
+     struct Schema2ColdReadWorkV1: Equatable {
+@@ -1781,11 +1807,14 @@
+             let policy: TemporalPolicyObservationV1?
+             let publicationRole: OriginalEraseC16CurrentPathRoleV1
+             let firstCaptureRole: OriginalEraseC16FirstCapturePathRoleV1?
++            let sealedGenericRole: OriginalEraseSealedGenericPathRoleV1?
+             init(path: String, fullFact: String, names: [String]?, sha256: String?,
+                 policy: TemporalPolicyObservationV1?, publicationRole: OriginalEraseC16CurrentPathRoleV1,
+-                firstCaptureRole: OriginalEraseC16FirstCapturePathRoleV1? = nil) {
++                firstCaptureRole: OriginalEraseC16FirstCapturePathRoleV1? = nil,
++                sealedGenericRole: OriginalEraseSealedGenericPathRoleV1? = nil) {
+                 self.path = path; self.fullFact = fullFact; self.names = names; self.sha256 = sha256
+                 self.policy = policy; self.publicationRole = publicationRole; self.firstCaptureRole = firstCaptureRole
++                self.sealedGenericRole = sealedGenericRole
+             }
+         }
+         let rootFact: String
+@@ -1817,7 +1846,7 @@
+         guard publication.canonicalBytes == originalP.canonicalBytes,
+               publication.seal.canonicalSHA256 == originalP.canonicalSHA256,
+               publication.seal.firstRoster.canonicalBytes == originalP.canonicalBytes,
+-              originalP.record.eraseID == capturedScope.operationID.uuidString.lowercased(),
++              capturedScope.operationID == operation.operationID,
+               StoreMigrationCanonicalJSONV1.isLowercaseSHA256(capturedScope.captureToken),
+               originalP.canonicalBytes == (try StoreMigrationCanonicalJSONV1.encode(originalP.record)),
+               originalP.canonicalSHA256 == StoreMigrationCanonicalJSONV1.sha256(originalP.canonicalBytes),
+@@ -1857,14 +1886,16 @@
+             if let metadata = pair.genericMetadata {
+                 switch metadata {
+                 case .validatedLease(let directory, let canonicalBytes, let hash):
++                    let parent = "ScratchDataV1/" + directory
+                     guard StoreMigrationCanonicalJSONV1.sha256(canonicalBytes) == hash,
+-                          byPath[directory + "/lease.json"]?.sha256 == hash,
+-                          pair.operationsRelativeMemberPaths.allSatisfy({ $0.split(separator: "/").dropLast().joined(separator: "/") == directory }) else {
++                          byPath[parent + "/lease.json"]?.sha256 == hash,
++                          pair.operationsRelativeMemberPaths.allSatisfy({ $0.split(separator: "/").dropLast().joined(separator: "/") == parent }) else {
+                         throw StoreGenerationFailure.dataPointerInvalid
+                     }
+                 case .ownedOrphan(let directory):
+-                    guard byPath[directory + "/lease.json"] == nil,
+-                          pair.operationsRelativeMemberPaths.allSatisfy({ $0.split(separator: "/").dropLast().joined(separator: "/") == directory }) else {
++                    let parent = "ScratchDataV1/" + directory
++                    guard byPath[parent + "/lease.json"] == nil,
++                          pair.operationsRelativeMemberPaths.allSatisfy({ $0.split(separator: "/").dropLast().joined(separator: "/") == parent }) else {
+                         throw StoreGenerationFailure.dataPointerInvalid
+                     }
+                 }
+@@ -1879,7 +1910,12 @@
+         }
+         try publication.requireBound(store: store, operation: operation, seal: publication.seal)
+         return .init(rosterSHA256: originalP.canonicalSHA256, operationID: capturedScope.operationID,
+-            captureOriginBinding: capturedScope.captureToken, pairs: capturedOperationsTree.typedPairs)
++            captureOriginBinding: capturedScope.captureToken, pairs: capturedOperationsTree.typedPairs.map { actual in
++                .init(operationsRelativeMemberPaths: actual.operationsRelativeMemberPaths,
++                    fullFacts: actual.fullFacts, observedFacts: actual.observedFacts,
++                    sha256: actual.sha256, byteCount: actual.byteCount, device: actual.device, inode: actual.inode,
++                    genericMetadata: actual.genericMetadata)
++            })
+     }
+ 
+     @MainActor
+@@ -1904,7 +1940,7 @@
+             nodes: value.nodes.map { node in
+                 .init(path: node.path.isEmpty ? name : name + "/" + node.path,
+                     fullFact: node.fullFact, names: node.names, sha256: node.sha256,
+-                    policy: node.policy, publicationRole: node.publicationRole, firstCaptureRole: node.firstCaptureRole)
++                    policy: node.policy, publicationRole: node.publicationRole, firstCaptureRole: node.firstCaptureRole, sealedGenericRole: node.sealedGenericRole)
+             }, typedPairs: value.typedPairs, work: value.work)
+     }
+ 
+@@ -1919,6 +1955,7 @@
+         scope: OriginalEraseC16CurrentObservationScopeV1? = nil,
+         initialScope: OriginalEraseC16InitialObservationScopeV1? = nil,
+         firstCaptureScope: OriginalEraseC16FirstCaptureObservationScopeV1? = nil,
++        genericScope: OriginalEraseSealedGenericObservationScopeV1? = nil,
+         operationsRelativePrefix: String? = nil,
+         requireBinding: @MainActor () throws -> Void,
+         poison: @MainActor () -> Void
+@@ -1929,7 +1966,8 @@
+               !name.contains("/"), !name.utf8.contains(0),
+               expectedUser == Darwin.geteuid(),
+               [scope != nil, initialScope != nil, firstCaptureScope != nil].filter({ $0 }).count <= 1,
+-              ((scope == nil && initialScope == nil && firstCaptureScope == nil) == (operationsRelativePrefix == nil)) else {
++              firstCaptureScope == nil || genericScope == nil,
++              ((scope == nil && initialScope == nil && firstCaptureScope == nil && genericScope == nil) == (operationsRelativePrefix == nil)) else {
+             throw StoreGenerationFailure.dataPointerInvalid
+         }
+         var parentFact = stat()
+@@ -1956,6 +1994,8 @@
+             let originKind: String, originBinding: String
+             let policies: [TemporalPolicyObservationV1]
+             let genericMetadata: OriginalEraseOwnedScratchMetadataV1?
++            let sealedRow: OriginalEraseAuxiliaryPairAccountingDataV1.Row?
++            let sealedRelation: OriginalEraseSealedScratchMetadataRelationV1?
+         }
+         var pairs: [String: PairCandidate] = [:]
+         var pairMemberPaths = Set<String>()
+@@ -2006,8 +2046,8 @@
+             treeTokenBegin(); treePart("F|"); treePart(encoded(path)); treePart("|")
+             treePart(nine(before)); treePart("|"); treePart(sha)
+         }
+-        func bound() throws { try requireSettled(); try requireBinding(); try scope?.requireCurrentBinding(); try initialScope?.requireCurrentBinding(); try firstCaptureScope?.requireCurrentBinding() }
+-        func retain(_ fd: Int32) { retainUncertainDescriptor(fd); scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); firstCaptureScope?.poisonOnUncertainObservation(); poison() }
++        func bound() throws { try requireSettled(); try requireBinding(); try scope?.requireCurrentBinding(); try initialScope?.requireCurrentBinding(); try firstCaptureScope?.requireCurrentBinding(); try genericScope?.requireCurrentBinding() }
++        func retain(_ fd: Int32) { retainUncertainDescriptor(fd); scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); firstCaptureScope?.poisonOnUncertainObservation(); genericScope?.poisonOnUncertainObservation(); poison() }
+         func scopedDigest(_ fd: Int32, _ before: stat) throws -> String {
+             guard let size = UInt64(exactly: before.st_size), size <= physicalLimit else { throw StoreGenerationFailure.dataPointerInvalid }
+             try add(&workReserved, size, limit: workLimit)
+@@ -2045,7 +2085,9 @@
+         }
+         func recordPair(urls: [URL], facts: [String], policies: [TemporalPolicyObservationV1],
+             sha: String, bytes: Int64, before: stat, operationID: UUID, kind: String, binding: String,
+-            metadata: OriginalEraseOwnedScratchMetadataV1? = nil) throws {
++            metadata: OriginalEraseOwnedScratchMetadataV1? = nil,
++            sealedRow: OriginalEraseAuxiliaryPairAccountingDataV1.Row? = nil,
++            sealedRelation: OriginalEraseSealedScratchMetadataRelationV1? = nil) throws {
+             guard urls.count == 2, facts.count == 2, urls[0] != urls[1], facts[0] == facts[1],
+                   facts.contains(fullFact(before)), before.st_nlink == 2, Int64(before.st_size) == bytes,
+                   policies.count == 2, policies[0] == policies[1], policies.allSatisfy({
+@@ -2073,7 +2115,8 @@
+             let candidate = PairCandidate(paths: paths, operationsPaths: operationsPaths, facts: orderedFacts,
+                 nineFacts: try orderedFacts.map(observedNine), sha: sha, bytes: bytes,
+                 device: UInt64(before.st_dev), inode: UInt64(before.st_ino), operationID: operationID,
+-                originKind: kind, originBinding: binding, policies: policies, genericMetadata: metadata)
++                originKind: kind, originBinding: binding, policies: policies, genericMetadata: metadata,
++                sealedRow: sealedRow, sealedRelation: sealedRelation)
+             let key = String(before.st_dev) + "|" + String(before.st_ino)
+             if let prior = pairs[key] { guard prior == candidate else { throw StoreGenerationFailure.dataPointerInvalid } }
+             else {
+@@ -2158,8 +2201,51 @@
+                     if let rolePath, let firstCaptureScope {
+                         captureRole = try firstCaptureScope.roleFor(path: rolePath, fullFact: fullFact(before), sha256: sha)
+                     } else { captureRole = nil }
++                    let genericRole: OriginalEraseSealedGenericPathRoleV1?
++                    if let rolePath, let genericScope {
++                        genericRole = try genericScope.roleFor(path: rolePath, fullFact: fullFact(before), sha256: sha)
++                    } else { genericRole = nil }
+                     let observedPolicy: TemporalPolicyObservationV1?
+-                    if let captureRole {
++                    if let genericRole, genericRole != .ordinary {
++                        guard role == .ordinary, captureRole == nil, let genericScope else {
++                            throw StoreGenerationFailure.dataPointerInvalid
++                        }
++                        switch genericRole {
++                        case .ordinary: throw StoreGenerationFailure.dataPointerInvalid
++                        case .observedOwnedGenericAliases(let pair):
++                            guard before.st_nlink == 2, pair.members.count == 2,
++                                  pair.members.contains(where: { $0.url == url }),
++                                  pair.operationID == genericScope.operationID,
++                                  pair.originBinding == genericScope.originBinding,
++                                  pair.accountingSHA256 == genericScope.accountingSHA256,
++                                  pair.sha256 == sha, pair.byteCount == Int64(before.st_size),
++                                  pair.device == UInt64(before.st_dev), pair.inode == UInt64(before.st_ino) else {
++                                throw StoreGenerationFailure.dataPointerInvalid
++                            }
++                            let reserved = try reservePairWork(pair.byteCount, .observedOwnedGenericAliases)
++                            let values = try ProtectedFilePolicyV1.observeEraseObservedOwnedGenericAliasTemporalPairWithCheckedClose(
++                                aliasURLs: pair.members.map(\.url), scope: genericScope, retainUncertainDescriptor: retain)
++                            try completedPairWork(reserved)
++                            try recordPair(urls: pair.members.map(\.url), facts: pair.members.map(\.fullFact),
++                                policies: values, sha: sha, bytes: pair.byteCount, before: before,
++                                operationID: pair.operationID, kind: "sealedOwnedGeneric", binding: pair.originBinding,
++                                sealedRow: pair.original, sealedRelation: pair.metadataRelation)
++                            observedPolicy = values[0]
++                        case .ownedGenericSingleSurvivor(let survivor):
++                            guard before.st_nlink == 1, survivor.member.url == url,
++                                  survivor.member.fullFact == fullFact(before), survivor.sha256 == sha,
++                                  survivor.operationID == genericScope.operationID,
++                                  survivor.originBinding == genericScope.originBinding,
++                                  survivor.accountingSHA256 == genericScope.accountingSHA256,
++                                  case .oneMemberConsumed(let fresh) = try genericScope.requireOwnedGenericEvolution(
++                                    accountingRowIndex: survivor.original.index), fresh == survivor else {
++                                throw StoreGenerationFailure.dataPointerInvalid
++                            }
++                            // The actual source/record scope proves its sole assigned
++                            // loss; policy remains the strict one-link reader.
++                            observedPolicy = try policy(url, before)
++                        }
++                    } else if let captureRole {
+                         switch captureRole {
+                         case .ordinary:
+                             guard before.st_nlink == 1 else { throw StoreGenerationFailure.dataPointerInvalid }
+@@ -2284,7 +2370,8 @@
+                     }
+                     try bound()
+                     nodes.append(.init(path: path, fullFact: fullFact(before), names: nil,
+-                        sha256: sha, policy: observedPolicy, publicationRole: role, firstCaptureRole: captureRole))
++                        sha256: sha, policy: observedPolicy, publicationRole: role, firstCaptureRole: captureRole,
++                        sealedGenericRole: genericRole))
+                     fileToken(path, before, sha)
+                 }
+                 try named(parent, leaf, fd, before)
+@@ -2306,7 +2393,8 @@
+                     operationsRelativeMemberPaths: pair.operationsPaths, fullFacts: pair.facts, observedFacts: pair.nineFacts,
+                     sha256: pair.sha, byteCount: pair.bytes, device: pair.device, inode: pair.inode,
+                     operationID: pair.operationID, originKind: pair.originKind, originBinding: pair.originBinding,
+-                    policyObservations: pair.policies, genericMetadata: pair.genericMetadata))
++                    policyObservations: pair.policies, genericMetadata: pair.genericMetadata,
++                    sealedOriginalAccountingRow: pair.sealedRow, sealedMetadataRelation: pair.sealedRelation))
+             }
+             let actual = ownReadBytes.addingReportingOverflow(pairReadBytes)
+             guard !actual.overflow, actual.partialValue == workReserved, actual.partialValue <= workLimit else {
+@@ -2327,7 +2415,7 @@
+                 digest: treeDigest.finalize().map { String(format: "%02x", $0) }.joined(),
+                 nodes: nodes.sorted { $0.path < $1.path }, typedPairs: provedPairs, work: work)
+         } catch {
+-            if (try? requireSettled()) == nil { scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); firstCaptureScope?.poisonOnUncertainObservation(); poison() }
++            if (try? requireSettled()) == nil { scope?.poisonOnUncertainObservation(); initialScope?.poisonOnUncertainObservation(); firstCaptureScope?.poisonOnUncertainObservation(); genericScope?.poisonOnUncertainObservation(); poison() }
+             throw error
+         }
+     }

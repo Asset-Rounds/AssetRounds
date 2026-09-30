@@ -1,0 +1,5 @@
+{
+  "source_sha256": "ce77c6fbb52367756ebc5d71bd9a1ef607abe68ea71733e214b06dc2ffb1866e",
+  "exit_code": 1,
+  "scope": "syntax parse only; diagnostic retained before routine scope repair"
+}

@@ -1,0 +1,43 @@
+{
+  "CI": false,
+  "GateAcceptance": false,
+  "addedLines": 1189,
+  "authorModel": "gpt-6.1-sol",
+  "baselineHead": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "beforeSHA256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+  "candidateSHA256": "07d257675980361e8c945cfaeda332877c80b43566455368d93d1baefcac38cd",
+  "files": {
+    "CASE_MATRIX.md": "2f95724f33b7d18cdf09e65a856fb3abaf536dbe2d1b940d7bf463daf0d1c24d",
+    "HANDOFF.md": "fec29c64fefd81015e6bd1a5497cc4e3ab7863692eae3171f49520d546a2a4cf",
+    "INPUTS.json": "0e8da2782bf77fd344e30e82552d6200ad2615c04166abc6bd68bc8d042c8839",
+    "LIFECYCLE_PROOF.md": "9ad3e85be1e814e8a3d174316898f16f3651935e83e3049e0364f10bfd6632f7",
+    "LIVE_PFP_INTERFACE_V1.swift.fragment": "a273a8772bfa6b738b34caa5a0201845ff03767fa941346824c767c357283876",
+    "OWNED_COLD_PRESERVATION_INVENTORY.json": "f227412ddfed28c609d956731a1d49b91edf3950fb1a8899fee847b2d4304ab9",
+    "PARSE_RESULTS.json": "3f22a443c755fe76cb91eac6077f1a4a4cee8895a5e29fc5e348494d21f74fd3",
+    "ProtectedFilePolicy.diff": "dded727edf82d6ee63073f9b5b4a8bcd893f0b0fc59caf460cc437ea9f3e2977",
+    "ROOT_BASELINE.json": "9690309c3fac4bddd146706bccc31a4c26f82e3d908ba8a1a8c3d3214d7e2169",
+    "SAFETY_LEDGER.md": "012969a8a4431e26bb93cba28af7d75a8527e4e00c2143c38eea70235aa338e4",
+    "SOURCE_MAP.json": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+    "TRACKED_UNCHANGED_AUDIT.json": "9ec9ee8473ca9cbf0030072451b2c842e18ec145578fb91710333d63eeea4781",
+    "WORK_PROOF.md": "dcd1e114176a846685c696c943023c536979b767c60d744c328b8da424ac5559",
+    "before/ProtectedFilePolicy.swift": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+    "candidate/ProtectedFilePolicy.swift": "07d257675980361e8c945cfaeda332877c80b43566455368d93d1baefcac38cd"
+  },
+  "inputs": {
+    "inputs/CENTRAL_BINDING.json": "8a0cd6b3b6585134f370bbe95e89b32237de6dcb733973cf126d62a3a8beeea2",
+    "inputs/CENTRAL_ROUTER_ADMISSION_PERMIT_READBACK_V2.swift.fragment": "b330446ebf14b4c24e583cd364b89d817b2e900ad8e9b3b7f4628b008cdeab07",
+    "inputs/LIVE_POLICY_EFFECT_SCOPE_INTERFACE_V1.swift.fragment": "3f4b1c88ceb8260609a926d76743104465b5957213ba677e31824f5df2e826e0",
+    "inputs/LIVE_POLICY_SCOPE_INTERFACE_V1.swift.fragment": "30a6eb5e79b86b3577a5a81a86ef70a766321b550c3022a0b90a0a9b39da6e1d",
+    "inputs/LIVE_PRIVATE_DIRECTORY_ROLE_V2.swift.fragment": "ce1c0b6aa0caa04a8969fb6cc6333f382cf71c7a9400aca292769d35e738239b"
+  },
+  "native": false,
+  "ordinaryBaselineLinesPreserved": true,
+  "ownedTrackedTarget": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+  "reasoningEffort": "xhigh",
+  "removedLines": 0,
+  "semanticCompile": false,
+  "sourceCount": 1206,
+  "sourceMapSHA256": "fa35f97ccddb97dd51a06ce6a1a048ee9ecdca2aa21e86f16c3d4bea6762c175",
+  "state": "FROZEN_SOURCE_ONLY_SEMANTIC_COMPILER_NATIVE_REVIEW_DUE",
+  "syntaxParseOnly": true
+}

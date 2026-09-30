@@ -1,0 +1,461 @@
+{
+  "authority": {
+    "allocationDigest": "34fc7000066a50cdd9ae9e0cbd0341a2b01f1346e24083642a38c6f554db1c06",
+    "appBaseHead": "4971e4e4ac939000d87b23dce1df6e6c2a83fa84",
+    "appBaseTree": "e62505274cb1d188e741bd186d8dc947e34905e5",
+    "attemptID": 1,
+    "authorizedOverlapCount": 2,
+    "cardID": "V23-P04-C38",
+    "contextDigest": "d7fdce209aa17f2d231fd8f41713dd24adcf106f8724c80a2fa256faa2dd2cd2",
+    "coordinationHead": "2e18e556cf726d03510cbf8a1222ce9b70482b32",
+    "coordinationTree": "dfdfff71d0e2055568c3ca56628c8d6ff2ceccbc",
+    "correctionReceiptDigest": "f9cb0d0251123711d1944c5c82960cfefed08465012f883186218d6a665a9a60",
+    "existingPathCount": 1,
+    "existingPaths": [
+      "FieldEvidenceApp/Application/Workflow/ScheduleCoordinatorV1.swift"
+    ],
+    "fencePathCount": 14,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 2,
+    "ledgerDigest": "07fad0d9f974035d400e82a144b282a0ab6c48eada40895afb162fcc07f41f60",
+    "newPathCount": 13,
+    "newPaths": [
+      "FieldEvidenceApp/Application/Scheduling/AdvancedRecurrenceWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Scheduling/V23P04C38AdvancedRecurrenceWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C38AdvancedRecurrenceWorkflowUITests.swift",
+      "Scripts/v23/p04_c38_contracts.py",
+      "Scripts/v23/generate_p04_c38_contracts.py",
+      "Scripts/v23/verify_p04_c38_contracts.py",
+      "Scripts/v23/advanced-recurrence-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C38BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C38-tooling-manifest.json"
+    ],
+    "orderedPathFence": [
+      "FieldEvidenceApp/Application/Scheduling/AdvancedRecurrenceWorkflowCoordinatorV1.swift",
+      "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+      "FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V23/Scheduling/V23P04C38AdvancedRecurrenceWorkflowCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C38AdvancedRecurrenceWorkflowUITests.swift",
+      "Scripts/v23/p04_c38_contracts.py",
+      "Scripts/v23/generate_p04_c38_contracts.py",
+      "Scripts/v23/verify_p04_c38_contracts.py",
+      "Scripts/v23/advanced-recurrence-workflow.schema.json",
+      "docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowContractV1.json",
+      "docs/design/v23/tooling/V23P04C38AdvancedRecurrenceWorkflowEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C38BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C38-tooling-manifest.json",
+      "FieldEvidenceApp/Application/Workflow/ScheduleCoordinatorV1.swift"
+    ],
+    "pathFenceDigest": "d7eddeea643a5de6bb25f51add5cecd365b5afe7d760bf2ad197e42c21d9defc",
+    "prerequisiteDigest": "6a89590421106d8fb21c731b0d202b35355fd96aefd263b380611f4ae16b200c",
+    "productTestUIFixturePathCount": 5,
+    "projectionDigest": "c4b82396a94e66ad3489ffc89b6cc87495e9ae4838c8c242455146dd75e30702",
+    "registerOrdinal": 123,
+    "s10ReservationOverlapCount": 0,
+    "sequence": 551,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C38",
+        "sha256": "60314b0905777276c68d00838bbeaae01361678bb97735c99100043385728b77",
+        "utf8Length": 7276
+      },
+      {
+        "anchor": "V21-P04-C38",
+        "sha256": "57082aa32ece619b30e5ec7d6f4ce0a7a5d8c6d1459e93a37b149a690bab8c43",
+        "utf8Length": 3957
+      },
+      {
+        "anchor": "V23-P04-C38-register",
+        "sha256": "26622b69a77009276b6afc3d2772261e50c38e7657629496f66cc7544e62f7fd",
+        "utf8Length": 330
+      }
+    ],
+    "title": "Advanced recurrence/exception-calendar authoring, due projection, reminders, history, and DST recovery",
+    "toolingPathCount": 8,
+    "transitionDigest": "4afbce4d55c224159548c7c90f3aa2a103293d10ba64151d0553bb2d98ae5721",
+    "unauthorizedOverlapCount": 0
+  },
+  "cardID": "V23-P04-C38",
+  "contract": "AdvancedRecurrenceWorkflowContractV1",
+  "corpusExpectations": {
+    "alternate": {
+      "calendarCases": [
+        "LEAP_DAY",
+        "MONTH_END",
+        "LAST_WEEKDAY"
+      ],
+      "scopes": [
+        "THIS_OCCURRENCE",
+        "THIS_AND_FUTURE",
+        "ENTIRE_SERIES"
+      ]
+    },
+    "claims": {
+      "accountRequired": false,
+      "entitlementRequired": false,
+      "hostedCalendarIntegrated": false,
+      "hostedReminderIntegrated": false,
+      "nativeCalendarIntegrated": false,
+      "nativeReminderIntegrated": false,
+      "networkRequired": false,
+      "providerAccepted": false,
+      "providerAdopted": false,
+      "providerReleased": false
+    },
+    "golden": {
+      "deterministicOccurrenceIdentity": true,
+      "dueHistoryAppendOnly": true,
+      "overrideKinds": [
+        "SKIP",
+        "MOVE",
+        "ADD_ONE"
+      ],
+      "patterns": [
+        {
+          "kind": "DAILY",
+          "maximumInterval": 365,
+          "minimumInterval": 1
+        },
+        {
+          "kind": "WEEKLY",
+          "maximumInterval": 52,
+          "minimumInterval": 1
+        },
+        {
+          "kind": "CALENDAR_DAY",
+          "maximumInterval": 12,
+          "minimumInterval": 1
+        },
+        {
+          "kind": "WEEKDAY",
+          "maximumInterval": 12,
+          "minimumInterval": 1
+        },
+        {
+          "kind": "LAST_DAY",
+          "maximumInterval": 12,
+          "minimumInterval": 1
+        }
+      ],
+      "reminderHistoryAppendOnly": true
+    },
+    "hostileCases": [
+      "ZERO_INTERVAL",
+      "IMPOSSIBLE_DATE",
+      "UNBOUNDED_EXPANSION",
+      "DUPLICATE_SAME_PRIORITY_OVERRIDE",
+      "STALE_PREVIEW",
+      "UNSUPPORTED_FUTURE_RECURRENCE",
+      "OCCURRENCE_IDENTITY_DRIFT"
+    ],
+    "interruptionCases": [
+      "SPRING_FORWARD",
+      "FALL_BACK",
+      "TIME_ZONE_CHANGE",
+      "MANUAL_CLOCK_CHANGE",
+      "REMINDER_DENIED",
+      "REMINDER_CHANGED",
+      "CANCEL_BEFORE_EFFECT",
+      "EFFECT_BEFORE_RECEIPT_EXACT_RETRY"
+    ],
+    "persistence": {
+      "addsDurableFamily": false,
+      "changesSchema": false,
+      "createsRecurrenceEngine": false
+    },
+    "recoveryCases": [
+      "COMPLETION_IMMUTABLE_AFTER_SCHEDULE_CHANGE",
+      "EXACT_REPLAY",
+      "DETERMINISTIC_REBUILD",
+      "RESTORE_IDENTICAL",
+      "INTERRUPTED_EDITOR_RESUME",
+      "DIVERGENT_REPLAY_REJECTED"
+    ],
+    "schema": "V23P04C38AdvancedRecurrenceWorkflowCorpusV1"
+  },
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "independence": {
+    "backgroundExecution": false,
+    "calendarIntegration": false,
+    "canonicalPersistentSchema": "V53",
+    "cron": false,
+    "dueReminderOwner": "V23-P04-C22",
+    "holidayDatabase": false,
+    "newDurableFamily": false,
+    "newMigration": false,
+    "newModel": false,
+    "newSchema": false,
+    "newStore": false,
+    "newWriter": false,
+    "reinspectionOwner": "V23-P04-C12",
+    "rrule": false,
+    "scheduleExceptionOwner": "V23-P03-C51",
+    "secondRecurrenceEngine": false,
+    "server": false,
+    "totalModelCount": 168
+  },
+  "lifecycle": {
+    "canonicalPersistentSchema": "V53",
+    "canonicalRows": [
+      "ScheduleDefinitionReleaseRow",
+      "OccurrenceHistoryEventRow",
+      "ExceptionCalendarReleaseRow",
+      "ScheduleOverrideEventRow"
+    ],
+    "canonicalWriteOwners": [
+      "ScheduleMutationV1",
+      "ScheduleCoordinatorV1",
+      "WorkspaceWriterV1"
+    ],
+    "derivedOnly": [
+      "OccurrenceDueQueueStateV1",
+      "LocalReminderReconciliationV1",
+      "DueQueueProjectionV1",
+      "ReminderProjectionV1"
+    ],
+    "newDurableFamilyCount": 0,
+    "newMigrationCount": 0,
+    "newModelCount": 0,
+    "newSchemaCount": 0,
+    "newStoreCount": 0,
+    "newWriterCount": 0,
+    "persistence": "PERSISTENT_OR_PRODUCT_DELTA",
+    "readOnlyOwners": [
+      "V23-P03-C51",
+      "V23-P04-C12",
+      "V23-P04-C22"
+    ],
+    "status": "IMPLEMENT_NOW",
+    "totalModelCount": 168
+  },
+  "ordinal": 123,
+  "requirements": {
+    "boundedClosedRecurrenceGrammar": true,
+    "canonicalOwners": [
+      "V23-P03-C51",
+      "V23-P04-C22"
+    ],
+    "clockChangeRecovery": true,
+    "completedOccurrenceImmutable": true,
+    "deterministicOccurrenceIdentity": true,
+    "dstRecovery": true,
+    "durableReceipt": true,
+    "effectBeforeReceiptRecovery": true,
+    "exactInterruptionReplay": true,
+    "exceptionPrecedence": true,
+    "exceptionScopes": [
+      "THIS_OCCURRENCE",
+      "THIS_AND_FUTURE",
+      "ENTIRE_SERIES"
+    ],
+    "expectedRevisionMutationID": true,
+    "finalHashesUnsealed": true,
+    "fiveEvidenceScenarios": true,
+    "futureReentry": "CLOSED_TYPED_REENTRY_ONLY",
+    "noBackgroundExecution": true,
+    "noCalendarIntegration": true,
+    "noCron": true,
+    "noHolidayDatabase": true,
+    "noNewDurableFamily": true,
+    "noNewMigration": true,
+    "noNewModel": true,
+    "noNewSchema": true,
+    "noNewStore": true,
+    "noNewWriter": true,
+    "noRRULE": true,
+    "noSecondRecurrenceEngine": true,
+    "noServer": true,
+    "oneCanonicalWriterTransaction": true,
+    "persistentSchema": "V53",
+    "reinspectionOwner": "V23-P04-C12",
+    "reminderReconciliation": true,
+    "scenarioSelectors": [
+      "V23-P04-C38-G01",
+      "V23-P04-C38-A01",
+      "V23-P04-C38-H01",
+      "V23-P04-C38-I01",
+      "V23-P04-C38-R01"
+    ],
+    "timezoneRecovery": true,
+    "totalModelCount": 168
+  },
+  "scenarioEvidenceIDs": [
+    "V23-P04-C38-G01",
+    "V23-P04-C38-A01",
+    "V23-P04-C38-H01",
+    "V23-P04-C38-I01",
+    "V23-P04-C38-R01"
+  ],
+  "scenarioRows": [
+    {
+      "evidenceID": "V23-P04-C38-G01",
+      "expectedEffects": {
+        "deterministicOccurrenceIdentity": true,
+        "dueHistoryAppendOnly": true,
+        "intervalBounds": {
+          "CALENDAR_DAY": [
+            1,
+            12
+          ],
+          "DAILY": [
+            1,
+            365
+          ],
+          "LAST_DAY": [
+            1,
+            12
+          ],
+          "WEEKDAY": [
+            1,
+            12
+          ],
+          "WEEKLY": [
+            1,
+            52
+          ]
+        },
+        "patterns": [
+          "DAILY",
+          "WEEKLY",
+          "CALENDAR_DAY",
+          "WEEKDAY",
+          "LAST_DAY"
+        ],
+        "reminderHistoryAppendOnly": true
+      },
+      "focus": "BOUNDED_RECURRENCE_GRAMMAR_AND_DETERMINISTIC_OCCURRENCE_IDENTITY",
+      "id": "G01",
+      "kind": "GOLDEN"
+    },
+    {
+      "evidenceID": "V23-P04-C38-A01",
+      "expectedEffects": {
+        "calendarCases": [
+          "LEAP_DAY",
+          "MONTH_END",
+          "LAST_WEEKDAY"
+        ],
+        "overrideKinds": [
+          "SKIP",
+          "MOVE",
+          "ADD_ONE"
+        ],
+        "scopes": [
+          "THIS_OCCURRENCE",
+          "THIS_AND_FUTURE",
+          "ENTIRE_SERIES"
+        ]
+      },
+      "focus": "EXCEPTION_PRECEDENCE_CALENDAR_CASES_AND_SCOPES",
+      "id": "A01",
+      "kind": "ALTERNATE"
+    },
+    {
+      "evidenceID": "V23-P04-C38-H01",
+      "expectedEffects": {
+        "canonicalWrites": 0,
+        "rejectedCases": [
+          "ZERO_INTERVAL",
+          "IMPOSSIBLE_DATE",
+          "UNBOUNDED_EXPANSION",
+          "DUPLICATE_SAME_PRIORITY_OVERRIDE",
+          "STALE_PREVIEW",
+          "UNSUPPORTED_FUTURE_RECURRENCE",
+          "OCCURRENCE_IDENTITY_DRIFT"
+        ]
+      },
+      "focus": "INVALID_GRAMMAR_OVERRIDE_PREVIEW_AND_OCCURRENCE_IDENTITY_REJECTION",
+      "id": "H01",
+      "kind": "HOSTILE"
+    },
+    {
+      "evidenceID": "V23-P04-C38-I01",
+      "expectedEffects": {
+        "canonicalEffects": [
+          0,
+          1
+        ],
+        "interruptionCases": [
+          "SPRING_FORWARD",
+          "FALL_BACK",
+          "TIME_ZONE_CHANGE",
+          "MANUAL_CLOCK_CHANGE",
+          "REMINDER_DENIED",
+          "REMINDER_CHANGED",
+          "CANCEL_BEFORE_EFFECT",
+          "EFFECT_BEFORE_RECEIPT_EXACT_RETRY"
+        ]
+      },
+      "focus": "DST_TIMEZONE_CLOCK_REMINDER_AND_EFFECT_BEFORE_RECEIPT_RECOVERY",
+      "id": "I01",
+      "kind": "INTERRUPTION"
+    },
+    {
+      "evidenceID": "V23-P04-C38-R01",
+      "expectedEffects": {
+        "divergentEffects": 0,
+        "recoveryCases": [
+          "COMPLETION_IMMUTABLE_AFTER_SCHEDULE_CHANGE",
+          "EXACT_REPLAY",
+          "DETERMINISTIC_REBUILD",
+          "RESTORE_IDENTICAL",
+          "INTERRUPTED_EDITOR_RESUME",
+          "DIVERGENT_REPLAY_REJECTED"
+        ],
+        "replayEffects": 1
+      },
+      "focus": "COMPLETION_IMMUTABILITY_EXACT_REPLAY_REBUILD_RESTORE_AND_DIVERGENCE_QUARANTINE",
+      "id": "R01",
+      "kind": "RECOVERY"
+    }
+  ],
+  "schema": "V23P04C38AdvancedRecurrenceWorkflowToolingV1",
+  "sourceReady": true,
+  "sourceRows": [
+    {
+      "path": "FieldEvidenceApp/Application/Scheduling/AdvancedRecurrenceWorkflowCoordinatorV1.swift",
+      "sha256": "d388728294fe10bc430dca49fd93de3d7a9ea071b8df9c98d723683e57b1eb96",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceApp/Features/Scheduling/AdvancedRecurrenceWorkflowView.swift",
+      "sha256": "b0b87d4a73ef00818dbe639b8659fe81e343b65ceeb6b423db54025d2345eca2",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/V9_101AdvancedRecurrenceWorkflowTests.swift",
+      "sha256": "1a5a21de77c65138d346ec5229c5e6b282f2af12952f8177f3750d4a5526cb39",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/Scheduling/V23P04C38AdvancedRecurrenceWorkflowCorpusV1.json",
+      "sha256": "a0bc0406fc683da06281fd9b6c383685698e0111af07c4379598eb98f555f7e1",
+      "status": "SOURCE_PRESENT"
+    },
+    {
+      "path": "FieldEvidenceAppUITests/V23_P04_C38AdvancedRecurrenceWorkflowUITests.swift",
+      "sha256": "65a0f94eb0fc8c214b24baa72e9653adc932bca2184b7fc126a95762db54dc39",
+      "status": "SOURCE_PRESENT"
+    }
+  ]
+}

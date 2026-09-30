@@ -1,0 +1,245 @@
+{
+  "authority": {
+    "activeS10ReservedPaths": [
+      ".github/workflows/ios-ci-worker.yml",
+      ".github/workflows/ios-ci.yml",
+      "AGENTS.md",
+      "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "FieldEvidenceApp.xcodeproj/xcshareddata/xcschemes/FieldEvidenceApp.xcscheme",
+      "FieldEvidenceApp/App/FieldEvidenceAppApp.swift",
+      "FieldEvidenceApp/App/LaunchView.swift",
+      "FieldEvidenceApp/DesignSystem/DesignTokens.swift",
+      "FieldEvidenceApp/DesignSystem/WorklightComponents.swift",
+      "FieldEvidenceApp/Features/Backup/BackupRestoreProgressView.swift",
+      "FieldEvidenceApp/Features/Backup/BackupValidationSummaryView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/CaptureStepView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/OutcomeReviewView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/PreflightView.swift",
+      "FieldEvidenceApp/Features/CheckRunner/ValueReceiptView.swift",
+      "FieldEvidenceApp/Features/Issues/IssueDetailView.swift",
+      "FieldEvidenceApp/Features/Issues/RecordWorkView.swift",
+      "FieldEvidenceApp/Features/Issues/WorkCoordinator.swift",
+      "FieldEvidenceApp/Features/Reports/ReportCorrectionView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportDetailView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportFailureView.swift",
+      "FieldEvidenceApp/Features/Reports/ReportsRootView.swift",
+      "FieldEvidenceApp/Features/Sample/PackSampleView.swift",
+      "FieldEvidenceApp/Features/Settings/BackupExportView.swift",
+      "FieldEvidenceApp/Features/Settings/DiagnosticExportView.swift",
+      "FieldEvidenceApp/Features/Settings/EraseAllView.swift",
+      "FieldEvidenceApp/Features/Settings/FeedbackView.swift",
+      "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+      "FieldEvidenceApp/Features/Shell/StartupMaintenanceView.swift",
+      "FieldEvidenceApp/Features/Signs/NewSignView.swift",
+      "FieldEvidenceApp/Features/Signs/SignDetailView.swift",
+      "FieldEvidenceApp/Features/Signs/SignsRootView.swift",
+      "FieldEvidenceApp/Features/Subscription/PaywallView.swift",
+      "FieldEvidenceApp/Features/Subscription/SubscriptionStatusView.swift",
+      "FieldEvidenceApp/Infrastructure/Commerce/StoreKitTransactionProcessor.swift",
+      "FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift",
+      "FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Dark-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Default-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-Tinted-1024.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsAccentTeal.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandCanvas.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-1x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-2x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/AssetRoundsBrandSymbol-3x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbol.imageset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-1x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-2x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/AssetRoundsBrandSymbolTemplate-3x.png",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsBrandSymbolTemplate.imageset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsCheckpointGreen.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsDeepTeal.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsInk.colorset/Contents.json",
+      "FieldEvidenceApp/Resources/Assets.xcassets/AssetRoundsSlate.colorset/Contents.json",
+      "FieldEvidenceAppTests/S10_1BrandInventoryTests.swift",
+      "FieldEvidenceAppTests/S10_2BrandComponentTests.swift",
+      "FieldEvidenceAppTests/S10_3BrandMigrationTests.swift",
+      "FieldEvidenceAppTests/S10_4AutomatedBrandLabTests.swift",
+      "FieldEvidenceAppUITests/S10_1BrandInventoryUITests.swift",
+      "FieldEvidenceAppUITests/S10_2BrandComponentUITests.swift",
+      "FieldEvidenceAppUITests/S10_3BrandMigrationUITests.swift",
+      "Scripts/ci-selection.json",
+      "Scripts/s10-4-segment-assembler.sh",
+      "Scripts/s10-4-segment-plan.json",
+      "Scripts/s10-4-shards.json",
+      "Scripts/ui-smoke.sh",
+      "docs/design/s10/authority/asset-manifest.json",
+      "docs/design/s10/authority/assetrounds-brand-assets-v4.1-20260815.zip",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/manifest.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-accessibility-common-tasks.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/s10-visual-regression.schema.json",
+      "docs/design/s10/authority/s10.4-automation-amendment-v1/validate-s10-contracts.ps1",
+      "docs/design/s10/s10-accessibility-common-tasks.json",
+      "docs/design/s10/s10-activation.json",
+      "docs/design/s10/s10-experience-validation.json",
+      "docs/design/s10/s10-screen-state-inventory.json",
+      "docs/design/s10/s10-stage-checkpoints.json",
+      "docs/design/s10/s10-store-readiness.json",
+      "docs/design/s10/s10-token-coverage.json",
+      "docs/design/s10/s10-visual-regression.json",
+      "docs/execution/CODEX_EXECUTION_CONTRACT_V4.md",
+      "docs/execution/CURRENT_TASK.md",
+      "docs/execution/HANDOFF.md",
+      "docs/execution/V4_IMPLEMENTATION_RUNBOOK.md",
+      "docs/product/BUILD_PLAN_V4.md"
+    ],
+    "allocationCorrectionSupersedesDigest": "b4c132b0bce6358965c245b18309cf52222972b4bc7b1ef9e470dffbca5de8d3",
+    "allocationCorrectionTransitionDigest": "5515b4a81134bd09672bd0019021679a1f21266e0efbc2573ced73476fa7bdfc",
+    "allocationDigest": "1b92d727c0ba3272f0a992330c9b2d814aa43e94eca2034a6c58794de0aadefa",
+    "appBaseHead": "4c29f9781856526e6eb94a6cf357911497bb4c1f",
+    "appBaseTree": "ed081e7349e1577546c68b7bd7414d39a454df5f",
+    "cardID": "V23-P04-C27",
+    "contextDigest": "053ccf31cd3829f448228cad922cef94264a6443a487c2a3521e6cf667f6e12c",
+    "coordinationHead": "e0b470a3ca730b288695553ff7a2d2f129de7e63",
+    "coordinationTree": "63f250f0b243db30c45120fe45b9283404e6b1ae",
+    "existingPathCount": 2,
+    "fencePathCount": 14,
+    "finalHashesSealed": false,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "newPathCount": 12,
+    "orderedPathFence": [
+      "Scripts/release-preflight.sh",
+      "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+      "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json",
+      "FieldEvidenceAppTests/V9_90BrandHIGStateInventoryTests.swift",
+      "FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C27BrandHIGStateInventoryCorpusV1.json",
+      "FieldEvidenceAppUITests/V23_P04_C27BrandHIGStateInventoryUITests.swift",
+      "Scripts/v23/p04_c27_contracts.py",
+      "Scripts/v23/generate_p04_c27_contracts.py",
+      "Scripts/v23/verify_p04_c27_contracts.py",
+      "Scripts/v23/brand-hig-state-inventory.schema.json",
+      "docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryContractV1.json",
+      "docs/design/v23/tooling/V23P04C27BrandHIGStateInventoryEvidenceReceiptV1.json",
+      "docs/design/v23/tooling/V23P04C27BrandImpactManifestV1.json",
+      "docs/design/v23/tooling/V23-P04-C27-tooling-manifest.json"
+    ],
+    "pathFenceDigest": "beae3b22cda76516c6a32e18186c11e442cde537e6d013e746ebe476fc3e5a32",
+    "prerequisiteDigest": "3d6cbf499a9f0b4aeb6d26ac349a35f80cbfb9f49435196d3db266eb0e3ba8e4",
+    "priorFenceProof": {
+      "authorizedOverlapCount": 2,
+      "authorizedOverlapPaths": [
+        "Scripts/release-preflight.sh",
+        "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift"
+      ],
+      "fenceCount": 1,
+      "priorOwnedPathCount": 16,
+      "s10ReservedOverlapCount": 0,
+      "unauthorizedOverlapCount": 0
+    },
+    "s10OverlapCount": 0,
+    "sequence": 502,
+    "sourcePins": [
+      {
+        "anchor": "V23-P04-C27",
+        "sha256": "c1d3be2ba63fdfd75c060598ea2e1ea668d8cf31e912b2a4c3d08df7bfda9124",
+        "utf8Length": 7628
+      },
+      {
+        "anchor": "V21-P04-C27",
+        "sha256": "307cb4650e59603d1e5849f65cadb43269f9faa1e4e53f2fe4c0af8e286c3b4c",
+        "utf8Length": 14096
+      },
+      {
+        "anchor": "V23-P04-C27-register",
+        "sha256": "b47faab3abc1e20b5d89acd976585a1928098d02acd5d7226be445021e1dd283",
+        "utf8Length": 295
+      }
+    ]
+  },
+  "cardID": "V23-P04-C27",
+  "provisional": true,
+  "schema": "V23P04C27BrandHIGStateInventoryContractV1",
+  "schemaVersion": 1,
+  "semantics": {
+    "activeModelCount": 168,
+    "newDurableFamilies": [],
+    "newDurableRecordCount": 0,
+    "persistentSchema": "V53",
+    "sevenContracts": "NONPERSISTENT_INVENTORY_EVIDENCE",
+    "statusFlags": {
+      "acceptance": false,
+      "activation": false,
+      "adoption": false,
+      "hosted": false,
+      "native": false,
+      "physicalDevice": false,
+      "publication": false,
+      "release": false
+    }
+  },
+  "sourceProjection": {
+    "counts": {
+      "changedPathCount": 14,
+      "missingPathCount": 0,
+      "s10ReservationOverlapCount": 0,
+      "unownedChangedPathCount": 0
+    },
+    "selectors": [
+      "testV23P04C27G01CompleteBrandHIGStateInventoryAndFreeze",
+      "testV23P04C27A01GovernedReuseAndDualRuntimeSemanticParity",
+      "testV23P04C27H01HostileIdentityVocabularyStateAndIconDriftFailClosed",
+      "testV23P04C27I01ManifestLastInterruptionAndDeterministicRetry",
+      "testV23P04C27R01PreflightRemainsProvisionalUntilLaterAuthorities"
+    ],
+    "sourceReady": true,
+    "sourceRows": [
+      {
+        "path": "Scripts/release-preflight.sh",
+        "sha256": "19d4106abb5d1f848e6356749444b8b733ac2b38f9491035eb0d60c046f8f96a",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift",
+        "sha256": "6741c88f680092ffefc10efd6736e4490297ece984de7b7fc9b55f48cfb455dc",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "docs/product/brand/V23P04C27BrandHIGStateInventoryV1.json",
+        "sha256": "b7515c0a7ff3c5e4729605a73e927807524c0d9f51bf400833e4d2d849cdbfc2",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/V9_90BrandHIGStateInventoryTests.swift",
+        "sha256": "ab3f2f2c449559b019e5dcc57e5f048d0d29fb1dcb388e850f335a9a2506475f",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppTests/Fixtures/V21/Brand/V23P04C27BrandHIGStateInventoryCorpusV1.json",
+        "sha256": "50ab2574682544b98c968325b361676162f7a0c8c4ef4173bda96007702afb82",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "FieldEvidenceAppUITests/V23_P04_C27BrandHIGStateInventoryUITests.swift",
+        "sha256": "e31a3c9024273fcf776e91567d054de4cc03c0274111e88aa24587fd9e33e097",
+        "status": "SOURCE_PRESENT"
+      },
+      {
+        "path": "Scripts/v23/brand-hig-state-inventory.schema.json",
+        "sha256": "aaef24c8785da74e4584c9ad2117a6cc5723eeeb284ae538963966cea97d4193",
+        "status": "SOURCE_PRESENT"
+      }
+    ]
+  },
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "native": false,
+    "physicalDevice": false,
+    "publication": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C27G01CompleteBrandHIGStateInventoryAndFreeze",
+    "testV23P04C27A01GovernedReuseAndDualRuntimeSemanticParity",
+    "testV23P04C27H01HostileIdentityVocabularyStateAndIconDriftFailClosed",
+    "testV23P04C27I01ManifestLastInterruptionAndDeterministicRetry",
+    "testV23P04C27R01PreflightRemainsProvisionalUntilLaterAuthorities"
+  ]
+}

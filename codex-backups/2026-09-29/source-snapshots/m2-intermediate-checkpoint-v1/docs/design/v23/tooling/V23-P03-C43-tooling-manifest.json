@@ -1,0 +1,143 @@
+{
+  "artifactDigest": "244630435745ab9b76f3d7bc30addcaa4e5186cd010e5da69c0fdbf0e18d103e",
+  "artifactSetDigest": "ba6f32e570191a6c3b43b64e1a3d7fb3635913787cf9fc7bc53e21bcdb14cd29",
+  "artifacts": [
+    {
+      "byteCount": 94530,
+      "path": "FieldEvidenceApp/Domain/CustomerLearning/CustomerLearningContractsV1.swift",
+      "sha256": "6b65786eb07b9f7d3722232568fcaa4a65a3bb45c3ebd6c5bfe869058c7d17fa"
+    },
+    {
+      "byteCount": 8732,
+      "path": "FieldEvidenceAppTests/TestSupport/CustomerLearning/CustomerLearningSyntheticEvaluatorV1.swift",
+      "sha256": "4e068e59440aa70d0b6d564b26654e48e275494d6d414852a242046234655ccf"
+    },
+    {
+      "byteCount": 22703,
+      "path": "FieldEvidenceAppTests/TestSupport/CustomerLearning/ZeroCollectionConformanceScannerV1.swift",
+      "sha256": "f7ecfd4245c54cd4a3fb0c144a4994706e7e684441426d7e6f973ece32d539a1"
+    },
+    {
+      "byteCount": 43844,
+      "path": "FieldEvidenceAppTests/V9_50CustomerLearningMeasurementTests.swift",
+      "sha256": "74b98639995e314550fdd8d4f5f9f25b20e7c872c4bb9fa264dda89e2faa2df0"
+    },
+    {
+      "byteCount": 14742,
+      "path": "FieldEvidenceAppTests/Fixtures/V22/CustomerLearning/V22P03C43CustomerLearningCorpusV1.json",
+      "sha256": "31d8e4386f352da45031f013f4f6c502f4b4667651c3b2edc1418be9c9f99318"
+    },
+    {
+      "byteCount": 9723,
+      "path": "Release/V23P03C43CustomerLearningActivationBoundaryV1.md",
+      "sha256": "54c9a38f75a3249d15a127649b3c4cc4245fe8cf47d5fdc26579681ab6a16f20"
+    },
+    {
+      "byteCount": 26630,
+      "path": "Scripts/v23/p03_c43_contracts.py",
+      "sha256": "ab05e01553dd69dac2a47493c57a463c57f5306cd62ce2b42747a67838db49ea"
+    },
+    {
+      "byteCount": 1248,
+      "path": "Scripts/v23/generate_p03_c43_contracts.py",
+      "sha256": "38c6159222418fc561c6c391bf9f2302f6ea61dfa20232a40ec2393d87f11168"
+    },
+    {
+      "byteCount": 2038,
+      "path": "Scripts/v23/verify_p03_c43_contracts.py",
+      "sha256": "24152a5cb94afe9b49fbf593c6c5f2f6cc32761970e1236922840e17e2b03dbb"
+    },
+    {
+      "byteCount": 13969,
+      "path": "Scripts/v23/customer-learning.schema.json",
+      "sha256": "ecf2004226187db56dba75fbf0b833a1f2b10f842cd5c364cff5909c64bbefdb"
+    },
+    {
+      "byteCount": 3995,
+      "path": "docs/design/v23/tooling/V23P03C43CustomerLearningContractV1.json",
+      "sha256": "32464199fa5e6b476d2de44ff8ee045e1e25003ba2c2fa3621599b1b9e064275"
+    },
+    {
+      "byteCount": 2072,
+      "path": "docs/design/v23/tooling/V23P03C43CustomerLearningEvidenceReceiptV1.json",
+      "sha256": "df2612a9761379939ec9baf4550f63c79fba14b944d79463175870f699ef173a"
+    },
+    {
+      "byteCount": 990,
+      "path": "docs/design/v23/tooling/V23P03C43BrandImpactManifestV1.json",
+      "sha256": "87b683a7641af2a8a72870b1ab2a44f62e244fca4e5eb50d16d35c2bb2545123"
+    }
+  ],
+  "authority": {
+    "allowedPathCount": 14,
+    "appBaseHead": "92f9fd0dda196da017a909248e5d5c65dc9fcfc1",
+    "appBaseTree": "b6c49a03dc96acf65c11d36b79e420e88fb3015e",
+    "attemptID": 1,
+    "authorizedOverlapCount": 0,
+    "cardID": "V23-P03-C43",
+    "classification": "PREPARE_NOW",
+    "contextDigest": "1bfab05155a2de75d1e088662d0b70619d11bf6840c5c68761f6fe768738a924",
+    "coordinationCASSequence": 310,
+    "coordinationHead": "40fdf45f071dacd8b47dea518e071a2b07510a5f",
+    "coordinationLedgerDigest": "70f8bb799125d67fbf1e358e9b3847fc50a5ec147784bc8a233810fefb6e3198",
+    "coordinationProjectionDigest": "d3e2e7d8b8bfa87997d6257d658fc96dee20b6116ed6b43c67b6cd1799bec99b",
+    "coordinationTree": "dba3ec2b3e6f3b5822303ebd4bb5d05bcc3c2baa",
+    "directPrerequisiteCards": [
+      "V23-P03-C21"
+    ],
+    "existingPathCount": 0,
+    "fenceDigest": "0c4c80889e7b193b538751905fde435df24d298022d25828acfdc5354aa69649",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "a1a53a171394b9c4351687bd5fea96021756fc4518e876e777da231961746a15",
+    "newPathCount": 14,
+    "nextCard": "V23-P03-C44",
+    "nextRegisterOrdinal": 74,
+    "planningStatus": "NOT_STARTED",
+    "prerequisiteDigest": "f25e638e7198ea80acc7416b3dd4fe30a1bbfd2b2902ee914af9202283d95b4d",
+    "registerOrdinal": 73,
+    "s10ReservationOverlapCount": 0,
+    "title": "Privacy-first customer-learning and acquisition-measurement contract, zero-collection default, and explicit activation gate",
+    "unauthorizedOverlapCount": 0
+  },
+  "authorizedOverlapCount": 0,
+  "existingPathCount": 0,
+  "newPathCount": 14,
+  "pathFence": [
+    "FieldEvidenceApp/Domain/CustomerLearning/CustomerLearningContractsV1.swift",
+    "FieldEvidenceAppTests/TestSupport/CustomerLearning/CustomerLearningSyntheticEvaluatorV1.swift",
+    "FieldEvidenceAppTests/TestSupport/CustomerLearning/ZeroCollectionConformanceScannerV1.swift",
+    "FieldEvidenceAppTests/V9_50CustomerLearningMeasurementTests.swift",
+    "FieldEvidenceAppTests/Fixtures/V22/CustomerLearning/V22P03C43CustomerLearningCorpusV1.json",
+    "Release/V23P03C43CustomerLearningActivationBoundaryV1.md",
+    "Scripts/v23/p03_c43_contracts.py",
+    "Scripts/v23/generate_p03_c43_contracts.py",
+    "Scripts/v23/verify_p03_c43_contracts.py",
+    "Scripts/v23/customer-learning.schema.json",
+    "docs/design/v23/tooling/V23P03C43CustomerLearningContractV1.json",
+    "docs/design/v23/tooling/V23P03C43CustomerLearningEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P03C43BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P03-C43-tooling-manifest.json"
+  ],
+  "pathFenceCount": 14,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "schema": "V23P03C43ToolingManifestV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "archive": false,
+    "archiveAcceptance": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false,
+    "runtime": false,
+    "runtimeAcceptance": false
+  },
+  "unauthorizedOverlapCount": 0
+}

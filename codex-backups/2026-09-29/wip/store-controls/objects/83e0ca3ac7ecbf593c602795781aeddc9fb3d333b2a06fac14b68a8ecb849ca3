@@ -1,0 +1,129 @@
+from pathlib import Path
+r=Path('.codex-temp/cold-control-continuation-successor-v1'); p=r/'candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift'; s=p.read_text()
+# Exact data grammar has no silent encoding fallbacks.
+s=s.replace('    static func projectionSHA256(_ projection: [Projection]) -> String {\n        // Projection contains only validated strings/optionals/integers;\n        // canonical encoding has no filesystem or authority side effects.\n        (try? StoreMigrationCanonicalJSONV1.encode(projection)).map(\n            StoreMigrationCanonicalJSONV1.sha256) ?? ""\n    }','    static func projectionSHA256(_ projection: [Projection]) throws -> String {\n        StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(projection))\n    }',1)
+s=s.replace('== Self.projectionSHA256(physicalProjection)', '== (try Self.projectionSHA256(physicalProjection))')
+s=s.replace('== Self.projectionSHA256(next.physicalProjection)', '== (try Self.projectionSHA256(next.physicalProjection))')
+s=s.replace('EraseSchema2ColdCleanupProgressV1.projectionSHA256(physicalProjection)],','try EraseSchema2ColdCleanupProgressV1.projectionSHA256(physicalProjection)],')
+s=s.replace('        case (.preparing, .preparing), (.preparingCaptured, .preparingCaptured)\n            where births == next.births:', '        case (.preparing, .preparing), (.preparingCaptured, .preparingCaptured)\n            where births == next.births:')
+# Swift multi-pattern where applies only to the final pattern; explicitly
+# check births in the common body too, then preserve captured+new-birth case.
+s=s.replace('                && activeTargetIndex == next.activeTargetIndex\n        case (.preparing, .preparingCaptured)', '                && activeTargetIndex == next.activeTargetIndex && births == next.births\n        case (.preparing, .preparingCaptured)',1)
+# Enforce exact regular byte-count projection without fabricating historical UID.
+needle='            try EraseSchema2ColdCleanupGrammarV1.requireDigest(sha256)\n        }\n        func published'
+s=s.replace(needle,'''            let fields = fullFact.split(separator: "|", omittingEmptySubsequences: false)
+            guard let mode = UInt32(fields[2]), mode & UInt32(S_IFMT) == UInt32(S_IFREG),
+                  fields[6] == String(byteCount) else { throw EraseIntentStoreError.invalidPreparation }
+            try EraseSchema2ColdCleanupGrammarV1.requireDigest(sha256)
+        }
+        func published''',1)
+# Idempotent capture requires the same actual last-checked boundary too.
+s=s.replace('            guard birth.targetIndex == active, birth.source.fullFact == fullFact,','            guard physicalProjection == expected.physicalProjection,\n                  birth.targetIndex == active, birth.source.fullFact == fullFact,',1)
+# Source/plan/prefix construction data are durable but not authorization.
+# Preserve actual source-format bounds (no metadata/plan inflation).
+# C temporary phase grammar is prospective and authenticated separately.
+s=s.replace('intent?.phase == .pointerSwitched ||\n                    intent?.phase == .sessionActivated,','intent?.phase == .pointerSwitched ||\n                    intent?.phase == .sessionActivated ||\n                    intent?.phase == .cleanupComplete,',1)
+s=s.replace('                    && intent?.phase == .sessionActivated\n                    && preparation?.c05JobDrainV3 == nil),','                    && (intent?.phase == .sessionActivated || intent?.phase == .cleanupComplete)\n                    && preparation?.c05JobDrainV3 == nil),',1)
+# Core phase uses the same checked publisher under an exact new effect.
+s=s.replace('        guard EraseSchema2ColdCleanupGrammarV1.isCanonicalName(name),\n              bytes.count <= maximumBytes','        guard (EraseSchema2ColdCleanupGrammarV1.isCanonicalName(name) ||\n                (name == Self.intentName && coldCleanupEffect?.kind == .replaceCleanupPhase)),\n              bytes.count <= maximumBytes',1)
+s=s.replace('Self.intentName, Self.preparationName,\n                 Self.originalRetiredStageIdentityName','Self.intentName, Self.nextName, Self.preparationName,\n                 Self.originalRetiredStageIdentityName',1)
+# Effect latch lifetime is scoped to each public API. A revoked lexical permit
+# does not linger as authorization for ordinary incumbent writer calls.
+public_names=['publishSchema2ColdCleanupSources','requireSchema2ColdCleanupSources',
+'canonicalSchema2ColdTransferredSource','createSchema2ColdCleanupProgress',
+'captureSchema2ColdBornCleanupSource','publishSchema2ColdSurvivingNotificationProvenance',
+'requireSchema2ColdSurvivingNotificationProvenance','loadSchema2ColdCleanupSources',
+'loadSchema2ColdSurvivingNotificationProvenance','loadSchema2ColdCleanupProgress',
+'replaceSchema2ColdCleanupProgress','canonicalSchema2ColdBornTransferredSource',
+'requireSchema2ColdTransferredSource','publishSchema2ColdCleanupTerminal',
+'loadSchema2ColdCleanupTerminal','requireSchema2ColdCleanupTerminal',
+'removeSchema2ColdCleanupControlsAfterCompletion','removeSchema2ColdTerminalEraseRoot',
+'closeSchema2ColdTerminalStoreChecked']
+for name in public_names:
+ a=s.index('    func '+name+'('); b=s.index(' {\n',a)
+ s=s[:b+3]+'        defer { coldCleanupPermit = nil; coldCleanupEffect = nil }\n'+s[b+3:]
+# Terminal value is built from retained checked observations only, before its
+# exact effect commitment. Then every named physical leaf is freshly proved.
+a=s.index('    func publishSchema2ColdCleanupTerminal('); b=s.index('    @MainActor\n    func loadSchema2ColdCleanupTerminal',a)
+block=s[a:b]
+old='''        guard expected.phase == .cleanupComplete, progress.stage == .phaseCASComplete,
+              progress.isTerminal,
+              let intentLeaf = try readRetirementLeaf(Self.intentName, kind: .journal),
+              let preparationLeaf = try readRetirementLeaf(Self.preparationName, kind: .journal) else {'''
+new='''        guard expected.phase == .cleanupComplete, progress.stage == .phaseCASComplete,
+              progress.isTerminal,
+              let intentBytes = coldExpectedIntentBytes ?? originalAuxiliaryProjectedIntentBytes,
+              let preparationBytes = coldExpectedPreparationBytes ?? originalAuxiliaryPublishedReceipt?.preparationBytes,
+              let intentFact = coldExpectedIntentFact ?? originalAuxiliaryProjectedIntentFact,
+              let preparationFact = coldExpectedPreparationFact ?? originalAuxiliaryPublishedReceipt?.preparationFact else {'''
+assert old in block; block=block.replace(old,new,1)
+block=block.replace('        let names = try coldNamesChecked()','''        let names = (Array(coldCleanupProjectedLeaves.keys)
+            + coldCapturedOpaqueOriginalRetired.keys
+            + (coldCapturedOpaqueAuxiliaryRosterBytes == nil ? [] : [Self.auxiliaryRosterName])
+            + ((coldOwnRosterFact != nil || coldCapturedOpaqueRosterPresent) ? [Self.rosterName] : [])
+            + [Self.preparationName, Self.intentName]).reduce(into: Set<String>()) { $0.insert($1) }.sorted()''',1)
+block=block.replace('let bytes = name == Self.intentName ? intentLeaf.data : preparationLeaf.data\n                var value = stat()\n                guard Darwin.fstatat(eraseDescriptor, name, &value, AT_SYMLINK_NOFOLLOW) == 0 else {\n                    throw EraseIntentStoreError.invalidAuthority\n                }\n                leaf = .init(bytes: bytes, fact: EraseColdControlLeafFactV1(value), policy: nil)','let bytes = name == Self.intentName ? intentBytes : preparationBytes\n                let fact = name == Self.intentName ? intentFact : preparationFact\n                leaf = .init(bytes: bytes, fact: fact, policy: nil)',1)
+block=block.replace('cleanupIntentBytes: intentLeaf.data, preparationBytes: preparationLeaf.data,','cleanupIntentBytes: intentBytes, preparationBytes: preparationBytes,',1)
+block=block.replace('        for leaf in value.deletionOrder { try requireSchema2ColdTerminalLeaf(leaf, permit: permit) }','''        guard Set(try coldNamesChecked().filter {
+            $0 != EraseSchema2ColdCleanupGrammarV1.terminalName &&
+            $0 != EraseSchema2ColdCleanupGrammarV1.temporaryName(EraseSchema2ColdCleanupGrammarV1.terminalName)
+        }) == Set(value.deletionOrder.map(\\.name)) else { throw EraseIntentStoreError.invalidAuthority }
+        for leaf in value.deletionOrder { try requireSchema2ColdTerminalLeaf(leaf, permit: permit) }''',1)
+s=s[:a]+block+s[b:]
+# Add core phase CAS. It accepts only real Service TerminalAuthority and R->C.
+marker='    @MainActor\n    private func requireSchema2ColdTerminalRoot('
+extra='''    @MainActor
+    func replaceSchema2ColdCleanupPhase(expected: EraseIntentV1,
+        with replacement: EraseIntentV1, retirement: EraseSchema2ColdTerminalAuthorityV1,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        defer { coldCleanupPermit = nil; coldCleanupEffect = nil }
+        guard expected.schemaVersion == 2, expected.phase == .sessionActivated,
+              replacement == expected.advancing(to: .cleanupComplete),
+              borrowsColdObservation,
+              let beforeFact = coldExpectedIntentFact,
+              coldExpectedIntentBytes == (try EraseIntentCodecV1.encode(expected)) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let before = try EraseIntentCodecV1.encode(expected)
+        let after = try EraseIntentCodecV1.encode(replacement)
+        let beforeSHA = StoreMigrationCanonicalJSONV1.sha256(before)
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .replaceCleanupPhase, inputSHA256: [beforeSHA,
+                StoreMigrationCanonicalJSONV1.sha256(after)],
+            expectedCanonicalSHA256: beforeSHA, path: Self.intentName), permit: permit)
+        try beginSchema2ColdCleanupControlScope(permit)
+        try retirement.requireNamespaceAbsent()
+        try retirement.requireCleanupPhaseWrite(expected: expected, replacement: replacement)
+        let core = EraseColdExistingControlObservationV1.OpaqueOriginalRetiredLeafV1(
+            bytes: before, fact: beforeFact,
+            policy: try observeBorrowedColdPolicy(.journal,
+                at: applicationSupportURL.appendingPathComponent(policyRelativePath(Self.intentName))))
+        coldCleanupProjectedLeaves[Self.intentName] = core
+        if let bytes = coldCapturedOpaqueNextBytes, let fact = coldCapturedOpaqueNextFact {
+            coldCleanupProjectedLeaves[Self.nextName] = .init(bytes: bytes, fact: fact,
+                policy: try observeBorrowedColdPolicy(.journalTemporary,
+                    at: applicationSupportURL.appendingPathComponent(policyRelativePath(Self.nextName))))
+        }
+        let published = try publishSchema2CleanupLeaf(Self.intentName, bytes: after,
+            expectedBytes: before, maximumBytes: Self.maximumJournalBytes, permit: permit)
+        coldExpectedIntentBytes = after; coldExpectedIntentFact = published.fact
+        coldCapturedOpaqueNextBytes = nil; coldCapturedOpaqueNextFact = nil
+        try retirement.requireCleanupPhaseWrite(expected: expected, replacement: replacement)
+        try requireSchema2ColdCleanupEffect(permit)
+    }
+
+'''
+s=s.replace(marker,extra+marker,1)
+# Fix retained name projection collection's static type; Array(keys) is needed.
+s=s.replace('+ coldCapturedOpaqueOriginalRetired.keys\n', '+ Array(coldCapturedOpaqueOriginalRetired.keys)\n',1)
+# Concrete primitive checks guard every effect-specific callback. The generic
+# writer gets no authorization from the lifetime of a nonnil object alone.
+needle='''    ) throws {
+        guard (borrowsColdObservation || coldCleanupPermit != nil), !coldCloseAttempted, !coldClosed,
+              !coldEffectUncertain, coldOwnTemporaryName == name,'''
+s=s.replace(needle,'''    ) throws {
+        try requireSchema2ColdCleanupPrimitiveEffect()
+        guard (borrowsColdObservation || coldCleanupPermit != nil), !coldCloseAttempted, !coldClosed,
+              !coldEffectUncertain, coldOwnTemporaryName == name,''',1)
+p.write_text(s)

@@ -1,0 +1,56 @@
+{
+  "acceptanceState": "PENDING_NOT_ACCEPTING",
+  "adoptionState": "PENDING_NOT_ACCEPTING",
+  "artifactDigest": "2ee6f2c3ff9f3b6606d518166c649ee4ff95f436d6563744a2bb532107998580",
+  "cardID": "V23-P03-C45",
+  "classification": "IMPLEMENT_NOW",
+  "evidenceIDs": [
+    "V23-P03-C45-G01",
+    "V23-P03-C45-A01",
+    "V23-P03-C45-H01",
+    "V23-P03-C45-I01",
+    "V23-P03-C45-R01"
+  ],
+  "nativeEvidenceState": "PENDING_NOT_ACCEPTING",
+  "persistence": {
+    "acceptedGenerationSnapshotPersistent": true,
+    "durableFamilyCount": 1,
+    "locatorAndShortCodeBindingUsesExistingP03C27Writer": true,
+    "mode": "PERSISTENT_ACCEPTED_SNAPSHOT_AND_EXISTING_LOCATOR_BINDING_TRUTH",
+    "outputReceiptClaimsExternalPossession": false,
+    "persistedFamilies": [
+      "AcceptedLabelGenerationSnapshotRow"
+    ],
+    "persistentSchemaVersion": 34,
+    "recordsSchemaVersion": 33,
+    "templateAndRendererReleasesImmutableCompatibilityInputs": true,
+    "unacceptedPlanAndProjectionResultPersistent": false
+  },
+  "physicalPrintScanEvidenceState": "REQUIRED_PENDING_OWNER",
+  "releaseState": "PENDING_NOT_ACCEPTING",
+  "requiredSemanticsDigest": "2b4842f33e22eda024a1dc36e77f6b3619251d37ea3fb31352f3980b56525cd8",
+  "schema": "V23P03C45AssetLabelEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C45G01AcceptedPlanGeneratesByteIdenticalPDFCSVTextAndIndependentQRDecode",
+    "testV23P03C45A01ManualShortCodeAndCameraResolutionParityPreserveExplicitStart",
+    "testV23P03C45H01MalformedStaleRevokedAndOversizedInputsFailClosedWithoutWrongEntity",
+    "testV23P03C45I01LocatorIssuanceAndRenderPublicationRecoverZeroOrCompleteWithoutPartialOutput",
+    "testV23P03C45R01BackupRestoreReplayDeleteEraseReprintAndScratchCleanupRemainExact"
+  ]
+}

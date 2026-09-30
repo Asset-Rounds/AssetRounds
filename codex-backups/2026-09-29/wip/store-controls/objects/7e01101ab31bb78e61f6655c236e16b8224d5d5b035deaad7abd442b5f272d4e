@@ -1,0 +1,14 @@
+{
+  "before": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/before/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+    "sha256": "253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90"
+  },
+  "candidate": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+    "sha256": "c79171aa4d5d2c78469b9698c85a7f7e53d6bd1abf85f63e253dffb1b515fcb4"
+  },
+  "trackedStoreUnchanged": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift",
+    "sha256": "253a0099b72703efffa48642e906cb76bee405b342aa1bed082eaf384ade6e90"
+  }
+}

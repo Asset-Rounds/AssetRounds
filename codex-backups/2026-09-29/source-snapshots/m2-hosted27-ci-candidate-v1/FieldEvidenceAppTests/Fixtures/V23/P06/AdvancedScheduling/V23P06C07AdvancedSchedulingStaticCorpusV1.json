@@ -1,0 +1,47 @@
+{
+  "cardID": "V23-P06-C07",
+  "cases": [
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C07-G01",
+      "kind": "golden"
+    },
+    {
+      "expected": "STATIC_PROTOCOL_ONLY",
+      "id": "V23-P06-C07-A01",
+      "kind": "accessibility"
+    },
+    {
+      "expected": "REJECT_DECLARATIVE_ONLY",
+      "id": "V23-P06-C07-H01-DST",
+      "input": "DST gap or fold",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_DECLARATIVE_ONLY",
+      "id": "V23-P06-C07-H01-TIMEZONE",
+      "input": "timezone ambiguity",
+      "kind": "hostile"
+    },
+    {
+      "expected": "REJECT_DECLARATIVE_ONLY",
+      "id": "V23-P06-C07-H01-BLACKOUT",
+      "input": "blackout or assignment mutation",
+      "kind": "hostile"
+    },
+    {
+      "expected": "NO_RUNTIME_CLAIM",
+      "id": "V23-P06-C07-I01",
+      "kind": "interruption"
+    },
+    {
+      "expected": "RECONCILE_OR_DISCARD",
+      "id": "V23-P06-C07-R01",
+      "kind": "recovery"
+    }
+  ],
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "realTerminalValidationResult": false,
+  "schema": "V23P06C07AdvancedSchedulingStaticCorpusV1",
+  "syntheticOnly": true
+}

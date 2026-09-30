@@ -1,0 +1,46 @@
+{
+  "configurations": [
+    {
+      "id": "C0900000-0000-4000-8000-000000000003",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "targetForVariableExpansion": {
+      "containerPath": "container:FieldEvidenceApp.xcodeproj",
+      "identifier": "A00000000000000000000030",
+      "name": "FieldEvidenceApp"
+    }
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:FieldEvidenceApp.xcodeproj",
+        "identifier": "A00000000000000000000031",
+        "name": "FieldEvidenceAppTests"
+      },
+      "selectedTests": [
+        "S7_1CommerceCoreTests",
+        "S7_2PaywallPurchaseTests",
+        "S7_3LifecycleRestoreTests",
+        "S7_4DraftAccessPolicyTests",
+        "S7_5DataRightsIntegrationTests"
+      ]
+    },
+    {
+      "target": {
+        "containerPath": "container:FieldEvidenceApp.xcodeproj",
+        "identifier": "A00000000000000000000032",
+        "name": "FieldEvidenceAppUITests"
+      },
+      "selectedTests": [
+        "S7_2PaywallUITests",
+        "S7_3LifecycleUITests",
+        "S7_4AccessGateUITests",
+        "S7_5LapseRightsUITests"
+      ]
+    }
+  ],
+  "version": 1
+}

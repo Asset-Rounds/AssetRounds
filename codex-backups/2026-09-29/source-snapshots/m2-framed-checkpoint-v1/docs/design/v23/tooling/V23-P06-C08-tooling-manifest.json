@@ -1,0 +1,72 @@
+{
+  "appBaseAuthority": {
+    "head": "dda503c61cb64d9ed476c12dddbde79895605437",
+    "tree": "504d97c23639b370f992ad98d878cce1ed40676b"
+  },
+  "background": false,
+  "canonicalWrites": 0,
+  "capturedMedia": false,
+  "cardID": "V23-P06-C08",
+  "customerData": false,
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "expiryDays": 30,
+  "externalActions": "NONE",
+  "flags": {
+    "acceptanceCredit": false,
+    "adoptionCredit": false,
+    "hostedCIClaim": false,
+    "implementationCredit": false,
+    "mainCredit": false,
+    "mergeCredit": false,
+    "nativeCIClaim": false,
+    "phaseCredit": false,
+    "physicalCIClaim": false,
+    "releaseCredit": false,
+    "selectorCredit": false
+  },
+  "generatedFiles": [
+    {
+      "path": "Scripts/v23/temporal-media-static-protocol.schema.json",
+      "sha256": "0742bf4c5b750b7bd5457bd9db8d6aff131f94465223a520af672e72d4fb34d0"
+    },
+    {
+      "path": "FieldEvidenceAppTests/Fixtures/V23/P06/TemporalMedia/V23P06C08TemporalMediaStaticCorpusV1.json",
+      "sha256": "c2490b31cbd6e3ded39d7fed8ddb749113424facfa46271b189184e3eb6bc608"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C08TemporalMediaStaticPreparationContractV1.json",
+      "sha256": "0e65bc4119b9de6a2e00eaa927233ea47f95c5abd1905b872bcff3afe7f85043"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C08TemporalMediaStaticPreparationEvidenceReceiptV1.json",
+      "sha256": "e93e1d3f0636b74935f0443a994b9c3be5e6e9bcc6eb9147c9b69b51c6f06d12"
+    },
+    {
+      "path": "docs/design/v23/tooling/V23P06C08BrandImpactManifestV1.json",
+      "sha256": "7aee36dec2eccc3c89efe375acf42db5e315daa87e7f858c901d41a436d418ec"
+    }
+  ],
+  "manifest": "V23P06C08ToolingManifestV1",
+  "modelOutput": false,
+  "network": false,
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
+  "pathFence": [
+    "Scripts/v23/p06_c08_contracts.py",
+    "Scripts/v23/generate_p06_c08_contracts.py",
+    "Scripts/v23/verify_p06_c08_contracts.py",
+    "Scripts/v23/temporal-media-static-protocol.schema.json",
+    "FieldEvidenceAppTests/Fixtures/V23/P06/TemporalMedia/V23P06C08TemporalMediaStaticCorpusV1.json",
+    "docs/design/v23/tooling/V23P06C08TemporalMediaStaticPreparationContractV1.json",
+    "docs/design/v23/tooling/V23P06C08TemporalMediaStaticPreparationEvidenceReceiptV1.json",
+    "docs/design/v23/tooling/V23P06C08BrandImpactManifestV1.json",
+    "docs/design/v23/tooling/V23-P06-C08-tooling-manifest.json"
+  ],
+  "reconciliationRequired": true,
+  "redaction": false,
+  "schema": "V23P06C08StaticPreparationToolingV1",
+  "transcription": false,
+  "transformInvoked": false,
+  "uploadInvoked": false
+}

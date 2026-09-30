@@ -1,0 +1,44 @@
+{
+  "cardID": "V23-P04-C32",
+  "expected": {
+    "atomicityPolicy": "ONE_ROOT_ALL_OR_NOTHING",
+    "contactDefaultExportEnabled": false,
+    "externalKeyBinding": "EXACT_ONLY",
+    "fuzzyMatching": false,
+    "oneCanonicalWriter": true,
+    "previewWritesCanonicalState": false,
+    "scratchRetainedAfterTerminalState": false,
+    "sourceOrder": ["PARTIES_V1", "PARTY_CONTACTS_V1", "SITE_PARTY_ROLES_V1"]
+  },
+  "ordinal": 117,
+  "scenarios": [
+    {"id": "G01", "kind": "GOLDEN", "covers": ["deterministic_preview", "exact_key_create", "shared_party", "source_order", "zero_write"]},
+    {"id": "A01", "kind": "ALTERNATE", "covers": ["exact_key_update", "correction", "reversal", "shared_role", "contact_free_export"]},
+    {"id": "H01", "kind": "HOSTILE", "covers": ["ambiguous_target", "bidi", "budget", "cross_workspace", "duplicate_key", "formula", "malformed_contact", "nfd", "nul", "retired_target", "stale_digest", "stale_revision"]},
+    {"id": "I01", "kind": "INTERRUPTION", "covers": ["cancellation", "no_partial_claim", "scratch_cleanup"]},
+    {"id": "R01", "kind": "RECOVERY", "covers": ["backup_restore", "journal", "receipt_replay", "replication", "single_effect"]}
+  ],
+  "schema": "V23P04C32PartyContactSiteRoleImportCorpusV1",
+  "schemaVersion": 1,
+  "selectors": [
+    {"id": "G01", "selector": "V23-P04-C32-G01", "tier": "GOLDEN"},
+    {"id": "A01", "selector": "V23-P04-C32-A01", "tier": "ALTERNATE"},
+    {"id": "H01", "selector": "V23-P04-C32-H01", "tier": "HOSTILE"},
+    {"id": "I01", "selector": "V23-P04-C32-I01", "tier": "INTERRUPTION"},
+    {"id": "R01", "selector": "V23-P04-C32-R01", "tier": "RECOVERY"}
+  ],
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "publication": false,
+    "release": false
+  },
+  "synthetic": true
+}

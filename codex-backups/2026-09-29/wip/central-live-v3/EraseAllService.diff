@@ -1,0 +1,161 @@
+--- before/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift
++++ candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift
+@@ -1320,6 +1320,8 @@
+         "original.search.checked-publication.reproved",
+         "original.search.checked-publication.complete",
+         "cleanup.scratch-construction.enter",
++        "cleanup.original-scratch-loan.enter",
++        "cleanup.original-scratch-loan.complete",
+         "cleanup.scratch-erase.enter",
+         "cleanup.presence",
+         "cleanup.session-and-content",
+@@ -8979,6 +8981,7 @@
+     private var searchExpectedBytes: Data?
+     private var constructedScratch: EraseOriginalScratchPhysicalStateV1?
+     private var scratchOwner: ScratchDataLeaseStoreV1?
++    private var originalScratchCleanupReceipt: OriginalEraseScratchCleanupReceiptV1?
+     private var notificationControl: AppLockNotificationControlStoreV1?
+     private var notificationBeforeEffect:
+         EraseOriginalNotificationPhysicalSnapshotV1?
+@@ -9053,7 +9056,7 @@
+               searchExpectedBytes == nil,
+               discoveryAfter == nil,
+               notificationAfterSuccess == nil,
+-              scratchOwner == nil,
++              scratchOwner == nil, originalScratchCleanupReceipt == nil,
+               exchangeOwner == nil else {
+             throw EraseAllServiceError.invalidAuthority
+         }
+@@ -10177,6 +10180,47 @@
+         }
+     }
+ 
++    /// The same original diagnostics consume the actual private effect
++    /// receipt instead of requiring a new ordinary Scratch descriptor owner.
++    /// Source/Search/unrelated-tree and final named-absence checks are retained.
++    func afterOriginalScratchCleanup(
++        _ receipt: OriginalEraseScratchCleanupReceiptV1,
++        operation: EraseRouterOperationV1
++    ) throws {
++        try lock.withLock {
++            guard stage == .searchPublished, self.operation === operation,
++                  scratchOwner == nil, originalScratchCleanupReceipt == nil,
++                  receipt.operationID == operation.operationID else {
++                throw EraseAllServiceError.invalidAuthority
++            }
++            // Retain concrete actual settlement before later proof can fail.
++            originalScratchCleanupReceipt = receipt
++            do {
++                try receipt.requireCheckedSettlement()
++                guard receipt.finalImage.scratch == nil,
++                      receipt.finalImage.ingress == nil else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                try requireSearchPublished()
++                try requireSourceUnchanged()
++                try requireUnrelatedOperationsUnchanged()
++                try auxiliary.requireOriginalEraseOtherAuxiliaryUnchangedForTesting(
++                    auxiliaryOrigin,
++                    allowing: [LocalSearchIndexStoreV1.directoryName])
++                let now = try auxiliary.originalEraseEmptyScratchStateForTesting()
++                guard now.operationsDevice == scratchOrigin.operationsDevice,
++                      now.operationsInode == scratchOrigin.operationsInode,
++                      now.scratchDevice == nil, now.scratchInode == nil else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                stage = .scratchErased
++            } catch {
++                stage = .uncertain
++                throw error
++            }
++        }
++    }
++
+     func retainAndCheckExchangeBeforeLoad(
+         _ owner: PortableExchangeSessionStoreV2
+     ) throws {
+@@ -10275,13 +10319,20 @@
+         try lock.withLock {
+             guard stage == .exchangePublished,
+                   exchangeOwner != nil,
+-                  scratchOwner != nil,
++                  scratchOwner != nil || originalScratchCleanupReceipt != nil,
+                   exchangeExpectedBytes != nil,
+                   notificationAfterSuccess != nil,
+                   oldPointer != nil, sourceLedger != nil,
+                   sourceManifest != nil, controlsPublished != nil,
+                   targetGenerationID != nil else {
+                 throw EraseAllServiceError.invalidAuthority
++            }
++            if let originalScratchCleanupReceipt {
++                guard let operation,
++                      originalScratchCleanupReceipt.operationID == operation.operationID else {
++                    throw EraseAllServiceError.invalidAuthority
++                }
++                try originalScratchCleanupReceipt.requireCheckedSettlement()
+             }
+             try requireSourceUnchanged()
+             try requireUnrelatedOperationsUnchanged()
+@@ -13087,32 +13138,43 @@
+             system: notificationSystem, operationID: value.eraseID)
+ #endif
+         }
+-        if let originalAuxiliaryOperation {
+-            _ = try originalAuxiliaryOperation
+-                .settleOriginalEraseAuxiliaryScratchControlPolicy(
+-                    store: intentStore, coordinator: coordinator)
+-        }
+ #if DEBUG
+         traceErasePhase("cleanup.notification.complete")
+-#endif
+-        #if DEBUG
+         try originalColdExitFrame?.beforeScratchConstruction()
+-        #endif
+-#if DEBUG
+         traceErasePhase("cleanup.scratch-construction.enter")
+ #endif
+-        let scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: applicationSupportURL,
+-            fileManager: fileManager, clock: Date.init)
+-        #if DEBUG
+-        try originalColdExitFrame?.afterScratchConstruction(scratch)
+-        #endif
++        if let originalAuxiliaryOperation {
++            do {
+ #if DEBUG
+-        traceErasePhase("cleanup.scratch-erase.enter")
++                traceErasePhase("cleanup.original-scratch-loan.enter")
+ #endif
+-        try await scratch.eraseScratchData()
+-        #if DEBUG
+-        try originalColdExitFrame?.afterScratchErase(scratch)
+-        #endif
++                let scratchReceipt = try originalAuxiliaryOperation
++                    .eraseOriginalScratchForRetainedOwner(
++                        store: intentStore, coordinator: coordinator)
++                try scratchReceipt.requireCheckedSettlement()
++#if DEBUG
++                try originalColdExitFrame?.afterOriginalScratchCleanup(
++                    scratchReceipt, operation: originalAuxiliaryOperation)
++                traceErasePhase("cleanup.original-scratch-loan.complete")
++#endif
++            } catch {
++                originalAuxiliaryOperation.failOriginalEraseScratchCleanupEffect()
++                traceEraseOriginalFailure(error)
++                throw error
++            }
++        } else {
++            let scratch = try ScratchDataLeaseStoreV1(
++                applicationSupportURL: applicationSupportURL,
++                fileManager: fileManager, clock: Date.init)
++#if DEBUG
++            try originalColdExitFrame?.afterScratchConstruction(scratch)
++            traceErasePhase("cleanup.scratch-erase.enter")
++#endif
++            try await scratch.eraseScratchData()
++#if DEBUG
++            try originalColdExitFrame?.afterScratchErase(scratch)
++#endif
++        }
+         try sceneNavigationStatePort?.eraseSceneNavigationData()
+         try PortableExchangeProtectedFilePolicyV2.validate()
+         let exchange = try PortableExchangeSessionStoreV2(applicationSupportURL: applicationSupportURL,

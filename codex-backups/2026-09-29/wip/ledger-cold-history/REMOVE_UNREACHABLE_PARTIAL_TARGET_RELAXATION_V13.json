@@ -1,0 +1,5 @@
+{
+  "before": "b0b319b9ad47698e42d71acdfc8be3d442837f2d774be6c44735d93152054647",
+  "after": "9e103f62be4aeb15d72c7e822c2c89eb17853c5aa2c9f837fdb2abcac1977723",
+  "reason": "Actual original-P planner already excludes canonical C16 target-owned partial facts from independent settlement steps. Preserve original mtime/member predicates; do not retain unsupported relaxation. V9 proposal/parse artifacts preserved."
+}

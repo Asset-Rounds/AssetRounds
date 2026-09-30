@@ -1,0 +1,1401 @@
+import Foundation
+import SwiftData
+import XCTest
+@testable import FieldEvidenceApp
+
+private enum C52ServiceRequestBoundary_V9_01VersionedSchemaIdentityTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
+private enum C53AssetServiceReliabilityBoundary_V9_01VersionedSchemaIdentityTests {
+    static let typedAnchor: C53AssetServiceReliabilityBoundaryTokenV1.Type = C53AssetServiceReliabilityBoundaryTokenV1.self
+}
+
+final class C50VersionedSchemaIdentityTests: XCTestCase {
+    func testV23P03C50NonpersistentPortDoesNotAdvanceCanonicalSchemas() {
+        XCTAssertEqual(IncumbentFileProfileReleaseV1.schemaVersion, 1)
+        XCTAssertEqual(IncumbentSelectionReceiptV1.schemaVersion, 1)
+        XCTAssertEqual(C50IncumbentFileExchangeBackupBoundaryV1.recordsSchemaVersion, C49BackupEnrollmentV1.recordsSchemaVersion)
+        XCTAssertEqual(C50IncumbentFileExchangeBackupBoundaryV1.canonicalFamilyCount, 0)
+        XCTAssertFalse(C50IncumbentFileExchangeKernelBackupEnrollmentV1.persistentSchemaBump)
+        XCTAssertFalse(C50IncumbentFileExchangeKernelBackupEnrollmentV1.recordsSchemaBump)
+        XCTAssertEqual(C50IncumbentFileExchangePersistenceBoundaryV1.newPersistentModelCount, 0)
+        XCTAssertEqual(C50IncumbentFileExchangePersistenceBoundaryV1.newRecordsRowCount, 0)
+        XCTAssertTrue(C50IncumbentFileExchangePersistenceBoundaryV1.noAdapterSwiftDataModel)
+    }
+}
+
+final class C45SchemaIdentityCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityEnrollsExactlyOneV34SnapshotFamily() {
+        XCTAssertEqual(PersistentSchemaV34.versionIdentifier, Schema.Version(34, 0, 0))
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.persistentFamilies, ["AcceptedLabelGenerationSnapshotRow"])
+        XCTAssertEqual(AssetLabelPersistenceEnrollmentV1.durableModelCount, 1)
+    }
+}
+
+final class C30EvidenceContextAnchorV9_01VersionedSchemaIdentity: XCTestCase {
+    func testTypedEvidenceContextContractAnchor() throws {
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.persistentSchemaVersion, 30)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.recordsSchemaVersion, 29)
+        XCTAssertEqual(EvidenceContextPersistenceEnrollmentV1.durableModelCount, 2)
+        XCTAssertEqual(EvidenceLightingConditionV1.allCases.count, 6)
+        XCTAssertTrue(WorkspaceWriterAdapterV1.activeSupportedCommandKinds.contains(.applyEvidenceContext))
+        try EvidenceContextLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+final class V9_01VersionedSchemaIdentityTests: XCTestCase {
+    func testV23P03C37TypedPoseContractAnchor() throws {
+        let axis = try PoseAxisDescriptorV1(
+            axisID: PoseAxisID(rawValue: "axis.c37.anchor"),
+            localizedLabelKey: "pose.c37.anchor",
+            semanticRole: .otherDeclaredAxis,
+            requiredComponents: .azimuthOnly,
+            observationRequirement: .optional,
+            applicability: .applicable
+        )
+        let registry = try PoseAxisDescriptorRegistryV1(descriptors: [axis])
+        XCTAssertEqual(try registry.descriptor(for: axis.axisID), axis)
+    }
+    func testV23P03C29TypedPlanContractAnchor() throws {
+        let minimum = try NormalizedPlanCoordinateV1(millionths: 0)
+        let maximum = try NormalizedPlanCoordinateV1(millionths: PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(minimum.millionths, 0)
+        XCTAssertEqual(maximum.millionths, PlanLimitsV1.normalizedScale)
+        XCTAssertEqual(PlanDocumentV1.schemaVersion, 1)
+    }
+    func testV23P03C39SemanticSchemasAndReleaseReferencesStayVersioned() throws {
+        XCTAssertEqual(AssetSemanticCatalogReleaseV1.schemaVersion, 1)
+        XCTAssertEqual(AssetProductIdentityV1.schemaVersion, 1)
+        XCTAssertEqual(WorkSubjectScopeSnapshotV1.schemaVersion, 1)
+
+        let package = try PackageReleaseIdentityV1(
+            packageID: "com.field-evidence.c39",
+            schemaVersion: 1,
+            contentVersion: 1
+        )
+        let reference = AssetSemanticCatalogReleaseReferenceV1(
+            releaseID: UUID(uuidString: "00000000-0000-0000-0000-000000002001")!,
+            packageRelease: package,
+            catalogSHA256: String(repeating: "a", count: 64)
+        )
+        try reference.validate()
+        XCTAssertEqual(
+            try AssetSemanticCanonicalCodecV1.decode(
+                AssetSemanticCatalogReleaseReferenceV1.self,
+                from: AssetSemanticCanonicalCodecV1.encode(reference)
+            ),
+            reference
+        )
+    }
+
+    private let fileManager = FileManager.default
+
+    func testCatalogIsTheExactSevenModelOrderAndScalarReferencePolicy() throws {
+        let registrations = PersistentModelCatalog.registrations
+        let expectedNames = [
+            "Site",
+            "Asset",
+            "WorkflowRecord",
+            "EvidenceFile",
+            "Issue",
+            "Packet",
+            "Report",
+        ]
+        let expectedTypes: [Any.Type] = [
+            Site.self,
+            Asset.self,
+            WorkflowRecord.self,
+            EvidenceFile.self,
+            Issue.self,
+            Packet.self,
+            Report.self,
+        ]
+        let expectedFields = [
+            [],
+            ["siteID"],
+            [
+                "assetID", "packetID", "issueID", "parentRecordID",
+                "recordRevisionRootID", "revisesRecordID", "evidenceSourceRecordID",
+            ],
+            ["recordID"],
+            ["assetID", "openedByRecordID", "resolvedByRecordID"],
+            ["stableRootID", "currentRecordID"],
+            ["packetID", "sourceRecordID", "replacesReportID"],
+        ]
+        let expectedReferences: [[PersistentScalarReferenceRegistration]] = [
+            [],
+            [
+                .init(field: "siteID", targetModel: .site),
+            ],
+            [
+                .init(field: "assetID", targetModel: .asset),
+                .init(field: "packetID", targetModel: .packet),
+                .init(field: "issueID", targetModel: .issue),
+                .init(field: "parentRecordID", targetModel: .workflowRecord),
+                .init(field: "recordRevisionRootID", targetModel: .workflowRecord),
+                .init(field: "revisesRecordID", targetModel: .workflowRecord),
+                .init(field: "evidenceSourceRecordID", targetModel: .workflowRecord),
+            ],
+            [
+                .init(field: "recordID", targetModel: .workflowRecord),
+            ],
+            [
+                .init(field: "assetID", targetModel: .asset),
+                .init(field: "openedByRecordID", targetModel: .workflowRecord),
+                .init(field: "resolvedByRecordID", targetModel: .workflowRecord),
+            ],
+            [
+                .init(field: "stableRootID", targetModel: .packet),
+                .init(field: "currentRecordID", targetModel: .workflowRecord),
+            ],
+            [
+                .init(field: "packetID", targetModel: .packet),
+                .init(field: "sourceRecordID", targetModel: .workflowRecord),
+                .init(field: "replacesReportID", targetModel: .report),
+            ],
+        ]
+        let expectedStorage: [PersistentReferenceStorageDisposition] = [
+            .none,
+            .applicationGovernedScalarUUID,
+            .applicationGovernedScalarUUID,
+            .applicationGovernedScalarUUID,
+            .applicationGovernedScalarUUID,
+            .applicationGovernedScalarUUID,
+            .applicationGovernedScalarUUID,
+        ]
+        let expectedDeleteDispositions: [PersistentApplicationDeleteDisposition] = [
+            .preserveEmptySiteUnlessExplicitlyDeleted,
+            .deleteSelectedAssetAfterDependents,
+            .deleteSelectedAssetWorkflowRecords,
+            .deleteSelectedRecordEvidence,
+            .deleteSelectedAssetIssues,
+            .deleteUncountedPacketOrTombstoneCountedPacket,
+            .deleteSelectedPacketReports,
+        ]
+        let expectedDeleteRules: [PersistentSwiftDataDeleteRuleDisposition] = Array(
+            repeating: .noneNoSwiftDataRelationship,
+            count: expectedNames.count
+        )
+
+        XCTAssertEqual(registrations.count, 7)
+        XCTAssertEqual(registrations.map(\.stableName), expectedNames)
+        XCTAssertEqual(registrations.map(\.scalarReferences), expectedReferences)
+        XCTAssertEqual(registrations.map(\.scalarReferenceFields), expectedFields)
+        XCTAssertEqual(registrations.map(\.referenceStorageDisposition), expectedStorage)
+        XCTAssertEqual(
+            registrations.map(\.swiftDataDeleteRuleDisposition),
+            expectedDeleteRules
+        )
+        XCTAssertEqual(
+            PersistentModelCatalog.applicationDeleteRuleOwner,
+            "WholeSignDeletionRule + WholeSignDeletionService.apply(plan:rows:)"
+        )
+        XCTAssertEqual(
+            registrations.map(\.applicationDeleteRuleOwner),
+            Array(
+                repeating: PersistentModelCatalog.applicationDeleteRuleOwner,
+                count: expectedNames.count
+            )
+        )
+        XCTAssertEqual(
+            registrations.map(\.applicationDeleteDisposition),
+            expectedDeleteDispositions
+        )
+
+        let deletionSource = try sourceText(
+            "FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift"
+        )
+        XCTAssertTrue(deletionSource.contains("WholeSignDeletionRule.makePlan("))
+        XCTAssertTrue(deletionSource.contains("modelContext.delete("))
+        XCTAssertTrue(deletionSource.contains("packet.currentRecordID = nil"))
+        XCTAssertTrue(deletionSource.contains("packet.evaluationCounted = true"))
+        XCTAssertTrue(
+            deletionSource.contains("packet.contentDeletedAt = tombstone.contentDeletedAt")
+        )
+
+        for index in registrations.indices {
+            XCTAssertEqual(
+                ObjectIdentifier(registrations[index].modelType),
+                ObjectIdentifier(expectedTypes[index]),
+                "catalog model mapping at index \(index)"
+            )
+        }
+        XCTAssertEqual(
+            modelTypeIDs(PersistentModelCatalog.models),
+            expectedTypes.map { ObjectIdentifier($0) }
+        )
+    }
+
+    func testV1ThroughV9RegistryKeepDistinctOrderedSchemas() throws {
+        XCTAssertEqual(PersistentSchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
+        XCTAssertEqual(PersistentSchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
+        XCTAssertEqual(PersistentSchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
+        XCTAssertEqual(PersistentSchemaV4.versionIdentifier, Schema.Version(4, 0, 0))
+        XCTAssertEqual(PersistentSchemaV5.versionIdentifier, Schema.Version(5, 0, 0))
+        XCTAssertEqual(PersistentSchemaV6.versionIdentifier, Schema.Version(6, 0, 0))
+        XCTAssertEqual(PersistentSchemaV7.versionIdentifier, Schema.Version(7, 0, 0))
+        XCTAssertEqual(PersistentSchemaV8.versionIdentifier, Schema.Version(8, 0, 0))
+        XCTAssertEqual(PersistentSchemaV9.versionIdentifier, Schema.Version(9, 0, 0))
+        XCTAssertEqual(PersistentSchemaV10.versionIdentifier, Schema.Version(10, 0, 0))
+        XCTAssertEqual(PersistentSchemaV11.versionIdentifier, Schema.Version(11, 0, 0))
+        XCTAssertEqual(
+            modelTypeIDs(PersistentSchemaV1.models),
+            modelTypeIDs(PersistentModelCatalog.models)
+        )
+        XCTAssertEqual(PersistentSchemaV1.models.count, 7)
+        XCTAssertEqual(PersistentSchemaV2.models.count, 8)
+        XCTAssertEqual(PersistentSchemaV3.models.count, 9)
+        XCTAssertEqual(PersistentSchemaV4.models.count, 13)
+        XCTAssertEqual(PersistentSchemaV5.models.count, 14)
+        XCTAssertEqual(PersistentSchemaV6.models.count, 20)
+        XCTAssertEqual(PersistentSchemaV7.models.count, 21)
+        XCTAssertEqual(PersistentSchemaV8.models.count, 22)
+        XCTAssertEqual(PersistentSchemaV9.models.count, 27)
+        XCTAssertEqual(PersistentSchemaV10.models.count, 33)
+        XCTAssertEqual(PersistentSchemaV11.models.count, 42)
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV2.models.dropLast())),
+            modelTypeIDs(PersistentModelCatalog.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(PersistentSchemaV2.models).last,
+            ObjectIdentifier(PersistentSchemaReleaseMarker.self)
+        )
+        XCTAssertNotEqual(
+            modelTypeIDs(PersistentSchemaV1.models),
+            modelTypeIDs(PersistentSchemaV2.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV3.models.dropLast())),
+            modelTypeIDs(PersistentSchemaV2.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(PersistentSchemaV3.models).last,
+            ObjectIdentifier(DeletionLedgerRow.self)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV4.models.dropLast(4))),
+            modelTypeIDs(PersistentSchemaV3.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV4.models.suffix(4))),
+            [
+                ObjectIdentifier(MutationReceiptRow.self),
+                ObjectIdentifier(MutationQuarantineRow.self),
+                ObjectIdentifier(WorkspaceMutationStateRow.self),
+                ObjectIdentifier(EntityMutationRevisionRow.self),
+            ]
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV5.models.dropLast())),
+            modelTypeIDs(PersistentSchemaV4.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(PersistentSchemaV5.models).last,
+            ObjectIdentifier(ObservationAndTimeRow.self)
+        )
+        XCTAssertNotEqual(
+            modelTypeIDs(PersistentSchemaV5.models),
+            modelTypeIDs(PersistentSchemaV4.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV6.models.dropLast(6))),
+            modelTypeIDs(PersistentSchemaV5.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV6.models.suffix(6))),
+            [
+                ObjectIdentifier(LocationNodeRow.self),
+                ObjectIdentifier(LocationHierarchyEventRow.self),
+                ObjectIdentifier(AssetPlacementEventRow.self),
+                ObjectIdentifier(AssetCompositionEdgeRow.self),
+                ObjectIdentifier(AssetCompositionEventRow.self),
+                ObjectIdentifier(LocationMigrationReceiptRow.self),
+            ]
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV7.models.dropLast())),
+            modelTypeIDs(PersistentSchemaV6.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(PersistentSchemaV7.models).last,
+            ObjectIdentifier(SavedSmartViewRowV1.self)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV8.models.dropLast())),
+            modelTypeIDs(PersistentSchemaV7.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(PersistentSchemaV8.models).last,
+            ObjectIdentifier(RequirementAssuranceRow.self)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV9.models.dropLast(5))),
+            modelTypeIDs(PersistentSchemaV8.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV9.models.suffix(5))),
+            [
+                ObjectIdentifier(ServicePartyRow.self),
+                ObjectIdentifier(SitePartyRoleEventRow.self),
+                ObjectIdentifier(ActorSnapshotRow.self),
+                ObjectIdentifier(QualificationSnapshotRow.self),
+                ObjectIdentifier(SignoffSnapshotRow.self),
+            ]
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV10.models.dropLast(6))),
+            modelTypeIDs(PersistentSchemaV9.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV10.models.suffix(6))),
+            [
+                ObjectIdentifier(AssetKindBindingEventRow.self),
+                ObjectIdentifier(AssetWorkflowCapabilityBindingEventRow.self),
+                ObjectIdentifier(AssetProductIdentityRow.self),
+                ObjectIdentifier(AssetLifecycleEventRow.self),
+                ObjectIdentifier(AssetSuccessorLinkRow.self),
+                ObjectIdentifier(WorkSubjectScopeSnapshotRow.self),
+            ]
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV11.models.dropLast(9))),
+            modelTypeIDs(PersistentSchemaV10.models)
+        )
+        XCTAssertEqual(
+            modelTypeIDs(Array(PersistentSchemaV11.models.suffix(9))),
+            [
+                ObjectIdentifier(AuthoritySourceReleaseRow.self),
+                ObjectIdentifier(RequirementBasisBindingRow.self),
+                ObjectIdentifier(ApplicabilityContextSnapshotRow.self),
+                ObjectIdentifier(AssessmentScopeSnapshotRow.self),
+                ObjectIdentifier(SeverityScaleReleaseRow.self),
+                ObjectIdentifier(FindingClassificationBindingRow.self),
+                ObjectIdentifier(MeasurementProtocolReleaseRow.self),
+                ObjectIdentifier(DerivedFactEvaluatorDescriptorRow.self),
+                ObjectIdentifier(DerivedFactProvenanceRow.self),
+            ]
+        )
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.releases,
+            [.v1, .v2, .v3, .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11, .v12, .v13, .v14, .v15, .v16, .v17, .v18, .v19, .v20, .v21, .v22, .v23, .v24, .v25, .v26, .v27, .v28, .v29, .v30, .v31, .v32, .v33, .v34, .v35, .v36, .v37, .v38, .v39, .v40, .v41, .v42, .v43, .v44, .v45, .v46, .v47, .v48, .v49, .v50, .v51, .v52, .v53]
+        )
+        // Expectation change (2026-09-25, V23-on-S10 integration): this pin
+        // asserts the CURRENT active release. It was last written when V42
+        // (MY_DAY_PLAN_V1) was active; V43..V53 have since landed, and V53
+        // (LIGHTING_NIGHT_WORKFLOW_V1, commit e2278831) is the active release
+        // in PersistentSchemaReleaseRegistryV1. Adding V54 must update this
+        // exact list and the active pins below.
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v53)
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease.compatibilityID, "LIGHTING_NIGHT_WORKFLOW_V1")
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.activeVersionIdentifier,
+            PersistentSchemaV53.versionIdentifier
+        )
+        XCTAssertEqual(PersistentSchemaV53.versionIdentifier, Schema.Version(53, 0, 0))
+        XCTAssertEqual(
+            PersistentSchemaReleaseRegistryV1.activeCompatibilityID,
+            PersistentSchemaReleaseRegistryV1.v53CompatibilityID
+        )
+        XCTAssertEqual(
+            ObjectIdentifier(PersistentSchemaReleaseRegistryV1.activeMigrationPlan),
+            ObjectIdentifier(PersistentSchemaMigrationPlanV52.self)
+        )
+        XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV1.schemas.map {
+                ObjectIdentifier($0)
+            },
+            [
+                ObjectIdentifier(PersistentSchemaV1.self),
+                ObjectIdentifier(PersistentSchemaV2.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV1.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV2.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV2.self),
+                ObjectIdentifier(PersistentSchemaV3.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV2.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV3.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV3.self),
+                ObjectIdentifier(PersistentSchemaV4.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV3.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV4.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV4.self),
+                ObjectIdentifier(PersistentSchemaV5.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV4.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV5.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV5.self),
+                ObjectIdentifier(PersistentSchemaV6.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV5.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV6.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV6.self),
+                ObjectIdentifier(PersistentSchemaV7.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV6.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV7.schemas.map { ObjectIdentifier($0) },
+            [ObjectIdentifier(PersistentSchemaV7.self), ObjectIdentifier(PersistentSchemaV8.self)]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV7.stages.count, 1)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v4.migrationStage, .lightweight)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v5.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v6.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v7.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v8.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v9.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v10.migrationStage, .custom)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v11.migrationStage, .custom)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV8.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV8.self),
+                ObjectIdentifier(PersistentSchemaV9.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV8.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV9.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV9.self),
+                ObjectIdentifier(PersistentSchemaV10.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV9.stages.count, 1)
+        XCTAssertEqual(
+            PersistentSchemaMigrationPlanV10.schemas.map { ObjectIdentifier($0) },
+            [
+                ObjectIdentifier(PersistentSchemaV10.self),
+                ObjectIdentifier(PersistentSchemaV11.self),
+            ]
+        )
+        XCTAssertEqual(PersistentSchemaMigrationPlanV10.stages.count, 1)
+
+        let factorySource = try sourceText(
+            "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+        )
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV1.makeSchema()"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: nil"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV2"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV3"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV4"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV5"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV6"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV7"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV8"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV9"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV10"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaV11"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaMigrationPlanV8.self"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaMigrationPlanV9.self"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaMigrationPlanV10.self"))
+        XCTAssertTrue(factorySource.contains("PersistentSchemaReleaseMarker"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: PersistentSchemaMigrationPlanV1.self"))
+        // Expectation change (2026-09-25): StoreGenerationFactory now opens
+        // V4+ stores with `migrationPlan: migrate ? PlanN.self : nil` (the
+        // migrate flag distinguishes bootstrap from forward migration), so the
+        // unconditional spelling no longer exists. The pins below are the
+        // real current source text. The CloudKit pin previously counted 11
+        // spaced `cloudKitDatabase: .none` configurations; the factory now
+        // declares one configuration per release (V1..V53) plus bootstrap and
+        // recovery helpers, in both spaced and compact spelling. The
+        // invariant it protects is that EVERY ModelConfiguration is local
+        // only, so it is now asserted as an equality with the real count.
+        XCTAssertTrue(factorySource.contains("migrationPlan: migrate ? PersistentSchemaMigrationPlanV4.self : nil"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: migrate ? PersistentSchemaMigrationPlanV5.self : nil"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: migrate ? PersistentSchemaMigrationPlanV6.self : nil"))
+        XCTAssertTrue(factorySource.contains("migrationPlan: migrate ? PersistentSchemaMigrationPlanV7.self : nil"))
+        let factoryConfigurationCount =
+            factorySource.components(separatedBy: "ModelConfiguration(").count - 1
+        let factoryLocalOnlyCount =
+            (factorySource.components(separatedBy: "cloudKitDatabase: .none").count - 1)
+            + (factorySource.components(separatedBy: "cloudKitDatabase:.none").count - 1)
+        XCTAssertGreaterThanOrEqual(
+            factoryConfigurationCount,
+            PersistentSchemaReleaseRegistryV1.releases.count
+        )
+        XCTAssertEqual(factoryLocalOnlyCount, factoryConfigurationCount)
+        XCTAssertEqual(
+            factorySource.components(separatedBy: "cloudKitDatabase").count - 1,
+            factoryLocalOnlyCount
+        )
+        XCTAssertFalse(factorySource.contains("cloudKitDatabase: .automatic"))
+        XCTAssertFalse(factorySource.contains("NSPersistentCloudKitContainer"))
+
+        let sources = try productionSwiftSources()
+        XCTAssertEqual(
+            sources.filter { $0.text.contains("ModelConfiguration(") }
+                .map(\.relativePath),
+            ["Infrastructure/Persistence/StoreGenerationFactory.swift"]
+        )
+        XCTAssertEqual(
+            sources.filter { $0.text.contains("ModelContainer(") }
+                .map(\.relativePath),
+            ["Infrastructure/Persistence/StoreGenerationFactory.swift"]
+        )
+
+        let schemaSource = try sourceText(
+            "FieldEvidenceApp/Infrastructure/Persistence/PersistentSchemas.swift"
+        )
+        let v2Body = try XCTUnwrap(
+            schemaSource.components(separatedBy: "enum PersistentSchemaV2").last
+        )
+        XCTAssertFalse(v2Body.contains("static func makeSchema"))
+    }
+
+    func testFixedIdentityWrappersAndBoundedRestoreCollisionHandling() throws {
+        let workspaceRaw = fixedUUID("00000000-0000-0000-0000-000000000001")
+        let sourceRaw = fixedUUID("00000000-0000-0000-0000-000000000002")
+        let blockedRaw = fixedUUID("00000000-0000-0000-0000-000000000003")
+        let destinationRaw = fixedUUID("00000000-0000-0000-0000-000000000004")
+
+        let workspace = WorkspaceID(rawValue: workspaceRaw)
+        XCTAssertEqual(workspace.rawValue, workspaceRaw)
+        XCTAssertEqual(WorkspaceID(rawValue: workspaceRaw), workspace)
+
+        let siteID = SiteID(rawValue: workspaceRaw)
+        let assetID = AssetID(rawValue: workspaceRaw)
+        XCTAssertEqual(siteID.rawValue, workspaceRaw)
+        XCTAssertEqual(assetID.rawValue, workspaceRaw)
+        XCTAssertNotEqual(siteID.rawValue, sourceRaw)
+
+        let source = ReplicaID(rawValue: sourceRaw)
+        let blocked = ReplicaID(rawValue: blockedRaw)
+        var candidates = [sourceRaw, blockedRaw, destinationRaw]
+        var candidateIndex = 0
+        let destination = try ReplicaID.destinationOwnedForRestore(
+            excluding: source,
+            disallowed: Set([blocked]),
+            maximumAttempts: candidates.count,
+            generate: {
+                defer { candidateIndex += 1 }
+                return candidates[candidateIndex]
+            }
+        )
+        XCTAssertEqual(destination.rawValue, destinationRaw)
+        XCTAssertNotEqual(destination, source)
+        XCTAssertNotEqual(destination, blocked)
+
+        var attempts = 0
+        XCTAssertThrowsError(
+            try ReplicaID.destinationOwnedForRestore(
+                excluding: source,
+                maximumAttempts: 2,
+                generate: {
+                    attempts += 1
+                    return sourceRaw
+                }
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? ReplicaIdentityFailure,
+                .destinationIdentityExhausted
+            )
+        }
+        XCTAssertEqual(attempts, 2)
+
+        var generatedAtZeroBound = false
+        XCTAssertThrowsError(
+            try ReplicaID.destinationOwnedForRestore(
+                excluding: source,
+                maximumAttempts: 0,
+                generate: {
+                    generatedAtZeroBound = true
+                    return destinationRaw
+                }
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? ReplicaIdentityFailure,
+                .destinationIdentityExhausted
+            )
+        }
+        XCTAssertFalse(generatedAtZeroBound)
+    }
+
+    func testDeletionLedgerV2IsClosedSortedTypedAndAppendOnlyByUnion() throws {
+        XCTAssertEqual(
+            DeletionRecordKindV2.allCases,
+            [
+                .site, .asset, .workflowRecord, .evidenceFile, .issue, .packet, .report,
+                .acceptedLabelGenerationSnapshot,
+            ]
+        )
+        XCTAssertEqual(DeletionLedgerV2.maximumEntryCount, 100_000)
+        XCTAssertNil(DeletionRecordKindV2(rawValue: "tag"))
+
+        let id = fixedUUID("00000000-0000-0000-0000-000000000101")
+        let identity = try DeletionIdentityV2(kind: .packet, id: id)
+        XCTAssertEqual(identity.typedID, "packet:00000000-0000-0000-0000-000000000101")
+        XCTAssertEqual(try DeletionIdentityV2(typedID: identity.typedID), identity)
+
+        let later = try DeletionLedgerEntryV2(
+            identity: identity,
+            deletedAt: Date(timeIntervalSince1970: 20)
+        )
+        let earlier = try DeletionLedgerEntryV2(
+            identity: identity,
+            deletedAt: Date(timeIntervalSince1970: 10)
+        )
+        let union = try DeletionLedgerV2(entries: [later]).union(
+            DeletionLedgerV2(entries: [earlier])
+        )
+        XCTAssertEqual(union.entries, [earlier])
+        XCTAssertEqual(try union.canonicalData(), try union.canonicalData())
+    }
+
+    @MainActor
+    func testFutureAndMalformedV2PointersFailBeforeModelStoreInspection() throws {
+        let cases: [(String, (UUID) throws -> Data, StoreMigrationFailure)] = [
+            (
+                "future",
+                { generationID in
+                    try StoreMigrationCanonicalJSONV1.encode(
+                        FuturePointer(schemaVersion: 4)
+                    )
+                },
+                StoreMigrationFailure.maintenanceRequired(.futureVersion)
+            ),
+            (
+                "malformed-v2",
+                { generationID in
+                    try StoreMigrationCanonicalJSONV1.encode(
+                        MalformedV2Pointer(
+                            generationID: generationID.uuidString.lowercased(),
+                            generationManifestSHA256: "not-a-digest"
+                        )
+                    )
+                },
+                StoreMigrationFailure.invalidDigest
+            ),
+        ]
+
+        for (name, makePointer, expectedError) in cases {
+            let root = try makeTemporaryApplicationSupportURL(
+                suffix: "Pointer-\(name)"
+            )
+            defer { try? fileManager.removeItem(at: root) }
+            let (factory, generationID, modelURL) = try bootstrapGeneration(at: root)
+            try fileManager.removeItem(at: modelURL)
+            try makePointer(generationID).write(
+                to: currentPointerURL(in: root),
+                options: .atomic
+            )
+
+            XCTAssertThrowsError(try factory.openOrBootstrapCurrent(), name) { error in
+                XCTAssertEqual(error as? StoreMigrationFailure, expectedError, name)
+            }
+            XCTAssertFalse(fileManager.fileExists(atPath: modelURL.path), name)
+        }
+    }
+
+    @MainActor
+    func testFutureRetiredPointerFailsBeforeModelStoreInspection() throws {
+        let root = try makeTemporaryApplicationSupportURL(
+            suffix: "RetiredPointer-future"
+        )
+        defer { try? fileManager.removeItem(at: root) }
+        let (factory, _, modelURL) = try bootstrapGeneration(at: root)
+        try fileManager.removeItem(at: modelURL)
+        try StoreMigrationCanonicalJSONV1.encode(
+            FutureRetiredPointer(generationIDs: [], schemaVersion: 4)
+        ).write(to: retiredPointerURL(in: root), options: .atomic)
+
+        XCTAssertThrowsError(try factory.openOrBootstrapCurrent()) { error in
+            XCTAssertEqual(error as? StoreGenerationFailure, .dataPointerInvalid)
+        }
+        XCTAssertFalse(fileManager.fileExists(atPath: modelURL.path))
+    }
+
+    @MainActor
+    func testV4BootstrapAndReopenPersistV4ManifestAndMarker() throws {
+        let root = try makeTemporaryApplicationSupportURL(suffix: "V5Bootstrap")
+        defer { try? fileManager.removeItem(at: root) }
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        var opened: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        let generationID = try XCTUnwrap(opened).generationID
+        let workspaceID = try XCTUnwrap(opened).workspaceID
+        let replicaID = try XCTUnwrap(opened).replicaID
+        let pointerData = try Data(contentsOf: currentPointerURL(in: root))
+        let pointer = try CurrentGenerationPointerV3.decodeCanonical(from: pointerData)
+        XCTAssertEqual(pointer.generationID, generationID.uuidString.lowercased())
+        XCTAssertEqual(pointer.schemaVersion, 3)
+        // Expectation change (2026-09-25): a fresh bootstrap writes the
+        // ACTIVE store release. This pin was written when V8 was active; the
+        // active release is now V53 (LIGHTING_NIGHT_WORKFLOW_V1, e2278831),
+        // whose predecessor is V52. The exact values are pinned so any
+        // accidental drift of the bootstrap release still fails here.
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v53)
+        XCTAssertEqual(pointer.storeSchemaVersion, 53)
+        XCTAssertEqual(
+            pointer.workspaceID,
+            workspaceID.rawValue.uuidString.lowercased()
+        )
+        XCTAssertEqual(
+            pointer.replicaID,
+            replicaID.rawValue.uuidString.lowercased()
+        )
+
+        let migrationStore = try StoreMigrationJournalStoreV1(
+            applicationSupportURL: root
+        )
+        let manifest = try migrationStore.loadManifest(
+            targetGenerationID: generationID,
+            expectedDigest: pointer.generationManifestSHA256
+        )
+        XCTAssertEqual(manifest.storeSchemaRelease, .v53)
+        XCTAssertEqual(manifest.generationID, generationID)
+        XCTAssertTrue(manifest.files.contains { $0.relativePath == "model.sqlite" })
+
+        let markers = try XCTUnwrap(opened).modelContext.fetch(
+            FetchDescriptor<PersistentSchemaReleaseMarker>()
+        )
+        let marker = try XCTUnwrap(markers.first)
+        XCTAssertEqual(markers.count, 1)
+        XCTAssertEqual(marker.id, PersistentSchemaReleaseRegistryV1.v2MarkerID)
+        XCTAssertEqual(marker.schemaVersion, 53)
+        XCTAssertEqual(
+            marker.releaseID,
+            PersistentSchemaReleaseRegistryV1.v53CompatibilityID
+        )
+        XCTAssertEqual(
+            marker.predecessorReleaseID,
+            PersistentSchemaReleaseRegistryV1.v52CompatibilityID
+        )
+        XCTAssertNotNil(marker.migrationID)
+        let markerMigrationID = marker.migrationID
+        let siteID = fixedUUID("00000000-0000-0000-0000-000000000491")
+        let assetID = fixedUUID("00000000-0000-0000-0000-000000000492")
+        let mutationID = try MutationIDV1(
+            rawValue: fixedUUID("00000000-0000-0000-0000-000000000493")
+        )
+        let placementEventID = fixedUUID("00000000-0000-0000-0000-000000000494")
+        let physicalEpisodeID = try PhysicalPlacementEpisodeIDV1(
+            rawValue: fixedUUID("00000000-0000-0000-0000-000000000495")
+        )
+        var coordinator: StoreSessionCoordinator? = StoreSessionCoordinator(
+            session: try XCTUnwrap(opened)
+        )
+        let revision = try XCTUnwrap(coordinator).workspaceWriter.currentRevision()
+        let expected = try WorkspaceExpectedRevisionV1(
+            workspaceID: revision.workspaceID,
+            generationID: revision.generationID,
+            writerInstanceID: revision.writerInstanceID,
+            workspaceRevision: revision.revision,
+            entityRevisions: [
+                .init(
+                    identity: try WorkspaceEntityIdentityV1(kind: .site, id: siteID),
+                    revision: 0
+                ),
+                .init(
+                    identity: try WorkspaceEntityIdentityV1(kind: .asset, id: assetID),
+                    revision: 0
+                ),
+                .init(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .assetPlacementEvent,
+                        id: placementEventID
+                    ),
+                    revision: 0
+                ),
+            ]
+        )
+        _ = try XCTUnwrap(coordinator).workspaceWriter.execute(.init(
+            mutationID: mutationID,
+            expectedRevision: expected,
+            command: .createFirstSign(.init(
+                siteID: siteID,
+                newSite: .init(id: siteID, label: "V5 relaunch", address: nil, timeZoneID: "UTC"),
+                assetID: assetID,
+                assetLabel: "V5 asset",
+                packID: "v5.test.pack",
+                packSchemaVersion: 1,
+                packContentVersion: 1,
+                createdAt: Date(timeIntervalSince1970: 1_800_004_900),
+                initialPlacementMutationID: mutationID,
+                initialPlacementEventID: placementEventID,
+                initialPhysicalEpisodeID: physicalEpisodeID
+            ))
+        ))
+        XCTAssertNotNil(
+            try XCTUnwrap(coordinator).workspaceWriter.durableReceipt(mutationID: mutationID)
+        )
+        coordinator = nil
+        opened = nil
+
+        let reopened = try factory.openOrBootstrapCurrent()
+        XCTAssertEqual(reopened.generationID, generationID)
+        XCTAssertEqual(reopened.workspaceID, workspaceID)
+        XCTAssertEqual(reopened.replicaID, replicaID)
+        let reopenedMarkers = try reopened.modelContext.fetch(
+            FetchDescriptor<PersistentSchemaReleaseMarker>()
+        )
+        XCTAssertEqual(reopenedMarkers.count, 1)
+        XCTAssertEqual(
+            try XCTUnwrap(reopenedMarkers.first).migrationID,
+            markerMigrationID
+        )
+        let reopenedJournal = try MutationJournalStoreV1(
+            modelContext: reopened.modelContext,
+            identity: .init(workspaceID: workspaceID, replicaID: replicaID),
+            generationID: generationID,
+            allowStateBootstrap: false
+        )
+        XCTAssertNotNil(try reopenedJournal.receipt(mutationID: mutationID))
+        XCTAssertNoThrow(
+            try MutationReceiptRecoveryServiceV1(store: reopenedJournal)
+                .recoverBeforeWriterActivation()
+        )
+
+        let persistedSite = try XCTUnwrap(reopened.modelContext.fetch(
+            FetchDescriptor<Site>(predicate: #Predicate { $0.id == siteID })
+        ).first)
+        persistedSite.label = "Semantically corrupted after receipt"
+        try reopened.modelContext.save()
+        XCTAssertThrowsError(
+            try MutationReceiptRecoveryServiceV1(store: reopenedJournal)
+                .recoverBeforeWriterActivation()
+        ) {
+            XCTAssertEqual($0 as? WorkspaceMutationFailureV1, .receiptHistoryCorrupt)
+        }
+    }
+
+    private struct ProductionSource {
+        let relativePath: String
+        let text: String
+    }
+
+    private var repositoryRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    private func sourceText(_ relativePath: String) throws -> String {
+        try String(
+            decoding: Data(
+                contentsOf: repositoryRoot.appendingPathComponent(relativePath)
+            ),
+            as: UTF8.self
+        )
+    }
+
+    private func productionSwiftSources() throws -> [ProductionSource] {
+        let root = repositoryRoot.appendingPathComponent("FieldEvidenceApp")
+        let enumerator = try XCTUnwrap(
+            fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+        )
+        var sources: [ProductionSource] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            let relative = url.path
+                .replacingOccurrences(of: root.path, with: "")
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\\/"))
+                .replacingOccurrences(of: "\\", with: "/")
+            sources.append(
+                ProductionSource(
+                    relativePath: relative,
+                    text: String(decoding: try Data(contentsOf: url), as: UTF8.self)
+                )
+            )
+        }
+        return sources.sorted { $0.relativePath < $1.relativePath }
+    }
+
+    @MainActor
+    private func bootstrapGeneration(at root: URL) throws -> (
+        factory: StoreGenerationFactory,
+        generationID: UUID,
+        modelURL: URL
+    ) {
+        let factory = StoreGenerationFactory(applicationSupportURL: root)
+        var session: StoreGenerationSession? = try factory.openOrBootstrapCurrent()
+        let opened = try XCTUnwrap(session)
+        let generationID = opened.generationID
+        let modelURL = opened.generationRootURL.appendingPathComponent(
+            "model.sqlite",
+            isDirectory: false
+        )
+        session = nil
+        return (factory, generationID, modelURL)
+    }
+
+    private struct FuturePointer: Codable {
+        let schemaVersion: Int
+    }
+
+    private struct MalformedV2Pointer: Codable {
+        let generationID: String
+        let generationManifestSHA256: String
+        let storeSchemaVersion: Int = 2
+        let schemaVersion: Int = 2
+    }
+
+    private struct FutureRetiredPointer: Codable {
+        let generationIDs: [String]
+        let schemaVersion: Int
+    }
+
+    private func makeTemporaryApplicationSupportURL(
+        suffix: String = UUID().uuidString
+    ) throws -> URL {
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "V9_01VersionedSchemaIdentityTests-\(suffix)",
+            isDirectory: true
+        )
+        try? fileManager.removeItem(at: root)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    private func currentPointerURL(in root: URL) -> URL {
+        root
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent("current.json", isDirectory: false)
+    }
+
+    private func retiredPointerURL(in root: URL) -> URL {
+        root
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent("retired.json", isDirectory: false)
+    }
+
+    private func fixedUUID(_ value: String) -> UUID {
+        UUID(uuidString: value)!
+    }
+
+    private func modelTypeIDs(
+        _ models: [any PersistentModel.Type]
+    ) -> [ObjectIdentifier] {
+        models.map { ObjectIdentifier($0) }
+    }
+}
+
+final class C27V901TypedLocatorAnchorTests: XCTestCase {
+    func testAssetLocatorContractAnchor() throws {
+        XCTAssertEqual(AssetLocatorLimitsV1.maximumInputBytes, 1_024)
+        XCTAssertEqual(LocatorResolutionOutcomeV1.allCases.count, 8)
+        XCTAssertFalse(AssetLocatorLifecycleAdapterV1.resolutionGrantsAccess)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testC24AccessibleDocumentTypedAnchor() throws {
+        XCTAssertEqual(AccessibleDocumentSemanticTreeV1.schemaVersion, 1)
+        XCTAssertEqual(AccessibleDocumentRoleV1.allCases.count, 13)
+        XCTAssertEqual(AccessibleDocumentAssessmentStateV1.allCases.count, 4)
+        XCTAssertFalse(AccessibleDocumentLifecycleV1.pdfUAClaimed)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testC22RecoverabilityVerificationAnchor() throws {
+        XCTAssertEqual(RecoverabilityVerificationReceiptV1.schemaVersion, 1)
+        try V21RecoverabilityImportBoundaryV1.validate(persistent: 21, records: 20)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.receiptInsideVerifiedArchive)
+        XCTAssertFalse(RecoverabilityVerificationLifecycleV1.liveRestorePermitted)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C15ManifestAndHistorySchemasStayVersioned() throws {
+        let fixture = try C15WorkPacketManifestTestSupportV1.makeFixture(seed: 150_101)
+        XCTAssertEqual(fixture.manifest.schemaVersion, WorkPacketManifestV1.schemaVersion)
+        XCTAssertEqual(fixture.claim.schemaVersion, WorkItemClaimV1.schemaVersion)
+        XCTAssertEqual(fixture.lease.schemaVersion, WorkLeaseV1.schemaVersion)
+        XCTAssertEqual(
+            Set(fixture.manifest.items.map(\.kind)),
+            Set(WorkPacketItemKindV1.allCases)
+        )
+        XCTAssertEqual(fixture.manifestReference.manifestSHA256.count, 64)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C36SchemaIdentityAndCanonicalDraftRecordsAreVersioned() throws {
+        let fixture = try C36FieldDraftTestSupportV1.makeFixture()
+        XCTAssertEqual(FieldDraftCheckpointV1.schemaVersion, 1)
+        XCTAssertEqual(AttachmentStagingItemV1.schemaVersion, 1)
+        XCTAssertEqual(DraftCommitSagaV1.schemaVersion, 1)
+        XCTAssertEqual(DraftContentReservationV1.schemaVersion, 1)
+        XCTAssertEqual(FieldDraftStateV1.allCases.count, 7)
+        XCTAssertEqual(AttachmentStagingStateV1.allCases.count, 9)
+        XCTAssertEqual(DraftCommitSagaStateV1.allCases.count, 7)
+
+        let checkpointData = try FieldDraftCanonicalCodecV1.encode(fixture.activeCheckpoint)
+        let stagingData = try FieldDraftCanonicalCodecV1.encode(fixture.readyItem)
+        let planData = try FieldDraftCanonicalCodecV1.encode(fixture.plan)
+        let sagaData = try FieldDraftCanonicalCodecV1.encode(fixture.preparedSaga)
+        let reservationData = try FieldDraftCanonicalCodecV1.encode(fixture.reservation)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(FieldDraftCheckpointV1.self, from: checkpointData), fixture.activeCheckpoint)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(AttachmentStagingItemV1.self, from: stagingData), fixture.readyItem)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(DraftCommitPlanV1.self, from: planData), fixture.plan)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(DraftCommitSagaV1.self, from: sagaData), fixture.preparedSaga)
+        XCTAssertEqual(try FieldDraftCanonicalCodecV1.decode(DraftContentReservationV1.self, from: reservationData), fixture.reservation)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C41SchemaIdentityIncludesFunctionalRelationshipHistory() throws {
+        let fixture = try C41FunctionalRelationshipTestSupportV1.makeFixture()
+
+        XCTAssertEqual(PersistentSchemaV12.versionIdentifier, Schema.Version(12, 0, 0))
+        XCTAssertEqual(
+            PersistentSchemaReleaseV1.v12.compatibilityID,
+            "PERSISTENT_SCHEMA_V12_FUNCTIONAL_RELATIONSHIP_HISTORY"
+        )
+        XCTAssertTrue(
+            PersistentSchemaV12.models.contains {
+                ObjectIdentifier($0) == ObjectIdentifier(FunctionalRelationshipTypeDescriptorRow.self)
+            }
+        )
+        XCTAssertTrue(
+            PersistentSchemaV12.models.contains {
+                ObjectIdentifier($0) == ObjectIdentifier(AssetFunctionalRelationshipEventRow.self)
+            }
+        )
+        XCTAssertEqual(fixture.descriptor.schemaVersion, FunctionalRelationshipTypeDescriptorV1.schemaVersion)
+        XCTAssertEqual(fixture.added.schemaVersion, AssetFunctionalRelationshipEventV1.schemaVersion)
+        try fixture.descriptor.validate(
+            sourceCatalog: fixture.sourceCatalog, targetCatalog: fixture.targetCatalog
+        )
+        try fixture.added.validate()
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C13SchemaIdentityRegistersEvidenceAssuranceRows() throws {
+        let fixture = try C13EvidenceAssuranceTestSupportV1.makeFixture(seed: 51_901)
+
+        XCTAssertEqual(PersistentSchemaV13.versionIdentifier, Schema.Version(13, 0, 0))
+        XCTAssertEqual(
+            PersistentSchemaReleaseV1.v13.compatibilityID,
+            "PERSISTENT_SCHEMA_V13_EVIDENCE_ASSURANCE_HISTORY"
+        )
+        for rowType in [
+            ObjectIdentifier(EvidenceVisibilityRow.self),
+            ObjectIdentifier(ClaimEvidenceLinkRow.self),
+            ObjectIdentifier(AssuranceManifestRow.self),
+            ObjectIdentifier(AttestationRow.self)
+        ] {
+            XCTAssertTrue(PersistentSchemaV13.models.contains { ObjectIdentifier($0) == rowType })
+        }
+        XCTAssertEqual(fixture.routineVisibility.schemaVersion, EvidenceVisibilityV1.schemaVersion)
+        XCTAssertEqual(fixture.customerManifest.schemaVersion, AssuranceManifestV1.schemaVersion)
+        try fixture.customerAttestation.validate(manifest: fixture.customerManifest)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C14SchemaIdentityIsVersionedAndReviewHistoryTyped() throws {
+        let fixture = try C14InspectionReviewTestSupportV1.makeFixture(seed: 145_001)
+        XCTAssertEqual(InspectionReviewTransitionV1.schemaVersion, 1)
+        XCTAssertEqual(ReviewDispositionV1.schemaVersion, 1)
+        XCTAssertEqual(fixture.transitions.count, 7)
+        XCTAssertEqual(fixture.transitions.last?.toState, .amended)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C18SchemaIdentityRegistersEveryEvolutionReceiptKind() throws {
+        XCTAssertEqual(PackageSemanticGraphV1.schemaVersion, 1)
+        XCTAssertEqual(PackageSemanticDiffV1.schemaVersion, 1)
+        XCTAssertEqual(DraftUpgradePlanV1.schemaVersion, 1)
+        XCTAssertEqual(PackageSandboxRunV1.schemaVersion, 1)
+        XCTAssertEqual(PromotedPackageReleaseV1.schemaVersion, 1)
+        XCTAssertEqual(ActivePackageRegistryPointerV1.schemaVersion, 1)
+        XCTAssertEqual(PackagePromotionReceiptV1.schemaVersion, 1)
+        XCTAssertEqual(PackageEvolutionLifecycleV1.schema, "PACKAGE_EVOLUTION_V1")
+        XCTAssertTrue(PackageEvolutionLifecycleV1.persistent)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.migrationRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.backupRestoreRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.deleteEraseRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.exportReportRequired)
+        XCTAssertTrue(PackageEvolutionLifecycleV1.searchRebuildReplayRequired)
+        XCTAssertEqual(PackageSandboxCheckKindV1.allCases.count, 12)
+        XCTAssertEqual(PackageSemanticDiffClassificationV1.allCases.count, 5)
+    }
+
+    func testV23P03C19SchemaAddsFiveTypedMeasurementFamilies() throws {
+        let fixture = try C19MeasurementIntegrityTestSupport.makeFixture()
+        XCTAssertEqual(PersistentSchemaV18.versionIdentifier, Schema.Version(18, 0, 0))
+        XCTAssertEqual(PersistentSchemaV18.models.count, 73)
+        XCTAssertEqual(MeasurementIntegrityLifecycleCatalogV1.persistentKinds.count, 5)
+        try fixture.instrument.validate()
+    }
+
+    func testC20PrivacyTransformSchemaRegistersV19Rows() throws {
+        let fixture = try C20PrivacyTransformTestSupport.makeFixture()
+        XCTAssertEqual(PersistentSchemaV19.versionIdentifier, Schema.Version(19, 0, 0))
+        XCTAssertEqual(PersistentSchemaV19.models.count, 77)
+        XCTAssertTrue(PersistentSchemaV19.models.contains { ObjectIdentifier($0) == ObjectIdentifier(PrivacyTransformPolicyRow.self) })
+        XCTAssertEqual(fixture.policy.schemaVersion, PrivacyTransformPolicyV1.schemaVersion)
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testC21ClientCapabilityLifecycleAnchor() throws {
+        XCTAssertEqual(ClientCapabilityProfileV1.schemaVersion, 1)
+        XCTAssertEqual(ClientAdmissionV1.allCases.count, 5)
+        XCTAssertEqual(PackageLifecycleOperationV1.allCases.count, 9)
+        XCTAssertEqual(PersistentSchemaV20.models.count, 81)
+        XCTAssertNoThrow(try V20ClientCapabilityImportBoundaryV1.validate(persistent: 20, records: 19))
+    }
+}
+extension V9_01VersionedSchemaIdentityTests {
+    func testC25SurveyDefinitionTypedAnchor() throws {
+        XCTAssertEqual(PersistentSchemaV24.versionIdentifier, Schema.Version(24, 0, 0))
+        XCTAssertEqual(PersistentSchemaV24.models.count, 87)
+        XCTAssertEqual(PersistentSchemaV24.models.count, PersistentSchemaV23.models.count + 2)
+        // Expectation change (2026-09-25): C25 proved the V24 inventory had
+        // 87 persistent kinds. It compared that historical count with the
+        // growing `activePersistentModelNames`, which now spans V1..V53 (168).
+        // The historical fact is now pinned against the V1..V24 name slices,
+        // and the active inventory is bound to the active release's models.
+        let c25Catalog = CurrentSyncClassificationCatalogV1.self
+        let throughV24Names: [String] = c25Catalog.persistentModelNames
+            + c25Catalog.v6PersistentModelNames + c25Catalog.v7PersistentModelNames
+            + c25Catalog.v8PersistentModelNames + c25Catalog.v9PersistentModelNames
+            + c25Catalog.v10PersistentModelNames + c25Catalog.v11PersistentModelNames
+            + c25Catalog.v12PersistentModelNames + c25Catalog.v13PersistentModelNames
+            + c25Catalog.v14PersistentModelNames + c25Catalog.v15PersistentModelNames
+            + c25Catalog.v16PersistentModelNames + c25Catalog.v17PersistentModelNames
+            + c25Catalog.v18PersistentModelNames + c25Catalog.v19PersistentModelNames
+            + c25Catalog.v20PersistentModelNames + c25Catalog.v21PersistentModelNames
+            + c25Catalog.v22PersistentModelNames + c25Catalog.v23PersistentModelNames
+            + c25Catalog.v24PersistentModelNames
+        XCTAssertEqual(throughV24Names.count, 87)
+        XCTAssertEqual(Set(throughV24Names).count, 87)
+        XCTAssertEqual(
+            CurrentSyncClassificationCatalogV1.activePersistentModelNames.count,
+            PersistentSchemaReleaseRegistryV1.activeRelease.models.count
+        )
+        let currentSync = try CurrentSyncClassificationCatalogV1.current
+        XCTAssertNoThrow(try currentSync.validate())
+    }
+}
+extension V9_01VersionedSchemaIdentityTests {
+    func testC26SurveySessionTypedAnchor() throws {
+        XCTAssertEqual(ActivityKindSemanticsV1(kind: .survey).completion, .typedFactCollection)
+        XCTAssertFalse(ActivityKindSemanticsV1(kind: .survey).mayClaimInspectionResult)
+        XCTAssertEqual(SurveySessionStateV1.allCases.count, 8)
+        XCTAssertEqual(SurveySessionTransitionV1.allCases.count, 10)
+        XCTAssertNoThrow(try V25GuidedSurveyImportBoundaryV1.validate(persistent: 25, records: 24))
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testV23P03C28TypedScheduleBoundaryIsClosedAndNonpersistent() {
+        XCTAssertEqual(OccurrenceStateV1.allCases, [.upcoming, .ready, .due, .overdue, .deferred,
+                                                    .missed, .skipped, .cancelled, .started, .completed])
+        XCTAssertEqual(ScheduleReleaseActionV1.allCases.count, 6)
+        XCTAssertFalse(WorkflowScheduleBoundaryV1.dueProjectionMayStartWorkflow)
+    }
+}
+final class C31LightingAnchorV901VersionedSchemaIdentityTests: XCTestCase {
+    func testC31TypedLightingPackageContractAnchor() throws {
+        XCTAssertEqual(LightingPersistenceEnrollmentV1.persistentSchemaVersion, 31)
+        XCTAssertEqual(LightingClaimTierV1.allCases.count, 5)
+        XCTAssertTrue(LightingIssueKindV1.allCases.contains(.cameraBandingOnly))
+        try LightingLimitsV1.digest(String(repeating: "a", count: 64))
+    }
+}
+
+final class C33TemporalEvidenceAnchorV901VersionedSchemaIdentity: XCTestCase {
+    func testC33V901VersionedSchemaIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner() throws {
+        let value = try C33TemporalEvidenceTestSupport.ownerClip(
+            factID: "schema.temporal-evidence",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        try C33TemporalEvidenceTestSupport.assertOwnerBoundary(
+            value,
+            factID: "schema.temporal-evidence",
+            kind: .audio,
+            reportProjection: .typedLinkOnly
+        )
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: value.clip)
+        XCTAssertEqual(anchor.clipSHA256, value.clip.clipSHA256)
+        XCTAssertEqual(anchor.sourceContentID, value.clip.original.contentID)
+    }
+}
+
+final class C32AssistanceAnchorV901VersionedSchemaIdentity: XCTestCase {
+    func testC32V901VersionedSchemaIdentityCompatibilityKeepsProposalAtExplicitReviewBoundary() throws {
+        let proposal = try C32AssistanceTestSupport.ownerProposal(
+            entityKind: .asset,
+            fieldID: "schema.compatibility",
+            value: .text("schema-compatible manual value")
+        )
+        try C32AssistanceTestSupport.assertOwnerBoundary(
+            proposal,
+            entityKind: .asset,
+            fieldID: "schema.compatibility",
+            valueKind: .text
+        )
+        let canonical = try AssistanceCanonicalCodecV1.encode(proposal)
+        XCTAssertEqual(
+            try AssistanceCanonicalCodecV1.decode(AssistanceProposalV1.self, from: canonical),
+            proposal
+        )
+    }
+}
+final class C46V901VersionedSchemaIdentityCompatibilityTests: XCTestCase {
+    func testC46SchemaIdentityBindsOperationalContactDurableIdentity() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "schema-identity",
+            kind: .email,
+            handoff: .email,
+            slot: 46001
+        )
+    }
+}
+
+
+private enum C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift {
+    static let compatibilityCardID = "V23-P03-C47"
+    static let sharedEnvelopeDoesNotCollapseFamilyTruth = true
+    static let installationAndPunchReceiptsRemainIndependent = true
+    static let noPlanFallbackIsExplicit = true
+    static let surveyDefinitionOwnershipIsPreserved = true
+    static let legacyInspectionTruthIsNotRewritten = true
+    static let threeReceiptIsolationIsRequired = true
+}
+
+final class C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift_Tests: XCTestCase {
+    func testC47V901VersionedSchemaIdentityTestsOwnerCompatibilityIsTyped() {
+        XCTAssertEqual(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.compatibilityCardID, "V23-P03-C47")
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.sharedEnvelopeDoesNotCollapseFamilyTruth)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.installationAndPunchReceiptsRemainIndependent)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.noPlanFallbackIsExplicit)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.surveyDefinitionOwnershipIsPreserved)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.legacyInspectionTruthIsNotRewritten)
+        XCTAssertTrue(C47ActivityContractCompatibility_FieldEvidenceAppTests_V9_01VersionedSchemaIdentityTests_swift.threeReceiptIsolationIsRequired)
+        XCTAssertEqual(ActivityContractPersistenceEnrollmentV2.persistentFamilies.count, 6)
+        XCTAssertTrue(ActivityContractPersistenceEnrollmentV2.usesSoleWorkspaceWriter)
+    }
+}
+
+final class C48PortableReviewV901SchemaTests: XCTestCase {
+    func testC48DoesNotAdvanceCanonicalPersistentSchema() {
+        XCTAssertEqual(C48PortableReviewStoreGenerationBoundaryV1.activePersistentSchemaVersion, 36)
+        XCTAssertTrue(C48PortableReviewStoreGenerationBoundaryV1.semanticEnvelopeUnchanged)
+        XCTAssertTrue(C48PortableReviewStoreGenerationBoundaryV1.sessionStoreIsNonpersistent)
+        XCTAssertEqual(C48PortableExchangePersistentLifecycleBoundaryV2.canonicalRowsAdded, 0)
+    }
+}
+final class C49WorkResourceSchemaIdentityBoundaryTests: XCTestCase {
+    func testReleasedEntryAndPersistentSchemaIdentitiesAreExact() {
+        XCTAssertEqual(WorkResourceEntryV1.schemaVersion, 1)
+        XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.persistentSchemaVersion, 37)
+        XCTAssertEqual(C49WorkResourcePersistenceBoundaryV1.newlyEnrolledRows, ["ManualWorkResourceRecordRow"])
+    }
+}
+
+extension C50VersionedSchemaIdentityTests {
+    func testV23P03C51AdvancesToV38WithTwoScheduleRows() {
+        XCTAssertTrue(
+            C51ScheduleExceptionMigrationBoundaryV1.validate()
+                && PersistentSchemaV38.versionIdentifier == Schema.Version(38, 0, 0)
+                && C51ScheduleExceptionMigrationBoundaryV1.recordsVersion == 37
+                && PersistentSchemaV38.models.suffix(2).map { ObjectIdentifier($0) }
+                    == [
+                        ObjectIdentifier(ExceptionCalendarReleaseRow.self),
+                        ObjectIdentifier(ScheduleOverrideEventRow.self),
+                    ]
+        )
+    }
+}
+
+extension V9_01VersionedSchemaIdentityTests {
+    func testC05V43AddsExactlyTwoEvidenceMetadataHistoryModels() throws {
+        XCTAssertEqual(PersistentSchemaV42.versionIdentifier, Schema.Version(42, 0, 0))
+        XCTAssertEqual(PersistentSchemaV42.models.count, 142)
+        XCTAssertEqual(
+            PersistentSchemaV42.models.suffix(2).map { ObjectIdentifier($0) },
+            [ObjectIdentifier(MyDayPlanRowV1.self), ObjectIdentifier(MyDayCarryoverReceiptRowV1.self)]
+        )
+        XCTAssertEqual(PersistentSchemaV43.versionIdentifier, Schema.Version(43, 0, 0))
+        XCTAssertEqual(PersistentSchemaV43.models.count, 144)
+        XCTAssertEqual(
+            PersistentSchemaV43.models.suffix(2).map { ObjectIdentifier($0) },
+            [ObjectIdentifier(EvidenceAssociationEventRowV1.self), ObjectIdentifier(EvidenceSequenceRevisionRowV1.self)]
+        )
+        // Expectation change (2026-09-25): this is a HISTORICAL C05 fact
+        // ("C05 introduced V43"). It used to compare V43 with the active
+        // release, which has since advanced to V53. The V43 release is now
+        // pinned explicitly (position, identity, predecessor, plan) instead.
+        let releases = PersistentSchemaReleaseRegistryV1.releases
+        XCTAssertEqual(releases.firstIndex(of: .v43), 42)
+        XCTAssertEqual(releases[41], .v42)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v43.compatibilityID, "EVIDENCE_CURATION_V1")
+        XCTAssertEqual(PersistentSchemaReleaseRegistryV1.v43CompatibilityID, "EVIDENCE_CURATION_V1")
+        XCTAssertEqual(PersistentSchemaReleaseV1.v43.versionIdentifier,
+                       PersistentSchemaV43.versionIdentifier)
+        XCTAssertEqual(PersistentSchemaReleaseV1.v43.models.map { ObjectIdentifier($0) },
+                       PersistentSchemaV43.models.map { ObjectIdentifier($0) })
+        XCTAssertEqual(PersistentSchemaReleaseV1.v43.predecessorVersionIdentifier,
+                       PersistentSchemaV42.versionIdentifier)
+        XCTAssertNotEqual(PersistentSchemaReleaseRegistryV1.activeRelease, .v43)
+        XCTAssertEqual(PersistentSchemaMigrationPlanV42.schemas.map { ObjectIdentifier($0) },
+                       [ObjectIdentifier(PersistentSchemaV42.self), ObjectIdentifier(PersistentSchemaV43.self)])
+        XCTAssertNoThrow(try PersistentSchemaReleaseRegistryV1.validate())
+    }
+
+    func testV23P03C34SceneSnapshotRoundTripKeepsVersionAndStableIDs() throws {
+        let workspaceID = WorkspaceID(
+            rawValue: UUID(uuidString: "00000000-0000-4000-8000-000000003405")!
+        )
+        let stableEntityID = UUID(uuidString: "00000000-0000-4000-8000-000000003406")!
+        let target = try NavigationTargetV1(
+            workspaceID: workspaceID,
+            destination: .draftReview,
+            stableEntityID: stableEntityID,
+            fieldPosition: try FieldPositionAnchorV1(
+                sectionID: "section", fieldID: "field", boundedPosition: 2
+            )
+        )
+        let today = try NavigationTargetV1(workspaceID: workspaceID, destination: .today)
+        let assets = try NavigationTargetV1(workspaceID: workspaceID, destination: .assets)
+        let reports = try NavigationTargetV1(workspaceID: workspaceID, destination: .reports)
+        let snapshot = try SceneNavigationSnapshotV1(
+            workspaceID: workspaceID,
+            selectedRoot: .work,
+            paths: [
+                .init(root: .today, targets: [today]),
+                .init(root: .work, targets: [target]),
+                .init(root: .assets, targets: [assets]),
+                .init(root: .reports, targets: [reports]),
+            ],
+            snapshotID: UUID(uuidString: "00000000-0000-4000-8000-000000003407")!
+        )
+        let data = try RouteCanonicalCodecV1.encode(snapshot)
+        let decoded = try JSONDecoder().decode(SceneNavigationSnapshotV1.self, from: data)
+        XCTAssertEqual(snapshot.schemaVersion, SceneNavigationSnapshotV1.schemaVersion)
+        XCTAssertEqual(decoded, snapshot)
+        XCTAssertEqual(decoded.selectedTarget?.stableEntityID, stableEntityID)
+    }
+}

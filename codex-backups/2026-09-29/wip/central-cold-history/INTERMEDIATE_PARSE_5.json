@@ -1,0 +1,50 @@
+[
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "mode": "DEBUG",
+    "sourceSHA256": "b297c6815d3aa2582241a92661f77e36f2218d37af906cd3199a4c351418f5d6",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "mode": "nonDEBUG",
+    "sourceSHA256": "b297c6815d3aa2582241a92661f77e36f2218d37af906cd3199a4c351418f5d6",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "mode": "DEBUG",
+    "sourceSHA256": "761a755b1762889bff1a66a3ec79139d0a1f06eb977e8136c850456d6807fb64",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "mode": "nonDEBUG",
+    "sourceSHA256": "761a755b1762889bff1a66a3ec79139d0a1f06eb977e8136c850456d6807fb64",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "mode": "DEBUG",
+    "sourceSHA256": "2bd36f810d29d4e88d0aaafbe34a6b3b27727b8791ee517f078fcd9449087609",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "mode": "nonDEBUG",
+    "sourceSHA256": "2bd36f810d29d4e88d0aaafbe34a6b3b27727b8791ee517f078fcd9449087609",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

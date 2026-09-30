@@ -1,0 +1,770 @@
+{
+  "$id": "https://assetrounds.invalid/v23/functional-relationship.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "c35ReadOnly": {
+      "type": "boolean"
+    },
+    "cardID": {
+      "type": "string"
+    },
+    "claims": {
+      "additionalProperties": false,
+      "properties": {
+        "ARBITRARY_RELATIONSHIP_PAYLOAD": {
+          "type": "boolean"
+        },
+        "C35_STRUCTURAL_MUTATION": {
+          "type": "boolean"
+        },
+        "CASCADE_DELETION_OR_IDENTITY_MERGE": {
+          "type": "boolean"
+        },
+        "CURRENT_PROJECTION_PERSISTENCE": {
+          "type": "boolean"
+        },
+        "GIS_TELEMETRY_OR_REMOTE_COMMAND": {
+          "type": "boolean"
+        },
+        "OWNERSHIP_OR_AUTHORIZATION": {
+          "type": "boolean"
+        },
+        "S10_RELEASE_OR_BRAND_APPROVAL": {
+          "type": "boolean"
+        },
+        "SECOND_GRAPH_STORE_OR_WRITER": {
+          "type": "boolean"
+        },
+        "STRUCTURAL_COMPOSITION_OR_PLACEMENT": {
+          "type": "boolean"
+        },
+        "UNBOUNDED_GRAPH_OR_SOLVER": {
+          "type": "boolean"
+        },
+        "USER_CREATED_RELATIONSHIP_TYPES": {
+          "type": "boolean"
+        },
+        "acceptance": {
+          "type": "boolean"
+        },
+        "acceptanceCredit": {
+          "type": "boolean"
+        },
+        "adoption": {
+          "type": "boolean"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "native": {
+          "type": "boolean"
+        },
+        "release": {
+          "type": "boolean"
+        },
+        "releaseCredit": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ARBITRARY_RELATIONSHIP_PAYLOAD",
+        "C35_STRUCTURAL_MUTATION",
+        "CASCADE_DELETION_OR_IDENTITY_MERGE",
+        "CURRENT_PROJECTION_PERSISTENCE",
+        "GIS_TELEMETRY_OR_REMOTE_COMMAND",
+        "OWNERSHIP_OR_AUTHORIZATION",
+        "S10_RELEASE_OR_BRAND_APPROVAL",
+        "SECOND_GRAPH_STORE_OR_WRITER",
+        "STRUCTURAL_COMPOSITION_OR_PLACEMENT",
+        "UNBOUNDED_GRAPH_OR_SOLVER",
+        "USER_CREATED_RELATIONSHIP_TYPES",
+        "acceptance",
+        "acceptanceCredit",
+        "adoption",
+        "hosted",
+        "native",
+        "release",
+        "releaseCredit"
+      ],
+      "type": "object"
+    },
+    "completedSnapshots": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "boundInCompletedActivity": {
+            "type": "boolean"
+          },
+          "descriptorReleaseIDs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "frozen": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "relationshipIDs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "rewriteOnLaterChange": {
+            "type": "boolean"
+          },
+          "siteID": {
+            "type": "string"
+          },
+          "workspaceID": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "boundInCompletedActivity",
+          "descriptorReleaseIDs",
+          "frozen",
+          "id",
+          "relationshipIDs",
+          "rewriteOnLaterChange",
+          "siteID",
+          "workspaceID"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    },
+    "containsCustomerData": {
+      "type": "boolean"
+    },
+    "containsSecrets": {
+      "type": "boolean"
+    },
+    "currentProjectionPersistence": {
+      "type": "string"
+    },
+    "currentProjectionRows": {
+      "maxItems": 0,
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "directions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "dispositionPreviews": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "disposition": {
+            "type": "string"
+          },
+          "historyPreserved": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "writes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "disposition",
+          "historyPreserved",
+          "id",
+          "operation",
+          "writes"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "dispositions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "endpointKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "eventKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "hostileCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 20,
+      "minItems": 20,
+      "type": "array"
+    },
+    "interruptionCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "type": "array"
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreRequired": {
+          "type": "boolean"
+        },
+        "c35ReadOnly": {
+          "type": "boolean"
+        },
+        "canonicalWriter": {
+          "type": "string"
+        },
+        "compatibilityRequired": {
+          "type": "boolean"
+        },
+        "currentProjectionRowCount": {
+          "type": "integer"
+        },
+        "currentProjectionRows": {
+          "type": "integer"
+        },
+        "deleteEraseRequired": {
+          "type": "boolean"
+        },
+        "descriptorEventOnlyPersistence": {
+          "type": "boolean"
+        },
+        "downgrade": {
+          "type": "string"
+        },
+        "exportImportPreviewRequired": {
+          "type": "boolean"
+        },
+        "firstWriteEnrolled": {
+          "type": "boolean"
+        },
+        "legacyRelationshipRowsCreated": {
+          "type": "integer"
+        },
+        "lifecycleOwner": {
+          "type": "string"
+        },
+        "migration": {
+          "type": "string"
+        },
+        "nonPersistentFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "persistedFamilies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "predecessorRecordSchemaVersion": {
+          "type": "integer"
+        },
+        "predecessorSchemaVersion": {
+          "type": "integer"
+        },
+        "recordSchemaVersion": {
+          "type": "integer"
+        },
+        "recordsSchemaVersion": {
+          "type": "integer"
+        },
+        "schemaRelease": {
+          "type": "string"
+        },
+        "secondGraphStore": {
+          "type": "boolean"
+        },
+        "secondWriter": {
+          "type": "boolean"
+        },
+        "snapshotBinding": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "backupRestoreRequired",
+        "c35ReadOnly",
+        "canonicalWriter",
+        "compatibilityRequired",
+        "currentProjectionRowCount",
+        "currentProjectionRows",
+        "deleteEraseRequired",
+        "descriptorEventOnlyPersistence",
+        "downgrade",
+        "exportImportPreviewRequired",
+        "firstWriteEnrolled",
+        "legacyRelationshipRowsCreated",
+        "lifecycleOwner",
+        "migration",
+        "nonPersistentFamilies",
+        "persistedFamilies",
+        "predecessorRecordSchemaVersion",
+        "predecessorSchemaVersion",
+        "recordSchemaVersion",
+        "recordsSchemaVersion",
+        "schemaRelease",
+        "secondGraphStore",
+        "secondWriter",
+        "snapshotBinding"
+      ],
+      "type": "object"
+    },
+    "recoveryCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedDisposition": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedDisposition",
+          "id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "type": "array"
+    },
+    "relationshipDescriptors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "cyclePolicy": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "fromEndpointKind": {
+            "type": "string"
+          },
+          "hardEdge": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "localizedKey": {
+            "type": "string"
+          },
+          "maximumCardinality": {
+            "type": "integer"
+          },
+          "maximumTraversalDepth": {
+            "type": "integer"
+          },
+          "minimumCardinality": {
+            "type": "integer"
+          },
+          "packageReleaseID": {
+            "type": "string"
+          },
+          "qualifiedByC39": {
+            "type": "boolean"
+          },
+          "relationshipKind": {
+            "type": "string"
+          },
+          "released": {
+            "type": "boolean"
+          },
+          "sameSiteRequired": {
+            "type": "boolean"
+          },
+          "selfEdgeAllowed": {
+            "type": "boolean"
+          },
+          "semanticID": {
+            "type": "string"
+          },
+          "symmetric": {
+            "type": "boolean"
+          },
+          "toEndpointKind": {
+            "type": "string"
+          },
+          "workspaceRequired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cyclePolicy",
+          "direction",
+          "fromEndpointKind",
+          "hardEdge",
+          "id",
+          "localizedKey",
+          "maximumCardinality",
+          "maximumTraversalDepth",
+          "minimumCardinality",
+          "packageReleaseID",
+          "qualifiedByC39",
+          "relationshipKind",
+          "released",
+          "sameSiteRequired",
+          "selfEdgeAllowed",
+          "semanticID",
+          "symmetric",
+          "toEndpointKind",
+          "workspaceRequired"
+        ],
+        "type": "object"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "relationshipEvents": {
+      "items": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "actorID": {
+                "type": "string"
+              },
+              "descriptorReleaseID": {
+                "type": "string"
+              },
+              "effectiveAt": {
+                "type": "string"
+              },
+              "eventKind": {
+                "type": "string"
+              },
+              "expectedRevision": {
+                "type": "integer"
+              },
+              "id": {
+                "type": "string"
+              },
+              "mutationID": {
+                "type": "string"
+              },
+              "predecessorEventID": {
+                "type": "null"
+              },
+              "recordedAt": {
+                "type": "string"
+              },
+              "relationshipID": {
+                "type": "string"
+              },
+              "siteID": {
+                "type": "string"
+              },
+              "sourceAssetID": {
+                "type": "string"
+              },
+              "supersedesEventID": {
+                "type": "null"
+              },
+              "targetAssetID": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "actorID",
+              "descriptorReleaseID",
+              "effectiveAt",
+              "eventKind",
+              "expectedRevision",
+              "id",
+              "mutationID",
+              "predecessorEventID",
+              "recordedAt",
+              "relationshipID",
+              "siteID",
+              "sourceAssetID",
+              "supersedesEventID",
+              "targetAssetID",
+              "workspaceID"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "actorID": {
+                "type": "string"
+              },
+              "descriptorReleaseID": {
+                "type": "string"
+              },
+              "effectiveAt": {
+                "type": "string"
+              },
+              "eventKind": {
+                "type": "string"
+              },
+              "expectedRevision": {
+                "type": "integer"
+              },
+              "id": {
+                "type": "string"
+              },
+              "mutationID": {
+                "type": "string"
+              },
+              "predecessorEventID": {
+                "type": "string"
+              },
+              "recordedAt": {
+                "type": "string"
+              },
+              "relationshipID": {
+                "type": "string"
+              },
+              "siteID": {
+                "type": "string"
+              },
+              "sourceAssetID": {
+                "type": "string"
+              },
+              "supersedesEventID": {
+                "type": "null"
+              },
+              "targetAssetID": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "actorID",
+              "descriptorReleaseID",
+              "effectiveAt",
+              "eventKind",
+              "expectedRevision",
+              "id",
+              "mutationID",
+              "predecessorEventID",
+              "recordedAt",
+              "relationshipID",
+              "siteID",
+              "sourceAssetID",
+              "supersedesEventID",
+              "targetAssetID",
+              "workspaceID"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "actorID": {
+                "type": "string"
+              },
+              "descriptorReleaseID": {
+                "type": "string"
+              },
+              "effectiveAt": {
+                "type": "string"
+              },
+              "eventKind": {
+                "type": "string"
+              },
+              "expectedRevision": {
+                "type": "integer"
+              },
+              "id": {
+                "type": "string"
+              },
+              "mutationID": {
+                "type": "string"
+              },
+              "predecessorEventID": {
+                "type": "string"
+              },
+              "recordedAt": {
+                "type": "string"
+              },
+              "relationshipID": {
+                "type": "string"
+              },
+              "siteID": {
+                "type": "string"
+              },
+              "sourceAssetID": {
+                "type": "string"
+              },
+              "supersedesEventID": {
+                "type": "string"
+              },
+              "targetAssetID": {
+                "type": "string"
+              },
+              "workspaceID": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "actorID",
+              "descriptorReleaseID",
+              "effectiveAt",
+              "eventKind",
+              "expectedRevision",
+              "id",
+              "mutationID",
+              "predecessorEventID",
+              "recordedAt",
+              "relationshipID",
+              "siteID",
+              "sourceAssetID",
+              "supersedesEventID",
+              "targetAssetID",
+              "workspaceID"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "relationshipKinds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "requiredContractNames": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "c35ReadOnly",
+    "cardID",
+    "claims",
+    "completedSnapshots",
+    "containsCustomerData",
+    "containsSecrets",
+    "currentProjectionPersistence",
+    "currentProjectionRows",
+    "directions",
+    "dispositionPreviews",
+    "dispositions",
+    "endpointKinds",
+    "eventKinds",
+    "hostileCases",
+    "interruptionCases",
+    "persistence",
+    "recoveryCases",
+    "relationshipDescriptors",
+    "relationshipEvents",
+    "relationshipKinds",
+    "requiredContractNames",
+    "schema",
+    "schemaVersion",
+    "synthetic"
+  ],
+  "title": "V23 P03 C41 Functional Relationship Corpus",
+  "type": "object"
+}

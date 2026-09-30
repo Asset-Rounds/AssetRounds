@@ -1,0 +1,116 @@
+{
+  "schema": "V23P04C26SupportContentAccessibilityManifestV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C26",
+  "ordinal": 114,
+  "provisional": true,
+  "staticOnly": true,
+  "syntheticOnly": true,
+  "publicationEligible": false,
+  "publish": false,
+  "upload": false,
+  "networkAccess": false,
+  "dnsOrHosting": false,
+  "appStoreSubmission": false,
+  "finalCapture": false,
+  "containsRealCustomerData": false,
+  "containsLicensedAssets": false,
+  "appWideAccessibilityLabelAllowed": false,
+  "authority": {
+    "contextDigest": "657cdeb44c2f29b11522a55e4b003b5f83b740dbe9009e5e0a26b75d0297881e",
+    "pathFenceDigest": "7e9e7da91a051d0180435b8d724f3d790d5522388b18ee95403016a275c48d41"
+  },
+  "c15AccessibilityEvidence": {
+    "path": "docs/accessibility/V23P04C15StaticProofAccessibilityManifestV1.json",
+    "sha256": "1b9edc89e86716c27fb82365092112f8ce5b9794dd9a083279f0438d07361110",
+    "disposition": "BOUND_STATIC_PREDECESSOR_EVIDENCE_ONLY"
+  },
+  "accessibilityLabelGate": {
+    "status": "REQUIRED_BEFORE_ANY_LABEL",
+    "allCommonTaskEvidenceRequired": true,
+    "allDeviceFamilyEvidenceRequired": true,
+    "physicalEvidenceComplete": false,
+    "appWideClaimAllowed": false
+  },
+  "requiredEvidence": [
+    "VOICE_OVER",
+    "VOICE_CONTROL",
+    "LARGER_TEXT_200_PERCENT",
+    "DARK_AND_INCREASED_CONTRAST",
+    "REDUCE_MOTION",
+    "NON_COLOR_STATUS",
+    "PERMISSION_DENIAL",
+    "INTERRUPTION",
+    "ERROR_RECOVERY"
+  ],
+  "supportPages": [
+    {
+      "pageID": "LIGHTING_WORKFLOW_LIMITS",
+      "canonicalURLPath": "/support/lighting-workflow-limits",
+      "semanticHTMLRequired": true,
+      "visibleStructuredDataEqualityRequired": true,
+      "originalAuthorshipRequired": true,
+      "nearDuplicateReviewRequired": true,
+      "syntheticExamplesOnly": true,
+      "visibleLimitationsRequired": true
+    },
+    {
+      "pageID": "DAY_NIGHT_EVIDENCE",
+      "canonicalURLPath": "/support/day-night-evidence",
+      "semanticHTMLRequired": true,
+      "visibleStructuredDataEqualityRequired": true,
+      "originalAuthorshipRequired": true,
+      "nearDuplicateReviewRequired": true,
+      "syntheticExamplesOnly": true,
+      "visibleLimitationsRequired": true
+    },
+    {
+      "pageID": "SURVEY_VERSUS_INSPECTION",
+      "canonicalURLPath": "/support/survey-versus-inspection",
+      "semanticHTMLRequired": true,
+      "visibleStructuredDataEqualityRequired": true,
+      "originalAuthorshipRequired": true,
+      "nearDuplicateReviewRequired": true,
+      "syntheticExamplesOnly": true,
+      "visibleLimitationsRequired": true
+    },
+    {
+      "pageID": "QR_BARCODE_ROUNDS",
+      "canonicalURLPath": "/support/qr-barcode-rounds",
+      "semanticHTMLRequired": true,
+      "visibleStructuredDataEqualityRequired": true,
+      "originalAuthorshipRequired": true,
+      "nearDuplicateReviewRequired": true,
+      "syntheticExamplesOnly": true,
+      "visibleLimitationsRequired": true
+    },
+    {
+      "pageID": "OFFLINE_PLAN_REBASE",
+      "canonicalURLPath": "/support/offline-plan-rebase",
+      "semanticHTMLRequired": true,
+      "visibleStructuredDataEqualityRequired": true,
+      "originalAuthorshipRequired": true,
+      "nearDuplicateReviewRequired": true,
+      "syntheticExamplesOnly": true,
+      "visibleLimitationsRequired": true
+    },
+    {
+      "pageID": "ACCESSIBILITY_SUPPORT",
+      "canonicalURLPath": "/support/accessibility-and-support",
+      "semanticHTMLRequired": true,
+      "visibleStructuredDataEqualityRequired": true,
+      "originalAuthorshipRequired": true,
+      "nearDuplicateReviewRequired": true,
+      "syntheticExamplesOnly": true,
+      "visibleLimitationsRequired": true
+    }
+  ],
+  "statusFlags": {
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "publication": false,
+    "hosting": false,
+    "physicalEvidence": false
+  }
+}

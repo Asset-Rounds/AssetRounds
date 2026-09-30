@@ -1,0 +1,52 @@
+{
+  "authority": {
+    "appBaseHead": "fc21e6dbc57e3c0b72fbaaad00a5b4116d3e60f7",
+    "appBaseTree": "229edd42ff97a76786a16fc15905a65610006fb4",
+    "contextDigest": "8add3078bd1abace390df25dab4bbdd8c9943e966c22f6b1f0624ea29f8a57db",
+    "coordinationCASSequence": 347,
+    "coordinationHead": "d9f09107e9f48cee63fb08cc69b0874e4cdd94e3",
+    "coordinationLedgerDigest": "f6b74fdaeb299e925a7863f646e2331d6d927db0c4252969587822f48ab850c8",
+    "coordinationProjectionDigest": "9a9c3506571f01cbb4f98027e1974d73b0917aa36d64630ded0cf4b26a7b1e34",
+    "coordinationTree": "f57e28f951d1e78b2e08a75523171da69978a70b",
+    "directPrerequisites": [
+      "V23-P03-C36"
+    ],
+    "hydrationTransitionDigest": "5f77d824f31a3fffdffe655520250ddca89db0d57b8dc9d85f4be87b94f6e9b0",
+    "pathFenceDigest": "0e54c0aae93e45c906fc6870cf7ccfec05557223382ca5cd95776c793af69be4",
+    "priorFenceProof": {
+      "authorizedOverlapCount": 3820,
+      "fenceCount": 80,
+      "priorOwnedPathCount": 1314,
+      "unauthorizedOverlapCount": 0
+    },
+    "provisionalPrerequisiteDigest": "842e58295f9b31ebc59a36edcdd8a5b1fd08dfaddd4c5d818713cd4d96fbefc5"
+  },
+  "cardID": "V23-P03-C34",
+  "evidenceIDs": [
+    "V23-P03-C34-G01",
+    "V23-P03-C34-A01",
+    "V23-P03-C34-H01",
+    "V23-P03-C34-I01",
+    "V23-P03-C34-R01"
+  ],
+  "hostedDispatchEnabled": false,
+  "nativeCompileRan": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "schema": "V23P03C34RouteRegistryEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  }
+}

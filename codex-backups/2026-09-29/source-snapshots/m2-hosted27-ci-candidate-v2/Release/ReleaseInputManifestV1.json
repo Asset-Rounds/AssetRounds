@@ -1,0 +1,375 @@
+{
+  "inputs": [
+    {
+      "environmentKey": null,
+      "key": "age_rating_answers",
+      "requiredFor": "S9.3",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "ageRatingAnswers"
+    },
+    {
+      "environmentKey": null,
+      "key": "app_bundle_id",
+      "requiredFor": "S9.1",
+      "secret": false,
+      "source": "repository",
+      "status": "provided",
+      "valueKey": "appBundleID"
+    },
+    {
+      "environmentKey": null,
+      "key": "app_privacy_answers",
+      "requiredFor": "S9.3",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "appPrivacyAnswers"
+    },
+    {
+      "environmentKey": null,
+      "key": "app_review_information",
+      "requiredFor": "S9.3",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "appReviewInformation"
+    },
+    {
+      "environmentKey": "APP_STORE_CONNECT_API_ISSUER_ID",
+      "key": "app_store_connect_api_issuer_id",
+      "requiredFor": "S9.2",
+      "secret": true,
+      "source": "github_environment",
+      "status": "pending",
+      "valueKey": null
+    },
+    {
+      "environmentKey": "APP_STORE_CONNECT_API_KEY_ID",
+      "key": "app_store_connect_api_key_id",
+      "requiredFor": "S9.2",
+      "secret": true,
+      "source": "github_environment",
+      "status": "pending",
+      "valueKey": null
+    },
+    {
+      "environmentKey": "APP_STORE_CONNECT_API_PRIVATE_KEY_P8_BASE64",
+      "key": "app_store_connect_api_private_key",
+      "requiredFor": "S9.2",
+      "secret": true,
+      "source": "github_environment",
+      "status": "pending",
+      "valueKey": null
+    },
+    {
+      "environmentKey": null,
+      "key": "app_store_metadata",
+      "requiredFor": "S9.3",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "appStoreMetadata"
+    },
+    {
+      "environmentKey": null,
+      "key": "app_store_record",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "appStoreRecordID"
+    },
+    {
+      "environmentKey": null,
+      "key": "app_store_title_clearance",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "clearedAppStoreTitle"
+    },
+    {
+      "environmentKey": null,
+      "key": "apple_account_access",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "appleAccountAccessConfirmed"
+    },
+    {
+      "environmentKey": null,
+      "key": "apple_developer_program_membership",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "appleDeveloperProgramActive"
+    },
+    {
+      "environmentKey": null,
+      "key": "apple_developer_team_id",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "appleDeveloperTeamID"
+    },
+    {
+      "environmentKey": null,
+      "key": "banking_configuration",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "bankingConfigurationComplete"
+    },
+    {
+      "environmentKey": "APPLE_DISTRIBUTION_CERTIFICATE_P12_BASE64",
+      "key": "distribution_certificate_p12",
+      "requiredFor": "S9.2",
+      "secret": true,
+      "source": "github_environment",
+      "status": "pending",
+      "valueKey": null
+    },
+    {
+      "environmentKey": "APPLE_DISTRIBUTION_CERTIFICATE_PASSWORD",
+      "key": "distribution_certificate_password",
+      "requiredFor": "S9.2",
+      "secret": true,
+      "source": "github_environment",
+      "status": "pending",
+      "valueKey": null
+    },
+    {
+      "environmentKey": null,
+      "key": "export_compliance_answers",
+      "requiredFor": "S9.3",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "exportComplianceAnswers"
+    },
+    {
+      "environmentKey": null,
+      "key": "github_environment_configuration",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "githubEnvironmentConfigured"
+    },
+    {
+      "environmentKey": null,
+      "key": "live_billing_grace_period",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "liveBillingGracePeriodDays"
+    },
+    {
+      "environmentKey": null,
+      "key": "live_family_sharing_setting",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "liveFamilySharingEnabled"
+    },
+    {
+      "environmentKey": null,
+      "key": "live_introductory_offer",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "liveIntroductoryOfferDays"
+    },
+    {
+      "environmentKey": null,
+      "key": "live_subscription_group",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "liveSubscriptionGroupID"
+    },
+    {
+      "environmentKey": null,
+      "key": "live_subscription_price",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "liveSubscriptionPriceConfiguration"
+    },
+    {
+      "environmentKey": null,
+      "key": "live_subscription_product_configuration",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "liveSubscriptionProductConfigured"
+    },
+    {
+      "environmentKey": null,
+      "key": "live_subscription_storefronts",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "liveSubscriptionStorefronts"
+    },
+    {
+      "environmentKey": null,
+      "key": "monthly_product_id",
+      "requiredFor": "S9.1",
+      "secret": false,
+      "source": "repository",
+      "status": "provided",
+      "valueKey": "monthlyProductID"
+    },
+    {
+      "environmentKey": null,
+      "key": "named_sandbox_tester",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "namedSandboxTesterConfirmed"
+    },
+    {
+      "environmentKey": null,
+      "key": "owner_domain",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "ownerDomain"
+    },
+    {
+      "environmentKey": null,
+      "key": "paid_apps_agreement",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "paidAppsAgreementActive"
+    },
+    {
+      "environmentKey": null,
+      "key": "physical_iphone_access",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "physicalIPhoneAvailable"
+    },
+    {
+      "environmentKey": null,
+      "key": "privacy_policy_url",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "privacyPolicyURL"
+    },
+    {
+      "environmentKey": null,
+      "key": "release_build_number",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "releaseBuildNumber"
+    },
+    {
+      "environmentKey": null,
+      "key": "release_marketing_version",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "releaseMarketingVersion"
+    },
+    {
+      "environmentKey": null,
+      "key": "six_of_ten_commitment_evidence",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "sixOfTenCommitmentEvidenceConfirmed"
+    },
+    {
+      "environmentKey": null,
+      "key": "small_business_program_status",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "smallBusinessProgramStatusVerified"
+    },
+    {
+      "environmentKey": null,
+      "key": "support_email",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "supportEmail"
+    },
+    {
+      "environmentKey": null,
+      "key": "support_url",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "supportURL"
+    },
+    {
+      "environmentKey": null,
+      "key": "tax_configuration",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "app_store_connect",
+      "status": "pending",
+      "valueKey": "taxConfigurationComplete"
+    },
+    {
+      "environmentKey": null,
+      "key": "terms_of_use_url",
+      "requiredFor": "S9.2",
+      "secret": false,
+      "source": "owner",
+      "status": "pending",
+      "valueKey": "termsOfUseURL"
+    },
+    {
+      "environmentKey": null,
+      "key": "ui_test_bundle_id",
+      "requiredFor": "S9.1",
+      "secret": false,
+      "source": "repository",
+      "status": "provided",
+      "valueKey": "uiTestBundleID"
+    },
+    {
+      "environmentKey": null,
+      "key": "unit_test_bundle_id",
+      "requiredFor": "S9.1",
+      "secret": false,
+      "source": "repository",
+      "status": "provided",
+      "valueKey": "unitTestBundleID"
+    }
+  ],
+  "releaseReady": false,
+  "schemaVersion": 1
+}

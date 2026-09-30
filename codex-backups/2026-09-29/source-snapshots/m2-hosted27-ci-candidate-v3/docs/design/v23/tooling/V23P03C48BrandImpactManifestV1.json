@@ -1,0 +1,42 @@
+{
+  "artifact": "V23P03C48BrandImpactManifestV1",
+  "artifactDigest": "e49bc9ae637561545f1bb4e76bfe0122617b711fb28b12bcc502c0567a239412",
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C48",
+  "contractDigest": "a73bde2670efab4bdebe575af5469ddf49e5ff1b604ef17498c5e11b77d5a3e8",
+  "forbiddenTrustClaims": [
+    "Customer approved",
+    "verified customer",
+    "authenticated response",
+    "secure response",
+    "signed",
+    "tamperproof",
+    "delivered",
+    "legal signature",
+    "nonrepudiation"
+  ],
+  "impact": "PORTABLE_REVIEW_FILES_REMAIN_CUSTOMER_SAFE_CLEAR_TEXT_WITH_EXPLICIT_UNVERIFIED_OR_PROOF_VERIFIED_WORDING",
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "publicClaimDelta": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "s10FenceOverlapPaths": [],
+  "schemaVersion": 1,
+  "status": "PASS_STATIC_PROVISIONAL",
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physical": false,
+    "physicalAcceptance": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "uiSurfaceDelta": false,
+  "verificationMode": "STATIC_ONLY"
+}

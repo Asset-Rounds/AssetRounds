@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "packID": "field.evidence.illuminated_sign.v1",
+  "contentVersion": 1,
+  "nouns": {
+    "asset": {
+      "singular": "sign",
+      "plural": "signs"
+    },
+    "check": {
+      "singular": "check",
+      "plural": "checks"
+    },
+    "issue": {
+      "singular": "visible issue",
+      "plural": "visible issues"
+    }
+  },
+  "evidencePurposes": [
+    {
+      "key": "wide_context",
+      "display": "Wide view",
+      "instruction": "Take one wide photo showing the full sign and its surroundings."
+    },
+    {
+      "key": "close_detail",
+      "display": "Close view",
+      "instruction": "Take one close photo showing the sign face clearly."
+    },
+    {
+      "key": "work_context",
+      "display": "Work photo",
+      "instruction": "Add one optional photo showing the work performed."
+    }
+  ],
+  "acknowledgements": [
+    {
+      "key": "after_dark",
+      "copy": "It is dark enough to observe the sign's visible illumination.",
+      "version": "preflight.ack.en-US.v1"
+    },
+    {
+      "key": "safe_authorized_position",
+      "copy": "I am in a safe, authorized position to take these photos.",
+      "version": "preflight.ack.en-US.v1"
+    }
+  ],
+  "issueLabels": [
+    {
+      "key": "dark_section",
+      "display": "Section appears dark"
+    },
+    {
+      "key": "dim_or_uneven",
+      "display": "Illumination appears dim or uneven"
+    },
+    {
+      "key": "flicker_or_intermittent",
+      "display": "Flicker or intermittent light"
+    },
+    {
+      "key": "color_mismatch",
+      "display": "Visible color mismatch"
+    },
+    {
+      "key": "physical_damage",
+      "display": "Visible physical damage"
+    },
+    {
+      "key": "other_visible_condition",
+      "display": "Other visible condition"
+    }
+  ],
+  "couldNotVerifyReasons": {
+    "version": "cnv.reason.en-US.v1",
+    "entries": [
+      {
+        "key": "conditions_changed",
+        "display": "Conditions changed"
+      },
+      {
+        "key": "access_lost",
+        "display": "I lost safe access"
+      },
+      {
+        "key": "unsafe_to_continue",
+        "display": "It became unsafe to continue"
+      },
+      {
+        "key": "required_view_obstructed",
+        "display": "Required view is blocked"
+      },
+      {
+        "key": "capture_unavailable",
+        "display": "Camera or photo capture is unavailable"
+      },
+      {
+        "key": "other",
+        "display": "Another reason"
+      }
+    ]
+  },
+  "stageDisplays": [
+    {
+      "key": "check",
+      "display": "Check"
+    },
+    {
+      "key": "recheck",
+      "display": "Recheck"
+    }
+  ],
+  "outcomeDisplays": [
+    {
+      "key": "no_visible_issue",
+      "display": "No visible issue"
+    },
+    {
+      "key": "visible_issue",
+      "display": "Visible issue"
+    },
+    {
+      "key": "could_not_verify",
+      "display": "Could not verify"
+    },
+    {
+      "key": "resolved",
+      "display": "Resolved"
+    },
+    {
+      "key": "issue_still_visible",
+      "display": "Issue still visible"
+    },
+    {
+      "key": "original_resolved_different_issue",
+      "display": "Original resolved, different visible issue"
+    }
+  ],
+  "disclaimer": "This report records visible conditions from the listed photos and time. It is not an electrical, code, safety, or professional certification."
+}

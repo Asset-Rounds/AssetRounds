@@ -1,0 +1,4736 @@
+import Darwin
+import Foundation
+import SwiftData
+import XCTest
+@testable import FieldEvidenceApp
+
+private enum C52ServiceRequestBoundary_V9_49TemporalEvidenceClipTests {
+    static let typedAnchor: C52ServiceRequestBoundaryTokenV1.Type = C52ServiceRequestBoundaryTokenV1.self
+}
+
+final class C45TemporalEvidenceCompatibilityTests: XCTestCase {
+    func testV23P03C45CompatibilityKeepsLabelArtifactsDerivedAndOutputClaimsBounded() {
+        XCTAssertEqual(Set(LabelArtifactKindV1.allCases), [.pdf, .formulaSafeCSV, .structuredText])
+        XCTAssertFalse(AssetLabelPersistenceEnrollmentV1.persistentFamilies.contains("LabelProjectedArtifactV1"))
+        XCTAssertFalse(DeterministicPDFRendererV1.assetLabelPhysicalScanAcceptanceClaimed)
+    }
+}
+
+enum C33TemporalEvidenceTestSupport {
+    static let fixedDate = Date(timeIntervalSince1970: 1_820_001_600)
+    static let fixedInstant = "2027-09-04T00:00:00Z"
+
+    static func id(_ slot: Int) -> UUID {
+        UUID(uuidString: String(format: "c3300000-0000-4000-8000-%012x", slot))!
+    }
+
+    static func workspace(_ slot: Int = 1) -> WorkspaceID {
+        WorkspaceID(rawValue: id(slot))
+    }
+
+    static func mutation(_ slot: Int) throws -> MutationIDV1 {
+        try MutationIDV1(rawValue: id(slot))
+    }
+
+    static func codec(for kind: TemporalEvidenceMediaKindV1) throws -> TemporalEvidenceCodecV1 {
+        switch kind {
+        case .audio:
+            return try TemporalEvidenceCodecV1(
+                container: "m4a",
+                codec: "aac-lc",
+                mediaType: "audio/mp4"
+            )
+        case .video:
+            return try TemporalEvidenceCodecV1(
+                container: "mp4",
+                codec: "h264",
+                mediaType: "video/mp4"
+            )
+        }
+    }
+
+    static func profile(
+        workspaceID: WorkspaceID = workspace(),
+        reportProjection: TemporalEvidenceReportProjectionV1 = .typedLinkWithDerivativePreview,
+        requiresTranscript: Bool = true
+    ) throws -> TemporalEvidenceLimitProfileV1 {
+        let definition = try C26SurveySessionTestSupport.release(
+            releaseSlot: 330,
+            workspaceID: workspaceID
+        )
+        return try TemporalEvidenceLimitProfileV1(
+            profileID: id(10),
+            revision: 1,
+            packageRelease: try SurveyPackageReleaseReferenceV1(
+                C26SurveySessionTestSupport.packageRelease()
+            ),
+            definitionRelease: try SurveyDefinitionReleaseReferenceV1(definition),
+            audio: TemporalEvidenceMediaLimitV1(
+                kind: .audio,
+                maximumDurationMilliseconds: 120_000,
+                maximumByteCount: 8_388_608,
+                acceptedCodecs: [codec(for: .audio)]
+            ),
+            video: TemporalEvidenceMediaLimitV1(
+                kind: .video,
+                maximumDurationMilliseconds: 60_000,
+                maximumByteCount: 67_108_864,
+                acceptedCodecs: [codec(for: .video)],
+                maximumPixelWidth: 1_920,
+                maximumPixelHeight: 1_080
+            ),
+            maximumClipsPerRequirement: 4,
+            maximumClipsPerSession: 16,
+            minimumFreeByteCount: 134_217_728,
+            reportProjection: reportProjection,
+            requiresAccessibleDescription: true,
+            requiresManualTranscript: requiresTranscript
+        )
+    }
+
+    static func target(
+        workspaceID: WorkspaceID = workspace(),
+        profile: TemporalEvidenceLimitProfileV1? = nil,
+        factID: String = "fact-temporal-evidence"
+    ) throws -> TemporalEvidenceTargetV1 {
+        let profile = try profile ?? self.profile(workspaceID: workspaceID)
+        return try TemporalEvidenceTargetV1(
+            workspaceID: workspaceID,
+            sessionID: id(20),
+            sessionRevision: 7,
+            sessionSHA256: String(repeating: "7", count: 64),
+            definitionRelease: profile.definitionRelease,
+            factID: factID,
+            repeatCoordinates: []
+        )
+    }
+
+    static func bytes(for kind: TemporalEvidenceMediaKindV1) -> Data {
+        Data(repeating: kind == .audio ? 0x33 : 0x49, count: kind == .audio ? 4_096 : 8_192)
+    }
+
+    static func content(
+        workspaceID: WorkspaceID = workspace(),
+        kind: TemporalEvidenceMediaKindV1 = .audio,
+        role: ContentByteRoleV1 = .immutableOriginal,
+        slot: Int = 30
+    ) throws -> ContentReferenceV1 {
+        let data = bytes(for: kind)
+        let digest = try ContentDigestV1(
+            algorithm: .sha256,
+            hexadecimalValue: KernelCanonicalHashV1.sha256(data)
+        )
+        return try ContentReferenceV1(
+            workspaceID: workspaceID.rawValue.uuidString.lowercased(),
+            contentID: "temporal.content.\(slot)",
+            byteLength: Int64(data.count),
+            mediaType: role == .derivative ? "image/png" : try codec(for: kind).mediaType,
+            digests: ContentDigestSetV1([digest]),
+            byteRole: role,
+            createdAt: fixedInstant
+        )
+    }
+
+    static func locator(_ content: ContentReferenceV1, slot: Int = 30) throws -> ContentLocatorV1 {
+        try ContentLocatorV1(
+            locatorID: "c05-\(content.contentID)",
+            workspaceID: content.workspaceID,
+            contentID: content.contentID,
+            locatorRevision: 0,
+            contentDigest: try XCTUnwrap(content.digests.digest(for: .sha256)),
+            expectedByteLength: content.byteLength
+        )
+    }
+
+    static func provenance(_ content: ContentReferenceV1) throws -> ContentOriginalProvenanceV1 {
+        try ContentOriginalProvenanceV1(
+            provenanceID: "temporal.provenance.\(content.contentID)",
+            workspaceID: content.workspaceID,
+            contentID: content.contentID,
+            contentDigest: try XCTUnwrap(content.digests.digest(for: .sha256)),
+            origin: .humanCapture,
+            recordedAt: fixedInstant
+        )
+    }
+
+    static func facts(
+        kind: TemporalEvidenceMediaKindV1 = .audio,
+        byteCount: UInt64? = nil,
+        durationMilliseconds: UInt64? = nil
+    ) throws -> TemporalEvidenceMediaFactsV1 {
+        let count = UInt64(bytes(for: kind).count)
+        return try TemporalEvidenceMediaFactsV1(
+            kind: kind,
+            durationMilliseconds: durationMilliseconds ?? (kind == .audio ? 45_000 : 30_000),
+            byteCount: byteCount ?? count,
+            codec: codec(for: kind),
+            pixelWidth: kind == .video ? 1_280 : nil,
+            pixelHeight: kind == .video ? 720 : nil
+        )
+    }
+
+    static func clip(
+        slot: Int = 40,
+        workspaceID: WorkspaceID = workspace(),
+        kind: TemporalEvidenceMediaKindV1 = .audio,
+        factID: String = "fact-temporal-evidence",
+        reportProjection: TemporalEvidenceReportProjectionV1 = .typedLinkWithDerivativePreview,
+        requiresTranscript: Bool = true
+    ) throws -> (clip: TemporalEvidenceClipV1, profile: TemporalEvidenceLimitProfileV1) {
+        let profile = try self.profile(
+            workspaceID: workspaceID,
+            reportProjection: reportProjection,
+            requiresTranscript: requiresTranscript
+        )
+        let content = try self.content(workspaceID: workspaceID, kind: kind, slot: slot)
+        let clip = try TemporalEvidenceClipV1(
+            clipID: id(slot),
+            workspaceID: workspaceID,
+            target: target(workspaceID: workspaceID, profile: profile, factID: factID),
+            original: content,
+            originalProvenance: provenance(content),
+            locator: locator(content, slot: slot),
+            facts: facts(kind: kind),
+            profile: profile,
+            accessibleDescription: kind == .audio
+                ? "Short reviewed audio evidence recorded at the inspected asset."
+                : "Short reviewed video evidence showing the inspected asset.",
+            manualTranscript: requiresTranscript ? "Reviewer-entered temporal evidence transcript." : nil,
+            recordedBy: C26SurveySessionTestSupport.actor(
+                workspaceID: workspaceID,
+                slot: 330,
+                responsibility: .recordedBy
+            ),
+            capturedAt: fixedDate,
+            acceptedAt: fixedDate.addingTimeInterval(5),
+            revision: 1,
+            mutationID: mutation(500 + slot)
+        )
+        return (clip, profile)
+    }
+
+    static func anchor(
+        clip: TemporalEvidenceClipV1,
+        slot: Int = 60,
+        offsetMilliseconds: UInt64 = 12_500
+    ) throws -> TimecodedEvidenceAnchorV1 {
+        try TimecodedEvidenceAnchorV1(
+            anchorID: id(slot),
+            clip: clip,
+            offsetMilliseconds: offsetMilliseconds,
+            label: "Observed change",
+            note: "Reviewer-entered time-coded note.",
+            author: C26SurveySessionTestSupport.actor(
+                workspaceID: clip.workspaceID,
+                slot: 340,
+                responsibility: .recordedBy
+            ),
+            recordedAt: fixedDate.addingTimeInterval(6),
+            revision: 1,
+            mutationID: mutation(600 + slot)
+        )
+    }
+
+    static func derivative(
+        clip: TemporalEvidenceClipV1,
+        slot: Int = 70,
+        kind: TemporalEvidenceDerivativeKindV1? = nil
+    ) throws -> TemporalEvidenceDerivativeV1 {
+        let derivativeKind = kind ?? (clip.facts.kind == .audio ? .waveform : .thumbnail)
+        let content = try self.content(
+            workspaceID: clip.workspaceID,
+            kind: clip.facts.kind,
+            role: .derivative,
+            slot: slot
+        )
+        let generatorID = "temporal.preview.generator"
+        let generatorVersion = "v1"
+        let transform: ContentDerivativeTransformV1
+        switch derivativeKind {
+        case .thumbnail:
+            transform = .thumbnail(try ThumbnailDerivativeV1(
+                rendererID: generatorID,
+                rendererVersion: generatorVersion,
+                pixelWidth: 320,
+                pixelHeight: 180
+            ))
+        case .waveform:
+            transform = .waveform(try WaveformDerivativeV1(
+                rendererID: generatorID,
+                rendererVersion: generatorVersion,
+                sampleCount: 1_024
+            ))
+        }
+        let provenance = try ContentDerivativeProvenanceV1(
+            provenanceID: "temporal.derivative.provenance.\(slot)",
+            workspaceID: content.workspaceID,
+            sources: [try ContentSourceBindingV1(
+                contentID: clip.original.contentID,
+                digest: XCTUnwrap(clip.original.digests.digest(for: .sha256))
+            )],
+            derivativeContentID: content.contentID,
+            derivativeDigest: XCTUnwrap(content.digests.digest(for: .sha256)),
+            transform: transform,
+            metadataSanitizerID: "temporal.metadata.sanitizer",
+            metadataSanitizerVersion: "v1",
+            createdAt: fixedInstant
+        )
+        return try TemporalEvidenceDerivativeV1(
+            derivativeID: id(slot),
+            clip: clip,
+            content: content,
+            locator: locator(content, slot: slot),
+            kind: derivativeKind,
+            generatorID: generatorID,
+            generatorVersion: generatorVersion,
+            provenance: provenance,
+            revision: 1,
+            mutationID: mutation(700 + slot)
+        )
+    }
+
+    static func expectedRevision(
+        for clip: TemporalEvidenceClipV1,
+        generationID: UUID = id(800),
+        writerInstanceID: UUID = id(801),
+        workspaceRevision: UInt64 = 0,
+        entityRevision: UInt64 = 0
+    ) throws -> WorkspaceExpectedRevisionV1 {
+        try WorkspaceExpectedRevisionV1(
+            workspaceID: clip.workspaceID,
+            generationID: generationID,
+            writerInstanceID: writerInstanceID,
+            workspaceRevision: workspaceRevision,
+            entityRevisions: [
+                WorkspaceEntityRevisionV1(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .temporalEvidenceClip,
+                        id: clip.clipID
+                    ),
+                    revision: entityRevision
+                )
+            ]
+        )
+    }
+
+    static func review(
+        for clip: TemporalEvidenceClipV1,
+        decision: TemporalEvidenceReviewDecisionV1 = .accept
+    ) throws -> TemporalEvidenceCaptureReviewV1 {
+        try TemporalEvidenceCaptureReviewV1(
+            reviewID: id(810),
+            workspaceID: clip.workspaceID,
+            clipID: clip.clipID,
+            decision: decision,
+            reviewer: C26SurveySessionTestSupport.actor(
+                workspaceID: clip.workspaceID,
+                slot: 811,
+                responsibility: .reviewedBy
+            ),
+            reviewedAt: clip.acceptedAt
+        )
+    }
+
+    static func admissionReceipt(
+        for clip: TemporalEvidenceClipV1,
+        profile: TemporalEvidenceLimitProfileV1
+    ) throws -> TemporalEvidenceIncrementalAdmissionReceiptV1 {
+        try TemporalEvidenceIncrementalAdmissionReceiptV1(
+            profile: profile,
+            kind: clip.facts.kind,
+            codec: clip.facts.codec,
+            pixelWidth: clip.facts.pixelWidth,
+            pixelHeight: clip.facts.pixelHeight,
+            observedDurationMilliseconds: clip.facts.durationMilliseconds,
+            observedByteCount: clip.facts.byteCount,
+            sequence: 1,
+            captureCompleted: true
+        )
+    }
+
+    static func reportAssurance(
+        workspaceID: WorkspaceID,
+        slot: Int
+    ) throws -> ReportEvidenceAssuranceProjectionV1 {
+        let visibility = try EvidenceVisibilityV1(
+            visibilityID: id(slot),
+            workspaceID: workspaceID,
+            sensitivity: .routine,
+            allowedAudiences: [.internalReview, .customerReport],
+            effectiveAt: fixedDate,
+            mutationID: mutation(slot + 1)
+        )
+        let link = try ClaimEvidenceLinkV1(
+            linkID: id(slot + 2),
+            workspaceID: workspaceID,
+            claimID: "temporal-evidence-report-claim",
+            evidenceID: "temporal-evidence-report-evidence",
+            evidenceRevision: 1,
+            evidenceSHA256: String(repeating: "a", count: 64),
+            visibility: visibility,
+            audience: .customerReport,
+            mutationID: mutation(slot + 3)
+        )
+        let preview = try AssuranceProjectionPreviewV1(
+            previewID: id(slot + 4),
+            workspaceID: workspaceID,
+            audience: .customerReport,
+            snapshotSHA256: String(repeating: "b", count: 64),
+            projectionVersion: "report-projection-v1",
+            links: [link],
+            createdAt: fixedDate.addingTimeInterval(30)
+        )
+        return try ReportEvidenceAssuranceProjectionV1(
+            preview: preview,
+            visibilities: [visibility]
+        )
+    }
+
+    static func reportSnapshot(
+        clip: TemporalEvidenceClipV1,
+        anchors: [TimecodedEvidenceAnchorV1],
+        reportID: UUID,
+        slot: Int,
+        includesAssurance: Bool
+    ) throws -> ReportSnapshotV1 {
+        var snapshot = ReportSnapshotV1(
+            acknowledgements: [
+                AcknowledgementSnapshotV1(
+                    accepted: true,
+                    copy: "It is dark enough to observe the sign's visible illumination.",
+                    key: "after_dark",
+                    version: "preflight.ack.en-US.v1"
+                ),
+                AcknowledgementSnapshotV1(
+                    accepted: true,
+                    copy: "I am in a safe, authorized position to take these photos.",
+                    key: "safe_authorized_position",
+                    version: "preflight.ack.en-US.v1"
+                )
+            ],
+            asset: AssetSnapshotV1(label: "Temporal evidence asset"),
+            couldNotVerify: nil,
+            disclaimer: "This report records visible conditions and reviewed temporal evidence.",
+            display: DisplaySnapshotV1(
+                assetSingular: "asset",
+                checkSingular: "check",
+                issueSingular: "visible issue",
+                outcome: "Recorded",
+                stage: "Check"
+            ),
+            evidence: [],
+            evidenceSourceRecordID: id(slot + 1),
+            history: [],
+            issues: [],
+            note: nil,
+            outcome: "recorded",
+            pack: PackSnapshotV1(
+                contentVersion: 1,
+                id: "field.evidence.illuminated_sign.v1",
+                schemaVersion: 1
+            ),
+            packetID: id(slot + 2),
+            pdfTemplate: PDFTemplateReferenceV1(
+                id: "field.evidence.pdf.worklight.v1",
+                version: 1
+            ),
+            reportID: reportID,
+            site: SiteSnapshotV1(address: nil, label: "Temporal evidence site"),
+            snapshotCreatedAt: fixedDate.addingTimeInterval(40),
+            snapshotSchemaVersion: 1,
+            sourceApp: SourceAppSnapshotV1(build: "33", version: "1.0"),
+            sourceRecordID: id(slot + 3),
+            stableRootID: id(slot + 4),
+            stage: "check",
+            timeContext: TimeContextSnapshotV1(
+                localDate: "2027-09-04",
+                localTime: "00:00:00",
+                observedAtUTC: fixedDate,
+                timeZoneID: "America/New_York",
+                utcOffsetMinutes: -240
+            )
+        )
+        snapshot.temporalEvidenceLinks = [try TemporalEvidenceReportLinkV1(
+            clip: clip,
+            anchors: anchors,
+            profile: clip.limitProfile
+        )]
+        if includesAssurance {
+            snapshot.assurance = try reportAssurance(
+                workspaceID: clip.workspaceID,
+                slot: slot + 20
+            )
+        }
+        return snapshot
+    }
+
+    @MainActor
+    static func persistReportSnapshots(
+        in session: StoreGenerationSession,
+        clip: TemporalEvidenceClipV1,
+        anchorSubsets: [[TimecodedEvidenceAnchorV1]],
+        slot: Int
+    ) throws -> [ReportSnapshotV1] {
+        guard anchorSubsets.count == 2,
+              anchorSubsets[0].count == anchorSubsets[1].count,
+              Set(anchorSubsets[0].map(\.anchorID)) != Set(anchorSubsets[1].map(\.anchorID)) else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        let snapshots = try [false, true].enumerated().map { offset, includesAssurance in
+            try reportSnapshot(
+                clip: clip,
+                anchors: anchorSubsets[offset],
+                reportID: id(slot + offset),
+                slot: slot + offset * 100,
+                includesAssurance: includesAssurance
+            )
+        }
+        let directory = session.generationRootURL.appendingPathComponent(
+            "snapshots",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for snapshot in snapshots {
+            let encoded = try ReportSnapshotEncoderV1().encode(snapshot)
+            let relativePath = "snapshots/\(snapshot.reportID.uuidString.lowercased()).json"
+            try encoded.data.write(
+                to: session.generationRootURL.appendingPathComponent(relativePath),
+                options: .atomic
+            )
+            session.modelContext.insert(Report(
+                id: snapshot.reportID,
+                packetID: snapshot.packetID,
+                sourceRecordID: snapshot.sourceRecordID,
+                snapshotSchemaVersion: snapshot.snapshotSchemaVersion,
+                snapshotRelativePath: relativePath,
+                snapshotSHA256: encoded.sha256,
+                pdfState: .pending,
+                pdfRelativePath: nil,
+                pdfSHA256: nil,
+                createdAt: snapshot.snapshotCreatedAt,
+                replacesReportID: nil
+            ))
+        }
+        return snapshots
+    }
+
+    @MainActor
+    static func commitPersistentAnchors(
+        in session: StoreGenerationSession,
+        clip: TemporalEvidenceClipV1,
+        slots: [Int]
+    ) throws -> [TimecodedEvidenceAnchorV1] {
+        guard !slots.isEmpty else { throw TemporalEvidenceContractFailureV1.invalidValue }
+        let writerInstanceID = id(8_000 + slots[0])
+        let store = try MutationJournalStoreV1(
+            modelContext: session.modelContext,
+            identity: session.workspaceIdentity,
+            generationID: session.generationID
+        )
+        let initial = try store.currentRevision(writerInstanceID: writerInstanceID)
+        let writer = try WorkspaceWriterV1(
+            identity: session.workspaceIdentity,
+            generationID: session.generationID,
+            initialRevision: initial,
+            clock: C33TemporalEvidenceClock(value: clip.acceptedAt.addingTimeInterval(20)),
+            idSource: C33TemporalEvidenceIDSource(value: writerInstanceID),
+            fileAuthority: C33TemporalEvidenceFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: session.modelContext),
+            journalStore: store
+        )
+        var values: [TimecodedEvidenceAnchorV1] = []
+        for (offset, slot) in slots.enumerated() {
+            let anchor = try self.anchor(
+                clip: clip,
+                slot: slot,
+                offsetMilliseconds: UInt64(5_000 + offset * 10_000)
+            )
+            let current = try store.currentRevision(writerInstanceID: writerInstanceID)
+            let expected = try WorkspaceExpectedRevisionV1(
+                workspaceID: current.workspaceID,
+                generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID,
+                workspaceRevision: current.revision,
+                entityRevisions: [WorkspaceEntityRevisionV1(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .timecodedEvidenceAnchor,
+                        id: anchor.anchorID
+                    ),
+                    revision: 0
+                )]
+            )
+            _ = try writer.commitTemporalEvidence(TemporalEvidenceMutationV1(
+                workspaceID: clip.workspaceID,
+                expectedRevision: expected,
+                mutationID: anchor.mutationID,
+                payload: .appendAnchor(anchor, clip: clip, predecessor: nil)
+            ))
+            values.append(anchor)
+        }
+        return values
+    }
+
+    @MainActor
+    static func packageClosure(in context: ModelContext) throws -> PackageEvolutionLifecycleClosureV1 {
+        try PackageEvolutionLifecycleClosureV1(
+            promotedReleases: context.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).map { try $0.value() },
+            sandboxRuns: context.fetch(FetchDescriptor<PackageSandboxRunRow>()).map { try $0.value() },
+            promotionReceipts: context.fetch(FetchDescriptor<PackagePromotionReceiptRow>()).map { try $0.value() },
+            activePointers: context.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>()).map { try $0.value() })
+    }
+
+    @MainActor
+    static func commitPersistentClip(
+        in session: StoreGenerationSession,
+        slot: Int,
+        suppliedWriter: WorkspaceWriterV1? = nil
+    ) async throws -> (clip: TemporalEvidenceClipV1, receipt: TemporalEvidenceMutationReceiptV1) {
+        var phase = "construct-authority"
+        do {
+            let fixture = try clip(slot: slot, workspaceID: session.workspaceID,
+                reportProjection: .typedLinkOnly, requiresTranscript: true)
+            phase = "acquire-canonical-writer"
+            let temporaryCoordinator: StoreSessionCoordinator?
+            if suppliedWriter == nil {
+                temporaryCoordinator = try StoreSessionCoordinator(
+                    validatingSession: session,
+                    clock: C33TemporalEvidenceClock(value: fixture.clip.acceptedAt))
+            } else {
+                temporaryCoordinator = nil
+            }
+            defer {
+                if let temporaryCoordinator {
+                    XCTAssertNoThrow(try temporaryCoordinator.invalidateAndReleaseWriter())
+                }
+            }
+            let writer = try XCTUnwrap(
+                suppliedWriter ?? temporaryCoordinator?.workspaceWriter)
+            let store = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity, generationID: session.generationID)
+            phase = "resolve-accepted-package"
+            let historyBefore = try store.exportSnapshot()
+            let allPackagesBefore = try packageClosure(in: session.modelContext)
+            let packages = PackageEvolutionLifecycleAdapterV1(writer: writer, journal: store,
+                modelContext: session.modelContext)
+            let candidatePackage = try C26SurveySessionTestSupport.packageRelease()
+            let pointerBefore = try packages.activePointer(workspaceID: session.workspaceID,
+                packageID: candidatePackage.packageID)
+            let promotionBefore: PackageEvolutionLifecycleClosureV1?
+            let package: InspectionPackageReleaseV1
+            if let pointer = pointerBefore {
+                let closure = try XCTUnwrap(packages.acceptedLifecycleClosure(mutationID: pointer.mutationID))
+                try closure.validate()
+                let promoted = try XCTUnwrap(closure.promotedReleases.first)
+                guard closure.promotedReleases.count == 1,
+                      promoted.workspaceID == session.workspaceID,
+                      promoted.releaseRecordID == pointer.activeReleaseRecordID,
+                      promoted.releaseRecordSHA256 == pointer.activeReleaseRecordSHA256,
+                      promoted.packageRelease.packageID == candidatePackage.packageID,
+                      promoted.packageRelease.packageReleaseID == pointer.activePackageReleaseID,
+                      closure.activePointers.contains(pointer),
+                      closure.promotionReceipts.count == 1,
+                      closure.promotionReceipts[0].receiptID == pointer.promotionReceiptID,
+                      closure.promotionReceipts[0].mutationID == pointer.mutationID,
+                      allPackagesBefore.promotedReleases.filter({
+                          $0.packageRelease.packageReleaseID == pointer.activePackageReleaseID
+                      }) == [promoted] else {
+                    throw CanonicalWriterSeedingV1.SeedingFailure.promotionReceiptMismatch
+                }
+                promotionBefore = closure
+                package = promoted.packageRelease
+            } else {
+                guard !allPackagesBefore.promotedReleases.contains(where: {
+                    $0.workspaceID == session.workspaceID && $0.packageRelease.packageID == candidatePackage.packageID
+                }), !allPackagesBefore.activePointers.contains(where: {
+                    $0.workspaceID == session.workspaceID && $0.packageID == candidatePackage.packageID
+                }) else {
+                    throw CanonicalWriterSeedingV1.SeedingFailure.promotionReceiptMismatch
+                }
+                promotionBefore = nil
+                package = candidatePackage
+            }
+            let definition = try C26SurveySessionTestSupport.release(
+                releaseSlot: 330, workspaceID: session.workspaceID)
+            // This uncommitted template adopts the actual accepted package;
+            // it is not a promotion or a rebound of persisted profile history.
+            let basis = fixture.profile
+            let profile = try TemporalEvidenceLimitProfileV1(
+                profileID: basis.profileID, revision: basis.revision,
+                packageRelease: SurveyPackageReleaseReferenceV1(package),
+                definitionRelease: SurveyDefinitionReleaseReferenceV1(definition),
+                audio: basis.audio, video: basis.video,
+                maximumClipsPerRequirement: basis.maximumClipsPerRequirement,
+                maximumClipsPerSession: basis.maximumClipsPerSession,
+                minimumFreeByteCount: basis.minimumFreeByteCount,
+                reportProjection: basis.reportProjection,
+                requiresAccessibleDescription: basis.requiresAccessibleDescription,
+                requiresManualTranscript: basis.requiresManualTranscript)
+            let provisional = try C26SurveySessionTestSupport.provisional(workspaceID: session.workspaceID)
+            let survey = try C26SurveySessionTestSupport.session(
+                authority: C26SurveySessionTestSupport.authority(for: definition, package: package),
+                workspaceID: session.workspaceID, subject: .provisional(provisional.reference),
+                state: .draft, transition: .create, revision: 1, actorSlot: 601)
+            let fact = try XCTUnwrap(definition.sections.flatMap(\.facts).first)
+            XCTAssertEqual(fixture.profile.definitionRelease, try SurveyDefinitionReleaseReferenceV1(definition))
+            XCTAssertEqual(profile.packageRelease, try SurveyPackageReleaseReferenceV1(package))
+            XCTAssertEqual(profile.packageRelease, survey.authority.packageRelease)
+            let original = fixture.clip
+            // The standalone contract fixture intentionally has no persisted
+            // survey authority. This disk fixture binds to the real producer's
+            // admitted session and fact, never its placeholder revision/hash.
+            let value = try TemporalEvidenceClipV1(clipID: original.clipID, workspaceID: session.workspaceID,
+                target: .init(workspaceID: session.workspaceID, sessionID: survey.sessionID,
+                    sessionRevision: survey.revision, sessionSHA256: survey.sessionSHA256,
+                    definitionRelease: survey.authority.definitionRelease, factID: fact.factID,
+                    repeatCoordinates: []),
+                original: original.original, originalProvenance: original.originalProvenance,
+                locator: original.locator, facts: original.facts, profile: profile,
+                accessibleDescription: original.accessibleDescription, manualTranscript: original.manualTranscript,
+                recordedBy: original.recordedBy, capturedAt: original.capturedAt, acceptedAt: original.acceptedAt,
+                revision: original.revision, mutationID: original.mutationID)
+            let review = try self.review(for: value)
+            phase = "seed-survey-authority"
+            if promotionBefore == nil {
+                try await CanonicalWriterSeedingV1.seedSurveySession(definition: definition, package: package,
+                    provisional: provisional, session: survey,
+                    promotionActor: C26SurveySessionTestSupport.actor(workspaceID: session.workspaceID, slot: 8_002),
+                    writer: writer, journal: store, context: session.modelContext, promotedAt: value.acceptedAt)
+            } else {
+                phase = "append-survey-actors-under-accepted-package"
+                try CanonicalWriterSeedingV1.appendActors([definition.authoredBy, provisional.createdBy,
+                    survey.startedBy, survey.lastTransitionBy], writer: writer)
+                phase = "commit-survey-definition-under-accepted-package"
+                try CanonicalWriterSeedingV1.commitSurveyDefinitionDraft(definition, writer: writer)
+                phase = "commit-provisional-under-accepted-package"
+                _ = try writer.commitSurveySession(.init(workspaceID: session.workspaceID,
+                    mutationID: provisional.mutationID, payload: .applyProvisionalSubject(provisional)))
+                phase = "commit-survey-under-accepted-package"
+                _ = try writer.commitSurveySession(.init(workspaceID: session.workspaceID,
+                    mutationID: survey.mutationID,
+                    payload: .applySession(survey, definition: definition, publication: nil)))
+            }
+            try CanonicalWriterSeedingV1.appendActors([value.recordedBy, review.reviewer], writer: writer)
+            phase = "verify-admitted-authority"
+            let surveys = try session.modelContext.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }
+            XCTAssertEqual(surveys.filter { $0.sessionID == survey.sessionID }, [survey])
+            let definitions = try session.modelContext.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>())
+                .map { try $0.value() }
+            XCTAssertEqual(definitions.filter { $0.releaseID == definition.releaseID }, [definition])
+            let pointer = try XCTUnwrap(packages.activePointer(workspaceID: session.workspaceID,
+                packageID: package.packageID))
+            let promotion = try XCTUnwrap(packages.acceptedLifecycleClosure(mutationID: pointer.mutationID))
+            try promotion.validate()
+            if let promotionBefore {
+                XCTAssertEqual(pointer, pointerBefore)
+                XCTAssertEqual(promotion, promotionBefore)
+                XCTAssertEqual(try packageClosure(in: session.modelContext), allPackagesBefore)
+            } else {
+                XCTAssertEqual(promotion.activePointers, [pointer])
+            }
+            XCTAssertEqual(promotion.promotedReleases.map(\.packageRelease), [package])
+            phase = "persist-immutable-original"
+            let digest = try XCTUnwrap(value.original.digests.digest(for: .sha256))
+            let contentRequest = try DraftImmutableContentWriteRequestV1(
+                workspaceID: value.workspaceID, contentID: value.original.contentID,
+                digest: digest, byteLength: value.original.byteLength, mediaType: value.original.mediaType,
+                mutationID: value.mutationID, createdAt: value.original.createdAt)
+            _ = try await EvidenceBundleStore(generationRootURL: session.generationRootURL)
+                .persistImmutableOriginal(bytes: bytes(for: value.facts.kind), request: contentRequest)
+            phase = "commit-temporal-clip"
+            // Setup appends real receipts, and content persistence suspends.
+            // Obtain fresh writer authority after both before constructing CAS.
+            let current = try writer.currentRevision()
+            let expected = try expectedRevision(for: value, generationID: current.generationID,
+                writerInstanceID: current.writerInstanceID, workspaceRevision: current.revision)
+            let mutation = try TemporalEvidenceMutationV1(workspaceID: value.workspaceID,
+                expectedRevision: expected, mutationID: value.mutationID,
+                payload: .acceptClip(value, review: review, predecessor: nil))
+            let receipt = try writer.commitTemporalEvidence(mutation)
+            phase = "verify-committed-clip"
+            let clips = try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+                .map { try $0.value() }
+            XCTAssertEqual(clips.filter { $0.clipID == value.clipID }, [value])
+            XCTAssertEqual(try Data(contentsOf: session.generationRootURL.appendingPathComponent(
+                TemporalEvidenceBackupMemberV1.original(for: value))), bytes(for: value.facts.kind))
+            try store.validateAll()
+            let historyAfter = try store.exportSnapshot()
+            XCTAssertEqual(Array(historyAfter.receipts.prefix(historyBefore.receipts.count)), historyBefore.receipts)
+            XCTAssertEqual(historyAfter.quarantines, historyBefore.quarantines)
+            if promotionBefore != nil {
+                XCTAssertEqual(try packageClosure(in: session.modelContext), allPackagesBefore)
+                let appended = Array(historyAfter.receipts.dropFirst(historyBefore.receipts.count))
+                for record in appended {
+                    let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+                    switch envelope.command {
+                    case .applyPartyAccountability, .applySurveyDefinition, .applySurveySession, .applyTemporalEvidence:
+                        break
+                    default:
+                        XCTFail("unexpected command while reusing accepted package")
+                        throw CanonicalWriterSeedingV1.SeedingFailure.promotionReceiptMismatch
+                    }
+                }
+                XCTAssertEqual(historyAfter.workspaceRevision,
+                    historyBefore.workspaceRevision + UInt64(appended.count))
+                XCTAssertEqual(historyAfter.lastLocalSequence,
+                    historyBefore.lastLocalSequence + UInt64(appended.count))
+            }
+            XCTAssertFalse(session.modelContext.hasChanges)
+            return (value, receipt)
+        } catch {
+            print("C33PersistentClip[\(slot)] phase=\(phase) type=\(type(of: error)) error=\(error)")
+            throw error
+        }
+    }
+
+    @MainActor
+    static func cleanupReferences(
+        context: ModelContext, generationRootURL: URL, journal: MutationJournalStoreV1,
+        writerInstanceID: UUID, recovery: any TemporalEvidencePromotionRecoveryPortV1
+    ) async throws -> TemporalEvidenceLiveReferenceClosureV1 {
+        let revision = try journal.currentRevision(writerInstanceID: writerInstanceID)
+        let external = try await TemporalEvidenceDeletionExternalReferenceResolverV1(
+            modelContext: context, generationRootURL: generationRootURL,
+            journal: journal, recovery: recovery
+        ).temporalEvidenceReferences(workspaceID: revision.workspaceID, boundRevision: revision)
+        try external.validate(workspaceID: revision.workspaceID)
+        let clips = try context.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            .map { try $0.value() }.filter { $0.workspaceID == revision.workspaceID }
+        let reservations = try context.fetch(FetchDescriptor<DraftContentReservationRow>())
+            .map { try $0.value() }.filter {
+                $0.workspaceID == revision.workspaceID && $0.reconciliationState != .deleted
+            }
+        guard external.boundRevision == revision, !context.hasChanges,
+              try journal.currentRevision(writerInstanceID: writerInstanceID) == revision else {
+            throw WholeSignDeletionServiceError.recoveryRequired
+        }
+        return TemporalEvidenceLiveReferenceClosureV1(
+            boundRevision: revision, liveClipContentIDs: Set(clips.map(\.original.contentID)),
+            liveJournalContentIDs: external.journalContentIDs,
+            liveReportContentIDs: Set(external.reportLinks.map(\.contentID)),
+            reservedContentIDs: Set(reservations.map(\.locator.contentID)),
+            recoveryContentIDs: external.recoveryContentIDs
+        )
+    }
+
+    @MainActor
+    static func verifyRealBackupRestoreDeleteAndErase(slot: Int) async throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "C33-R01-\(slot)-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        // The genuine Erase harness retains this root until checked owner closure.
+
+        let sourceSupport = root.appendingPathComponent("source-support", isDirectory: true)
+        try fileManager.createDirectory(at: sourceSupport, withIntermediateDirectories: true)
+        let sourceSession = try StoreGenerationFactory(
+            applicationSupportURL: sourceSupport
+        ).openOrBootstrapCurrent()
+        let source = try await commitPersistentClip(in: sourceSession, slot: slot)
+        try sourceSession.modelContext.save()
+        let sourceBytes = bytes(for: source.clip.facts.kind)
+        let sourceCanonical = try XCTUnwrap(
+            sourceSession.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first
+        ).canonicalData
+        let exportRoot = root.appendingPathComponent("export", isDirectory: true)
+        try fileManager.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        let exporter = BackupExportService(
+            modelContext: sourceSession.modelContext,
+            generationRootURL: sourceSession.generationRootURL,
+            now: { fixedDate.addingTimeInterval(120) }
+        )
+        let preview = try exporter.prepare()
+        let package = try exporter.export(previewID: preview.id, to: exportRoot)
+
+        for (index, mode) in [
+            BackupRestoreMode.emptyInstall,
+            .replaceExisting,
+            .clone,
+            .fork
+        ].enumerated() {
+            let support = root.appendingPathComponent("restore-\(index)", isDirectory: true)
+            try fileManager.createDirectory(at: support, withIntermediateDirectories: true)
+            let current = try StoreGenerationFactory(
+                applicationSupportURL: support
+            ).openOrBootstrapCurrent()
+            if mode == .replaceExisting {
+                // Replacement requires a genuine nonempty destination. Keep its
+                // setup non-temporal so the incoming clip remains the sole clip.
+                let coordinator = try StoreSessionCoordinator(validatingSession: current)
+                var writerReleased = false
+                defer {
+                    if !writerReleased { try? coordinator.invalidateAndReleaseWriter() }
+                }
+                let pack = SignPack.illuminatedSignV1
+                let siteID = id(20_000 + slot)
+                let assetID = id(21_000 + slot)
+                let placementMutationID = try mutation(22_000 + slot)
+                _ = try coordinator.workspaceWriter.execute(.createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(id: siteID, label: "Existing C33 destination", address: nil,
+                        timeZoneID: "America/New_York"),
+                    assetID: assetID, assetLabel: "Existing destination sign",
+                    packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+                    packContentVersion: pack.contentVersion,
+                    createdAt: fixedDate.addingTimeInterval(-60),
+                    initialPlacementMutationID: placementMutationID,
+                    initialPlacementEventID: id(23_000 + slot),
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(rawValue: id(24_000 + slot))
+                )), mutationID: placementMutationID)
+                let destinationJournal = try MutationJournalStoreV1(
+                    modelContext: current.modelContext, identity: current.workspaceIdentity,
+                    generationID: current.generationID, allowStateBootstrap: false)
+                try destinationJournal.validateAll()
+                XCTAssertEqual(try current.modelContext.fetch(FetchDescriptor<Site>()).map(\.id), [siteID])
+                XCTAssertEqual(try current.modelContext.fetch(FetchDescriptor<Asset>()).map(\.id), [assetID])
+                XCTAssertFalse(current.modelContext.hasChanges)
+                try coordinator.invalidateAndReleaseWriter()
+                writerReleased = true
+            }
+            XCTAssertEqual(BackupRestoreService.isEmptyCurrent(current.modelContext),
+                mode != .replaceExisting, "destination admission for \(mode)")
+            XCTAssertEqual(try current.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+            let validated = try BackupImportService(
+                generationRootURL: current.generationRootURL,
+                makeUUID: { id(9_000 + slot + index) },
+                scopedAccess: .alreadyAuthorized
+            ).stageAndValidate(selectedPackageURL: package)
+            XCTAssertEqual(validated.records.temporalEvidence.count, 1)
+            XCTAssertEqual(validated.members[try TemporalEvidenceBackupMemberV1.original(for: source.clip)], sourceBytes)
+            let restorer = try BackupRestoreService(
+                applicationSupportURL: support,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max })
+            )
+            #if DEBUG
+            restorer.restorePhaseDiagnosticForTesting = { phase in
+                print("C33R01[\(slot)] mode=\(mode) phase=\(phase)")
+            }
+            #endif
+            let restored = try await restorer.restore(
+                validatedPackage: validated,
+                currentModelContext: current.modelContext,
+                currentGenerationID: current.generationID,
+                currentGenerationRootURL: current.generationRootURL,
+                mode: mode
+            )
+            XCTAssertEqual(try restored.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
+                1, "incoming temporal clip count for \(mode)")
+            let row = try XCTUnwrap(
+                restored.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first
+            )
+            let restoredClip = try row.value()
+            XCTAssertEqual(restoredClip.workspaceID, restored.workspaceID)
+            XCTAssertEqual(restoredClip.original.contentID, source.clip.original.contentID)
+            XCTAssertEqual(restoredClip.original.digests, source.clip.original.digests)
+            XCTAssertEqual(
+                try Data(contentsOf: restored.generationRootURL.appendingPathComponent(
+                    try TemporalEvidenceBackupMemberV1.original(for: restoredClip)
+                )),
+                sourceBytes
+            )
+            if restored.workspaceID == source.clip.workspaceID {
+                XCTAssertEqual(row.canonicalData, sourceCanonical)
+                XCTAssertEqual(restoredClip.limitProfile, source.clip.limitProfile)
+            } else {
+                XCTAssertNotEqual(restoredClip.workspaceID, source.clip.workspaceID)
+                XCTAssertEqual(
+                    restoredClip.limitProfile.revision,
+                    source.clip.limitProfile.revision + 1
+                )
+                XCTAssertEqual(restoredClip.limitProfile.audio, source.clip.limitProfile.audio)
+                XCTAssertEqual(restoredClip.limitProfile.video, source.clip.limitProfile.video)
+                XCTAssertEqual(
+                    restoredClip.limitProfile.definitionRelease,
+                    restoredClip.target.definitionRelease
+                )
+                let sessions = try restored.modelContext.fetch(FetchDescriptor<SurveySessionRow>())
+                    .map { try $0.value() }.filter {
+                        $0.workspaceID == restored.workspaceID
+                            && $0.sessionID == source.clip.target.sessionID
+                            && $0.revision == source.clip.target.sessionRevision
+                    }
+                XCTAssertEqual(sessions.count, 1)
+                let session = try XCTUnwrap(sessions.first)
+                let releases = try restored.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>())
+                    .map { try $0.value() }.filter {
+                        $0.workspaceID == restored.workspaceID
+                            && $0.packageRelease.packageReleaseID == session.authority.packageRelease.packageReleaseID
+                    }
+                XCTAssertEqual(releases.count, 1)
+                let release = try XCTUnwrap(releases.first).packageRelease
+                try session.authority.packageRelease.validate(against: release)
+                // Package releases are content-addressed, not workspace identities.
+                // This fixture carries the same genuine release across namespaces.
+                try source.clip.limitProfile.packageRelease.validate(against: release)
+                XCTAssertEqual(restoredClip.limitProfile.packageRelease, try SurveyPackageReleaseReferenceV1(release))
+                XCTAssertEqual(restoredClip.limitProfile.packageRelease, source.clip.limitProfile.packageRelease)
+                var changedPackage = try XCTUnwrap(JSONSerialization.jsonObject(
+                    with: SurveySessionCanonicalCodecV1.encode(session.authority.packageRelease)) as? [String: Any])
+                changedPackage["packageSHA256"] = String(repeating: "0", count: 64)
+                let invalidReference = try JSONDecoder().decode(SurveyPackageReleaseReferenceV1.self,
+                    from: JSONSerialization.data(withJSONObject: changedPackage))
+                XCTAssertThrowsError(try invalidReference.validate(against: release))
+
+                // Build the complete expected successor from source values and
+                // authenticated destination authority, without using rebound().
+                let originalProfile = source.clip.limitProfile
+                let profile = try TemporalEvidenceLimitProfileV1(
+                    profileID: originalProfile.profileID, revision: originalProfile.revision + 1,
+                    packageRelease: SurveyPackageReleaseReferenceV1(release),
+                    definitionRelease: session.authority.definitionRelease,
+                    audio: originalProfile.audio, video: originalProfile.video,
+                    maximumClipsPerRequirement: originalProfile.maximumClipsPerRequirement,
+                    maximumClipsPerSession: originalProfile.maximumClipsPerSession,
+                    minimumFreeByteCount: originalProfile.minimumFreeByteCount,
+                    reportProjection: originalProfile.reportProjection,
+                    requiresAccessibleDescription: originalProfile.requiresAccessibleDescription,
+                    requiresManualTranscript: originalProfile.requiresManualTranscript)
+                let target = try TemporalEvidenceTargetV1(workspaceID: restored.workspaceID,
+                    sessionID: session.sessionID, sessionRevision: session.revision,
+                    sessionSHA256: session.sessionSHA256, definitionRelease: session.authority.definitionRelease,
+                    factID: source.clip.target.factID, repeatCoordinates: source.clip.target.repeatCoordinates)
+                let namespace = restored.workspaceID.rawValue.uuidString.lowercased()
+                let original = source.clip.original
+                let provenance = source.clip.originalProvenance
+                let locator = source.clip.locator
+                let actor = source.clip.recordedBy
+                let expected = try TemporalEvidenceClipV1(
+                    clipID: source.clip.clipID, workspaceID: restored.workspaceID, target: target,
+                    original: ContentReferenceV1(workspaceID: namespace, contentID: original.contentID,
+                        byteLength: original.byteLength, mediaType: original.mediaType, digests: original.digests,
+                        byteRole: original.byteRole, createdAt: original.createdAt),
+                    originalProvenance: ContentOriginalProvenanceV1(provenanceID: provenance.provenanceID,
+                        workspaceID: namespace, contentID: provenance.contentID, contentDigest: provenance.contentDigest,
+                        origin: provenance.origin, recordedAt: provenance.recordedAt),
+                    locator: ContentLocatorV1(locatorID: locator.locatorID, workspaceID: namespace,
+                        contentID: locator.contentID, locatorRevision: locator.locatorRevision,
+                        contentDigest: locator.contentDigest, expectedByteLength: locator.expectedByteLength),
+                    facts: source.clip.facts, profile: profile,
+                    accessibleDescription: source.clip.accessibleDescription,
+                    manualTranscript: source.clip.manualTranscript,
+                    derivativeReferences: source.clip.derivativeReferences,
+                    retentionReference: source.clip.retentionReference,
+                    recordedBy: ActorSnapshotV1(snapshotID: actor.snapshotID, workspaceID: restored.workspaceID,
+                        actor: LocalActorReferenceV1(actorReferenceID: actor.actor.actorReferenceID,
+                            workspaceID: restored.workspaceID, partyID: actor.actor.partyID,
+                            displayName: actor.actor.displayName),
+                        responsibility: actor.responsibility, displayNameAtTime: actor.displayNameAtTime,
+                        capturedAt: actor.capturedAt),
+                    capturedAt: source.clip.capturedAt, acceptedAt: source.clip.acceptedAt,
+                    supersedesClipID: source.clip.supersedesClipID,
+                    revision: source.clip.revision, mutationID: source.clip.mutationID)
+                XCTAssertEqual(restoredClip, expected)
+                XCTAssertEqual(row.canonicalData, try TemporalEvidenceCanonicalCodecV1.encode(expected))
+                XCTAssertEqual(restoredClip.limitProfile, profile)
+                XCTAssertNotEqual(restoredClip.clipSHA256, source.clip.clipSHA256)
+            }
+            let journal = try MutationJournalStoreV1(
+                modelContext: restored.modelContext,
+                identity: restored.workspaceIdentity,
+                generationID: restored.generationID,
+                allowStateBootstrap: false
+            )
+            try journal.validateAll()
+        }
+
+        let deleteSupport = root.appendingPathComponent("delete-support", isDirectory: true)
+        try fileManager.createDirectory(at: deleteSupport, withIntermediateDirectories: true)
+        let deleteSession = try StoreGenerationFactory(
+            applicationSupportURL: deleteSupport
+        ).openOrBootstrapCurrent()
+        let deleted = try await commitPersistentClip(in: deleteSession, slot: slot + 20)
+        let deleteWriterInstanceID = id(8_000 + slot + 20)
+        let deleteStore = try MutationJournalStoreV1(
+            modelContext: deleteSession.modelContext,
+            identity: deleteSession.workspaceIdentity,
+            generationID: deleteSession.generationID,
+            allowStateBootstrap: false
+        )
+        let deleteCurrent = try deleteStore.currentRevision(
+            writerInstanceID: deleteWriterInstanceID
+        )
+        let deleteExpected = try expectedRevision(
+            for: deleted.clip,
+            generationID: deleteCurrent.generationID,
+            writerInstanceID: deleteCurrent.writerInstanceID,
+            workspaceRevision: deleteCurrent.revision,
+            entityRevision: deleted.clip.revision
+        )
+        let deleteWriter = try WorkspaceWriterV1(
+            identity: deleteSession.workspaceIdentity,
+            generationID: deleteSession.generationID,
+            initialRevision: deleteCurrent,
+            clock: C33TemporalEvidenceClock(value: fixedDate.addingTimeInterval(240)),
+            idSource: C33TemporalEvidenceIDSource(value: deleteWriterInstanceID),
+            fileAuthority: C33TemporalEvidenceFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: deleteSession.modelContext),
+            journalStore: deleteStore
+        )
+        let deleteEvent = try TemporalEvidenceRetentionEventV1(
+            eventID: id(9_500 + slot),
+            clip: deleted.clip,
+            disposition: .deleteClip,
+            policySHA256: String(repeating: "e", count: 64),
+            actor: C26SurveySessionTestSupport.actor(
+                workspaceID: deleted.clip.workspaceID,
+                slot: 9_501 + slot,
+                responsibility: .reviewedBy
+            ),
+            occurredAt: fixedDate.addingTimeInterval(240),
+            revision: 1,
+            mutationID: mutation(9_502 + slot)
+        )
+        _ = try deleteWriter.commitTemporalEvidence(TemporalEvidenceMutationV1(
+            workspaceID: deleted.clip.workspaceID,
+            expectedRevision: deleteExpected,
+            mutationID: deleteEvent.mutationID,
+            payload: .removeClip(
+                event: deleteEvent,
+                clips: [deleted.clip],
+                anchors: [],
+                derivatives: [],
+                predecessorEvent: nil
+            )
+        ))
+        XCTAssertEqual(
+            try deleteSession.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
+            0
+        )
+        let cleanup = try OrphanFileCleanupService(
+            generationRootURL: deleteSession.generationRootURL
+        )
+        let deleteRecovery = try TemporalEvidencePromotionRecoveryFileAdapterV1(
+            generationRootURL: deleteSession.generationRootURL,
+            workspaceID: deleteSession.workspaceID,
+            // Only the actual pending-record reader is used by this observation.
+            verify: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition },
+            remove: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition }
+        )
+        let deleteReferences = try await cleanupReferences(
+            context: deleteSession.modelContext, generationRootURL: deleteSession.generationRootURL,
+            journal: deleteStore, writerInstanceID: deleteWriterInstanceID, recovery: deleteRecovery
+        )
+        XCTAssertFalse(deleteReferences.liveJournalContentIDs.contains(deleted.clip.original.contentID),
+                       "Historical clip envelopes alone do not retain a deleted original")
+        let summary = try cleanup.removeCanonicalContentIfUnreferenced(
+            reference: deleted.clip.original,
+            locator: deleted.clip.locator,
+            authoritySnapshot: deleteReferences
+        )
+        XCTAssertEqual(summary.removedFileCount, 1)
+        XCTAssertFalse(fileManager.fileExists(atPath: deleteSession.generationRootURL
+            .appendingPathComponent(try TemporalEvidenceBackupMemberV1.original(for: deleted.clip)).path))
+
+        let eraseLibrary = root.appendingPathComponent("erase-library", isDirectory: true)
+        let eraseSupport = eraseLibrary.appendingPathComponent("Application Support", isDirectory: true)
+        let eraseCaches = eraseLibrary.appendingPathComponent("Caches", isDirectory: true)
+        let eraseTemporary = root.appendingPathComponent("erase-tmp", isDirectory: true)
+        try fileManager.createDirectory(at: eraseSupport, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: eraseCaches, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: eraseTemporary, withIntermediateDirectories: true)
+        var eraseSession: StoreGenerationSession? = try StoreGenerationFactory(
+            applicationSupportURL: eraseSupport
+        ).openOrBootstrapCurrent()
+        _ = try await commitPersistentClip(in: XCTUnwrap(eraseSession), slot: slot + 40)
+        let defaultsName = "C33-R01-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        defer { defaults.removePersistentDomain(forName: defaultsName) }
+        // Erase allocates generation, operation, workspace and replica identities.
+        let eraseIDs = (0..<4).map { id(9_700 + slot + $0) }
+        XCTAssertEqual(Set(eraseIDs).count, 4)
+        XCTAssertTrue(Set(eraseIDs).isDisjoint(with: [try XCTUnwrap(eraseSession).generationID,
+            try XCTUnwrap(eraseSession).workspaceID.rawValue, try XCTUnwrap(eraseSession).workspaceIdentity.replicaID.rawValue]))
+        var remainingEraseIDs = eraseIDs
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: root,
+            applicationSupportURL: eraseSupport,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        weak var seededSession: StoreGenerationSession? = eraseSession
+        weak var seededContext: ModelContext? = eraseSession?.modelContext
+        weak var seededContainer: ModelContainer? = eraseSession?.modelContext.container
+        eraseSession = nil
+        guard seededSession == nil, seededContext == nil, seededContainer == nil else {
+            XCTFail("Seeded clip aliases must drain before authentic Router startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        var admittedReservation: AppAccessGateV1.EraseAdoptionToken?
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        var configuredErase: EraseAllService?
+        weak var originalCoordinator: StoreSessionCoordinator?
+        weak var originalContext: ModelContext?
+        weak var originalContainer: ModelContainer?
+        try await { @MainActor () async throws -> Void in
+            let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
+            await diagnostics.prepare()
+            try await eraseOwner.admit(coordinator: coordinator)
+            let erase = try eraseOwner.configure(EraseAllService(
+                applicationSupportURL: eraseSupport,
+                cachesDirectoryURL: eraseCaches,
+                temporaryDirectoryURL: eraseTemporary,
+                userDefaults: defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: defaultsName,
+                makeUUID: { remainingEraseIDs.removeFirst() },
+                admitErase: { subject in
+                    let reservation = try await eraseOwner.admitSubject(subject)
+                    admittedReservation = reservation
+                    return reservation
+                },
+                didCompleteErase: { completedReceipts.append($0) }
+            ))
+            configuredErase = erase
+            #if DEBUG
+            erase.erasePhaseDiagnosticForTesting = { phase in
+                print("C33R01[\(slot)] erase phase=\(phase)")
+            }
+            #endif
+            originalCoordinator = coordinator
+            originalContext = coordinator.modelContext
+            originalContainer = coordinator.modelContext.container
+            try await eraseOwner.prepareCompatibility(service: erase, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
+        }()
+        guard originalCoordinator == nil, originalContext == nil, originalContainer == nil else {
+            XCTFail("Original clip owners must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        XCTAssertTrue(completedReceipts.isEmpty)
+        try await eraseOwner.completeCleanup()
+        XCTAssertEqual(completedReceipts.count, 1)
+        let deliveredReceipt = try XCTUnwrap(completedReceipts.first)
+        let reservation = try XCTUnwrap(admittedReservation)
+        XCTAssertEqual(deliveredReceipt.reservation, reservation)
+        XCTAssertEqual(deliveredReceipt.subject, reservation.subject)
+        let erase = try XCTUnwrap(configuredErase)
+        XCTAssertTrue(remainingEraseIDs.isEmpty)
+        try await eraseOwner.adoptCompletedReceipt()
+        let token = try await eraseOwner.accessGate.beginContentRead(for: .startupRecovery)
+        weak var observedSession: StoreGenerationSession?
+        weak var observedContext: ModelContext?
+        weak var observedContainer: ModelContainer?
+        try token.withContentRead(for: .startupRecovery) {
+            try autoreleasepool {
+                let session = try StoreGenerationFactory(applicationSupportURL: eraseSupport).openOrBootstrapCurrent()
+                observedSession = session; observedContext = session.modelContext
+                observedContainer = session.modelContext.container
+                XCTAssertEqual(session.generationID, eraseIDs[0])
+                XCTAssertEqual(session.workspaceID.rawValue, eraseIDs[2])
+                XCTAssertEqual(session.workspaceIdentity.replicaID.rawValue, eraseIDs[3])
+                try erase.validateTemporalEvidenceEraseClosure(session: session)
+                XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+            }
+        }
+        guard observedSession == nil, observedContext == nil, observedContainer == nil else {
+            XCTFail("Completed-generation aliases must drain before fresh startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        try await eraseOwner.activateFreshOrdinarySession()
+        guard case let .ready(reopened, _, _) = eraseOwner.router.route else {
+            return XCTFail("Completed Erase must publish a fresh ordinary owner")
+        }
+        XCTAssertEqual(reopened.generationID, eraseIDs[0])
+        eraseOwner.router.entitlementProcessor?.stop()
+    }
+
+    static func ownerClip(
+        factID: String,
+        kind: TemporalEvidenceMediaKindV1,
+        reportProjection: TemporalEvidenceReportProjectionV1
+    ) throws -> (clip: TemporalEvidenceClipV1, profile: TemporalEvidenceLimitProfileV1) {
+        try clip(
+            slot: 900,
+            kind: kind,
+            factID: factID,
+            reportProjection: reportProjection,
+            requiresTranscript: true
+        )
+    }
+
+    static func assertOwnerBoundary(
+        _ value: (clip: TemporalEvidenceClipV1, profile: TemporalEvidenceLimitProfileV1),
+        factID: String,
+        kind: TemporalEvidenceMediaKindV1,
+        reportProjection: TemporalEvidenceReportProjectionV1,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        XCTAssertEqual(value.clip.target.factID, factID, file: file, line: line)
+        XCTAssertEqual(value.clip.facts.kind, kind, file: file, line: line)
+        XCTAssertEqual(value.profile.reportProjection, reportProjection, file: file, line: line)
+        XCTAssertEqual(value.clip.limitProfile, value.profile, file: file, line: line)
+        XCTAssertEqual(value.clip.original.byteRole, .immutableOriginal, file: file, line: line)
+        XCTAssertEqual(value.clip.original.byteLength, Int64(value.clip.facts.byteCount), file: file, line: line)
+        XCTAssertFalse(TemporalEvidencePersistenceEnrollmentV1.immutableOriginalsAreRewritten, file: file, line: line)
+        XCTAssertFalse(TemporalEvidencePersistenceEnrollmentV1.secondByteStoreAllowed, file: file, line: line)
+        try value.clip.validate(profile: value.profile)
+    }
+}
+
+private struct C33TemporalEvidenceClock: ApplicationClock {
+    let value: Date
+    func now() -> Date { value }
+}
+
+private struct C33TemporalEvidenceIDSource: ApplicationIDSource {
+    let value: UUID
+    func makeID() -> UUID { value }
+}
+
+private struct C33TemporalEvidenceFileAuthority: ApplicationFileAuthorityV1 {
+    func temporaryRelativePath(
+        mutationID: MutationIDV1,
+        component: String
+    ) throws -> String {
+        "c33/\(mutationID.rawValue.uuidString.lowercased())/\(component)"
+    }
+}
+
+@MainActor
+private final class C33TemporalEvidenceContentCleanupResolver:
+    TemporalEvidenceRetentionContentCleanupResolvingV1 {
+    private let remove: TemporalEvidencePromotedContentRemovalV1
+
+    init(remove: @escaping TemporalEvidencePromotedContentRemovalV1) {
+        self.remove = remove
+    }
+
+    func removeCommittedContent(
+        for mutation: TemporalEvidenceMutationV1,
+        receipt: TemporalEvidenceMutationReceiptV1
+    ) async throws {
+        try receipt.validate(mutation: mutation)
+        guard case let .removeClip(_, clips, _, derivatives, _) = mutation.payload else {
+            throw TemporalEvidenceContractFailureV1.invalidTransition
+        }
+        let values = (clips.map(\.original) + derivatives.map(\.content)).sorted {
+            $0.contentID < $1.contentID
+        }
+        guard Set(values.map(\.contentID)).count == values.count else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        for value in values {
+            let digest = try XCTUnwrap(
+                value.digests.digest(for: .sha256)?.hexadecimalValue
+            )
+            try await remove(mutation.workspaceID, value.contentID, digest)
+        }
+    }
+}
+
+private actor C33TemporalEvidenceScratchSpy: TemporalEvidenceScratchLifecycleV1 {
+    private var operationByLeaseID: [UUID: UUID] = [:]
+    private var dispositions: [ScratchPublicationDispositionV1] = []
+    private var recoveryCount = 0
+    private var failAcceptedFinishOnce: Bool
+
+    init(failAcceptedFinishOnce: Bool = false) {
+        self.failAcceptedFinishOnce = failAcceptedFinishOnce
+    }
+
+    func acquire(_ request: CapabilityScratchLeaseRequestV1) async throws -> CapabilityScratchLeaseV1 {
+        operationByLeaseID[request.leaseID] = request.operationID
+        return CapabilityScratchLeaseV1(
+            leaseID: request.leaseID,
+            purpose: request.purpose,
+            relativeDirectory: "scratch/c33/\(request.leaseID.uuidString.lowercased())"
+        )
+    }
+
+    func write(_ data: Data, named: String, lease: CapabilityScratchLeaseV1) async throws -> URL {
+        guard !data.isEmpty, !named.isEmpty, operationByLeaseID[lease.leaseID] != nil else {
+            throw TemporalEvidenceContractFailureV1.invalidValue
+        }
+        return URL(fileURLWithPath: "scratch/c33/\(lease.leaseID.uuidString.lowercased())/\(named)")
+    }
+
+    func finish(
+        lease: CapabilityScratchLeaseV1,
+        disposition: ScratchPublicationDispositionV1,
+        immutableContentReceiptDigest: String?
+    ) async throws -> ScratchPublicationLinkageReceiptV1 {
+        if disposition == .acceptedIntoImmutableContent, failAcceptedFinishOnce {
+            failAcceptedFinishOnce = false
+            throw TemporalEvidenceContractFailureV1.interruption
+        }
+        let operationID = try XCTUnwrap(operationByLeaseID[lease.leaseID])
+        dispositions.append(disposition)
+        return try ScratchPublicationLinkageReceiptV1(
+            operationID: operationID,
+            leaseID: lease.leaseID,
+            purpose: lease.purpose,
+            disposition: disposition,
+            immutableContentReceiptDigest: immutableContentReceiptDigest,
+            scratchDeleted: true
+        )
+    }
+
+    func recoverAfterInterruption() async throws -> ScratchDataLeaseRecoverySummaryV1 {
+        recoveryCount += 1
+        return try ScratchDataLeaseRecoverySummaryV1(
+            recoveredExpiredLeaseCount: operationByLeaseID.count,
+            removedByteCount: 0
+        )
+    }
+
+    func recordedDispositions() -> [ScratchPublicationDispositionV1] { dispositions }
+    func recordedRecoveryCount() -> Int { recoveryCount }
+}
+
+private enum C33TemporalEvidenceRecoveryFault: Equatable, Sendable {
+    case afterPrepared
+    case afterOriginalPromoted
+}
+
+private actor C33TemporalEvidenceFaultingRecovery: TemporalEvidencePromotionRecoveryPortV1 {
+    private let base: any TemporalEvidencePromotionRecoveryPortV1
+    private var pending: C33TemporalEvidenceRecoveryFault?
+
+    init(
+        base: any TemporalEvidencePromotionRecoveryPortV1,
+        pending: C33TemporalEvidenceRecoveryFault
+    ) {
+        self.base = base
+        self.pending = pending
+    }
+
+    func prepare(_ reservation: TemporalEvidencePromotionReservationV1) async throws {
+        try await base.prepare(reservation)
+        if pending == .afterPrepared {
+            pending = nil
+            throw TemporalEvidenceContractFailureV1.interruption
+        }
+    }
+
+    func transition(
+        _ reservation: TemporalEvidencePromotionReservationV1,
+        to state: TemporalEvidencePromotionRecoveryStateV1
+    ) async throws {
+        try await base.transition(reservation, to: state)
+        if state == .originalPromoted, pending == .afterOriginalPromoted {
+            pending = nil
+            throw TemporalEvidenceContractFailureV1.interruption
+        }
+    }
+
+    func reservation(
+        workspaceID: WorkspaceID,
+        mutationID: MutationIDV1
+    ) async throws -> TemporalEvidencePromotionReservationV1? {
+        try await base.reservation(workspaceID: workspaceID, mutationID: mutationID)
+    }
+
+    func recoverPending() async throws -> [TemporalEvidencePromotionReservationV1] {
+        try await base.recoverPending()
+    }
+
+    func promotedContentExists(
+        _ reservation: TemporalEvidencePromotionReservationV1
+    ) async throws -> Bool {
+        try await base.promotedContentExists(reservation)
+    }
+
+    func adoptCommittedContent(
+        _ reservation: TemporalEvidencePromotionReservationV1,
+        receiptSHA256: String
+    ) async throws {
+        try await base.adoptCommittedContent(reservation, receiptSHA256: receiptSHA256)
+    }
+
+    func removeUncommittedContent(
+        _ reservation: TemporalEvidencePromotionReservationV1
+    ) async throws {
+        try await base.removeUncommittedContent(reservation)
+    }
+
+    func remove(_ reservation: TemporalEvidencePromotionReservationV1) async throws {
+        try await base.remove(reservation)
+    }
+}
+
+private actor C33TemporalEvidenceAdmissionStub: TemporalEvidenceAdmissionResolvingV1 {
+    var snapshot: TemporalEvidenceAdmissionSnapshotV1
+
+    init(snapshot: TemporalEvidenceAdmissionSnapshotV1) {
+        self.snapshot = snapshot
+    }
+
+    func currentAdmission(
+        for clip: TemporalEvidenceClipV1
+    ) async throws -> TemporalEvidenceAdmissionSnapshotV1 {
+        snapshot
+    }
+
+    func replace(with value: TemporalEvidenceAdmissionSnapshotV1) {
+        snapshot = value
+    }
+}
+
+@MainActor
+private final class C33TemporalEvidencePersistentHarness {
+    let fixture: (clip: TemporalEvidenceClipV1, profile: TemporalEvidenceLimitProfileV1)
+    let container: ModelContainer
+    let context: ModelContext
+    let identity: WorkspaceReplicaIdentityV1
+    let generationID: UUID
+    let writerInstanceID: UUID
+    let store: MutationJournalStoreV1
+    let writer: WorkspaceWriterV1
+    let scratch: C33TemporalEvidenceScratchSpy
+    let admission: C33TemporalEvidenceAdmissionStub
+    let recovery: any TemporalEvidencePromotionRecoveryPortV1
+    let cleanupRecovery: any TemporalEvidenceRetentionCleanupRecoveryPortV1
+    let contentCleanup: TemporalEvidenceRetentionContentCleanupAdapterV1
+    let content: TemporalEvidenceExistingContentPromotionAdapterV1
+    let coordinator: TemporalEvidenceCoordinatorV1
+    let request: TemporalEvidenceAcceptanceRequestV1
+    let generationRootURL: URL
+    let setupHistory: MutationHistorySnapshotV1
+
+    init(
+        slot: Int,
+        failureBoundary: MutationJournalFaultBoundaryV1? = nil,
+        recoveryFault: C33TemporalEvidenceRecoveryFault? = nil,
+        failAcceptedScratchFinishOnce: Bool = false
+    ) async throws {
+        let standalone = try C33TemporalEvidenceTestSupport.clip(slot: slot)
+        let definition = try C26SurveySessionTestSupport.release(
+            releaseSlot: 330, workspaceID: standalone.clip.workspaceID)
+        let package = try C26SurveySessionTestSupport.packageRelease()
+        let provisional = try C26SurveySessionTestSupport.provisional(workspaceID: standalone.clip.workspaceID)
+        let survey = try C26SurveySessionTestSupport.session(
+            authority: C26SurveySessionTestSupport.authority(for: definition, package: package),
+            workspaceID: standalone.clip.workspaceID, subject: .provisional(provisional.reference),
+            state: .draft, transition: .create, revision: 1, actorSlot: 601)
+        let fact = try XCTUnwrap(definition.sections.flatMap(\.facts).first)
+        let original = standalone.clip
+        let clip = try TemporalEvidenceClipV1(clipID: original.clipID, workspaceID: original.workspaceID,
+            target: .init(workspaceID: original.workspaceID, sessionID: survey.sessionID,
+                sessionRevision: survey.revision, sessionSHA256: survey.sessionSHA256,
+                definitionRelease: survey.authority.definitionRelease, factID: fact.factID,
+                repeatCoordinates: []),
+            original: original.original, originalProvenance: original.originalProvenance,
+            locator: original.locator, facts: original.facts, profile: standalone.profile,
+            accessibleDescription: original.accessibleDescription, manualTranscript: original.manualTranscript,
+            recordedBy: original.recordedBy, capturedAt: original.capturedAt, acceptedAt: original.acceptedAt,
+            revision: original.revision, mutationID: original.mutationID)
+        let fixture = (clip: clip, profile: standalone.profile)
+        // The live canonical seed producer reads the complete current schema.
+        // Contract-only C33 schema/version assertions elsewhere remain historical.
+        let schema = Schema(PersistentSchemaV53.models, version: PersistentSchemaV53.versionIdentifier)
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [ModelConfiguration(
+                "C33TemporalEvidence-\(slot)",
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                allowsSave: true,
+                cloudKitDatabase: .none
+            )]
+        )
+        let context = container.mainContext
+        context.autosaveEnabled = false
+        let identity = try WorkspaceReplicaIdentityV1(
+            workspaceID: fixture.clip.workspaceID,
+            replicaID: ReplicaID(rawValue: C33TemporalEvidenceTestSupport.id(802 + slot))
+        )
+        let generationID = C33TemporalEvidenceTestSupport.id(800)
+        let writerInstanceID = C33TemporalEvidenceTestSupport.id(801)
+        let setupStore = try MutationJournalStoreV1(modelContext: context,
+            identity: identity, generationID: generationID)
+        let setupWriter = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: setupStore.currentRevision(writerInstanceID: writerInstanceID),
+            clock: C33TemporalEvidenceClock(value: fixture.clip.acceptedAt),
+            idSource: C33TemporalEvidenceIDSource(value: writerInstanceID),
+            fileAuthority: C33TemporalEvidenceFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: setupStore)
+        defer { setupWriter.invalidate() }
+        try await CanonicalWriterSeedingV1.seedSurveySession(definition: definition, package: package,
+            provisional: provisional, session: survey,
+            promotionActor: C26SurveySessionTestSupport.actor(workspaceID: clip.workspaceID, slot: 8_002),
+            writer: setupWriter, journal: setupStore, context: context, promotedAt: clip.acceptedAt)
+        try CanonicalWriterSeedingV1.appendActors(
+            [clip.recordedBy, C33TemporalEvidenceTestSupport.review(for: clip).reviewer], writer: setupWriter)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }, [survey])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SurveyDefinitionReleaseRow>()).map { try $0.value() },
+            [definition])
+        let packages = PackageEvolutionLifecycleAdapterV1(writer: setupWriter, journal: setupStore,
+            modelContext: context)
+        let pointer = try XCTUnwrap(packages.activePointer(workspaceID: clip.workspaceID,
+            packageID: package.packageID))
+        let promotion = try XCTUnwrap(packages.acceptedLifecycleClosure(mutationID: pointer.mutationID))
+        try promotion.validate()
+        XCTAssertEqual(promotion.activePointers, [pointer])
+        XCTAssertEqual(promotion.promotedReleases.map(\.packageRelease), [package])
+        let setupHistory = try setupStore.exportSnapshot()
+        let setupCommands = try setupHistory.receipts.map {
+            try MutationEnvelopeV1.decodeCanonical(from: $0.envelopeData).commandKind
+        }
+        let producerActors = [
+            try C26SurveySessionTestSupport.actor(workspaceID: clip.workspaceID, slot: 8_002),
+            definition.authoredBy, provisional.createdBy, survey.startedBy, survey.lastTransitionBy
+        ]
+        let producerActorCount = Set(producerActors.map(\.snapshotID)).count
+        let clipActorCount = Set([clip.recordedBy.snapshotID,
+            try C33TemporalEvidenceTestSupport.review(for: clip).reviewer.snapshotID]).count
+        XCTAssertEqual(setupCommands.filter { $0 == .applyPartyAccountability }.count,
+            producerActorCount + clipActorCount)
+        XCTAssertEqual(setupCommands.filter { $0 == .applyPackagePromotion }.count, 1)
+        XCTAssertEqual(setupCommands.filter { $0 == .applySurveyDefinition }.count, 1)
+        XCTAssertEqual(setupCommands.filter { $0 == .applySurveySession }.count, 2)
+        XCTAssertEqual(setupCommands.count, producerActorCount + clipActorCount + 4)
+        XCTAssertEqual(setupHistory.workspaceRevision, UInt64(setupCommands.count))
+        XCTAssertEqual(setupHistory.lastLocalSequence, UInt64(setupCommands.count))
+        XCTAssertTrue(setupHistory.quarantines.isEmpty)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<TimecodedEvidenceAnchorRow>()), 0)
+        setupWriter.invalidate()
+        // Arm only after the genuine setup history has committed. Each injected
+        // boundary must interrupt the temporal operation, never a setup command.
+        let store = try MutationJournalStoreV1(modelContext: context, identity: identity,
+            generationID: generationID, failureInjection: failureBoundary.map {
+                MutationJournalFailureInjectionV1(failOnceAt: $0)
+            }, allowStateBootstrap: false)
+        let current = try store.currentRevision(writerInstanceID: writerInstanceID)
+        let expected = try C33TemporalEvidenceTestSupport.expectedRevision(for: fixture.clip,
+            generationID: generationID, writerInstanceID: writerInstanceID,
+            workspaceRevision: current.revision)
+        let writer = try WorkspaceWriterV1(identity: identity, generationID: generationID,
+            initialRevision: current,
+            clock: C33TemporalEvidenceClock(value: fixture.clip.acceptedAt),
+            idSource: C33TemporalEvidenceIDSource(value: writerInstanceID),
+            fileAuthority: C33TemporalEvidenceFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context), journalStore: store)
+        let generationRootURL = FileManager.default.temporaryDirectory
+            .resolvingSymlinksInPath()
+            .appendingPathComponent(
+                "C33TemporalEvidence-\(slot)-\(UUID().uuidString)",
+                isDirectory: true
+            )
+            .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+            .appendingPathComponent("generations", isDirectory: true)
+            .appendingPathComponent(generationID.uuidString.lowercased(), isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: generationRootURL,
+            withIntermediateDirectories: true
+        )
+        let content = TemporalEvidenceExistingContentPromotionAdapterV1(
+            writer: EvidenceBundleStore(generationRootURL: generationRootURL)
+        )
+        let scratch = C33TemporalEvidenceScratchSpy(
+            failAcceptedFinishOnce: failAcceptedScratchFinishOnce
+        )
+        let admission = C33TemporalEvidenceAdmissionStub(snapshot: try TemporalEvidenceAdmissionSnapshotV1(
+            expectedRevision: expected,
+            profile: fixture.profile,
+            clipsForRequirement: 0,
+            clipsForSession: 0,
+            availableByteCount: fixture.profile.minimumFreeByteCount + fixture.clip.facts.byteCount,
+            evaluatedAt: fixture.clip.acceptedAt
+        ))
+        let recoveryBase = try TemporalEvidencePromotionRecoveryFileAdapterV1(
+            generationRootURL: generationRootURL,
+            workspaceID: fixture.clip.workspaceID,
+            verify: { workspaceID, contentID, contentSHA256 in
+                guard workspaceID == fixture.clip.workspaceID,
+                      contentID == fixture.clip.original.contentID,
+                      contentSHA256 == fixture.clip.original.digests.digest(for: .sha256)?.hexadecimalValue else {
+                    return false
+                }
+                let url = generationRootURL.appendingPathComponent(
+                    try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)
+                )
+                guard FileManager.default.fileExists(atPath: url.path) else { return false }
+                return KernelCanonicalHashV1.sha256(try Data(contentsOf: url)) == contentSHA256
+            },
+            remove: { workspaceID, contentID, contentSHA256 in
+                guard workspaceID == fixture.clip.workspaceID,
+                      contentID == fixture.clip.original.contentID,
+                      contentSHA256 == fixture.clip.original.digests.digest(for: .sha256)?.hexadecimalValue else {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+                let url = generationRootURL.appendingPathComponent(
+                    try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)
+                )
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try FileManager.default.removeItem(at: url)
+                }
+            }
+        )
+        let recovery: any TemporalEvidencePromotionRecoveryPortV1
+        if let recoveryFault {
+            recovery = C33TemporalEvidenceFaultingRecovery(
+                base: recoveryBase,
+                pending: recoveryFault
+            )
+        } else {
+            recovery = recoveryBase
+        }
+        let cleanupRecovery = try TemporalEvidenceRetentionCleanupRecoveryFileAdapterV1(
+            generationRootURL: generationRootURL,
+            workspaceID: fixture.clip.workspaceID
+        )
+        let cleanupResolver = C33TemporalEvidenceContentCleanupResolver {
+            workspaceID, contentID, contentSHA256 in
+            let url = generationRootURL
+                .appendingPathComponent("content", isDirectory: true)
+                .appendingPathComponent(
+                    workspaceID.rawValue.uuidString.lowercased(),
+                    isDirectory: true
+                )
+                .appendingPathComponent(contentID, isDirectory: true)
+                .appendingPathComponent("original.bin", isDirectory: false)
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            guard KernelCanonicalHashV1.sha256(try Data(contentsOf: url)) == contentSHA256 else {
+                throw TemporalEvidenceContractFailureV1.digestMismatch
+            }
+            try FileManager.default.removeItem(at: url)
+        }
+        let contentCleanup = TemporalEvidenceRetentionContentCleanupAdapterV1(
+            resolver: cleanupResolver
+        )
+        let coordinator = TemporalEvidenceCoordinatorV1(
+            writer: writer,
+            content: content,
+            scratch: scratch,
+            admission: admission,
+            recovery: recovery,
+            cleanupRecovery: cleanupRecovery,
+            contentCleanup: contentCleanup
+        )
+        let binding = try await coordinator.acquireScratch(
+            leaseID: C33TemporalEvidenceTestSupport.id(820 + slot),
+            mutationID: fixture.clip.mutationID,
+            contentID: fixture.clip.original.contentID,
+            contentSHA256: try XCTUnwrap(
+                fixture.clip.original.digests.digest(for: .sha256)?.hexadecimalValue
+            ),
+            profile: fixture.profile,
+            kind: fixture.clip.facts.kind,
+            createdAt: fixture.clip.capturedAt.addingTimeInterval(-1),
+            expiresAt: fixture.clip.acceptedAt.addingTimeInterval(60)
+        )
+        _ = try await scratch.write(
+            C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind),
+            named: "completed.bin",
+            lease: binding.lease
+        )
+        let request = try TemporalEvidenceAcceptanceRequestV1(
+            clip: fixture.clip,
+            profile: fixture.profile,
+            review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
+            expectedRevision: expected,
+            scratchBinding: binding,
+            admissionReceipt: C33TemporalEvidenceTestSupport.admissionReceipt(
+                for: fixture.clip,
+                profile: fixture.profile
+            ),
+            completedBytes: C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind)
+        )
+        self.fixture = fixture
+        self.container = container
+        self.context = context
+        self.identity = identity
+        self.generationID = generationID
+        self.writerInstanceID = writerInstanceID
+        self.store = store
+        self.writer = writer
+        self.scratch = scratch
+        self.admission = admission
+        self.recovery = recovery
+        self.cleanupRecovery = cleanupRecovery
+        self.contentCleanup = contentCleanup
+        self.content = content
+        self.coordinator = coordinator
+        self.request = request
+        self.generationRootURL = generationRootURL
+        self.setupHistory = setupHistory
+    }
+
+    /// Preserve the complete setup prefix, and count only exact canonical
+    /// temporal commands added after it. No receipt may disappear or change.
+    func temporalReceiptCount(in auditContext: ModelContext? = nil,
+        file: StaticString = #filePath, line: UInt = #line) throws -> Int {
+        let audit = try MutationJournalStoreV1(modelContext: auditContext ?? context,
+            identity: identity, generationID: generationID, allowStateBootstrap: false)
+        let history = try audit.exportSnapshot()
+        XCTAssertEqual(Array(history.receipts.prefix(setupHistory.receipts.count)),
+            setupHistory.receipts, file: file, line: line)
+        XCTAssertEqual(history.quarantines, setupHistory.quarantines, file: file, line: line)
+        let setupIdentities = Set(setupHistory.entityRevisions.map(\.identity))
+        XCTAssertEqual(history.entityRevisions.filter { setupIdentities.contains($0.identity) },
+            setupHistory.entityRevisions, file: file, line: line)
+        let temporal = Array(history.receipts.dropFirst(setupHistory.receipts.count))
+        var mutationIDs = Set<MutationIDV1>()
+        for (offset, record) in temporal.enumerated() {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            guard case .applyTemporalEvidence = envelope.command else {
+                XCTFail("unexpected non-temporal command after setup", file: file, line: line)
+                throw WorkspaceMutationFailureV1.invalidCommand
+            }
+            XCTAssertTrue(mutationIDs.insert(envelope.mutationID).inserted, file: file, line: line)
+            let receipt = try MutationReceiptV1.decodeCanonical(from: record.receiptData)
+            XCTAssertEqual(receipt.identity.localSequence,
+                setupHistory.lastLocalSequence + UInt64(offset) + 1, file: file, line: line)
+        }
+        XCTAssertEqual(history.receipts.count, setupHistory.receipts.count + temporal.count,
+            file: file, line: line)
+        XCTAssertEqual(history.workspaceRevision, setupHistory.workspaceRevision + UInt64(temporal.count),
+            file: file, line: line)
+        XCTAssertEqual(history.lastLocalSequence, setupHistory.lastLocalSequence + UInt64(temporal.count),
+            file: file, line: line)
+        return temporal.count
+    }
+
+    private func coldRecoveryAdapter() throws -> TemporalEvidencePromotionRecoveryFileAdapterV1 {
+        let fixture = fixture
+        let generationRootURL = generationRootURL
+        return try TemporalEvidencePromotionRecoveryFileAdapterV1(
+            generationRootURL: generationRootURL,
+            workspaceID: fixture.clip.workspaceID,
+            verify: { workspaceID, contentID, contentSHA256 in
+                guard workspaceID == fixture.clip.workspaceID,
+                      contentID == fixture.clip.original.contentID,
+                      contentSHA256 == fixture.clip.original.digests
+                        .digest(for: .sha256)?.hexadecimalValue else {
+                    return false
+                }
+                let url = generationRootURL.appendingPathComponent(
+                    try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)
+                )
+                guard FileManager.default.fileExists(atPath: url.path) else { return false }
+                return KernelCanonicalHashV1.sha256(try Data(contentsOf: url)) == contentSHA256
+            },
+            remove: { workspaceID, contentID, contentSHA256 in
+                guard workspaceID == fixture.clip.workspaceID,
+                      contentID == fixture.clip.original.contentID,
+                      contentSHA256 == fixture.clip.original.digests
+                        .digest(for: .sha256)?.hexadecimalValue else {
+                    throw TemporalEvidenceContractFailureV1.digestMismatch
+                }
+                let url = generationRootURL.appendingPathComponent(
+                    try TemporalEvidenceBackupMemberV1.original(for: fixture.clip)
+                )
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try FileManager.default.removeItem(at: url)
+                }
+            }
+        )
+    }
+
+    private func coldCleanupRecoveryAdapter() throws
+        -> TemporalEvidenceRetentionCleanupRecoveryFileAdapterV1 {
+        try TemporalEvidenceRetentionCleanupRecoveryFileAdapterV1(
+            generationRootURL: generationRootURL,
+            workspaceID: fixture.clip.workspaceID
+        )
+    }
+
+    func relaunchedCoordinator(
+        failureBoundary: MutationJournalFaultBoundaryV1? = nil
+    ) throws -> TemporalEvidenceCoordinatorV1 {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let store = try MutationJournalStoreV1(
+            modelContext: context,
+            identity: identity,
+            generationID: generationID,
+            failureInjection: failureBoundary.map {
+                MutationJournalFailureInjectionV1(failOnceAt: $0)
+            },
+            allowStateBootstrap: false
+        )
+        try MutationReceiptRecoveryServiceV1(store: store).recoverBeforeWriterActivation()
+        let writer = try WorkspaceWriterV1(
+            identity: identity,
+            generationID: generationID,
+            initialRevision: store.currentRevision(writerInstanceID: writerInstanceID),
+            clock: C33TemporalEvidenceClock(value: fixture.clip.acceptedAt),
+            idSource: C33TemporalEvidenceIDSource(value: writerInstanceID),
+            fileAuthority: C33TemporalEvidenceFileAuthority(),
+            adapter: WorkspaceWriterAdapterV1(modelContext: context),
+            journalStore: store
+        )
+        return TemporalEvidenceCoordinatorV1(
+            writer: writer,
+            content: content,
+            scratch: scratch,
+            admission: admission,
+            recovery: try coldRecoveryAdapter(),
+            cleanupRecovery: try coldCleanupRecoveryAdapter(),
+            contentCleanup: contentCleanup
+        )
+    }
+}
+
+private struct C33TemporalEvidenceCorpusV1: Decodable {
+    let schema: String
+    let schemaVersion: Int
+    let cardID: String
+    let persistentSchemaVersion: Int
+    let recordsSchemaVersion: Int
+    let durableFamilies: [String]
+    let evidenceIDs: [String]
+    let captureProfiles: [CaptureProfile]
+    let writerBoundaries: [String]
+    let hostileCases: [String]
+    let lifecycle: [String: String]
+    let invariants: [String: Bool]
+    let statusFlags: [String: Bool]
+
+    struct CaptureProfile: Decodable {
+        let profileID: String
+        let kind: String
+        let maximumDurationMilliseconds: UInt64
+        let maximumByteCount: UInt64
+        let containers: [String]
+        let codecs: [String]
+        let maximumPixelWidth: Int?
+        let maximumPixelHeight: Int?
+        let maximumClipsPerRequirement: Int
+        let maximumClipsPerSession: Int
+        let minimumFreeByteCount: UInt64
+        let reportProjection: String
+    }
+}
+
+final class V9_49TemporalEvidenceClipTests: XCTestCase {
+    private func corpus() throws -> C33TemporalEvidenceCorpusV1 {
+        let url = Bundle(for: Self.self).url(
+            forResource: "V22P03C33TemporalEvidenceCorpusV1",
+            withExtension: "json",
+            subdirectory: "Fixtures/V22/TemporalEvidence"
+        ) ?? Bundle(for: Self.self).url(
+            forResource: "V22P03C33TemporalEvidenceCorpusV1",
+            withExtension: "json"
+        )
+        return try JSONDecoder().decode(
+            C33TemporalEvidenceCorpusV1.self,
+            from: Data(contentsOf: XCTUnwrap(url))
+        )
+    }
+
+    @MainActor
+    func testV23P03C33G01ReviewedClipPromotesImmutableContentAndOneCanonicalMutation() async throws {
+        let harness = try await C33TemporalEvidencePersistentHarness(slot: 40)
+        let accepted = try await harness.coordinator.accept(harness.request)
+        let fixture = harness.fixture
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: fixture.clip)
+
+        try fixture.clip.validate(profile: fixture.profile)
+        try anchor.validate(clip: fixture.clip)
+        let missingPreview = try TemporalEvidenceReportLinkV1(
+            clip: fixture.clip,
+            anchors: [anchor],
+            profile: fixture.profile
+        )
+        XCTAssertThrowsError(try TemporalEvidenceReportProjectionPolicyV1.validate(missingPreview)) { error in
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .invalidValue)
+        }
+        let derivative = try C33TemporalEvidenceTestSupport.derivative(clip: fixture.clip, slot: 71)
+        // This value-only projection fixture is not another canonical mutation.
+        let projectionClip = try fixture.clip.successor(
+            clipID: C33TemporalEvidenceTestSupport.id(72), profile: fixture.profile,
+            derivativeReferences: [try derivative.reference],
+            mutationID: C33TemporalEvidenceTestSupport.mutation(73))
+        let projectionAnchor = try C33TemporalEvidenceTestSupport.anchor(clip: projectionClip, slot: 74)
+        let reportLink = try TemporalEvidenceReportProjectionRegistryV1.projection(
+            clip: projectionClip, anchors: [projectionAnchor],
+            currentDerivative: try derivative.reference, profile: fixture.profile)
+        try TemporalEvidenceReportProjectionPolicyV1.validate(reportLink)
+        try reportLink.validate(clip: projectionClip, anchors: [projectionAnchor],
+            currentDerivative: derivative.reference)
+        XCTAssertEqual(projectionClip.original, fixture.clip.original)
+        XCTAssertEqual(reportLink.derivativePreview?.derivativeID, derivative.derivativeID)
+        XCTAssertEqual(reportLink.derivativePreview?.sourceClipSHA256, projectionClip.clipSHA256)
+        XCTAssertEqual(reportLink.derivativePreview?.sourceClipRevision, projectionClip.revision)
+        XCTAssertEqual(reportLink.derivativePreview?.kind, .waveform)
+        XCTAssertNil(reportLink.manualTranscript)
+        let searchRecord = try TemporalEvidenceSearchRecordV1(
+            clip: fixture.clip,
+            anchors: [anchor]
+        )
+        try TemporalEvidenceSearchProjectionPolicyV1.validate(searchRecord)
+        XCTAssertFalse(reportLink.embedsOriginalBytes)
+        XCTAssertEqual(searchRecord.clipID, fixture.clip.clipID)
+        XCTAssertEqual(anchor.sourceContentID, fixture.clip.original.contentID)
+        XCTAssertEqual(anchor.sourceSHA256, fixture.clip.original.digests.digest(for: .sha256)?.hexadecimalValue)
+        XCTAssertEqual(fixture.clip.mutationID, try C33TemporalEvidenceTestSupport.mutation(540))
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 1)
+        XCTAssertEqual(try harness.temporalReceiptCount(), 1)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first?.value(), fixture.clip)
+        XCTAssertEqual(accepted.mutationReceipt.mutationReceipt.mutationID, fixture.clip.mutationID)
+        XCTAssertEqual(accepted.contentReceipt.digest, fixture.clip.original.digests.digest(for: .sha256))
+        XCTAssertEqual(
+            try Data(contentsOf: harness.generationRootURL.appendingPathComponent(accepted.contentReceipt.relativePath)),
+            harness.request.completedBytes
+        )
+        let scratchDispositions = await harness.scratch.recordedDispositions()
+        XCTAssertEqual(scratchDispositions, [.acceptedIntoImmutableContent])
+        XCTAssertEqual(TemporalEvidencePersistenceEnrollmentV1.writer, "SOLE_CANONICAL_WORKSPACE_WRITER")
+        XCTAssertEqual(TemporalEvidencePersistenceEnrollmentV1.scratchPersistence, "NONPERSISTENT_BACKUP_EXCLUDED")
+        XCTAssertFalse(TemporalEvidencePersistenceEnrollmentV1.secondByteStoreAllowed)
+    }
+
+    @MainActor
+    private func appendEraseDerivative(
+        session: StoreGenerationSession, predecessor: TemporalEvidenceClipV1,
+        slot: Int, sharing: TemporalEvidenceDerivativeV1? = nil,
+        conflictingCreatedAt: Bool = false,
+        suppliedWriter: WorkspaceWriterV1? = nil
+    ) async throws -> (clip: TemporalEvidenceClipV1, derivative: TemporalEvidenceDerivativeV1) {
+        let basis = try sharing ?? C33TemporalEvidenceTestSupport.derivative(clip: predecessor, slot: slot)
+        let content: ContentReferenceV1
+        if conflictingCreatedAt {
+            content = try ContentReferenceV1(workspaceID: basis.content.workspaceID,
+                contentID: basis.content.contentID, byteLength: basis.content.byteLength,
+                mediaType: basis.content.mediaType, digests: basis.content.digests,
+                byteRole: basis.content.byteRole, createdAt: "2027-09-04T00:00:01Z")
+        } else { content = basis.content }
+        let derivative = try TemporalEvidenceDerivativeV1(
+            derivativeID: C33TemporalEvidenceTestSupport.id(slot), clip: predecessor,
+            content: content, locator: basis.locator, kind: basis.kind,
+            generatorID: basis.generatorID, generatorVersion: basis.generatorVersion,
+            provenance: basis.provenance, revision: 1,
+            mutationID: C33TemporalEvidenceTestSupport.mutation(slot + 1))
+        if sharing == nil {
+            let request = try DraftImmutableContentWriteRequestV1(workspaceID: session.workspaceID,
+                contentID: content.contentID, digest: XCTUnwrap(content.digests.digest(for: .sha256)),
+                byteLength: content.byteLength, mediaType: content.mediaType,
+                mutationID: derivative.mutationID, createdAt: content.createdAt)
+            _ = try await EvidenceBundleStore(generationRootURL: session.generationRootURL)
+                .persistImmutableOriginal(bytes: C33TemporalEvidenceTestSupport.bytes(for: predecessor.facts.kind), request: request)
+        }
+        let successor = try predecessor.successor(clipID: C33TemporalEvidenceTestSupport.id(slot + 2),
+            profile: predecessor.limitProfile, derivativeReferences: [try derivative.reference],
+            mutationID: C33TemporalEvidenceTestSupport.mutation(slot + 3))
+        let temporaryOwner = try suppliedWriter == nil
+            ? StoreSessionCoordinator(validatingSession: session) : nil
+        defer {
+            if let temporaryOwner {
+                XCTAssertNoThrow(try temporaryOwner.invalidateAndReleaseWriter())
+            }
+        }
+        let writer = try XCTUnwrap(suppliedWriter ?? temporaryOwner?.workspaceWriter)
+        let current = try writer.currentRevision()
+        let expected = try C33TemporalEvidenceTestSupport.expectedRevision(for: predecessor,
+            generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision, entityRevision: predecessor.revision)
+        _ = try writer.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
+            expectedRevision: expected, mutationID: successor.mutationID,
+            payload: .registerDerivative(successor, derivative: derivative,
+                predecessorClip: predecessor, predecessorDerivative: nil)))
+        return (successor, derivative)
+    }
+
+    @MainActor
+    private func retireEraseDerivatives(session: StoreGenerationSession,
+        predecessor: TemporalEvidenceClipV1,
+        suppliedWriter: WorkspaceWriterV1? = nil) throws -> TemporalEvidenceClipV1 {
+        let event = try TemporalEvidenceRetentionEventV1(eventID: C33TemporalEvidenceTestSupport.id(5_001),
+            clip: predecessor, disposition: .removeRegenerableDerivatives,
+            policySHA256: String(repeating: "d", count: 64), actor: predecessor.recordedBy,
+            occurredAt: predecessor.acceptedAt.addingTimeInterval(1), revision: 1,
+            mutationID: C33TemporalEvidenceTestSupport.mutation(5_002))
+        let successor = try predecessor.successor(clipID: C33TemporalEvidenceTestSupport.id(5_003),
+            profile: predecessor.limitProfile, derivativeReferences: [], retentionReference: event.reference,
+            mutationID: event.mutationID)
+        let temporaryOwner = try suppliedWriter == nil
+            ? StoreSessionCoordinator(validatingSession: session) : nil
+        defer {
+            if let temporaryOwner {
+                XCTAssertNoThrow(try temporaryOwner.invalidateAndReleaseWriter())
+            }
+        }
+        let writer = try XCTUnwrap(suppliedWriter ?? temporaryOwner?.workspaceWriter)
+        let current = try writer.currentRevision()
+        let expected = try C33TemporalEvidenceTestSupport.expectedRevision(for: predecessor,
+            generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision, entityRevision: predecessor.revision)
+        _ = try writer.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
+            expectedRevision: expected, mutationID: successor.mutationID,
+            payload: .applyRetention(successor, event: event, predecessorClip: predecessor, predecessorEvent: nil)))
+        return successor
+    }
+
+    @MainActor
+    private final class C33EraseCleanupPermission {
+        @MainActor
+        private final class WeakStore {
+            weak var session: StoreGenerationSession?
+            weak var context: ModelContext?
+            weak var container: ModelContainer?
+            init(_ session: StoreGenerationSession) {
+                self.session = session
+                context = session.modelContext
+                container = session.modelContext.container
+            }
+            var isReleased: Bool { session == nil && context == nil && container == nil }
+        }
+        private var owners: [WeakStore] = []
+        var completedColdRecovery = false
+        func observe(_ session: StoreGenerationSession) { owners.append(WeakStore(session)) }
+        var permitsCleanup: Bool { completedColdRecovery && owners.allSatisfy(\.isReleased) }
+    }
+
+#if DEBUG
+    /// Fixed DEBUG labels only; the Service hook can also carry physical-file
+    /// diagnostics, which are deliberately excluded from this test log.
+    @MainActor
+    private static func traceC33DirectErasePhase(_ phase: String) {
+        let allowed: Set<String> = [
+            "entry.integration-projections", "entry.scene-navigation",
+            "entry.lifecycle-route", "entry.auxiliary",
+            "entry.generation-authority", "entry.retired-inventory",
+            "entry.current-authority", "entry.kernel-mappings",
+            "entry.package-lifecycle", "entry.auxiliary-reverify",
+            "entry.frozen-pointer", "entry.source-ledger",
+            "entry.fresh-identity", "entry.admit",
+            "entry.revalidate-admission", "prepare.intent-store",
+            "prepare.create", "prepare.empty-generation",
+            "prepare.empty-generation.factory-returned",
+            "prepare.empty-generation.original-bind-returned",
+            "prepare.bind", "prepare.empty-ledger", "prepare.validate-empty",
+            "prepare.revalidate-empty", "after-pointer-fault-proved",
+            "after-pointer-witness-captured", "projection.local-purge.begin",
+            "projection.local-purge.end", "projection.private-discovery.begin",
+            "projection.private-discovery.end", "retirement.binding.enter",
+            "retirement.binding.complete", "cleanup.prepare.enter",
+            "cleanup.prepare.complete", "retirement.detach.enter",
+            "retirement.detach.complete"
+        ]
+        let failurePrefix = "authority.failure.line."
+        let safe: String?
+        if allowed.contains(phase) {
+            safe = phase
+        } else if phase.hasPrefix(failurePrefix),
+                  let line = Int(phase.dropFirst(failurePrefix.count)), line > 0 {
+            safe = "authority.failure.line.\(line)"
+        } else {
+            safe = nil
+        }
+        if let safe {
+            FileHandle.standardError.write(Data((
+                "V949_DIRECT_ERASE_PHASE_V1 phase=" + safe + "\n"
+            ).utf8))
+        }
+    }
+
+#endif
+
+    @MainActor
+    private struct C33PreparedColdErase {
+        let root: URL
+        let support: URL
+        let oldGenerationID: UUID
+        let oldGenerationRoot: URL
+        let newGenerationID: UUID
+        let owner: V23EraseOperationHarnessV1
+        let interruptedOperation: EraseRouterOperationV1?
+        let diagnostics: DiagnosticsStore
+        let makeService: @MainActor () -> EraseAllService
+    }
+
+    /// The original Router owns the sole seeded writer. A real Service either
+    /// prepares its replacement or injects after pointer publication. No
+    /// source session/context/container escapes the preparation frame.
+    @MainActor
+    private func eraseRegisteredFixture(
+        interrupted: Bool,
+        originalExpected: Bool = true,
+        makeFixture: @escaping @MainActor (C33EraseCleanupPermission) async throws -> EraseOriginalFixture
+    ) async throws {
+        let cleanupPermission = C33EraseCleanupPermission()
+        weak var oldSession: StoreGenerationSession?
+        weak var oldContext: ModelContext?
+        weak var oldContainer: ModelContainer?
+
+        @MainActor
+        func prepare() async throws -> C33PreparedColdErase {
+            let fixture = try await makeFixture(cleanupPermission)
+            let session = fixture.session
+            let owner = try XCTUnwrap(fixture.originalOwner)
+            guard case let .ready(coordinator, diagnostics, _) = owner.router.route,
+                  coordinator.modelContext === session.modelContext else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            oldSession = session
+            oldContext = session.modelContext
+            oldContainer = session.modelContext.container
+            XCTAssertNotNil(session.readerLeaseToken)
+            let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity, generationID: session.generationID,
+                allowStateBootstrap: false)
+            try journal.validateAll()
+            let history = try journal.exportSnapshot()
+            let original = session.generationRootURL.appendingPathComponent(
+                try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
+            let originalBytes = originalExpected ? try Data(contentsOf: original) : nil
+            if !originalExpected {
+                XCTAssertFalse(FileManager.default.fileExists(atPath: original.path))
+            }
+            await diagnostics.prepare()
+            try await owner.admit(coordinator: coordinator)
+            let operation = try owner.originalOperationForInterruption()
+            var completedReceipts: [CompletedEraseReceiptV1] = []
+            let serviceSeed = EraseAllService(
+                applicationSupportURL: fixture.support,
+                cachesDirectoryURL: fixture.caches,
+                temporaryDirectoryURL: fixture.temporary,
+                userDefaults: fixture.defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: fixture.defaultsName,
+                failureInjection: interrupted
+                    ? EraseAllFailureInjection(failOnceAt: .afterPointerSwitch) : nil,
+                admitErase: { try await owner.admitSubject($0) },
+                didCompleteErase: { completedReceipts.append($0) })
+            // The interrupted original Service must retain its actual
+            // pre-effect physical owner for a no-repair pointer observation.
+            serviceSeed.enableOriginalColdExitWitnessForTesting = interrupted
+            let service = try owner.configure(serviceSeed)
+            Self.retainedC33InterruptedServices.append((fixture.root, service))
+            if interrupted {
+                // Configuration and a requested fault do not mint a durable
+                // pointer-published witness from the original Erase frame.
+                XCTAssertThrowsError(try service.capturePostHandoffHostileSourceForTesting(
+                    operation: operation)) { error in
+                    XCTAssertEqual(error as? EraseAllServiceError, .invalidAuthority)
+                }
+#if DEBUG
+                service.erasePhaseDiagnosticForTesting = { phase in
+                    Self.traceC33DirectErasePhase(phase)
+                }
+#endif
+                do {
+                    _ = try await service.erase(confirmation: "ERASE",
+                        coordinator: coordinator, diagnosticsStore: diagnostics,
+                        operation: operation,
+                        activate: { _ in XCTFail("afterPointerSwitch must precede activation") })
+                    XCTFail("Expected authentic interruption after publishing the empty target")
+                    throw V23EraseOperationHarnessV1.Failure.admission
+                } catch {
+                    guard error as? EraseAllServiceError == .injectedFailure else { throw error }
+                }
+                XCTAssertTrue(completedReceipts.isEmpty)
+                let durable = try service.interruptedRetiredAuthorityIntentForTesting(
+                    .afterPointerSwitch, operation: operation)
+                XCTAssertEqual(durable.phase, .emptyGenerationPrepared)
+                XCTAssertNotNil(durable.targetPointer)
+                Self.traceC33DirectErasePhase("after-pointer-fault-proved")
+            } else {
+                try await owner.prepareCompatibility(service: service,
+                    confirmation: "ERASE", coordinator: coordinator,
+                    diagnostics: diagnostics)
+                XCTAssertEqual(owner.activationCallbackEntryCount, 1)
+                // The original coordinator remains bound to the source. Its
+                // replacement is proved by the operation's prepared owner
+                // and the fresh post-cleanup session assertions below.
+                XCTAssertTrue(operation.detached)
+                XCTAssertTrue(operation.hasPreparedCleanup)
+                XCTAssertNotEqual(coordinator.generationID, session.generationID)
+                XCTAssertFalse(coordinator.modelContext === session.modelContext)
+                XCTAssertEqual(try coordinator.modelContext.fetchCount(
+                    FetchDescriptor<MutationReceiptRow>()), 0)
+            }
+            let current: UUID
+            if interrupted {
+                let binding = try service.capturePostHandoffHostileSourceForTesting(
+                    operation: operation)
+                Self.traceC33DirectErasePhase("after-pointer-witness-captured")
+                try service.requireV949PostHandoffControlsUnchanged(
+                    binding, operation: operation)
+                current = binding.newGenerationID
+            } else {
+                current = try operation.requirePublishedTargetForV949Fixture()
+            }
+            XCTAssertNotEqual(current, session.generationID)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: session.generationRootURL.path))
+            XCTAssertNotNil(oldContext)
+            XCTAssertNotNil(oldContainer)
+            XCTAssertEqual(try journal.exportSnapshot(), history)
+            XCTAssertEqual(try? Data(contentsOf: original), originalBytes)
+            if originalExpected {
+                XCTAssertEqual(originalBytes,
+                    C33TemporalEvidenceTestSupport.bytes(for: fixture.clip.facts.kind))
+            }
+            try operation.requireCapturedOriginalReaderActiveForV949Fixture(
+                session: session)
+            if interrupted {
+                try await owner.router.beginInterruptedEarlyEraseColdRestartForTesting(
+                    operation, originalService: service,
+                    expectedFault: .afterPointerSwitch)
+            }
+            let support = fixture.support, caches = fixture.caches
+            let temporary = fixture.temporary, defaults = fixture.defaults
+            let defaultsName = fixture.defaultsName
+            return C33PreparedColdErase(root: fixture.root, support: support,
+                oldGenerationID: session.generationID,
+                oldGenerationRoot: session.generationRootURL,
+                newGenerationID: current, owner: owner,
+                interruptedOperation: interrupted ? operation : nil,
+                diagnostics: diagnostics,
+                makeService: {
+                    EraseAllService(applicationSupportURL: support,
+                        cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                        userDefaults: defaults,
+                        bundleIdentifier: "com.palatis3.fieldrecord",
+                        defaultsDomainName: defaultsName)
+                })
+        }
+
+        let prepared = try await prepare()
+        guard oldSession == nil, oldContext == nil, oldContainer == nil else {
+            XCTFail("Original Router source aliases must drain before cleanup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        let readyRouter: StartupRouter
+        if let interruptedOperation = prepared.interruptedOperation {
+            try prepared.owner.router
+                .finishInterruptedEarlyEraseColdRestartForTesting(interruptedOperation)
+            let fresh = V23EraseOperationHarnessV1(retainingRoot: prepared.root,
+                applicationSupportURL: prepared.support,
+                runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                    transactionUpdates: { AsyncStream { $0.finish() } },
+                    statusUpdates: { AsyncStream { $0.finish() } }),
+                profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+            guard await fresh.accessGate.authenticate(trigger: .unlock) == .authenticated else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            try fresh.router.bindStartupAccessGate(fresh.accessGate)
+            let recovery = prepared.makeService()
+            Self.retainedC33InterruptedServices.append((prepared.root, recovery))
+            var phases: [String] = []
+            #if DEBUG
+            recovery.erasePhaseDiagnosticForTesting = { phase in
+                if !phase.hasPrefix("ERASE_FILE_SNAPSHOT_V1 ") { phases.append(phase) }
+            }
+            #endif
+            try await fresh.router.retryColdEraseForTesting(
+                service: recovery, accessGate: fresh.accessGate)
+            #if DEBUG
+            XCTAssertTrue(phases.contains("recovery.presence.retained-source"))
+            #endif
+            readyRouter = fresh.router
+        } else {
+            try await prepared.owner.completeCleanup()
+            try await prepared.owner.adoptCompletedReceipt()
+            try await prepared.owner.activateFreshOrdinarySession()
+            readyRouter = prepared.owner.router
+        }
+        guard case let .ready(coordinator, _, _) = readyRouter.route else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        let erased = try coordinator.sourceSessionForV949EraseFixture(router: readyRouter)
+        cleanupPermission.observe(erased)
+        XCTAssertEqual(erased.generationID, prepared.newGenerationID)
+        XCTAssertNotEqual(erased.generationID, prepared.oldGenerationID)
+        try prepared.makeService().validateTemporalEvidenceEraseClosure(session: erased)
+        XCTAssertEqual(try erased.modelContext.fetchCount(
+            FetchDescriptor<MutationReceiptRow>()), 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: prepared.oldGenerationRoot.path))
+        let repeated = prepared.makeService()
+        Self.retainedC33InterruptedServices.append((prepared.root, repeated))
+        let second = try await repeated.reconcileAtStartup(
+            diagnosticsStore: prepared.diagnostics)
+        XCTAssertNil(second)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: prepared.oldGenerationRoot.path))
+        cleanupPermission.completedColdRecovery = true
+    }
+
+    @MainActor
+    private struct C33RestoredEraseSeed {
+        let root: URL
+        let support: URL
+        let caches: URL
+        let temporary: URL
+        let defaults: UserDefaults
+        let defaultsName: String
+        let generationID: UUID
+        let workspaceID: WorkspaceID
+        let clip: TemporalEvidenceClipV1
+        let history: MutationHistorySnapshotV1
+        let currentReaderExit: V949RestoredSourceReaderExitV1
+        let restoredReaderExit: V949RestoredSourceReaderExitV1
+    }
+
+    /// Both restore-opened readers are captured while their sessions exist;
+    /// their exact wrappers close only after every original SwiftData alias
+    /// leaves the caller's lexical scope. Router then authenticates the
+    /// already-restored current generation as its sole original writer.
+    @MainActor
+    private func eraseRegisteredFixture(_ seed: C33RestoredEraseSeed,
+        interrupted: Bool) async throws {
+        try seed.currentReaderExit.closeAfterCheckedAliasDrain()
+        try seed.restoredReaderExit.closeAfterCheckedAliasDrain()
+        try await eraseRegisteredFixture(interrupted: interrupted) { cleanupPermission in
+            let owner = V23EraseOperationHarnessV1(retainingRoot: seed.root,
+                applicationSupportURL: seed.support,
+                runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                    transactionUpdates: { AsyncStream { $0.finish() } },
+                    statusUpdates: { AsyncStream { $0.finish() } }),
+                profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+            let (coordinator, _) = try await owner.startOriginalOwner()
+            let session = try coordinator.sourceSessionForV949EraseFixture(
+                router: owner.router)
+            cleanupPermission.observe(session)
+            XCTAssertEqual(session.generationID, seed.generationID)
+            XCTAssertEqual(session.workspaceID, seed.workspaceID)
+            let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity,
+                generationID: session.generationID, allowStateBootstrap: false)
+            XCTAssertEqual(try journal.exportSnapshot(), seed.history)
+            let clips = try session.modelContext.fetch(
+                FetchDescriptor<TemporalEvidenceClipRow>()).map { try $0.value() }
+            XCTAssertTrue(clips.contains(seed.clip))
+            return EraseOriginalFixture(root: seed.root, support: seed.support,
+                caches: seed.caches, temporary: seed.temporary,
+                session: session, clip: seed.clip,
+                defaults: seed.defaults, defaultsName: seed.defaultsName,
+                originalOwner: owner)
+        }
+    }
+
+    @MainActor
+    func testC33EraseHistoricalRegisteredDerivativesRemainOwnedAfterReplacementAndRetirement() async throws {
+        for interrupted in [false, true] {
+            for absent in [false, true] {
+                try await eraseRegisteredFixture(interrupted: interrupted) { cleanupPermission in
+                    let fixture = try await self.makeEraseOriginalFixture(
+                        retainForEraseOwner: true,
+                        cleanupPermission: cleanupPermission, routerOwned: true)
+                    let originalOwner = try XCTUnwrap(fixture.originalOwner)
+                    guard case let .ready(coordinator, _, _) = originalOwner.router.route else {
+                        throw V23EraseOperationHarnessV1.Failure.admission
+                    }
+                    let writer = coordinator.workspaceWriter
+                    let first = try await self.appendEraseDerivative(session: fixture.session,
+                        predecessor: fixture.clip, slot: 3_000, suppliedWriter: writer)
+                    let shared = try await self.appendEraseDerivative(session: fixture.session, predecessor: first.clip,
+                        slot: 3_100, sharing: first.derivative, suppliedWriter: writer)
+                    let replacement = try await self.appendEraseDerivative(session: fixture.session,
+                        predecessor: shared.clip, slot: 3_200, suppliedWriter: writer)
+                    let retired = try self.retireEraseDerivatives(session: fixture.session,
+                        predecessor: replacement.clip, suppliedWriter: writer)
+                    XCTAssertTrue(retired.derivativeReferences.isEmpty)
+                    let journal = try MutationJournalStoreV1(modelContext: fixture.session.modelContext,
+                        identity: fixture.session.workspaceIdentity, generationID: fixture.session.generationID, allowStateBootstrap: false)
+                    let history = try journal.exportSnapshot()
+                    let owners = try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
+                        history: history, workspaceID: fixture.session.workspaceID)
+                    XCTAssertEqual(Set(try owners.map { try $0.reference }),
+                        Set(try [first.derivative, shared.derivative, replacement.derivative].map { try $0.reference }))
+                    XCTAssertEqual(Set(owners.map { $0.content.contentID }).count, 2)
+                    XCTAssertEqual(first.derivative.content, shared.derivative.content)
+                    if absent {
+                        // Model the exact completed cleanup shape: object removed,
+                        // content/workspace ancestors retained. No empty object allowed.
+                        for contentID in Set(owners.map { $0.content.contentID }) {
+                            let directory = fixture.session.generationRootURL
+                                .appendingPathComponent("content/\(fixture.session.workspaceID.rawValue.uuidString.lowercased())/\(contentID)")
+                            try FileManager.default.removeItem(at: directory)
+                        }
+                    }
+                    XCTAssertEqual(try journal.exportSnapshot(), history)
+                    return fixture
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testC33EraseRestoredForeignDerivativeReferencesRequireGenuineDestinationRegistration() async throws {
+        let source = try await makeEraseOriginalFixture(retainForEraseOwner: true)
+        let registered = try await appendEraseDerivative(session: source.session, predecessor: source.clip, slot: 3_300)
+        let sourceJournal = try MutationJournalStoreV1(modelContext: source.session.modelContext,
+            identity: source.session.workspaceIdentity, generationID: source.session.generationID, allowStateBootstrap: false)
+        let sourceHistory = try sourceJournal.exportSnapshot()
+        let exporter = BackupExportService(modelContext: source.session.modelContext, generationRootURL: source.session.generationRootURL)
+        let preview = try exporter.prepare()
+        let exportRoot = source.root.appendingPathComponent("exports", isDirectory: true)
+        try FileManager.default.createDirectory(at: exportRoot, withIntermediateDirectories: true)
+        let archive = try exporter.export(previewID: preview.id, to: exportRoot)
+        for regenerate in [false, true] {
+            let seed = try await { @MainActor () async throws -> C33RestoredEraseSeed in
+            let library = source.root.appendingPathComponent("restored-\(regenerate)/Library", isDirectory: true)
+            let support = library.appendingPathComponent("Application Support", isDirectory: true)
+            let caches = library.appendingPathComponent("Caches", isDirectory: true)
+            let temporary = library.deletingLastPathComponent().appendingPathComponent("tmp", isDirectory: true)
+            for directory in [support, caches, temporary] {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+            let destinationFactory = StoreGenerationFactory(applicationSupportURL: support)
+            let current = try destinationFactory.openOrBootstrapCurrent()
+            let currentReaderExit = try destinationFactory
+                .captureV949RestoredSourceReaderExit(session: current)
+            // Replacement must start from a genuine nonempty destination; the
+            // incoming temporal history remains distinct from this setup history.
+            let destinationJournal = try MutationJournalStoreV1(modelContext: current.modelContext,
+                identity: current.workspaceIdentity, generationID: current.generationID, allowStateBootstrap: false)
+            do {
+                let owner = try StoreSessionCoordinator(validatingSession: current)
+                defer { XCTAssertNoThrow(try owner.invalidateAndReleaseWriter()) }
+                let pack = SignPack.illuminatedSignV1
+                let siteID = C33TemporalEvidenceTestSupport.id(61_000)
+                let assetID = C33TemporalEvidenceTestSupport.id(61_001)
+                let mutationID = try C33TemporalEvidenceTestSupport.mutation(61_002)
+                _ = try owner.workspaceWriter.execute(.createFirstSign(.init(
+                    siteID: siteID,
+                    newSite: .init(id: siteID, label: "Existing derivative restore destination", address: nil,
+                        timeZoneID: "America/New_York"),
+                    assetID: assetID, assetLabel: "Existing destination sign",
+                    packID: pack.packID, packSchemaVersion: pack.schemaVersion,
+                    packContentVersion: pack.contentVersion,
+                    createdAt: C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(-60),
+                    initialPlacementMutationID: mutationID,
+                    initialPlacementEventID: C33TemporalEvidenceTestSupport.id(61_003),
+                    initialPhysicalEpisodeID: PhysicalPlacementEpisodeIDV1(
+                        rawValue: C33TemporalEvidenceTestSupport.id(61_004))
+                )), mutationID: mutationID)
+                try destinationJournal.validateAll()
+                XCTAssertEqual(try current.modelContext.fetch(FetchDescriptor<Site>()).map(\.id), [siteID])
+                XCTAssertEqual(try current.modelContext.fetch(FetchDescriptor<Asset>()).map(\.id), [assetID])
+            }
+            let destinationHistory = try destinationJournal.exportSnapshot()
+            XCTAssertFalse(destinationHistory.receipts.isEmpty)
+            XCTAssertFalse(BackupRestoreService.isEmptyCurrent(current.modelContext))
+            XCTAssertEqual(try current.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+            XCTAssertFalse(current.modelContext.hasChanges)
+            let validated = try BackupImportService(generationRootURL: current.generationRootURL,
+                scopedAccess: .alreadyAuthorized).stageAndValidate(selectedPackageURL: archive)
+            let restorer = try BackupRestoreService(applicationSupportURL: support,
+                storagePreflight: StoragePreflightService(capacityProvider: { _ in .max }))
+            let restored = try await restorer.restore(validatedPackage: validated,
+                currentModelContext: current.modelContext, currentGenerationID: current.generationID,
+                currentGenerationRootURL: current.generationRootURL, mode: .replaceExisting)
+            let restoredReaderExit = try destinationFactory
+                .captureV949RestoredSourceReaderExit(session: restored)
+            let journal = try MutationJournalStoreV1(modelContext: restored.modelContext,
+                identity: restored.workspaceIdentity, generationID: restored.generationID, allowStateBootstrap: false)
+            let history = try journal.exportSnapshot()
+            for receipt in sourceHistory.receipts { XCTAssertTrue(history.receipts.contains(receipt)) }
+            for receipt in destinationHistory.receipts { XCTAssertTrue(history.receipts.contains(receipt)) }
+            XCTAssertEqual(history.receipts.filter { sourceHistory.receipts.contains($0) }, sourceHistory.receipts)
+            XCTAssertEqual(history.receipts.filter { destinationHistory.receipts.contains($0) }, destinationHistory.receipts)
+            XCTAssertNotEqual(restored.workspaceID, source.session.workspaceID)
+            let clips = try restored.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).map { try $0.value() }
+            let clip = try XCTUnwrap(clips.first { $0.clipID == registered.clip.clipID })
+            XCTAssertEqual(clip.derivativeReferences, registered.clip.derivativeReferences)
+            XCTAssertTrue(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
+                history: history, workspaceID: restored.workspaceID).isEmpty)
+            let guessed = restored.generationRootURL.appendingPathComponent(
+                "content/\(restored.workspaceID.rawValue.uuidString.lowercased())/\(registered.derivative.content.contentID)")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: guessed.path))
+            if regenerate {
+                let fresh = try await appendEraseDerivative(session: restored, predecessor: clip, slot: 3_400)
+                let after = try journal.exportSnapshot()
+                for receipt in history.receipts { XCTAssertTrue(after.receipts.contains(receipt)) }
+                XCTAssertEqual(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
+                    history: after, workspaceID: restored.workspaceID), [fresh.derivative])
+            }
+            return C33RestoredEraseSeed(root: source.root, support: support,
+                caches: caches, temporary: temporary,
+                defaults: source.defaults, defaultsName: source.defaultsName,
+                generationID: restored.generationID, workspaceID: restored.workspaceID,
+                clip: clip, history: try journal.exportSnapshot(),
+                currentReaderExit: currentReaderExit,
+                restoredReaderExit: restoredReaderExit)
+            }()
+            try await eraseRegisteredFixture(seed, interrupted: regenerate)
+        }
+    }
+
+    @MainActor
+    private func rawEraseReceipts(_ context: ModelContext) throws -> [[Data]] {
+        try context.fetch(FetchDescriptor<MutationReceiptRow>()).sorted {
+            $0.receiptIdentity < $1.receiptIdentity
+        }.map { [$0.envelopeData, $0.receiptData, $0.reversalBasisData ?? Data(),
+                 $0.semanticReversalData ?? Data()] }
+    }
+
+    @MainActor
+    private struct C33HostileDerivativeObservation {
+        let raw: V949ColdSourceReadbackV1
+        let pointer: UUID
+        let generationRootURL: URL
+        let originalURL: URL
+        let originalBytes: Data
+        let derivativeURL: URL
+        let derivativeBytes: Data?
+        let derivativeLinkCount: NSNumber?
+        let siblings: [String]
+        let externalURL: URL
+        let originalDerivativeBytes: Data
+        let contextHadChanges: Bool
+    }
+
+    @MainActor
+    private func applyC33HostileDerivative(
+        _ hostile: String, session: StoreGenerationSession,
+        clip: TemporalEvidenceClipV1,
+        registered: (clip: TemporalEvidenceClipV1,
+            derivative: TemporalEvidenceDerivativeV1),
+        fixtureRoot: URL, support: URL,
+        pointerObservation: (@MainActor () throws -> UUID)? = nil
+    ) throws -> C33HostileDerivativeObservation {
+        let content = registered.derivative.content
+        let directory = session.generationRootURL.appendingPathComponent(
+            "content/\(content.workspaceID)/\(content.contentID)")
+        let path = directory.appendingPathComponent("original.bin")
+        let bytes = try Data(contentsOf: path)
+        let original = session.generationRootURL.appendingPathComponent(
+            try TemporalEvidenceBackupMemberV1.original(for: clip))
+        let originalBytes = try Data(contentsOf: original)
+        let external = fixtureRoot.appendingPathComponent(
+            "external-derivative.bin")
+        let rows = try session.modelContext.fetch(
+            FetchDescriptor<MutationReceiptRow>())
+        let registration = try XCTUnwrap(rows.first {
+            $0.mutationID == registered.clip.mutationID.rawValue
+        })
+        switch hostile {
+        case "digest":
+            var changed = bytes; changed[changed.startIndex] ^= 1
+            try changed.write(to: path)
+        case "length": try Data(bytes.dropLast()).write(to: path)
+        case "partial-object": try FileManager.default.removeItem(at: path)
+        case "unknown-sibling":
+            try Data("unknown".utf8).write(to:
+                directory.appendingPathComponent("extra.bin"))
+        case "fake-marker":
+            try Data("{}".utf8).write(to: directory.appendingPathComponent(
+                "derivative-publication.json"))
+        case "symlink":
+            try bytes.write(to: external)
+            try FileManager.default.removeItem(at: path)
+            try FileManager.default.createSymbolicLink(
+                at: path, withDestinationURL: external)
+        case "hardlink": try FileManager.default.linkItem(at: path, to: external)
+        case "foreign-path":
+            let foreign = session.generationRootURL.appendingPathComponent(
+                "content/\(UUID().uuidString.lowercased())/\(content.contentID)")
+            try FileManager.default.createDirectory(
+                at: foreign, withIntermediateDirectories: true)
+            try bytes.write(to: foreign.appendingPathComponent("original.bin"))
+        case "unregistered-bytes":
+            let unowned = session.generationRootURL.appendingPathComponent(
+                "content/\(content.workspaceID)/unregistered-derivative")
+            try FileManager.default.createDirectory(
+                at: unowned, withIntermediateDirectories: true)
+            try bytes.write(to: unowned.appendingPathComponent("original.bin"))
+        case "bare-reference":
+            let unregistered = try C33TemporalEvidenceTestSupport.derivative(
+                clip: registered.clip, slot: 3_990)
+            let forged = try registered.clip.successor(
+                clipID: C33TemporalEvidenceTestSupport.id(3_991),
+                profile: registered.clip.limitProfile,
+                derivativeReferences: [try unregistered.reference],
+                mutationID: C33TemporalEvidenceTestSupport.mutation(3_992))
+            session.modelContext.insert(try TemporalEvidenceClipRow(forged))
+            try session.modelContext.save()
+        case "missing-receipt":
+            session.modelContext.delete(registration)
+            try session.modelContext.save()
+        case "receipt-bytes":
+            registration.receiptData = Data("{}".utf8)
+            try session.modelContext.save()
+        case "byte-race": break
+        default: XCTFail("Unknown derivative hostile case: \(hostile)")
+        }
+        let observedPointer: UUID
+        if let pointerObservation {
+            observedPointer = try pointerObservation()
+        } else {
+            observedPointer = try StoreGenerationFactory(
+                applicationSupportURL: support).currentGenerationID()
+        }
+        return try C33HostileDerivativeObservation(
+            raw: V949ColdSourceReadbackV1.capture(session.modelContext),
+            pointer: observedPointer,
+            generationRootURL: session.generationRootURL,
+            originalURL: original, originalBytes: originalBytes,
+            derivativeURL: path,
+            derivativeBytes: try? Data(contentsOf: path),
+            derivativeLinkCount: (try? FileManager.default.attributesOfItem(
+                atPath: path.path))?[.referenceCount] as? NSNumber,
+            siblings: FileManager.default.contentsOfDirectory(
+                atPath: directory.path).sorted(),
+            externalURL: external, originalDerivativeBytes: bytes,
+            contextHadChanges: session.modelContext.hasChanges)
+    }
+
+    @MainActor
+    private func assertC33HostileDerivativeAfterColdHandoff(
+        _ hostile: String
+    ) async throws {
+        let prepared = try await prepareC33InterruptedHostileSource {
+            fixture, writer in
+            let registered = try await self.appendEraseDerivative(
+                session: fixture.session, predecessor: fixture.clip,
+                slot: 3_500, suppliedWriter: writer)
+            return (clip: fixture.clip, registered: registered)
+        }
+        let hostileOwner = try checkedC33HostileOwner(prepared)
+        let observation = try hostileOwner.withRetiredRowMutation {
+            session in
+            try self.applyC33HostileDerivative(hostile,
+                session: session, clip: prepared.value.clip,
+                registered: prepared.value.registered,
+                fixtureRoot: prepared.fixtureRoot,
+                support: prepared.support,
+                pointerObservation: {
+                    try hostileOwner.observedPublishedCurrentGenerationIDWhileExcluded()
+                })
+        }
+        try hostileOwner.closeAfterCheckedDrain()
+        XCTAssertFalse(observation.contextHadChanges)
+
+        let fresh = V23EraseOperationHarnessV1(
+            retainingRoot: prepared.fixtureRoot,
+            applicationSupportURL: prepared.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let authentication = await fresh.accessGate.authenticate(
+            trigger: .unlock)
+        XCTAssertEqual(authentication, .authenticated)
+        let recovery = EraseAllService(
+            applicationSupportURL: prepared.support,
+            cachesDirectoryURL: prepared.caches,
+            temporaryDirectoryURL: prepared.temporary,
+            userDefaults: prepared.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: prepared.defaultsName)
+        Self.retainedC33InterruptedServices.append(
+            (prepared.fixtureRoot, recovery))
+        var phases = [String]()
+        var readbacks = [(V949ColdSourceReadbackV1,
+            V949ColdSourceReadbackV1)]()
+        var expectedBytes = observation.derivativeBytes
+        var replaced = false
+        recovery.erasePhaseDiagnosticForTesting = { phase in
+            phases.append(phase)
+            if hostile == "byte-race",
+               phase == "frozen.inventory-predicate", !replaced {
+                replaced = true
+                var changed = observation.originalDerivativeBytes
+                changed[changed.startIndex] ^= 1
+                do {
+                    try changed.write(to: observation.derivativeURL)
+                    expectedBytes = changed
+                } catch {
+                    XCTFail("Failed deterministic byte race: \(error)")
+                }
+            }
+        }
+        recovery.v949RetainedSourceReadbackForTesting = {
+            before, after in readbacks.append((before, after))
+        }
+        do {
+            try await fresh.router.retryColdEraseForTesting(
+                service: recovery, accessGate: fresh.accessGate)
+            XCTFail("Admitted hostile derivative: \(hostile)")
+        } catch {
+            XCTAssertFalse(error is CancellationError)
+        }
+        guard case .maintenance(.eraseInconsistent) = fresh.router.route else {
+            return XCTFail("Hostile derivative must keep cold Erase in maintenance")
+        }
+        XCTAssertTrue(phases.contains("recovery.presence.retained-source"),
+            "\(hostile): \(phases)")
+        XCTAssertEqual(readbacks.count, 1, hostile)
+        if let pair = readbacks.first {
+            XCTAssertEqual(pair.0, observation.raw, hostile)
+            XCTAssertEqual(pair.1, observation.raw, hostile)
+        }
+        if hostile == "byte-race" { XCTAssertTrue(replaced) }
+        XCTAssertEqual(try StoreGenerationFactory(
+            applicationSupportURL: prepared.support).currentGenerationID(),
+            observation.pointer, hostile)
+        XCTAssertTrue(FileManager.default.fileExists(atPath:
+            observation.generationRootURL.path), hostile)
+        XCTAssertEqual(try Data(contentsOf: observation.originalURL),
+            observation.originalBytes, hostile)
+        XCTAssertEqual(try? Data(contentsOf: observation.derivativeURL),
+            expectedBytes, hostile)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+            atPath: observation.derivativeURL.deletingLastPathComponent().path)
+            .sorted(), observation.siblings, hostile)
+        XCTAssertEqual((try? FileManager.default.attributesOfItem(
+            atPath: observation.derivativeURL.path))?[.referenceCount]
+            as? NSNumber, observation.derivativeLinkCount, hostile)
+        if hostile == "symlink" {
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                atPath: observation.derivativeURL.path),
+                observation.externalURL.path)
+        }
+        if hostile == "symlink" || hostile == "hardlink" {
+            XCTAssertEqual(try Data(contentsOf: observation.externalURL),
+                observation.originalDerivativeBytes, hostile)
+        }
+    }
+
+    @MainActor
+    func testC33EraseRegisteredDerivativeHostilesPreserveCurrentAndRetainedSources() async throws {
+        let cases = ["digest", "length", "partial-object", "unknown-sibling",
+                     "fake-marker", "symlink", "hardlink", "foreign-path",
+                     "unregistered-bytes", "bare-reference", "missing-receipt",
+                     "receipt-bytes", "byte-race"]
+        for recovering in [false, true] {
+            for hostile in cases {
+                if recovering {
+                    try await assertC33HostileDerivativeAfterColdHandoff(hostile)
+                    continue
+                }
+                let fixture = try await makeEraseOriginalFixture(
+                    retainForEraseOwner: true, routerOwned: true)
+                let owner = try XCTUnwrap(fixture.originalOwner)
+                guard case let .ready(coordinator, diagnostics, _) = owner.router.route,
+                      coordinator.modelContext === fixture.session.modelContext else {
+                    throw V23EraseOperationHarnessV1.Failure.admission
+                }
+                await diagnostics.prepare()
+                let registered = try await appendEraseDerivative(
+                    session: fixture.session, predecessor: fixture.clip,
+                    slot: 3_500, suppliedWriter: coordinator.workspaceWriter)
+                let observation = try applyC33HostileDerivative(hostile,
+                    session: fixture.session, clip: fixture.clip,
+                    registered: registered, fixtureRoot: fixture.root,
+                    support: fixture.support)
+                try await owner.admit(coordinator: coordinator)
+                let operation = try owner.originalOperationForInterruption()
+                let service = try owner.configure(EraseAllService(
+                    applicationSupportURL: fixture.support,
+                    cachesDirectoryURL: fixture.caches,
+                    temporaryDirectoryURL: fixture.temporary,
+                    userDefaults: fixture.defaults,
+                    bundleIdentifier: "com.palatis3.fieldrecord",
+                    defaultsDomainName: fixture.defaultsName,
+                    admitErase: { try await owner.admitSubject($0) }))
+                Self.retainedC33InterruptedServices.append((fixture.root, service))
+                var phases = [String]()
+                var activated = false
+                var replaced = false
+                var expectedBytes = observation.derivativeBytes
+                service.erasePhaseDiagnosticForTesting = { phase in
+                    phases.append(phase)
+                    if hostile == "byte-race",
+                       phase == "frozen.inventory-predicate", !replaced {
+                        replaced = true
+                        var changed = observation.originalDerivativeBytes
+                        changed[changed.startIndex] ^= 1
+                        do {
+                            try changed.write(to: observation.derivativeURL)
+                            expectedBytes = changed
+                        } catch {
+                            XCTFail("Failed deterministic byte race: \(error)")
+                        }
+                    }
+                }
+                do {
+                    _ = try await service.erase(confirmation: "ERASE",
+                        coordinator: coordinator, diagnosticsStore: diagnostics,
+                        operation: operation,
+                        activate: { _ in activated = true })
+                    XCTFail("Admitted hostile derivative: \(hostile)")
+                } catch {
+                    XCTAssertFalse(error is CancellationError)
+                }
+                XCTAssertFalse(activated, hostile)
+                if hostile == "byte-race" { XCTAssertTrue(replaced) }
+                XCTAssertEqual(try StoreGenerationFactory(
+                    applicationSupportURL: fixture.support).currentGenerationID(),
+                    observation.pointer, hostile)
+                XCTAssertEqual(try V949ColdSourceReadbackV1.capture(
+                    fixture.session.modelContext), observation.raw, hostile)
+                XCTAssertEqual(try Data(contentsOf: observation.originalURL),
+                    observation.originalBytes, hostile)
+                XCTAssertEqual(try? Data(contentsOf: observation.derivativeURL),
+                    expectedBytes, hostile)
+                XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+                    atPath: observation.derivativeURL.deletingLastPathComponent().path)
+                    .sorted(), observation.siblings, hostile)
+                XCTAssertEqual((try? FileManager.default.attributesOfItem(
+                    atPath: observation.derivativeURL.path))?[.referenceCount]
+                    as? NSNumber, observation.derivativeLinkCount, hostile)
+                if hostile == "symlink" {
+                    XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                        atPath: observation.derivativeURL.path),
+                        observation.externalURL.path)
+                }
+                if hostile == "symlink" || hostile == "hardlink" {
+                    XCTAssertEqual(try Data(contentsOf: observation.externalURL),
+                        observation.originalDerivativeBytes, hostile)
+                }
+                XCTAssertFalse(fixture.session.modelContext.hasChanges)
+                XCTAssertFalse(phases.contains("recovery.presence.retained-source"))
+            }
+        }
+    }
+
+    @MainActor
+    func testC33EraseRejectsContradictorySharedDerivativeDescriptors() async throws {
+        weak var seededSession: StoreGenerationSession?
+        weak var seededContext: ModelContext?
+        weak var seededContainer: ModelContainer?
+        let prepared = try await { @MainActor () async throws in
+            let fixture = try await makeEraseOriginalFixture(retainForEraseOwner: true)
+            seededSession = fixture.session
+            seededContext = fixture.session.modelContext
+            seededContainer = fixture.session.modelContext.container
+            let first = try await appendEraseDerivative(session: fixture.session,
+                predecessor: fixture.clip, slot: 3_600)
+            _ = try await appendEraseDerivative(session: fixture.session, predecessor: first.clip,
+                slot: 3_700, sharing: first.derivative, conflictingCreatedAt: true)
+            let journal = try MutationJournalStoreV1(modelContext: fixture.session.modelContext,
+                identity: fixture.session.workspaceIdentity,
+                generationID: fixture.session.generationID, allowStateBootstrap: false)
+            let history = try journal.exportSnapshot()
+            XCTAssertThrowsError(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
+                history: history, workspaceID: fixture.session.workspaceID))
+            let kernel = try rawEraseKernelState(fixture.session.modelContext)
+            let original = fixture.session.generationRootURL.appendingPathComponent(
+                try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
+            let originalBytes = try Data(contentsOf: original)
+            let path = fixture.session.generationRootURL.appendingPathComponent(
+                "content/\(first.derivative.content.workspaceID)/\(first.derivative.content.contentID)/original.bin")
+            return (root: fixture.root, support: fixture.support, caches: fixture.caches,
+                temporary: fixture.temporary, defaults: fixture.defaults,
+                defaultsName: fixture.defaultsName, generationID: fixture.session.generationID,
+                workspaceID: fixture.session.workspaceID, workspaceIdentity: fixture.session.workspaceIdentity,
+                history: history, kernel: kernel, original: original, originalBytes: originalBytes,
+                path: path, bytes: try Data(contentsOf: path))
+        }()
+        guard seededSession == nil, seededContext == nil, seededContainer == nil else {
+            XCTFail("Hostile fixture aliases must drain before authentic Router startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: prepared.root,
+            applicationSupportURL: prepared.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
+        await diagnostics.prepare()
+        XCTAssertEqual(coordinator.generationID, prepared.generationID)
+        try await eraseOwner.admit(coordinator: coordinator)
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        var phases: [String] = []
+        let service = try eraseOwner.configure(EraseAllService(
+            applicationSupportURL: prepared.support, cachesDirectoryURL: prepared.caches,
+            temporaryDirectoryURL: prepared.temporary, userDefaults: prepared.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: prepared.defaultsName,
+            admitErase: { subject in try await eraseOwner.admitSubject(subject) },
+            didCompleteErase: { completedReceipts.append($0) }))
+        #if DEBUG
+        service.erasePhaseDiagnosticForTesting = { phases.append($0) }
+        #endif
+        let originalContext = coordinator.modelContext
+        let originalWriter = coordinator.workspaceWriter
+        let originalGenerationToken = coordinator.uiGenerationToken
+        do {
+            try await eraseOwner.prepareCompatibility(service: service, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
+            XCTFail("Conflicting historical descriptors must not authorize shared bytes")
+        } catch { XCTAssertFalse(error is CancellationError) }
+        #if DEBUG
+        XCTAssertTrue(phases.contains("frozen.summary"), "\(phases)")
+        XCTAssertTrue(phases.contains { $0.hasPrefix("frozen.summary.failure.") }, "\(phases)")
+        #endif
+        XCTAssertTrue(coordinator.modelContext === originalContext)
+        XCTAssertTrue(coordinator.workspaceWriter === originalWriter)
+        XCTAssertEqual(coordinator.uiGenerationToken, originalGenerationToken)
+        XCTAssertEqual(eraseOwner.activationCallbackEntryCount, 0)
+        XCTAssertTrue(completedReceipts.isEmpty)
+        XCTAssertEqual(try StoreGenerationFactory(applicationSupportURL: prepared.support)
+            .currentGenerationID(), prepared.generationID)
+        let journal = try MutationJournalStoreV1(modelContext: coordinator.modelContext,
+            identity: prepared.workspaceIdentity, generationID: prepared.generationID,
+            allowStateBootstrap: false)
+        XCTAssertEqual(try journal.exportSnapshot(), prepared.history)
+        XCTAssertEqual(try rawEraseKernelState(coordinator.modelContext), prepared.kernel)
+        XCTAssertEqual(try Data(contentsOf: prepared.original), prepared.originalBytes)
+        XCTAssertEqual(try Data(contentsOf: prepared.path), prepared.bytes)
+    }
+
+    @MainActor
+    func testC33EraseAcceptsOnlyExactAncestorsLeftByAuthenticatedDerivativeCleanup() async throws {
+        for interrupted in [false, true] {
+            try await eraseRegisteredFixture(interrupted: interrupted,
+                originalExpected: false) { cleanupPermission in
+                let fixture = try await self.makeEraseOriginalFixture(
+                    retainForEraseOwner: true,
+                    cleanupPermission: cleanupPermission, routerOwned: true)
+                let session = fixture.session
+                let originalOwner = try XCTUnwrap(fixture.originalOwner)
+                guard case let .ready(coordinator, _, _) = originalOwner.router.route else {
+                    throw V23EraseOperationHarnessV1.Failure.admission
+                }
+                let writer = coordinator.workspaceWriter
+                let registered = try await self.appendEraseDerivative(session: session,
+                    predecessor: fixture.clip, slot: 3_800, suppliedWriter: writer)
+                let clips = try session.modelContext.fetch(
+                    FetchDescriptor<TemporalEvidenceClipRow>()).map { try $0.value() }
+                let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                    identity: session.workspaceIdentity,
+                    generationID: session.generationID, allowStateBootstrap: false)
+                let current = try writer.currentRevision()
+                let expected = try WorkspaceExpectedRevisionV1(workspaceID: session.workspaceID,
+                    generationID: current.generationID,
+                    writerInstanceID: current.writerInstanceID,
+                    workspaceRevision: current.revision, entityRevisions: clips.map {
+                        try WorkspaceEntityRevisionV1(identity: .init(kind: .temporalEvidenceClip,
+                            id: $0.clipID), revision: $0.revision)
+                    })
+                let event = try TemporalEvidenceRetentionEventV1(
+                    eventID: C33TemporalEvidenceTestSupport.id(3_900),
+                    clip: registered.clip, disposition: .deleteClip,
+                    policySHA256: String(repeating: "e", count: 64),
+                    actor: registered.clip.recordedBy,
+                    occurredAt: registered.clip.acceptedAt.addingTimeInterval(2),
+                    revision: 1, mutationID: C33TemporalEvidenceTestSupport.mutation(3_901))
+                _ = try writer.commitTemporalEvidence(.init(workspaceID: session.workspaceID,
+                    expectedRevision: expected, mutationID: event.mutationID,
+                    payload: .removeClip(event: event, clips: clips, anchors: [],
+                        derivatives: [registered.derivative], predecessorEvent: nil)))
+                let recovery = try TemporalEvidencePromotionRecoveryFileAdapterV1(
+                    generationRootURL: session.generationRootURL,
+                    workspaceID: session.workspaceID,
+                    verify: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition },
+                    remove: { _, _, _ in throw TemporalEvidenceContractFailureV1.invalidTransition })
+                let references = try await C33TemporalEvidenceTestSupport.cleanupReferences(
+                    context: session.modelContext,
+                    generationRootURL: session.generationRootURL, journal: journal,
+                    writerInstanceID: current.writerInstanceID, recovery: recovery)
+                XCTAssertTrue(references.liveClipContentIDs.isEmpty)
+                XCTAssertFalse(references.liveJournalContentIDs.contains(
+                    registered.derivative.content.contentID))
+                let cleanup = try OrphanFileCleanupService(
+                    generationRootURL: session.generationRootURL)
+                XCTAssertEqual(try cleanup.removeCanonicalContentIfUnreferenced(
+                    reference: fixture.clip.original, locator: fixture.clip.locator,
+                    authoritySnapshot: references).removedDirectoryCount, 1)
+                XCTAssertEqual(try cleanup.removeCanonicalContentIfUnreferenced(
+                    reference: registered.derivative.content,
+                    locator: registered.derivative.locator,
+                    authoritySnapshot: references).removedDirectoryCount, 1)
+                XCTAssertEqual(try session.modelContext.fetchCount(
+                    FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+                let workspaceRoot = session.generationRootURL.appendingPathComponent(
+                    "content/\(session.workspaceID.rawValue.uuidString.lowercased())")
+                XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+                    atPath: workspaceRoot.path), [])
+                XCTAssertEqual(try TemporalEvidenceWholeGenerationEraseV1.registeredDerivatives(
+                    history: journal.exportSnapshot(), workspaceID: session.workspaceID),
+                    [registered.derivative])
+                return fixture
+            }
+        }
+    }
+
+    @MainActor
+    private struct EraseOriginalFixture {
+        let root: URL
+        let support: URL
+        let caches: URL
+        let temporary: URL
+        let session: StoreGenerationSession
+        let clip: TemporalEvidenceClipV1
+        let defaults: UserDefaults
+        let defaultsName: String
+        let originalOwner: V23EraseOperationHarnessV1?
+
+        init(root: URL, support: URL, caches: URL, temporary: URL,
+            session: StoreGenerationSession, clip: TemporalEvidenceClipV1,
+            defaults: UserDefaults, defaultsName: String,
+            originalOwner: V23EraseOperationHarnessV1? = nil) {
+            self.root = root; self.support = support
+            self.caches = caches; self.temporary = temporary
+            self.session = session; self.clip = clip
+            self.defaults = defaults; self.defaultsName = defaultsName
+            self.originalOwner = originalOwner
+        }
+
+        func service(failure: EraseAllFailurePoint? = nil) -> EraseAllService {
+            let service = EraseAllService(applicationSupportURL: support, cachesDirectoryURL: caches,
+                temporaryDirectoryURL: temporary, userDefaults: defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: defaultsName,
+                failureInjection: failure.map { EraseAllFailureInjection(failOnceAt: $0) })
+            #if DEBUG
+            service.erasePhaseDiagnosticForTesting = { phase in
+                print("C33EraseFixture[\(root.lastPathComponent)] phase=\(phase)")
+            }
+            #endif
+            return service
+        }
+    }
+
+    @MainActor
+    private static var retainedC33InterruptedServices: [(URL, EraseAllService)] = []
+    @MainActor
+    private static var retainedC33RejectedEarlyWitnessOwners:
+        [(URL, V23EraseOperationHarnessV1, EraseAllService)] = []
+
+    @MainActor
+    private struct C33InterruptedHostileSource<Value> {
+        let fixtureRoot: URL
+        let support: URL
+        let caches: URL
+        let temporary: URL
+        let defaults: UserDefaults
+        let defaultsName: String
+        let owner: V23EraseOperationHarnessV1
+        let service: EraseAllService
+        let operation: EraseRouterOperationV1
+        let diagnostics: DiagnosticsStore
+        let value: Value
+    }
+
+    /// The seeding closure receives only the exact Router-published session
+    /// and writer. It must return values, never a model object or a session.
+    /// Its lexical aliases disappear before the caller checks the old owner's
+    /// reader/EX/guard exit and constructs a separate hostile fixture owner.
+    @MainActor
+    private func prepareC33InterruptedHostileSource<Value>(
+        beforeArming: (@MainActor (EraseOriginalFixture) throws -> Void)? = nil,
+        _ seed: @MainActor (EraseOriginalFixture,
+            WorkspaceWriterV1) async throws -> Value
+    ) async throws -> C33InterruptedHostileSource<Value> {
+        let fixture = try await makeEraseOriginalFixture(
+            retainForEraseOwner: true, routerOwned: true)
+        let owner = try XCTUnwrap(fixture.originalOwner)
+        guard case let .ready(coordinator, diagnostics, _) = owner.router.route,
+              coordinator.modelContext === fixture.session.modelContext else {
+            throw V23EraseOperationHarnessV1.Failure.admission
+        }
+        await diagnostics.prepare()
+        let value = try await seed(fixture, coordinator.workspaceWriter)
+        try await owner.admit(coordinator: coordinator)
+        let operation = try owner.originalOperationForInterruption()
+        var completedReceipts = [CompletedEraseReceiptV1]()
+        let service = try owner.configure(EraseAllService(
+            applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches,
+            temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName,
+            failureInjection: EraseAllFailureInjection(
+                failOnceAt: .afterPointerSwitch),
+            admitErase: { try await owner.admitSubject($0) },
+            didCompleteErase: { completedReceipts.append($0) }))
+        service.enableOriginalColdExitWitnessForTesting = true
+        Self.retainedC33InterruptedServices.append((fixture.root, service))
+#if DEBUG
+        service.erasePhaseDiagnosticForTesting = { phase in
+            Self.traceC33DirectErasePhase(phase)
+        }
+#endif
+        do {
+            _ = try await service.erase(confirmation: "ERASE",
+                coordinator: coordinator, diagnosticsStore: diagnostics,
+                operation: operation,
+                activate: { _ in
+                    XCTFail("afterPointerSwitch must precede activation")
+                })
+            XCTFail("Expected authentic post-pointer interruption")
+            throw V23EraseOperationHarnessV1.Failure.admission
+        } catch {
+            guard error as? EraseAllServiceError == .injectedFailure else {
+                throw error
+            }
+        }
+        XCTAssertTrue(completedReceipts.isEmpty)
+        let durable = try service.interruptedRetiredAuthorityIntentForTesting(
+            .afterPointerSwitch, operation: operation)
+        XCTAssertEqual(durable.phase, .emptyGenerationPrepared)
+        XCTAssertNotNil(durable.targetPointer)
+        Self.traceC33DirectErasePhase("after-pointer-fault-proved")
+        if let beforeArming {
+            // A denied witness leaves the exact interrupted Router, Service,
+            // operation and root retained; no deinit is used as close proof.
+            Self.retainedC33RejectedEarlyWitnessOwners.append(
+                (fixture.root, owner, service))
+            try beforeArming(fixture)
+        }
+        try owner.router.armPostHandoffHostileFixtureForTesting(
+            operation, originalService: service)
+        try await owner.router.beginInterruptedEarlyEraseColdRestartForTesting(
+            operation, originalService: service,
+            expectedFault: .afterPointerSwitch)
+        return C33InterruptedHostileSource(
+            fixtureRoot: fixture.root, support: fixture.support,
+            caches: fixture.caches, temporary: fixture.temporary,
+            defaults: fixture.defaults, defaultsName: fixture.defaultsName,
+            owner: owner, service: service, operation: operation,
+            diagnostics: diagnostics, value: value)
+    }
+
+    @MainActor
+    private func checkedC33HostileOwner<Value>(
+        _ prepared: C33InterruptedHostileSource<Value>
+    ) throws -> V949RetiredSourceFixtureOwnerV1 {
+        try prepared.owner.router
+            .finishInterruptedEarlyEraseColdRestartForTesting(
+                prepared.operation)
+        let witness = try prepared.owner.router
+            .takePostHandoffHostileFixtureWitnessForTesting(
+                prepared.operation)
+        return try StoreGenerationFactory(
+            applicationSupportURL: prepared.support)
+            .makeV949RetiredSourceFixtureOwner(witness: witness)
+    }
+
+    @MainActor
+    private func makeEraseOriginalFixture(
+        seedAuthority: Bool = true,
+        retainForEraseOwner: Bool = false,
+        cleanupPermission: C33EraseCleanupPermission? = nil,
+        beforeOrphanInsertion: (@MainActor (StoreGenerationSession) throws -> Void)? = nil,
+        routerOwned: Bool = false
+    ) async throws -> EraseOriginalFixture {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("C33-erase-original-\(UUID())", isDirectory: true)
+        let library = root.appendingPathComponent("Library", isDirectory: true)
+        let support = library.appendingPathComponent("Application Support", isDirectory: true)
+        let caches = library.appendingPathComponent("Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        for directory in [support, caches, temporary] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let defaultsName = "C33-erase-original-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        addTeardownBlock { [root, defaultsName, cleanupPermission,
+            retainForEraseOwner, routerOwned] in
+            // The lifetime witnesses retain their files on any incomplete
+            // recovery or still-live observed store. No model owner is captured.
+            if retainForEraseOwner || routerOwned { return }
+            if let cleanupPermission, !(await cleanupPermission.permitsCleanup) { return }
+            UserDefaults(suiteName: defaultsName)?.removePersistentDomain(forName: defaultsName)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let originalOwner: V23EraseOperationHarnessV1?
+        let session: StoreGenerationSession
+        if routerOwned {
+            let owner = V23EraseOperationHarnessV1(retainingRoot: root,
+                applicationSupportURL: support,
+                runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                    transactionUpdates: { AsyncStream { $0.finish() } },
+                    statusUpdates: { AsyncStream { $0.finish() } }),
+                profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+            let (coordinator, _) = try await owner.startOriginalOwner()
+            session = try coordinator.sourceSessionForV949EraseFixture(
+                router: owner.router)
+            originalOwner = owner
+        } else {
+            session = try StoreGenerationFactory(
+                applicationSupportURL: support).openOrBootstrapCurrent()
+            originalOwner = nil
+        }
+        cleanupPermission?.observe(session)
+        let seededWriter: WorkspaceWriterV1?
+        if let originalOwner {
+            guard case let .ready(coordinator, _, _) = originalOwner.router.route,
+                  coordinator.modelContext === session.modelContext else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            seededWriter = coordinator.workspaceWriter
+        } else {
+            seededWriter = nil
+        }
+        let clip: TemporalEvidenceClipV1
+        if seedAuthority {
+            clip = try await C33TemporalEvidenceTestSupport.commitPersistentClip(
+                in: session, slot: 1_100,
+                suppliedWriter: seededWriter).clip
+        } else {
+            try beforeOrphanInsertion?(session)
+            // Hostile orphan: intrinsically valid row and genuine immutable bytes,
+            // deliberately no survey/package/temporal canonical producer receipts.
+            clip = try C33TemporalEvidenceTestSupport.clip(slot: 1_100, workspaceID: session.workspaceID,
+                reportProjection: .typedLinkOnly, requiresTranscript: true).clip
+            let request = try DraftImmutableContentWriteRequestV1(workspaceID: session.workspaceID,
+                contentID: clip.original.contentID, digest: XCTUnwrap(clip.original.digests.digest(for: .sha256)),
+                byteLength: clip.original.byteLength, mediaType: clip.original.mediaType,
+                mutationID: clip.mutationID, createdAt: clip.original.createdAt)
+            _ = try await EvidenceBundleStore(generationRootURL: session.generationRootURL)
+                .persistImmutableOriginal(bytes: C33TemporalEvidenceTestSupport.bytes(for: clip.facts.kind), request: request)
+            session.modelContext.insert(try TemporalEvidenceClipRow(clip))
+            try session.modelContext.save()
+        }
+        return EraseOriginalFixture(root: root, support: support, caches: caches,
+            temporary: temporary, session: session, clip: clip,
+            defaults: defaults, defaultsName: defaultsName,
+            originalOwner: originalOwner)
+    }
+
+    @MainActor
+    private func rawEraseKernelState(_ context: ModelContext) throws -> [[[String]]] {
+        let states = try context.fetch(FetchDescriptor<WorkspaceMutationStateRow>())
+            .sorted { $0.workspaceID.uuidString < $1.workspaceID.uuidString }.map {
+                [$0.workspaceID.uuidString, $0.generationID.uuidString, $0.activeReplicaID.uuidString,
+                 String($0.workspaceRevision), String($0.lastLocalSequence), $0.mutableSemanticSHA256 ?? "nil"]
+            }
+        let revisions = try context.fetch(FetchDescriptor<EntityMutationRevisionRow>())
+            .sorted { $0.stableIdentity < $1.stableIdentity }.map {
+                [$0.stableIdentity, $0.kind, $0.entityID.uuidString, String($0.revision),
+                 $0.externalProjectionSHA256 ?? "nil"]
+            }
+        let quarantines = try context.fetch(FetchDescriptor<MutationQuarantineRow>())
+            .sorted { $0.workspaceMutationKey < $1.workspaceMutationKey }.map {
+                [$0.workspaceID.uuidString, $0.mutationID.uuidString, $0.workspaceMutationKey,
+                 $0.identityDomain, $0.acceptedIdentitySHA256, $0.conflictingIdentitySHA256,
+                 String($0.detectedAt.timeIntervalSinceReferenceDate.bitPattern)]
+            }
+        return [states, revisions, quarantines]
+    }
+
+    @MainActor
+    func testC33EraseRejectsOtherwiseEmptyOrphanTemporalOriginalBeforeEffects() async throws {
+        weak var seededSession: StoreGenerationSession?
+        weak var seededContext: ModelContext?
+        weak var seededContainer: ModelContainer?
+        let prepared = try await { @MainActor () async throws in
+            var pristineCoordinator: StoreSessionCoordinator?
+            let fixture = try await makeEraseOriginalFixture(seedAuthority: false,
+                retainForEraseOwner: true) { cleanSession in
+                XCTAssertTrue(BackupRestoreService.isEmptyCurrent(cleanSession.modelContext))
+                XCTAssertEqual(try cleanSession.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+                XCTAssertEqual(try cleanSession.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+                pristineCoordinator = try StoreSessionCoordinator(validatingSession: cleanSession)
+            }
+            let session = fixture.session
+            seededSession = session
+            seededContext = session.modelContext
+            seededContainer = session.modelContext.container
+            let seedWriter = try XCTUnwrap(pristineCoordinator)
+            XCTAssertTrue(seedWriter.modelContext === session.modelContext)
+            let row = try XCTUnwrap(session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first)
+            XCTAssertEqual(try row.value(), fixture.clip)
+            XCTAssertTrue(BackupRestoreService.isEmptyCurrent(session.modelContext),
+                "Reproduce the generic empty predicate's temporal-row blind spot")
+            XCTAssertEqual(try session.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+            let original = session.generationRootURL.appendingPathComponent(
+                try TemporalEvidenceBackupMemberV1.original(for: fixture.clip))
+            let values = (root: fixture.root, support: fixture.support, caches: fixture.caches,
+                temporary: fixture.temporary, defaults: fixture.defaults,
+                defaultsName: fixture.defaultsName, generationID: session.generationID,
+                clip: fixture.clip, original: original,
+                bytes: try Data(contentsOf: original), canonical: row.canonicalData,
+                kernel: try rawEraseKernelState(session.modelContext))
+            try seedWriter.invalidateAndReleaseWriter()
+            pristineCoordinator = nil
+            return values
+        }()
+        guard seededSession == nil, seededContext == nil, seededContainer == nil else {
+            XCTFail("Orphan fixture aliases must drain before authentic Router startup")
+            throw V23EraseOperationHarnessV1.Failure.drainPending
+        }
+        let eraseOwner = V23EraseOperationHarnessV1(retainingRoot: prepared.root,
+            applicationSupportURL: prepared.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let (coordinator, diagnostics) = try await eraseOwner.startOriginalOwner()
+        await diagnostics.prepare()
+        XCTAssertEqual(coordinator.generationID, prepared.generationID)
+        let row = try XCTUnwrap(coordinator.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first)
+        XCTAssertEqual(try row.value(), prepared.clip)
+        XCTAssertTrue(BackupRestoreService.isEmptyCurrent(coordinator.modelContext),
+            "Reproduce the generic empty predicate's temporal-row blind spot")
+        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        try await eraseOwner.admit(coordinator: coordinator)
+        var completedReceipts: [CompletedEraseReceiptV1] = []
+        let service = try eraseOwner.configure(EraseAllService(
+            applicationSupportURL: prepared.support, cachesDirectoryURL: prepared.caches,
+            temporaryDirectoryURL: prepared.temporary, userDefaults: prepared.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord", defaultsDomainName: prepared.defaultsName,
+            admitErase: { subject in try await eraseOwner.admitSubject(subject) },
+            didCompleteErase: { completedReceipts.append($0) }))
+        let originalContext = coordinator.modelContext
+        let originalWriter = coordinator.workspaceWriter
+        let originalGenerationToken = coordinator.uiGenerationToken
+        var phases: [String] = []
+        #if DEBUG
+        service.erasePhaseDiagnosticForTesting = { phases.append($0) }
+        #endif
+        do {
+            try await eraseOwner.prepareCompatibility(service: service, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
+            XCTFail("Orphan typed row and original must not create Erase authority")
+        } catch { XCTAssertFalse(error is CancellationError) }
+        #if DEBUG
+        XCTAssertTrue(phases.contains("frozen.summary"), "\(phases)")
+        XCTAssertTrue(phases.contains { $0.hasPrefix("frozen.summary.failure.") }, "\(phases)")
+        XCTAssertFalse(phases.contains("frozen.inventory-predicate"), "\(phases)")
+        #endif
+        XCTAssertTrue(coordinator.modelContext === originalContext)
+        XCTAssertTrue(coordinator.workspaceWriter === originalWriter)
+        XCTAssertEqual(coordinator.uiGenerationToken, originalGenerationToken)
+        XCTAssertEqual(eraseOwner.activationCallbackEntryCount, 0)
+        XCTAssertTrue(completedReceipts.isEmpty)
+        XCTAssertEqual(try StoreGenerationFactory(applicationSupportURL: prepared.support)
+            .currentGenerationID(), prepared.generationID)
+        XCTAssertEqual(try Data(contentsOf: prepared.original), prepared.bytes)
+        XCTAssertEqual(row.canonicalData, prepared.canonical)
+        XCTAssertEqual(try rawEraseKernelState(coordinator.modelContext), prepared.kernel)
+        XCTAssertEqual(try row.value(), prepared.clip)
+        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 1)
+        XCTAssertEqual(try coordinator.modelContext.fetchCount(FetchDescriptor<MutationReceiptRow>()), 0)
+        XCTAssertFalse(coordinator.modelContext.hasChanges)
+    }
+
+    @MainActor
+    func testC33EraseAuthenticatesSharedOriginalAndRecoversAfterPointerPublication() async throws {
+        for interrupted in [false, true] {
+            try await eraseRegisteredFixture(interrupted: interrupted) { cleanupPermission in
+                let fixture = try await self.makeEraseOriginalFixture(
+                    retainForEraseOwner: true,
+                    cleanupPermission: cleanupPermission, routerOwned: true)
+                let session = fixture.session
+                let originalOwner = try XCTUnwrap(fixture.originalOwner)
+                guard case let .ready(coordinator, _, _) = originalOwner.router.route else {
+                    throw V23EraseOperationHarnessV1.Failure.admission
+                }
+                let prior = fixture.clip
+                // An authentic accepted successor retains the predecessor's original.
+                // Both immutable clip rows must therefore enroll one physical member.
+                let successor = try TemporalEvidenceClipV1(
+                    clipID: C33TemporalEvidenceTestSupport.id(1_901), workspaceID: prior.workspaceID,
+                    target: prior.target, original: prior.original, originalProvenance: prior.originalProvenance,
+                    locator: prior.locator, facts: prior.facts, profile: prior.limitProfile,
+                    accessibleDescription: prior.accessibleDescription, manualTranscript: prior.manualTranscript,
+                    recordedBy: prior.recordedBy, capturedAt: prior.capturedAt, acceptedAt: prior.acceptedAt,
+                    supersedesClipID: prior.clipID, revision: prior.revision + 1,
+                    mutationID: C33TemporalEvidenceTestSupport.mutation(1_902))
+                do {
+                    let current = try coordinator.workspaceWriter.currentRevision()
+                    let expected = try C33TemporalEvidenceTestSupport.expectedRevision(for: prior,
+                        generationID: current.generationID, writerInstanceID: current.writerInstanceID,
+                        workspaceRevision: current.revision, entityRevision: prior.revision)
+                    _ = try coordinator.workspaceWriter.commitTemporalEvidence(.init(
+                        workspaceID: session.workspaceID, expectedRevision: expected,
+                        mutationID: successor.mutationID, payload: .acceptClip(successor,
+                            review: C33TemporalEvidenceTestSupport.review(for: successor), predecessor: prior)))
+                }
+                let clips = try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+                    .map { try $0.value() }
+                XCTAssertEqual(Set(clips.map(\.clipID)), [prior.clipID, successor.clipID])
+                let paths = try clips.map { try TemporalEvidenceBackupMemberV1.original(for: $0) }
+                XCTAssertEqual(Set(paths).count, 1)
+                let originalURL = session.generationRootURL.appendingPathComponent(try XCTUnwrap(paths.first))
+                XCTAssertEqual(try Data(contentsOf: originalURL), C33TemporalEvidenceTestSupport.bytes(for: prior.facts.kind))
+                let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                    identity: session.workspaceIdentity, generationID: session.generationID, allowStateBootstrap: false)
+                try journal.validateAll()
+                return fixture
+            }
+        }
+    }
+
+    @MainActor
+    func testC33EarlyPointerWitnessRejectsSameByteRetiredControlReplacement() async throws {
+        var reachedArmingBoundary = false
+        do {
+            _ = try await prepareC33InterruptedHostileSource(
+                beforeArming: { fixture in
+                    let leaf = fixture.support
+                        .appendingPathComponent("FieldEvidenceData", isDirectory: true)
+                        .appendingPathComponent("retired.json")
+                    let replacement = leaf.deletingLastPathComponent()
+                        .appendingPathComponent("retired.json.fixture-replacement")
+                    let original = try Data(contentsOf: leaf)
+                    var before = stat(), after = stat()
+                    XCTAssertEqual(leaf.path.withCString { lstat($0, &before) }, 0)
+                    try FileManager.default.copyItem(at: leaf, to: replacement)
+                    try FileManager.default.removeItem(at: leaf)
+                    try FileManager.default.moveItem(at: replacement, to: leaf)
+                    XCTAssertEqual(leaf.path.withCString { lstat($0, &after) }, 0)
+                    XCTAssertNotEqual(before.st_ino, after.st_ino)
+                    XCTAssertEqual(try Data(contentsOf: leaf), original)
+                    reachedArmingBoundary = true
+                }) { fixture, _ in fixture.clip }
+            XCTFail("Replaced published control must not mint the early witness")
+        } catch {
+            XCTAssertTrue(reachedArmingBoundary)
+            XCTAssertEqual(error as? EraseAllServiceError, .invalidAuthority)
+        }
+    }
+
+    @MainActor
+    func testC33EraseRejectsHostileOriginalInventoryBeforeEffects() async throws {
+        try await assertHostileEraseOriginals(recovering: false)
+    }
+
+    @MainActor
+    func testC33EraseRecoveryRejectsHostileRetainedOriginalInventoryBeforeCleanup() async throws {
+        try await assertHostileEraseOriginals(recovering: true)
+    }
+
+    @MainActor
+    private struct C33HostileOriginalObservation {
+        let raw: V949ColdSourceReadbackV1
+        let pointer: UUID
+        let generationRootURL: URL
+        let originalURL: URL
+        let originalBytes: Data?
+        let originalLinkCount: NSNumber?
+        let siblings: [String]
+        let externalURL: URL
+        let externalBytes: Data
+        let contextHadChanges: Bool
+    }
+
+    /// A cold refusal before SwiftData opens has no ModelContext to read back.
+    /// Preserve the actual hostile source's database files instead; a failed
+    /// open must not rewrite or replace any of these physical source members.
+    private struct C33SourceFileAfterDrain: Equatable {
+        let device: UInt64
+        let inode: UInt64
+        let linkCount: UInt64
+        let bytes: Data
+    }
+
+    private func c33SourceFileAfterDrain(_ url: URL) throws
+        -> C33SourceFileAfterDrain? {
+        var before = stat()
+        let first = url.path.withCString { lstat($0, &before) }
+        if first != 0 {
+            guard errno == ENOENT else { throw CocoaError(.fileReadUnknown) }
+            return nil
+        }
+        guard before.st_mode & S_IFMT == S_IFREG,
+              before.st_nlink == 1, before.st_size >= 0 else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let bytes = try Data(contentsOf: url)
+        var after = stat()
+        guard url.path.withCString({ lstat($0, &after) }) == 0,
+              before.st_dev == after.st_dev,
+              before.st_ino == after.st_ino,
+              before.st_mode == after.st_mode,
+              before.st_nlink == after.st_nlink,
+              before.st_size == after.st_size,
+              before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec,
+              before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec,
+              before.st_ctimespec.tv_sec == after.st_ctimespec.tv_sec,
+              before.st_ctimespec.tv_nsec == after.st_ctimespec.tv_nsec,
+              bytes.count == Int(before.st_size) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        return C33SourceFileAfterDrain(device: UInt64(before.st_dev),
+            inode: UInt64(before.st_ino), linkCount: UInt64(before.st_nlink),
+            bytes: bytes)
+    }
+
+    private struct C33SourceDatabaseAfterDrain: Equatable {
+        let model: C33SourceFileAfterDrain
+        let wal: C33SourceFileAfterDrain?
+        let shm: C33SourceFileAfterDrain?
+    }
+
+    private func c33SourceDatabaseAfterDrain(_ root: URL) throws
+        -> C33SourceDatabaseAfterDrain {
+        guard let model = try c33SourceFileAfterDrain(
+            root.appendingPathComponent("model.sqlite")) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        return try C33SourceDatabaseAfterDrain(model: model,
+            wal: c33SourceFileAfterDrain(root.appendingPathComponent("model.sqlite-wal")),
+            shm: c33SourceFileAfterDrain(root.appendingPathComponent("model.sqlite-shm")))
+    }
+
+    /// This exact mutation runs either on the Router-published source writer
+    /// before an original Erase, or inside the new checked post-handoff owner.
+    /// It returns values only; no row/context/session escapes the closure.
+    @MainActor
+    private func applyC33HostileOriginal(
+        _ hostile: String, session: StoreGenerationSession,
+        clip: TemporalEvidenceClipV1, fixtureRoot: URL,
+        support: URL,
+        pointerObservation: (@MainActor () throws -> UUID)? = nil
+    ) throws -> C33HostileOriginalObservation {
+        let original = session.generationRootURL.appendingPathComponent(
+            try TemporalEvidenceBackupMemberV1.original(for: clip))
+        let bytes = try Data(contentsOf: original)
+        let row = try XCTUnwrap(session.modelContext.fetch(
+            FetchDescriptor<TemporalEvidenceClipRow>()).first)
+        let sibling = original.deletingLastPathComponent()
+            .appendingPathComponent("unowned.bin")
+        let external = fixtureRoot.appendingPathComponent(
+            "external-original.bin")
+        switch hostile {
+        case "raw-row":
+            row.originalSHA256 = String(repeating: "0", count: 64)
+            try session.modelContext.save()
+        case "wrong-workspace":
+            row.workspaceID = UUID()
+            try session.modelContext.save()
+        case "missing": try FileManager.default.removeItem(at: original)
+        case "wrong-digest":
+            var changed = bytes; changed[changed.startIndex] ^= 1
+            try changed.write(to: original)
+        case "wrong-length": try Data(bytes.dropLast()).write(to: original)
+        case "extra-sibling": try Data("unowned".utf8).write(to: sibling)
+        case "unowned-derivative":
+            try Data("{}".utf8).write(to: original.deletingLastPathComponent()
+                .appendingPathComponent("derivative-publication.json"))
+        case "symlink":
+            try bytes.write(to: external)
+            try FileManager.default.removeItem(at: original)
+            try FileManager.default.createSymbolicLink(
+                at: original, withDestinationURL: external)
+        case "hardlink":
+            try FileManager.default.linkItem(at: original, to: external)
+        default: XCTFail("Unknown hostile original case: \(hostile)")
+        }
+        let observedPointer: UUID
+        if let pointerObservation {
+            observedPointer = try pointerObservation()
+        } else {
+            observedPointer = try StoreGenerationFactory(
+                applicationSupportURL: support).currentGenerationID()
+        }
+        return try C33HostileOriginalObservation(
+            raw: V949ColdSourceReadbackV1.capture(session.modelContext),
+            pointer: observedPointer,
+            generationRootURL: session.generationRootURL,
+            originalURL: original,
+            originalBytes: try? Data(contentsOf: original),
+            originalLinkCount: (try? FileManager.default.attributesOfItem(
+                atPath: original.path))?[.referenceCount] as? NSNumber,
+            siblings: FileManager.default.contentsOfDirectory(
+                atPath: original.deletingLastPathComponent().path).sorted(),
+            externalURL: external, externalBytes: bytes,
+            contextHadChanges: session.modelContext.hasChanges)
+    }
+
+    @MainActor
+    private func assertC33HostileOriginalAfterColdHandoff(
+        _ hostile: String
+    ) async throws {
+        let prepared = try await prepareC33InterruptedHostileSource {
+            fixture, _ in fixture.clip
+        }
+        let hostileOwner = try checkedC33HostileOwner(prepared)
+        let observation = try hostileOwner.withRetiredRowMutation {
+            session in
+            try self.applyC33HostileOriginal(hostile,
+                session: session, clip: prepared.value,
+                fixtureRoot: prepared.fixtureRoot,
+                support: prepared.support,
+                pointerObservation: {
+                    try hostileOwner.observedPublishedCurrentGenerationIDWhileExcluded()
+                })
+        }
+        try hostileOwner.closeAfterCheckedDrain()
+        XCTAssertFalse(observation.contextHadChanges)
+        let sourceDatabaseAfterDrain = try c33SourceDatabaseAfterDrain(
+            observation.generationRootURL)
+        // Each fixed snapshot isolates a genuine fresh-startup boundary.
+        // Observations do not grant permission or change the refusal oracle.
+        func reportSHMOrigin(_ stage: String) throws {
+            guard hostile == "raw-row" || hostile == "wrong-workspace" else { return }
+            let current = try c33SourceDatabaseAfterDrain(
+                observation.generationRootURL)
+            let old = sourceDatabaseAfterDrain
+            let label = "V949_SHM_ORIGIN_V1 stage=\(stage) "
+                + "modelIdentity=\(current.model.device == old.model.device && current.model.inode == old.model.inode && current.model.linkCount == old.model.linkCount) "
+                + "modelBytes=\(current.model.bytes == old.model.bytes) "
+                + "walPresence=\((current.wal == nil) == (old.wal == nil)) "
+                + "walIdentity=\(current.wal?.device == old.wal?.device && current.wal?.inode == old.wal?.inode && current.wal?.linkCount == old.wal?.linkCount) "
+                + "walBytes=\(current.wal?.bytes == old.wal?.bytes) "
+                + "shmPresence=\((current.shm == nil) == (old.shm == nil)) "
+                + "shmIdentity=\(current.shm?.device == old.shm?.device && current.shm?.inode == old.shm?.inode && current.shm?.linkCount == old.shm?.linkCount) "
+                + "shmBytes=\(current.shm?.bytes == old.shm?.bytes)\n"
+            FileHandle.standardError.write(Data(label.utf8))
+        }
+
+        let fresh = V23EraseOperationHarnessV1(
+            retainingRoot: prepared.fixtureRoot,
+            applicationSupportURL: prepared.support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        try reportSHMOrigin("fresh-harness")
+        let authentication = await fresh.accessGate.authenticate(
+            trigger: .unlock)
+        try reportSHMOrigin("authenticated")
+        XCTAssertEqual(authentication, .authenticated)
+        let recovery = EraseAllService(
+            applicationSupportURL: prepared.support,
+            cachesDirectoryURL: prepared.caches,
+            temporaryDirectoryURL: prepared.temporary,
+            userDefaults: prepared.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: prepared.defaultsName)
+        Self.retainedC33InterruptedServices.append(
+            (prepared.fixtureRoot, recovery))
+        var phases = [String]()
+        var startupFailures = [String]()
+        fresh.router.startupFailureDiagnosticForTesting = {
+            startupFailures.append($0)
+        }
+        var readbacks = [(V949ColdSourceReadbackV1,
+            V949ColdSourceReadbackV1)]()
+        var expectedBytes = observation.originalBytes
+        var replaced = false
+        recovery.erasePhaseDiagnosticForTesting = { phase in
+            phases.append(phase)
+            if hostile == "byte-race",
+               phase == "frozen.inventory-predicate", !replaced {
+                replaced = true
+                var changed = observation.externalBytes
+                changed[changed.startIndex] ^= 1
+                do {
+                    try changed.write(to: observation.originalURL)
+                    expectedBytes = changed
+                } catch {
+                    XCTFail("Failed deterministic byte race: \(error)")
+                }
+            }
+        }
+        recovery.v949RetainedSourceReadbackForTesting = {
+            before, after in readbacks.append((before, after))
+        }
+        try reportSHMOrigin("pre-retry")
+        do {
+            try await fresh.router.retryColdEraseForTesting(
+                service: recovery, accessGate: fresh.accessGate)
+        } catch {
+            XCTAssertFalse(error is CancellationError)
+        }
+        try reportSHMOrigin("post-retry")
+        guard case .maintenance(.eraseInconsistent) = fresh.router.route else {
+            return XCTFail("Hostile source must leave cold Erase in maintenance")
+        }
+        XCTAssertTrue(startupFailures.contains { $0.hasPrefix("phase=erase type=") },
+            hostile)
+        XCTAssertFalse(phases.contains("recovery.retained.validate.complete"), hostile)
+        XCTAssertTrue(phases.contains("recovery.presence.retained-source"),
+            "\(hostile): \(phases)")
+        let reachedValidation = phases.contains("recovery.retained.validate.enter")
+        XCTAssertEqual(readbacks.count, reachedValidation ? 1 : 0,
+            "\(hostile); retainedStages=\(phases.filter { $0.hasPrefix("recovery.retained.") }); "
+                + "startupFailures=\(startupFailures)")
+        if reachedValidation, let pair = readbacks.first {
+            XCTAssertEqual(pair.0, observation.raw, hostile)
+            XCTAssertEqual(pair.1, observation.raw, hostile)
+        } else {
+            XCTAssertTrue(phases.contains("recovery.retained.open.enter"), hostile)
+            XCTAssertFalse(phases.contains("recovery.retained.open.complete"), hostile)
+            let after = try c33SourceDatabaseAfterDrain(
+                observation.generationRootURL)
+            if after != sourceDatabaseAfterDrain {
+                let before = sourceDatabaseAfterDrain
+                // Fixed booleans only: XCTest's Data description reports
+                // lengths, not which SQLite member changed after a failed
+                // open. Preserve the exact aggregate no-effect assertion.
+                let label = "V949_SOURCE_FILE_DELTA_V1 "
+                    + "modelIdentity=\(after.model.device == before.model.device && after.model.inode == before.model.inode && after.model.linkCount == before.model.linkCount) "
+                    + "modelBytes=\(after.model.bytes == before.model.bytes) "
+                    + "walPresence=\((after.wal == nil) == (before.wal == nil)) "
+                    + "walIdentity=\(after.wal?.device == before.wal?.device && after.wal?.inode == before.wal?.inode && after.wal?.linkCount == before.wal?.linkCount) "
+                    + "walBytes=\(after.wal?.bytes == before.wal?.bytes) "
+                    + "shmPresence=\((after.shm == nil) == (before.shm == nil)) "
+                    + "shmIdentity=\(after.shm?.device == before.shm?.device && after.shm?.inode == before.shm?.inode && after.shm?.linkCount == before.shm?.linkCount) "
+                    + "shmBytes=\(after.shm?.bytes == before.shm?.bytes)\n"
+                FileHandle.standardError.write(Data(label.utf8))
+            }
+            XCTAssertEqual(after, sourceDatabaseAfterDrain, hostile)
+        }
+        if hostile == "byte-race" { XCTAssertTrue(replaced) }
+        XCTAssertEqual(try StoreGenerationFactory(
+            applicationSupportURL: prepared.support).currentGenerationID(),
+            observation.pointer, hostile)
+        XCTAssertTrue(FileManager.default.fileExists(atPath:
+            observation.generationRootURL.path), hostile)
+        XCTAssertEqual(try? Data(contentsOf: observation.originalURL),
+            expectedBytes, hostile)
+        XCTAssertEqual((try? FileManager.default.attributesOfItem(
+            atPath: observation.originalURL.path))?[.referenceCount]
+            as? NSNumber, observation.originalLinkCount, hostile)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+            atPath: observation.originalURL.deletingLastPathComponent().path)
+            .sorted(), observation.siblings, hostile)
+        if hostile == "symlink" {
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                atPath: observation.originalURL.path),
+                observation.externalURL.path)
+        }
+        if hostile == "symlink" || hostile == "hardlink" {
+            XCTAssertEqual(try Data(contentsOf: observation.externalURL),
+                observation.externalBytes, hostile)
+        }
+    }
+
+    @MainActor
+    private func assertHostileEraseOriginals(recovering: Bool) async throws {
+        let cases = ["raw-row", "wrong-workspace", "missing", "wrong-digest",
+                     "wrong-length", "extra-sibling", "unowned-derivative",
+                     "symlink", "hardlink"]
+        for hostile in cases {
+            if recovering {
+                try await assertC33HostileOriginalAfterColdHandoff(hostile)
+                continue
+            }
+            let fixture = try await makeEraseOriginalFixture(
+                retainForEraseOwner: true, routerOwned: true)
+            let owner = try XCTUnwrap(fixture.originalOwner)
+            guard case let .ready(coordinator, diagnostics, _) = owner.router.route,
+                  coordinator.modelContext === fixture.session.modelContext else {
+                throw V23EraseOperationHarnessV1.Failure.admission
+            }
+            await diagnostics.prepare()
+            let observation = try applyC33HostileOriginal(hostile,
+                session: fixture.session, clip: fixture.clip,
+                fixtureRoot: fixture.root, support: fixture.support)
+            try await owner.admit(coordinator: coordinator)
+            let operation = try owner.originalOperationForInterruption()
+            let service = try owner.configure(EraseAllService(
+                applicationSupportURL: fixture.support,
+                cachesDirectoryURL: fixture.caches,
+                temporaryDirectoryURL: fixture.temporary,
+                userDefaults: fixture.defaults,
+                bundleIdentifier: "com.palatis3.fieldrecord",
+                defaultsDomainName: fixture.defaultsName,
+                admitErase: { try await owner.admitSubject($0) }))
+            Self.retainedC33InterruptedServices.append((fixture.root, service))
+            var activated = false
+            do {
+                _ = try await service.erase(confirmation: "ERASE",
+                    coordinator: coordinator, diagnosticsStore: diagnostics,
+                    operation: operation,
+                    activate: { _ in activated = true })
+                XCTFail("Admitted hostile original inventory: \(hostile)")
+            } catch {
+                XCTAssertFalse(error is CancellationError)
+            }
+            XCTAssertFalse(activated, hostile)
+            XCTAssertEqual(try StoreGenerationFactory(
+                applicationSupportURL: fixture.support).currentGenerationID(),
+                observation.pointer, hostile)
+            XCTAssertTrue(FileManager.default.fileExists(atPath:
+                observation.generationRootURL.path), hostile)
+            XCTAssertEqual(try V949ColdSourceReadbackV1.capture(
+                fixture.session.modelContext), observation.raw, hostile)
+            XCTAssertEqual(try? Data(contentsOf: observation.originalURL),
+                observation.originalBytes, hostile)
+            XCTAssertEqual((try? FileManager.default.attributesOfItem(
+                atPath: observation.originalURL.path))?[.referenceCount]
+                as? NSNumber, observation.originalLinkCount, hostile)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(
+                atPath: observation.originalURL.deletingLastPathComponent().path)
+                .sorted(), observation.siblings, hostile)
+            if hostile == "symlink" {
+                XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(
+                    atPath: observation.originalURL.path),
+                    observation.externalURL.path)
+            }
+            if hostile == "symlink" || hostile == "hardlink" {
+                XCTAssertEqual(try Data(contentsOf: observation.externalURL),
+                    observation.externalBytes, hostile)
+            }
+            XCTAssertFalse(fixture.session.modelContext.hasChanges)
+        }
+    }
+
+    @MainActor
+    func testC33PersistentClipReusesAcceptedShippingPackageWithoutRepromotion() async throws {
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+            .appendingPathComponent("C33-active-package-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { [root] in try? FileManager.default.removeItem(at: root) }
+        let session = try StoreGenerationFactory(applicationSupportURL: root).openOrBootstrapCurrent()
+        let shipping = try frozenBeginShippingRelease(stage: .check)
+        let oldCandidate = try C26SurveySessionTestSupport.packageRelease()
+        let forbiddenDiff = try PackageSemanticDifferV1.diff(source: shipping, target: oldCandidate)
+        XCTAssertEqual(shipping.packageContentVersion, oldCandidate.packageContentVersion)
+        XCTAssertNotEqual(forbiddenDiff.source.workflowID, forbiddenDiff.target.workflowID)
+        XCTAssertEqual(forbiddenDiff.classification, .invalid)
+        do {
+            let coordinator = try StoreSessionCoordinator(validatingSession: session)
+            defer { XCTAssertNoThrow(try coordinator.invalidateAndReleaseWriter()) }
+            let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+                identity: session.workspaceIdentity, generationID: session.generationID)
+            try await CanonicalWriterSeedingV1.promotePackage(shipping,
+                workspaceID: session.workspaceID,
+                actor: C26SurveySessionTestSupport.actor(workspaceID: session.workspaceID, slot: 8_003),
+                writer: coordinator.workspaceWriter, journal: journal, context: session.modelContext,
+                promotedAt: C33TemporalEvidenceTestSupport.fixedDate,
+                ids: .fresh())
+        }
+        let journal = try MutationJournalStoreV1(modelContext: session.modelContext,
+            identity: session.workspaceIdentity, generationID: session.generationID, allowStateBootstrap: false)
+        let before = try journal.exportSnapshot()
+        let packageBefore = try C33TemporalEvidenceTestSupport.packageClosure(in: session.modelContext)
+        func packageBytes() throws -> [[Data]] {
+            [try session.modelContext.fetch(FetchDescriptor<PromotedPackageReleaseRow>()).map(\.canonicalData),
+             try session.modelContext.fetch(FetchDescriptor<PackageSandboxRunRow>()).map(\.canonicalData),
+             try session.modelContext.fetch(FetchDescriptor<PackagePromotionReceiptRow>()).map(\.canonicalData),
+             try session.modelContext.fetch(FetchDescriptor<ActivePackageRegistryPointerRow>()).map(\.canonicalData)]
+                .map { $0.sorted { $0.lexicographicallyPrecedes($1) } }
+        }
+        let packageBytesBefore = try packageBytes()
+        XCTAssertEqual(packageBefore.promotedReleases.map(\.packageRelease), [shipping])
+        XCTAssertEqual(packageBefore.sandboxRuns.count, 1)
+        XCTAssertEqual(packageBefore.promotionReceipts.count, 1)
+        XCTAssertEqual(packageBefore.activePointers.count, 1)
+        let result = try await C33TemporalEvidenceTestSupport.commitPersistentClip(in: session, slot: 880)
+        let after = try journal.exportSnapshot()
+        XCTAssertEqual(Array(after.receipts.prefix(before.receipts.count)), before.receipts)
+        XCTAssertEqual(after.quarantines, before.quarantines)
+        XCTAssertEqual(try C33TemporalEvidenceTestSupport.packageClosure(in: session.modelContext), packageBefore)
+        XCTAssertEqual(try packageBytes(), packageBytesBefore)
+        let priorIdentities = Set(before.entityRevisions.map(\.identity))
+        XCTAssertEqual(after.entityRevisions.filter { priorIdentities.contains($0.identity) }, before.entityRevisions)
+        let appended = Array(after.receipts.dropFirst(before.receipts.count))
+        var temporalMutationIDs: [MutationIDV1] = []
+        for record in appended {
+            let envelope = try MutationEnvelopeV1.decodeCanonical(from: record.envelopeData)
+            switch envelope.command {
+            case .applyPartyAccountability, .applySurveyDefinition, .applySurveySession:
+                break
+            case .applyTemporalEvidence:
+                temporalMutationIDs.append(envelope.mutationID)
+            default:
+                XCTFail("unexpected appended command while reusing shipping package")
+            }
+        }
+        XCTAssertEqual(temporalMutationIDs, [result.clip.mutationID])
+        XCTAssertEqual(after.workspaceRevision, before.workspaceRevision + UInt64(appended.count))
+        XCTAssertEqual(after.lastLocalSequence, before.lastLocalSequence + UInt64(appended.count))
+        let surveys = try session.modelContext.fetch(FetchDescriptor<SurveySessionRow>()).map { try $0.value() }
+        let survey = try XCTUnwrap(surveys.first)
+        XCTAssertEqual(surveys.count, 1)
+        XCTAssertEqual(survey.authority.packageRelease, try SurveyPackageReleaseReferenceV1(shipping))
+        XCTAssertEqual(result.clip.limitProfile.packageRelease, survey.authority.packageRelease)
+        XCTAssertEqual(result.clip.target.sessionID, survey.sessionID)
+        XCTAssertEqual(result.clip.target.sessionRevision, survey.revision)
+        XCTAssertEqual(result.clip.target.sessionSHA256, survey.sessionSHA256)
+        let basis = try C33TemporalEvidenceTestSupport.profile(workspaceID: session.workspaceID,
+            reportProjection: .typedLinkOnly, requiresTranscript: true)
+        XCTAssertEqual(result.clip.limitProfile.profileID, basis.profileID)
+        XCTAssertEqual(result.clip.limitProfile.revision, basis.revision)
+        XCTAssertEqual(result.clip.limitProfile.definitionRelease, basis.definitionRelease)
+        XCTAssertEqual(result.clip.limitProfile.audio, basis.audio)
+        XCTAssertEqual(result.clip.limitProfile.video, basis.video)
+        XCTAssertEqual(result.clip.limitProfile.maximumClipsPerRequirement, basis.maximumClipsPerRequirement)
+        XCTAssertEqual(result.clip.limitProfile.maximumClipsPerSession, basis.maximumClipsPerSession)
+        XCTAssertEqual(result.clip.limitProfile.minimumFreeByteCount, basis.minimumFreeByteCount)
+        XCTAssertEqual(result.clip.limitProfile.reportProjection, basis.reportProjection)
+        XCTAssertEqual(result.clip.limitProfile.requiresAccessibleDescription, basis.requiresAccessibleDescription)
+        XCTAssertEqual(result.clip.limitProfile.requiresManualTranscript, basis.requiresManualTranscript)
+        XCTAssertEqual(try session.modelContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>())
+            .map { try $0.value() }, [result.clip])
+        XCTAssertEqual(result.receipt.mutationReceipt.mutationID, result.clip.mutationID)
+        XCTAssertEqual(try Data(contentsOf: session.generationRootURL.appendingPathComponent(
+            TemporalEvidenceBackupMemberV1.original(for: result.clip))),
+            C33TemporalEvidenceTestSupport.bytes(for: result.clip.facts.kind))
+        try journal.validateAll()
+        XCTAssertFalse(session.modelContext.hasChanges)
+    }
+
+    @MainActor
+    func testV23P03C33A01TypedLimitsAnchorsAndReplaceableDerivativesRemainBounded() async throws {
+        let audio = try C33TemporalEvidenceTestSupport.clip(slot: 101, kind: .audio)
+        let video = try C33TemporalEvidenceTestSupport.clip(slot: 102, kind: .video)
+        let audioAnchor = try C33TemporalEvidenceTestSupport.anchor(clip: audio.clip, offsetMilliseconds: 45_000)
+        let videoAnchor = try C33TemporalEvidenceTestSupport.anchor(clip: video.clip, offsetMilliseconds: 30_000)
+        let waveform = try C33TemporalEvidenceTestSupport.derivative(clip: audio.clip, kind: .waveform)
+        let thumbnail = try C33TemporalEvidenceTestSupport.derivative(clip: video.clip, kind: .thumbnail)
+
+        XCTAssertEqual(audio.profile.limit(for: .audio).maximumDurationMilliseconds, 120_000)
+        XCTAssertEqual(video.profile.limit(for: .video).maximumPixelWidth, 1_920)
+        XCTAssertEqual(audioAnchor.offsetMilliseconds, audio.clip.facts.durationMilliseconds)
+        XCTAssertEqual(videoAnchor.offsetMilliseconds, video.clip.facts.durationMilliseconds)
+        XCTAssertEqual(waveform.kind, .waveform)
+        XCTAssertEqual(thumbnail.kind, .thumbnail)
+        XCTAssertEqual(waveform.source.contentID, audio.clip.original.contentID)
+        XCTAssertNotEqual(waveform.content.contentID, audio.clip.original.contentID)
+        XCTAssertEqual(audio.clip.original.byteRole, .immutableOriginal)
+        XCTAssertEqual(waveform.content.byteRole, .derivative)
+        XCTAssertEqual(waveform.content.mediaType, "image/png")
+        if case .waveform(let metadata) = waveform.provenance.transform {
+            XCTAssertEqual(metadata.sampleCount, 1_024)
+        } else {
+            XCTFail("waveform derivative must retain typed waveform provenance")
+        }
+        if case .thumbnail(let metadata) = thumbnail.provenance.transform {
+            XCTAssertEqual(metadata.pixelWidth, 320)
+            XCTAssertEqual(metadata.pixelHeight, 180)
+        } else {
+            XCTFail("thumbnail derivative must retain typed thumbnail provenance")
+        }
+        XCTAssertEqual(TemporalEvidenceStopReasonV1.allCases, [
+            .durationBound, .byteBound, .requirementCountBound, .sessionCountBound,
+            .insufficientStorage, .codecUnavailable, .permissionDenied,
+            .protectedDataUnavailable, .interruption, .backgrounded, .cancelled
+        ])
+        XCTAssertEqual(audio.clip.manualTranscript, "Reviewer-entered temporal evidence transcript.")
+        XCTAssertFalse(TemporalEvidencePersistenceEnrollmentV1.automaticTranscriptionEnabled)
+
+        let terminalHarness = try await C33TemporalEvidencePersistentHarness(slot: 150)
+        let lease = terminalHarness.request.scratchBinding.lease
+        let rejected = try await terminalHarness.coordinator.reject(lease: lease)
+        let cancelled = try await terminalHarness.coordinator.cancel(lease: lease)
+        let expired = try await terminalHarness.coordinator.expire(lease: lease)
+        let failed = try await terminalHarness.coordinator.fail(lease: lease)
+        XCTAssertEqual([rejected.disposition, cancelled.disposition, expired.disposition, failed.disposition], [
+            .rejected, .cancelled, .expired, .failed
+        ])
+        XCTAssertTrue([rejected, cancelled, expired, failed].allSatisfy(\.scratchDeleted))
+        XCTAssertEqual(try terminalHarness.context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+        XCTAssertEqual(try terminalHarness.temporalReceiptCount(), 0)
+    }
+
+    @MainActor
+    func testV23P03C33H01InvalidMediaStaleAuthorityAndHostileRuntimeStatesFailClosed() async throws {
+        let fixture = try C33TemporalEvidenceTestSupport.clip(slot: 201, kind: .video)
+        XCTAssertThrowsError(try C33TemporalEvidenceTestSupport.facts(
+            kind: .video,
+            byteCount: 67_108_865
+        ).validate(against: fixture.profile.video)) { error in
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .limitExceeded)
+        }
+        XCTAssertThrowsError(try C33TemporalEvidenceTestSupport.anchor(
+            clip: fixture.clip,
+            offsetMilliseconds: fixture.clip.facts.durationMilliseconds + 1
+        )) { error in
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .staleSource)
+        }
+        XCTAssertThrowsError(try TemporalEvidenceCodecV1(
+            container: " mp4",
+            codec: "h264",
+            mediaType: "video/mp4"
+        ))
+        let unavailableCodec = try TemporalEvidenceCodecV1(
+            container: "webm",
+            codec: "vp9",
+            mediaType: "video/webm"
+        )
+        XCTAssertThrowsError(try TemporalEvidenceMediaFactsV1(
+            kind: .video,
+            durationMilliseconds: 1_000,
+            byteCount: 1_024,
+            codec: unavailableCodec,
+            pixelWidth: 640,
+            pixelHeight: 480
+        ).validate(against: fixture.profile.video)) { error in
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .limitExceeded)
+        }
+        XCTAssertEqual(TemporalEvidenceContractFailureV1.hostileRuntimeFailures, [
+            .insufficientStorage, .unsupportedMedia, .interruption
+        ])
+
+        let hostileCases = Set(try corpus().hostileCases)
+        XCTAssertTrue(Set([
+            "INCOMING_CALL_INTERRUPTION", "LOW_DISK", "CODEC_UNAVAILABLE",
+            "PROTECTED_DATA_LOCKED", "APP_BACKGROUNDED", "OVERSIZED_IMPORT",
+            "PERMISSION_DENIED", "CAPTURE_CANCELLED", "CONTENT_DIGEST_TAMPERED",
+            "WRONG_WORKSPACE", "UNKNOWN_SCHEMA_VERSION"
+        ]).isSubset(of: hostileCases))
+        XCTAssertThrowsError(try TemporalEvidenceCanonicalCodecV1.decode(
+            TemporalEvidenceClipV1.self,
+            from: Data(repeating: 0, count: TemporalEvidenceCanonicalCodecV1.maximumCanonicalBytes + 1)
+        )) { error in
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .limitExceeded)
+        }
+        var unknownObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: TemporalEvidenceCanonicalCodecV1.encode(fixture.clip))
+                as? [String: Any]
+        )
+        unknownObject["schemaVersion"] = 999
+        XCTAssertThrowsError(try TemporalEvidenceCanonicalCodecV1.decode(
+            TemporalEvidenceClipV1.self,
+            from: JSONSerialization.data(withJSONObject: unknownObject, options: [.sortedKeys])
+        ))
+
+        let tamperedHarness = try await C33TemporalEvidencePersistentHarness(slot: 220)
+        var tampered = tamperedHarness.request.completedBytes
+        tampered[0] ^= 0xff
+        XCTAssertThrowsError(try TemporalEvidenceAcceptanceRequestV1(
+            clip: tamperedHarness.request.clip,
+            profile: tamperedHarness.request.profile,
+            review: tamperedHarness.request.review,
+            expectedRevision: tamperedHarness.request.expectedRevision,
+            scratchBinding: tamperedHarness.request.scratchBinding,
+            admissionReceipt: tamperedHarness.request.admissionReceipt,
+            completedBytes: tampered
+        )) { error in
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .digestMismatch)
+        }
+        let wrongWorkspaceExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: C33TemporalEvidenceTestSupport.workspace(999),
+            generationID: tamperedHarness.generationID,
+            writerInstanceID: tamperedHarness.writerInstanceID,
+            workspaceRevision: 0,
+            entityRevisions: []
+        )
+        XCTAssertThrowsError(try TemporalEvidenceAcceptanceRequestV1(
+            clip: tamperedHarness.request.clip,
+            profile: tamperedHarness.request.profile,
+            review: tamperedHarness.request.review,
+            expectedRevision: wrongWorkspaceExpected,
+            scratchBinding: tamperedHarness.request.scratchBinding,
+            admissionReceipt: tamperedHarness.request.admissionReceipt,
+            completedBytes: tamperedHarness.request.completedBytes
+        ))
+
+        let lowSpace = try await C33TemporalEvidencePersistentHarness(slot: 221)
+        await lowSpace.admission.replace(with: try TemporalEvidenceAdmissionSnapshotV1(
+            expectedRevision: lowSpace.request.expectedRevision,
+            profile: lowSpace.fixture.profile,
+            clipsForRequirement: 0,
+            clipsForSession: 0,
+            availableByteCount: lowSpace.fixture.profile.minimumFreeByteCount - 1,
+            evaluatedAt: lowSpace.fixture.clip.acceptedAt
+        ))
+        do {
+            _ = try await lowSpace.coordinator.accept(lowSpace.request)
+            XCTFail("low-space admission must fail")
+        } catch let failure as TemporalEvidenceContractFailureV1 {
+            XCTAssertEqual(failure, .insufficientStorage)
+        }
+        XCTAssertEqual(try lowSpace.context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+        XCTAssertEqual(try lowSpace.temporalReceiptCount(), 0)
+
+        let staleAuthority = try await C33TemporalEvidencePersistentHarness(slot: 222)
+        await staleAuthority.admission.replace(with: try TemporalEvidenceAdmissionSnapshotV1(
+            expectedRevision: C33TemporalEvidenceTestSupport.expectedRevision(
+                for: staleAuthority.fixture.clip,
+                generationID: C33TemporalEvidenceTestSupport.id(999),
+                writerInstanceID: staleAuthority.writerInstanceID
+            ),
+            profile: staleAuthority.fixture.profile,
+            clipsForRequirement: 0,
+            clipsForSession: 0,
+            availableByteCount: staleAuthority.fixture.profile.minimumFreeByteCount
+                + staleAuthority.fixture.clip.facts.byteCount,
+            evaluatedAt: staleAuthority.fixture.clip.acceptedAt
+        ))
+        do {
+            _ = try await staleAuthority.coordinator.accept(staleAuthority.request)
+            XCTFail("trusted expected-token mismatch must fail")
+        } catch let failure as TemporalEvidenceContractFailureV1 {
+            XCTAssertEqual(failure, .staleSource)
+        }
+        XCTAssertEqual(try staleAuthority.context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 0)
+        XCTAssertEqual(try staleAuthority.temporalReceiptCount(), 0)
+    }
+
+    @MainActor
+    func testV23P03C33I01EveryWriterBoundaryRecoversZeroOrCompleteWithoutOrphans() async throws {
+        let corpus = try corpus()
+        XCTAssertEqual(Set(corpus.writerBoundaries), Set([
+            "BEFORE_VALIDATION",
+            "AFTER_VALIDATION_BEFORE_SCRATCH_PROMOTION",
+            "AFTER_ORIGINAL_PROMOTION_BEFORE_CANONICAL_EFFECT",
+            "AFTER_CANONICAL_EFFECT_BEFORE_RECEIPT",
+            "AFTER_RECEIPT_BEFORE_SCRATCH_CLEANUP",
+            "AFTER_DERIVATIVE_WRITE_BEFORE_PUBLICATION",
+            "AFTER_ASSOCIATION_COMMIT_BEFORE_RECEIPT"
+        ]))
+        XCTAssertEqual(
+            corpus.lifecycle["scratch"],
+            "DELETE_ON_CANCEL_CRASH_PERMISSION_LOSS_OR_DISK_PRESSURE"
+        )
+        XCTAssertEqual(corpus.lifecycle["retry"], "SAME_EFFECT_AND_RECEIPT_OR_NO_EFFECT")
+
+        let scratchRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "C33-I01-scratch-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: scratchRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratchRoot) }
+        let scratchStore = try ScratchDataLeaseStoreV1(
+            applicationSupportURL: scratchRoot,
+            clock: { C33TemporalEvidenceTestSupport.fixedDate },
+            capacityProvider: { _ in Int64.max }
+        )
+        let scratchLifecycle = TemporalEvidenceScratchLifecycleAdapterV1(
+            base: CapabilityScratchLeaseAdapterV1(scratch: scratchStore)
+        )
+        let scratchRequest = try CapabilityScratchLeaseRequestV1(
+            leaseID: C33TemporalEvidenceTestSupport.id(360),
+            operationID: C33TemporalEvidenceTestSupport.id(361),
+            purpose: .capture,
+            requestedByteCount: 4_096,
+            createdAt: C33TemporalEvidenceTestSupport.fixedDate,
+            expiresAt: C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(1)
+        )
+        let realLease = try await scratchLifecycle.acquire(scratchRequest)
+        let realScratchURL = try await scratchLifecycle.write(
+            Data(repeating: 0x33, count: 4_096),
+            named: "completed.bin",
+            lease: realLease
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: realScratchURL.path))
+        let coldStore = try ScratchDataLeaseStoreV1(
+            applicationSupportURL: scratchRoot,
+            clock: { C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(2) },
+            capacityProvider: { _ in Int64.max }
+        )
+        let coldLifecycle = TemporalEvidenceScratchLifecycleAdapterV1(
+            base: CapabilityScratchLeaseAdapterV1(scratch: coldStore)
+        )
+        let coldSummary = try await coldLifecycle.recoverAfterInterruption()
+        XCTAssertEqual(coldSummary.recoveredExpiredLeaseCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: realScratchURL.path))
+
+        for (index, boundary) in MutationJournalFaultBoundaryV1.allCases.enumerated() {
+            let harness = try await C33TemporalEvidencePersistentHarness(
+                slot: 300 + index,
+                failureBoundary: boundary
+            )
+            do {
+                _ = try await harness.coordinator.accept(harness.request)
+                XCTFail("expected injected boundary \(boundary)")
+            } catch let failure as MutationJournalFailureV1 {
+                XCTAssertEqual(failure, .injected(boundary))
+            }
+
+            let relaunched = try harness.relaunchedCoordinator()
+            _ = try await relaunched.recoverAfterInterruption()
+            let recoveryAudit = ModelContext(harness.container)
+            let expectedRecoveredCount = boundary == .afterSaveBeforeReturn ? 1 : 0
+            XCTAssertEqual(try harness.temporalReceiptCount(in: recoveryAudit), expectedRecoveredCount,
+                "canonical recovery at \(boundary)")
+            XCTAssertEqual(try recoveryAudit.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
+                expectedRecoveredCount, "clip recovery at \(boundary)")
+            let recoveredOriginalURL = harness.generationRootURL.appendingPathComponent(
+                try TemporalEvidenceBackupMemberV1.original(for: harness.fixture.clip))
+            XCTAssertEqual(FileManager.default.fileExists(atPath: recoveredOriginalURL.path),
+                expectedRecoveredCount == 1, "original recovery at \(boundary)")
+            let recovered = try await relaunched.accept(harness.request)
+            let idempotent = try await relaunched.accept(harness.request)
+            XCTAssertEqual(idempotent.mutationReceipt, recovered.mutationReceipt)
+            XCTAssertEqual(idempotent.contentReceipt.digest, recovered.contentReceipt.digest)
+            XCTAssertTrue(idempotent.contentReceipt.reusedExistingBytes)
+
+            let auditContext = ModelContext(harness.container)
+            XCTAssertEqual(try auditContext.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 1)
+            XCTAssertEqual(try harness.temporalReceiptCount(in: auditContext), 1)
+            XCTAssertEqual(
+                try auditContext.fetch(FetchDescriptor<TemporalEvidenceClipRow>()).first?.value(),
+                harness.fixture.clip
+            )
+            XCTAssertEqual(
+                try Data(contentsOf: harness.generationRootURL.appendingPathComponent(recovered.contentReceipt.relativePath)),
+                harness.request.completedBytes
+            )
+            let dispositions = await harness.scratch.recordedDispositions()
+            let expectedDispositions: [ScratchPublicationDispositionV1]
+            switch boundary {
+            case .afterEffectBeforeReceipt, .afterReceiptBeforeSave:
+                expectedDispositions = [.failed, .acceptedIntoImmutableContent, .acceptedIntoImmutableContent]
+            case .afterSaveBeforeReturn:
+                expectedDispositions = [.acceptedIntoImmutableContent, .acceptedIntoImmutableContent,
+                    .acceptedIntoImmutableContent]
+            }
+            XCTAssertEqual(dispositions, expectedDispositions, "scratch recovery at \(boundary)")
+        }
+
+        for (index, fault) in [
+            C33TemporalEvidenceRecoveryFault.afterPrepared,
+            .afterOriginalPromoted
+        ].enumerated() {
+            let harness = try await C33TemporalEvidencePersistentHarness(
+                slot: 330 + index,
+                recoveryFault: fault
+            )
+            do {
+                _ = try await harness.coordinator.accept(harness.request)
+                XCTFail("expected promotion recovery fault \(fault)")
+            } catch let failure as TemporalEvidenceContractFailureV1 {
+                XCTAssertEqual(failure, .interruption)
+            }
+            let originalURL = harness.generationRootURL.appendingPathComponent(
+                try TemporalEvidenceBackupMemberV1.original(for: harness.fixture.clip)
+            )
+            let relaunched = try harness.relaunchedCoordinator()
+            _ = try await relaunched.recoverAfterInterruption()
+            XCTAssertFalse(FileManager.default.fileExists(atPath: originalURL.path))
+            _ = try await relaunched.accept(harness.request)
+            XCTAssertEqual(
+                try harness.context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
+                1
+            )
+            XCTAssertEqual(
+                try harness.temporalReceiptCount(),
+                1
+            )
+            XCTAssertTrue(FileManager.default.fileExists(atPath: originalURL.path))
+        }
+
+        let cleanupFault = try await C33TemporalEvidencePersistentHarness(
+            slot: 340,
+            failAcceptedScratchFinishOnce: true
+        )
+        do {
+            _ = try await cleanupFault.coordinator.accept(cleanupFault.request)
+            XCTFail("expected accepted scratch cleanup interruption")
+        } catch let failure as TemporalEvidenceContractFailureV1 {
+            XCTAssertEqual(failure, .interruption)
+        }
+        let cleanupRelaunch = try cleanupFault.relaunchedCoordinator()
+        _ = try await cleanupRelaunch.recoverAfterInterruption()
+        let cleanupRecovered = try await cleanupRelaunch.accept(cleanupFault.request)
+        XCTAssertTrue(cleanupRecovered.contentReceipt.reusedExistingBytes)
+        XCTAssertEqual(
+            try cleanupFault.context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
+            1
+        )
+        XCTAssertEqual(
+            try cleanupFault.temporalReceiptCount(),
+            1
+        )
+
+        let associationFault = try await C33TemporalEvidencePersistentHarness(slot: 345)
+        _ = try await associationFault.coordinator.accept(associationFault.request)
+        let associationAnchor = try C33TemporalEvidenceTestSupport.anchor(
+            clip: associationFault.fixture.clip,
+            slot: 346
+        )
+        let associationCurrent = try associationFault.store.currentRevision(
+            writerInstanceID: associationFault.writerInstanceID
+        )
+        let associationExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: associationCurrent.workspaceID,
+            generationID: associationCurrent.generationID,
+            writerInstanceID: associationCurrent.writerInstanceID,
+            workspaceRevision: associationCurrent.revision,
+            entityRevisions: [WorkspaceEntityRevisionV1(
+                identity: try WorkspaceEntityIdentityV1(
+                    kind: .timecodedEvidenceAnchor,
+                    id: associationAnchor.anchorID
+                ),
+                revision: 0
+            )]
+        )
+        let faultingAssociation = try associationFault.relaunchedCoordinator(
+            failureBoundary: .afterEffectBeforeReceipt
+        )
+        XCTAssertThrowsError(try faultingAssociation.appendAnchor(
+            associationAnchor,
+            clip: associationFault.fixture.clip,
+            predecessor: nil,
+            expectedRevision: associationExpected
+        ))
+        let recoveredAssociation = try associationFault.relaunchedCoordinator()
+        let recoveredAnchorReceipt = try recoveredAssociation.appendAnchor(
+            associationAnchor,
+            clip: associationFault.fixture.clip,
+            predecessor: nil,
+            expectedRevision: associationExpected
+        )
+        XCTAssertEqual(recoveredAnchorReceipt.mutationReceipt.mutationID, associationAnchor.mutationID)
+        XCTAssertEqual(
+            try associationFault.context.fetchCount(FetchDescriptor<TimecodedEvidenceAnchorRow>()),
+            1
+        )
+        XCTAssertEqual(
+            try associationFault.temporalReceiptCount(),
+            2
+        )
+
+        let derivativeHarness = try await C33TemporalEvidencePersistentHarness(slot: 370)
+        _ = try await derivativeHarness.coordinator.accept(derivativeHarness.request)
+        let derivative = try C33TemporalEvidenceTestSupport.derivative(
+            clip: derivativeHarness.fixture.clip,
+            slot: 371
+        )
+        let derivativeDigest = try XCTUnwrap(
+            derivative.content.digests.digest(for: .sha256)
+        )
+        let derivativeRequest = try DraftImmutableContentWriteRequestV1(
+            workspaceID: derivative.workspaceID,
+            contentID: derivative.content.contentID,
+            digest: derivativeDigest,
+            byteLength: derivative.content.byteLength,
+            mediaType: derivative.content.mediaType,
+            mutationID: derivative.mutationID,
+            createdAt: derivative.content.createdAt
+        )
+        let derivativeReceipt = try await EvidenceBundleStore(
+            generationRootURL: derivativeHarness.generationRootURL
+        ).persistImmutableOriginal(
+            bytes: C33TemporalEvidenceTestSupport.bytes(for: derivativeHarness.fixture.clip.facts.kind),
+            request: derivativeRequest
+        )
+        let derivativeURL = derivativeHarness.generationRootURL.appendingPathComponent(
+            derivativeReceipt.relativePath
+        )
+        let originalURL = derivativeHarness.generationRootURL.appendingPathComponent(
+            try TemporalEvidenceBackupMemberV1.original(for: derivativeHarness.fixture.clip)
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: derivativeURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: originalURL.path))
+        try derivativeHarness.coordinator.validateDerivativeReplacement(
+            derivative,
+            clip: derivativeHarness.fixture.clip,
+            predecessor: nil
+        )
+        let missingPreview = try TemporalEvidenceReportLinkV1(
+            clip: derivativeHarness.fixture.clip,
+            anchors: [C33TemporalEvidenceTestSupport.anchor(clip: derivativeHarness.fixture.clip)],
+            profile: derivativeHarness.fixture.profile
+        )
+        XCTAssertThrowsError(try TemporalEvidenceReportProjectionPolicyV1.validate(missingPreview)) { error in
+            XCTAssertEqual(error as? TemporalEvidenceContractFailureV1, .invalidValue)
+        }
+        // Value-only preview validation must not register the derivative in the
+        // canonical journal; the orphan cleanup assertions below prove that.
+        let projectionClip = try derivativeHarness.fixture.clip.successor(
+            clipID: C33TemporalEvidenceTestSupport.id(372), profile: derivativeHarness.fixture.profile,
+            derivativeReferences: [try derivative.reference],
+            mutationID: C33TemporalEvidenceTestSupport.mutation(373))
+        let projectionAnchor = try C33TemporalEvidenceTestSupport.anchor(clip: projectionClip, slot: 374)
+        let association = try TemporalEvidenceReportProjectionRegistryV1.projection(
+            clip: projectionClip, anchors: [projectionAnchor],
+            currentDerivative: try derivative.reference, profile: derivativeHarness.fixture.profile)
+        try TemporalEvidenceReportProjectionPolicyV1.validate(association)
+        try association.validate(clip: projectionClip, anchors: [projectionAnchor],
+            currentDerivative: derivative.reference)
+        XCTAssertEqual(projectionClip.original, derivativeHarness.fixture.clip.original)
+        XCTAssertEqual(association.derivativePreview?.derivativeID, derivative.derivativeID)
+        XCTAssertEqual(association.derivativePreview?.sourceClipSHA256, projectionClip.clipSHA256)
+        XCTAssertEqual(association.derivativePreview?.sourceClipRevision, projectionClip.revision)
+        XCTAssertEqual(association.derivativePreview?.kind, .waveform)
+        XCTAssertNil(association.manualTranscript)
+        XCTAssertFalse(association.embedsOriginalBytes)
+        XCTAssertEqual(association.contentID, derivativeHarness.fixture.clip.original.contentID)
+        let cleanup = try OrphanFileCleanupService(
+            generationRootURL: derivativeHarness.generationRootURL
+        )
+        let derivativeReferences = try await C33TemporalEvidenceTestSupport.cleanupReferences(
+            context: derivativeHarness.context, generationRootURL: derivativeHarness.generationRootURL,
+            journal: derivativeHarness.store, writerInstanceID: derivativeHarness.writerInstanceID,
+            recovery: derivativeHarness.recovery
+        )
+        XCTAssertTrue(derivativeReferences.liveClipContentIDs.contains(derivativeHarness.fixture.clip.original.contentID))
+        XCTAssertFalse(derivativeReferences.liveJournalContentIDs.contains(derivative.content.contentID),
+                       "Validation without canonical derivative registration does not create a journal owner")
+        let originalCleanup = try cleanup.removeCanonicalContentIfUnreferenced(
+            reference: derivativeHarness.fixture.clip.original,
+            locator: derivativeHarness.fixture.clip.locator,
+            authoritySnapshot: derivativeReferences
+        )
+        XCTAssertEqual(originalCleanup.removedFileCount, 0)
+        let cleanupSummary = try cleanup.removeCanonicalContentIfUnreferenced(
+            reference: derivative.content,
+            locator: derivative.locator,
+            authoritySnapshot: derivativeReferences
+        )
+        XCTAssertEqual(cleanupSummary.removedFileCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: derivativeURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: originalURL.path))
+
+        let recoveryHarness = try await C33TemporalEvidencePersistentHarness(slot: 350)
+        let summary = try await recoveryHarness.coordinator.recoverAfterInterruption()
+        XCTAssertEqual(summary.recoveredExpiredLeaseCount, 1)
+        let recoveryCount = await recoveryHarness.scratch.recordedRecoveryCount()
+        XCTAssertEqual(recoveryCount, 1)
+        XCTAssertEqual(try derivativeHarness.temporalReceiptCount(), 1)
+        XCTAssertEqual(try recoveryHarness.temporalReceiptCount(), 0)
+    }
+
+    @MainActor
+    func testV23P03C33R01BackupRestoreReplayDeleteEraseAndRetentionRemainExact() async throws {
+        let harness = try await C33TemporalEvidencePersistentHarness(slot: 401)
+        let accepted = try await harness.coordinator.accept(harness.request)
+        let fixture = harness.fixture
+        let retention = try TemporalEvidenceRetentionEventV1(
+            eventID: C33TemporalEvidenceTestSupport.id(402),
+            clip: fixture.clip,
+            disposition: .removeRegenerableDerivatives,
+            policySHA256: String(repeating: "d", count: 64),
+            actor: C26SurveySessionTestSupport.actor(
+                workspaceID: fixture.clip.workspaceID,
+                slot: 403,
+                responsibility: .reviewedBy
+            ),
+            occurredAt: C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(30),
+            revision: 1,
+            mutationID: C33TemporalEvidenceTestSupport.mutation(404)
+        )
+        try retention.validate(clip: fixture.clip)
+        XCTAssertEqual(TemporalEvidenceRetentionDispositionV1.allCases, [
+            .retain, .removeRegenerableDerivatives, .deleteClip, .eraseWorkspace
+        ])
+        XCTAssertTrue(TemporalEvidencePersistenceEnrollmentV1.persistentFamilies.contains("TemporalEvidenceClipRow"))
+        XCTAssertTrue(TemporalEvidencePersistenceEnrollmentV1.persistentFamilies.contains("TimecodedEvidenceAnchorRow"))
+        XCTAssertFalse(TemporalEvidencePersistenceEnrollmentV1.immutableOriginalsAreRewritten)
+
+        let anchor = try C33TemporalEvidenceTestSupport.anchor(clip: fixture.clip, slot: 405)
+        let current = try harness.store.currentRevision(writerInstanceID: harness.writerInstanceID)
+        let anchorExpected = try WorkspaceExpectedRevisionV1(
+            workspaceID: current.workspaceID,
+            generationID: current.generationID,
+            writerInstanceID: current.writerInstanceID,
+            workspaceRevision: current.revision,
+            entityRevisions: [
+                WorkspaceEntityRevisionV1(
+                    identity: try WorkspaceEntityIdentityV1(
+                        kind: .timecodedEvidenceAnchor,
+                        id: anchor.anchorID
+                    ),
+                    revision: 0
+                )
+            ]
+        )
+        let anchorReceipt = try harness.coordinator.appendAnchor(
+            anchor,
+            clip: fixture.clip,
+            predecessor: nil,
+            expectedRevision: anchorExpected
+        )
+        let sameAnchorReceipt = try harness.coordinator.appendAnchor(
+            anchor,
+            clip: fixture.clip,
+            predecessor: nil,
+            expectedRevision: anchorExpected
+        )
+        XCTAssertEqual(sameAnchorReceipt, anchorReceipt)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()), 1)
+        XCTAssertEqual(try harness.context.fetchCount(FetchDescriptor<TimecodedEvidenceAnchorRow>()), 1)
+        XCTAssertEqual(try harness.temporalReceiptCount(), 2)
+        XCTAssertEqual(try harness.context.fetch(FetchDescriptor<TimecodedEvidenceAnchorRow>()).first?.value(), anchor)
+        XCTAssertEqual(
+            try harness.writer.temporalEvidenceReceipt(mutationID: fixture.clip.mutationID),
+            accepted.mutationReceipt.mutationReceipt
+        )
+
+        for expected in [
+            try C33TemporalEvidenceTestSupport.expectedRevision(
+                for: fixture.clip,
+                generationID: C33TemporalEvidenceTestSupport.id(990),
+                writerInstanceID: harness.writerInstanceID
+            ),
+            try C33TemporalEvidenceTestSupport.expectedRevision(
+                for: fixture.clip,
+                generationID: harness.generationID,
+                writerInstanceID: C33TemporalEvidenceTestSupport.id(991)
+            ),
+            try C33TemporalEvidenceTestSupport.expectedRevision(
+                for: fixture.clip,
+                generationID: harness.generationID,
+                writerInstanceID: harness.writerInstanceID,
+                workspaceRevision: (try harness.writer.currentRevision()).revision + 1
+            )
+        ] {
+            let hostile = try TemporalEvidenceMutationV1(
+                workspaceID: fixture.clip.workspaceID,
+                expectedRevision: expected,
+                mutationID: fixture.clip.mutationID,
+                payload: .acceptClip(
+                    fixture.clip,
+                    review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
+                    predecessor: nil
+                )
+            )
+            XCTAssertThrowsError(try harness.writer.commitTemporalEvidence(hostile))
+        }
+        XCTAssertThrowsError(try TemporalEvidenceMutationV1(
+            workspaceID: fixture.clip.workspaceID,
+            expectedRevision: C33TemporalEvidenceTestSupport.expectedRevision(
+                for: fixture.clip,
+                entityRevision: 1
+            ),
+            mutationID: fixture.clip.mutationID,
+            payload: .acceptClip(
+                fixture.clip,
+                review: C33TemporalEvidenceTestSupport.review(for: fixture.clip),
+                predecessor: nil
+            )
+        ))
+
+        let deleteHarness = try await C33TemporalEvidencePersistentHarness(slot: 460)
+        _ = try await deleteHarness.coordinator.accept(deleteHarness.request)
+        let deleteCurrent = try deleteHarness.store.currentRevision(
+            writerInstanceID: deleteHarness.writerInstanceID
+        )
+        let deleteExpected = try C33TemporalEvidenceTestSupport.expectedRevision(
+            for: deleteHarness.fixture.clip,
+            generationID: deleteCurrent.generationID,
+            writerInstanceID: deleteCurrent.writerInstanceID,
+            workspaceRevision: deleteCurrent.revision,
+            entityRevision: deleteHarness.fixture.clip.revision
+        )
+        let deleteEvent = try TemporalEvidenceRetentionEventV1(
+            eventID: C33TemporalEvidenceTestSupport.id(461),
+            clip: deleteHarness.fixture.clip,
+            disposition: .deleteClip,
+            policySHA256: String(repeating: "f", count: 64),
+            actor: C26SurveySessionTestSupport.actor(
+                workspaceID: deleteHarness.fixture.clip.workspaceID,
+                slot: 462,
+                responsibility: .reviewedBy
+            ),
+            occurredAt: C33TemporalEvidenceTestSupport.fixedDate.addingTimeInterval(60),
+            revision: 1,
+            mutationID: C33TemporalEvidenceTestSupport.mutation(463)
+        )
+        let deleteURL = deleteHarness.generationRootURL.appendingPathComponent(
+            try TemporalEvidenceBackupMemberV1.original(for: deleteHarness.fixture.clip)
+        )
+        let deleteReceipt = try await deleteHarness.coordinator.removeClip(
+            deleteEvent,
+            clips: [deleteHarness.fixture.clip],
+            anchors: [],
+            derivatives: [],
+            predecessorEvent: nil,
+            expectedRevision: deleteExpected
+        )
+        let repeatedDeleteReceipt = try await deleteHarness.coordinator.removeClip(
+            deleteEvent,
+            clips: [deleteHarness.fixture.clip],
+            anchors: [],
+            derivatives: [],
+            predecessorEvent: nil,
+            expectedRevision: deleteExpected
+        )
+        XCTAssertEqual(repeatedDeleteReceipt, deleteReceipt)
+        XCTAssertEqual(
+            try deleteHarness.context.fetchCount(FetchDescriptor<TemporalEvidenceClipRow>()),
+            0
+        )
+        XCTAssertEqual(
+            try deleteHarness.temporalReceiptCount(),
+            2
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: deleteURL.path))
+
+        let value = try corpus()
+        XCTAssertEqual(value.schema, "V22P03C33TemporalEvidenceCorpusV1")
+        XCTAssertEqual(value.cardID, "V23-P03-C33")
+        XCTAssertEqual(value.persistentSchemaVersion, 33)
+        XCTAssertEqual(value.recordsSchemaVersion, 32)
+        XCTAssertEqual(value.durableFamilies, ["TemporalEvidenceClipRow", "TimecodedEvidenceAnchorRow"])
+        XCTAssertEqual(value.evidenceIDs, [
+            "V23-P03-C33-G01", "V23-P03-C33-A01", "V23-P03-C33-H01",
+            "V23-P03-C33-I01", "V23-P03-C33-R01"
+        ])
+        XCTAssertTrue(value.invariants["noSecondByteStore"] == true)
+        XCTAssertTrue(value.invariants["noRuntimeProvider"] == true)
+        XCTAssertTrue(value.statusFlags["physicalDeviceEvidence"] == false)
+        try await C33TemporalEvidenceTestSupport.verifyRealBackupRestoreDeleteAndErase(slot: 520)
+    }
+}
+
+private extension TemporalEvidenceContractFailureV1 {
+    static var hostileRuntimeFailures: [Self] {
+        [.insufficientStorage, .unsupportedMedia, .interruption]
+    }
+}
+final class C46V949TemporalCompatibilityTests: XCTestCase {
+    func testC46TemporalEvidenceCannotBecomeContactHistory() throws {
+        try C46OperationalContactTestSupport.assertOwnerBoundary(
+            owner: "temporal-evidence",
+            kind: .phone,
+            handoff: .text,
+            slot: 46049
+        )
+    }
+}
+
+/// The checked tree walk keeps every non-target byte and namespace fact even
+/// when the one authenticated target manifest changes the root link count.
+final class V949SchemaMigrationRootLinkWitnessTests: XCTestCase {
+    func testCheckedTreeFileHasherMatchesCanonicalSHA256AtReadBoundaries() throws {
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V949-checked-hash-\(UUID().uuidString)", isDirectory: true)
+        let generation = parent.appendingPathComponent("generation", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: generation, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let model = generation.appendingPathComponent("model.sqlite")
+        let io = EraseAbortCheckedSnapshotIOV1()
+
+        // The one-shot canonical digest is independent of the checked FD walk.
+        // These lengths cross the 64 KiB read boundary and end in a short read.
+        for length in [0, 1, 65_535, 65_536, 65_537, 3 * 65_536 + 17] {
+            let bytes = Data((0..<length).map {
+                UInt8(truncatingIfNeeded: $0 &* 73 &+ 19)
+            })
+            try bytes.write(to: model, options: .atomic)
+            let nodes = try io.withOpen(
+                parent: AT_FDCWD, name: parent.path,
+                flags: O_RDONLY | O_DIRECTORY
+            ) { parentDescriptor in
+                try io.treeWithNodes(parent: parentDescriptor, name: "generation").nodes
+            }
+            let modelNode = try XCTUnwrap(nodes.first { $0.path == "model.sqlite" })
+            XCTAssertEqual(modelNode.fact.st_size, off_t(length))
+            XCTAssertEqual(modelNode.sha256, KernelCanonicalHashV1.sha256(bytes))
+            try io.requireSettled()
+        }
+    }
+    func testExpectedTargetManifestLinkTransitionRetainsFullTreeChecks() throws {
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "V949-schema-links-\(UUID().uuidString)", isDirectory: true)
+        let migration = parent.appendingPathComponent(
+            "schema-migration", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: migration, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let stable = migration.appendingPathComponent("stable.json")
+        try Data("stable".utf8).write(to: stable)
+        let targetName = "manifest-\(UUID().uuidString.lowercased()).json"
+        let io = EraseAbortCheckedSnapshotIOV1()
+
+        func snapshot(excluding: Set<String> = [],
+            sourceRootLinks: UInt64? = nil
+        ) throws -> (digest: String, links: UInt64) {
+            var links: UInt64?
+            let digest = try io.withOpen(
+                parent: AT_FDCWD, name: parent.path,
+                flags: O_RDONLY | O_DIRECTORY
+            ) { parentDescriptor in
+                try io.postRetiredTree(
+                    parent: parentDescriptor, name: "schema-migration",
+                    excluding: excluding,
+                    ignoringDirectoryMetadata: [""],
+                    observedRootLinks: { links = $0 },
+                    normalizingSingleTargetManifestRootLinksFrom: sourceRootLinks)
+            }
+            return (digest, try XCTUnwrap(links))
+        }
+
+        let source = try snapshot()
+        let unrelated = migration.appendingPathComponent("unrelated.json")
+        try Data("unrelated".utf8).write(to: unrelated)
+        let wrongSingleAddition = try snapshot(
+            excluding: [targetName], sourceRootLinks: source.links)
+        XCTAssertEqual(wrongSingleAddition.links, source.links + 1)
+        XCTAssertNotEqual(wrongSingleAddition.digest, source.digest)
+        try FileManager.default.removeItem(at: unrelated)
+
+        let target = migration.appendingPathComponent(targetName)
+        try Data("target manifest fixture".utf8).write(to: target)
+        let exact = try snapshot(
+            excluding: [targetName], sourceRootLinks: source.links)
+        XCTAssertEqual(exact.links, source.links + 1)
+        XCTAssertEqual(exact.digest, source.digest)
+        XCTAssertNotEqual(try snapshot(
+            excluding: ["manifest-wrong.json"],
+            sourceRootLinks: source.links).digest, source.digest)
+
+        try Data("hostile sibling".utf8).write(to: unrelated)
+        XCTAssertThrowsError(try snapshot(
+            excluding: [targetName], sourceRootLinks: source.links))
+        try FileManager.default.removeItem(at: unrelated)
+        try Data("changed".utf8).write(to: stable)
+        XCTAssertNotEqual(try snapshot(
+            excluding: [targetName], sourceRootLinks: source.links).digest,
+            source.digest)
+    }
+}

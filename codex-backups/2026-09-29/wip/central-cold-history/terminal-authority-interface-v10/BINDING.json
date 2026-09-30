@@ -1,0 +1,11 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "status": "INTERFACE_SOURCE_ONLY_NONINSTALLABLE",
+  "parentV9Binding": "6674f52568611efcd35c5cf958906e8134b36fc149d33f4e189b8178c7f707f7",
+  "files": {
+    "COMPACT_TERMINAL_AUTHORITY_V4.swift.fragment": "f951ec35bf7214995d205292960a8dbb6e436788c57344e0d8fce8985efea936",
+    "ORDER.md": "3a9dc0eacc3fda1e3e8ab061e82659407a8a977998d46c22f9476d5de24b26be",
+    "PHYSICAL_PENDING_REQUEST_BINDING_V10.swift.fragment": "c2d14f08a5fcf0edc82e447d852ee7098f33b7d1d751ffe6367a3b180caf2f6f"
+  }
+}

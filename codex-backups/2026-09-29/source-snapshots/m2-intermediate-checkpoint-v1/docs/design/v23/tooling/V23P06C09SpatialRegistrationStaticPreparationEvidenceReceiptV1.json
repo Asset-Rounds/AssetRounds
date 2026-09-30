@@ -1,0 +1,40 @@
+{
+  "accuracyClaim": false,
+  "actualPlans": false,
+  "appBaseAuthority": {
+    "head": "24a86948fd0f213630a7066568fedec8e83cbc4d",
+    "tree": "bf9600d75be3a72a4ca07d4b0ed3efb43c63679b"
+  },
+  "calibrationClaim": false,
+  "canonicalWrites": 0,
+  "cardID": "V23-P06-C09",
+  "customerData": false,
+  "disposition": "PROVISIONAL_STATIC_PREPARATION_ONLY",
+  "expiryDays": 30,
+  "externalActions": "NONE",
+  "flags": {
+    "acceptanceCredit": false,
+    "adoptionCredit": false,
+    "hostedCIClaim": false,
+    "implementationCredit": false,
+    "mainCredit": false,
+    "mergeCredit": false,
+    "nativeCIClaim": false,
+    "phaseCredit": false,
+    "physicalCIClaim": false,
+    "releaseCredit": false,
+    "selectorCredit": false
+  },
+  "geometryForkEnabled": false,
+  "mapKitCoreLocationARKitLiDARBIMImportLocationSensorNetworkEnabled": false,
+  "noProductionPath": true,
+  "noRealStudy": true,
+  "observedCandidateIdentityPolicy": "RUNTIME_OBSERVATION_NOT_GENERATED_SELF_PIN",
+  "protocolSHA256": "cb68c55a7d63147eded0de4b32381222c285deb8a172fee692df416ff7d14041",
+  "receipt": "SpatialRegistrationStaticPreparationEvidenceReceiptV1",
+  "reconciliationRequired": true,
+  "result": "PASS_STATIC_PROVISIONAL",
+  "schema": "V23P06C09StaticPreparationToolingV1",
+  "silentTransformEnabled": false,
+  "transformExecuted": false
+}

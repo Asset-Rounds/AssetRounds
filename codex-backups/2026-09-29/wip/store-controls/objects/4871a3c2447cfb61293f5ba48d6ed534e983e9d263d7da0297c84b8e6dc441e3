@@ -1,0 +1,101 @@
+/// The same actual Notification system adapter supplies distinct pending and
+/// delivered observations so the held terminal owner is revalidated between
+/// both OS awaits. There is deliberately no permissive combined default.
+@MainActor
+protocol NotificationTerminalSystemPortV4: NotificationSystemPortV1 {
+    func pendingObservations() async throws -> [NotificationSystemObservationV1]
+    func deliveredObservations() async throws -> [NotificationSystemObservationV1]
+}
+
+/// Only the real Service remove/pending/delivered sequence constructs this
+/// receipt. It is neither Codable nor reconstructed from capsule data.
+@MainActor
+final class EraseSchema2TerminalNotificationReadbackReceiptV4 {
+    private let permit: EraseSchema2TerminalSystemPermitV4
+    private let attempt: UUID
+    private let systemIdentity: ObjectIdentifier
+    let operationID: UUID
+    let originBinding: String
+    let ownedIDsSHA256: String
+    private var consumed = false
+
+    fileprivate init(permit: EraseSchema2TerminalSystemPermitV4, attempt: UUID,
+        system: any NotificationTerminalSystemPortV4,
+        pending: [NotificationSystemObservationV1],
+        delivered: [NotificationSystemObservationV1]) throws {
+        try permit.requireSystemAttempt(system: system, attempt: attempt)
+        let owned = Set(permit.ownedIDs)
+        guard pending.allSatisfy({ !$0.delivered }), delivered.allSatisfy(\.delivered),
+              Set(pending.map(\.requestID)).intersection(owned).isEmpty,
+              Set(delivered.map(\.requestID)).intersection(owned).isEmpty else {
+            throw EraseAllServiceError.recoveryRequired
+        }
+        self.permit = permit; self.attempt = attempt
+        systemIdentity = ObjectIdentifier(system)
+        operationID = permit.operationID; originBinding = permit.originBinding
+        ownedIDsSHA256 = permit.subject.selectedOwnedNotificationIDsSHA256
+        try permit.requireSystemAttempt(system: system, attempt: attempt)
+    }
+
+    /// The Router permit can accept only the private actual-attempt object.
+    /// These values are identities of real work, never serialized OS success.
+    func requireActualAttempt(permit expected: EraseSchema2TerminalSystemPermitV4,
+        attempt expectedAttempt: UUID, systemIdentity expectedSystem: ObjectIdentifier?) throws {
+        guard !consumed, permit === expected, attempt == expectedAttempt,
+              systemIdentity == expectedSystem, operationID == expected.operationID,
+              originBinding == expected.originBinding,
+              ownedIDsSHA256 == expected.subject.selectedOwnedNotificationIDsSHA256 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try expected.requireCurrentBinding()
+    }
+    func requireBound(permit expected: EraseSchema2TerminalSystemPermitV4) throws {
+        guard !consumed, permit === expected else { throw EraseAllServiceError.invalidAuthority }
+        try expected.requireActualCompletedReadback(self, attempt: attempt)
+    }
+    func consume(permit expected: EraseSchema2TerminalSystemPermitV4) throws {
+        try requireBound(permit: expected)
+        try expected.consumeActualCompletedReadback(self, attempt: attempt)
+        consumed = true
+    }
+}
+
+@MainActor
+extension EraseAllService {
+    /// Actual effects through the existing injected system port. No Notification
+    /// root/control is reopened or created after its genuine checked retirement.
+    func reobserveSchema2TerminalOwnedNotifications(
+        permit: EraseSchema2TerminalSystemPermitV4
+    ) async throws -> EraseSchema2TerminalNotificationReadbackReceiptV4 {
+        guard let system = notificationSystem as? any NotificationTerminalSystemPortV4 else {
+            permit.poisonOnUncertainSystemAttempt()
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let attempt = try permit.beginSystemAttempt(system: system)
+        do {
+            try permit.requireSystemAttempt(system: system, attempt: attempt)
+            try await system.remove(permit.ownedIDs)
+            // This fresh boundary proves both the completed await and the
+            // immediately following await; no effect intervenes.
+            try permit.requireSystemAttempt(system: system, attempt: attempt)
+            let pending = try await system.pendingObservations()
+            // This fresh boundary proves both the completed await and the
+            // immediately following await; no effect intervenes.
+            try permit.requireSystemAttempt(system: system, attempt: attempt)
+            let delivered = try await system.deliveredObservations()
+            try permit.requireSystemAttempt(system: system, attempt: attempt)
+            let actual = try EraseSchema2TerminalNotificationReadbackReceiptV4(
+                permit: permit, attempt: attempt, system: system,
+                pending: pending, delivered: delivered)
+            try permit.acceptActualReadback(actual)
+            try actual.requireBound(permit: permit)
+            return actual
+        } catch {
+            // The exact attempt/owner remains uncertain. A later authenticated
+            // recovery cut must issue its own real attempt; this one never revives.
+            permit.poisonOnUncertainSystemAttempt()
+            throw error
+        }
+    }
+}
+

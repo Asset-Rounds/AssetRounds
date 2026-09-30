@@ -1,0 +1,48 @@
+# Exact V4 effect commitment recipe — proposed author agreement
+
+The pure helper owner must be EraseIntentStore. It returns existing EraseSchema2ColdControlEffectV1 DATA only; private Router must actually issue a revocable one-effect permit proving the exact scope/source/physical cut and genuine receipt identities. This is an additional concrete source/interface proposal for independent review, not an implemented helper or minted permit. Existing V1 kind strings remain unchanged; V4 must not call the old helper whose4096-byte path predicate would reject lawful inputs.
+
+Binary input to SHA256: ASCIIARS2EF04(8), opcodeU8, eraseUUID16, operationUUID16, phaseU8(P1/Q2/R3/C4 mapping actual EraseIntentPhase), optional expectedCanonicalSHA(tag+32), optional assignedPath(tag+lengthU64+exactUTF8), inputCountU16, exact ordered SHA32 commitments below. ExpectedCanonicalSHA is the actual incumbent targeted fixed control SHA when applicable; it is nil only for genuine creation/read/noncanonical effect. AssignedPath is nil for aggregate read/publication or the exact authenticated target path for one-source/control effect. No caller-selectedkind/path/count/table membership is authority. Stage/ordinal currentness and every source/receipt are proved through actual private origin before/after each effect; unknown opcode/input count/tag refuses. Scalar hashes encode exact existing text or explicit fixed numeric framing (never JSON escaped strings); source/target ordinals have fixed UInt64 width and exact checked conversions. A listed absent tag is SHA256(single closed tagU8) from actual explicit original/data state, not a default hash for a missing getter.
+
+| Opcode/API | Existing effectkind | Exact ordered input SHA32 fields |
+|---|---|---|
+| 1 registerOriginalScope | registerOriginalScope | actual originalAuxiliaryRoster canonicalSHA, current intentSHA, preparationSHA |
+| 2 publishSources | publishSources | complete immutable source-program recipeSHA, actual initial-control cutSHA, planSHA, exact original source-rowVALUEsha, pairVALUEsha, targetVALUEsha, dependencyVALUEsha, slot count-pass final chainSHA |
+| 3 loadSources | loadSources | actual source-manifest cutSHA |
+| 4 loadPlan | requireSources | actual Sources cutSHA, planSHA |
+| 5 bootstrapSourceCut | requireSources | actual checked source-publication checkpoint cutSHA |
+| 6 loadBootstrapPlan | requireSources | actual bootstrap source cutSHA, planSHA |
+| 7 loadProgress | loadProgress | actual Sources cutSHA, actual admitted current control cutSHA |
+| 8 currentC16Record | loadProgress | planSHA, SHA256(ordinalU64), actual admitted current control cutSHA |
+| 9 capturedBornSource | readBornTransferredSource | planSHA, recordBindingSHA, logicalProgressSHA, SHA256(producerU64), SHA256(roleU16), SHA256(pathUTF8) |
+| 10 originalTransferredSource | readTransferredSource | actual immutable source cutSHA, SHA256(pathUTF8), exact original sourceSHA |
+| 11 pairHeader | requireSources | actual Sources cutSHA, pairTableCommitmentSHA, predecessorTableCommitmentSHA |
+| 12 pairRow | requireSources | actual Sources cutSHA, pairTableCommitmentSHA, SHA256(indexU64) |
+| 13 pairPredecessors | requireSources | actual Sources cutSHA, pairTableCommitmentSHA, SHA256(pairIndexU64), SHA256(firstU64+countU64), predecessorRangeSHA |
+| 14 pairMetadata | readTransferredSource | actual Sources cutSHA, pairTableCommitmentSHA, SHA256(pairIndexU64), SHA256(originalSourceOrdinalU64), actual metadataSHA or the exact explicit-ownedOrphan/notApplicable tagSHA |
+| 15 scratchDirectory | requireSources | actual Sources cutSHA, recordBindingSHA, SHA256(pathUTF8), actual complete original child-mapVALUEsha |
+| 16 scratchChildren | requireSources | actual Sources cutSHA, recordBindingSHA, SHA256(directorySourceOrdinalU64), child-mapVALUEsha |
+| 17 scratchMetadata | readTransferredSource | actual Sources cutSHA, recordBindingSHA, SHA256(directorySourceOrdinalU64), actual original metadataSHA or explicit original-ownedOrphan tagSHA |
+| 18 physicalView | loadProgress | actual Sources cutSHA, recordBindingSHA, logicalProgressSHA, targetsVALUEsha |
+| 19 lastProjection | loadProgress | actual Sources cutSHA, recordBindingSHA, lastCheckedProjectionVALUEsha |
+| 20 mixedTarget | loadProgress | actual Sources cutSHA, recordBindingSHA, SHA256(mixedIndexU64), targetsVALUEsha |
+| 21 targetDependencies | loadProgress | actual Sources cutSHA, recordBindingSHA, SHA256(mixedIndexU64), dependencyRangeVALUEsha |
+| 22 targetBirthPaths | loadProgress | actual Sources cutSHA, recordBindingSHA, SHA256(mixedIndexU64), allowedBirthPathRangeVALUEsha |
+| 23 createProgress | createProgress | actual Sources cutSHA, proposed logicalHeaderSHA, actual initial projectionVALUEsha |
+| 24 replaceProgress | replaceProgress | actual Sources cutSHA, expected recordBindingSHA, expected logicalProgressSHA, replacement logicalHeaderSHA, actual replacement projectionVALUEsha |
+| 25 prepareProducerRequest | replaceProgress | expected recordBindingSHA, planSHA, stepSHA, SHA256(producerU64+roleU16+slotPathUTF8), SHA256(temporaryPathUTF8), SHA256(publicationModeU8), actual payloadSHA, requestCommitmentSHA |
+| 26 readProducerRequest | readBornTransferredSource | recordBindingSHA, logicalProgressSHA, SHA256(producerU64+roleU16+slotPathUTF8) |
+| 27 captureBornSource | captureBornSource | actual Sources cutSHA, expected recordBindingSHA, SHA256(producerU64+roleU16+slotPathUTF8), actual payloadSHA, SHA256(sourceNumericFull11), actual merged projectionVALUEsha, pending requestCommitmentSHA or explicit direct-captured-stage-role tagSHA |
+| 28 replaceCleanupPhase | replaceCleanupPhase | actual C-eligible recordBindingSHA, expected old intentSHA, replacement complete old-format intentSHA |
+| 29 publishOwnedIDs | publishNotification | actual Sources/original-source cutSHA, raw selectedOriginLogicalSHA, exact ownedIDsVALUEsha, actual notificationMarkerSHA+fact88 fieldSHA |
+| 30 publishTerminal | publishTerminal | actual Sources cutSHA, final recordBindingSHA, final logicalProgressSHA, subjectBinarySHA, exact semanticTupleBinarySHA, selectedOriginLogicalSHA, exact ownedIDsVALUEsha, complete actual terminalCatalog logicalCommitmentSHA |
+| 31 observeTerminal | loadTerminal | actual first-held capsule/canonical terminal cutSHA |
+| 32 removeTerminalControl | removeTerminalControls | subjectBinarySHA, capsuleSHA, actual catalogCutSHA, SHA256(deletionOrdinalU64), actual assigned descriptorSHA512 |
+| 33 removeLastCapsule | removeCompletionControls | subjectBinarySHA, capsuleSHA, actual final catalogCutSHA, SHA256(lastOrdinalU64) |
+| 34 removeEraseRoot | removeTerminalRoot | subjectBinarySHA, capsuleSHA, actual final catalogCutSHA, actual LastLeaf receipt dataCommitmentSHA, SHA256(actual current rootFull11) |
+| 35 closeOriginalStore | closeTerminalStore | subjectBinarySHA, capsuleSHA, actual final catalogCutSHA, actual RootRemoval receipt dataCommitmentSHA, SHA256(actual still-held rootFull11) |
+| 36 closeBorrowedStore | closeTerminalStore | subjectBinarySHA, capsuleSHA, actual final catalogCutSHA, actual RootRemoval receipt dataCommitmentSHA, SHA256(actual still-held rootFull11) |
+
+Sources/record cuts are the actual authenticated private observed cuts, separately issued before these APIs; publication input recipes are semantic commitments only after actual source-backed count/chain passes. No API guesses a future currentcut or uses this helper to issue a Source/EX/G/progress capability. Any multi-field scalar hash in the table uses each numeric field fixed-width and each text lengthU64 before UTF8; this is injective even for arbitrary admitted strings. RequestCommitment additionally binds planSHA, stepSHA, producer ordinal/role/path, exact temp, mode, payloadSHA/count and actual input recordBinding in that order. LastLeaf/RootRemoval dataCommitment describes their actual already-completed receipt DATA, but real authority methods still require the exact private receipt OBJECT; SHA equality alone never suffices. Actual OS readback remains the real privately consumed object, never a digest input that can stand in for removal/readback.
+
+Nested private Store reads preserve the outer operation's effect rather than requesting an unrelated read permit. Own checked publication attempt authenticates exact already-observed physical child readback derivations within one predeclared source/Progress/terminal program; it cannot append a semantic source or birth. Any failed check/effect/readback poisons the actual owner/permit and retains uncertainty. Scope revocation precedes genuine G/EX release. Actual makeV4ControlEffect implementation and all counterpart caller construction remain source prerequisites; source oldbytes/formats are unchanged.

@@ -1,0 +1,58 @@
+{
+  "artifactDigest": "fe2e17c80cea76af6addd25b0c91d390f29a84832a02c2baafcf70679a3e4b72",
+  "cardID": "V23-P03-C33",
+  "evidenceIDs": [
+    "V23-P03-C33-G01",
+    "V23-P03-C33-A01",
+    "V23-P03-C33-H01",
+    "V23-P03-C33-I01",
+    "V23-P03-C33-R01"
+  ],
+  "persistence": {
+    "backupRestoreRequired": true,
+    "cloneForkRequired": true,
+    "deleteEraseRequired": true,
+    "downgrade": "PRE_ACTIVATION_ONLY_FORWARD_FIX_AFTER_FIRST_V33_WRITE",
+    "durableFamilyCount": 2,
+    "exportReportRequired": true,
+    "interruptionRecoveryRequired": true,
+    "migrationRequired": true,
+    "mode": "NEW_SCHEMA_VERSION",
+    "nonpersistentFamilies": [
+      "TemporalEvidenceCaptureScratchV1",
+      "TemporalEvidenceDerivativeScratchV1"
+    ],
+    "persistedFamilies": [
+      "TemporalEvidenceClipRow",
+      "TimecodedEvidenceAnchorRow"
+    ],
+    "persistentSchemaVersion": 33,
+    "recordsSchemaVersion": 32,
+    "replayRequired": true,
+    "schemaRelease": "TEMPORAL_EVIDENCE_V1",
+    "searchRebuildRequired": true
+  },
+  "requiredSemanticsDigest": "f3b7ae918e4d50ad8d025eb57282880943623713a170b376ad39c9384b6fc0c8",
+  "schema": "V23P03C33TemporalEvidenceEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "testSelectors": [
+    "testV23P03C33G01ReviewedClipPromotesImmutableContentAndOneCanonicalMutation",
+    "testV23P03C33A01TypedLimitsAnchorsAndReplaceableDerivativesRemainBounded",
+    "testV23P03C33H01InvalidMediaStaleAuthorityAndHostileRuntimeStatesFailClosed",
+    "testV23P03C33I01EveryWriterBoundaryRecoversZeroOrCompleteWithoutOrphans",
+    "testV23P03C33R01BackupRestoreReplayDeleteEraseAndRetentionRemainExact"
+  ]
+}

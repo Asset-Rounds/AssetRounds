@@ -1,0 +1,33 @@
+{
+  "artifactDigest": "5db1d20821d99c7ae45b3f8189f4d0899c7417bf35305980253656b8be26c6ab",
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P03-C37",
+  "changedStates": [
+    "OBSERVED",
+    "NOT_OBSERVED",
+    "REOBSERVE",
+    "CARRY_FORWARD_SAME_PHYSICAL_INSTALLATION",
+    "MARK_NOT_OBSERVED",
+    "TRANSFORMED",
+    "UNCHANGED",
+    "REVIEW_REQUIRED"
+  ],
+  "nativeIPadSurface": false,
+  "schema": "V23P03C37BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "statusFlags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "telemetry": false,
+  "uiSurfaceDelta": false
+}

@@ -1,0 +1,141 @@
+    /// Migration calls this while its genuine synchronous G is held. It
+    /// proves the actual original allocation/phase/owner identities without
+    /// Store loads, a new census, or a recursive auxiliary observation.
+    func requireOriginalEraseFirstCaptureRegistrationUnderHeldG(
+        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        coordinator: StoreSessionCoordinator,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore, intent: EraseIntentV1,
+        preparation: ErasePreparationV2
+    ) throws {
+        guard let router, !detached, !detaching,
+              !originalFirstCaptureObservationUncertain,
+              originalAuxiliaryFirstCaptureAttempted,
+              originalAuxiliaryFirstCaptureOwner === owner,
+              originalAuxiliaryFirstObserver === observer,
+              originalAuxiliaryFirstIntent == intent,
+              originalAuxiliaryFirstPreparation == preparation,
+              originalAuxiliaryStore === store,
+              originalExclusion === exclusion,
+              transferredExclusion == nil,
+              preparationCoordinator === coordinator,
+              preparationRegistry === registry,
+              preparationServiceFrame,
+              preparationWriterPhase == .absent,
+              preparationTargetWriter == nil,
+              preparationWriterAllocation == nil,
+              preparationFailureWitness == nil,
+              originalTargetReaderAllocation == nil,
+              originalWriterTransition == nil,
+              intent.schemaVersion == 2,
+              intent.phase == .emptyGenerationPrepared,
+              preparation.matches(intent),
+              let source = preparationSourceWriter,
+              exclusion.matchesOriginalEraseAuxiliaryPhase(
+                registry: registry, activity: activity,
+                writer: source.token) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireLiveEraseRecovery(self, coordinator: coordinator)
+        try source.requireExactRegistry(registry)
+    }
+
+    /// The Registry's real checked reader supplies this exact current
+    /// census. A pre-roster operation cannot claim the later published P
+    /// census already exists. Subsequent observations and publication must
+    /// match this complete first checked cohort.
+    func requireOriginalEraseFirstCaptureUnderHeldG(
+        owner: StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1,
+        observer: EraseSchema2ColdAuxiliaryFirstObserverV1,
+        registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        store: EraseIntentStore, intent: EraseIntentV1,
+        preparation: ErasePreparationV2,
+        observedTokens: [GenerationLeaseTokenV1]
+    ) throws {
+        guard let coordinator = preparationCoordinator,
+              let exclusion = originalExclusion,
+              let source = preparationSourceWriter else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireOriginalEraseFirstCaptureRegistrationUnderHeldG(
+            owner: owner, observer: observer, coordinator: coordinator,
+            exclusion: exclusion, registry: registry, activity: activity,
+            store: store, intent: intent, preparation: preparation)
+        // This existing mode performs pure exact handle/provider checks.
+        // The caller has positively read the durable census under real G;
+        // invoking ordinary live identity here would recursively enter G.
+        try inventory.requirePreparationCensus(observedTokens,
+            registry: registry, sourceWriter: source, writer: nil,
+            checkedOriginalRecovery: true)
+        guard Set(observedTokens.map(\.leaseID)).count == observedTokens.count,
+              observedTokens.filter({ $0.role == .writer }) == [source.token] else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let first = originalFirstCaptureLeaseCensus {
+            guard observedTokens.count == first.count,
+                  observedTokens.allSatisfy({ first.contains($0) }) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        } else {
+            originalFirstCaptureLeaseCensus = observedTokens
+        }
+        if let published = originalAuxiliaryFirstLeaseCensus {
+            guard observedTokens.count == published.count,
+                  observedTokens.allSatisfy({ published.contains($0) }) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+    }
+
+    func failOriginalEraseFirstCaptureObservation() {
+        originalFirstCaptureObservationUncertain = true
+    }
+
+    /// Separate from the first-roster census route: no first snapshot or
+    /// auxiliary publication exists at initial capture. The genuine parent
+    /// callback and Migration observation owner are already retained before
+    /// this exact checked Registry read attempt may open a descriptor.
+    func retainOriginalEraseFirstCaptureRegistryObservation(
+        attempt: EraseSchema2ColdRegistryObservationAttemptV1,
+        registry: GenerationLeaseRegistryV1
+    ) throws {
+        guard let router, !detached, !detaching,
+              !originalFirstCaptureObservationUncertain,
+              originalAuxiliaryFirstCaptureAttempted,
+              let owner = originalAuxiliaryFirstCaptureOwner,
+              originalAuxiliaryFirstObserver != nil,
+              originalAuxiliaryFirstIntent?.phase == .emptyGenerationPrepared,
+              originalAuxiliaryFirstPreparation != nil,
+              originalAuxiliaryStore != nil,
+              originalExclusion?.registry === registry,
+              preparationRegistry === registry,
+              transferredExclusion == nil,
+              preparationServiceFrame,
+              preparationWriterPhase == .absent,
+              preparationFailureWitness == nil,
+              preparationSourceWriter != nil,
+              preparationWriterAllocation == nil,
+              preparationTargetWriter == nil,
+              originalTargetReaderAllocation == nil,
+              originalWriterTransition == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try router.requireEraseRetirementOperation(self)
+        try owner.requireOriginalFirstCaptureRegistryRetention(operation: self)
+        originalFirstCaptureRegistryObservations.removeAll { $0.isCheckedClosed }
+        guard originalFirstCaptureRegistryObservations.isEmpty else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        originalFirstCaptureRegistryObservations.append(attempt)
+    }
+
+    fileprivate func requireOriginalFirstCaptureCertain() throws {
+        guard !originalFirstCaptureObservationUncertain else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+

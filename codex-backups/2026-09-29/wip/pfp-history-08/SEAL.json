@@ -1,0 +1,20 @@
+{
+  "files": {
+    "BINDING.json": "cf6c0899acdba2e58bb26f1f8c0f078374c4fdab3a75bafd686e0ee56608a1ac",
+    "CASE_MATRIX.md": "5de960b9bc8601971c7372437b10039e121a489be7852686c51445e180480e25",
+    "DEPENDENCY_CORRECTION.diff": "322e82c2476584a03b4e64b8094137ffe354d8e2be7ec534f81be6c0b6c63025",
+    "HANDOFF.md": "6dfd98c5e82307953061cc278e3cf030bbb395dbd0b171676aa6dcfcdb66c76c",
+    "INPUTS.json": "6e98d743f03bcc242ae4585a8ecfd4189d5cf6579177d98a3203fd8c0a7cb62c",
+    "INTERFACE_CORRECTION_V1.md": "887b47ed682590bb6394d6b0ada6aa7eb2ece5b6a6d32fe53bed5a9659c82e26",
+    "ProtectedFilePolicy.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "SOURCE_SAFETY_LEDGER.json": "78e253f9c228b207be8f37b63901fdc0e399422c47ddabd8847c5dc3a62154c9",
+    "before/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+    "candidate/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+    "inputs/ORIGINAL_PAIR_ACCOUNTING_DATA_INPUT.swift.fragment": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+    "inputs/SEALED_GENERIC_OBSERVATION_V2.swift.fragment": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+    "parse-debug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "parse-nondebug.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "schemaVersion": 1,
+  "scope": "Dependency-only exact sourcefb302 correction; no actualissuer/wholefamily/compiler/native/gate approval. Preserve after seal."
+}

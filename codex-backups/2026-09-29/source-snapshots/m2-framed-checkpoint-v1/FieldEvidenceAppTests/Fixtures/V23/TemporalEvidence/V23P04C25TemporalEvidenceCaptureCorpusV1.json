@@ -1,0 +1,109 @@
+{
+  "schema": "V23P04C25TemporalEvidenceCaptureCorpusV1",
+  "schemaVersion": 1,
+  "sourceLocale": "en",
+  "selectors": [
+    "V23-P04-C25-G01",
+    "V23-P04-C25-A01",
+    "V23-P04-C25-H01",
+    "V23-P04-C25-I01",
+    "V23-P04-C25-R01"
+  ],
+  "mediaKinds": ["AUDIO", "VIDEO"],
+  "explicitActions": [
+    "RECORD_AUDIO",
+    "RECORD_VIDEO",
+    "STOP",
+    "PLAY",
+    "PAUSE",
+    "SCRUB",
+    "DELETE",
+    "RETAKE",
+    "ADD_TIME_ANCHOR",
+    "USE_RECORDING"
+  ],
+  "permissionMatrix": [
+    {"microphone": "AUTHORIZED", "camera": "AUTHORIZED", "audioAllowed": true, "videoAllowed": true},
+    {"microphone": "DENIED", "camera": "AUTHORIZED", "audioAllowed": false, "videoAllowed": false},
+    {"microphone": "AUTHORIZED", "camera": "DENIED", "audioAllowed": true, "videoAllowed": false},
+    {"microphone": "NOT_DETERMINED", "camera": "NOT_DETERMINED", "audioAllowed": false, "videoAllowed": false}
+  ],
+  "bounds": {
+    "durationMilliseconds": 120000,
+    "maximumByteCount": 8388608,
+    "maximumClipsPerRequirement": 2,
+    "maximumClipsPerSession": 100,
+    "minimumFreeByteCount": 16777216,
+    "audioCodec": {"container": "m4a", "codec": "aac-lc", "mediaType": "audio/mp4"},
+    "videoCodec": {"container": "mp4", "codec": "h264", "mediaType": "video/mp4"},
+    "maximumPixelWidth": 1920,
+    "maximumPixelHeight": 1080
+  },
+  "hostileCases": [
+    "DURATION_EXCEEDED",
+    "BYTE_COUNT_EXCEEDED",
+    "REQUIREMENT_COUNT_EXCEEDED",
+    "SESSION_COUNT_EXCEEDED",
+    "INSUFFICIENT_STORAGE",
+    "CODEC_UNAVAILABLE",
+    "RESOLUTION_EXCEEDED",
+    "PERMISSION_REVOKED_MID_RECORDING",
+    "PROTECTED_DATA_LOCKED",
+    "REPORT_TARGET_DELETED",
+    "USE_WITHOUT_REVIEW",
+    "USE_WITHOUT_EXPLICIT_ACTION"
+  ],
+  "interruptionCases": [
+    "CALL_INTERRUPTION",
+    "BACKGROUND_TRANSITION",
+    "APP_KILLED_BEFORE_PROMOTION",
+    "APP_KILLED_AFTER_PROMOTION_BEFORE_CANONICAL_COMMIT",
+    "APP_KILLED_AFTER_CANONICAL_COMMIT_BEFORE_SCRATCH_RECEIPT",
+    "DISK_FULL_DURING_CAPTURE",
+    "DELETE_CLEANUP_INTERRUPTED"
+  ],
+  "reviewFields": ["CAPTION", "ACCESSIBLE_DESCRIPTION", "EVIDENCE_PURPOSE", "TIME_ANCHORS"],
+  "reportProjection": {
+    "posterForVideo": true,
+    "waveformForAudio": true,
+    "metadata": true,
+    "typedLink": true,
+    "accessibleDescription": true,
+    "embedsOriginalBytesByDefault": false
+  },
+  "prohibited": {
+    "ambientRecording": true,
+    "backgroundRecording": true,
+    "unboundedRecording": true,
+    "automaticTranscription": true,
+    "automaticRedaction": true,
+    "networkUpload": true,
+    "partialCanonicalClip": true,
+    "secondByteStore": true,
+    "secondWriter": true
+  },
+  "lifecycle": {
+    "backupRestore": true,
+    "replaceRestore": true,
+    "cloneAndForkRebind": true,
+    "searchRebuildIsDerived": true,
+    "deleteAndErase": true,
+    "scratchBackupExcluded": true,
+    "sameMutationIDRetryIdempotent": true
+  },
+  "accessibility": {
+    "voiceOverOrderIsSourceOrder": true,
+    "voiceControlUsesVisibleNames": true,
+    "dynamicTypeMaximum": "AX5",
+    "rightToLeftSupported": true,
+    "recordingStateUsesTextAndIcon": true,
+    "stateUsesTextNotColorOnly": true,
+    "reduceMotionUsesStaticPresentation": true,
+    "firstErrorReceivesFocus": true
+  },
+  "statusFlags": {
+    "shippingUIAdopted": false,
+    "physicalDeviceEvidenceAccepted": false,
+    "requiresAcceptedS10_6Reconciliation": true
+  }
+}

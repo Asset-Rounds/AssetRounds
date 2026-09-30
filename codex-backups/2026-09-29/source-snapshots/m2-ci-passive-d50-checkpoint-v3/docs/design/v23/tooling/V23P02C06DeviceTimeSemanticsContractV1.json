@@ -1,0 +1,221 @@
+{
+  "acceptanceCredit": false,
+  "acceptanceEnabled": false,
+  "adoptionEnabled": false,
+  "artifactDigest": "e6b5f7e31d8c0a8c0abbcb048fa901a9705587c24561683dbb96f0a6c3021144",
+  "authority": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1"
+    ],
+    "appBaseHead": "0272a8ffc24af98343fdfbc0b51e5063bd3e1134",
+    "appBaseTree": "d603f733609dd5d8214ff59bca0b172bb4c770d2",
+    "attemptID": 1,
+    "authorityReceiptDigest": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752",
+    "branch": "phase/v23-expansion",
+    "cardID": "V23-P02-C06",
+    "classification": "IMPLEMENT_NOW",
+    "conformanceSubjects": [
+      "KernelConformanceSubjectSetV1"
+    ],
+    "contextDigest": "862112f0903b8f78834332ef9f089dd91907a8a39b32748ee055c749dd660f86",
+    "coordinationAuthorityHead": "9cf025a2b8a99d2aed2822824b245fa84916f0b8",
+    "coordinationAuthorityTree": "6dea1d96e3d1fe9cf6656682b6e6b62b2e3ac6bb",
+    "coordinationCASSequence": 104,
+    "coordinationLedgerDigest": "f867bd6467c7287683fbf86a9049dd8609e0c70fa24d2d8b68e1b03f7b87b492",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "deterministicEvidenceIDs": [
+      "V23-P02-C06-G01",
+      "V23-P02-C06-A01",
+      "V23-P02-C06-H01",
+      "V23-P02-C06-I01",
+      "V23-P02-C06-R01"
+    ],
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directPrerequisites": [
+      "V23-P02-C05"
+    ],
+    "dossierDigest": "74cb5ad75992718658327f60b44ab752e2aa4bda09119ddeaf06c7ec1353f443",
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "facetManifestDigest": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f",
+    "foundationRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationProjectionDigest": "6c10ad0d12d106c1e3ed09ed731afb143a914acc1595772a3088ad18a09b4d44",
+    "hydrationTransitionDigest": "dbbb09e0cadda8c20dfc64e3dd79e64862b531714538028952f1bf0f416b1c8c",
+    "impactManifestDigest": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b",
+    "inheritedV21BlockDigest": "0a7f64772e37775628a9721a280be83c7c0cb389d234672b4f4d7f39861cf7d5",
+    "invalidationConsumers": [
+      "V23-P02-C07"
+    ],
+    "lineage": "EXACT_WITH_GENERATION_REBIND",
+    "lineageSource": "V21-P02-C06",
+    "ownerParallelOverrideAuthorityReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "pathFenceDigest": "b90723f324e2126e5fe04878e5016adb6c07e18b9972684415c692203d953f5a",
+    "planningStatus": "NOT_STARTED",
+    "provisionalPrerequisiteDigest": "ca153b318446a7aead005e8f4c510a1c384b093c622efc8d0fb444d003d8e1b0",
+    "registerOrdinal": 26,
+    "registerRowDigest": "ce7cb0a63873f41df355e4ec13c2869c98e70438cb42f2a029e2fed7bf6605ea",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "title": "Protected-data lifecycle, storage pressure, and device-time semantics"
+  },
+  "cardID": "V23-P02-C06",
+  "evidenceIDs": [
+    "V23-P02-C06-G01",
+    "V23-P02-C06-A01",
+    "V23-P02-C06-H01",
+    "V23-P02-C06-I01",
+    "V23-P02-C06-R01"
+  ],
+  "hostedDispatchRan": false,
+  "migrationBehaviorDelta": false,
+  "monotonicDuration": {
+    "codable": false,
+    "durationTokenType": "InProcessDurationTokenV1",
+    "durationUnit": "nanoseconds",
+    "injected": true,
+    "instantType": "ApplicationMonotonicInstantV1",
+    "overflowFailure": "durationOverflow",
+    "persisted": false,
+    "port": "ApplicationMonotonicClockV1",
+    "processLocal": true,
+    "regressionFailure": "monotonicClockRegressed",
+    "systemAdapter": "SystemApplicationMonotonicClockV1",
+    "systemSource": "DispatchTime.now().uptimeNanoseconds"
+  },
+  "nativeCompileRan": false,
+  "owner": "DeviceTimeSemanticsV1",
+  "persistentChangeMode": "CONTENT_ONLY",
+  "persistentContractSchema": "PROTECTED_DATA_STORAGE_PRESSURE_AND_DEVICE_TIME_SEMANTICS_V1",
+  "phase10PollingDuringParallelExecution": false,
+  "physicalEvidenceComplete": false,
+  "prohibitedTokens": [
+    "accountID",
+    "authenticatedUserID",
+    "backgroundDaemon",
+    "CloudKit",
+    "CKRecord",
+    "inbox",
+    "outbox",
+    "providerID",
+    "remoteProvider",
+    "serverCursor",
+    "serverRevision",
+    "tenantID",
+    "vectorClock",
+    "accessToken",
+    "serviceCredential",
+    "secretMaterial"
+  ],
+  "provisional": true,
+  "releaseCredit": false,
+  "releaseReady": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "DeviceTimeSemanticsContractV1",
+  "schemaBehaviorDelta": false,
+  "schemaVersion": 1,
+  "sourceBindings": [
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Application/Ports/ApplicationRuntimePorts.swift",
+      "requiredTokens": [
+        "Wall time for durable records",
+        "never be used to order causal mutations or measure durations",
+        "ApplicationMonotonicInstantV1",
+        "no Codable",
+        "ApplicationMonotonicClockV1"
+      ],
+      "symbols": [
+        "ApplicationClock",
+        "ApplicationMonotonicInstantV1",
+        "ApplicationMonotonicClockV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/System/SystemRuntimeAdapters.swift",
+      "requiredTokens": [
+        "DispatchTime.now().uptimeNanoseconds",
+        "SystemApplicationMonotonicClockV1"
+      ],
+      "symbols": [
+        "SystemApplicationClock",
+        "SystemApplicationMonotonicClockV1"
+      ]
+    },
+    {
+      "owner": "V23-P02-C06",
+      "path": "FieldEvidenceApp/Infrastructure/System/DeviceTimeSemanticsV1.swift",
+      "requiredTokens": [
+        "DeviceTimeSemanticsFailureV1",
+        "DeviceWallTimeRecordV1",
+        "InProcessDurationTokenV1",
+        "monotonicClockRegressed",
+        "durationOverflow",
+        "timeZoneIdentifier",
+        "utcOffsetSeconds",
+        "isDaylightSavingTime",
+        "maximumTimeZoneIdentifierUTF8ByteCount",
+        "maximumAbsoluteUTCOffsetSeconds",
+        "trimmingCharacters",
+        "controlCharacters",
+        "timeZoneIdentifier.utf8.count",
+        "wallTimeRecord",
+        "secondsFromGMT",
+        "record.validate"
+      ],
+      "symbols": [
+        "DeviceTimeSemanticsFailureV1",
+        "DeviceWallTimeRecordV1",
+        "InProcessDurationTokenV1",
+        "DeviceTimeSemanticsV1"
+      ]
+    }
+  ],
+  "timeZoneAndDST": {
+    "calendarTransitionsDoNotOrderMutations": true,
+    "dstContextPersistedWithRecord": true,
+    "offsetPersistedWithRecord": true,
+    "zoneIdentifierPersistedWithRecord": true
+  },
+  "wallTime": {
+    "causalOrdering": "FORBIDDEN",
+    "durableUses": [
+      "display",
+      "historic_evidence",
+      "timezone_and_dst_context"
+    ],
+    "durableValidation": {
+      "rederivesOffsetOrDST": false,
+      "reopensTimeZoneDatabase": false,
+      "usesCapturedTuple": true
+    },
+    "durationMeasurement": "FORBIDDEN",
+    "fields": [
+      "recordedAtUTC",
+      "timeZoneIdentifier",
+      "utcOffsetSeconds",
+      "isDaylightSavingTime"
+    ],
+    "forwardJumpDisposition": "DISPLAY_CONTEXT_ONLY_NO_CAUSAL_REORDER",
+    "liveCreation": {
+      "derivesCurrentDST": true,
+      "derivesCurrentOffset": true,
+      "method": "wallTimeRecord(timeZone:)",
+      "validatesCapturedTuple": true
+    },
+    "offsetSecondsInclusiveRange": [
+      -64800,
+      64800
+    ],
+    "port": "ApplicationClock",
+    "recordType": "DeviceWallTimeRecordV1",
+    "rollbackDisposition": "DISPLAY_CONTEXT_ONLY_NO_CAUSAL_REORDER",
+    "validation": [
+      "finiteDate",
+      "nonEmptyTrimmedControlFreeZoneIdentifier",
+      "zoneIdentifierUTF8ByteCountAtMost255",
+      "offsetSecondsWithinInclusivePlusOrMinus64800"
+    ],
+    "zoneIdentifierMaximumUTF8ByteCount": 255
+  }
+}

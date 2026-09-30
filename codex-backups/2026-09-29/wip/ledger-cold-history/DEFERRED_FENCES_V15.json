@@ -1,0 +1,14 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "d7d992666a3c932d713c48b902342f3911626ebba0cf301af552bdeee5cbf8ee",
+  "afterSHA256": "2c065a08e4c0214a6eb0fe39e28c564303c6783f0ddf8857fe688366eb9e640d",
+  "change": "Additive memory-only fence first in four deferred shared-engine planners; no descriptor inspection or semantic relaxation",
+  "methods": [
+    "c16CaptureBornSourceSteps",
+    "c16HygieneSteps",
+    "c16EraseIngressSteps",
+    "c16FrozenIngressTargetSteps"
+  ],
+  "status": "INTERMEDIATE; compile/review/runtime due"
+}

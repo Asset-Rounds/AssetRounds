@@ -1,0 +1,61 @@
+{
+  "schema": "V22P04C11FastSurveyInboxCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P04-C11",
+  "ordinal": 99,
+  "testOnly": true,
+  "synthetic": true,
+  "immutable": true,
+  "containsCustomerData": false,
+  "containsSecrets": false,
+  "selectors": [
+    { "id": "G01", "selector": "testV23P04C11G01RapidOfflineCaptureReviewAndTypedPromotionPreserveOriginalProvenance", "tier": "GOLDEN" },
+    { "id": "A01", "selector": "testV23P04C11A01UnassignedItemAndEditedSnippetRemainExplicitWithoutChangingFrozenRecords", "tier": "ALTERNATE" },
+    { "id": "H01", "selector": "testV23P04C11H01DuplicatePromotionStaleDestinationMissingContentAndSnippetSubstitutionFailClosed", "tier": "HOSTILE" },
+    { "id": "I01", "selector": "testV23P04C11I01InterruptedCaptureOrPromotionPreservesBytesAndRecoverableInbox", "tier": "INTERRUPTION" },
+    { "id": "R01", "selector": "testV23P04C11R01RestoreReplayRebuildsInboxPromotionLinksSnippetVersionsAndUnresolvedItemsWithoutDoubleInsertion", "tier": "RECOVERY" }
+  ],
+  "captureKinds": ["CONTEXT", "DETAIL", "CLOSEUP"],
+  "destinationKinds": ["ASSET_EVIDENCE", "RESPONSE_EVIDENCE", "FINDING_EVIDENCE", "CORRECTIVE_WORK_EVIDENCE"],
+  "gates": {
+    "maximumCaptureTaps": 2,
+    "maximumReviewTaps": 3,
+    "maximumCaptureMilliseconds": 5000,
+    "maximumWorkspaceInboxBytes": 2147483648,
+    "protectedDataRequiredForByteAccess": true,
+    "offlineCapture": true,
+    "bulkSelectionExplicit": true
+  },
+  "lifecycle": ["MIGRATION", "BACKUP", "REPLACE_RESTORE", "DELETE", "ERASE", "EXPORT", "REPORT_EXCLUSION", "SEARCH", "REBUILD", "JOURNAL", "REPLAY", "CLONE", "FORK"],
+  "hostileCases": ["DUPLICATE_PROMOTION", "STALE_DESTINATION", "MISSING_CONTENT", "SNIPPET_SUBSTITUTION", "CORRUPT_DIGEST", "CROSS_WORKSPACE", "REVISION_OVERFLOW"],
+  "claims": {
+    "oneCanonicalWriter": true,
+    "noSecondStore": true,
+    "unpromotedNeverLeaksIntoCompletedRecordsOrReports": true,
+    "snippetHistoryFrozen": true,
+    "snippetNeverAutomaticallyAnswers": true,
+    "originalBytesImmutable": true,
+    "contentIDsAreUUIDs": true,
+    "contentMetadataAndBytesUseIncumbentEvidenceAuthority": true,
+    "promotionDestinationsRequireExactCurrentOwnerAuthority": true,
+    "productionDestinationMapperActivated": false,
+    "strictExactCurrentResolverTestFixture": true,
+    "snippetInsertionsAreDurableFrozenHistory": true,
+    "persistentSchemaModelCount": 158,
+    "c11DurableRowFamilyCount": 5,
+    "effectBeforeReceiptRecovery": true
+  },
+  "statusFlags": {
+    "activation": false,
+    "native": false,
+    "hosted": false,
+    "adoption": false,
+    "acceptance": false,
+    "release": false,
+    "nativeAcceptance": false,
+    "hostedAcceptance": false,
+    "physicalEvidence": false,
+    "phase10PollingDuringParallelExecution": false,
+    "uiAcceptanceCredit": false
+  }
+}

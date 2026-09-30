@@ -1,0 +1,13 @@
+{
+  "RegistryTargetCorrection": "all original descendants retained; authentic projected owner/births still due",
+  "inputBindingSHA256": "cf08affd564cac1a5762bdba48a0cbc8fd59d2c7de6620a7682d3d54b2bcb66d",
+  "liveFunctionalFirstObserverSHA256": "ad95d26b481a864a3f5f6b45a5f2917d790f703af59cbb0f742e85c0d6d40d1b",
+  "metadataParentCorrection": "ScratchDataV1/ + actual relativeDirectory",
+  "onlyCandidatePaths": [
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift"
+  ],
+  "operationIDCorrection": "actual Router operation.operationID, not intent.eraseID",
+  "parentBindingSHA256": "8379e67b46905ac5f2c3eaaefb728dfd54c45af4fed4ff5c154d18d8aa5f50ce",
+  "sourceInputs": 1206
+}

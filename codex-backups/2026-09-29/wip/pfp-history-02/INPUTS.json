@@ -1,0 +1,26 @@
+{
+  "CI": false,
+  "author": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh"
+  },
+  "authoritativeInputs": {
+    "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/source-bridge-interface-v11/BINDING.json": "79864b5a71795c93cd37c2cf8d32710add775a2550de64372c7d224241d5467c",
+    "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/source-bridge-interface-v11/COMPACT_POLICY_TARGET_SCOPE_V11.swift.fragment": "d9a7b2a98a9945f106a54384aa66d566678ce51aac7898acf62406fcbbc2a1f5",
+    "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds/.codex-temp/cold-physical-continuation-successor-v6/COMPACT_PHYSICAL_DATA_V4.swift.fragment": "74688616f4d5eaaec95cb34d6a96d706d26823c1cea30241eeead63469cf105b"
+  },
+  "gateCredit": false,
+  "latestPFPBinding": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/BINDING.json",
+    "sha256": "dd475285923cf635e6c9370e071d91142d1f322c55b66712c55a458166d8d6e4"
+  },
+  "latestPFPCandidate": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/candidate/ProtectedFilePolicy.swift",
+    "sha256": "4f16a1a36615010e237ab11e913e8402f89764391cd8d54fd80bc35b1e6b8473"
+  },
+  "native": false,
+  "parse": false,
+  "scope": "Planning only, compact implementation redirected by root; distinct live scope still must freeze",
+  "semanticCompiler": false,
+  "sourceAdded": false
+}

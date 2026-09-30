@@ -1,0 +1,26 @@
+{
+  "OriginalPairRowData.swift.fragment": {
+    "sha256": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+    "source": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/ORIGINAL_PAIR_ACCOUNTING_DATA_V1.swift.fragment"
+  },
+  "PFP_V9_BINDING.json": {
+    "sha256": "cf6c0899acdba2e58bb26f1f8c0f078374c4fdab3a75bafd686e0ee56608a1ac",
+    "source": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/BINDING.json"
+  },
+  "ProtectedFilePolicy.swift": {
+    "sha256": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+    "source": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/candidate/ProtectedFilePolicy.swift"
+  },
+  "ROOT_DECISION.md": {
+    "sha256": "7cb3225bcfa525663c127757f6c2f4f1a91a818e9e836b6937ce69c1f036b141",
+    "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-firstcapture-root-decision-v1/DECISION.md"
+  },
+  "RouterGenericV9.swift.fragment": {
+    "sha256": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+    "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/SEALED_GENERIC_OBSERVATION_V2.swift.fragment"
+  },
+  "RouterV9_BINDING.json": {
+    "sha256": "6674f52568611efcd35c5cf958906e8134b36fc149d33f4e189b8178c7f707f7",
+    "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/BINDING.json"
+  }
+}

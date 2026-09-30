@@ -1,0 +1,84 @@
+{
+  "afterFullSourceMapSHA256": "2ea4b57345e63aaf2c4464b762a6c3faf2e5d26ec22545686e7a793e456df051",
+  "artifacts": {
+    "AFTER_SOURCE_MAP.json": "2ea4b57345e63aaf2c4464b762a6c3faf2e5d26ec22545686e7a793e456df051",
+    "CANDIDATE.diff": "4343e82454875be2fb4885ce30733e99b91265b97aeaa1f202ff0a34f2d7db12",
+    "CASE_MATRIX.md": "398d0b7fac2c997fd1fa48ee4d33d9ecc69b9002a9ece3dc06cbbf104224d5dd",
+    "HANDOFF.md": "605a76b235f799f488eb53234bbf833c689b9f3f0a77481895b7d0577ec06570",
+    "INPUT_BINDING.json": "cf08affd564cac1a5762bdba48a0cbc8fd59d2c7de6620a7682d3d54b2bcb66d",
+    "INTERFACES.md": "40f3022399f6634e7f0578785879bbc68d71674394a52b9ea0f063a475f4e766",
+    "PARSE.json": "30e52f831788e65f64ed002d76c1341dfe6b7482bc1bd8cc666f844a26ecf458",
+    "READ_WORK_PROOF.md": "845a86609f4cf47b6e27284cfd00bedd337d9cb6d3cb001d8e050ae2d2464357",
+    "SOURCE_ONLY_CHECKS.json": "af60b930f85be77bf857c54fa7c1fa638b73ec03d79cc5f59fcdc728086f6288",
+    "SOURCE_SUCCESSION.json": "2a5f237b7aa92f2351f08a2cf3b0505bf2db38f85af3d4a6c887f0b410c8744f",
+    "SUCCESSOR.diff": "6c01225d6ad337282c1c628a50b69afa69cbe340f766a93f7439fa607b90413c",
+    "WORKING_HANDOFF.md": "100cd9b195a5cd44cb83dd1f5d107d92f564c06d4347768b6ec0fc6e032e0e63",
+    "add_generic_one_effect.py": "9d3ee1a0831b22f69d5cf2e86b771d361f16bd217e243022363037531237bc64",
+    "add_sealed_generic_observer.py": "f6fb44e4ba2caef6bc1b782f0b82eab7a6cb3d0db36e2b6288bc562bfd3df73a",
+    "add_sealed_generic_scanner.py": "a2508a837e5ed359c762a9242417ff739e0179ddb69e57f11e251f51a9d820c2",
+    "inputs/OriginalPairRowData.swift.fragment": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+    "inputs/PFP_V9_BINDING.json": "cf6c0899acdba2e58bb26f1f8c0f078374c4fdab3a75bafd686e0ee56608a1ac",
+    "inputs/ProtectedFilePolicy.swift": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+    "inputs/ROOT_DECISION.md": "7cb3225bcfa525663c127757f6c2f4f1a91a818e9e836b6937ce69c1f036b141",
+    "inputs/RouterGenericV9.swift.fragment": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+    "inputs/RouterV9_BINDING.json": "6674f52568611efcd35c5cf958906e8134b36fc149d33f4e189b8178c7f707f7",
+    "seal_packet.py": "873767fb80d0f23c39388e8efe6f1bf2f81cfd8ca96d926d98a3760f70f28bc6"
+  },
+  "authorModel": "gpt-6.1-sol",
+  "beforeFullSourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "bytes": 179914,
+      "candidateSHA256": "f20c8083fbac1c76cbb1bcd8a75f4f34827c4105294c434a3f8294b9fb3abff3",
+      "immediateBeforeSHA256": "520f88bff0b60ee9cdf2c3eb90b0cf5cf9727cecaaa47dd039f9de9cc765b8bd",
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "bytes": 1927439,
+      "candidateSHA256": "099b08f4e3ddbbd63a65b76df3a29aef8c0a5c019ea55ec91f0a1a1aedf33c89",
+      "immediateBeforeSHA256": "f61127930a7ab69f217a8bb46cf09a2914de0cb482a430415fb723a80782dcd7",
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e"
+    }
+  },
+  "head": "93159755395d697a5a9da02f41374120433c50f9",
+  "inputs": {
+    "OriginalPairRowData.swift.fragment": {
+      "sha256": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0",
+      "source": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/ORIGINAL_PAIR_ACCOUNTING_DATA_V1.swift.fragment"
+    },
+    "PFP_V9_BINDING.json": {
+      "sha256": "cf6c0899acdba2e58bb26f1f8c0f078374c4fdab3a75bafd686e0ee56608a1ac",
+      "source": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-v9-binding-successor-v1/BINDING.json"
+    },
+    "ProtectedFilePolicy.swift": {
+      "sha256": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+      "source": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/candidate/ProtectedFilePolicy.swift"
+    },
+    "ROOT_DECISION.md": {
+      "sha256": "7cb3225bcfa525663c127757f6c2f4f1a91a818e9e836b6937ce69c1f036b141",
+      "source": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-firstcapture-root-decision-v1/DECISION.md"
+    },
+    "RouterGenericV9.swift.fragment": {
+      "sha256": "16941bbbe09b68b008a2fad54783f4a7f0dc4fb1aa0194650ee3a3e219ecdc5f",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/SEALED_GENERIC_OBSERVATION_V2.swift.fragment"
+    },
+    "RouterV9_BINDING.json": {
+      "sha256": "6674f52568611efcd35c5cf958906e8134b36fc149d33f4e189b8178c7f707f7",
+      "source": "/Users/rentamac/.codex/worktrees/cold-erase-continuation/AssetRounds/.codex-temp/cold-schema2-continuation-successor-v1/issuer-core-successor-v9/BINDING.json"
+    }
+  },
+  "openObligations": [
+    "Actual complete FirstCapture/raw current/source issuer and per-owner IO work budget",
+    "Positive cold Store source observation and pure original accounting mint",
+    "Lossless logical commitments/current birth capacity overlay/full producer and old-plan representations",
+    "Actual Registry consumed subset/replacement/new guard births and finite prefix ownership after named G hard loss",
+    "Full central original/cold source/record/OS/drain/retirement/terminal composition",
+    "Root semantic compiler/fullbuild/native independent review and all required gates"
+  ],
+  "parentBindingSHA256": "8379e67b46905ac5f2c3eaaefb728dfd54c45af4fed4ff5c154d18d8aa5f50ce",
+  "reasoningEffort": "xhigh",
+  "schemaVersion": 5,
+  "sourceInputs": 1206,
+  "status": "sealed_source_only_PARTIAL_NONINSTALLABLE_authentic_companion_consumers_due",
+  "trackedSourceDrift": {}
+}

@@ -1,0 +1,31 @@
+{
+  "results": {
+    "debug": {
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "-D",
+        "DEBUG",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/candidate/ProtectedFilePolicy.swift"
+      ],
+      "exitCode": 0,
+      "logPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/parse-debug.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "nondebug": {
+      "command": [
+        "xcrun",
+        "swiftc",
+        "-frontend",
+        "-parse",
+        "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/candidate/ProtectedFilePolicy.swift"
+      ],
+      "exitCode": 0,
+      "logPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-terminal-gate-successor-v1/parse-nondebug.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "scope": "Syntax parse only; no semantic compiler/typecheck/native/CI/gate credit"
+}

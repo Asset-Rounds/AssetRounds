@@ -1,0 +1,764 @@
+{
+  "reference": "/Users/rentamac/Developer/AssetRounds/.codex-temp/c16-reference-review-sol61-xhigh-v1/INPUTS/CANDIDATE.swift",
+  "reference_sha256": "ba657c143c19a996d6607d9272172b9982022892c544cdb5a9757e2e298a91ad",
+  "before_sha256": "3224bc14fe17d8a684e8d09d5e5acac875e1629b50d301d18aefd73e09c0204e",
+  "selected_sections": [
+    {
+      "tag": "replace",
+      "before_first": 1162,
+      "before_end": 1162,
+      "reference_first": 1162,
+      "reference_end": 1163
+    },
+    {
+      "tag": "replace",
+      "before_first": 1164,
+      "before_end": 1164,
+      "reference_first": 1165,
+      "reference_end": 1165
+    },
+    {
+      "tag": "insert",
+      "before_first": 1185,
+      "before_end": 1184,
+      "reference_first": 1186,
+      "reference_end": 1199
+    },
+    {
+      "tag": "equal",
+      "before_first": 1185,
+      "before_end": 1298,
+      "reference_first": 1200,
+      "reference_end": 1313
+    },
+    {
+      "tag": "insert",
+      "before_first": 3868,
+      "before_end": 3867,
+      "reference_first": 3083,
+      "reference_end": 3343
+    },
+    {
+      "tag": "insert",
+      "before_first": 3929,
+      "before_end": 3928,
+      "reference_first": 3405,
+      "reference_end": 5257
+    },
+    {
+      "tag": "insert",
+      "before_first": 3935,
+      "before_end": 3934,
+      "reference_first": 5264,
+      "reference_end": 5271
+    },
+    {
+      "tag": "insert",
+      "before_first": 3942,
+      "before_end": 3941,
+      "reference_first": 5279,
+      "reference_end": 5302
+    },
+    {
+      "tag": "insert",
+      "before_first": 4025,
+      "before_end": 4024,
+      "reference_first": 5386,
+      "reference_end": 5848
+    },
+    {
+      "tag": "replace",
+      "before_first": 4067,
+      "before_end": 4068,
+      "reference_first": 5891,
+      "reference_end": 5891
+    },
+    {
+      "tag": "insert",
+      "before_first": 4071,
+      "before_end": 4070,
+      "reference_first": 5894,
+      "reference_end": 5905
+    },
+    {
+      "tag": "replace",
+      "before_first": 4076,
+      "before_end": 4085,
+      "reference_first": 5911,
+      "reference_end": 5924
+    },
+    {
+      "tag": "replace",
+      "before_first": 4087,
+      "before_end": 4091,
+      "reference_first": 5926,
+      "reference_end": 5929
+    },
+    {
+      "tag": "replace",
+      "before_first": 4093,
+      "before_end": 4093,
+      "reference_first": 5931,
+      "reference_end": 5931
+    },
+    {
+      "tag": "replace",
+      "before_first": 4096,
+      "before_end": 4102,
+      "reference_first": 5934,
+      "reference_end": 5936
+    },
+    {
+      "tag": "replace",
+      "before_first": 4104,
+      "before_end": 4113,
+      "reference_first": 5938,
+      "reference_end": 5941
+    },
+    {
+      "tag": "replace",
+      "before_first": 4115,
+      "before_end": 4131,
+      "reference_first": 5943,
+      "reference_end": 5968
+    },
+    {
+      "tag": "replace",
+      "before_first": 4196,
+      "before_end": 4196,
+      "reference_first": 6033,
+      "reference_end": 6044
+    },
+    {
+      "tag": "replace",
+      "before_first": 4198,
+      "before_end": 4199,
+      "reference_first": 6046,
+      "reference_end": 6051
+    },
+    {
+      "tag": "replace",
+      "before_first": 4201,
+      "before_end": 4201,
+      "reference_first": 6053,
+      "reference_end": 6058
+    },
+    {
+      "tag": "replace",
+      "before_first": 4205,
+      "before_end": 4205,
+      "reference_first": 6062,
+      "reference_end": 6070
+    },
+    {
+      "tag": "replace",
+      "before_first": 4220,
+      "before_end": 4220,
+      "reference_first": 6085,
+      "reference_end": 6093
+    },
+    {
+      "tag": "replace",
+      "before_first": 4239,
+      "before_end": 4239,
+      "reference_first": 6112,
+      "reference_end": 6112
+    },
+    {
+      "tag": "insert",
+      "before_first": 4350,
+      "before_end": 4349,
+      "reference_first": 6223,
+      "reference_end": 6226
+    },
+    {
+      "tag": "replace",
+      "before_first": 4353,
+      "before_end": 4353,
+      "reference_first": 6230,
+      "reference_end": 6230
+    },
+    {
+      "tag": "replace",
+      "before_first": 4359,
+      "before_end": 4359,
+      "reference_first": 6236,
+      "reference_end": 6237
+    },
+    {
+      "tag": "replace",
+      "before_first": 4368,
+      "before_end": 4368,
+      "reference_first": 6246,
+      "reference_end": 6249
+    },
+    {
+      "tag": "insert",
+      "before_first": 4373,
+      "before_end": 4372,
+      "reference_first": 6254,
+      "reference_end": 6254
+    },
+    {
+      "tag": "replace",
+      "before_first": 4376,
+      "before_end": 4395,
+      "reference_first": 6258,
+      "reference_end": 6289
+    },
+    {
+      "tag": "replace",
+      "before_first": 4398,
+      "before_end": 4401,
+      "reference_first": 6292,
+      "reference_end": 6315
+    },
+    {
+      "tag": "replace",
+      "before_first": 4403,
+      "before_end": 4409,
+      "reference_first": 6317,
+      "reference_end": 6321
+    },
+    {
+      "tag": "replace",
+      "before_first": 4452,
+      "before_end": 4466,
+      "reference_first": 6364,
+      "reference_end": 6388
+    },
+    {
+      "tag": "replace",
+      "before_first": 4489,
+      "before_end": 4489,
+      "reference_first": 6411,
+      "reference_end": 6412
+    },
+    {
+      "tag": "replace",
+      "before_first": 4498,
+      "before_end": 4498,
+      "reference_first": 6421,
+      "reference_end": 6423
+    },
+    {
+      "tag": "insert",
+      "before_first": 4500,
+      "before_end": 4499,
+      "reference_first": 6425,
+      "reference_end": 6438
+    },
+    {
+      "tag": "insert",
+      "before_first": 4513,
+      "before_end": 4512,
+      "reference_first": 6452,
+      "reference_end": 6481
+    },
+    {
+      "tag": "replace",
+      "before_first": 4515,
+      "before_end": 4515,
+      "reference_first": 6484,
+      "reference_end": 6485
+    },
+    {
+      "tag": "insert",
+      "before_first": 4523,
+      "before_end": 4522,
+      "reference_first": 6493,
+      "reference_end": 6494
+    },
+    {
+      "tag": "insert",
+      "before_first": 4532,
+      "before_end": 4531,
+      "reference_first": 6504,
+      "reference_end": 6504
+    },
+    {
+      "tag": "replace",
+      "before_first": 4553,
+      "before_end": 4553,
+      "reference_first": 6526,
+      "reference_end": 6527
+    },
+    {
+      "tag": "replace",
+      "before_first": 4587,
+      "before_end": 4587,
+      "reference_first": 6561,
+      "reference_end": 6561
+    },
+    {
+      "tag": "insert",
+      "before_first": 4596,
+      "before_end": 4595,
+      "reference_first": 6570,
+      "reference_end": 6571
+    },
+    {
+      "tag": "replace",
+      "before_first": 4606,
+      "before_end": 4608,
+      "reference_first": 6582,
+      "reference_end": 6589
+    },
+    {
+      "tag": "replace",
+      "before_first": 4620,
+      "before_end": 4622,
+      "reference_first": 6601,
+      "reference_end": 6621
+    },
+    {
+      "tag": "insert",
+      "before_first": 4630,
+      "before_end": 4629,
+      "reference_first": 6629,
+      "reference_end": 6637
+    },
+    {
+      "tag": "replace",
+      "before_first": 4634,
+      "before_end": 4638,
+      "reference_first": 6642,
+      "reference_end": 6650
+    },
+    {
+      "tag": "insert",
+      "before_first": 4653,
+      "before_end": 4652,
+      "reference_first": 6665,
+      "reference_end": 7053
+    },
+    {
+      "tag": "replace",
+      "before_first": 4656,
+      "before_end": 4656,
+      "reference_first": 7057,
+      "reference_end": 7058
+    },
+    {
+      "tag": "replace",
+      "before_first": 4659,
+      "before_end": 4659,
+      "reference_first": 7061,
+      "reference_end": 7065
+    },
+    {
+      "tag": "replace",
+      "before_first": 4684,
+      "before_end": 4686,
+      "reference_first": 7090,
+      "reference_end": 7100
+    },
+    {
+      "tag": "delete",
+      "before_first": 4688,
+      "before_end": 4688,
+      "reference_first": 7102,
+      "reference_end": 7101
+    },
+    {
+      "tag": "insert",
+      "before_first": 4692,
+      "before_end": 4691,
+      "reference_first": 7105,
+      "reference_end": 7135
+    },
+    {
+      "tag": "replace",
+      "before_first": 4858,
+      "before_end": 4861,
+      "reference_first": 7302,
+      "reference_end": 7311
+    },
+    {
+      "tag": "replace",
+      "before_first": 4865,
+      "before_end": 4866,
+      "reference_first": 7315,
+      "reference_end": 7316
+    },
+    {
+      "tag": "replace",
+      "before_first": 4873,
+      "before_end": 4877,
+      "reference_first": 7323,
+      "reference_end": 7332
+    },
+    {
+      "tag": "replace",
+      "before_first": 4880,
+      "before_end": 4880,
+      "reference_first": 7335,
+      "reference_end": 7336
+    },
+    {
+      "tag": "replace",
+      "before_first": 4883,
+      "before_end": 4883,
+      "reference_first": 7339,
+      "reference_end": 7339
+    },
+    {
+      "tag": "replace",
+      "before_first": 4885,
+      "before_end": 4893,
+      "reference_first": 7341,
+      "reference_end": 7360
+    },
+    {
+      "tag": "replace",
+      "before_first": 4895,
+      "before_end": 4911,
+      "reference_first": 7362,
+      "reference_end": 7379
+    },
+    {
+      "tag": "replace",
+      "before_first": 4937,
+      "before_end": 4937,
+      "reference_first": 7405,
+      "reference_end": 7405
+    },
+    {
+      "tag": "insert",
+      "before_first": 4960,
+      "before_end": 4959,
+      "reference_first": 7428,
+      "reference_end": 7428
+    },
+    {
+      "tag": "replace",
+      "before_first": 4984,
+      "before_end": 4986,
+      "reference_first": 7453,
+      "reference_end": 7459
+    },
+    {
+      "tag": "replace",
+      "before_first": 5006,
+      "before_end": 5006,
+      "reference_first": 7479,
+      "reference_end": 7479
+    },
+    {
+      "tag": "insert",
+      "before_first": 5008,
+      "before_end": 5007,
+      "reference_first": 7481,
+      "reference_end": 7481
+    },
+    {
+      "tag": "replace",
+      "before_first": 5009,
+      "before_end": 5009,
+      "reference_first": 7483,
+      "reference_end": 7483
+    },
+    {
+      "tag": "replace",
+      "before_first": 5017,
+      "before_end": 5021,
+      "reference_first": 7491,
+      "reference_end": 7503
+    },
+    {
+      "tag": "insert",
+      "before_first": 5026,
+      "before_end": 5025,
+      "reference_first": 7508,
+      "reference_end": 7513
+    },
+    {
+      "tag": "insert",
+      "before_first": 5032,
+      "before_end": 5031,
+      "reference_first": 7520,
+      "reference_end": 7520
+    },
+    {
+      "tag": "replace",
+      "before_first": 5041,
+      "before_end": 5045,
+      "reference_first": 7530,
+      "reference_end": 7561
+    },
+    {
+      "tag": "replace",
+      "before_first": 5050,
+      "before_end": 5051,
+      "reference_first": 7566,
+      "reference_end": 7575
+    },
+    {
+      "tag": "replace",
+      "before_first": 5054,
+      "before_end": 5076,
+      "reference_first": 7578,
+      "reference_end": 7600
+    },
+    {
+      "tag": "insert",
+      "before_first": 5083,
+      "before_end": 5082,
+      "reference_first": 7607,
+      "reference_end": 7611
+    },
+    {
+      "tag": "replace",
+      "before_first": 5109,
+      "before_end": 5112,
+      "reference_first": 7638,
+      "reference_end": 7638
+    },
+    {
+      "tag": "replace",
+      "before_first": 5117,
+      "before_end": 5120,
+      "reference_first": 7643,
+      "reference_end": 7654
+    },
+    {
+      "tag": "replace",
+      "before_first": 5122,
+      "before_end": 5123,
+      "reference_first": 7656,
+      "reference_end": 7665
+    },
+    {
+      "tag": "replace",
+      "before_first": 5292,
+      "before_end": 5292,
+      "reference_first": 7834,
+      "reference_end": 7844
+    },
+    {
+      "tag": "insert",
+      "before_first": 5299,
+      "before_end": 5298,
+      "reference_first": 7851,
+      "reference_end": 7874
+    },
+    {
+      "tag": "replace",
+      "before_first": 5395,
+      "before_end": 5396,
+      "reference_first": 7971,
+      "reference_end": 8046
+    },
+    {
+      "tag": "replace",
+      "before_first": 5400,
+      "before_end": 5402,
+      "reference_first": 8050,
+      "reference_end": 8064
+    },
+    {
+      "tag": "insert",
+      "before_first": 5405,
+      "before_end": 5404,
+      "reference_first": 8067,
+      "reference_end": 8067
+    },
+    {
+      "tag": "replace",
+      "before_first": 5422,
+      "before_end": 5422,
+      "reference_first": 8085,
+      "reference_end": 8111
+    },
+    {
+      "tag": "replace",
+      "before_first": 5431,
+      "before_end": 5434,
+      "reference_first": 8120,
+      "reference_end": 8123
+    },
+    {
+      "tag": "insert",
+      "before_first": 5436,
+      "before_end": 5435,
+      "reference_first": 8125,
+      "reference_end": 8125
+    },
+    {
+      "tag": "insert",
+      "before_first": 5456,
+      "before_end": 5455,
+      "reference_first": 8146,
+      "reference_end": 8146
+    },
+    {
+      "tag": "insert",
+      "before_first": 5457,
+      "before_end": 5456,
+      "reference_first": 8148,
+      "reference_end": 8162
+    },
+    {
+      "tag": "replace",
+      "before_first": 5458,
+      "before_end": 5474,
+      "reference_first": 8164,
+      "reference_end": 8177
+    },
+    {
+      "tag": "replace",
+      "before_first": 5492,
+      "before_end": 5492,
+      "reference_first": 8195,
+      "reference_end": 8196
+    },
+    {
+      "tag": "replace",
+      "before_first": 5496,
+      "before_end": 5496,
+      "reference_first": 8200,
+      "reference_end": 8200
+    },
+    {
+      "tag": "replace",
+      "before_first": 5504,
+      "before_end": 5517,
+      "reference_first": 8208,
+      "reference_end": 8214
+    },
+    {
+      "tag": "replace",
+      "before_first": 5520,
+      "before_end": 5523,
+      "reference_first": 8217,
+      "reference_end": 8243
+    },
+    {
+      "tag": "replace",
+      "before_first": 7665,
+      "before_end": 7671,
+      "reference_first": 10445,
+      "reference_end": 10445
+    },
+    {
+      "tag": "insert",
+      "before_first": 7680,
+      "before_end": 7679,
+      "reference_first": 10454,
+      "reference_end": 10468
+    },
+    {
+      "tag": "insert",
+      "before_first": 7699,
+      "before_end": 7698,
+      "reference_first": 10488,
+      "reference_end": 10496
+    },
+    {
+      "tag": "insert",
+      "before_first": 7864,
+      "before_end": 7863,
+      "reference_first": 10662,
+      "reference_end": 10867
+    },
+    {
+      "tag": "replace",
+      "before_first": 7953,
+      "before_end": 7954,
+      "reference_first": 10957,
+      "reference_end": 10957
+    },
+    {
+      "tag": "replace",
+      "before_first": 7958,
+      "before_end": 7967,
+      "reference_first": 10961,
+      "reference_end": 10973
+    },
+    {
+      "tag": "replace",
+      "before_first": 7969,
+      "before_end": 7972,
+      "reference_first": 10975,
+      "reference_end": 10977
+    },
+    {
+      "tag": "replace",
+      "before_first": 7974,
+      "before_end": 7979,
+      "reference_first": 10979,
+      "reference_end": 10982
+    },
+    {
+      "tag": "replace",
+      "before_first": 7981,
+      "before_end": 7995,
+      "reference_first": 10984,
+      "reference_end": 10988
+    },
+    {
+      "tag": "replace",
+      "before_first": 7999,
+      "before_end": 8000,
+      "reference_first": 10992,
+      "reference_end": 11029
+    },
+    {
+      "tag": "replace",
+      "before_first": 8002,
+      "before_end": 8003,
+      "reference_first": 11031,
+      "reference_end": 11036
+    },
+    {
+      "tag": "replace",
+      "before_first": 8005,
+      "before_end": 8032,
+      "reference_first": 11038,
+      "reference_end": 11049
+    },
+    {
+      "tag": "insert",
+      "before_first": 8335,
+      "before_end": 8334,
+      "reference_first": 11352,
+      "reference_end": 11873
+    },
+    {
+      "tag": "replace",
+      "before_first": 8345,
+      "before_end": 8353,
+      "reference_first": 11884,
+      "reference_end": 11944
+    },
+    {
+      "tag": "replace",
+      "before_first": 8356,
+      "before_end": 8369,
+      "reference_first": 11947,
+      "reference_end": 11961
+    },
+    {
+      "tag": "replace",
+      "before_first": 8371,
+      "before_end": 8395,
+      "reference_first": 11963,
+      "reference_end": 11964
+    },
+    {
+      "tag": "replace",
+      "before_first": 8398,
+      "before_end": 8490,
+      "reference_first": 11967,
+      "reference_end": 11967
+    },
+    {
+      "tag": "insert",
+      "before_first": 8496,
+      "before_end": 8495,
+      "reference_first": 11973,
+      "reference_end": 11981
+    }
+  ],
+  "status": "working independently adapted feature sections; not frozen; no inherited approval"
+}

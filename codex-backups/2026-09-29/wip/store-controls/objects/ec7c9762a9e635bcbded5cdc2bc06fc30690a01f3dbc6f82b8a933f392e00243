@@ -1,0 +1,175 @@
+from pathlib import Path
+p=Path('.codex-temp/cold-control-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift')
+s=p.read_text()
+s=s.replace('        let opaqueCleanupNames: [String]\n','        let opaqueCleanupNames: [String]\n        var schema2CleanupControlsPresent: Bool { !opaqueCleanupNames.isEmpty }\n        /// First held opaque bytes, before EX, canonical decode or policy request.\n        let firstSchema2CleanupTerminalBytes: Data?\n',1)
+s=s.replace('opaqueCleanupNames: [])','opaqueCleanupNames: [], firstSchema2CleanupTerminalBytes: nil)',1)
+s=s.replace('opaqueCleanupNames: cleanupNames)','opaqueCleanupNames: cleanupNames,\n            firstSchema2CleanupTerminalBytes: capturedOpaqueCleanup[EraseSchema2ColdCleanupGrammarV1.terminalName]?.bytes)',1)
+a=s.index('    static func requireBirthRole('); b=s.index('    static func requireDigest(',a)
+s=s[:a]+'''    static func requireBirthRole(_ role: String, path: String) throws {
+        let pieces = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard pieces.count == 2, pieces[0] == "ProtectedIngressReceiptsV1" else {
+            throw EraseIntentStoreError.invalidPreparation
+        }
+        let name = String(pieces[1])
+        let permitted: Bool
+        switch role {
+        case "scratchControlErase": permitted = name == "scratch-erase.json"
+        case "freshIngressErasePrepare": permitted = name.hasPrefix("erase-") && name.hasSuffix(".prepare.json")
+        case "finalizedHygienePrepare": permitted = name.hasPrefix("hygiene-") && name.hasSuffix(".prepare.json")
+        case "hygieneFinalizing": permitted = name.hasPrefix("hygiene-") && name.hasSuffix(".prepare.json.finalizing")
+        case "hygieneReceipt": permitted = name.hasPrefix("hygiene-") && name.hasSuffix(".json") && !name.hasSuffix(".prepare.json")
+        case "ingressTerminal": permitted = name.hasPrefix("ingress-") && name.hasSuffix(".terminal.json")
+        case "ingressPending": permitted = name.hasPrefix("ingress-") && (name.hasSuffix(".pending.json") || name.hasSuffix(".pending.json.replacement"))
+        case "ingressAborted": permitted = name.hasPrefix("ingress-") && name.hasSuffix(".aborted.json")
+        case "ingressEraseComplete": permitted = name.hasPrefix("erase-") && name.hasSuffix(".complete.json")
+        default: permitted = false
+        }
+        guard permitted else { throw EraseIntentStoreError.invalidPreparation }
+        _ = try maximumSourceBytes(path: path)
+    }
+''' + s[b:]
+s=s.replace('    private var coldCleanupFirstLeaves:', '''    // Provenance registration is not an EX/G permit. Only a currently bound
+    // one-effect permit can use the original Store's checked control primitives.
+    private weak var originalCleanupOperation: EraseRouterOperationV1?
+    private var originalCleanupRoster: OriginalAuxiliaryRosterPublicationReceiptV1?
+    private var originalCleanupRegistered = false
+    private var coldCleanupFirstLeaves:''',1)
+pos=s.index('    @MainActor\n    private func beginSchema2ColdCleanupControlScope(')
+s=s[:pos]+'''    @MainActor
+    func registerOriginalSchema2CleanupControlScope(operation: EraseRouterOperationV1,
+        roster: OriginalAuxiliaryRosterPublicationReceiptV1,
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        permit: EraseSchema2ColdControlPermitV1
+    ) throws {
+        defer { coldCleanupPermit = nil; coldCleanupEffect = nil }
+        let intentBytes = try EraseIntentCodecV1.encode(intent)
+        let preparationBytes = try ErasePreparationCodecV2.encode(preparation)
+        try bindSchema2ColdCleanupEffect(EraseSchema2ColdCleanupCommitmentV1.makeEffect(
+            kind: .registerOriginalScope,
+            inputSHA256: [StoreMigrationCanonicalJSONV1.sha256(roster.canonicalBytes),
+                StoreMigrationCanonicalJSONV1.sha256(intentBytes),
+                StoreMigrationCanonicalJSONV1.sha256(preparationBytes)]), permit: permit)
+        try requireSchema2ColdCleanupEffect(permit)
+        guard !borrowsColdObservation, !coldCloseAttempted, !coldClosed,
+              !originalRecoveryCloseAttempted,
+              intent.schemaVersion == 2, preparation.matches(intent),
+              roster.intentBytes == intentBytes, roster.preparationBytes == preparationBytes,
+              originalAuxiliaryPublishedReceipt === roster,
+              roster.store === self, roster.operation === operation,
+              coldCleanupControlAttempt == nil, !coldEffectUncertain else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        if originalCleanupRegistered {
+            guard originalCleanupOperation === operation, originalCleanupRoster === roster else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        } else {
+            try roster.requireBound(store: self, operation: operation, seal: roster.seal)
+            guard coldCleanupFirstLeaves.isEmpty, coldCleanupProjectedLeaves.isEmpty,
+                  try originalAuxiliaryRootFactAndNames().1
+                    .filter(EraseSchema2ColdCleanupGrammarV1.isControlName).isEmpty else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            originalCleanupOperation = operation
+            originalCleanupRoster = roster
+            originalCleanupRegistered = true
+        }
+        try roster.requireBound(store: self, operation: operation, seal: roster.seal)
+        try requireSchema2ColdCleanupEffect(permit)
+    }
+
+    /// Original-owner observation contains only this Store's own positively
+    /// read-back controls. A surviving name never becomes an own receipt.
+    @MainActor
+    func observeSchema2ColdCleanupControls(operation: EraseRouterOperationV1)
+        throws -> EraseSchema2ColdCleanupControlObservationV1 {
+        guard !borrowsColdObservation, originalCleanupRegistered,
+              originalCleanupOperation === operation,
+              let roster = originalCleanupRoster,
+              coldCleanupControlAttempt == nil, coldCleanupPermit == nil,
+              !coldCloseAttempted, !coldClosed, !coldEffectUncertain else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        try roster.requireBound(store: self, operation: operation, seal: roster.seal)
+        let root = try originalAuxiliaryRootFactAndNames()
+        guard root.1.filter(EraseSchema2ColdCleanupGrammarV1.isControlName)
+                == coldCleanupProjectedLeaves.keys.filter(EraseSchema2ColdCleanupGrammarV1.isControlName).sorted() else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        var leaves: [String: EraseSchema2ColdCleanupControlObservationV1.Leaf] = [:]
+        for name in coldCleanupProjectedLeaves.keys.filter(EraseSchema2ColdCleanupGrammarV1.isControlName).sorted() {
+            guard let expected = coldCleanupProjectedLeaves[name],
+                  try readSchema2CleanupOpaqueLeaf(name) == expected else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            leaves[name] = .init(bytes: expected.bytes, fact: expected.fact, policy: expected.policy)
+        }
+        let after = try originalAuxiliaryRootFactAndNames()
+        guard after.0 == root.0, after.1 == root.1 else { throw EraseIntentStoreError.invalidAuthority }
+        try roster.requireBound(store: self, operation: operation, seal: roster.seal)
+        return .init(leaves: leaves, eraseRoot: root.0, names: root.1)
+    }
+
+    private var hasOriginalCleanupPrimitiveScope: Bool {
+        !borrowsColdObservation && originalCleanupRegistered && originalCleanupRoster != nil
+            && originalCleanupOperation != nil && coldCleanupPermit != nil && coldCleanupEffect != nil
+    }
+
+    /// Called immediately after a checked, predeclared Store mutation. It
+    /// projects the same held original root, with a closed owned name set;
+    /// it never registers or reads a source from a current survivor cut.
+    private func settleOriginalCleanupRootProjection() throws {
+        guard !borrowsColdObservation else { return }
+        guard hasOriginalCleanupPrimitiveScope, coldCleanupControlAttempt != nil,
+              let previous = originalAuxiliaryProjectedRoot,
+              !originalAuxiliaryPublicationUncertain,
+              originalAuxiliaryUncertainFDs.isEmpty else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let observed = try originalAuxiliaryRootFactAndNames()
+        let base = [Self.intentName, Self.preparationName, Self.auxiliaryRosterName]
+            + (originalRetiredCommitmentReceipt == nil ? [] : [Self.originalRetiredCommitmentName])
+            + (originalRetiredStageIdentityReceipt == nil ? [] : [Self.originalRetiredStageIdentityName])
+        let allowed = Set(base + coldCleanupProjectedLeaves.keys + coldCleanupOwnBytes.keys)
+        guard Set(base).isSubset(of: Set(observed.1)), Set(observed.1).isSubset(of: allowed),
+              observed.0.device == previous.device, observed.0.inode == previous.inode,
+              observed.0.mode == previous.mode,
+              observed.2 == originalAuxiliaryRootUser, observed.3 == originalAuxiliaryRootGroup,
+              (originalAuxiliaryRootLinkLaw == 0 && observed.0.links == 2) ||
+                (originalAuxiliaryRootLinkLaw == 1 && UInt64(observed.0.links) == UInt64(2 + observed.1.count)) else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        originalAuxiliaryProjectedRoot = observed.0
+    }
+
+''' + s[pos:]
+s=s.replace('        guard !coldCloseAttempted, !coldClosed, !coldEffectUncertain,\n              coldActiveFD', '        guard (borrowsColdObservation || hasOriginalCleanupPrimitiveScope),\n              !coldCloseAttempted, !coldClosed, !coldEffectUncertain,\n              coldActiveFD',1)
+s=s.replace('(borrowsColdObservation || coldCleanupPermit != nil)', '(borrowsColdObservation || hasOriginalCleanupPrimitiveScope)')
+s=s.replace('if borrowsColdObservation || coldCleanupPermit != nil {','if borrowsColdObservation || hasOriginalCleanupPrimitiveScope {')
+s=s.replace('        guard borrowsColdObservation,\n              !coldCloseAttempted, !coldClosed,','        guard (borrowsColdObservation || hasOriginalCleanupPrimitiveScope),\n              !coldCloseAttempted, !coldClosed,',1)
+s=s.replace('        guard !borrowsColdObservation, !originalRecoveryCloseAttempted else { return }','        guard !borrowsColdObservation, !originalRecoveryCloseAttempted, !coldCloseAttempted else { return }',1)
+# Original root projection changes only immediately after predeclared successful physical effects.
+s=s.replace('            coldOwnTemporaryIdentity = expected\n            try applyTemporaryPolicy', '            coldOwnTemporaryIdentity = expected\n            if coldCleanupPermit != nil { try settleOriginalCleanupRootProjection() }\n            try applyTemporaryPolicy',1)
+s=s.replace('            coldCleanupProjectedLeaves[name] = canonical\n            let authenticated', '            coldCleanupProjectedLeaves[name] = canonical\n            try settleOriginalCleanupRootProjection()\n            let authenticated',1)
+s=s.replace('        coldCleanupProjectedLeaves.removeValue(forKey: name)\n        coldCleanupOwnBytes.removeValue(forKey: name)\n        try requireSchema2ColdCleanupEffect(permit)', '        coldCleanupProjectedLeaves.removeValue(forKey: name)\n        coldCleanupOwnBytes.removeValue(forKey: name)\n        try settleOriginalCleanupRootProjection()\n        try requireSchema2ColdCleanupEffect(permit)',1)
+# Original roster reproof accepts only its registered Store-produced control projection.
+s=s.replace('''        let names = ([Self.intentName, Self.preparationName,
+            Self.auxiliaryRosterName] +''','''        var names = ([Self.intentName, Self.preparationName,
+            Self.auxiliaryRosterName] +''',1)
+needle='''        guard try requireOriginalAuxiliaryRoot(
+                names: names, exact: projectedRoot)
+'''
+pos=s.index(needle,s.index('    func requireOriginalEraseAuxiliaryPublishedRoster('))
+s=s[:pos]+'''        if originalCleanupRegistered {
+            guard originalCleanupRoster === receipt, originalCleanupOperation === receipt.operation else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            names += coldCleanupProjectedLeaves.keys.filter(EraseSchema2ColdCleanupGrammarV1.isControlName)
+            if let temporary = coldOwnTemporaryName,
+               coldCleanupOwnBytes[temporary] != nil, !names.contains(temporary) {
+                names.append(temporary)
+            }
+            names.sort()
+        }
+''' + s[pos:]
+p.write_text(s)

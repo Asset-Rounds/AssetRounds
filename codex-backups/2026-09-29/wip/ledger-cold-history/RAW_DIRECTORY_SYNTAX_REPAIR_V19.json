@@ -1,0 +1,8 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "df2ca0db62a7bd73e91cda43688e35ee492ca4150bbf7567ba35bc7f9d6601d7",
+  "afterSHA256": "2f5966b47e6c32d29f743d19986f1682f6ea68cf5478b47741576362dcd3dc87",
+  "failedParseVersion": "V18 DEBUG and nonDEBUG exit1 retained",
+  "repair": "Preserve Darwin.readdir namespace and parenthesize closure in while-let condition; no predicate change"
+}

@@ -1,0 +1,19 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "97996c35cf430636aa7c7fd37f5234cb8d5f60a1fa476daea1245c179b0a377d",
+  "afterSHA256": "fbb01e58432b4ce123c779213e2b1150dddf86360bc73f0086d710f7302d2b03",
+  "contract": "central pending-producer-interface-v10 Ledgerbe527834/Router9ecad486/ORDER68ae75ca",
+  "sourceDirection": [
+    "Actual retained session read-only initial cut before request",
+    "Private exact slot/temp/payload/mode request before create or replay temp settlement",
+    "Actual receipt/readback consumed and pending getter compared before session authorization",
+    "Dynamic fresh E and scratch marker replay uses authentic pending bytes",
+    "No finalized H partial request, future fullFact, new nonce, generic replacement or version ordinal"
+  ],
+  "limitations": [
+    "Actual Store V4/Router handler/readback and record issuer incomplete",
+    "Shared engine actual execution/typecheck/runtime due",
+    "Complete generic directory source and coherent current capacity remain due"
+  ]
+}

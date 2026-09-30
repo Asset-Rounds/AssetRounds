@@ -1,0 +1,107 @@
+[
+  {
+    "function": "validatePreparedIngressTargetForRecovery",
+    "beforeSHA256": "7aeea520f566e75367f8b44c3a8816f341e5d34d8b1181dcfad76775338ea48a",
+    "afterSHA256": "3fde417e3bdf03a25e0590965a03da895c132f81f07e010af8387d2dabc08f7e"
+  },
+  {
+    "function": "removePreparedIngressTarget",
+    "beforeSHA256": "7a8e3480b201524a5ea807b9061f9857927bb9151a6f7aee080ccf2a9a894eb9",
+    "afterSHA256": "a33ec25920d8c0ea69ccbf33edc99dfe04d0301bd588815eb538fd25e0b00f57"
+  },
+  {
+    "function": "finalizeProtectedIngressPrepare",
+    "beforeSHA256": "b2e3c3ba7948149d285cadba4f67157bd3dd0d782beed5beb76f847ff2efc246",
+    "afterSHA256": "fb5bb00cd6a34a9f0e066bbc2c49956529d739ad36cce520165101938337a968"
+  },
+  {
+    "function": "validatedIngressSnapshot",
+    "beforeSHA256": "d94bfbbd8263d9d418ca09432b2b1f7ee5c4ec63a6cd95bbfa19d30d464fbc97",
+    "afterSHA256": "16b60be2298c5f97a77ba90ee47efb500afd8c910d166f482586ca3fe088495c"
+  },
+  {
+    "function": "settleIngressRemoval",
+    "beforeSHA256": "bd5b1d0904310a06144eebd69ff9e8e2761c30e1a45f2cfb38ca179d373b615e",
+    "afterSHA256": "34d6695074530be5b6adf5479196061cb9b29a4dd319cd4c62436c6886700ef5"
+  },
+  {
+    "function": "makeUnpublishedIngressEraseTarget",
+    "beforeSHA256": "2b11a303b46bd9c34047fd377b2089f8ae9e66fc2411fedd282e9fa4c51299c5",
+    "afterSHA256": "24318788809e280a620555e7742f8b6d9ee6762899de5bf995503be0ad630b43"
+  },
+  {
+    "function": "hasExistingIngressControl",
+    "beforeSHA256": "d3be52880bfd6fcbf85001f0ca6eb7b8825571a03cd15826b0f133a2a67e70ad",
+    "afterSHA256": "156e2a847181e1230ac9879f259235bcf2895ef963544ed3f821caee60e6f174"
+  },
+  {
+    "function": "eraseScratchIngressControl",
+    "beforeSHA256": "6015d2085e26afd458859226bb7dd70becb4248b87e37a865c8bc912d6edf8ae",
+    "afterSHA256": "e7133327bbe3daf8f0cc63e8fc34e78b1952cffcad2b8edbc15b3b44af974315"
+  },
+  {
+    "function": "validateIngressClaim",
+    "beforeSHA256": "1f90022c3fc45645de7f2a47b6ee11a7f627f8161fef29b50adf9f5b06c079fb",
+    "afterSHA256": "3618fe866565f4825e5dda224ae82fe22959375f68b7272827d60f06f5791793"
+  },
+  {
+    "function": "validateIngressPublication",
+    "beforeSHA256": "5367075be7dae037b90a0196111218bb125c3d689b5d0790a01f503d72bfa896",
+    "afterSHA256": "0c189a5598bdcaf9235147dcb913cc8a9d5e1e0c14417b28dcaf18ef0173d16b"
+  },
+  {
+    "function": "eraseScratchDataSynchronously",
+    "beforeSHA256": "70496f1ec0ea61abe6a9a67837fcbc765801c84bd9a8cdb48265d9eab0fe5159",
+    "afterSHA256": "ca8cc6daab9c1aa3244ca7ec875f4eab23559cc52ca4646b5aced158c34bea2d"
+  },
+  {
+    "function": "allByteCount",
+    "beforeSHA256": "20a5c631b10ff65165725efc6fad232b0b86b9d856a0044e49fa6e72b84e3baf",
+    "afterSHA256": "4c88cc872f842f3a36ed43fd7d4c6ca584bc3b73e75e861b0f3d4d271688f092"
+  },
+  {
+    "function": "removeLeaseDirectory",
+    "beforeSHA256": "b1bb0d79f95eba8b73ca89b00e02837d7ca2520d8bfbd54d0d58d25befa1cfa5",
+    "afterSHA256": "353adcb5fc42ff4cbf7b8fc76918101227b2508931a7920b11d894263a8ed8db"
+  },
+  {
+    "function": "removeDeletionTombstone",
+    "beforeSHA256": "e6eab372e7e835fc3a99fe1c21207fbb974daaa3251e7234ba7ee9b3fb06a88f",
+    "afterSHA256": "e9e9bbdcda169bed148f0b1bdc1b31507eb82c1fef04df39bdae5906da793ca1"
+  },
+  {
+    "function": "validateDeletionTombstone",
+    "beforeSHA256": "9be7b9a782ae47ae8259bafebba081745139f2b3a04e9cd6ddce1dc18396546a",
+    "afterSHA256": "d34937beaf215d62ac57bf1c2a96bfda28e0ff326359de00fd17308112eb7667"
+  },
+  {
+    "function": "deletePinnedDirectory",
+    "beforeSHA256": "1430ed2cb2b7e7ce24e5ade66bc53f4a880de6123922ac9a7ff2710087de42f7",
+    "afterSHA256": "585b43fbfe64f4ad62060b8485357781c124f08e2f8ed548b028f901986cac91"
+  },
+  {
+    "function": "directoryInformationIfPresent",
+    "beforeSHA256": "4f68398dead939407dc22a14e8eff28df844b6c605afb9801a2b8e441f380be0",
+    "afterSHA256": "eeeb081538d4bb3a4297289207864877d97530a47ac6146be90300dbaa6e936a"
+  },
+  {
+    "function": "openLeaseDirectory",
+    "beforeSHA256": "5d273a7872e0d72ec19d305bb8e7c871c74296eeda3ed77371c870b052593222",
+    "afterSHA256": "9f5432432e5b9b856dac889ae579c25845a38d277b814efc916b220d1502fba5"
+  },
+  {
+    "function": "verifyLeaseDirectory",
+    "beforeSHA256": "32e90bb39e62fecd94762d6614cb332e96ca4fd89a0465544c07cb9e95b18459",
+    "afterSHA256": "78aeae580c643a0d0a3526893583e63aef4bc91b5eb06406e571aa1169f19ee1"
+  },
+  {
+    "function": "regularFileInformationIfPresent",
+    "beforeSHA256": "7b09584bda5e83c8dbe39dbfe764de5d521011f20a2ca8f928aa0bbefa356756",
+    "afterSHA256": "309bb9ea6fbe87498f36ab635706e2990826b966929ae73e6a05371aba7f1a63"
+  },
+  {
+    "function": "removeInterruptedPublications",
+    "beforeSHA256": "67c1be4ef1d4856bee3bb48b42e4e85b1b2acf982aa31007ddad50a0b97a2f64",
+    "afterSHA256": "533ed8a9b09a6f20a0682ba8f6b3a3e882e7ba6af4f790aa77ec3efca557cebb"
+  }
+]

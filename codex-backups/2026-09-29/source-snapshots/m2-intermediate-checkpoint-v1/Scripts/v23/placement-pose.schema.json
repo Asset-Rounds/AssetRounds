@@ -1,0 +1,96 @@
+{
+  "$id": "https://assetrounds.invalid/v23/placement-pose.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cardID": {
+      "const": "V23-P03-C37"
+    },
+    "durableFamilies": {
+      "const": [
+        "AssetPoseEventRow",
+        "SpatialAnchorObservationRow"
+      ]
+    },
+    "durableFamilyCount": {
+      "const": 2
+    },
+    "persistentKindLifecycleModelCount": {
+      "const": 102
+    },
+    "persistentSchemaVersion": {
+      "const": 29
+    },
+    "poseOutcomes": {
+      "const": [
+        "OBSERVED",
+        "NOT_OBSERVED",
+        "REOBSERVE",
+        "CARRY_FORWARD_SAME_PHYSICAL_INSTALLATION",
+        "MARK_NOT_OBSERVED",
+        "TRANSFORMED",
+        "UNCHANGED",
+        "REVIEW_REQUIRED"
+      ]
+    },
+    "recordsSchemaVersion": {
+      "const": 28
+    },
+    "requiredContractNames": {
+      "const": [
+        "PoseAxisID",
+        "PoseAxisDescriptorV1",
+        "PoseAxisSemanticRoleV1",
+        "PoseAxisRegistryPolicyV1",
+        "PoseRequiredComponentsV1",
+        "PoseObservationRequirementV1",
+        "PoseAngleMilliDegreesV1",
+        "PoseObservationDispositionV1",
+        "PoseNotObservedReasonV1",
+        "PoseReferenceFrameV1",
+        "PlacementPoseV1",
+        "PoseCaptureSourceV1",
+        "DeviceHeadingProposalV1",
+        "AssetPoseEventV1",
+        "SpatialAnchorObservationV1",
+        "CurrentPoseProjectionV1",
+        "PoseAxisRegistryReleaseV1",
+        "PlacementPoseAdmissionClosureV1",
+        "PosePlacementDispositionComponentV1",
+        "PoseFrameRebaseComponentV1",
+        "PoseFrameRebasePolicyV1",
+        "PlacementPoseEditorContractV1",
+        "PlacementPoseEditorStateV1",
+        "PlacementPoseEditorCommandV1",
+        "CompletedPlacementPoseSnapshotV1"
+      ]
+    },
+    "schema": {
+      "const": "V22P03C37PlacementPoseCorpusV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "statusFlags": {
+      "additionalProperties": {
+        "const": false
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "persistentSchemaVersion",
+    "recordsSchemaVersion",
+    "persistentKindLifecycleModelCount",
+    "durableFamilyCount",
+    "durableFamilies",
+    "poseOutcomes",
+    "requiredContractNames",
+    "statusFlags"
+  ],
+  "title": "V23 P03 C37 Placement Pose Corpus",
+  "type": "object"
+}

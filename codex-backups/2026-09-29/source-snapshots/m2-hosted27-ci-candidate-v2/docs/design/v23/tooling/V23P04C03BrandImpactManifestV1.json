@@ -1,0 +1,280 @@
+{
+  "acceptanceEnabled": false,
+  "accessibilityAndLocalizationRequired": true,
+  "adoptionEnabled": false,
+  "adoptionSkipped": true,
+  "artifactDigest": "0ca15112d62d4329893b62f9cd6bea300f06b1951ac4acb386be5468774313ff",
+  "authority": {
+    "appBaseHead": "2546d4af374a83b93a5e655445cc8d58e8921285",
+    "appBaseTree": "ee3935607a0f3b0f2a76518e4648a0955aa139cc",
+    "attemptID": 1,
+    "authorizedOverlapCount": 5906,
+    "candidateHead": "2546d4af374a83b93a5e655445cc8d58e8921285",
+    "candidateTree": "ee3935607a0f3b0f2a76518e4648a0955aa139cc",
+    "cardID": "V23-P04-C03",
+    "contextDigest": "ca36dbada09e3d994554ea651ad31d4fb08d3f2bdb49862ec2edc510bbefe7fd",
+    "coordinationCASSequence": 398,
+    "coordinationHead": "777c996bbb27064d0e9662a4860b6b22b9ae6d4a",
+    "coordinationLedgerDigest": "d674bb38fc5779cf71ee0c9ad192f51375bd779d0cf55364ddc778a0058ea913",
+    "coordinationOriginHead": "777c996bbb27064d0e9662a4860b6b22b9ae6d4a",
+    "coordinationProjectionDigest": "a1cbfe8a048b37f5f9e348c2a23b22cacb438ddb08f6bce70bf55d2e0be1b5fc",
+    "coordinationTree": "e981260ca4110eea9cb31a1b26bd2526cc2c531b",
+    "directPrerequisiteCards": [
+      "V23-P04-C02",
+      "V23-P03-C37"
+    ],
+    "dossierByteCount": 7223,
+    "dossierSHA256": "3e5a1662853a726a3ce8a9af4202b01db278d5543c0732aea82ccfcc672b2ecf",
+    "expectedExistingPathCount": 288,
+    "expectedFencePathCount": 303,
+    "expectedNewPathCount": 15,
+    "finalHashesSealed": true,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 1,
+    "hydrationTransitionDigest": "d689fd1b4219b4a6a1d2c8be31e60a7aaa52141dc66c89aeadf6f291f40335f9",
+    "inheritedV21BlockByteCount": 8498,
+    "inheritedV21BlockSHA256": "e3e010efcb02ab5ef26b68069827369abecb05ad7243e8e050aa97f925e51c12",
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "pathFenceDigest": "700e01cf30f6e0d24e2e699beefbbd986932d08290d56456fb4a1495725bb59f",
+    "prerequisiteDigest": "36a4f58d89bbc30a04fd9007d77ed1eebfb6c0986eab503d9ca1bd0b6fc68857",
+    "priorFenceCount": 91,
+    "priorOwnedPathCount": 1443,
+    "registerOrdinal": 91,
+    "registerRowByteCount": 266,
+    "registerRowSHA256": "2b59a34dc9d3f55bf79760450a087920349fb6dc542b07d329fba0859c85e883",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "title": "Illuminated-sign playbooks and structured report facts",
+    "unauthorizedOverlapCount": 0
+  },
+  "brandSurfaceDelta": true,
+  "cardID": "V23-P04-C03",
+  "changedStates": [
+    "EMPTY",
+    "CHECKING",
+    "CAPTURE_REQUIRED",
+    "POSE_REVIEW",
+    "INCOMPLETE",
+    "COMPLETE",
+    "COULD_NOT_VERIFY",
+    "RECOVERY_REQUIRED"
+  ],
+  "evidenceIDs": [
+    "V23-P04-C03-G01",
+    "V23-P04-C03-A01",
+    "V23-P04-C03-H01",
+    "V23-P04-C03-I01",
+    "V23-P04-C03-R01"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "iPhoneNativeOnly": true,
+  "nativeCompileRan": false,
+  "nativeIPadSurface": false,
+  "networkOrTelemetryFlow": false,
+  "nonCertificationStatementRequired": true,
+  "onDeviceOnly": true,
+  "physicalEvidenceComplete": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "provisional": false,
+  "releaseCredit": false,
+  "schema": "V23P04C03BrandImpactManifestV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1",
+      "P04ShippingSurfaceSetV1",
+      "P04BrandClosureSetV1"
+    ],
+    "canonicalSuccessor": {
+      "cardID": "V23-P04-C04",
+      "registerOrdinal": 92
+    },
+    "conformanceSubjects": [
+      "P04ShippingSurfaceSetV1",
+      "CommonTaskJourneyReleaseV2"
+    ],
+    "deterministicEvidenceIDs": [
+      "V23-P04-C03-G01",
+      "V23-P04-C03-A01",
+      "V23-P04-C03-H01",
+      "V23-P04-C03-I01",
+      "V23-P04-C03-R01"
+    ],
+    "dossierByteCount": 7223,
+    "dossierSHA256": "3e5a1662853a726a3ce8a9af4202b01db278d5543c0732aea82ccfcc672b2ecf",
+    "eighthPlaybookForbidden": true,
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/Packs/IlluminatedSignPlaybookContractsV1.swift",
+      "FieldEvidenceApp/Application/Packs/IlluminatedSignPlaybookCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Reporting/IlluminatedSignReportProjectionV1.swift",
+      "FieldEvidenceApp/Features/CheckRunner/IlluminatedSignPlaybookView.swift",
+      "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C03IlluminatedSignPlaybookUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/IlluminatedSignPlaybook/V22P04C03IlluminatedSignPlaybookCorpusV1.json"
+    ],
+    "inheritedV21BlockByteCount": 8498,
+    "inheritedV21BlockSHA256": "e3e010efcb02ab5ef26b68069827369abecb05ad7243e8e050aa97f925e51c12",
+    "invalidationConsumers": [
+      "V23-P04-C04",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lifecycle": {
+      "backupRestoreDeleteErase": "NOT_APPLICABLE_DERIVED_FROM_DURABLE_AUTHORITIES",
+      "certificationAuthority": false,
+      "evidence": "INCUMBENT_C05_EVIDENCE_METADATA_AUTHORITY",
+      "networkDependency": false,
+      "persistence": "NONPERSISTENT_DIGEST_BOUND_SIDECAR",
+      "schema": "NOT_APPLICABLE",
+      "store": "NOT_APPLICABLE",
+      "writer": "INCUMBENT_FIELD_DRAFT_AND_POSE_AUTHORITIES"
+    },
+    "missingPaths": [],
+    "persistence": {
+      "backupRestoreDeleteErase": "DERIVED_FROM_DURABLE_AUTHORITIES",
+      "contentMode": "CONTENT_ONLY",
+      "durableFamilyDelta": false,
+      "incumbentEvidenceAuthority": "V23-P03-C05",
+      "incumbentFieldDraftAuthority": "FieldDraftCheckpointV1",
+      "incumbentPoseAuthority": "V23-P03-C37",
+      "journalReplay": "C36_CHECKPOINT_AND_C05_ASSOCIATION_REPLAY",
+      "mode": "NONE_NONPERSISTENT_SIDECAR",
+      "persistentStoreWriter": "NONE_CARD_LOCAL",
+      "plansAndProjections": "NONPERSISTENT",
+      "recordsSchemaVersionDelta": false,
+      "schemaVersionDelta": false,
+      "searchRebuild": "NO_NEW_INDEX_DERIVED_ONLY"
+    },
+    "playbookIDs": [
+      "general_visible_condition",
+      "dark_section",
+      "dim_or_uneven",
+      "flicker_or_intermittent",
+      "color_mismatch",
+      "physical_damage",
+      "other_visible_condition"
+    ],
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/Packs/IlluminatedSignPlaybookContractsV1.swift",
+      "FieldEvidenceApp/Application/Packs/IlluminatedSignPlaybookCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Reporting/IlluminatedSignReportProjectionV1.swift",
+      "FieldEvidenceApp/Features/CheckRunner/IlluminatedSignPlaybookView.swift",
+      "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C03IlluminatedSignPlaybookUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/IlluminatedSignPlaybook/V22P04C03IlluminatedSignPlaybookCorpusV1.json"
+    ],
+    "providerContractSlices": [
+      {
+        "contracts": [
+          "EvidenceSequenceV1",
+          "EvidenceSequenceItemV1",
+          "EvidenceAssociationV1",
+          "EvidenceMetadataMutationReceiptV1"
+        ],
+        "facet": "C05_EVIDENCE_ASSOCIATION_AND_SEQUENCE_INPUT",
+        "pathFenceDigest": "d978809591e63a7e74235a7e1029d546286aadc0bccdeed8bfb4ce2bb38d5768",
+        "providerCardID": "V23-P04-C02"
+      },
+      {
+        "contracts": [
+          "PoseAxisDescriptorV1",
+          "AssetPoseEventV1",
+          "PlacementPoseAdmissionClosureV1"
+        ],
+        "facet": "POSE_AXIS_AND_TYPED_EVENT_INPUT",
+        "pathFenceDigest": "59b198fde5e300119e100f68870480334b704adc64e303de40db3b23979a4e59",
+        "providerCardID": "V23-P03-C37"
+      },
+      {
+        "contracts": [
+          "FieldDraftCheckpointV1",
+          "DraftCommitSagaRecoveryV1",
+          "FieldDraftLifecycleAdapterV1"
+        ],
+        "facet": "UNIVERSAL_CHECKPOINT_AND_DRAFT_RECOVERY_INPUT",
+        "pathFenceDigest": null,
+        "providerCardID": "V23-P03-C36"
+      }
+    ],
+    "registerRowByteCount": 266,
+    "registerRowSHA256": "2b59a34dc9d3f55bf79760450a087920349fb6dc542b07d329fba0859c85e883",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "selectors": [
+      "testV23P04C03G01ExactSevenPlaybookManifestAndCaptureMatrix",
+      "testV23P04C03A01StructuredReportFactTraceabilityAndPoseBinding",
+      "testV23P04C03H01ClaimsSafeAdmissionRejectsUnsafeAndUndeclaredContent",
+      "testV23P04C03I01InterruptedCaptureCheckpointAndReplayAreZeroOrComplete",
+      "testV23P04C03R01PlaybookRemovalPreservesKernelAndHistoricTruth"
+    ],
+    "sourceRows": [
+      {
+        "byteCount": 44763,
+        "path": "FieldEvidenceApp/Domain/Packs/IlluminatedSignPlaybookContractsV1.swift",
+        "sha256": "ceb3f172d1f07e5c29ceb496859cfafaeb25951b21a58b7c237e40661002f3d8",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 18387,
+        "path": "FieldEvidenceApp/Application/Packs/IlluminatedSignPlaybookCoordinatorV1.swift",
+        "sha256": "b87ca3772a9e7146cc5b73fc52ff5d446b63d5096454f96be2f222e600d659cf",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 23554,
+        "path": "FieldEvidenceApp/Infrastructure/Reporting/IlluminatedSignReportProjectionV1.swift",
+        "sha256": "46cf96bad59952147a5b7f913aa7d6476f0458255909c8f5054658a5bb44e52e",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 16614,
+        "path": "FieldEvidenceApp/Features/CheckRunner/IlluminatedSignPlaybookView.swift",
+        "sha256": "9a39e9ac8d108a783b1dd52ac68261346da8e32b26fbb1dc2a3fd48c239fe4d7",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 53912,
+        "path": "FieldEvidenceAppTests/V9_68IlluminatedSignPlaybookTests.swift",
+        "sha256": "4d59bd8f38301f27186ad71425f4a8eff20fc43e636826828f41d0fb2cd11552",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 2819,
+        "path": "FieldEvidenceAppUITests/V23_P04_C03IlluminatedSignPlaybookUITests.swift",
+        "sha256": "be332d258e25c7e34dd45e678a610c35a157a3d8a38377567540ab2342c7b1b8",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 4633,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/IlluminatedSignPlaybook/V22P04C03IlluminatedSignPlaybookCorpusV1.json",
+        "sha256": "c72a291a50050054678ffe0575141f65ca6777ca99727e34e5932bedefbc55bd",
+        "status": "SEALED_SOURCE"
+      }
+    ],
+    "sourceSemanticsInspected": true
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "title": "Illuminated-sign playbooks and structured report facts",
+  "uiAdoptionSkipped": true,
+  "uiSurfaceDelta": true,
+  "uiTestDisposition": "EXPLICIT_POST_S10_ADOPTION_SKIP_NO_RESERVED_COMPOSITION_AUTHORITY",
+  "visibleConditionClaimsOnly": true
+}

@@ -1,0 +1,355 @@
+    /// This original scope borrows the Registry's existing descriptors. Every
+    /// required name is compared with its held inode; no ordinary verifier's
+    /// transient open/unchecked close is promoted into a checked observation.
+    @MainActor
+    fileprivate func requireOriginalEraseScratchCleanupNamedRegistry() throws {
+        guard !restoreSourceCloseLock.withLock({ restoreSourceTerminal }),
+              !originalEraseScratchCleanupEffectUncertain,
+              !originalEraseRetainedReaderAbsenceUncertain,
+              !originalEraseRetainedReaderEffectUncertain,
+              !originalEraseWriterProjectionUncertain,
+              !originalErasePointerEffectUncertain,
+              originalEraseRetainedReaderPolicyUncertainDescriptors.isEmpty,
+              originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
+            throw Self.uncertainOwnerFailure()
+        }
+#if DEBUG
+        try requireOriginalEraseAdmission()
+        guard eraseAbandonmentLock.withLock({ !eraseAbandonedForColdRestart }) else {
+            throw Self.uncertainOwnerFailure()
+        }
+#endif
+        if isEraseC05ColdOwner {
+            guard !eraseC05ColdMutationUncertain else {
+                throw Self.uncertainOwnerFailure()
+            }
+        }
+        if isEraseSchema2ColdOwner {
+            guard eraseSchema2ColdPolicyUncertainDescriptors.isEmpty,
+                  !eraseSchema2ColdMutationUncertain else {
+                throw Self.uncertainOwnerFailure()
+            }
+        }
+        var named = stat()
+        guard Darwin.lstat(applicationSupportURL.path, &named) == 0,
+              (named.st_mode & S_IFMT) == S_IFDIR, named.st_nlink >= 1,
+              Identity(named) == rootIdentity,
+              try Self.directoryIdentity(rootDescriptor) == rootIdentity,
+              try Self.directoryIdentity(operationsDescriptor) == operationsIdentity,
+              try Self.directoryIdentity(leaseDescriptor) == leaseIdentity,
+              try Self.directoryIdentity(ownersDescriptor) == ownersIdentity,
+              try Self.regularFileIdentity(mutationLockDescriptor) == mutationLockIdentity,
+              try Self.regularFileIdentity(ownerLockDescriptor) == ownerLockIdentity else {
+            throw Self.identityFailure()
+        }
+        for (parent, name, expected) in [
+            (rootDescriptor, Self.operationsName, operationsIdentity),
+            (operationsDescriptor, Self.leaseDirectoryName, leaseIdentity),
+            (leaseDescriptor, Self.ownerDirectoryName, ownersIdentity),
+            (leaseDescriptor, Self.mutationLockName, mutationLockIdentity),
+            (ownersDescriptor, Self.ownerLockName(ownerID), ownerLockIdentity),
+        ] {
+            guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                  Identity(named) == expected,
+                  ((named.st_mode & S_IFMT) == S_IFDIR && named.st_nlink >= 1)
+                    || ((named.st_mode & S_IFMT) == S_IFREG
+                        && named.st_nlink == 1 && named.st_size >= 0
+                        && named.st_size <= off_t(Self.maximumControlFileBytes)) else {
+                throw Self.identityFailure()
+            }
+        }
+    }
+
+    @MainActor
+    fileprivate func validateOriginalEraseScratchCleanupActivityDescriptor(
+        _ descriptor: Int32
+    ) throws {
+        try requireOriginalEraseScratchCleanupNamedRegistry()
+        guard try Self.directoryIdentity(descriptor) == leaseIdentity else {
+            throw Self.identityFailure()
+        }
+        let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+            .stagingDirectory, at: leaseURL,
+            retainUncertainDescriptor: { value in
+                self.originalEraseAuxiliaryPolicyUncertainDescriptors.append(value)
+            })
+        guard policy.state == .strictComplete,
+              originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
+            throw Self.uncertainOwnerFailure()
+        }
+        try requireOriginalEraseScratchCleanupNamedRegistry()
+    }
+
+    /// A fixed, operation-retained reader. The caller already owns the actual
+    /// G, EX and activity; no generic reader body or ordinary initializer is
+    /// used. Positive short reads advance; EINTR/error is not retried. Thus
+    /// each <=4 MiB leaf has at most byteCount reads plus one EOF probe.
+    @MainActor
+    private func readOriginalEraseScratchCleanupControl(
+        parent: Int32, name: String, url: URL, kind: OwnedFileKindV1,
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        expectedCohort: [GenerationLeaseTokenV1]
+    ) throws -> (bytes: Data, fact: FileSnapshot,
+        policy: TemporalPolicyObservationV1)? {
+        @MainActor func requireOrigin() throws {
+            guard generationMutationLockDepth == 1 else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try activity.validateOriginalEraseScratchCleanupRegistry(self)
+            guard try operation.requireOriginalEraseScratchCleanupEffectUnderHeldG(
+                registry: self, activity: activity, store: store,
+                exclusion: exclusion) == expectedCohort else {
+                throw Self.uncertainOwnerFailure()
+            }
+        }
+        try requireOrigin()
+        let attempt = EraseSchema2ColdRegistryObservationAttemptV1()
+        try operation.retainOriginalEraseAuxiliaryRegistryObservation(
+            attempt: attempt, registry: self) // BEFORE this leaf opens
+        @MainActor func readObservedLeaf() throws -> (bytes: Data,
+            fact: FileSnapshot, policy: TemporalPolicyObservationV1)? {
+            try requireOrigin()
+            var named = stat()
+            let namedResult = Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW)
+            let namedErrno = errno
+            if namedResult < 0 {
+                guard namedErrno == ENOENT else {
+                    throw Self.identityFailure(errorNumber: namedErrno)
+                }
+                try requireOrigin()
+                guard Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) < 0 else {
+                    throw Self.identityFailure()
+                }
+                let absenceErrno = errno
+                guard absenceErrno == ENOENT else {
+                    throw Self.identityFailure(errorNumber: absenceErrno)
+                }
+                return nil
+            }
+            guard (named.st_mode & S_IFMT) == S_IFREG, named.st_nlink == 1,
+                  named.st_size >= 0,
+                  named.st_size <= off_t(Self.maximumControlFileBytes) else {
+                throw Self.identityFailure()
+            }
+            let original = FileSnapshot(named)
+            let descriptor = Darwin.openat(parent, name,
+                O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+            let openErrno = errno
+            guard descriptor >= 0 else {
+                throw Self.identityFailure(errorNumber: openErrno)
+            }
+            try attempt.retain(descriptor)
+            @MainActor func requireLeaf() throws {
+                try requireOrigin()
+                var current = stat()
+                guard try Self.regularFileSnapshot(descriptor) == original,
+                      Darwin.fstatat(parent, name, &current, AT_SYMLINK_NOFOLLOW) == 0,
+                      (current.st_mode & S_IFMT) == S_IFREG,
+                      current.st_nlink == 1, FileSnapshot(current) == original else {
+                    throw Self.identityFailure()
+                }
+            }
+            try requireLeaf()
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                kind, at: url, retainUncertainDescriptor: { value in
+                    self.originalEraseAuxiliaryPolicyUncertainDescriptors.append(value)
+                })
+            guard policy.state == .strictComplete,
+                  originalEraseAuxiliaryPolicyUncertainDescriptors.isEmpty else {
+                throw Self.uncertainOwnerFailure()
+            }
+            try requireLeaf()
+            var bytes = Data(count: Int(original.byteCount))
+            try bytes.withUnsafeMutableBytes { buffer in
+                var offset = 0
+                while offset < buffer.count {
+                    try requireLeaf()
+                    let wanted = min(64 * 1024, buffer.count - offset)
+                    let count = Darwin.pread(descriptor,
+                        buffer.baseAddress!.advanced(by: offset), wanted, off_t(offset))
+                    let readErrno = errno
+                    try requireLeaf()
+                    guard count > 0, count <= wanted else {
+                        throw Self.identityFailure(errorNumber: count < 0 ? readErrno : EIO)
+                    }
+                    offset += count
+                }
+            }
+            try requireLeaf()
+            var extra: UInt8 = 0
+            let eofCount = Darwin.pread(descriptor, &extra, 1, original.byteCount)
+            let eofErrno = errno
+            try requireLeaf()
+            guard eofCount == 0 else {
+                throw Self.identityFailure(errorNumber: eofCount < 0 ? eofErrno : EIO)
+            }
+            return (bytes, original, policy)
+
+        }
+        let result: (bytes: Data, fact: FileSnapshot,
+            policy: TemporalPolicyObservationV1)?
+        do { result = try readObservedLeaf() }
+        catch { try attempt.closeChecked(); throw error }
+        try attempt.closeChecked()
+        return result
+    }
+
+    @MainActor
+    private func observeOriginalEraseScratchCleanupRegistryLocked(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        expectedCohort: [GenerationLeaseTokenV1]
+    ) throws -> TemporalGenerationRegistryObservationV1 {
+        let observation: TemporalGenerationRegistryObservationV1
+        do {
+            try activity.validateOriginalEraseScratchCleanupRegistry(self)
+            let directoryPolicy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(
+                .stagingDirectory, at: leaseURL,
+                retainUncertainDescriptor: { value in
+                    self.originalEraseAuxiliaryPolicyUncertainDescriptors.append(value)
+                })
+            guard directoryPolicy.state == .strictComplete,
+                  let record = try readOriginalEraseScratchCleanupControl(
+                    parent: leaseDescriptor, name: Self.registryName,
+                    url: leaseURL.appendingPathComponent(Self.registryName),
+                    kind: Self.controlKind(for: Self.registryName),
+                    activity: activity, operation: operation, store: store,
+                    exclusion: exclusion, expectedCohort: expectedCohort) else {
+                throw Self.uncertainOwnerFailure()
+            }
+            observation = TemporalGenerationRegistryObservationV1(
+                leases: try RegistryStateV1.decodeCanonical(from: record.bytes).leases,
+                registryBytes: record.bytes, registryPolicy: record.policy,
+                directoryPolicy: directoryPolicy)
+            try activity.validateOriginalEraseScratchCleanupRegistry(self)
+        } catch { throw error }
+        return observation
+    }
+
+    private struct OriginalEraseScratchCleanupMigrationObservationV1: Equatable {
+        let rootFact: String?
+        let canonicalBytes: Data?
+        let canonicalFact: FileSnapshot?
+        let canonicalPolicy: TemporalPolicyObservationV1?
+        let temporaryBytes: Data?
+        let temporaryFact: FileSnapshot?
+        let temporaryPolicy: TemporalPolicyObservationV1?
+    }
+
+    /// Read-only equivalent of the ordinary aggregate reservation load, with
+    /// an operation-retained checked descriptor owner and exact pre/post DATA.
+    /// A pending initial aggregate remains reservation authority; corrupt or
+    /// changed controls never become an absent/no-reservation result.
+    @MainActor
+    private func observeOriginalEraseScratchCleanupNoMigrationReservationLocked(
+        activity: GenerationTemporalActivityHandleV1,
+        operation: EraseRouterOperationV1, store: EraseIntentStore,
+        exclusion: StoreTemporalNormalizationExclusionV1,
+        expectedCohort: [GenerationLeaseTokenV1]
+    ) throws -> OriginalEraseScratchCleanupMigrationObservationV1 {
+        try activity.validateOriginalEraseScratchCleanupRegistry(self)
+        var named = stat()
+        let directoryResult = Darwin.fstatat(operationsDescriptor,
+            "schema-migration", &named, AT_SYMLINK_NOFOLLOW)
+        let directoryErrno = errno
+        if directoryResult < 0 {
+            guard directoryErrno == ENOENT else {
+                throw Self.identityFailure(errorNumber: directoryErrno)
+            }
+            try activity.validateOriginalEraseScratchCleanupRegistry(self)
+            guard Darwin.fstatat(operationsDescriptor, "schema-migration",
+                    &named, AT_SYMLINK_NOFOLLOW) < 0 else {
+                throw Self.identityFailure()
+            }
+            let absenceErrno = errno
+            guard absenceErrno == ENOENT else {
+                throw Self.identityFailure(errorNumber: absenceErrno)
+            }
+            return OriginalEraseScratchCleanupMigrationObservationV1(
+                rootFact: nil, canonicalBytes: nil, canonicalFact: nil,
+                canonicalPolicy: nil, temporaryBytes: nil, temporaryFact: nil,
+                temporaryPolicy: nil)
+        }
+        guard (named.st_mode & S_IFMT) == S_IFDIR, named.st_nlink >= 1 else {
+            throw Self.identityFailure()
+        }
+        func fact(_ value: stat) -> String {
+            [String(value.st_dev), String(value.st_ino), String(value.st_mode),
+             String(value.st_uid), String(value.st_gid), String(value.st_nlink),
+             String(value.st_size), String(value.st_mtimespec.tv_sec),
+             String(value.st_mtimespec.tv_nsec), String(value.st_ctimespec.tv_sec),
+             String(value.st_ctimespec.tv_nsec)].joined(separator: "|")
+        }
+        let rootFact = fact(named)
+        let attempt = EraseSchema2ColdRegistryObservationAttemptV1()
+        try operation.retainOriginalEraseAuxiliaryRegistryObservation(
+            attempt: attempt, registry: self) // BEFORE migration directory open
+        let observation: OriginalEraseScratchCleanupMigrationObservationV1
+        do {
+            let descriptor = Darwin.openat(operationsDescriptor, "schema-migration",
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            let openErrno = errno
+            guard descriptor >= 0 else {
+                throw Self.identityFailure(errorNumber: openErrno)
+            }
+            try attempt.retain(descriptor)
+            var held = stat()
+            guard Darwin.fstat(descriptor, &held) == 0, fact(held) == rootFact else {
+                throw Self.identityFailure()
+            }
+            let migrationURL = operationsURL.appendingPathComponent("schema-migration")
+            let canonical = try readOriginalEraseScratchCleanupControl(
+                parent: descriptor, name: StoreAggregateMigrationControlV1.name,
+                url: migrationURL.appendingPathComponent(StoreAggregateMigrationControlV1.name),
+                kind: .journal, activity: activity,
+                operation: operation, store: store, exclusion: exclusion,
+                expectedCohort: expectedCohort)
+            let temporary = try readOriginalEraseScratchCleanupControl(
+                parent: descriptor, name: StoreAggregateMigrationControlV1.temporaryName,
+                url: migrationURL.appendingPathComponent(StoreAggregateMigrationControlV1.temporaryName),
+                kind: .journalTemporary, activity: activity,
+                operation: operation, store: store, exclusion: exclusion,
+                expectedCohort: expectedCohort)
+            let value = try canonical.map {
+                try StoreAggregateMigrationJournalV1.decodeCanonical(from: $0.bytes)
+            }
+            if let temporary {
+                let pending = try StoreAggregateMigrationJournalV1.decodeCanonical(from: temporary.bytes)
+                if let value {
+                    let nextValue = value.revision.addingReportingOverflow(1)
+                    let nextPending = pending.revision.addingReportingOverflow(1)
+                    if !nextValue.overflow, pending.revision == nextValue.partialValue {
+                        try pending.validateReplacement(of: value)
+                    } else if !nextPending.overflow, value.revision == nextPending.partialValue {
+                        try value.validateReplacement(of: pending)
+                    } else { throw StoreMigrationFailure.invalidPhaseTransition }
+                } else {
+                    guard pending.phase == .recoveringSource, pending.revision == 0 else {
+                        throw StoreMigrationFailure.invalidPhaseTransition
+                    }
+                }
+                guard !(value ?? pending).reservationIsActive else {
+                    throw Self.uncertainOwnerFailure()
+                }
+            } else if value?.reservationIsActive == true {
+                throw Self.uncertainOwnerFailure()
+            }
+            try activity.validateOriginalEraseScratchCleanupRegistry(self)
+            guard Darwin.fstat(descriptor, &held) == 0, fact(held) == rootFact,
+                  Darwin.fstatat(operationsDescriptor, "schema-migration", &named,
+                    AT_SYMLINK_NOFOLLOW) == 0, fact(named) == rootFact else {
+                throw Self.identityFailure()
+            }
+            observation = OriginalEraseScratchCleanupMigrationObservationV1(
+                rootFact: rootFact, canonicalBytes: canonical?.bytes,
+                canonicalFact: canonical?.fact, canonicalPolicy: canonical?.policy,
+                temporaryBytes: temporary?.bytes, temporaryFact: temporary?.fact,
+                temporaryPolicy: temporary?.policy)
+        } catch { try attempt.closeChecked(); throw error }
+        try attempt.closeChecked()
+        return observation
+    }
+

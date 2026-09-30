@@ -1,0 +1,149 @@
+// Actual source fragment; implementation exists only in the ignored candidate.
+// GPT-6.1 Sol xhigh; semantic compilation/runtime and actual external issuers due.
+
+/// The actual retained publisher supplies this immutable request before its
+/// first create or replay-settlement effect. It contains no future file fact.
+@MainActor final class OriginalEraseC16ProducerRequestV4 {
+    enum PublicationMode: String { case linkExclusiveFinal, renameExclusiveFinal }
+    let slot: OriginalEraseC16BornProducerSlotV1
+    let temporaryPath: String
+    let bytes: Data
+    let sha256: String
+    let planSHA256: String
+    let stepSHA256: String
+    let ordinal: Int
+    let publicationMode: PublicationMode
+    fileprivate let sessionIdentity: ObjectIdentifier
+    fileprivate init(slot: OriginalEraseC16BornProducerSlotV1,
+        temporaryPath: String, bytes: Data, sha256: String,
+        planSHA256: String, stepSHA256: String, ordinal: Int,
+        publicationMode: PublicationMode, sessionIdentity: ObjectIdentifier) {
+        self.slot = slot; self.temporaryPath = temporaryPath
+        self.bytes = bytes; self.sha256 = sha256
+        self.planSHA256 = planSHA256; self.stepSHA256 = stepSHA256
+        self.ordinal = ordinal; self.publicationMode = publicationMode
+        self.sessionIdentity = sessionIdentity
+    }
+}
+
+struct OriginalEraseC16BornSourceObservationV1: Equatable {
+    let role: String
+    let path: String
+    let bytes: Data
+    let fullFact: String
+    let sha256: String
+}
+
+@MainActor final class OriginalEraseC16BoundaryObservationV1 {
+    enum Purpose: String { case inspection, bornSource, producerRequest }
+    let boundaryID: UUID
+    let planSHA256: String
+    let stepSHA256: String
+    let ordinal: Int
+    let purpose: Purpose
+    let projection: OriginalEraseC16ExpectedTreeV1
+    let bornSource: OriginalEraseC16BornSourceObservationV1?
+    let producerRequest: OriginalEraseC16ProducerRequestV4?
+    fileprivate init(planSHA256: String, stepSHA256: String, ordinal: Int,
+        projection: OriginalEraseC16ExpectedTreeV1,
+        bornSource: OriginalEraseC16BornSourceObservationV1?,
+        producerRequest: OriginalEraseC16ProducerRequestV4? = nil) throws {
+        guard bornSource == nil || producerRequest == nil else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        boundaryID = UUID(); self.planSHA256 = planSHA256
+        self.stepSHA256 = stepSHA256; self.ordinal = ordinal
+        purpose = producerRequest != nil ? .producerRequest
+            : (bornSource == nil ? .inspection : .bornSource)
+        self.projection = projection; self.bornSource = bornSource
+        self.producerRequest = producerRequest
+    }
+}
+
+
+    /// Receipt issuance is the Router/Store's real durable pending-request
+    /// CAS/readback. Ledger authorizes only the exact retained publisher after
+    /// the actual tuple and whole pre-publication image have been rechecked.
+    @MainActor private func requireOriginalEraseC16ProducerRequest(
+        _ pending: OriginalEraseC16PendingPublicationV1
+    ) throws {
+        try requireScratchDescriptorAccess()
+        guard let permit = originalEraseColdPermit, let check = originalEraseC16CutCheck,
+              let plan = originalEraseC16ReferencePlan,
+              let ordinal = originalEraseC16CurrentOrdinal,
+              ordinal >= 0, ordinal < plan.steps.count,
+              let operationID = originalEraseOperationID,
+              pending.finalPath.hasPrefix("ProtectedIngressReceiptsV1/") else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try permit.requireObservationBinding()
+        let name = String(pending.finalPath.dropFirst("ProtectedIngressReceiptsV1/".count))
+        guard OperationalDiagnosticsBoundsV1.validRelativeName(name),
+              pending.finalPath == "ProtectedIngressReceiptsV1/" + name,
+              pending.temporaryPath == "ProtectedIngressReceiptsV1/"
+                + (try Self.originalErasePublicationTemporaryName(operationID: operationID,
+                    finalName: name, leaseName: nil)) else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        var roles = try originalEraseC16CanonicalRoles(plan: plan, through: ordinal)
+        if let marker = try originalEraseC16MaterializedControlRole(plan: plan, ordinal: ordinal) {
+            roles[Self.controlEraseName] = marker
+        }
+        guard let role = roles[name], role.producerOrdinal == ordinal,
+              role.role != "finalizedHygienePrepare", role.bytes == pending.bytes,
+              pending.bytes.count <= Self.originalEraseC16SourceMaximum(name: name),
+              pending.atomicExclusiveRename == (role.role == "scratchControlErase") else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        let slot = OriginalEraseC16BornProducerSlotV1(producerOrdinal: ordinal,
+            role: role.role, path: pending.finalPath)
+        let planSHA = try CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(plan))
+        let stepSHA = try CompatibilityCanonicalV1.sha256(CompatibilityCanonicalV1.encode(plan.steps[ordinal]))
+        let payloadSHA = try CompatibilityCanonicalV1.sha256(pending.bytes)
+        let request = OriginalEraseC16ProducerRequestV4(slot: slot,
+            temporaryPath: pending.temporaryPath, bytes: pending.bytes, sha256: payloadSHA,
+            planSHA256: planSHA, stepSHA256: stepSHA, ordinal: ordinal,
+            publicationMode: pending.atomicExclusiveRename ? .renameExclusiveFinal : .linkExclusiveFinal,
+            sessionIdentity: pending.sessionIdentity)
+        let projection = try originalEraseC16ExpectedTree(plan: plan, currentOrdinal: ordinal,
+            controlMarkerState: originalEraseC16CurrentControlMarkerState,
+            ingressMarkerState: originalEraseC16CurrentIngressMarkerState, capturedBirths: [])
+        let observation = try OriginalEraseC16BoundaryObservationV1(planSHA256: planSHA,
+            stepSHA256: stepSHA, ordinal: ordinal, projection: projection,
+            bornSource: nil, producerRequest: request)
+        let receipt = try check(observation)
+        try receipt.requireBound(to: observation)
+        guard receipt.recordStage == .preparing || receipt.recordStage == .preparingCaptured,
+              receipt.producerRequestCommitmentSHA256 != nil,
+              let retained = try permit.canonicalProducerRequest(slot: slot),
+              retained.temporaryPath == pending.temporaryPath,
+              retained.bytes == pending.bytes, retained.sha256 == payloadSHA else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        try permit.requireObservationBinding()
+        _ = try originalEraseC16CurrentObservationScope(plan: plan, currentOrdinal: ordinal,
+            controlMarkerState: originalEraseC16CurrentControlMarkerState,
+            ingressMarkerState: originalEraseC16CurrentIngressMarkerState)
+        try permit.requireHeld()
+    }
+
+
+    /// Distinct read-only bootstrap origin. Only the exact genuinely derived
+    /// private first-P output can declare source-backed slots before Progress.
+    /// Each source/visit rechecks the real complete no-progress Initial image.
+    @MainActor @discardableResult
+    func enumerateOriginalEraseC16InitialBornProducerSlots(
+        plan: OriginalEraseC16PlanV1,
+        visit: @MainActor (OriginalEraseC16BornProducerSlotV1) throws -> Void
+    ) throws -> Int {
+        try requireScratchDescriptorAccess()
+        try requireOriginalEraseBorrowedOwner()
+        guard originalEraseC16InitialSourceProof, originalEraseC16ReferencePlan == nil,
+              originalEraseC16InitialDerivedPlan == plan,
+              originalEraseC16BootstrapPermit != nil, originalEraseColdPermit == nil,
+              originalEraseC16CurrentOrdinal == nil else {
+            throw ScratchDataLeaseStoreFailureV1.leaseCollision
+        }
+        return try enumerateOriginalEraseC16BornProducerSlotData(plan: plan, visit: visit)
+    }
+

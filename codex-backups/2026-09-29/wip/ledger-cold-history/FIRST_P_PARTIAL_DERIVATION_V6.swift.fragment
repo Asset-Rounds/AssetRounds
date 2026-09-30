@@ -1,0 +1,59 @@
+extension ScratchDataLeaseStoreV1 {
+    /// DATA derivation from the complete immutable Operations-relative Node9
+    /// map. The actual Router issuer authenticates completeness and compares
+    /// this full list before issuing an initial token; this function grants
+    /// no filesystem capability and never selects current survivor names.
+    static func originalEraseC16FirstPPartials(
+        originalPPhysicalFacts: [String: String]
+    ) throws -> [OriginalEraseC16StepV1] {
+        for root in ["ScratchDataV1", "ProtectedIngressReceiptsV1"] {
+            guard originalPPhysicalFacts.keys.filter({ $0 == root || $0.hasPrefix(root + "/") }).count <= 100_000 else {
+                throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded
+            }
+        }
+        var result: [OriginalEraseC16StepV1] = []
+        for (path, text) in originalPPhysicalFacts.sorted(by: { $0.key < $1.key }) {
+            let components = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard components.first == "ScratchDataV1" || components.first == "ProtectedIngressReceiptsV1" else { continue }
+            guard components.allSatisfy(OperationalDiagnosticsBoundsV1.validRelativeName),
+                  text.split(separator: "|", omittingEmptySubsequences: false).count == 9 else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            let fact = try OriginalEraseC16PhysicalFactV1(text)
+            guard fact.mode & UInt64(S_IFMT) == UInt64(S_IFDIR)
+                || fact.mode & UInt64(S_IFMT) == UInt64(S_IFREG) else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            guard let name = components.last, name.hasPrefix(".partial-") else { continue }
+            let location: OriginalEraseC16PartialDirectoryV1
+            let parentPath: String
+            if components[0] == "ProtectedIngressReceiptsV1" {
+                guard components.count == 2 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                location = .control; parentPath = components[0]
+            } else {
+                guard components.count == 3 else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }
+                guard isLeaseDirectoryName(components[1]) || isDeletionTombstone(components[1]) else { continue }
+                location = .lease(components[1]); parentPath = components[0] + "/" + components[1]
+            }
+            let suffix = String(name.dropFirst(".partial-".count))
+            guard let id = UUID(uuidString: suffix), id.uuidString.lowercased() == suffix,
+                  fact.mode & UInt64(S_IFMT) == UInt64(S_IFREG),
+                  fact.linkCount == 1 || fact.linkCount == 2,
+                  fact.byteCount >= 0, fact.byteCount <= 1_024 * 1_024 * 1_024,
+                  let parentText = originalPPhysicalFacts[parentPath],
+                  parentText.split(separator: "|", omittingEmptySubsequences: false).count == 9 else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            let parent = try OriginalEraseC16PhysicalFactV1(parentText)
+            guard parent.mode & UInt64(S_IFMT) == UInt64(S_IFDIR), parent.device == fact.device else {
+                throw ScratchDataLeaseStoreFailureV1.leaseCollision
+            }
+            result.append(.settleFirstPPartial(directory: location, name: name,
+                device: fact.device, inode: fact.inode, byteCount: fact.byteCount))
+        }
+        // These existing partials are the first subsequence of the old C16
+        // plan; do not widen its unchanged100,000 semantic-step ceiling.
+        guard result.count <= 100_000 else { throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded }
+        return result
+    }
+}

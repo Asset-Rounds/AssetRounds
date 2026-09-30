@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "status": "IMMUTABLE AUTHOR PROPOSAL, UNAPPROVED; no agreed v4 contract or capacity implementation",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "rootSelection": "lossless bounded segmentation for NEW mixed controls under decisions14/20",
+  "rootDecisionDue": "compact terminal consumer transition and all admitted ID origins",
+  "proposal": [
+    {
+      "path": "V4_SEGMENTATION_PROPOSAL_V1.md",
+      "sha256": "63bba9e5331ae2bbedce7853687fe669e1e550f69f96d41e0757ecf1cc82fcf1",
+      "bytes": 17752
+    },
+    {
+      "path": "V4_INTERFACES_PROPOSED.swift.fragment",
+      "sha256": "5925afaa75588544fddac71f2a4fd2f030c0f04058baa447d1065477c41c4748",
+      "bytes": 5018
+    }
+  ],
+  "inputPinsSHA256": "46ed4fbd76370eb0982c2db5698daea51f29d815192fa43b1884dc5b13170449",
+  "draftSourceBindingSHA256": "2575dd5d70b7b9216ac36a9213e76d9824d17d0bc0b956655b67dab1fd412e1b",
+  "compile": false,
+  "runtime": false,
+  "independentApproval": false
+}

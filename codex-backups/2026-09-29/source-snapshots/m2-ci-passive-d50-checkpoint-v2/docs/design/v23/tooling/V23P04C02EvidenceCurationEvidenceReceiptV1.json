@@ -1,0 +1,819 @@
+{
+  "artifactDigest": "126ea21ec1ea5c8777cc19eaa83976067f0c38a126365f50126e8ca9cbb910b5",
+  "authority": {
+    "acceptedDependencyProvider": {
+      "attemptID": 3,
+      "candidateHead": "6ecacf0b00a4a10c5591a41af360209475eb6545",
+      "candidateTree": "90e8b905cc5270b931b562fc24b6e83f85ce33c6",
+      "cardID": "V23-P03-C05",
+      "checkpointDigest": "a8cf15ae39d602b5bdf51b34c616ab963d27dfb639032d90bcbf551da589998f",
+      "contextDigest": "148ea188dd2add6ea8bcce6cf2caa0e01dd1a6d10d5395cf552ff1bb3775fc44",
+      "pathFenceDigest": "8ca993b5f491de9520c1b38a25f1c0021fcc84ec10f9f4c8b37ad183f7942524",
+      "role": "ACCEPTED_DEPENDENCY_CORRECTION_PROVIDER",
+      "verificationReceiptDigest": "4242cbf7a081977fbba91011c32567c2bd187a684800e7ff5a9119dcc6109bf2"
+    },
+    "appBaseHead": "6ecacf0b00a4a10c5591a41af360209475eb6545",
+    "appBaseTree": "90e8b905cc5270b931b562fc24b6e83f85ce33c6",
+    "authorizedOverlapCount": 5279,
+    "candidateHead": "6ecacf0b00a4a10c5591a41af360209475eb6545",
+    "candidateTree": "90e8b905cc5270b931b562fc24b6e83f85ce33c6",
+    "contextDigest": "69b4a6c0aa7c6a30431d28dddc4542d4178bed5f5ba2a5fc36b8925fb7f14f89",
+    "coordinationCASSequence": 394,
+    "coordinationHead": "64111b635de27d52ed8442508bed9f1c68c43ecd",
+    "coordinationLedgerDigest": "98324dee6c224fcce3fa2b81b6db4feb2da9846c810b972a63ffe904a6f24af9",
+    "coordinationOriginHead": "64111b635de27d52ed8442508bed9f1c68c43ecd",
+    "coordinationProjectionDigest": "4ac8cc51743528255fa8e12615b8f4cdd97041d1085b6b9c19035dd6e973d522",
+    "coordinationTree": "610fcd5677844011add15eb207e0ff1afdf4f116",
+    "dependencyCorrectionDigest": "d9b2d1467db9b319962f13a3f93887833b9448e4e5474e0554eb64e6c4685868",
+    "directPrerequisiteCards": [
+      "V23-P03-C24",
+      "V23-P04-C01"
+    ],
+    "dossierByteCount": 7470,
+    "dossierSHA256": "4b8a72b012c813ef5a4c302fdb9114805c396098491f73b857dbcc7dc46a07c1",
+    "expectedExistingPathCount": 243,
+    "expectedFencePathCount": 258,
+    "expectedNewPathCount": 15,
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "hydrationRevision": 3,
+    "hydrationTransitionDigest": "7cba14c59073c56e8928fd2a40d289af4f7b040e89beec6a2b458e6d69491489",
+    "inheritedV21BlockByteCount": 10858,
+    "inheritedV21BlockSHA256": "406387e5f3991e5b89a68ac573163ea123b33fa2f2c107f9d212909519281b17",
+    "optionalCapabilityProviders": [
+      "NONE"
+    ],
+    "pathFenceDigest": "d978809591e63a7e74235a7e1029d546286aadc0bccdeed8bfb4ce2bb38d5768",
+    "priorFenceCount": 90,
+    "priorOwnedPathCount": 1428,
+    "provisionalPrerequisiteDigest": "91d4406f39d6c4d6c39b1ff954c02e37c704374a6ca0c8146a5685c28e8d3ef6",
+    "registerOrdinal": 90,
+    "registerRowByteCount": 309,
+    "registerRowSHA256": "d5ee6c271caa2ce34b8a891d32bf2a072231d7e298ce724fe5a4ae086bcac11c",
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "s10ReservationOverlapCount": 0,
+    "s10ReservedPathCount": 86,
+    "unauthorizedOverlapCount": 0
+  },
+  "binaryRendering": {
+    "contactSheetBytesRequired": true,
+    "jsonOnlyRenderingForbidden": true,
+    "requiredMediaType": "image/png"
+  },
+  "boundedSequence": {
+    "deterministicContactSheet": true,
+    "flicker": true,
+    "maxItems": 16
+  },
+  "bundleDecoding": "EXACT_NO_ADDITIONAL_PROPERTIES",
+  "c05MetadataPersistence": {
+    "activeModelCount": 144,
+    "backupRestore": "CANONICAL_V4_RECORDS42_FULL_REPLACE_RESTORE",
+    "canonicalWriterReceipt": "EvidenceMetadataMutationReceiptV1",
+    "deleteErase": "APPEND_ONLY_HISTORY_UNTIL_WORKSPACE_ERASE",
+    "durableFamilies": [
+      "EVIDENCE_ASSOCIATION_EVENT",
+      "EVIDENCE_SEQUENCE_REVISION"
+    ],
+    "durableModelCount": 2,
+    "durableRows": [
+      "EvidenceAssociationEventRowV1",
+      "EvidenceSequenceRevisionRowV1"
+    ],
+    "journalReplay": "MUTATION_RECEIPT_AND_SUCCESSOR_REPLAY",
+    "mode": "PERSISTENT_CANONICAL_EVIDENCE_METADATA_AND_SUCCESSOR_SEQUENCE",
+    "persistentContractSchema": "EVIDENCE_METADATA_V1_V43_RECORDS42",
+    "persistentSchemaVersion": 43,
+    "recordsSchemaVersion": 42,
+    "searchReport": "DERIVED_ONLY_REBUILT_FROM_CANONICAL_ROWS"
+  },
+  "cardID": "V23-P04-C02",
+  "cases": [
+    {
+      "evidenceID": "V23-P04-C02-G01",
+      "focus": [
+        "explicit eligibility and reviewed role/caption/order/accessibility",
+        "readable detail preview",
+        "required source and derivative bindings",
+        "C05 canonical metadata writer receipt"
+      ],
+      "kind": "GOLDEN",
+      "selectorSuffix": "G01"
+    },
+    {
+      "evidenceID": "V23-P04-C02-A01",
+      "focus": [
+        "immutable side-by-side comparison",
+        "transparent advisory overlay",
+        "C20 privacy confirmation remains authoritative"
+      ],
+      "kind": "ALTERNATE",
+      "selectorSuffix": "A01"
+    },
+    {
+      "evidenceID": "V23-P04-C02-H01",
+      "focus": [
+        "wrong reference, duplicate, wrong order, missing bytes",
+        "extra preview-bundle fields are rejected",
+        "original cannot be mutated",
+        "markup cannot become redaction or compliance proof"
+      ],
+      "kind": "HOSTILE",
+      "selectorSuffix": "H01"
+    },
+    {
+      "evidenceID": "V23-P04-C02-I01",
+      "focus": [
+        "bounded processing/flicker/contact sheet PNG bytes",
+        "cancel/retry leaves no partial accepted association",
+        "low storage/background/relaunch"
+      ],
+      "kind": "INTERRUPTION",
+      "selectorSuffix": "I01"
+    },
+    {
+      "evidenceID": "V23-P04-C02-R01",
+      "focus": [
+        "staged and promoted Retake/Remove",
+        "history-retaining successor",
+        "backup/restore/delete/Erase/report closure"
+      ],
+      "kind": "RECOVERY",
+      "selectorSuffix": "R01"
+    }
+  ],
+  "comparisonDisposition": "ADVISORY_ONLY",
+  "derivativeByteMode": "CONTENT_ONLY",
+  "evidenceIDs": [
+    "V23-P04-C02-G01",
+    "V23-P04-C02-A01",
+    "V23-P04-C02-H01",
+    "V23-P04-C02-I01",
+    "V23-P04-C02-R01"
+  ],
+  "evidenceRoles": [
+    "CONTEXT",
+    "DETAIL",
+    "BEFORE",
+    "AFTER",
+    "OTHER"
+  ],
+  "finalHashesSealed": true,
+  "hostedDispatchEnabled": false,
+  "journey": "FJ15",
+  "lifecycle": {
+    "backupRestore": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "cloneFork": "INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "comparisonIsProof": false,
+    "createsContentStore": false,
+    "deleteErase": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+    "exportReport": "REQUIRED_VIA_INCUMBENT_CONTENT_C05_METADATA_AND_REPORT_AUTHORITIES",
+    "journalReplay": "C05_METADATA_WRITER_REPLAY_AND_DETERMINISTIC_REPROJECTION",
+    "migration": "C05_METADATA_AUTHORITY",
+    "persistence": "CONTENT_ONLY",
+    "plansAndProjectionsAreNonpersistent": true,
+    "schema": "INCUMBENT_CONTENT_AUTHORITY_AND_C05_V43_METADATA",
+    "searchRebuild": "NOT_APPLICABLE"
+  },
+  "markupDisposition": "DERIVATIVE_ONLY_SOURCE_UNCHANGED",
+  "nativeCompileRan": false,
+  "physicalLockedState": "REQUIRED_PENDING_OWNER",
+  "plansAndProjectionsPersistence": "NONPERSISTENT",
+  "providerArtifacts": [
+    {
+      "allFilesPresent": true,
+      "candidateHead": "6ecacf0b00a4a10c5591a41af360209475eb6545",
+      "candidateTree": "90e8b905cc5270b931b562fc24b6e83f85ce33c6",
+      "capability": "EVIDENCE_METADATA_CANONICAL_WRITER_AND_RECEIPT",
+      "checkpointDigest": "a8cf15ae39d602b5bdf51b34c616ab963d27dfb639032d90bcbf551da589998f",
+      "contextDigest": "148ea188dd2add6ea8bcce6cf2caa0e01dd1a6d10d5395cf552ff1bb3775fc44",
+      "contracts": [
+        "EvidenceMetadataPersistenceEnrollmentV1",
+        "EvidenceAssociationEventRowV1",
+        "EvidenceSequenceRevisionRowV1",
+        "EvidenceMetadataMutationV1",
+        "EvidenceMetadataMutationReceiptV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 2532,
+          "path": "FieldEvidenceApp/Domain/Models/EvidenceMetadataPersistenceModelsV1.swift",
+          "sha256": "8d3af729f823f77395e9d1841b313682e21c02252e9721960229899207443f98",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 144644,
+          "path": "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+          "sha256": "6df787517870ef4de223f048b8427fdb1c50220b003c70b7551402f4dd88ca4f",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 159058,
+          "path": "FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift",
+          "sha256": "14539d60c6a3daf89b327b9762836145b919d3cd1c5524a40c26fba25ef6dda2",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 78359,
+          "path": "Scripts/v23/p03_c05_contracts.py",
+          "sha256": "faee332a63834631b88e20ef524c4fb3ab23f74340edb3dd16a6f7e32ba21990",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1902,
+          "path": "Scripts/v23/generate_p03_c05_contracts.py",
+          "sha256": "b54c3c5b0b251fbb7a2bf6489345b427dfb3aa1b2fff12ac5b630344c1940d41",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 23835,
+          "path": "Scripts/v23/verify_p03_c05_contracts.py",
+          "sha256": "5355c821db7008974bbf8a2afc0344a675ed97ea7160ef1caf7cf445065931ab",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 6174,
+          "path": "Scripts/v23/content-reference.schema.json",
+          "sha256": "690d05ecaff999b53fdc5cd40a8ad22c7304d233b0b3bc3030fbb7a3a69a6bed",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2737,
+          "path": "Scripts/v23/content-locator.schema.json",
+          "sha256": "d5e4f5b6cea28b5d80334835b924068577b5d2a957f2a04ff744513bcb944983",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 3858,
+          "path": "Scripts/v23/content-manifest.schema.json",
+          "sha256": "df2e61bc704ebf6d9beb441ca2cea650e5e9e331b6cd98cbd702a1ced93af160",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 5801,
+          "path": "Scripts/v23/evidence-association.schema.json",
+          "sha256": "1b2cb17392f7e1c06911d0f215dc29b4b4b497b67ff988d1c06f7e76badd9e3b",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 10838,
+          "path": "Scripts/v23/content-derivative-provenance.schema.json",
+          "sha256": "8a3b650239b1e43fa423ee7b05b7728d8411139bdfaac23d7cf0ec419487b220",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 4024,
+          "path": "Scripts/v23/content-evidence-receipt.schema.json",
+          "sha256": "5d9a15b094b0042871f401611e0fb1d109562b7aa6a00f96710e4c4b21a158bd",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 16634,
+          "path": "docs/design/v23/tooling/V23P03C05ContentReferenceContractV1.json",
+          "sha256": "3d08228b2f6499640e391502ff5b023f191832c6511a5069a0aefa2da15dc646",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 16639,
+          "path": "docs/design/v23/tooling/V23P03C05ContentLocatorManifestContractV1.json",
+          "sha256": "3b4d6b02ab08e971fea3c797404864a058b89da39343ab175e0ffff359a352e1",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 16980,
+          "path": "docs/design/v23/tooling/V23P03C05EvidenceAssociationContractV1.json",
+          "sha256": "c51254358acdd55a0a2fde79bba89ba9b0b6a0a5a4a81080f308a70e3660d7f4",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 16680,
+          "path": "docs/design/v23/tooling/V23P03C05DerivativeProvenanceContractV1.json",
+          "sha256": "664c8d57b6d0c1e1eb7fcbb5f9fab0b8e8e7878a7e51c91afd4d9550312ba317",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 18597,
+          "path": "docs/design/v23/tooling/V23P03C05ContentEvidenceReceiptV1.json",
+          "sha256": "b71a7358e2d405617bb6c261fd2be859ccd793b417bced94af856e0442fb45e4",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 17739,
+          "path": "docs/design/v23/tooling/V23-P03-C05-tooling-manifest.json",
+          "sha256": "975afd8df4c004b0d12f535b5c71b31c92c359e95a1bbc56aec1a1a507fde7e6",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "8ca993b5f491de9520c1b38a25f1c0021fcc84ec10f9f4c8b37ad183f7942524",
+      "paths": [
+        "FieldEvidenceApp/Domain/Models/EvidenceMetadataPersistenceModelsV1.swift",
+        "FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift",
+        "FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift",
+        "Scripts/v23/p03_c05_contracts.py",
+        "Scripts/v23/generate_p03_c05_contracts.py",
+        "Scripts/v23/verify_p03_c05_contracts.py",
+        "Scripts/v23/content-reference.schema.json",
+        "Scripts/v23/content-locator.schema.json",
+        "Scripts/v23/content-manifest.schema.json",
+        "Scripts/v23/evidence-association.schema.json",
+        "Scripts/v23/content-derivative-provenance.schema.json",
+        "Scripts/v23/content-evidence-receipt.schema.json",
+        "docs/design/v23/tooling/V23P03C05ContentReferenceContractV1.json",
+        "docs/design/v23/tooling/V23P03C05ContentLocatorManifestContractV1.json",
+        "docs/design/v23/tooling/V23P03C05EvidenceAssociationContractV1.json",
+        "docs/design/v23/tooling/V23P03C05DerivativeProvenanceContractV1.json",
+        "docs/design/v23/tooling/V23P03C05ContentEvidenceReceiptV1.json",
+        "docs/design/v23/tooling/V23-P03-C05-tooling-manifest.json"
+      ],
+      "providerCardID": "V23-P03-C05",
+      "required": true,
+      "verificationReceiptDigest": "4242cbf7a081977fbba91011c32567c2bd187a684800e7ff5a9119dcc6109bf2"
+    },
+    {
+      "allFilesPresent": true,
+      "candidateHead": "d0c7c8a48e235e783627495ccba6b0e168e9b34e",
+      "candidateTree": "9f759030a7154c38ade62ce9a3273f4b33ebf18d",
+      "capability": null,
+      "checkpointDigest": "df8810b379eb79164d7ee67c00044951a2552cf46643c333063cdba159f0325e",
+      "contextDigest": "496ad67ebdeac22bd55a7675048ae54a1a297a3f83f401a5971eccc8e12d33ba",
+      "contracts": [
+        "AccessibleDocumentSemanticTreeV1",
+        "AccessibleDocumentAssessmentReceiptV1",
+        "AccessibleDocumentPublicationBindingV1",
+        "AccessibleDocumentNodeV1",
+        "AccessibleDocumentCoordinatorV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 98305,
+          "path": "Scripts/v23/p03_c24_contracts.py",
+          "sha256": "9f80c6bb01de473897b7ccd0fec3ef275e76741368921873600ae91fbdfae2b4",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1778,
+          "path": "Scripts/v23/generate_p03_c24_contracts.py",
+          "sha256": "bdbbc1f3b8d82c43fb677f225d8236b5b03a4d472b9bb942a2b7475d1bbe61cc",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 20236,
+          "path": "Scripts/v23/verify_p03_c24_contracts.py",
+          "sha256": "34c2de56f0563b9ed47a6e76dd2d93c0314a7ce8515183c5e897f6b45d1e88d1",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 16733,
+          "path": "Scripts/v23/accessible-document.schema.json",
+          "sha256": "b52c9351cb0468d487e038c172a1e3eac69b2015067fb3bc879f5d2f404309a3",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2442200,
+          "path": "docs/design/v23/tooling/V23P03C24AccessibleDocumentContractV1.json",
+          "sha256": "20ab0313c973de0f76d42022deefbca6adae5b17a68b473443c3b3fae9ab80ed",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2462263,
+          "path": "docs/design/v23/tooling/V23P03C24AccessibleDocumentEvidenceReceiptV1.json",
+          "sha256": "7ff044ca524f60e1d1c9746ed38e113d0e131177eb8edce7901a92092ab1515f",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2419953,
+          "path": "docs/design/v23/tooling/V23P03C24BrandImpactManifestV1.json",
+          "sha256": "d7b76eeec0be70e1299c544500222da729a26b5d894ad3539503ba64e2ea5c8c",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2514962,
+          "path": "docs/design/v23/tooling/V23-P03-C24-tooling-manifest.json",
+          "sha256": "9525016345de5f4b521c8c11506dedb9ed2d0cd7a2fbc33095340eddd39f9ef7",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "08bd1b6091d22d234eaa18beac3d99d29540a3bdf00c4f91e01f5265f1d9346a",
+      "paths": [
+        "Scripts/v23/p03_c24_contracts.py",
+        "Scripts/v23/generate_p03_c24_contracts.py",
+        "Scripts/v23/verify_p03_c24_contracts.py",
+        "Scripts/v23/accessible-document.schema.json",
+        "docs/design/v23/tooling/V23P03C24AccessibleDocumentContractV1.json",
+        "docs/design/v23/tooling/V23P03C24AccessibleDocumentEvidenceReceiptV1.json",
+        "docs/design/v23/tooling/V23P03C24BrandImpactManifestV1.json",
+        "docs/design/v23/tooling/V23-P03-C24-tooling-manifest.json"
+      ],
+      "providerCardID": "V23-P03-C24",
+      "required": true,
+      "verificationReceiptDigest": "b0903dfa37fefa29f61cb304d5119d41805e19f4b4c741a164c8e7834ab00b5f"
+    },
+    {
+      "allFilesPresent": true,
+      "candidateHead": "c5078bb34e04869121c55081c7e3da1ca4728936",
+      "candidateTree": "5795a04e18cbb1ae9741700ee9f316a92ffadba1",
+      "capability": null,
+      "checkpointDigest": "778d726cb3893cfdc80e1f8c2f2769c9649e0d57d62e802d2f7c2c675fdd982a",
+      "contextDigest": "e032c21cd95df0074537a163bb3c57fd280dbaed0e375efa612673357d069425",
+      "contracts": [
+        "RecoveryCenterProjectionV1",
+        "RecoverabilityVerificationReceiptV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 39790,
+          "path": "Scripts/v23/p04_c01_contracts.py",
+          "sha256": "63a77554dc61feb1539b1134cfd6d0fc34e234b986f622475935b6980cd95157",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 1433,
+          "path": "Scripts/v23/generate_p04_c01_contracts.py",
+          "sha256": "50f1cd4876923eb256d2027df5f463f597ff73449bb145b6edb39873d00adf35",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 9618,
+          "path": "Scripts/v23/verify_p04_c01_contracts.py",
+          "sha256": "600c2b10acbeb294ad605e5b7eb088b3c13a028c2158df503c549a858b92ed4a",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 3287,
+          "path": "Scripts/v23/recovery-center.schema.json",
+          "sha256": "3c7eae642cbdff44d375a9039c44280590cb2a6f06ca8b672d0d2e3c14de61d8",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 19456,
+          "path": "docs/design/v23/tooling/V23P04C01RecoveryCenterContractV1.json",
+          "sha256": "d14b3763052f1072764c5488203033e755137aa2f864e2ecf684c03afb0ca4d8",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 16400,
+          "path": "docs/design/v23/tooling/V23P04C01RecoveryCenterEvidenceReceiptV1.json",
+          "sha256": "cf38d760feb2f91c9f0ebcd9b103a4ddab55212b664d2e0ad33f3abe7c764367",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 6151,
+          "path": "docs/design/v23/tooling/V23P04C01BrandImpactManifestV1.json",
+          "sha256": "ab73819ca0b0d0a69b3648bd9b17808e966348652b08e04d007688773fc7e389",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 103993,
+          "path": "docs/design/v23/tooling/V23-P04-C01-tooling-manifest.json",
+          "sha256": "b532bc4f2b74e28ca3e5170146e56175d2ea2f18aece09e68f60be6127b3382f",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "f59c7d2d98907aed26492f3a06d6de52ce1436790ddfda9da157689346d0a706",
+      "paths": [
+        "Scripts/v23/p04_c01_contracts.py",
+        "Scripts/v23/generate_p04_c01_contracts.py",
+        "Scripts/v23/verify_p04_c01_contracts.py",
+        "Scripts/v23/recovery-center.schema.json",
+        "docs/design/v23/tooling/V23P04C01RecoveryCenterContractV1.json",
+        "docs/design/v23/tooling/V23P04C01RecoveryCenterEvidenceReceiptV1.json",
+        "docs/design/v23/tooling/V23P04C01BrandImpactManifestV1.json",
+        "docs/design/v23/tooling/V23-P04-C01-tooling-manifest.json"
+      ],
+      "providerCardID": "V23-P04-C01",
+      "required": true,
+      "verificationReceiptDigest": "e22dc14b2130fd7780a6e105715bde2bc3806eac6f2412c6422baf0da901753c"
+    },
+    {
+      "allFilesPresent": true,
+      "candidateHead": "8dcf404725f5b1f9ab630d2f16e445013efec036",
+      "candidateTree": "ba11541ee75791a70012c4daadcac003207483ed",
+      "capability": "EVIDENCE_DETAIL_AUTHORITY",
+      "checkpointDigest": "481fb8e84af1e3b47dfcf8717449ea0e2e91ff30f3335e8cca9a2d662031fe40",
+      "contextDigest": "1058e2792a104f74af0a43844467482a7abb29a99da129c8e0be92b6ea0f922d",
+      "contracts": [
+        "EvidenceDetailCardProfileV1",
+        "EvidenceDetailCardRenderReceiptV1",
+        "FinalAudiencePrivacyConfirmationV1",
+        "CompletedActivitySnapshotV1"
+      ],
+      "fallback": null,
+      "files": [
+        {
+          "byteCount": 47614,
+          "path": "Scripts/v23/p03_c06_contracts.py",
+          "sha256": "2938e0c203fafb17115ccbaedc8c76d30f066c4a2a621f86a308857658c273ce",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2639,
+          "path": "Scripts/v23/generate_p03_c06_contracts.py",
+          "sha256": "5af58c83167f8c71c5c4baf4ea1714fcf21270ce9dc75ccecbabcf881b6172f8",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 28455,
+          "path": "Scripts/v23/verify_p03_c06_contracts.py",
+          "sha256": "2b09d7a33e2d5a34ab40c24a37c1b295c67bb2d53dfb9ba0a0ad75475ea76094",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 118797,
+          "path": "Scripts/v23/completed-activity-snapshot.schema.json",
+          "sha256": "8df43565092ae7bd9b2368b5e95e82391b6c7a289fcd3fefbf2ccd0a3be60c6f",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 124673,
+          "path": "Scripts/v23/evidence-detail-card-profile.schema.json",
+          "sha256": "951e5c56aee43c3aa329d24c3f5cf441c4c3edf094e0f88397519a634763e4e8",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 123020,
+          "path": "Scripts/v23/evidence-detail-card-render-receipt.schema.json",
+          "sha256": "8cd786a7fa36dee8f237bba1b00ff8a93761e49a5a93c6b9ce63f44f1fe90cec",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 126676,
+          "path": "Scripts/v23/final-audience-privacy-confirmation.schema.json",
+          "sha256": "08f0ad41bf92fec64f109efe35116163cbc6584b4c55743dca48dcb285df12a9",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 120750,
+          "path": "Scripts/v23/contract-manifest.schema.json",
+          "sha256": "deed6b5cb5bd361e5b9d4bf66e76c7b35d41bbfa08d1efdb7843e1c2c132402b",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 3088,
+          "path": "Scripts/v23/report-projection-evidence.schema.json",
+          "sha256": "4e9a595d786b87f9edf401d06a9b5d4865c52cfc287badda0ce9d4d65f86bd0c",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2129,
+          "path": "docs/design/v23/tooling/V23P03C06CompletedSnapshotContractV1.json",
+          "sha256": "5dd183c84715b01fc7f9bad869de2e24289be1a743d59aa6714c54682b72412f",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2338,
+          "path": "docs/design/v23/tooling/V23P03C06EvidenceDetailCardContractV1.json",
+          "sha256": "6f622f91230faa28c9b76126eb21a3ce3f0b536fd0dcd923c398c7f3ba4a766a",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 96442,
+          "path": "docs/design/v23/tooling/V23P03C06ContractManifestV1.json",
+          "sha256": "b142747430f74fc3b2d0b403f9e60bcf08d3ba49f5e1249a2790d95eb0a3643c",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2264,
+          "path": "docs/design/v23/tooling/V23P03C06ProjectionContractV1.json",
+          "sha256": "740a8b5e729aab38dfa69e6946c700b3b967e2297d9ca1b9955c78d0b407ace7",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 2483,
+          "path": "docs/design/v23/tooling/V23P03C06ProjectionEvidenceReceiptV1.json",
+          "sha256": "4b97dfdc3f8661d96ac31ec773403f2af08b29e5e443fa7ba4d10f82f91c3ddb",
+          "status": "SEALED_PROVIDER"
+        },
+        {
+          "byteCount": 9540,
+          "path": "docs/design/v23/tooling/V23-P03-C06-tooling-manifest.json",
+          "sha256": "79b26f7946ea67f9390e26df2c5cd69e99c6c14dc5eb74130ff7957db06a22ea",
+          "status": "SEALED_PROVIDER"
+        }
+      ],
+      "pathFenceDigest": "cb123dd654137debce2a0b4679dde737645d30af9b57d52a43ee14aad3f997d2",
+      "paths": [
+        "Scripts/v23/p03_c06_contracts.py",
+        "Scripts/v23/generate_p03_c06_contracts.py",
+        "Scripts/v23/verify_p03_c06_contracts.py",
+        "Scripts/v23/completed-activity-snapshot.schema.json",
+        "Scripts/v23/evidence-detail-card-profile.schema.json",
+        "Scripts/v23/evidence-detail-card-render-receipt.schema.json",
+        "Scripts/v23/final-audience-privacy-confirmation.schema.json",
+        "Scripts/v23/contract-manifest.schema.json",
+        "Scripts/v23/report-projection-evidence.schema.json",
+        "docs/design/v23/tooling/V23P03C06CompletedSnapshotContractV1.json",
+        "docs/design/v23/tooling/V23P03C06EvidenceDetailCardContractV1.json",
+        "docs/design/v23/tooling/V23P03C06ContractManifestV1.json",
+        "docs/design/v23/tooling/V23P03C06ProjectionContractV1.json",
+        "docs/design/v23/tooling/V23P03C06ProjectionEvidenceReceiptV1.json",
+        "docs/design/v23/tooling/V23-P03-C06-tooling-manifest.json"
+      ],
+      "providerCardID": "V23-P03-C06",
+      "required": true,
+      "verificationReceiptDigest": "57d9dec65fa7e75f5408763d6d10c5f94022489560881d71c6787bcf3e0e4383"
+    }
+  ],
+  "provisional": false,
+  "schema": "V23P04C02EvidenceCurationEvidenceReceiptV1",
+  "schemaVersion": 1,
+  "sourceProjection": {
+    "aggregateAcceptanceMemberships": [
+      "AutonomousRequiredAcceptedSetV1",
+      "P04ShippingSurfaceSetV1",
+      "P04BrandClosureSetV1"
+    ],
+    "binaryRendering": {
+      "contactSheetBytesRequired": true,
+      "jsonOnlyRenderingForbidden": true,
+      "requiredMediaType": "image/png"
+    },
+    "bundleDecoding": "EXACT_NO_ADDITIONAL_PROPERTIES",
+    "c05MetadataPersistence": {
+      "activeModelCount": 144,
+      "backupRestore": "CANONICAL_V4_RECORDS42_FULL_REPLACE_RESTORE",
+      "canonicalWriterReceipt": "EvidenceMetadataMutationReceiptV1",
+      "deleteErase": "APPEND_ONLY_HISTORY_UNTIL_WORKSPACE_ERASE",
+      "durableFamilies": [
+        "EVIDENCE_ASSOCIATION_EVENT",
+        "EVIDENCE_SEQUENCE_REVISION"
+      ],
+      "durableModelCount": 2,
+      "durableRows": [
+        "EvidenceAssociationEventRowV1",
+        "EvidenceSequenceRevisionRowV1"
+      ],
+      "journalReplay": "MUTATION_RECEIPT_AND_SUCCESSOR_REPLAY",
+      "mode": "PERSISTENT_CANONICAL_EVIDENCE_METADATA_AND_SUCCESSOR_SEQUENCE",
+      "persistentContractSchema": "EVIDENCE_METADATA_V1_V43_RECORDS42",
+      "persistentSchemaVersion": 43,
+      "recordsSchemaVersion": 42,
+      "searchReport": "DERIVED_ONLY_REBUILT_FROM_CANONICAL_ROWS"
+    },
+    "canonicalSuccessor": {
+      "cardID": "V23-P04-C03",
+      "registerOrdinal": 91
+    },
+    "conformanceSubjects": [
+      "P04ShippingSurfaceSetV1",
+      "FJ15"
+    ],
+    "derivativeByteMode": "CONTENT_ONLY",
+    "dossierByteCount": 7470,
+    "dossierSHA256": "4b8a72b012c813ef5a4c302fdb9114805c396098491f73b857dbcc7dc46a07c1",
+    "implementationPaths": [
+      "FieldEvidenceApp/Domain/Evidence/EvidenceCurationContractsV1.swift",
+      "FieldEvidenceApp/Application/Evidence/EvidenceCurationCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Media/EvidenceDerivativeServiceV1.swift",
+      "FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C02EvidenceCurationUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/EvidenceCuration/V22P04C02EvidenceCurationCorpusV1.json"
+    ],
+    "inheritedV21BlockByteCount": 10858,
+    "inheritedV21BlockSHA256": "406387e5f3991e5b89a68ac573163ea123b33fa2f2c107f9d212909519281b17",
+    "invalidationConsumers": [
+      "V23-P04-C03",
+      "V23-P04-C10",
+      "V23-P04-C11",
+      "V23-P04-C20",
+      "V23-P04-C25",
+      "V23-P04-C27:STATE_INVENTORY",
+      "V23-P04-C29:EXACT_CANDIDATE",
+      "V23-P05-C01:RELEASE_SELECTOR"
+    ],
+    "lifecycle": {
+      "backupRestore": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+      "cloneFork": "INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+      "comparisonIsProof": false,
+      "createsContentStore": false,
+      "deleteErase": "REQUIRED_VIA_INCUMBENT_CONTENT_AND_C05_METADATA_AUTHORITIES",
+      "exportReport": "REQUIRED_VIA_INCUMBENT_CONTENT_C05_METADATA_AND_REPORT_AUTHORITIES",
+      "journalReplay": "C05_METADATA_WRITER_REPLAY_AND_DETERMINISTIC_REPROJECTION",
+      "migration": "C05_METADATA_AUTHORITY",
+      "persistence": "CONTENT_ONLY",
+      "plansAndProjectionsAreNonpersistent": true,
+      "schema": "INCUMBENT_CONTENT_AUTHORITY_AND_C05_V43_METADATA",
+      "searchRebuild": "NOT_APPLICABLE"
+    },
+    "missingPaths": [],
+    "plansAndProjectionsPersistence": "NONPERSISTENT",
+    "presentPaths": [
+      "FieldEvidenceApp/Domain/Evidence/EvidenceCurationContractsV1.swift",
+      "FieldEvidenceApp/Application/Evidence/EvidenceCurationCoordinatorV1.swift",
+      "FieldEvidenceApp/Infrastructure/Media/EvidenceDerivativeServiceV1.swift",
+      "FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift",
+      "FieldEvidenceAppTests/V9_67EvidenceCurationTests.swift",
+      "FieldEvidenceAppUITests/V23_P04_C02EvidenceCurationUITests.swift",
+      "FieldEvidenceAppTests/Fixtures/V22/EvidenceCuration/V22P04C02EvidenceCurationCorpusV1.json"
+    ],
+    "providerContractSlices": [
+      {
+        "contracts": [
+          "EvidenceMetadataPersistenceEnrollmentV1",
+          "EvidenceAssociationEventRowV1",
+          "EvidenceSequenceRevisionRowV1",
+          "EvidenceMetadataMutationV1",
+          "EvidenceMetadataMutationReceiptV1"
+        ],
+        "facet": "EVIDENCE_METADATA_CANONICAL_WRITER_AND_RECEIPT",
+        "pathFenceDigest": "8ca993b5f491de9520c1b38a25f1c0021fcc84ec10f9f4c8b37ad183f7942524",
+        "providerCardID": "V23-P03-C05"
+      },
+      {
+        "contracts": [
+          "EvidenceDetailCardProfileV1",
+          "EvidenceDetailCardRenderReceiptV1",
+          "FinalAudiencePrivacyConfirmationV1",
+          "CompletedActivitySnapshotV1"
+        ],
+        "facet": "EVIDENCE_DETAIL_AUTHORITY",
+        "pathFenceDigest": "cb123dd654137debce2a0b4679dde737645d30af9b57d52a43ee14aad3f997d2",
+        "providerCardID": "V23-P03-C06"
+      }
+    ],
+    "registerRowByteCount": 309,
+    "registerRowSHA256": "d5ee6c271caa2ce34b8a891d32bf2a072231d7e298ce724fe5a4ae086bcac11c",
+    "registerRows": [
+      "| 90 | <a id=\"v23-p04-c02-register\"></a>[`V23-P04-C02`](EXPANSION_V23_ARCHITECTURE_BLUEPRINT.md#v23-p04-c02) | Evidence selection, readable evidence-detail preview, comparison, reversible markup, and bounded sequence | `IMPLEMENT_NOW` | `NOT_STARTED` | `V23-P03-C24`, `V23-P04-C01` | `REFINED_WITHOUT_LOSS` |"
+    ],
+    "registerSectionByteCount": 44217,
+    "registerSectionSHA256": "3047a8c7f8baeca754bdf635811796eacc6400f91521f40c6294343c66f702d5",
+    "selectors": [
+      "testV23P04C02G01EligibleSelectionAndAdmissionNegatives",
+      "testV23P04C02A01VersionPinnedComparisonAndMissingFallback",
+      "testV23P04C02H01PrivacyBeforeMarkupAndReversibleAnnotation",
+      "testV23P04C02I01HostileBoundsPathsDigestAndInterruptedReplay",
+      "testV23P04C02R01ImmutableOriginalAndRecoveryClosure"
+    ],
+    "sourceRows": [
+      {
+        "byteCount": 41489,
+        "path": "FieldEvidenceApp/Domain/Evidence/EvidenceCurationContractsV1.swift",
+        "sha256": "5d4393ec07583985004b31404de189e8a8a701178143a794c58f28ea51d38559",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 7627,
+        "path": "FieldEvidenceApp/Application/Evidence/EvidenceCurationCoordinatorV1.swift",
+        "sha256": "92628aaf90152048baee901daf0f65b7fc691bb2d80268443fb14d398ba5ec18",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 42845,
+        "path": "FieldEvidenceApp/Infrastructure/Media/EvidenceDerivativeServiceV1.swift",
+        "sha256": "983f76acc0f919f0c12a925213342f230a6b0a2a256d50e86f1fbbecd1e09c2c",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 26561,
+        "path": "FieldEvidenceApp/Features/CheckRunner/EvidenceCurationView.swift",
+        "sha256": "a33abeeddadd8363ecc70d9762867953c63ed4b0a830b41e42ffbff4ea01b411",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 72640,
+        "path": "FieldEvidenceAppTests/V9_67EvidenceCurationTests.swift",
+        "sha256": "584b7afe1745c8b93d0758fcc56e9d76694f16eade231fea06490f6a9805e741",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 3381,
+        "path": "FieldEvidenceAppUITests/V23_P04_C02EvidenceCurationUITests.swift",
+        "sha256": "8402f6c186ffd61d62c37b66fd7820e34b1977fb66ded80898b611a7b443c9d5",
+        "status": "SEALED_SOURCE"
+      },
+      {
+        "byteCount": 3666,
+        "path": "FieldEvidenceAppTests/Fixtures/V22/EvidenceCuration/V22P04C02EvidenceCurationCorpusV1.json",
+        "sha256": "f301fe942de79b7c65609a7e1e4a8df59eb3a23e02d6da3a237107364a23c8ef",
+        "status": "SEALED_SOURCE"
+      }
+    ],
+    "sourceSemanticsInspected": true
+  },
+  "status": "SEALED",
+  "statusFlags": {
+    "acceptance": false,
+    "activation": false,
+    "adoption": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalEvidence": false,
+    "release": false
+  },
+  "testSelectors": [
+    "testV23P04C02G01EligibleSelectionAndAdmissionNegatives",
+    "testV23P04C02A01VersionPinnedComparisonAndMissingFallback",
+    "testV23P04C02H01PrivacyBeforeMarkupAndReversibleAnnotation",
+    "testV23P04C02I01HostileBoundsPathsDigestAndInterruptedReplay",
+    "testV23P04C02R01ImmutableOriginalAndRecoveryClosure"
+  ],
+  "title": "Evidence selection, readable evidence-detail preview, comparison, reversible markup, and bounded sequence",
+  "uiAdoptionSkipped": true
+}

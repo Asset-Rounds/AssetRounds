@@ -1,0 +1,17 @@
+// Interface-only pure DATA helpers. The actual owner must be EraseIntentStore.
+// Old canonical decoders/selection remain the sole semantic ID source.
+import Foundation
+
+@MainActor
+protocol EraseSchema2NotificationDigestContractV4 {
+    // SHA256(ASCII ARS2ID04 || countUInt64BE || ordered items).
+    // Each item = exactUTF8ByteCountUInt64BE || exactUTF8, streamed64KiB.
+    // No new count, length, NUL, normalization or ID admission predicate.
+    static func notificationOwnedIDsCommitmentSHA256(ids: [String]) throws -> String
+
+    // SHA256(ASCII ARS2NO04 || tagged lossless origin wire bytes).
+    // Source tags/field order are fixed in WIRE_SCHEMAS. No Base64 conversion.
+    static func notificationOriginCommitmentSHA256(
+        origin: EraseSchema2TerminalNotificationOriginV4
+    ) throws -> String
+}

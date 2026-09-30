@@ -1,0 +1,146 @@
+name: V23 Controller Worker (provisional)
+
+on:
+  workflow_call:
+    inputs:
+      expected_ref:
+        required: true
+        type: string
+      expected_sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  provisional-smoke:
+    name: Produce a non-dispatching controller decision
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: assetrounds-v23-coordination
+    steps:
+      - name: Check out the exact controller revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            Scripts/v23/controller.py
+            Scripts/v23/controller_contracts.py
+            Scripts/v23/controller-selection.schema.json
+            Scripts/v23/verify_controller.py
+            docs/design/v23/tooling/ControllerWorkflowEnrollmentV1.json
+            docs/design/v23/tooling/RepositoryHostedCapacityPolicyV1.json
+            docs/design/v23/tooling/V23-P00-C04-tooling-manifest.json
+
+      - name: Prove exact branch, head, and sparse fence
+        shell: bash
+        env:
+          EXPECTED_REF: ${{ inputs.expected_ref }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "$EXPECTED_REF"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          case "$(git status --short --untracked-files=all)" in
+            "") ;;
+            *) echo "Sparse controller checkout is dirty" >&2; exit 1 ;;
+          esac
+          evidence="$RUNNER_TEMP/v23-worker-evidence"
+          mkdir -p "$evidence"
+          git rev-parse HEAD > "$evidence/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$evidence/tree.txt"
+          printf '%s\n' "$GITHUB_REF" > "$evidence/ref.txt"
+
+      - name: Verify contracts and create fail-closed fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B Scripts/v23/verify_controller.py
+          EVIDENCE="$RUNNER_TEMP/v23-worker-evidence" python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+
+          evidence = Path(os.environ["EVIDENCE"])
+          head = (evidence / "head.txt").read_text().strip()
+          tree = (evidence / "tree.txt").read_text().strip()
+          now = datetime.now(timezone.utc).replace(microsecond=0)
+          selection = {
+              "schema": "ControllerSelectionV1",
+              "schemaVersion": 1,
+              "cardID": "V23-P00-C04",
+              "attemptID": 2,
+              "candidateHead": head,
+              "candidateTree": tree,
+              "branch": "phase/v23-expansion",
+              "workKind": "PRODUCT_DIAGNOSTIC",
+              "requestedPool": "STANDARD_GITHUB",
+              "requestedJobs": 1,
+              "failFast": False,
+              "exhaustiveDiagnostics": True,
+              "transportActivated": False,
+          }
+          capacity = {
+              "schema": "HostedCapacityEvidenceV1",
+              "schemaVersion": 1,
+              "pool": "STANDARD_GITHUB",
+              "generation": 0,
+              "enforcementMechanism": "UNPROVED",
+              "provedHardLimit": None,
+              "activeLeases": 0,
+              "externalOccupancyKnown": True,
+              "externalOccupancy": 0,
+              "providerConfigured": True,
+              "observedAt": now.isoformat().replace("+00:00", "Z"),
+              "validThrough": (now + timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
+          }
+          (evidence / "selection.json").write_text(json.dumps(selection, indent=2) + "\n")
+          (evidence / "capacity.json").write_text(json.dumps(capacity, indent=2) + "\n")
+          (evidence / "observed-at.txt").write_text(capacity["observedAt"] + "\n")
+          PY
+
+      - name: Validate and evaluate without external dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/v23-worker-evidence"
+          observed_at="$(cat "$evidence/observed-at.txt")"
+          python3 -B Scripts/v23/controller.py validate \
+            --selection "$evidence/selection.json" \
+            --capacity "$evidence/capacity.json" \
+            > "$evidence/validation.json"
+          python3 -B Scripts/v23/controller.py evaluate \
+            --selection "$evidence/selection.json" \
+            --capacity "$evidence/capacity.json" \
+            --observed-at "$observed_at" \
+            --output "$evidence/decision.json" \
+            > "$evidence/decision.canonical.json"
+
+      - name: Prove provisional result is blocked and grants no credit
+        shell: bash
+        run: |
+          EVIDENCE="$RUNNER_TEMP/v23-worker-evidence" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          decision = json.loads((Path(os.environ["EVIDENCE"]) / "decision.json").read_text())
+          if decision["admission"] == "ADMIT":
+              raise SystemExit("Provisional controller admitted forbidden hosted work")
+          if decision["acceptanceCredit"] or decision["releaseCredit"]:
+              raise SystemExit("Provisional controller granted forbidden credit")
+          PY
+
+      - name: Upload provisional worker evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v23-controller-provisional-${{ github.run_id }}
+          path: ${{ runner.temp }}/v23-worker-evidence/
+          if-no-files-found: error
+          retention-days: 14

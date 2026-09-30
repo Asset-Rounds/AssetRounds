@@ -1,0 +1,24 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "routerSHA256": "ba8372e2a9d5095c434265bca022cf9909d0f38c1b2581641722713093b5ecf7",
+  "fragments": {
+    "COLD_SCRATCH_PERMIT_GETTER_SUCCESSOR_V5.swift.fragment": "2c003888bac51eeee0576002f675aade582c72a8b9b48c6a014a4b797c3907b5",
+    "BORROWED_MANIFEST_JOURNAL_ADMISSION_V1.swift.fragment": "e3d438001099f8ac3edf2132a03dc5b2ce1485936b16cbb8027beee38de69ac2"
+  },
+  "parse": [
+    {
+      "configuration": "nonDEBUG",
+      "exitCode": 0,
+      "stderr": "",
+      "scope": "parse only; no typecheck/build/runtime"
+    },
+    {
+      "configuration": "DEBUG",
+      "exitCode": 0,
+      "stderr": "",
+      "scope": "parse only; no typecheck/build/runtime"
+    }
+  ],
+  "scope": "Isolated future central capability/getter and real incumbent borrowed Journal constructor admission. Full cold/original controller and terminal/fresh origin issuance remain unimplemented; no runtime/completion/install claim."
+}

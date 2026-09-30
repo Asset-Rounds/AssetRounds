@@ -1,0 +1,63 @@
+{
+  "approval": {
+    "decisionReference": null,
+    "sha256": null,
+    "status": "DISABLED_OR_DEFERRED"
+  },
+  "brandBinding": {
+    "path": "docs/product/discovery/V23P04C15BrandedStaticProofManifestV1.json",
+    "sha256": "3675918ba2d7ff2037dedd790f53827d85b66184a5907c4d482955b98b744a11"
+  },
+  "cardID": "V23-P04-C26",
+  "forbiddenCapabilities": {
+    "analyticsProvider": false,
+    "appStoreSubmission": false,
+    "customerDataUse": false,
+    "dnsHosting": false,
+    "finalKeywords": false,
+    "finalScreenshots": false,
+    "networkAccess": false,
+    "paidAcquisition": false,
+    "publication": false,
+    "upload": false
+  },
+  "catalogBinding": {
+    "path": "docs/product/discovery/DiscoveryTruthCatalogV1.json",
+    "sha256": "c2372225274acfc819e0293bb4ea624bd434f115bc41f46c014b605e9cc099fb"
+  },
+  "locales": ["en-US"],
+  "metadataLimits": {
+    "descriptionMaximumCharacters": 4000,
+    "keywordsMaximumCharacters": 100,
+    "keywordsMaximumUTF8Bytes": 100,
+    "nameMaximumCharacters": 30,
+    "nameMinimumCharacters": 2,
+    "ppoMaximumTreatments": 3,
+    "previewsMaximumCount": 3,
+    "promotionalTextMaximumCharacters": 170,
+    "screenshotsMaximumCount": 10,
+    "screenshotsMinimumCount": 1,
+    "subtitleMaximumCharacters": 30
+  },
+  "observedSuggestions": {
+    "availability": "NO_SUGGESTIONS_OBSERVED",
+    "deselected": [],
+    "displayGuaranteed": false,
+    "observedAt": "2026-09-01T00:00:00Z",
+    "retained": [],
+    "sourceMetadataSHA256": "336dd79d60def4d1121bf27b0ba26edb9f2f121cbe706d9bfd872de52774aa4d",
+    "suggestions": [],
+    "territory": "US"
+  },
+  "privacyBinding": {
+    "path": "docs/privacy/V23P01C02OwnedFilePrivacyInventoryV1.json",
+    "sha256": "3a4f5f8afe44daed06cbe8a95ccb16be7610495af780b8df36b4138b7beaeb4b"
+  },
+  "publishEligibility": false,
+  "schema": "V23P04C26AppTagDispositionV1",
+  "schemaVersion": 1,
+  "syntheticAssetBinding": {
+    "path": "docs/product/discovery/V23P04C15SyntheticSampleManifestV1.json",
+    "sha256": "41e17b55277dfb4758e6a185074c1ea91eaa84f6bded7e0ce322eca0a10ae384"
+  }
+}

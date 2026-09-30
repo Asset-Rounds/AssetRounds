@@ -1,0 +1,1326 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "sourceSHA256": "d7d992666a3c932d713c48b902342f3911626ebba0cf301af552bdeee5cbf8ee",
+  "kind": "static lexical census only; no compilation/runtime/independent approval",
+  "classLines": [
+    4491,
+    15092
+  ],
+  "methods": [
+    {
+      "name": "verifySourceReadPolicy",
+      "line": 4539,
+      "endLine": 4556,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        if exclusiveNoRepairRead {\n            if originalEraseBorrowedExclusiveCheck != nil,\n               (try originalEraseC16VerifyScopedPairPolicy(at: url)\n                || originalEraseC16VerifyFirstPPairPolicy(at: url)\n                || originalEraseC16VerifyInitialPairPo"
+    },
+    {
+      "name": "requireScratchDescriptorAccess",
+      "line": 4578,
+      "endLine": 4588,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "switch originalEraseBorrowedLifetime {\n        case .ordinary: return\n        case .active:\n            guard originalEraseBorrowedExclusiveCheck != nil else {\n                throw ScratchDataLeaseStoreFailureV1.invalidRoot\n            }\n            try originalEraseRequireFreshGenericBinding()\n        case .closed, ."
+    },
+    {
+      "name": "issueOriginalEraseC16InitialPairs",
+      "line": 5081,
+      "endLine": 5191,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        5133,
+        5144,
+        5145
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseC16ReferencePlan == nil, originalEraseC16InitialSourceProof,\n              let operationID = originalEraseOperationID, firstPPartials.count <= 100_000 else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        let token = try "
+    },
+    {
+      "name": "originalEraseC16VerifyInitialPairPolicy",
+      "line": 5193,
+      "endLine": 5205,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        5198,
+        5199
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let value = originalEraseC16InitialPairPolicies[url.path], !value.observations.isEmpty else { return false }\n        try originalEraseBorrowedExclusiveCheck?()\n        var final = stat(), partial = stat()\n        guard Darwin.lstat(value.pair.finalURL.path, &final) == "
+    },
+    {
+      "name": "originalEraseC16IssueFirstPPairs",
+      "line": 5215,
+      "endLine": 5322,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        5238,
+        5259,
+        5260
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let permit = originalEraseColdPermit, let operationID = originalEraseOperationID else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        originalEraseC16FirstPPairPolicies.removeAll()\n        var pairs: [OriginalEraseC16FirstPPairV1] = "
+    },
+    {
+      "name": "originalEraseC16VerifyFirstPPairPolicy",
+      "line": 5324,
+      "endLine": 5336,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        5330,
+        5331
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let value = originalEraseC16FirstPPairPolicies[url.path] else { return false }\n        guard !value.observations.isEmpty else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }\n        try originalEraseBorrowedExclusiveCheck?()\n        var final = stat(), partial "
+    },
+    {
+      "name": "originalEraseC16CurrentObservationScope",
+      "line": 5339,
+      "endLine": 5434,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        5368
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let permit = originalEraseColdPermit, let operationID = originalEraseOperationID,\n              originalEraseC16ReferencePlan == plan,\n              currentOrdinal >= 0, currentOrdinal < plan.steps.count else {\n            throw ScratchDataLeaseStoreFailureV1.leaseColl"
+    },
+    {
+      "name": "originalEraseC16VerifyScopedPairPolicy",
+      "line": 5440,
+      "endLine": 5458,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let observed = originalEraseC16ScopedPairPolicies[url.path] else { return false }\n        try originalEraseBorrowedExclusiveCheck?()\n        let pair = observed.pair\n        guard !observed.observations.isEmpty,\n              let parent = ingressControlAuthority?.rootD"
+    },
+    {
+      "name": "originalEraseFrozenLeaseCut",
+      "line": 5469,
+      "endLine": 5510,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil,\n              Self.isLeaseDirectoryName(name),\n              !orderedChildren.isEmpty,\n              orderedChildren == orderedChildren.sorted(),\n              Set(orderedChildren).count == orderedChildren.count,\n            "
+    },
+    {
+      "name": "originalEraseC16TargetCut",
+      "line": 5512,
+      "endLine": 5591,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        5537,
+        5559
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard Self.isLeaseDirectoryName(target.directoryName),\n              target.device == authority.rootDevice,\n              target.inode != 0,\n              target.files.count <= 128,\n              target.files.map(\\.name) == target.files.map(\\.name).sorted() else {\n          "
+    },
+    {
+      "name": "originalEraseC16IngressEraseCut",
+      "line": 5625,
+      "endLine": 5753,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        let directory = try protectedIngressReceiptDirectory()\n        let markerName = \"erase-\" + operationID.uuidString.lowercased()\n            + \".prepare.json\"\n        guard binding.name == markerName else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n      "
+    },
+    {
+      "name": "originalEraseC16FreshEraseCut",
+      "line": 5825,
+      "endLine": 6018,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let operationID = originalEraseOperationID else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        let markerName = \"erase-\" + operationID.uuidString.lowercased()\n            + \".prepare.json\"\n        let directory = try protectedIngres"
+    },
+    {
+      "name": "originalEraseC16PhysicalCutPrimitive",
+      "line": 6040,
+      "endLine": 6297,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        6091
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil,\n              originalEraseC16ReferencePlan == plan,\n              !originalEraseC16InitialSourceProof,\n              ordinal >= 0, ordinal < plan.steps.count,\n              plan.steps[ordinal] == step,\n              !origina"
+    },
+    {
+      "name": "requireOriginalEraseC16ObservedProjection",
+      "line": 6341,
+      "endLine": 6424,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        let current = try requireOriginalEraseC16GlobalPrefix(\n            plan: plan, currentOrdinal: currentOrdinal,\n            controlMarkerState: controlMarkerState,\n            ingressMarkerState: ingressMarkerState)\n        var targetByName: [String: OriginalEraseC16TargetFac"
+    },
+    {
+      "name": "originalEraseCurrentC16MarkerBirth",
+      "line": 6431,
+      "endLine": 6513,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        6492
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil,\n              let operationID = originalEraseOperationID,\n              step == .eraseIngress || step == .eraseFinalControl else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        try requireO"
+    },
+    {
+      "name": "runC16SemanticSession",
+      "line": 6632,
+      "endLine": 6644,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck == nil else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        let session = C16SemanticSessionV1(store: self, steps: steps)\n        do { while try session.advance() {} }\n        catch {\n            l"
+    },
+    {
+      "name": "c16PublicationSteps",
+      "line": 6692,
+      "endLine": 6708,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard data.count <= (atomicExclusiveRename ? 32 * 1_024 * 1_024 : 262_144),\n              file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {\n            throw AppAccessContractFailureV1.configurationUnknown\n        }\n        var work: [C16Sem"
+    },
+    {
+      "name": "c16CaptureBornSourceSteps",
+      "line": 6710,
+      "endLine": 6727,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "[.plan { [self] _ in\n            guard originalEraseBorrowedExclusiveCheck != nil,\n                  file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()),\n                  bytes.count <= Self.originalEraseC16SourceMaximum(name: file.lastPathComponent),\n                  let leaf = try readOrigi"
+    },
+    {
+      "name": "originalEraseBorrowedLocalLineageCheck",
+      "line": 6729,
+      "endLine": 6748,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        6732,
+        6733,
+        6740
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        var operations = stat(), namedOperations = stat(), root = stat()\n        guard Darwin.fstat(authority.operationsDescriptor, &operations) == 0,\n              Darwin.lstat(rootURL.deletingLastPathComponent().path, &namedOperations) == 0,\n              operations.st_mode & S_IF"
+    },
+    {
+      "name": "requireOriginalEraseBorrowedOwner",
+      "line": 6750,
+      "endLine": 6757,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let check = originalEraseBorrowedOwnerCheck,\n              originalEraseBorrowedExclusiveCheck != nil else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        try check()"
+    },
+    {
+      "name": "requireOriginalEraseC16Cut",
+      "line": 6759,
+      "endLine": 6843,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil else { return }\n        guard let permit = originalEraseColdPermit, let check = originalEraseC16CutCheck,\n              let plan = originalEraseC16ReferencePlan, let ordinal = originalEraseC16CurrentOrdinal else {\n            "
+    },
+    {
+      "name": "performOriginalEraseC16Step",
+      "line": 6868,
+      "endLine": 6962,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil,\n              originalEraseOperationID != nil,\n              exclusiveNoRepairRead,\n              originalEraseC16CutCheck == nil,\n              originalEraseC16ReferencePlan == plan,\n              let admissionProgress = ori"
+    },
+    {
+      "name": "originalEraseC16PlanFromFirstP",
+      "line": 6968,
+      "endLine": 7396,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        7052
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard firstPPartials == originalEraseC16InitialPartials,\n              let bootstrap = originalEraseC16BootstrapPermit else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }\n        _ = try bootstrap.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)\n "
+    },
+    {
+      "name": "settleOriginalEraseFirstPPartial",
+      "line": 7402,
+      "endLine": 7475,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        7435,
+        7455,
+        7456,
+        7460
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard name.hasPrefix(\".partial-\"),\n              let id = UUID(uuidString: String(name.dropFirst(\".partial-\".count))),\n              id.uuidString.lowercased() == String(name.dropFirst(\".partial-\".count)),\n              device == authority.rootDevice, inode != 0,\n           "
+    },
+    {
+      "name": "closeObservedScratchDescriptor",
+      "line": 7500,
+      "endLine": 7521,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        7511,
+        7519
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        if exclusiveNoRepairRead {\n            // The retained object is the close attempt. An old integer can\n            // never acquire a second close attempt after terminal admission.\n            guard let attempt = originalEraseObservedCloseAttempts[descriptor] else {\n        "
+    },
+    {
+      "name": "init",
+      "line": 7541,
+      "endLine": 7581,
+      "static": false,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [],
+      "prefix": "let constructionActivity = try OwnedStorageProducerActivityV1.acquire(\n            applicationSupportURL: applicationSupportURL)\n        defer { constructionActivity.close() }\n        Self.filesystemLock.lock()\n        defer { Self.filesystemLock.unlock() }\n        let operations = applicationSupportURL.standardizedFil"
+    },
+    {
+      "name": "init",
+      "line": 7583,
+      "endLine": 7619,
+      "static": false,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [],
+      "prefix": "let operations = applicationSupportURL.standardizedFileURL.appendingPathComponent(\n            OwnedStorageRootKindV1.operations.rawValue, isDirectory: true)\n        rootURL = operations.appendingPathComponent(Self.rootName, isDirectory: true)\n        self.clock = clock\n        ingressHygieneFailureInjection = .none\n  "
+    },
+    {
+      "name": "withSchema2ColdBorrowedExistingRoot",
+      "line": 7629,
+      "endLine": 7706,
+      "static": true,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [],
+      "prefix": "_ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)\n        guard operationID != SettingsValidationV1.zeroUUID else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }\n        let store: ScratchDataLeaseStoreV1\n        do {\n            store = try ScratchDataLeaseStoreV1(verifiedExisting"
+    },
+    {
+      "name": "withSchema2ColdBorrowedExistingRoot",
+      "line": 7709,
+      "endLine": 7855,
+      "static": true,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [],
+      "prefix": "try permit.requireObservationBinding()\n        guard referencePlan != nil, referenceProgress != nil else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }\n        try referencePlan?.validate()\n        if let referencePlan {\n            guard let referenceProgress else {\n                throw ScratchDataLeaseStore"
+    },
+    {
+      "name": "originalEraseC16TombstoneAuthoritiesNoRepair",
+      "line": 7866,
+      "endLine": 7946,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard try hasExistingIngressControl(),\n              let control = ingressControlAuthority else { return [:] }\n        if try regularFileInformationIfPresent(named: Self.controlEraseName,\n            directoryDescriptor: control.rootDescriptor) != nil {\n            return [:"
+    },
+    {
+      "name": "originalEraseNoRepairLeaseContents",
+      "line": 7948,
+      "endLine": 7991,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        7960
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        var durableBytes: UInt64 = 0\n        for child in try directoryNames(descriptor)\n            where child != Self.metadataName {\n            if child.hasPrefix(\".partial-\") {\n                let raw = String(child.dropFirst(\".partial-\".count))\n                var value = stat"
+    },
+    {
+      "name": "originalEraseNoRepairSemanticAdmission",
+      "line": 7993,
+      "endLine": 8116,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        8022,
+        8039,
+        8060
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try requireOriginalEraseBorrowedOwner()\n        try originalEraseBorrowedExclusiveCheck?()\n        try verifyRoot()\n        if try hasExistingIngressControl() {\n            _ = try protectedIngressReceiptDirectory()\n            guard let control = ingressControlAuthority els"
+    },
+    {
+      "name": "originalEraseValidateInterruptedControlEraseNoRepair",
+      "line": 8123,
+      "endLine": 8187,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        try originalEraseBorrowedExclusiveCheck?()\n        let directory = try protectedIngressReceiptDirectory()\n        let descriptor = control.rootDescriptor\n        let maximumMarkerBytes = 32 * 1_024 * 1_024\n        let bytes = try readRegularFile(named: Self.controlEraseName,"
+    },
+    {
+      "name": "c16HygieneSteps",
+      "line": 8255,
+      "endLine": 8311,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "[.plan { _ in\n            try Self.validateC16HygieneRequest(now: now, operationID: operationID,\n                minimumAge: minimumAge)\n            let request = C16IngressHygieneRequestV1(operationID: operationID,\n                requestedAt: now, minimumAge: minimumAge)\n            let digest = try CompatibilityCano"
+    },
+    {
+      "name": "protectedIngressReceiptDirectory",
+      "line": 8372,
+      "endLine": 8423,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        8382
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyRoot()\n        let name = \"ProtectedIngressReceiptsV1\"\n        let directory = rootURL.deletingLastPathComponent().appendingPathComponent(name, isDirectory: true)\n        if ingressControlAuthority == nil {\n            if originalEraseBorrowedExclusiveCheck != nil "
+    },
+    {
+      "name": "ingressControlDescriptor",
+      "line": 8425,
+      "endLine": 8447,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        _ = try protectedIngressReceiptDirectory()\n        guard let ingressControlAuthority else { throw AppAccessContractFailureV1.configurationUnknown }\n        guard try regularFileInformationIfPresent(named: Self.controlEraseName,\n            directoryDescriptor: ingressControl"
+    },
+    {
+      "name": "ingressControlFileExists",
+      "line": 8449,
+      "endLine": 8456,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {\n            throw AppAccessContractFailureV1.configurationUnknown\n        }\n        return try regularFileInformationIfPresent(named: file.lastPathComponent,\n            directoryDescri"
+    },
+    {
+      "name": "readIngressControlFile",
+      "line": 8458,
+      "endLine": 8475,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {\n            throw AppAccessContractFailureV1.configurationUnknown\n        }\n        let data: Data\n        if originalEraseBorrowedExclusiveCheck != nil {\n            guard let leaf = t"
+    },
+    {
+      "name": "makeProtectedIngressPrepare",
+      "line": 8505,
+      "endLine": 8560,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        8525,
+        8530
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyRoot()\n        let names = try directoryNames(authority.rootDescriptor)\n        guard names.count <= ProtectedIngressStartupHygieneReceiptV1.maximumInspectedCount else {\n            throw AppAccessContractFailureV1.configurationUnknown\n        }\n        var targets"
+    },
+    {
+      "name": "ingressHygieneFileIdentities",
+      "line": 8562,
+      "endLine": 8579,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyLeaseDirectory(name, descriptor: descriptor)\n        let names = try directoryNames(descriptor)\n        guard names.count <= 128 else { throw AppAccessContractFailureV1.configurationUnknown }\n        return try names.map { child in\n            let before = try regu"
+    },
+    {
+      "name": "validatePreparedIngressTargetForRecovery",
+      "line": 8584,
+      "endLine": 8621,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        8598
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        let tombstone = Self.deletionTombstoneName(for: target.directoryName)\n        let original = try directoryInformationIfPresent(named: target.directoryName)\n        let deleting = try directoryInformationIfPresent(named: tombstone)\n        if originalEraseBorrowedExclusiveChe"
+    },
+    {
+      "name": "c16OwnedTargetSteps",
+      "line": 8635,
+      "endLine": 8690,
+      "static": false,
+      "category": "first deferred shared-engine memory fence",
+      "directOSLines": [
+        8651,
+        8655,
+        8673,
+        8675
+      ],
+      "prefix": "[.plan { session in\n            try self.requireScratchDescriptorAccess()\n            let tombstone = Self.deletionTombstoneName(for: originalName)\n            let original = try self.directoryInformationIfPresent(named: originalName)\n            let deleting = try self.directoryInformationIfPresent(named: tombstone)\n "
+    },
+    {
+      "name": "writeProtectedIngressCanonical",
+      "line": 8723,
+      "endLine": 8732,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard data.count <= 262_144,\n              file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()) else {\n            throw AppAccessContractFailureV1.configurationUnknown\n        }\n        try publishDurably(data, named: file.lastPathComponent,\n        "
+    },
+    {
+      "name": "c16FinalizeHygieneSteps",
+      "line": 8739,
+      "endLine": 8765,
+      "static": false,
+      "category": "first deferred shared-engine memory fence",
+      "directOSLines": [
+        8754,
+        8755
+      ],
+      "prefix": "[.plan { _ in\n            try self.requireScratchDescriptorAccess()\n            let finalized = try prepare.finalizing()\n            let current = try self.readProtectedIngressPrepare(at: file)\n            if current == finalized { return [] }\n            guard current == prepare else { throw AppAccessContractFailureV1"
+    },
+    {
+      "name": "pendingIngressPublications",
+      "line": 8787,
+      "endLine": 8791,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        return try validatedIngressSnapshot(\n            applyingRecoveryEffects: originalEraseBorrowedExclusiveCheck == nil).pending"
+    },
+    {
+      "name": "validatedIngressSnapshot",
+      "line": 8797,
+      "endLine": 9044,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        if originalEraseBorrowedExclusiveCheck != nil,\n           applyingRecoveryEffects {\n            guard let recoveryIntentID,\n                  originalEraseOperationID != nil else {\n                throw ScratchDataLeaseStoreFailureV1.leaseCollision\n            }\n            "
+    },
+    {
+      "name": "originalEraseC16ClaimOnlySource",
+      "line": 9049,
+      "endLine": 9141,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil,\n              claim.preparation == preparation, claim.device == authority.rootDevice else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        let directoryName = preparation.lease.relativeDirec"
+    },
+    {
+      "name": "originalEraseC16ReferenceNames",
+      "line": 9152,
+      "endLine": 9167,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        if let plan = originalEraseC16ReferencePlan {\n            guard let progress = originalEraseC16AdmissionProgress else {\n                throw ScratchDataLeaseStoreFailureV1.leaseCollision\n            }\n            try progress.validate(plan: plan)\n            return plan.mar"
+    },
+    {
+      "name": "originalEraseC16FixedIngressRecipeData",
+      "line": 9210,
+      "endLine": 9301,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        let names = try originalEraseC16ReferenceNames()\n        let published = try originalEraseC16ReferenceValue(C16IngressPublicationV1.self,\n            name: ingressControlName(intentID, \".published.json\"))\n        let pendingName = try ingressControlName(intentID, \".pending.j"
+    },
+    {
+      "name": "adoptCompletedIngressHygieneRemoval",
+      "line": 9409,
+      "endLine": 9461,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        let name = value.claim.preparation.lease.relativeDirectory\n        // An original Erase binds completed hygiene to its durable request\n        // timestamp below. A fresh process must not change the classification\n        // merely because wall time advanced after first-P ad"
+    },
+    {
+      "name": "originalEraseUnfinishedHygieneTarget",
+      "line": 9463,
+      "endLine": 9493,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil else { return nil }\n        let directory = try protectedIngressReceiptDirectory()\n        for name in try directoryNames(ingressControlDescriptor())\n            where name.hasPrefix(\"hygiene-\")\n                && name.hasSuff"
+    },
+    {
+      "name": "stageProtectedIngress",
+      "line": 9495,
+      "endLine": 9593,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        9504,
+        9506,
+        9509,
+        9554,
+        9555,
+        9559,
+        9561,
+        9569
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        return try withProducerFilesystemLock {\n            guard source.isFileURL, C16IngressPreparedStageV1.supportedKinds.contains(request.kind),\n                  request.receivedAt <= clock(), clock() < request.expiresAt else {\n                throw AppAccessContractFailureV1.i"
+    },
+    {
+      "name": "replaceIngressControlBytes",
+      "line": 9617,
+      "endLine": 9634,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        9629,
+        9630
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard try readIngressControlFile(file, maximumBytes: 262_144) == expected else {\n            throw AppAccessContractFailureV1.effectMismatch\n        }\n        if expected == replacement { return }\n        let temporary = file.deletingLastPathComponent().appendingPathComponen"
+    },
+    {
+      "name": "validateIngressRemovalWithoutEffects",
+      "line": 9673,
+      "endLine": 9712,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        9693,
+        9697
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try removal.validate()\n        let value = removal.expected\n        try validateIngressPreparation(value.claim.preparation, intentID: value.intent.intentID)\n        let pending = try ingressControlURL(value.intent.intentID, \".pending.json\")\n        if let current = try readI"
+    },
+    {
+      "name": "c16IngressRemovalSteps",
+      "line": 9714,
+      "endLine": 9744,
+      "static": false,
+      "category": "first deferred shared-engine memory fence",
+      "directOSLines": [
+        9736,
+        9737
+      ],
+      "prefix": "[.plan { _ in\n            try self.requireScratchDescriptorAccess()\n            try self.validateIngressRemovalWithoutEffects(removal)\n            let value = removal.expected\n            var steps = self.c16OwnedTargetSteps(originalName: value.claim.preparation.lease.relativeDirectory,\n                device: value.cl"
+    },
+    {
+      "name": "makeUnpublishedIngressEraseTarget",
+      "line": 9746,
+      "endLine": 9799,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        9786
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        let id = preparation.intent.intentID\n        try validateIngressPreparation(preparation, intentID: id)\n        for suffix in [\".published.json\", \".pending.json\", \".terminal.json\", \".aborted.json\"] {\n            guard try !ingressControlFileExists(ingressControlURL(id, suffix"
+    },
+    {
+      "name": "validateAbortedIngress",
+      "line": 9801,
+      "endLine": 9822,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        try aborted.validate()\n        try validateIngressPreparation(preparation, intentID: preparation.intent.intentID)\n        guard aborted.expected.preparation == preparation, aborted.expected.claim == claim else {\n            throw AppAccessContractFailureV1.configurationUnkno"
+    },
+    {
+      "name": "c16EraseIngressSteps",
+      "line": 9885,
+      "endLine": 9974,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "[.plan { [self] _ in\n            guard operationID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.invalidValue }\n            let directory = try protectedIngressReceiptDirectory()\n            let file = directory.appendingPathComponent(\"erase-\" + operationID.uuidString.lowercased() + \".prepare"
+    },
+    {
+      "name": "c16FrozenIngressTargetSteps",
+      "line": 9984,
+      "endLine": 10040,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "[.plan { [self] _ in\n        try target.validate()\n        let id = target.intent.intentID\n        let prepareFile = try ingressControlURL(id, \".prepare.json\")\n        let claimFile = try ingressControlURL(id, \".claim.json\")\n        let publishedFile = try ingressControlURL(id, \".published.json\")\n        let pendingFil"
+    },
+    {
+      "name": "validateIngressPreparation",
+      "line": 10119,
+      "endLine": 10125,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyRoot()\n        try value.validate()\n        guard value.intent.intentID == intentID, value.rootDevice == authority.rootDevice,\n              value.rootInode == authority.rootInode else { throw AppAccessContractFailureV1.configurationUnknown }"
+    },
+    {
+      "name": "ingressPreparations",
+      "line": 10127,
+      "endLine": 10172,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        let names = inventory.expectedNames.sorted()\n        guard names.count <= 100_000 else { throw AppAccessContractFailureV1.configurationUnknown }\n        var ids = Set<UUID>()\n        var eraseIDs = Set<UUID>()\n        let suffixes = [\".prepare.json\", \".claim.json\", \".publish"
+    },
+    {
+      "name": "hasExistingIngressControl",
+      "line": 10193,
+      "endLine": 10204,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        10197
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyRoot()\n        var information = stat()\n        if Darwin.fstatat(authority.operationsDescriptor, \"ProtectedIngressReceiptsV1\", &information, AT_SYMLINK_NOFOLLOW) != 0 {\n            guard errno == ENOENT, ingressControlAuthority == nil else { throw ScratchDataLease"
+    },
+    {
+      "name": "eraseUnpublishedIngressForScratchLifecycle",
+      "line": 10219,
+      "endLine": 10238,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        let operationID: UUID\n        if let originalEraseOperationID {\n            // The sidecar's preparing transition binds this exact derived\n            // marker name before publication. A fresh process can then find\n            // only this original operation's unpublished-i"
+    },
+    {
+      "name": "c16ControlRootRemovalSteps",
+      "line": 10371,
+      "endLine": 10390,
+      "static": false,
+      "category": "first deferred shared-engine memory fence",
+      "directOSLines": [
+        10376,
+        10377,
+        10383
+      ],
+      "prefix": "[.effect { [self] in\n            try self.requireScratchDescriptorAccess()\n            try pinned.verify(rootName: \"ProtectedIngressReceiptsV1\")\n            guard try directoryNames(pinned.rootDescriptor).isEmpty,\n                  Darwin.unlinkat(authority.operationsDescriptor, \"ProtectedIngressReceiptsV1\", AT_REMOVED"
+    },
+    {
+      "name": "originalEraseC16FixedFreshEraseMarker",
+      "line": 10402,
+      "endLine": 10446,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let operationID = originalEraseOperationID else { throw ScratchDataLeaseStoreFailureV1.leaseCollision }\n        let name = \"erase-\" + operationID.uuidString.lowercased() + \".prepare.json\"\n        if let born = originalEraseC16BornSourceInputs[\"freshIngressErasePrepare|"
+    },
+    {
+      "name": "originalEraseC16MaterializedControlRole",
+      "line": 10599,
+      "endLine": 10625,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        let step = plan.steps[ordinal]\n        guard step == .eraseFinalControl || step == .resumeControlTail else { return nil }\n        if let source = originalEraseC16SourceInputs[Self.controlEraseName] {\n            return .init(role: \"scratchControlErase\", bytes: source.bytes)\n"
+    },
+    {
+      "name": "c16ControlEraseSteps",
+      "line": 11030,
+      "endLine": 11167,
+      "static": false,
+      "category": "first deferred shared-engine memory fence",
+      "directOSLines": [
+        11142,
+        11143,
+        11157,
+        11158
+      ],
+      "prefix": "[.plan { [self] _ in\n            try self.requireScratchDescriptorAccess()\n        if originalEraseBorrowedExclusiveCheck != nil, originalEraseControlRemovalProved { return [] }\n        guard try hasExistingIngressControl() else { return [] }\n        let directory = try protectedIngressReceiptDirectory()\n        guard "
+    },
+    {
+      "name": "validateIngressClaim",
+      "line": 11169,
+      "endLine": 11193,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        11181
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try validateIngressPreparation(claim.preparation, intentID: claim.preparation.intent.intentID)\n        let name = claim.preparation.lease.relativeDirectory\n        let descriptor: Int32\n        do {\n            descriptor = try openLeaseDirectory(name)\n        } catch Scratc"
+    },
+    {
+      "name": "validateIngressPublication",
+      "line": 11195,
+      "endLine": 11237,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        11209,
+        11216
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try value.validate()\n        let descriptor = try validateIngressClaim(value.claim)\n        try withObservedScratchDescriptor(descriptor) { descriptor in\n            let name = value.claim.preparation.lease.relativeDirectory\n            let files = try ingressHygieneFileIden"
+    },
+    {
+      "name": "validateOpaqueSourceLink",
+      "line": 11239,
+      "endLine": 11248,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        11242
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        var linked = stat()\n        guard Darwin.lstat(source.path, &linked) == 0, (linked.st_mode & S_IFMT) == S_IFREG,\n              linked.st_nlink == 1,\n              C16IngressHygieneFileIdentityV1(name: \"source\", information: linked)\n                == C16IngressHygieneFileIde"
+    },
+    {
+      "name": "opaqueSHA256",
+      "line": 11250,
+      "endLine": 11280,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        11256,
+        11274
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard byteCount > 0, byteCount <= PendingLockedExternalIntentV1.maximumByteCount else {\n            throw AppAccessContractFailureV1.invalidValue\n        }\n        var before = stat()\n        guard Darwin.fstat(descriptor, &before) == 0, (before.st_mode & S_IFMT) == S_IFREG,"
+    },
+    {
+      "name": "publishOpaqueIngress",
+      "line": 11282,
+      "endLine": 11359,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        11295,
+        11297,
+        11299,
+        11310,
+        11318,
+        11349,
+        11350,
+        11351
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        let sinkActivity = try OwnedStorageProducerActivityV1.acquire(\n            applicationSupportURL: producerApplicationSupportURL)\n        var activityTransferred = false\n        defer { if !activityTransferred { sinkActivity.close() } }\n        let name = preparation.lease.re"
+    },
+    {
+      "name": "checkedOriginalEraseSourceCut",
+      "line": 11817,
+      "endLine": 11877,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        11830,
+        11831,
+        11832,
+        11833,
+        11852,
+        11853,
+        11855,
+        11856
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard exclusiveNoRepairRead, let io = originalEraseSourceReceiptIO else {\n            throw ScratchDataLeaseStoreFailureV1.invalidRoot\n        }\n        try io.requireSettled()\n        try authority.verify(rootName: Self.rootName)\n        let operationsFD = authority.operati"
+    },
+    {
+      "name": "requireOriginalEraseAuxiliaryScratchNoRepairFirstImage",
+      "line": 11885,
+      "endLine": 11967,
+      "static": true,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [
+        11914,
+        11915,
+        11917,
+        11918,
+        11921,
+        11922
+      ],
+      "prefix": "try permit.requireHeld()\n        var retainedStore: ScratchDataLeaseStoreV1?\n        do {\n            let store = try ScratchDataLeaseStoreV1(\n                verifiedExistingTemporalRootAt: applicationSupportURL,\n                clock: Date.init, checkedClose: true)\n            retainedStore = store\n            let io"
+    },
+    {
+      "name": "settleOriginalEraseAuxiliaryExistingControlPolicy",
+      "line": 11975,
+      "endLine": 12286,
+      "static": true,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [
+        12007,
+        12008,
+        12009,
+        12010,
+        12030,
+        12134,
+        12135,
+        12171,
+        12172,
+        12222,
+        12223,
+        12243,
+        12244
+      ],
+      "prefix": "let name = \"ProtectedIngressReceiptsV1\"\n        // The original Router operation must retain this owner before the\n        // first open. A failed checked close may leave a live descriptor in it.\n        let io = retainedIO\n        let controlURL = applicationSupportURL\n            .appendingPathComponent(OwnedStorageR"
+    },
+    {
+      "name": "settleOriginalEraseNotificationExistingRootPolicy",
+      "line": 12294,
+      "endLine": 12668,
+      "static": true,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [
+        12327,
+        12328,
+        12329,
+        12330,
+        12365,
+        12366,
+        12420,
+        12421,
+        12460,
+        12461,
+        12514,
+        12515,
+        12552,
+        12553,
+        12603,
+        12604,
+        12624,
+        12625
+      ],
+      "prefix": "let name = AppLockNotificationControlStoreV1.rootName\n        // The original Router operation must retain this owner before the\n        // first open. A failed checked close may leave a live descriptor in it.\n        let io = retainedIO\n        let controlURL = applicationSupportURL\n            .appendingPathComponent"
+    },
+    {
+      "name": "withExclusiveEraseSourceRead",
+      "line": 12733,
+      "endLine": 12955,
+      "static": true,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [],
+      "prefix": "#if DEBUG\n        diagnosticPhase?(\"recovery.original.old.scratch.permit-enter\")\n#endif\n        try permit.requireHeld()\n        guard request.purpose == .source, request.owner == .source else {\n            throw ScratchDataLeaseStoreFailureV1.invalidLease\n        }\n        try request.validate()\n#if DEBUG\n        diag"
+    },
+    {
+      "name": "acquireScratchLeaseSynchronously",
+      "line": 13003,
+      "endLine": 13109,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        13049,
+        13060,
+        13063,
+        13091
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try request.validate()\n        let current = clock()\n        guard request.createdAt <= current, current < request.expiresAt else {\n            throw ScratchDataLeaseStoreFailureV1.invalidLease\n        }\n        if recoverExisting {\n            _ = try recoverScratchLeaseSta"
+    },
+    {
+      "name": "writeScratchDataSynchronously",
+      "line": 13122,
+      "endLine": 13204,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        13142
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard OperationalDiagnosticsBoundsV1.validRelativeName(named),\n              named != Self.metadataName,\n              active[lease.request.leaseID] == lease else {\n            throw ScratchDataLeaseStoreFailureV1.invalidLease\n        }\n        guard clock() < lease.request."
+    },
+    {
+      "name": "recoverScratchLeaseState",
+      "line": 13271,
+      "endLine": 13382,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        13309,
+        13356,
+        13359,
+        13362
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyRoot()\n        try resumePreparedScratchHygiene()\n        let ingressRecovery = try recoverUnpublishedIngressForScratchLifecycle()\n        let children = try directoryNames(authority.rootDescriptor)\n        let childSet = Set(children)\n        for tombstone in chil"
+    },
+    {
+      "name": "resetScratchDataSynchronously",
+      "line": 13391,
+      "endLine": 13402,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        try settleScratchIngressAndHygieneBeforeLeaseDeletion()\n        for child in try directoryNames(authority.rootDescriptor) {\n            if Self.isDeletionTombstone(child) {\n                try removeDeletionTombstone(named: child)\n            } else {\n                try rem"
+    },
+    {
+      "name": "eraseScratchDataSynchronously",
+      "line": 13427,
+      "endLine": 13450,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        13432,
+        13437,
+        13443
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try resetScratchDataSynchronously()\n        try eraseScratchIngressControl(resumeOnly: false)\n        try verifyRoot()\n        guard Darwin.unlinkat(\n            authority.operationsDescriptor,\n            Self.rootName,\n            AT_REMOVEDIR\n        ) == 0,\n        Darwi"
+    },
+    {
+      "name": "payloadByteCount",
+      "line": 13452,
+      "endLine": 13477,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        var total: UInt64 = 0\n        for name in try directoryNames(directoryDescriptor)\n        where name != Self.metadataName {\n            let information = try regularFileInformation(\n                named: name,\n                directoryDescriptor: directoryDescriptor\n       "
+    },
+    {
+      "name": "allByteCount",
+      "line": 13479,
+      "endLine": 13503,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        var total: UInt64 = 0\n        for name in try directoryNames(directoryDescriptor) {\n            let information = try regularFileInformation(\n                named: name,\n                directoryDescriptor: directoryDescriptor\n            )\n            try ProtectedFilePoli"
+    },
+    {
+      "name": "requireExpectedScratchLease",
+      "line": 13505,
+      "endLine": 13521,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyLeaseDirectory(name, descriptor: descriptor)\n        let metadata = rootURL.appendingPathComponent(name).appendingPathComponent(Self.metadataName)\n        try verifySourceReadPolicy(.temporaryFile, at: metadata)\n        let before = try regularFileInformation(named"
+    },
+    {
+      "name": "removeLeaseDirectory",
+      "line": 13523,
+      "endLine": 13615,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        13554,
+        13557,
+        13560,
+        13572,
+        13573,
+        13579,
+        13583,
+        13594,
+        13610
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard Self.isLeaseDirectoryName(name) else {\n            throw ScratchDataLeaseStoreFailureV1.invalidLease\n        }\n        try verifyRoot()\n        if !exclusiveNoRepair,\n           try removeIngressScratchLeaseIfOwned(named: name, expectedLease: expectedLease) { return }\n"
+    },
+    {
+      "name": "eraseOriginalFrozenLease",
+      "line": 13624,
+      "endLine": 13755,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        13663,
+        13667,
+        13685,
+        13687,
+        13729,
+        13730,
+        13746,
+        13748
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil,\n              exclusiveNoRepairRead,\n              Self.isLeaseDirectoryName(originalName),\n              expectedDevice == authority.rootDevice,\n              expectedInode > 0,\n              !orderedChildren.isEmpty,\n      "
+    },
+    {
+      "name": "eraseOriginalFrozenEmptyRoot",
+      "line": 13761,
+      "endLine": 13823,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        13780,
+        13791,
+        13792,
+        13807,
+        13809,
+        13816
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil,\n              exclusiveNoRepairRead,\n              expectedFirstDevice == authority.rootDevice,\n              expectedFirstInode == authority.rootInode,\n              expectedFirstInode != 0 else {\n            throw ScratchDa"
+    },
+    {
+      "name": "removeDeletionTombstone",
+      "line": 13825,
+      "endLine": 13848,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        13834,
+        13835
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard Self.isDeletionTombstone(name) else {\n            throw ScratchDataLeaseStoreFailureV1.invalidLease\n        }\n        try requireNoUnfinishedHygieneTarget(named: String(name.dropFirst(Self.deletionPrefix.count)))\n        let descriptor = try openLeaseDirectory(name)\n  "
+    },
+    {
+      "name": "validateDeletionTombstone",
+      "line": 13850,
+      "endLine": 13889,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard Self.isDeletionTombstone(name) else {\n            throw ScratchDataLeaseStoreFailureV1.invalidLease\n        }\n        let originalName = String(name.dropFirst(Self.deletionPrefix.count))\n        let directory = rootURL.appendingPathComponent(name, isDirectory: true)\n  "
+    },
+    {
+      "name": "requireExclusiveExpectedChildren",
+      "line": 13894,
+      "endLine": 13914,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        let names = try directoryNames(descriptor)\n        guard !expected.isEmpty,\n              Set(names) == Set(expected.map(\\.name)),\n              expected.count == names.count else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        for child i"
+    },
+    {
+      "name": "c16DeletePinnedDirectorySteps",
+      "line": 13927,
+      "endLine": 14012,
+      "static": false,
+      "category": "first deferred shared-engine memory fence",
+      "directOSLines": [
+        13934,
+        13977,
+        13982,
+        13999,
+        14001,
+        14002,
+        14006
+      ],
+      "prefix": "[.plan { _ in\n            try self.requireScratchDescriptorAccess()\n            guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {\n                throw ScratchDataLeaseStoreFailureV1.leaseCollision\n            }\n            try self.verifyLeaseDirectory(name, descriptor: descriptor)\n            if expectedFiles =="
+    },
+    {
+      "name": "directoryInformationIfPresent",
+      "line": 14014,
+      "endLine": 14034,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14018
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyRoot()\n        var information = stat()\n        if Darwin.fstatat(\n            authority.rootDescriptor,\n            name,\n            &information,\n            AT_SYMLINK_NOFOLLOW\n        ) == 0 {\n            guard (information.st_mode & S_IFMT) == S_IFDIR,\n      "
+    },
+    {
+      "name": "openLeaseDirectory",
+      "line": 14036,
+      "endLine": 14073,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14043,
+        14053,
+        14063,
+        14069
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard OperationalDiagnosticsBoundsV1.validRelativeName(name) else {\n            throw ScratchDataLeaseStoreFailureV1.invalidLease\n        }\n        try verifyRoot()\n        var before = stat()\n        guard Darwin.fstatat(\n            authority.rootDescriptor,\n            na"
+    },
+    {
+      "name": "verifyLeaseDirectory",
+      "line": 14075,
+      "endLine": 14095,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14083,
+        14089
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try verifyRoot()\n        var linked = stat()\n        var pinned = stat()\n        guard Darwin.fstatat(\n            authority.rootDescriptor,\n            name,\n            &linked,\n            AT_SYMLINK_NOFOLLOW\n        ) == 0,\n        Darwin.fstat(descriptor, &pinned) == 0,"
+    },
+    {
+      "name": "directoryNames",
+      "line": 14097,
+      "endLine": 14151,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14100,
+        14103,
+        14121,
+        14128,
+        14135
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        try originalEraseBorrowedExclusiveCheck?()\n        let duplicate = Darwin.dup(descriptor)\n        guard duplicate >= 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }\n        retainOriginalEraseObservedDescriptor(duplicate)\n        guard let directory = Darwin.fdop"
+    },
+    {
+      "name": "regularFileInformation",
+      "line": 14153,
+      "endLine": 14165,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let information = try regularFileInformationIfPresent(\n            named: name,\n            directoryDescriptor: directoryDescriptor\n        ) else {\n            throw ScratchDataLeaseStoreFailureV1.invalidRoot\n        }\n        return information"
+    },
+    {
+      "name": "regularFileInformationIfPresent",
+      "line": 14167,
+      "endLine": 14225,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14173,
+        14189,
+        14190,
+        14203,
+        14204
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        var information = stat()\n        if Darwin.fstatat(\n            directoryDescriptor,\n            name,\n            &information,\n            AT_SYMLINK_NOFOLLOW\n        ) != 0 {\n            guard errno == ENOENT else {\n                throw ScratchDataLeaseStoreFailureV1.inv"
+    },
+    {
+      "name": "adoptExistingFileIfIdentical",
+      "line": 14227,
+      "endLine": 14266,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard let existing = try regularFileInformationIfPresent(\n            named: name,\n            directoryDescriptor: directoryDescriptor\n        ) else {\n            return false\n        }\n        guard existing.st_size == Int64(data.count),\n              try readRegularFile("
+    },
+    {
+      "name": "readRegularFile",
+      "line": 14268,
+      "endLine": 14340,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14281,
+        14293,
+        14305,
+        14318,
+        14323
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        let expected = try regularFileInformation(\n            named: name,\n            directoryDescriptor: directoryDescriptor\n        )\n        guard expected.st_size <= Int64(maximumBytes) else {\n            throw ScratchDataLeaseStoreFailureV1.sizeLimitExceeded\n        }\n      "
+    },
+    {
+      "name": "readOriginalErasePublicationLeaf",
+      "line": 14342,
+      "endLine": 14400,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14347,
+        14350,
+        14365,
+        14371,
+        14383,
+        14389,
+        14390
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        var parentBefore = stat()\n        guard Darwin.fstat(parent, &parentBefore) == 0 else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }\n        let expectedGroup = parentBefore.st_mode & S_ISGID == 0 ? Darwin.getegid() : parentBefore.st_gid\n        var namedBefore = stat("
+    },
+    {
+      "name": "unlinkPublicationTemporary",
+      "line": 14459,
+      "endLine": 14467,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14463,
+        14464
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard Darwin.unlinkat(parent, temporaryName, 0) == 0,\n              Darwin.fsync(parent) == 0 else {\n            throw ScratchDataLeaseStoreFailureV1.invalidRoot\n        }"
+    },
+    {
+      "name": "createPublicationTemporary",
+      "line": 14469,
+      "endLine": 14480,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14473
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        let descriptor = Darwin.openat(parent, temporaryName,\n            O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)\n        guard descriptor >= 0 else {\n            throw ScratchDataLeaseStoreFailureV1.invalidRoot\n        }\n        retainOriginalEraseObservedDescriptor(descri"
+    },
+    {
+      "name": "writePublicationChunk",
+      "line": 14482,
+      "endLine": 14498,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14491
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard offset >= 0, offset < data.count else {\n            throw ScratchDataLeaseStoreFailureV1.invalidRoot\n        }\n        let count = data.withUnsafeBytes { bytes -> Int in\n            guard let base = bytes.baseAddress else { return 0 }\n            return Darwin.write(de"
+    },
+    {
+      "name": "publishPublicationTemporary",
+      "line": 14500,
+      "endLine": 14516,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14511,
+        14514
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        if atomicExclusiveRename {\n            guard finalName == Self.controlEraseName,\n                  leaseName == nil else {\n                throw ScratchDataLeaseStoreFailureV1.invalidRoot\n            }\n            return Darwin.renameatx_np(parent, temporaryName,\n           "
+    },
+    {
+      "name": "publishDurably",
+      "line": 14868,
+      "endLine": 14897,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        // Borrowed publication is driven by the actor-isolated C16 controller\n        // so that no ordinary synchronous helper can skip a physical cut.\n        guard originalEraseOperationID == nil else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n  "
+    },
+    {
+      "name": "publishOriginalEraseControlDurably",
+      "line": 14899,
+      "endLine": 14929,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        guard originalEraseBorrowedExclusiveCheck != nil,\n              exclusiveNoRepairRead,\n              let originalEraseOperationID,\n              originalEraseC16CutCheck != nil else {\n            throw ScratchDataLeaseStoreFailureV1.leaseCollision\n        }\n        _ = try p"
+    },
+    {
+      "name": "removeInterruptedPublications",
+      "line": 14966,
+      "endLine": 15004,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [
+        14987,
+        14996,
+        15001
+      ],
+      "prefix": "try requireScratchDescriptorAccess()\n        if originalEraseBorrowedExclusiveCheck != nil,\n           try directoryNames(directoryDescriptor).contains(where: {\n               $0.hasPrefix(\".partial-\")\n           }) {\n            // Original cleanup must settle each first-P partial under its\n            // own durable "
+    },
+    {
+      "name": "verifyRoot",
+      "line": 15006,
+      "endLine": 15009,
+      "static": false,
+      "category": "permanent memory fence first",
+      "directOSLines": [],
+      "prefix": "try requireScratchDescriptorAccess()\n        try authority.verify(rootName: Self.rootName)"
+    },
+    {
+      "name": "prepareRoot",
+      "line": 15044,
+      "endLine": 15091,
+      "static": true,
+      "category": "static factory/constructor: separate retained owner/permit audit required",
+      "directOSLines": [
+        15047,
+        15054,
+        15056,
+        15065,
+        15072,
+        15080,
+        15082,
+        15085,
+        15087,
+        15088
+      ],
+      "prefix": "let operations = root.deletingLastPathComponent()\n        let applicationSupport = operations.deletingLastPathComponent()\n        let applicationSupportDescriptor = Darwin.open(\n            applicationSupport.path,\n            O_RDONLY | O_DIRECTORY | O_NOFOLLOW\n        )\n        guard applicationSupportDescriptor >= 0"
+    }
+  ],
+  "unclassified": [
+    {
+      "name": "requireScratchDescriptorAccess",
+      "line": 4578,
+      "endLine": 4588,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "switch originalEraseBorrowedLifetime {\n        case .ordinary: return\n        case .active:\n            guard originalEraseBorrowedExclusiveCheck != nil else {\n                throw ScratchDataLeaseStoreFailureV1.invalidRoot\n            }\n            try originalEraseRequireFreshGenericBinding()\n        case .closed, ."
+    },
+    {
+      "name": "c16CaptureBornSourceSteps",
+      "line": 6710,
+      "endLine": 6727,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "[.plan { [self] _ in\n            guard originalEraseBorrowedExclusiveCheck != nil,\n                  file.deletingLastPathComponent() == (try protectedIngressReceiptDirectory()),\n                  bytes.count <= Self.originalEraseC16SourceMaximum(name: file.lastPathComponent),\n                  let leaf = try readOrigi"
+    },
+    {
+      "name": "c16HygieneSteps",
+      "line": 8255,
+      "endLine": 8311,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "[.plan { _ in\n            try Self.validateC16HygieneRequest(now: now, operationID: operationID,\n                minimumAge: minimumAge)\n            let request = C16IngressHygieneRequestV1(operationID: operationID,\n                requestedAt: now, minimumAge: minimumAge)\n            let digest = try CompatibilityCano"
+    },
+    {
+      "name": "c16EraseIngressSteps",
+      "line": 9885,
+      "endLine": 9974,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "[.plan { [self] _ in\n            guard operationID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.invalidValue }\n            let directory = try protectedIngressReceiptDirectory()\n            let file = directory.appendingPathComponent(\"erase-\" + operationID.uuidString.lowercased() + \".prepare"
+    },
+    {
+      "name": "c16FrozenIngressTargetSteps",
+      "line": 9984,
+      "endLine": 10040,
+      "static": false,
+      "category": "requires manual path classification",
+      "directOSLines": [],
+      "prefix": "[.plan { [self] _ in\n        try target.validate()\n        let id = target.intent.intentID\n        let prepareFile = try ingressControlURL(id, \".prepare.json\")\n        let claimFile = try ingressControlURL(id, \".claim.json\")\n        let publishedFile = try ingressControlURL(id, \".published.json\")\n        let pendingFil"
+    }
+  ],
+  "limitations": [
+    "String interpolation bodies are masked; not semantic reachability proof",
+    "Nested owner types, PinnedScratchRoot, constructor Support-SH/EX and external typed terminal release need separate owner-path audit",
+    "Every-raw-IO fresh provider bracketing is NOT established by a function entry memory fence; ongoing implementation obligation",
+    "Generic checked pair/single policy and exact role exclusion remain due"
+  ]
+}

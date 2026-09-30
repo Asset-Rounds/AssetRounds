@@ -1,0 +1,35 @@
+# Active integration brief — 2026-09-28
+
+Read AGENTS.md. Development results never establish acceptance. CURRENT_INTEGRATION retains exact batch history; VERIFICATION_DUE retains every open obligation; MERGE_READINESS defines full phase scope.
+
+## Authority and working copies
+
+- Primary `/Users/rentamac/Developer/AssetRounds`: `codex/v23-s10-integration-20260910`, pushed `4bc335542f972f5d2bf47461e2be5eff41e7ca53`. Main remains accepted S10 `b1d04ae5e684aa9c6807af655089efa1df8a7ed6`. Not merge-ready; release false.
+- Live `/Users/rentamac/.codex/worktrees/integration-checkpoint/AssetRounds` is stale Git HEAD `4a21cccb` plus the authoritative newer overlay. Never reset it or replace live files with primary/HEAD bytes. Owner `.codex/config.toml`, drafts, ignored scratch and retained evidence stay preserved.
+- Root alone installs, builds/native-tests, collects, commits, pushes and dispatches. Helpers use Sol medium/high/tool-supported xhigh or Luna max (decision26); reuse contexts, no Astra resume. Consequential review is independent nonauthor Sol high.
+- No force/history rewriting/merge commits/PRs/broad staging/signing/release. Never edit `docs/design/s10/**` or `Release/**`.
+- Local Xcode26.6/17F113, Simulator26.5/23F77; official GitHub route requires26.2/23C54. DD `/Users/rentamac/DD-integration-checkpoint`, four workers. Never rebuild running native products.
+
+## Published checkpoint and latest local verification
+
+- Hosted development run36368867150 on4bc33554: unsigned buildPASS1194s, tests17PASS10FAIL261s, sole collection complete; all1275manifestfiles verified. This older source scope remains separate from local work. Six pinned-runtime retirement-policy failures require hosted verification after the local correction.
+- Primary CI candidate m2-hosted27-ci-candidate-v3: selection42PASS/native-CI379PASS on exact2691inputs. Published coverage3628; current live additions require fresh source bindings, regenerated census/partitions and both CI suites before publication. Older counts/pins do not describe current overlay.
+- Latest completed native: reader-open/private-hook batch 5/6 PASS; actual private-copy/SHM injections and two V949 controls pass, retained-inventory callback hit leaseCollision. Isolated interrupted-Erase then failed a post-ready Restore-directory assertion; original evidence and memory samples retained. Neither result is acceptance.
+- Earlier bounded closures include C46 backup/restore/clone/fork/delete/erase/export/search/replay, Restore SHM lifecycle, retirement cuts, and fresh-owner AppAccess controls. Their exact source scopes remain in CURRENT_INTEGRATION.
+
+## Active corrections and next checkpoint
+
+- Installed independently reviewed maintenance six-file composition, V906 exact-reader/writer lease-census correction, Finalization compiler fix and current-base V949 pointer callback correction. Exact latest receipts: m2-maintenance-v906-installed-v1.json, m2-maintenance-compilefix-installed-v1.json and m2-v949-callback-installed-v1.json.
+- Initial maintenance build failed four closure typecheck errors; minimal synchronous-callback correction reviewed2993354c. Full305-file build9463 PASS97.039s; native19949 terminal8PASS6FAIL260.417s exact source/products. Collection65302 complete1340artifacts268products; that batch is terminal. Six failures and next causes are recorded in CURRENT_INTEGRATION.
+- V949 review07c1f38a preserves maintenance hunks and uses original checked pointer reader under retained authority; genuine/early-pointer controls pass, hostile test fails, but source/log inspection shows maintenance refusal rather than ready admission; fixed-stage diagnostic will distinguish its exact refusal boundary before an expectation correction.
+- Completed-abort memory investigation: prior original Jetsam confirmed; later isolated run was not killed and sampled app RSS7.475GiB. Stage-only diagnostic is installed in the isolated cycle below. No watchdog/validation weakening.
+- Reviewed S6 cleanup-witness plus DEBUG RSS-stage composition f85fc68c installed Servicea503f444/Factory7cf84a3a/test8b8b205c, receipt m2-completed-abort-witness-installed-v2.json. Full305build39523 PASS75.665s exact inputs/source; isolated Every FAIL204.013s exactsource/products, collector23703 complete1330artifacts268products plus99memorysamples. New cleanup assertions progressed; later beforePointerSwitch staleAttempt remains. Sampledpeak7.406GiB; next reviewed five-boundary composition84388b07 installed (receipt m2-five-boundary-installed-v1.json), full305build79239 PASS43.021s exact inputs/source. Native5 sampler25376 running as m2-five-boundary-native-v1; no source/product edits before collection.
+- C05 genuine schema2/V3 cold recovery remains incomplete/noninstallable; partial candidate previously failed51module diagnostics. AP10 bounded7/7PASS is retained, broader schema/photo/journal obligations remain open.
+- Exact installed source bindings are in root `.codex-temp/*installed*.json` receipts; latest `m2-maintenance-v906-installed-v1.json` supersedes overlapping older entries. Live files, not stale worktree HEAD or primary bytes, are authoritative.
+- Next: complete/review bounded corrections; compile and affected native checks; collect exact originals; regenerate coverage and policy bindings; run required421CI checks; independent checkpoint review, current records, explicit paths/freshrefs/non-force push, then deliberate hosted development verification. No development result becomes a gate.
+
+## Preservation and merge obligations
+
+- Owner cleanup09-28 reset six secondary devices after verified app-state archives; runtime/definitions,currentF074/provenance079,DeskIn/tools and original evidence preserved. Free space last sampled17GiB; cleanup receipts owner-cleanup-20260928. Storage audit followed low headroom. Newly reviewed remaining25 historical JSONLs compressed25/25 in5.923s, reviewb191c2b9; observedfree4.144→4.923GB (+778.8MB), original contents/manifests/ZIPs preserved. Earlier one-trial+74batch also complete; never repeat attempts. Prior Spotlight logs prove low-disk read-only failures. Check headroom before native; APFS apparent size is not unique allocation.
+- Archival check confirms integration-checkpoint, erase-reader-retirement and v949-fixture-migration plus scratch remain available; no restore needed now. Restore archived work only for a specific dependency.
+- Cold shared-build qualification, complete gate tooling, all-unit same-head coverage, qualified UI, independent candidate review, genuine owner visual acceptance, main fast-forward and exact-main verification remain due. Full V23 scope remains required before release. Physical protection UNVERIFIED/release-blocking; decision24 expires after Phase1 exact-main. C55/privacy/AppStore/human review remain owner-reserved; Card135 stays owner-only/skipped.

@@ -1,0 +1,42 @@
+{
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "bytes": 150092,
+      "candidateSHA256": "be12586882e2f15fa22df6448cc17a5a50a90c5958b06ac8369ee4a023822ae0",
+      "immediateBeforeSHA256": "3facc42d4e0df669ed50c8fb053d7f7f4675aff17f24be7cce6dbeeca4fde5ec",
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "bytes": 1895497,
+      "candidateSHA256": "e8c5f1e3b9a07460c2f16ca492f126f9e56c60fac1ba0cf76ceb48ac9b7b6883",
+      "immediateBeforeSHA256": "117e111caeda31673ce4b4b7b9e930e6d55e297b79408f71ef079d0cec594618",
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e"
+    }
+  },
+  "externalDependencies": {
+    "borrowedManifestSource": {
+      "authenticIssuerOrRuntimeClaim": false,
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/owner-stop-handoff-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift",
+      "sha256": "2f04739ec4da6b2085f207ca6be181f24ab0842dfb2a326376e5c06ccb1ae2a9"
+    },
+    "firstCaptureScope": {
+      "authenticIssuerOrRuntimeClaim": false,
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/FIRST_CAPTURE_SCOPE_INTERFACE_V1.swift.fragment",
+      "sha256": "0d161f89031b17c3e87940126ba6f889a6f1da4d2533d05e3529d507b800ab8c"
+    },
+    "fourthPFP": {
+      "authenticIssuerOrRuntimeClaim": false,
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "sha256": "330938cb61f5c5e1c3c7b8655f7603af31e8f15e1ff890542940a802678aa6bd"
+    },
+    "liveFunctionalObserverBefore": {
+      "authenticIssuerOrRuntimeClaim": false,
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-absence-successor-v2/candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+      "sha256": "ad95d26b481a864a3f5f6b45a5f2917d790f703af59cbb0f742e85c0d6d40d1b"
+    }
+  },
+  "immediateParentBindingSHA256": "0746c9d65961dd9916cd4bd2520580bb0cfe1bdfc925dd0289e4ff6f375ad89c",
+  "physicalFrozenInputBindingSHA256": "eaa6b26f558bdff78085658b78643f6c22965eab097d554b4411041cab846be6",
+  "publishedHead": "93159755395d697a5a9da02f41374120433c50f9",
+  "sourceOnly": true
+}

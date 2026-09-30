@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "ExactRationalV1": {
+      "additionalProperties": false,
+      "properties": {
+        "denominator": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "numerator": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://assetrounds.invalid/v23/UnitDefinitionV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canonicalScale": {
+      "maximum": 9,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "canonicalUnitID": {
+      "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+      "type": "string"
+    },
+    "dimension": {
+      "enum": [
+        "DIMENSIONLESS",
+        "LENGTH",
+        "ILLUMINANCE",
+        "DURATION",
+        "TEMPERATURE"
+      ],
+      "type": "string"
+    },
+    "multiplier": {
+      "$ref": "#/$defs/ExactRationalV1"
+    },
+    "offset": {
+      "$ref": "#/$defs/ExactRationalV1"
+    },
+    "unitID": {
+      "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "unitID",
+    "dimension",
+    "canonicalUnitID",
+    "multiplier",
+    "offset",
+    "canonicalScale"
+  ],
+  "title": "UnitDefinitionV1",
+  "type": "object"
+}

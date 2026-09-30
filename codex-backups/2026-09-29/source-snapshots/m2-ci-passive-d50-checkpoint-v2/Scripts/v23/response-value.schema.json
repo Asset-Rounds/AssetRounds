@@ -1,0 +1,523 @@
+{
+  "$defs": {
+    "ExactDecimalV1": {
+      "additionalProperties": false,
+      "properties": {
+        "mantissa": {
+          "type": "integer"
+        },
+        "scale": {
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mantissa",
+        "scale"
+      ],
+      "type": "object"
+    },
+    "ExactMeasurementV1": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicalUnitID": {
+          "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+          "type": "string"
+        },
+        "canonicalValue": {
+          "$ref": "#/$defs/ExactDecimalV1"
+        },
+        "captureMethodID": {
+          "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+          "type": "string"
+        },
+        "conversionPolicyVersion": {
+          "const": "KERNEL_UNIT_POLICY_V1"
+        },
+        "dimension": {
+          "enum": [
+            "DIMENSIONLESS",
+            "LENGTH",
+            "ILLUMINANCE",
+            "DURATION",
+            "TEMPERATURE"
+          ],
+          "type": "string"
+        },
+        "enteredUnitID": {
+          "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+          "type": "string"
+        },
+        "enteredValue": {
+          "$ref": "#/$defs/ExactDecimalV1"
+        },
+        "precisionScale": {
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "roundingReceipt": {
+          "$ref": "#/$defs/ExactRoundingReceiptV1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "source": {
+          "enum": [
+            "MANUAL_ENTRY",
+            "INSTRUMENT_OBSERVED",
+            "IMPORTED",
+            "DERIVED"
+          ],
+          "type": "string"
+        },
+        "uncertaintyCanonical": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExactDecimalV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "enteredValue",
+        "enteredUnitID",
+        "canonicalValue",
+        "canonicalUnitID",
+        "dimension",
+        "precisionScale",
+        "uncertaintyCanonical",
+        "source",
+        "captureMethodID",
+        "conversionPolicyVersion",
+        "roundingReceipt"
+      ],
+      "type": "object"
+    },
+    "ExactRoundingReceiptV1": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "EXACT",
+            "NEAREST_TOWARD_ZERO",
+            "NEAREST_AWAY_FROM_ZERO",
+            "TIE_EVEN_UNCHANGED",
+            "TIE_EVEN_ADJUSTED"
+          ],
+          "type": "string"
+        },
+        "policy": {
+          "const": "TIES_TO_EVEN_V1"
+        },
+        "remainder": {
+          "type": "integer"
+        },
+        "roundedMantissa": {
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "sourceDenominator": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sourceNumerator": {
+          "type": "integer"
+        },
+        "targetScale": {
+          "maximum": 9,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "truncatedMantissa": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "policy",
+        "sourceNumerator",
+        "sourceDenominator",
+        "targetScale",
+        "truncatedMantissa",
+        "remainder",
+        "roundedMantissa",
+        "disposition"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://assetrounds.invalid/v23/ResponseValueV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "NO_VALUE"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "NOT_APPLICABLE"
+        },
+        "reasonID": {
+          "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "reasonID"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "boolean": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "BOOLEAN"
+        }
+      },
+      "required": [
+        "kind",
+        "boolean"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "TRI_STATE"
+        },
+        "triState": {
+          "enum": [
+            "TRUE",
+            "FALSE",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "triState"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "SINGLE_OPTION"
+        },
+        "optionID": {
+          "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "optionID"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "MULTIPLE_OPTIONS"
+        },
+        "optionIDs": {
+          "items": {
+            "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "optionIDs"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "TEXT"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "LOCAL_DATE"
+        },
+        "localDate": {
+          "additionalProperties": false,
+          "properties": {
+            "day": {
+              "maximum": 31,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "month": {
+              "maximum": 12,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "year": {
+              "maximum": 9999,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "year",
+            "month",
+            "day"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind",
+        "localDate"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "LOCAL_TIME"
+        },
+        "localTime": {
+          "additionalProperties": false,
+          "properties": {
+            "hour": {
+              "maximum": 23,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "millisecond": {
+              "maximum": 999,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "minute": {
+              "maximum": 59,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "second": {
+              "maximum": 59,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "hour",
+            "minute",
+            "second",
+            "millisecond"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind",
+        "localTime"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "instant": {
+          "additionalProperties": false,
+          "properties": {
+            "epochMilliseconds": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "epochMilliseconds"
+          ],
+          "type": "object"
+        },
+        "kind": {
+          "const": "INSTANT"
+        }
+      },
+      "required": [
+        "kind",
+        "instant"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "duration": {
+          "additionalProperties": false,
+          "properties": {
+            "milliseconds": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "milliseconds"
+          ],
+          "type": "object"
+        },
+        "kind": {
+          "const": "DURATION"
+        }
+      },
+      "required": [
+        "kind",
+        "duration"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "integer": {
+          "type": "integer"
+        },
+        "kind": {
+          "const": "INTEGER"
+        }
+      },
+      "required": [
+        "kind",
+        "integer"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "decimal": {
+          "$ref": "#/$defs/ExactDecimalV1"
+        },
+        "kind": {
+          "const": "DECIMAL"
+        }
+      },
+      "required": [
+        "kind",
+        "decimal"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "MEASUREMENT"
+        },
+        "measurement": {
+          "$ref": "#/$defs/ExactMeasurementV1"
+        }
+      },
+      "required": [
+        "kind",
+        "measurement"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "entityReference": {
+          "additionalProperties": false,
+          "properties": {
+            "entityID": {
+              "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+              "type": "string"
+            },
+            "entityKindID": {
+              "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "entityKindID",
+            "entityID"
+          ],
+          "type": "object"
+        },
+        "kind": {
+          "const": "ENTITY_REFERENCE"
+        }
+      },
+      "required": [
+        "kind",
+        "entityReference"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "contentReference": {
+          "additionalProperties": false,
+          "properties": {
+            "rawValue": {
+              "pattern": "^[A-Za-z0-9._\\[\\]-]{1,128}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "rawValue"
+          ],
+          "type": "object"
+        },
+        "kind": {
+          "const": "CONTENT_REFERENCE"
+        }
+      },
+      "required": [
+        "kind",
+        "contentReference"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "ResponseValueV1"
+}

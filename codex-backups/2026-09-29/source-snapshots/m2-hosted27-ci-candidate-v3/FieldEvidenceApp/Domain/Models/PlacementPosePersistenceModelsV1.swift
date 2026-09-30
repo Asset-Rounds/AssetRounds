@@ -1,0 +1,99 @@
+import Foundation
+enum EvidenceContextPlacementPoseBoundaryV1{static let poseHistoryDoesNotOwnEvidenceContext=true;static let contextAssetRevisionMustRemainExact=true}
+import SwiftData
+
+enum PlacementPosePersistenceFailureV1: Error { case corruptRow }
+
+@Model final class AssetPoseEventRow {
+    @Attribute(.unique) var eventID: UUID
+    var workspaceID: UUID; var assetID: UUID; var axisID: String
+    var placementEpisodeID: UUID; var placementEventID: UUID
+    var predecessorEventID: UUID?; var revision: UInt64; var mutationID: UUID
+    var eventSHA256: String; var canonicalData: Data
+    init(_ value: AssetPoseEventV1) throws {
+        try value.validateIntrinsic(); eventID=value.eventID; workspaceID=value.workspaceID.rawValue
+        assetID=value.assetID; axisID=value.axisDescriptor.axisID.rawValue
+        placementEpisodeID=value.placementEpisodeID.rawValue; placementEventID=value.placementEventID
+        predecessorEventID=value.predecessor?.eventID; revision=value.revision; mutationID=value.mutationID.rawValue
+        eventSHA256=value.eventSHA256; canonicalData=try PlacementPoseCanonicalCodecV1.encode(value)
+        guard try PlacementPoseCanonicalCodecV1.decode(AssetPoseEventV1.self,from:canonicalData)==value else{throw PlacementPosePersistenceFailureV1.corruptRow}
+    }
+    func value()throws->AssetPoseEventV1{let value=try PlacementPoseCanonicalCodecV1.decode(AssetPoseEventV1.self,from:canonicalData);try value.validateIntrinsic();guard value.eventID==eventID,value.workspaceID.rawValue==workspaceID,value.assetID==assetID,value.axisDescriptor.axisID.rawValue==axisID,value.placementEpisodeID.rawValue==placementEpisodeID,value.placementEventID==placementEventID,value.predecessor?.eventID==predecessorEventID,value.revision==revision,value.mutationID.rawValue==mutationID,value.eventSHA256==eventSHA256 else{throw PlacementPosePersistenceFailureV1.corruptRow};return value}
+}
+
+@Model final class SpatialAnchorObservationRow {
+    @Attribute(.unique) var observationID: UUID
+    var workspaceID: UUID; var assetID: UUID; var placementEpisodeID: UUID
+    var planRevisionID: UUID; var pageID: UUID; var spatialFrameID: UUID
+    var predecessorObservationID: UUID?; var revision: UInt64; var mutationID: UUID
+    var observationSHA256: String; var canonicalData: Data
+    init(_ value: SpatialAnchorObservationV1) throws {
+        try value.validateIntrinsic(); observationID=value.observationID; workspaceID=value.workspaceID.rawValue
+        assetID=value.assetID; placementEpisodeID=value.placementEpisodeID.rawValue
+        planRevisionID=value.planFrame.planRevision.planRevisionID; pageID=value.planFrame.pageID; spatialFrameID=value.planFrame.spatialFrameID
+        predecessorObservationID=value.predecessorObservationID; revision=value.revision; mutationID=value.mutationID.rawValue
+        observationSHA256=value.observationSHA256; canonicalData=try PlacementPoseCanonicalCodecV1.encode(value)
+        guard try PlacementPoseCanonicalCodecV1.decode(SpatialAnchorObservationV1.self,from:canonicalData)==value else{throw PlacementPosePersistenceFailureV1.corruptRow}
+    }
+    func value()throws->SpatialAnchorObservationV1{let value=try PlacementPoseCanonicalCodecV1.decode(SpatialAnchorObservationV1.self,from:canonicalData);try value.validateIntrinsic();guard value.observationID==observationID,value.workspaceID.rawValue==workspaceID,value.assetID==assetID,value.placementEpisodeID.rawValue==placementEpisodeID,value.planFrame.planRevision.planRevisionID==planRevisionID,value.planFrame.pageID==pageID,value.planFrame.spatialFrameID==spatialFrameID,value.predecessorObservationID==predecessorObservationID,value.revision==revision,value.mutationID.rawValue==mutationID,value.observationSHA256==observationSHA256 else{throw PlacementPosePersistenceFailureV1.corruptRow};return value}
+}
+
+enum PlacementPosePersistenceEnrollmentV1{static let durableModelCount=2;static let persistentSchemaVersion=29;static let recordsSchemaVersion=28;static let derivedTypes:[Any.Type]=[PoseAxisDescriptorRegistryV1.self,AssetPoseCurrentTipV1.self,CompletedPlacementPoseSnapshotV1.self]}
+
+enum LightingPoseReferenceReuseV1 { static let lightingTopologyMayReferenceExistingPoseHistory = true; static let createsNoPoseTipRow = true }
+
+enum C31LightingPosePersistenceBoundaryV1 {
+    static let poseHistoryRemainsCanonical = true
+    static let lightingStoresNoPoseSnapshotCopy = true
+    static let uncertainPoseCannotBecomeAnAssertedLightingFact = true
+}
+// MARK: - C32 assistance placement pose persistence boundary
+
+enum C32AssistanceLifecycleBoundary_FieldEvidenceApp_Domain_Models_PlacementPosePersistenceModelsV1_swift {
+    static let proposalIsPersistent = AssistancePersistenceEnrollmentV1.proposalIsPersistent
+    static let rejectedProposalCorpusIsPersistent = AssistancePersistenceEnrollmentV1.rejectedProposalCorpusIsPersistent
+    static let durableFamilyCount = AssistancePersistenceEnrollmentV1.durableModelCount
+    static let acceptedMutationKind: WorkspaceCommandKindV1 = .applyAssistanceAcceptance
+    static let manualFallback: ManualFallbackActionV1 = .typeManually
+    static let proposalNotPersistedInPoseRows = true
+
+    static func validateProposal(_ proposal: AssistanceProposalV1, in context: AssistanceProposalEvaluationContextV1) throws {
+        try proposal.validate()
+        try context.validate()
+        guard proposal.verificationState.rawValue == AssistanceProposalVerificationStateV1.unverified.rawValue,
+              context.policy.manualFallback == .typeManually else {
+            throw AssistanceContractFailureV1.incompatibleCapability
+        }
+        if let reason = try proposal.expiryReason(in: context) {
+            throw AssistanceContractFailureV1.expired(reason)
+        }
+    }
+
+    static func validateAcceptanceReceipt(_ receipt: AssistanceAcceptanceReceiptV1) throws {
+        try receipt.validate()
+    }
+}
+
+enum C33TemporalEvidenceBoundary_Domain_Models_PlacementPosePersistenceModelsV1_V1 {
+    static let clipType: TemporalEvidenceClipV1.Type = TemporalEvidenceClipV1.self
+    static let anchorType: TimecodedEvidenceAnchorV1.Type = TimecodedEvidenceAnchorV1.self
+    static let persistentSchemaVersion: Int =
+        TemporalEvidencePersistenceEnrollmentV1.persistentSchemaVersion
+}
+
+// MARK: - C45 canonical asset-label integration
+enum C45AssetLabelBoundary_Row167 {
+    static let reusesCanonicalAssetLocatorAndWriter = true
+    static func validateAcceptedSnapshot(_ snapshot: AcceptedLabelGenerationSnapshotV1) throws {
+        try snapshot.validate()
+    }
+}
+
+enum C46OperationalContactConformance_FieldEvidenceApp_Domain_Models_PlacementPosePersistenceModelsV1_swift {
+    static let operationalContactsRemainPurposeSeparated = true
+    static let systemHandoffsRemainExplicitEphemeralAndNoncanonical = true
+    static let subscriberConsentCampaignAndMeasurementProjectionForbidden = true
+    static let contactExportExcludedByDefault = true
+    static let siteRoleOwnershipForbidden = true
+}
+// C52_BOUNDARY_ANCHOR: canonical-service-request-persistence

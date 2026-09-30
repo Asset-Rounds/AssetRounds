@@ -1,0 +1,77 @@
+    /// Distinct read-only original-P origin. It can mint the immutable plan,
+    /// but cannot enter the effect controller or publish progress/controls.
+    @MainActor
+    static func withSchema2ColdBorrowedExistingRoot<Value>(
+        applicationSupportURL: URL, operationID: UUID,
+        permit: EraseSchema2ColdScratchBootstrapPermitV1,
+        firstPPartials: [OriginalEraseC16StepV1],
+        verifyPostimageBeforeClose: @MainActor () throws -> Void,
+        _ body: @MainActor (ScratchDataLeaseStoreV1) throws -> Value
+    ) throws -> Value {
+        _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+        guard operationID != SettingsValidationV1.zeroUUID else { throw ScratchDataLeaseStoreFailureV1.invalidRoot }
+        let store: ScratchDataLeaseStoreV1
+        do {
+            store = try ScratchDataLeaseStoreV1(verifiedExistingTemporalRootAt: applicationSupportURL,
+                clock: Date.init, checkedClose: true)
+        } catch { permit.poisonOnUncertainEffect(); throw error }
+        return try Self.filesystemLock.withLock {
+            store.originalEraseBorrowedLifetime = .active
+            store.originalEraseOperationID = operationID
+            store.originalEraseC16BootstrapPermit = permit
+            store.originalEraseC16InitialPartials = firstPPartials
+            store.originalEraseC16InitialSourceProof = true
+            store.exclusiveNoRepairRead = true
+            store.originalEraseBorrowedOwnerCheck = {
+                _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+            }
+            store.originalEraseBorrowedExclusiveCheck = { try store.originalEraseBorrowedLocalLineageCheck() }
+            defer {
+                if store.originalEraseBorrowedLifetime == .active { store.originalEraseBorrowedLifetime = .uncertain }
+                store.originalEraseBorrowedOwnerCheck = nil; store.originalEraseBorrowedExclusiveCheck = nil
+                store.originalEraseC16BootstrapPermit = nil; store.originalEraseOperationID = nil
+                store.originalEraseC16InitialPartials.removeAll(); store.originalEraseC16InitialSourceProof = false
+                store.originalEraseC16InitialScope = nil; store.originalEraseC16InitialPairPolicies.removeAll()
+                store.originalEraseC16SourceInputs.removeAll(); store.originalEraseC16FirstPFacts.removeAll()
+                store.originalEraseC16FirstPAbsentPaths.removeAll()
+            }
+            var outcome: Result<Value, Error>
+            do {
+                try store.issueOriginalEraseC16InitialPairs(permit: permit, firstPPartials: firstPPartials)
+                try store.primeOriginalEraseC16ImmutableInputs(plan: nil)
+                store.originalEraseBorrowedAdmitting = true
+                try store.originalEraseNoRepairSemanticAdmission()
+                store.originalEraseBorrowedAdmitting = false
+                _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+                outcome = Result { try body(store) }
+                _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+            } catch {
+                store.originalEraseBorrowedAdmitting = false; outcome = .failure(error)
+            }
+            do {
+                _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+                try verifyPostimageBeforeClose()
+                _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+                store.originalEraseBorrowedLifetime = .closed
+                if let control = store.ingressControlAuthority {
+                    try control.closeCheckedForSchema2BorrowedScope(verifyBeforeClose: true,
+                        rootName: "ProtectedIngressReceiptsV1", requireHeld: {
+                            _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+                        })
+                    store.ingressControlAuthority = nil
+                }
+                try store.authority.closeCheckedForSchema2BorrowedScope(verifyBeforeClose: true,
+                    rootName: Self.rootName, requireHeld: {
+                        _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+                    })
+                _ = try permit.requireInitialC16ObservationBinding(firstPPartials: firstPPartials)
+            } catch {
+                store.originalEraseBorrowedLifetime = .uncertain
+                store.ingressControlAuthority?.quarantineUnclosedForOriginalErase()
+                store.authority.quarantineUnclosedForOriginalErase()
+                permit.poisonOnUncertainEffect(); throw error
+            }
+            do { return try outcome.get() }
+            catch { permit.poisonOnUncertainEffect(); throw error }
+        }
+    }

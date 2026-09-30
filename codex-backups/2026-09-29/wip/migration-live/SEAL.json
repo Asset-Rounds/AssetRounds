@@ -1,0 +1,9 @@
+{
+  "candidateSHA256": "62276ff8836f6771dba4a077179ede4f4e40aeac736948767566dd46ebc1712c",
+  "bindingSHA256": "4848e6fa32cc75022827970b28898db064d99dd5611c26e0c0da56db16861926",
+  "manifestSHA256": "dfb761e83cc1bd4c592666dd1d1b5e93ea3f42f5fd0d19765bc59fcbfe2c3b5f",
+  "inputsSHA256": "f9e0a3032110049a7e15c1a88ec3cd4dcaeeb0735d622af6a41525894a16cb09",
+  "handoffSHA256": "656b779d82cffc3d984db61dd48b4fd410504511a7eda19f3a87074cbd4fda9c",
+  "sourceOnly": true,
+  "notIndependentReview": true
+}

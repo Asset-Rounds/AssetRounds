@@ -1,0 +1,230 @@
+{
+  "$id": "urn:assetrounds:v23:p01:c04:streaming-archive-contract:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P01-C04"
+    },
+    "determinism": {
+      "type": "object"
+    },
+    "fullCardFence": {
+      "items": false,
+      "maxItems": 15,
+      "minItems": 15,
+      "prefixItems": [
+        {
+          "const": "FieldEvidenceApp/Domain/Backup/StreamingArchiveContracts.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/StreamingArchiveService.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/BackupImportService.swift"
+        },
+        {
+          "const": "FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift"
+        },
+        {
+          "const": "FieldEvidenceAppTests/V9_04StreamingArchiveTests.swift"
+        },
+        {
+          "const": "FieldEvidenceAppTests/Fixtures/V21/Archives/V21P01C04ArchiveCorpusV1.json"
+        },
+        {
+          "const": "Scripts/v23/p01_c04_contracts.py"
+        },
+        {
+          "const": "Scripts/v23/generate_p01_c04_contracts.py"
+        },
+        {
+          "const": "Scripts/v23/verify_p01_c04_contracts.py"
+        },
+        {
+          "const": "Scripts/v23/streaming-archive.schema.json"
+        },
+        {
+          "const": "Scripts/v23/archive-corpus.schema.json"
+        },
+        {
+          "const": "docs/design/v23/tooling/V23P01C04StreamingArchiveContractV1.json"
+        },
+        {
+          "const": "docs/design/v23/tooling/V23P01C04ArchiveCorpusManifestV1.json"
+        },
+        {
+          "const": "docs/design/v23/tooling/V23-P01-C04-tooling-manifest.json"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "hostileCases": {
+      "items": {
+        "required": [
+          "id",
+          "condition",
+          "expectedOutcome"
+        ],
+        "type": "object"
+      },
+      "minItems": 20,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "lifecycle": {
+      "type": "object"
+    },
+    "limits": {
+      "additionalProperties": false,
+      "properties": {
+        "bufferByteCount": {
+          "const": 65536,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumCompressionRatio": {
+          "const": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumEntryCount": {
+          "const": 10000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumIndexByteCount": {
+          "const": 4194304,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumPathUTF8ByteCount": {
+          "const": 512,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumStoredAggregateByteCount": {
+          "const": 4294967296,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumStoredEntryByteCount": {
+          "const": 536870912,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumUncompressedAggregateByteCount": {
+          "const": 4294967296,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maximumUncompressedEntryByteCount": {
+          "const": 536870912,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "stagingReserveByteCount": {
+          "const": 67108864,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maximumIndexByteCount",
+        "maximumEntryCount",
+        "maximumPathUTF8ByteCount",
+        "maximumStoredEntryByteCount",
+        "maximumUncompressedEntryByteCount",
+        "maximumStoredAggregateByteCount",
+        "maximumUncompressedAggregateByteCount",
+        "maximumCompressionRatio",
+        "bufferByteCount",
+        "stagingReserveByteCount"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "pathPolicy": {
+      "type": "object"
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "V23P01C04StreamingArchiveContractV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceBindings": {
+      "items": {
+        "type": "object"
+      },
+      "maxItems": 7,
+      "minItems": 7,
+      "type": "array"
+    },
+    "versionDispatch": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "limits",
+    "versionDispatch",
+    "pathPolicy",
+    "determinism",
+    "lifecycle",
+    "sourceBindings",
+    "hostileCases",
+    "fullCardFence",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "requiresAcceptedS10_6Reconciliation",
+    "phase10PollingDuringParallelExecution",
+    "artifactDigest"
+  ],
+  "title": "V23P01C04StreamingArchiveContractV1",
+  "type": "object"
+}

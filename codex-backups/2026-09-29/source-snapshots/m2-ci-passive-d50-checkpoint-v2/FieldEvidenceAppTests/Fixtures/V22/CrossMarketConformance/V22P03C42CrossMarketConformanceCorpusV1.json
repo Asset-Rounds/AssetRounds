@@ -1,0 +1,390 @@
+{
+  "archetypes": [
+    "CompositeAreaSafetyArchetypeV1",
+    "ControllerZoneDistributionArchetypeV1"
+  ],
+  "cardID": "V23-P03-C42",
+  "containsCustomerData": false,
+  "containsLicensedContent": false,
+  "coverageTokens": [
+    "Unicode NFC NFD",
+    "RTL bidi isolation",
+    "long text hard bound",
+    "DST timeZone calendar boundary",
+    "exact unit threshold rounding",
+    "TRUE FALSE UNKNOWN branching",
+    "stale revision invalidation",
+    "relationship cardinality cycle traversal",
+    "party actor retirement qualification expiry",
+    "simultaneous authority conflict",
+    "duplicate missing productIdentity",
+    "delete Erase clone fork",
+    "lowStorage protected data",
+    "archive path traversal symlink decompression bomb",
+    "resource exhaustion tamper",
+    "kill relaunch recovery frontier",
+    "historic sign report byte parity",
+    "historic lighting report byte parity",
+    "Release source and runtime exclusion"
+  ],
+  "fixtureID": "V22-P03-C42-CROSS-MARKET-CONFORMANCE-CORPUS-V1",
+  "fixedSeeds": {
+    "CompositeAreaSafetyArchetypeV1": "13853635409566629889",
+    "ControllerZoneDistributionArchetypeV1": "13853635415847141377"
+  },
+  "generatorVersion": "C42.MODEL.GENERATOR.V1",
+  "historicLightingReportByteParity": true,
+  "historicSignReportByteParity": true,
+  "hostileCases": [
+    {
+      "expected": { "canonicalValue": null, "code": "INVALID_UTF8", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-001-INVALID-UTF8",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": "c328", "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "INVALID_UTF8"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "UNKNOWN_FUTURE_VERSION", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-002-FUTURE-VERSION",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": 999, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "UNKNOWN_FUTURE_VERSION"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "NONCANONICAL_KEY_ORDER", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-003-NONCANONICAL-ORDER",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": "{\"z\":1,\"a\":2}", "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "NONCANONICAL_KEY_ORDER"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "NONDETERMINISTIC_TIME_UUID", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-004-NONDETERMINISTIC-VALUE",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": "Date.now UUID()", "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "NONDETERMINISTIC_TIME_UUID"
+    },
+    {
+      "expected": { "canonicalValue": "Café", "code": "UNICODE_NONNORMALIZED", "disposition": "ACCEPTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-005-UNICODE-NFC",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": "Café", "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "UNICODE_NONNORMALIZED"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "RTL_CONTROL_INJECTION", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-006-RTL-CONTROL",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": "safe‮evil", "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "RTL_CONTROL_INJECTION"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "LONG_TEXT_LIMIT", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-007-LONG-TEXT",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": 4097, "path": null, "primaryText": "bounded", "secondaryInteger": 4096, "secondaryText": null, "timeZoneID": null },
+      "vector": "LONG_TEXT_LIMIT"
+    },
+    {
+      "expected": { "canonicalValue": "2024-11-03T01:30:00-04:00", "code": "DST_TIMEZONE_BOUNDARY", "disposition": "ACCEPTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-008-DST-FIRST-OCCURRENCE",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": "2024-11-03T05:30:00Z", "integer": null, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": "America/New_York" },
+      "vector": "DST_TIMEZONE_BOUNDARY"
+    },
+    {
+      "expected": { "canonicalValue": "12.500", "code": "UNIT_THRESHOLD_ROUNDING", "disposition": "ACCEPTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-009-EXACT-ROUNDING",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": "12.4995", "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": 3, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "UNIT_THRESHOLD_ROUNDING"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "UNKNOWN_BRANCH_REPEAT_LIMIT", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-010-UNKNOWN-REPEAT-BOUND",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": 9, "path": null, "primaryText": "UNKNOWN", "secondaryInteger": 8, "secondaryText": null, "timeZoneID": null },
+      "vector": "UNKNOWN_BRANCH_REPEAT_LIMIT"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "STALE_REVISION", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-011-STALE-REVISION",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["subject-1"], "expectedDigest": null, "instant": null, "integer": 1, "path": null, "primaryText": null, "secondaryInteger": 2, "secondaryText": null, "timeZoneID": null },
+      "vector": "STALE_REVISION"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "PATH_INVALIDATION", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-012-PATH-INVALIDATED",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["path-release-1"], "expectedDigest": null, "instant": null, "integer": null, "path": "RETIRED", "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "PATH_INVALIDATION"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "RELATIONSHIP_CARDINALITY", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-013-CARDINALITY",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["controller", "zone-a", "zone-b", "zone-c"], "expectedDigest": null, "instant": null, "integer": 3, "path": null, "primaryText": null, "secondaryInteger": 2, "secondaryText": null, "timeZoneID": null },
+      "vector": "RELATIONSHIP_CARDINALITY"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "RELATIONSHIP_CYCLE", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-014-CYCLE",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": ["A>B", "B>C", "C>A"], "entityIDs": ["A", "B", "C"], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "RELATIONSHIP_CYCLE"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "QUALIFICATION_EXPIRED", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-015-QUALIFICATION-EXPIRED",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["actor-1", "qualification-1"], "expectedDigest": null, "instant": "2025-01-02T00:00:00Z", "integer": null, "path": null, "primaryText": "2025-01-01T00:00:00Z", "secondaryInteger": null, "secondaryText": null, "timeZoneID": "UTC" },
+      "vector": "QUALIFICATION_EXPIRED"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "CONFLICTING_AUTHORITIES", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-016-AUTHORITY-CONFLICT",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["authority-a", "authority-b"], "expectedDigest": null, "instant": null, "integer": 1, "path": null, "primaryText": "ALLOW", "secondaryInteger": 1, "secondaryText": "DENY", "timeZoneID": null },
+      "vector": "CONFLICTING_AUTHORITIES"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "DUPLICATE_PRODUCT_IDENTITY", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-017-DUPLICATE-IDENTITY",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["product-1", "product-1"], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "DUPLICATE_PRODUCT_IDENTITY"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "MISSING_PRODUCT_IDENTITY", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-018-MISSING-IDENTITY",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "MISSING_PRODUCT_IDENTITY"
+    },
+    {
+      "expected": { "canonicalValue": "source-1|clone-1|fork-1", "code": "CLONE_FORK_IDENTITY", "disposition": "ACCEPTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-019-CLONE-FORK",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["source-1", "clone-1", "fork-1"], "expectedDigest": null, "instant": null, "integer": null, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "CLONE_FORK_IDENTITY"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "LOW_STORAGE", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-020-LOW-STORAGE",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": 1048576, "path": null, "primaryText": null, "secondaryInteger": 1024, "secondaryText": null, "timeZoneID": null },
+      "vector": "LOW_STORAGE"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "ARCHIVE_PATH_TRAVERSAL", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-021-PATH-TRAVERSAL",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": null, "path": "../../outside.json", "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "ARCHIVE_PATH_TRAVERSAL"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "SYMLINK_ESCAPE", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-022-SYMLINK-ESCAPE",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": null, "path": "safe/link", "primaryText": "../outside", "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "SYMLINK_ESCAPE"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "DECOMPRESSION_BOMB", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-023-DECOMPRESSION-BOMB",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": 1024, "path": "payload.bin", "primaryText": null, "secondaryInteger": 10485760, "secondaryText": null, "timeZoneID": null },
+      "vector": "DECOMPRESSION_BOMB"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "RESOURCE_EXHAUSTION", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-024-RESOURCE-EXHAUSTION",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": [], "expectedDigest": null, "instant": null, "integer": 1048577, "path": null, "primaryText": null, "secondaryInteger": 1048576, "secondaryText": null, "timeZoneID": null },
+      "vector": "RESOURCE_EXHAUSTION"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "TAMPERED_BYTES", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-025-TAMPERED-BYTES",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": "74616d7065726564", "decimal": null, "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "edges": [], "entityIDs": [], "expectedDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "instant": null, "integer": null, "path": null, "primaryText": null, "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "TAMPERED_BYTES"
+    },
+    {
+      "expected": { "canonicalValue": "effect-1", "code": "INTERRUPTED_EFFECT_BEFORE_RECEIPT", "disposition": "RECOVERED_EXACTLY_ONCE", "exactlyOnceEffectCount": 1 },
+      "id": "C42-HOSTILE-026-EFFECT-BEFORE-RECEIPT",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["effect-1"], "expectedDigest": null, "instant": null, "integer": 1, "path": null, "primaryText": "STAGED", "secondaryInteger": 1, "secondaryText": "RELAUNCHED", "timeZoneID": null },
+      "vector": "INTERRUPTED_EFFECT_BEFORE_RECEIPT"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "RECOVERY_FRONTIER_DRIFT", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-027-RECOVERY-FRONTIER-DRIFT",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["replica-a", "replica-b"], "expectedDigest": null, "instant": null, "integer": 9, "path": null, "primaryText": null, "secondaryInteger": 8, "secondaryText": null, "timeZoneID": null },
+      "vector": "RECOVERY_FRONTIER_DRIFT"
+    },
+    {
+      "expected": { "canonicalValue": null, "code": "RELEASE_MEMBERSHIP_LEAK", "disposition": "REJECTED", "exactlyOnceEffectCount": 0 },
+      "id": "C42-HOSTILE-028-RELEASE-LEAK",
+      "input": { "actualByteCount": null, "bytesUTF8Hex": null, "decimal": null, "digest": null, "edges": [], "entityIDs": ["CompositeAreaSafetyArchetypeV1"], "expectedDigest": null, "instant": null, "integer": null, "path": "FieldEvidenceApp.app", "primaryText": "CompositeAreaSafetyArchetypeV1", "secondaryInteger": null, "secondaryText": null, "timeZoneID": null },
+      "vector": "RELEASE_MEMBERSHIP_LEAK"
+    }
+  ],
+  "migrationIsolatedCopies": true,
+  "modelBounds": {
+    "maximumCases": 64,
+    "maximumDurationMilliseconds": 5000,
+    "maximumOperationsPerCase": 64,
+    "maximumScratchBytes": 1048576,
+    "maximumShrinkSteps": 64
+  },
+  "offlineSharedKernel": true,
+  "portableCases": [
+    {
+      "expectedClass": "ACCEPTED",
+      "goldenUTF8Hex": "7b226b696e64223a22434845434b222c227061796c6f6164223a7b226964223a22636f6d706f736974652d61726561222c226c6162656c223a22756e69636f64652d6e66632d72746c222c22737461747573223a22434f4d504c455445227d2c22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a317d",
+      "id": "C42-PORTABLE-COMPOSITE-ACCEPTED",
+      "input": "{\"kind\":\"CHECK\",\"payload\":{\"id\":\"composite-area\",\"label\":\"unicode-nfc-rtl\",\"status\":\"COMPLETE\"},\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1}",
+      "instancePath": "",
+      "schemaPath": ""
+    },
+    {
+      "expectedClass": "ACCEPTED",
+      "goldenUTF8Hex": "7b226b696e64223a224d4541535552454d454e54222c227061796c6f6164223a7b226964223a22636f6e74726f6c6c65722d7a6f6e65222c22737461747573223a22434f4d504c455445222c22756e6974223a226d6d222c2276616c7565223a2231322e353030227d2c22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a317d",
+      "id": "C42-PORTABLE-CONTROLLER-ACCEPTED",
+      "input": "{\"kind\":\"MEASUREMENT\",\"payload\":{\"id\":\"controller-zone\",\"status\":\"COMPLETE\",\"unit\":\"mm\",\"value\":\"12.500\"},\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1}",
+      "instancePath": "",
+      "schemaPath": ""
+    },
+    {
+      "expectedClass": "REJECTED",
+      "goldenUTF8Hex": "7b226b696e64223a224d4541535552454d454e54222c227061796c6f6164223a7b226964223a226675747572652d7a6f6e65222c22737461747573223a22434f4d504c455445222c22756e6974223a22636d222c2276616c7565223a22312e3235227d2c22736368656d61223a224b65726e656c506f727461626c65456e76656c6f70655631222c22736368656d6156657273696f6e223a317d",
+      "id": "C42-PORTABLE-FUTURE-UNIT-REJECTED",
+      "input": "{\"kind\":\"MEASUREMENT\",\"payload\":{\"id\":\"future-zone\",\"status\":\"COMPLETE\",\"unit\":\"cm\",\"value\":\"1.25\"},\"schema\":\"KernelPortableEnvelopeV1\",\"schemaVersion\":1}",
+      "instancePath": "/payload/unit",
+      "schemaPath": "/properties/payload/properties/unit/enum"
+    }
+  ],
+  "productPersistence": false,
+  "promotedCounterexamples": [
+    {
+      "id": "C42-COUNTEREXAMPLE-EFFECT-BEFORE-RECEIPT-V1",
+      "immutable": true,
+      "invariant": "REPLAY_CONVERGES",
+      "operationKinds": [
+        "INTERRUPT_AFTER_EFFECT_BEFORE_RECEIPT",
+        "REPLAY",
+        "REPLAY"
+      ],
+      "seed": "13853635409566629889"
+    },
+    {
+      "id": "C42-COUNTEREXAMPLE-STALE-REVISION-V1",
+      "immutable": true,
+      "invariant": "IMMUTABLE_HISTORY",
+      "operationKinds": [
+        "APPEND",
+        "SUPERSEDE",
+        "REJECT_STALE_REVISION"
+      ],
+      "seed": "13853635415847141377"
+    }
+  ],
+  "releaseExclusionSurfaces": [
+    "APP_STORE_DRAFTS",
+    "BUNDLE_RESOURCES",
+    "COMPILED_ARCHIVE",
+    "LOCALIZATION_CATALOG",
+    "PACKAGE_REGISTRY",
+    "PUBLIC_STRINGS",
+    "PUBLIC_SYMBOLS",
+    "ROUTE_REGISTRY",
+    "RUNTIME_SURFACE",
+    "SCREENSHOTS",
+    "SETTINGS_REGISTRY",
+    "SOURCE_MEMBERSHIP",
+    "TARGET_DEPENDENCY_GRAPH"
+  ],
+  "releaseScanInputs": [
+    {
+      "evidenceKind": "APP_STORE_DRAFT_INVENTORY",
+      "expectedDisposition": "STATIC_PENDING_NATIVE",
+      "repositoryRelativeInputs": ["ExternalEvidence/AppStoreConnect/draft-export.json"],
+      "sourceIdentity": "APP_STORE_CONNECT_DRAFT_EXPORT",
+      "surface": "APP_STORE_DRAFTS"
+    },
+    {
+      "evidenceKind": "RELEASE_BUNDLE_RESOURCE_INVENTORY",
+      "expectedDisposition": "STATIC_PENDING_NATIVE",
+      "repositoryRelativeInputs": ["DerivedData/Build/Products/Release-iphonesimulator/FieldEvidenceApp.app"],
+      "sourceIdentity": "RELEASE_APP_BUNDLE",
+      "surface": "BUNDLE_RESOURCES"
+    },
+    {
+      "evidenceKind": "RELEASE_ARCHIVE_INVENTORY",
+      "expectedDisposition": "STATIC_PENDING_NATIVE",
+      "repositoryRelativeInputs": ["DerivedData/Build/Products/Release-iphonesimulator/FieldEvidenceApp.xcarchive"],
+      "sourceIdentity": "RELEASE_ARCHIVE_ARTIFACT",
+      "surface": "COMPILED_ARCHIVE"
+    },
+    {
+      "evidenceKind": "REPOSITORY_LOCALIZATION_CATALOG",
+      "expectedDisposition": "PROVEN_ABSENT",
+      "repositoryRelativeInputs": ["FieldEvidenceApp/Resources/Localizable.xcstrings"],
+      "sourceIdentity": "REPOSITORY_LOCALIZATION_CATALOG",
+      "surface": "LOCALIZATION_CATALOG"
+    },
+    {
+      "evidenceKind": "REPOSITORY_PACKAGE_REGISTRY",
+      "expectedDisposition": "PROVEN_ABSENT",
+      "repositoryRelativeInputs": [
+        "FieldEvidenceApp/Domain/Packs/InspectionPackageRegistryV2.swift",
+        "FieldEvidenceApp/Infrastructure/Packs/BundledInspectionPackageRegistryV2.swift",
+        "FieldEvidenceApp/Resources/Packs/IlluminatedSignPack.json"
+      ],
+      "sourceIdentity": "REPOSITORY_PACKAGE_REGISTRY",
+      "surface": "PACKAGE_REGISTRY"
+    },
+    {
+      "evidenceKind": "RELEASE_PUBLIC_STRING_TABLE",
+      "expectedDisposition": "STATIC_PENDING_NATIVE",
+      "repositoryRelativeInputs": ["NativeEvidence/Release/public-strings.txt"],
+      "sourceIdentity": "RELEASE_EXECUTABLE_STRING_TABLE",
+      "surface": "PUBLIC_STRINGS"
+    },
+    {
+      "evidenceKind": "RELEASE_PUBLIC_SYMBOL_TABLE",
+      "expectedDisposition": "STATIC_PENDING_NATIVE",
+      "repositoryRelativeInputs": ["NativeEvidence/Release/public-symbols.txt"],
+      "sourceIdentity": "RELEASE_EXECUTABLE_SYMBOL_TABLE",
+      "surface": "PUBLIC_SYMBOLS"
+    },
+    {
+      "evidenceKind": "REPOSITORY_ROUTE_REGISTRY",
+      "expectedDisposition": "PROVEN_ABSENT",
+      "repositoryRelativeInputs": [
+        "FieldEvidenceApp/Features/Shell/AppShellView.swift",
+        "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+      ],
+      "sourceIdentity": "REPOSITORY_ROUTE_REGISTRY",
+      "surface": "ROUTE_REGISTRY"
+    },
+    {
+      "evidenceKind": "RELEASE_RUNTIME_ENUMERATION",
+      "expectedDisposition": "STATIC_PENDING_NATIVE",
+      "repositoryRelativeInputs": ["NativeEvidence/Release/runtime-surface.json"],
+      "sourceIdentity": "RELEASE_RUNTIME_ENUMERATION",
+      "surface": "RUNTIME_SURFACE"
+    },
+    {
+      "evidenceKind": "RELEASE_SCREENSHOT_INVENTORY",
+      "expectedDisposition": "STATIC_PENDING_NATIVE",
+      "repositoryRelativeInputs": ["NativeEvidence/Release/screenshots.json"],
+      "sourceIdentity": "RELEASE_SCREENSHOT_CAPTURE",
+      "surface": "SCREENSHOTS"
+    },
+    {
+      "evidenceKind": "REPOSITORY_SETTINGS_REGISTRY",
+      "expectedDisposition": "PROVEN_ABSENT",
+      "repositoryRelativeInputs": [
+        "FieldEvidenceApp/Domain/Settings/SettingsContractsV1.swift",
+        "FieldEvidenceApp/Infrastructure/Settings/FeaturePolicyLoaderV1.swift",
+        "FieldEvidenceApp/Infrastructure/Settings/PreferencesAdapterV1.swift"
+      ],
+      "sourceIdentity": "REPOSITORY_SETTINGS_REGISTRY",
+      "surface": "SETTINGS_REGISTRY"
+    },
+    {
+      "evidenceKind": "PROJECT_SOURCE_MEMBERSHIP",
+      "expectedDisposition": "PROVEN_ABSENT",
+      "repositoryRelativeInputs": ["FieldEvidenceApp.xcodeproj/project.pbxproj"],
+      "sourceIdentity": "REPOSITORY_PROJECT_FILE",
+      "surface": "SOURCE_MEMBERSHIP"
+    },
+    {
+      "evidenceKind": "PROJECT_TARGET_DEPENDENCY_GRAPH",
+      "expectedDisposition": "PROVEN_ABSENT",
+      "repositoryRelativeInputs": ["FieldEvidenceApp.xcodeproj/project.pbxproj"],
+      "sourceIdentity": "REPOSITORY_PROJECT_FILE",
+      "surface": "TARGET_DEPENDENCY_GRAPH"
+    }
+  ],
+  "runtimeProductPersistence": false,
+  "schema": "V22P03C42CrossMarketConformanceCorpusV1",
+  "schemaVersion": 1
+}

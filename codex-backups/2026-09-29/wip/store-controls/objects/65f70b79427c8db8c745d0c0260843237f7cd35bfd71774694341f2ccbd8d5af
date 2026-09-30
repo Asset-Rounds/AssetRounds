@@ -1,0 +1,121 @@
+/// Actual fixed graph query DATA. Service's private query frame is the
+/// producer; possession/decoding is never EX, semantic admission or ready.
+struct EraseSchema2CompleteTargetGraphDataV4: Equatable, Sendable {
+    let semanticPredicateVersion: UInt16
+    let graphVocabularyVersion: UInt16
+    let generationID: UUID
+    let workspaceID: UUID
+    let replicaID: UUID
+    let persistentSchemaRelease: PersistentSchemaReleaseV1
+    let contentRecordCount: UInt64
+    let deletionLedgerEntryCount: UInt64
+    let globalMutationStateRowCount: UInt64
+    let deletionLedgerSHA256: String
+    let mutationStateSHA256: String
+}
+
+/// Service-private genuine graph query result. Factory retains this exact
+/// object on its lexical loan before Journal's fixed frame can consume it.
+/// Its DATA survives only through Factory's real closed image bridge; this
+/// object never revives a revoked loan or grants terminal permission.
+@MainActor
+final class EraseSchema2CompleteTargetGraphObservationV4 {
+    let data: EraseSchema2CompleteTargetGraphDataV4
+    private weak var producer: EraseSchema2TargetSemanticContextLoanV4?
+    fileprivate init(producer: EraseSchema2TargetSemanticContextLoanV4,
+        data: EraseSchema2CompleteTargetGraphDataV4) {
+        self.producer = producer; self.data = data
+    }
+    func requireBound(producer expected: EraseSchema2TargetSemanticContextLoanV4) throws {
+        guard producer === expected else { throw EraseAllServiceError.invalidAuthority }
+        try expected.requireCurrentBinding()
+        try expected.requireRegisteredGraphObservation(self)
+        try expected.requireCurrentBinding()
+    }
+}
+
+/// Prospective transferred result DATA only, bound by the real final
+/// consumer-complete producer while ALL source inputs survive. Store's V4
+/// binary codec contains fixed UUID/UInt16/UInt64/SHA slots, no variable
+/// physical rows or DB bytes; full11 roots live in the actual final subject.
+struct EraseSchema2TransferredTargetSemanticDataV4: Equatable, Sendable {
+    enum ProducerRoute: UInt8, Sendable {
+        case actualRetainedTargetSession = 1
+        case checkedPrivateValidationImage = 2
+    }
+    let schemaVersion: UInt16
+    let semanticPredicateVersion: UInt16
+    let graphVocabularyVersion: UInt16
+    let inputImageInterpretationVersion: UInt16
+    let journalGrammarVersion: UInt16
+    let producerRoute: ProducerRoute
+    let producerOperationID: UUID
+    let eraseID: UUID
+    let targetGenerationID: UUID
+    let workspaceID: UUID
+    let replicaID: UUID
+    let persistentSchemaRelease: PersistentSchemaReleaseV1
+    let contentRecordCount: UInt64
+    let deletionLedgerEntryCount: UInt64
+    let globalMutationStateRowCount: UInt64
+    let journalWorkspaceRevision: UInt64
+    let journalLastLocalSequence: UInt64
+    let journalReceiptCount: UInt64
+    let journalQuarantineCount: UInt64
+    let journalEntityRevisionCount: UInt64
+    let completeImageNodeCount: UInt64
+    let completeImageUniqueByteCount: UInt64
+    let deletionLedgerSHA256: String
+    let mutationStateSHA256: String
+    let canonicalZeroHistorySHA256: String
+    let graphPredicateVocabularySHA256: String
+    let replicaIdentitySHA256: String
+    let originalRosterSHA256: String
+    let preparationSHA256: String
+    let c16PlanSHA256: String
+    let sourcesLogicalSHA256: String
+    let finalProgressLogicalSHA256: String
+    let finalProgressRecordBindingSHA256: String
+    let cleanupCompleteIntentSHA256: String
+    let consumerCompleteTransitionSHA256: String
+    let contextSourceBridgeSHA256: String
+    let originalSourceInputImageSHA256: String
+    let validationInputImageSHA256: String
+    let afterValidationInputImageSHA256: String
+    let actualAliasDrainSHA256: String
+    let checkedResourceCloseSHA256: String
+    let finalInputImageSHA256: String
+    let canonicalCurrentPointerSHA256: String
+    let canonicalPreservedManifestSHA256: String
+    let canonicalKnownReplicaDispositionSHA256: String
+
+    func validateData() throws {
+        guard schemaVersion == 1,
+              semanticPredicateVersion > 0, graphVocabularyVersion > 0,
+              inputImageInterpretationVersion > 0, journalGrammarVersion > 0,
+              contentRecordCount == 0, deletionLedgerEntryCount == 0,
+              globalMutationStateRowCount == 1,
+              journalWorkspaceRevision == 0, journalLastLocalSequence == 0,
+              journalReceiptCount == 0, journalQuarantineCount == 0,
+              journalEntityRevisionCount == 0,
+              completeImageNodeCount > 0,
+              [deletionLedgerSHA256, mutationStateSHA256, canonicalZeroHistorySHA256,
+                graphPredicateVocabularySHA256, replicaIdentitySHA256,
+                originalRosterSHA256, preparationSHA256, c16PlanSHA256,
+                sourcesLogicalSHA256, finalProgressLogicalSHA256,
+                finalProgressRecordBindingSHA256, cleanupCompleteIntentSHA256,
+                consumerCompleteTransitionSHA256, contextSourceBridgeSHA256,
+                originalSourceInputImageSHA256, validationInputImageSHA256,
+                afterValidationInputImageSHA256, actualAliasDrainSHA256,
+                checkedResourceCloseSHA256, finalInputImageSHA256,
+                canonicalCurrentPointerSHA256, canonicalPreservedManifestSHA256,
+                canonicalKnownReplicaDispositionSHA256]
+                    .allSatisfy(StoreMigrationCanonicalJSONV1.isLowercaseSHA256) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // Compatibility/current physical/source predicates are deliberately
+        // outside this DATA shape check. Version mismatch needs full genuine
+        // validation B; it never becomes proof or permanent valid-state loss.
+    }
+}
+

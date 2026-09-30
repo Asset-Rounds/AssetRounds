@@ -1,0 +1,169 @@
+{
+  "schema": "SwiftLanguageModeClosureReceiptV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C12",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "71aa71fe2c907d18a437f7461661e80344c66d6c",
+    "baseTree": "fc961a2217bb5b2a0044f3ff12edce0950ba9bf2",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "04ce1ab8d61a59434cc2bbf2410e885c4f6a15a49556874c12dfb1644895c5b5",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "e549afb029c183733eab5514345ad49cfda954fa9dc2842574faa9511fa69d81",
+    "bootstrapPathFenceDigest": "c23d8f566b104f8ebc4cf2192d5c06e447621f72871fb43811e59972a53d9b6d",
+    "hydratedSpecDigest": "5b175ba7d5b1a57b602fefb7317254d26d0b488d04653788f80e6bebe7c9cac1",
+    "hydratedPathFenceDigest": "6c931af2a42159eea196c467041c91b46c4cf1cdd2c2a32f2051ed69e7ee7194",
+    "provisionalPrerequisiteDigest": "cef1217f81665a3cb0cd22eb1d8d20f9b906f975465a07298132c01f6e2e7517",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "3c64f735a59ed5b83a5a3f25aa546fa369967e35db340fdb77b48836742a0f80",
+    "ledgerCASSequence": 35,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "project": {
+    "path": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+    "sha256": "5646bddac1b7dd34c5148dfcb40c5209c66ae13c588f7c6f371a26263779337f",
+    "reservedByActiveS10": true,
+    "targetCount": 3,
+    "targetConfigurationCount": 6,
+    "currentSwiftVersionSettingCount": 6
+  },
+  "targetConfigurationMatrix": [
+    {
+      "target": "FieldEvidenceApp",
+      "configuration": "Debug",
+      "buildConfigurationObjectID": "A00000000000000000000062",
+      "currentSwiftVersion": "5.0",
+      "requiredSwiftVersion": "6.0",
+      "projectPath": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "projectPathReservedByActiveS10": true,
+      "nativeProofStatus": "NOT_RUN_RESERVED_PROJECT_AND_HOSTED_WORKFLOW"
+    },
+    {
+      "target": "FieldEvidenceApp",
+      "configuration": "Release",
+      "buildConfigurationObjectID": "A00000000000000000000063",
+      "currentSwiftVersion": "5.0",
+      "requiredSwiftVersion": "6.0",
+      "projectPath": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "projectPathReservedByActiveS10": true,
+      "nativeProofStatus": "NOT_RUN_RESERVED_PROJECT_AND_HOSTED_WORKFLOW"
+    },
+    {
+      "target": "FieldEvidenceAppTests",
+      "configuration": "Debug",
+      "buildConfigurationObjectID": "A00000000000000000000064",
+      "currentSwiftVersion": "5.0",
+      "requiredSwiftVersion": "6.0",
+      "projectPath": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "projectPathReservedByActiveS10": true,
+      "nativeProofStatus": "NOT_RUN_RESERVED_PROJECT_AND_HOSTED_WORKFLOW"
+    },
+    {
+      "target": "FieldEvidenceAppTests",
+      "configuration": "Release",
+      "buildConfigurationObjectID": "A00000000000000000000065",
+      "currentSwiftVersion": "5.0",
+      "requiredSwiftVersion": "6.0",
+      "projectPath": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "projectPathReservedByActiveS10": true,
+      "nativeProofStatus": "NOT_RUN_RESERVED_PROJECT_AND_HOSTED_WORKFLOW"
+    },
+    {
+      "target": "FieldEvidenceAppUITests",
+      "configuration": "Debug",
+      "buildConfigurationObjectID": "A00000000000000000000066",
+      "currentSwiftVersion": "5.0",
+      "requiredSwiftVersion": "6.0",
+      "projectPath": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "projectPathReservedByActiveS10": true,
+      "nativeProofStatus": "NOT_RUN_RESERVED_PROJECT_AND_HOSTED_WORKFLOW"
+    },
+    {
+      "target": "FieldEvidenceAppUITests",
+      "configuration": "Release",
+      "buildConfigurationObjectID": "A00000000000000000000067",
+      "currentSwiftVersion": "5.0",
+      "requiredSwiftVersion": "6.0",
+      "projectPath": "FieldEvidenceApp.xcodeproj/project.pbxproj",
+      "projectPathReservedByActiveS10": true,
+      "nativeProofStatus": "NOT_RUN_RESERVED_PROJECT_AND_HOSTED_WORKFLOW"
+    }
+  ],
+  "c07AllocatedClauseIDs": [
+    "V21-C07-B14B",
+    "V21-C07-B15B",
+    "V21-C07-B16D",
+    "V21-C07-K04",
+    "V21-C07-A05",
+    "V21-C07-E05"
+  ],
+  "c07AllocatedClauseCount": 6,
+  "prerequisiteBindings": {
+    "C09ToolingManifestDigest": "bcc8848789c7ee26b47f0bee4cf6e649996b5c6f709ec1958033e163e759320c",
+    "C11ToolingManifestDigest": "272d510fbf52c2b21d3a7e6ed11977bf5049ce9434e8196f3c185365b5b172d7",
+    "C11ConcurrencyClosureDigest": "e5baf5d5e907acc81d2b96efeccd87921bce6ffcd73988276d372635a1b24bf6",
+    "C11PlatformAdapterDigest": "6c50e85dcaff2c658adcbc91f68c04f83c00000ab8bedc69ca8203045f52410f",
+    "C11StaticContractStatus": "PASS",
+    "C11NativeCompileRan": false
+  },
+  "unsafeBoundaryRatchet": {
+    "baselineCounts": {
+      "uncheckedSendable": 10,
+      "nonisolatedUnsafe": 0,
+      "detachedTask": 0,
+      "preconcurrency": 0,
+      "assumeIsolated": 1
+    },
+    "candidateCounts": {
+      "uncheckedSendable": 10,
+      "nonisolatedUnsafe": 0,
+      "detachedTask": 0,
+      "preconcurrency": 0,
+      "assumeIsolated": 1
+    },
+    "newUncheckedCount": 0,
+    "newUnsafeIsolationCount": 0,
+    "newDetachedTaskCount": 0,
+    "newPreconcurrencyCount": 0,
+    "status": "PASS_NO_C12_PRODUCT_SOURCE_DELTA"
+  },
+  "platformAdapterReproof": {
+    "mailBoundarySource": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+    "c11PlatformAdapterDigest": "6c50e85dcaff2c658adcbc91f68c04f83c00000ab8bedc69ca8203045f52410f",
+    "staticReproofStatus": "PASS_BOUND_TO_C11_EXACT_ARTIFACT",
+    "nativeCallbackEvidenceStatus": "NOT_RUN_HOSTED_DISPATCH_DISABLED"
+  },
+  "requiredReproofFamilies": {
+    "architecture": "DEFERRED_NATIVE_EXACT_CANDIDATE",
+    "lifecycle": "DEFERRED_NATIVE_EXACT_CANDIDATE",
+    "interruption": "DEFERRED_NATIVE_EXACT_CANDIDATE",
+    "performance": "DEFERRED_NATIVE_EXACT_CANDIDATE",
+    "releaseHook": "DEFERRED_NATIVE_EXACT_CANDIDATE"
+  },
+  "nativeCompilerDisposition": "NOT_RUN_PROJECT_WORKFLOW_AND_SELECTOR_RESERVED_BY_ACTIVE_S10",
+  "swift6DiagnosticCount": null,
+  "nativeCompileRan": false,
+  "nativeTestsRan": false,
+  "languageModeClosureSatisfied": false,
+  "staticPreparationStatus": "PASS_EXACT_SIX_CONFIGURATION_GAP_INVENTORIED",
+  "provisionalDisposition": "TARGETED_STATIC_PREPARATION_NOT_SWIFT6_CLOSURE_NOT_ACCEPTABLE",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "d229005282b59b5002137b09d9415555190405eec7a51e066bc6744007f11229"
+}

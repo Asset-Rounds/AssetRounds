@@ -1,0 +1,846 @@
+{
+  "schemaVersion": 1,
+  "fixtureIdentity": "V21-P02-C09-PERSISTENT-KIND-LIFECYCLE-COVERAGE-CORPUS-V1",
+  "authority": {
+    "cardID": "V23-P02-C09",
+    "contextDigest": "6f233d87250cb79dd3d435728e500f19bde24eb1cac5cccfa070a23df6b233c2",
+    "pathFenceDigest": "a0e33d073d2dfa406b9540ea18c52e36286d28bce93500cf2640357c56d61171",
+    "provisionalUntil": "ACCEPTED_S10_6_RECONCILIATION"
+  },
+  "declaredKindIDs": [
+    "DIAGNOSTIC:DeviceOperationalSupportSnapshotV2",
+    "DIAGNOSTIC:DeviceOperationalSupportStoreV1",
+    "DIAGNOSTIC:DeviceOperationalSupportStoreV2",
+    "DIAGNOSTIC:DiagnosticExportV1",
+    "DIAGNOSTIC:DiagnosticsLogEvent",
+    "DIAGNOSTIC:DiagnosticsV1",
+    "DIAGNOSTIC:LaunchTimeMillisecondsV1",
+    "DIAGNOSTIC:MetricKitSummaryV1",
+    "DIAGNOSTIC:OperationalFailureV1",
+    "DIAGNOSTIC:PurchaseResultHistogram",
+    "DIAGNOSTIC:ScratchDataLeaseStoreV1",
+    "DIAGNOSTIC:SystemHealthDiagnosticsV1",
+    "DIAGNOSTIC:diagnosticCounters",
+    "INDEX:ReportHistoryIndexValue",
+    "INDEX:reportHistoryChronology",
+    "JOURNAL:CurrentGenerationPointerV2",
+    "JOURNAL:CurrentGenerationPointerV3",
+    "JOURNAL:DeletionIntentV1",
+    "JOURNAL:EraseIntentV1",
+    "JOURNAL:ErasePreparationV2",
+    "JOURNAL:FinalizationIntentV1",
+    "JOURNAL:MutationEnvelopeV1",
+    "JOURNAL:MutationHistoryQuarantineRecordV1",
+    "JOURNAL:MutationReceiptV1",
+    "JOURNAL:PreparedMigrationEnvelopeV1",
+    "JOURNAL:RestoreIntentV1",
+    "JOURNAL:ReversalBasisV1",
+    "JOURNAL:SemanticReversalReceiptV1",
+    "JOURNAL:StoreGenerationManifestV1",
+    "JOURNAL:StoreMigrationJournalV1",
+    "JOURNAL:deletionIntent",
+    "JOURNAL:eraseIntent",
+    "JOURNAL:finalizationIntent",
+    "JOURNAL:mutationReceipt",
+    "JOURNAL:restoreIntent",
+    "JOURNAL:storeMigration",
+    "OWNED_FILE_CLASS:cache",
+    "OWNED_FILE_CLASS:commerceEntitlementCache",
+    "OWNED_FILE_CLASS:database",
+    "OWNED_FILE_CLASS:databaseSHM",
+    "OWNED_FILE_CLASS:databaseWAL",
+    "OWNED_FILE_CLASS:diagnostics",
+    "OWNED_FILE_CLASS:durableDirectory",
+    "OWNED_FILE_CLASS:generationLeaseControl",
+    "OWNED_FILE_CLASS:generationLeaseControlTemporary",
+    "OWNED_FILE_CLASS:generationLeaseDirectory",
+    "OWNED_FILE_CLASS:generationLeaseOwnerLock",
+    "OWNED_FILE_CLASS:generationPointer",
+    "OWNED_FILE_CLASS:generationPointerTemporary",
+    "OWNED_FILE_CLASS:journal",
+    "OWNED_FILE_CLASS:journalTemporary",
+    "OWNED_FILE_CLASS:mediaOriginal",
+    "OWNED_FILE_CLASS:mediaThumbnail",
+    "OWNED_FILE_CLASS:reportPDF",
+    "OWNED_FILE_CLASS:reportSnapshot",
+    "OWNED_FILE_CLASS:restoreStaging",
+    "OWNED_FILE_CLASS:scratch",
+    "OWNED_FILE_CLASS:stagingDirectory",
+    "OWNED_FILE_CLASS:stagingFile",
+    "OWNED_FILE_CLASS:temporaryFile",
+    "PERSISTENT_MODEL:Asset",
+    "PERSISTENT_MODEL:DeletionLedgerRow",
+    "PERSISTENT_MODEL:EntityMutationRevisionRow",
+    "PERSISTENT_MODEL:EvidenceFile",
+    "PERSISTENT_MODEL:Issue",
+    "PERSISTENT_MODEL:MutationQuarantineRow",
+    "PERSISTENT_MODEL:MutationReceiptRow",
+    "PERSISTENT_MODEL:ObservationAndTimeRow",
+    "PERSISTENT_MODEL:Packet",
+    "PERSISTENT_MODEL:PersistentSchemaReleaseMarker",
+    "PERSISTENT_MODEL:Report",
+    "PERSISTENT_MODEL:Site",
+    "PERSISTENT_MODEL:WorkflowRecord",
+    "PERSISTENT_MODEL:WorkspaceMutationStateRow",
+    "PROJECTION:DeletionLedgerV2",
+    "PROJECTION:EntityMutationRevisionSemanticV1",
+    "PROJECTION:MutationHistorySnapshotV1",
+    "PROJECTION:MutationQuarantineSemanticV1",
+    "PROJECTION:MutationReceiptSemanticV1",
+    "PROJECTION:ObservationAndTimeMigrationReceiptV1",
+    "PROJECTION:ObservationAndTimeSemanticV1",
+    "PROJECTION:ObservationBasisV1",
+    "PROJECTION:ReportSnapshotV1",
+    "PROJECTION:StoreSemanticEnvelopeV3",
+    "PROJECTION:StoreSemanticEnvelopeV4",
+    "PROJECTION:StoreSemanticEnvelopeV5",
+    "PROJECTION:StreamingArchiveIndexV1",
+    "PROJECTION:TemporalContextV1",
+    "PROJECTION:V4BackupAssetDTO",
+    "PROJECTION:V4BackupEvidenceFileDTO",
+    "PROJECTION:V4BackupIssueDTO",
+    "PROJECTION:V4BackupManifestV1",
+    "PROJECTION:V4BackupPacketDTO",
+    "PROJECTION:V4BackupRecordsV1",
+    "PROJECTION:V4BackupReportDTO",
+    "PROJECTION:V4BackupSiteDTO",
+    "PROJECTION:V4BackupWorkflowRecordDTO",
+    "PROJECTION:WorkspaceMutationStateSemanticV1",
+    "PROJECTION:entityMutationRevision",
+    "PROJECTION:workspaceMutationState"
+  ],
+  "durableFirstWriteKindIDs":
+  [
+    "DIAGNOSTIC:DeviceOperationalSupportStoreV2",
+    "DIAGNOSTIC:ScratchDataLeaseStoreV1",
+    "DIAGNOSTIC:diagnosticCounters",
+    "JOURNAL:CurrentGenerationPointerV2",
+    "JOURNAL:CurrentGenerationPointerV3",
+    "JOURNAL:DeletionIntentV1",
+    "JOURNAL:EraseIntentV1",
+    "JOURNAL:ErasePreparationV2",
+    "JOURNAL:FinalizationIntentV1",
+    "JOURNAL:MutationEnvelopeV1",
+    "JOURNAL:MutationHistoryQuarantineRecordV1",
+    "JOURNAL:MutationReceiptV1",
+    "JOURNAL:PreparedMigrationEnvelopeV1",
+    "JOURNAL:RestoreIntentV1",
+    "JOURNAL:ReversalBasisV1",
+    "JOURNAL:SemanticReversalReceiptV1",
+    "JOURNAL:StoreGenerationManifestV1",
+    "JOURNAL:StoreMigrationJournalV1",
+    "JOURNAL:deletionIntent",
+    "JOURNAL:eraseIntent",
+    "JOURNAL:finalizationIntent",
+    "JOURNAL:mutationReceipt",
+    "JOURNAL:restoreIntent",
+    "JOURNAL:storeMigration",
+    "OWNED_FILE_CLASS:cache",
+    "OWNED_FILE_CLASS:commerceEntitlementCache",
+    "OWNED_FILE_CLASS:database",
+    "OWNED_FILE_CLASS:databaseSHM",
+    "OWNED_FILE_CLASS:databaseWAL",
+    "OWNED_FILE_CLASS:diagnostics",
+    "OWNED_FILE_CLASS:durableDirectory",
+    "OWNED_FILE_CLASS:generationLeaseControl",
+    "OWNED_FILE_CLASS:generationLeaseControlTemporary",
+    "OWNED_FILE_CLASS:generationLeaseDirectory",
+    "OWNED_FILE_CLASS:generationLeaseOwnerLock",
+    "OWNED_FILE_CLASS:generationPointer",
+    "OWNED_FILE_CLASS:generationPointerTemporary",
+    "OWNED_FILE_CLASS:journal",
+    "OWNED_FILE_CLASS:journalTemporary",
+    "OWNED_FILE_CLASS:mediaOriginal",
+    "OWNED_FILE_CLASS:mediaThumbnail",
+    "OWNED_FILE_CLASS:reportPDF",
+    "OWNED_FILE_CLASS:reportSnapshot",
+    "OWNED_FILE_CLASS:restoreStaging",
+    "OWNED_FILE_CLASS:scratch",
+    "OWNED_FILE_CLASS:stagingDirectory",
+    "OWNED_FILE_CLASS:stagingFile",
+    "OWNED_FILE_CLASS:temporaryFile",
+    "PERSISTENT_MODEL:Asset",
+    "PERSISTENT_MODEL:DeletionLedgerRow",
+    "PERSISTENT_MODEL:EntityMutationRevisionRow",
+    "PERSISTENT_MODEL:EvidenceFile",
+    "PERSISTENT_MODEL:Issue",
+    "PERSISTENT_MODEL:MutationQuarantineRow",
+    "PERSISTENT_MODEL:MutationReceiptRow",
+    "PERSISTENT_MODEL:ObservationAndTimeRow",
+    "PERSISTENT_MODEL:Packet",
+    "PERSISTENT_MODEL:PersistentSchemaReleaseMarker",
+    "PERSISTENT_MODEL:Report",
+    "PERSISTENT_MODEL:Site",
+    "PERSISTENT_MODEL:WorkflowRecord",
+    "PERSISTENT_MODEL:WorkspaceMutationStateRow",
+    "PROJECTION:ReportSnapshotV1",
+    "PROJECTION:entityMutationRevision",
+    "PROJECTION:workspaceMutationState"
+  ],
+  "temporalProvenance":
+  [
+    {
+      "kindID": "DIAGNOSTIC:DeviceOperationalSupportSnapshotV2",
+      "representationSourceCard": "V23_P02_C08",
+      "representationSourceOrdinal": 28
+    },
+    {
+      "kindID": "DIAGNOSTIC:DeviceOperationalSupportStoreV1",
+      "representationSourceCard": "V23_P02_C08",
+      "representationSourceOrdinal": 28
+    },
+    {
+      "kindID": "DIAGNOSTIC:DeviceOperationalSupportStoreV2",
+      "representationSourceCard": "V23_P02_C08",
+      "representationSourceOrdinal": 28
+    },
+    {
+      "kindID": "DIAGNOSTIC:DiagnosticExportV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "DIAGNOSTIC:DiagnosticsLogEvent",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "DIAGNOSTIC:DiagnosticsV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "DIAGNOSTIC:LaunchTimeMillisecondsV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "DIAGNOSTIC:MetricKitSummaryV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "DIAGNOSTIC:OperationalFailureV1",
+      "representationSourceCard": "V23_P02_C08",
+      "representationSourceOrdinal": 28
+    },
+    {
+      "kindID": "DIAGNOSTIC:PurchaseResultHistogram",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "DIAGNOSTIC:ScratchDataLeaseStoreV1",
+      "representationSourceCard": "V23_P02_C08",
+      "representationSourceOrdinal": 28
+    },
+    {
+      "kindID": "DIAGNOSTIC:SystemHealthDiagnosticsV1",
+      "representationSourceCard": "V23_P02_C08",
+      "representationSourceOrdinal": 28
+    },
+    {
+      "kindID": "DIAGNOSTIC:diagnosticCounters",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "INDEX:ReportHistoryIndexValue",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "INDEX:reportHistoryChronology",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:CurrentGenerationPointerV2",
+      "representationSourceCard": "V23_P01_C03",
+      "representationSourceOrdinal": 16
+    },
+    {
+      "kindID": "JOURNAL:CurrentGenerationPointerV3",
+      "representationSourceCard": "V23_P01_C05",
+      "representationSourceOrdinal": 18
+    },
+    {
+      "kindID": "JOURNAL:DeletionIntentV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:EraseIntentV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:ErasePreparationV2",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:FinalizationIntentV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:MutationEnvelopeV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "JOURNAL:MutationHistoryQuarantineRecordV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "JOURNAL:MutationReceiptV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "JOURNAL:PreparedMigrationEnvelopeV1",
+      "representationSourceCard": "V23_P01_C03",
+      "representationSourceOrdinal": 16
+    },
+    {
+      "kindID": "JOURNAL:RestoreIntentV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:ReversalBasisV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "JOURNAL:SemanticReversalReceiptV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "JOURNAL:StoreGenerationManifestV1",
+      "representationSourceCard": "V23_P01_C03",
+      "representationSourceOrdinal": 16
+    },
+    {
+      "kindID": "JOURNAL:StoreMigrationJournalV1",
+      "representationSourceCard": "V23_P01_C03",
+      "representationSourceOrdinal": 16
+    },
+    {
+      "kindID": "JOURNAL:deletionIntent",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:eraseIntent",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:finalizationIntent",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:mutationReceipt",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "JOURNAL:restoreIntent",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "JOURNAL:storeMigration",
+      "representationSourceCard": "V23_P01_C03",
+      "representationSourceOrdinal": 16
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:cache",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:commerceEntitlementCache",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:database",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:databaseSHM",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:databaseWAL",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:diagnostics",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:durableDirectory",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:generationLeaseControl",
+      "representationSourceCard": "V23_P02_C04",
+      "representationSourceOrdinal": 24
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:generationLeaseControlTemporary",
+      "representationSourceCard": "V23_P02_C04",
+      "representationSourceOrdinal": 24
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:generationLeaseDirectory",
+      "representationSourceCard": "V23_P02_C04",
+      "representationSourceOrdinal": 24
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:generationLeaseOwnerLock",
+      "representationSourceCard": "V23_P02_C04",
+      "representationSourceOrdinal": 24
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:generationPointer",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:generationPointerTemporary",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:journal",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:journalTemporary",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:mediaOriginal",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:mediaThumbnail",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:reportPDF",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:reportSnapshot",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:restoreStaging",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:scratch",
+      "representationSourceCard": "V23_P02_C08",
+      "representationSourceOrdinal": 28
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:stagingDirectory",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:stagingFile",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "OWNED_FILE_CLASS:temporaryFile",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:Asset",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:DeletionLedgerRow",
+      "representationSourceCard": "V23_P01_C06",
+      "representationSourceOrdinal": 19
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:EntityMutationRevisionRow",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:EvidenceFile",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:Issue",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:MutationQuarantineRow",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:MutationReceiptRow",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:ObservationAndTimeRow",
+      "representationSourceCard": "V23_P02_C07",
+      "representationSourceOrdinal": 27
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:Packet",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:PersistentSchemaReleaseMarker",
+      "representationSourceCard": "V23_P01_C03",
+      "representationSourceOrdinal": 16
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:Report",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:Site",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:WorkflowRecord",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PERSISTENT_MODEL:WorkspaceMutationStateRow",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PROJECTION:DeletionLedgerV2",
+      "representationSourceCard": "V23_P01_C06",
+      "representationSourceOrdinal": 19
+    },
+    {
+      "kindID": "PROJECTION:EntityMutationRevisionSemanticV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PROJECTION:MutationHistorySnapshotV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PROJECTION:MutationQuarantineSemanticV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PROJECTION:MutationReceiptSemanticV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PROJECTION:ObservationAndTimeMigrationReceiptV1",
+      "representationSourceCard": "V23_P02_C07",
+      "representationSourceOrdinal": 27
+    },
+    {
+      "kindID": "PROJECTION:ObservationAndTimeSemanticV1",
+      "representationSourceCard": "V23_P02_C07",
+      "representationSourceOrdinal": 27
+    },
+    {
+      "kindID": "PROJECTION:ObservationBasisV1",
+      "representationSourceCard": "V23_P02_C07",
+      "representationSourceOrdinal": 27
+    },
+    {
+      "kindID": "PROJECTION:ReportSnapshotV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:StoreSemanticEnvelopeV3",
+      "representationSourceCard": "V23_P01_C06",
+      "representationSourceOrdinal": 19
+    },
+    {
+      "kindID": "PROJECTION:StoreSemanticEnvelopeV4",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PROJECTION:StoreSemanticEnvelopeV5",
+      "representationSourceCard": "V23_P02_C07",
+      "representationSourceOrdinal": 27
+    },
+    {
+      "kindID": "PROJECTION:StreamingArchiveIndexV1",
+      "representationSourceCard": "V23_P01_C04",
+      "representationSourceOrdinal": 17
+    },
+    {
+      "kindID": "PROJECTION:TemporalContextV1",
+      "representationSourceCard": "V23_P02_C07",
+      "representationSourceOrdinal": 27
+    },
+    {
+      "kindID": "PROJECTION:V4BackupAssetDTO",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:V4BackupEvidenceFileDTO",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:V4BackupIssueDTO",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:V4BackupManifestV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:V4BackupPacketDTO",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:V4BackupRecordsV1",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:V4BackupReportDTO",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:V4BackupSiteDTO",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:V4BackupWorkflowRecordDTO",
+      "representationSourceCard": "PRE_V23_BASELINE",
+      "representationSourceOrdinal": 0
+    },
+    {
+      "kindID": "PROJECTION:WorkspaceMutationStateSemanticV1",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PROJECTION:entityMutationRevision",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    },
+    {
+      "kindID": "PROJECTION:workspaceMutationState",
+      "representationSourceCard": "V23_P02_C02",
+      "representationSourceOrdinal": 22
+    }
+  ],
+  "universeSources": [
+    "ACCEPTED_FIXTURE_DECLARATION",
+    "ARCHIVE_EXPORT_REPORT_PACKAGE_EXCHANGE_REGISTRY",
+    "JOURNAL_CHECKPOINT_PROJECTION_REGISTRY",
+    "OWNED_FILE_POLICY",
+    "PERSISTENT_SCHEMA",
+    "SYNC_CLASSIFICATION_CATALOG",
+    "TEMPORAL_PROVENANCE_REGISTRY"
+  ],
+  "classifications": [
+    "CANONICAL",
+    "CONTENT",
+    "DECLARATION",
+    "DERIVED",
+    "IMMUTABLE",
+    "NONPERSISTENT",
+    "WIRE"
+  ],
+  "handlingActions": [
+    "CONTENT_MANAGED",
+    "DENIED",
+    "IMMUTABLE",
+    "NOT_APPLICABLE",
+    "REBUILDABLE",
+    "SUPPORTED"
+  ],
+  "lifecycleDimensions": [
+    "ACCESSIBILITY",
+    "CANONICAL_QUERY",
+    "CLONE",
+    "COMPATIBILITY",
+    "DELETE",
+    "DOWNGRADE",
+    "ERASE",
+    "EXPORT",
+    "FILESYSTEM_BACKUP",
+    "FORK",
+    "FORWARD_FIX",
+    "FUTURE_REPLICATION",
+    "IDEMPOTENT_RECEIPT",
+    "IMPORT",
+    "INTERRUPTION_RECOVERY",
+    "JOURNAL",
+    "LOCALIZATION",
+    "MIGRATION",
+    "PRIVACY",
+    "REBUILD",
+    "REPLACE_RESTORE",
+    "REPLAY",
+    "REPORT",
+    "RETENTION",
+    "SCHEMA_AND_VERSION",
+    "SEARCH",
+    "SEMANTIC_BACKUP",
+    "WRITER_COMMAND"
+  ],
+  "representativePolicies": [
+    {
+      "classification": "CANONICAL",
+      "expectedErase": "SUPPORTED",
+      "expectedRebuild": "NOT_APPLICABLE",
+      "expectedRetention": "SUPPORTED"
+    },
+    {
+      "classification": "IMMUTABLE",
+      "expectedErase": "IMMUTABLE",
+      "expectedRebuild": "NOT_APPLICABLE",
+      "expectedRetention": "IMMUTABLE"
+    },
+    {
+      "classification": "DERIVED",
+      "expectedErase": "REBUILDABLE",
+      "expectedRebuild": "REBUILDABLE",
+      "expectedRetention": "NOT_APPLICABLE"
+    },
+    {
+      "classification": "CONTENT",
+      "expectedErase": "CONTENT_MANAGED",
+      "expectedRebuild": "NOT_APPLICABLE",
+      "expectedRetention": "CONTENT_MANAGED"
+    },
+    {
+      "classification": "DECLARATION",
+      "expectedErase": "IMMUTABLE",
+      "expectedRebuild": "NOT_APPLICABLE",
+      "expectedRetention": "IMMUTABLE"
+    },
+    {
+      "classification": "WIRE",
+      "expectedErase": "NOT_APPLICABLE",
+      "expectedRebuild": "NOT_APPLICABLE",
+      "expectedRetention": "NOT_APPLICABLE"
+    },
+    {
+      "classification": "NONPERSISTENT",
+      "expectedErase": "NOT_APPLICABLE",
+      "expectedRebuild": "REBUILDABLE",
+      "expectedRetention": "NOT_APPLICABLE"
+    }
+  ],
+  "hostileCases": [
+    "BACKUP_WITHOUT_RESTORE",
+    "DENIED_KIND_ENTERS_EXPORT",
+    "DENIED_KIND_ENTERS_REPORT",
+    "DUPLICATE_KIND",
+    "DUPLICATE_OWNER",
+    "ERASE_DESTROYS_IMMUTABLE_TRUTH",
+    "ERASE_LEAVES_ERASABLE_ORPHAN",
+    "MISSING_KIND",
+    "OWNER_IMPLEMENTATION_CONFLICT",
+    "TEMPORALLY_IMPOSSIBLE_WRITER",
+    "MISSING_TEMPORAL_PROVENANCE",
+    "DUPLICATE_TEMPORAL_PROVENANCE",
+    "WRONG_LATER_CARD_PROVENANCE",
+    "IMPOSSIBLE_TEMPORAL_CHRONOLOGY",
+    "UNKNOWN_ACTION",
+    "UNKNOWN_CLASSIFICATION",
+    "UNKNOWN_POLICY_VERSION"
+  ],
+  "interruptionBoundaries": [
+    "BEFORE_POLICY_STAGING",
+    "AFTER_POLICY_STAGING_BEFORE_ACTIVATION",
+    "AFTER_ACTIVATION_BEFORE_RECEIPT",
+    "AFTER_RECEIPT_BEFORE_CLEANUP"
+  ],
+  "compatibilityCases": [
+    {
+      "caseID": "PRE_ACTIVATION_INTERRUPTION",
+      "expectedDisposition": "DISCARD_STAGING",
+      "rewritesReleasedHistory": false
+    },
+    {
+      "caseID": "POST_ACTIVATION_INTERRUPTION",
+      "expectedDisposition": "APPEND_VERSIONED_SUCCESSOR_AND_FORWARD_FIX",
+      "rewritesReleasedHistory": false
+    },
+    {
+      "caseID": "FUTURE_POLICY_VERSION",
+      "expectedDisposition": "QUARANTINE_AND_REQUIRE_FORWARD_FIX",
+      "rewritesReleasedHistory": false
+    }
+  ],
+  "eraseExpectations": {
+    "erasableSurvivorCount": 0,
+    "orphanCount": 0,
+    "immutableTruthPreserved": true,
+    "usesOneGlobalDestructiveRule": false
+  },
+  "brandImpact": {
+    "changedScreens": [],
+    "changedStates": [],
+    "affectedConsumers": [
+      "V23-P02-C10",
+      "V23-P03-C01"
+    ],
+    "manifestCount": 1
+  },
+  "expectedAudit": {
+    "missingCount": 0,
+    "duplicateCount": 0,
+    "conflictingCount": 0,
+    "unknownCount": 0
+  }
+}

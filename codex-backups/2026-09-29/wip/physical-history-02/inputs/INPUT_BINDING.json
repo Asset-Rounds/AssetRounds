@@ -1,0 +1,36 @@
+{
+  "authorModel": "gpt-6.1-sol",
+  "files": {
+    "BEFORE_SOURCE_MAP.json": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+    "BOUNDARY_SCOPE_TYPES_FRAGMENT.swift": "918587e97c98fdfffcb97824d931fd822f28ae58a357b27e2e29b220b9a9366b",
+    "C16_INTERFACE.md": "bd9671abebe0df0782ff186edd7003df278d7958ecd8939efcb946284e65234a",
+    "COLD_CONTINUATION_CONTRACT_V2.md": "e275b2d2c0c719cbe039c5cf93d79ce67da0f64abd3973ddda8e25c840131692",
+    "COLD_CONTINUATION_CONTRACT_V2_1_ADDENDUM.md": "6bd86d68cbeec45ad3b3317c500d2aec0d2973a745aee586232fece44b498a5f",
+    "CONTRACT_V2_BINDING.json": "8b57275d2b103609e06dc1470d1bd8ab9bbbcbf7c20f0e1c6fa0ef3270b16cfb",
+    "PARENT_BASELINE.json": "b90f8d0c6bab93189257602fcfaa902285f8bc16b528f086b0797b916e6a0bef",
+    "PHYSICAL_AUTHOR_INTERFACE_V1.md": "5dc1f59e77a1831395457f848ca603a7b43b70583e44ca07ccfacc553e2ccbf0",
+    "STORE_APIS_V21.swift.fragment": "1945d616fc9913792526ac8e5d1726765e817d8cb595a91c45e75fc66e106181",
+    "STORE_APIS_V22.swift.fragment": "225a88055f23f996096fce68909ed11468bc030ab52da3c1743024220b8936cf",
+    "STORE_INTERFACE.md": "9da3b897d4592c9d2693df228db021e94d617c602f4b891ef28055386c7006d4",
+    "STORE_TYPES_V21.swift.fragment": "b7b20f35a1440a1faa1bedf1ce023b125ba0af51c7a0f62aaee7e80ea25ef4c8",
+    "before/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee",
+    "before/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e",
+    "candidate/FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee",
+    "candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": "5fb1a27fd6e3211ac71c7b82e28ac9c39ee2fe9b62ce635fc6b3c72ff2743193"
+  },
+  "openBindings": [
+    "firstP opaque nlink2 pair scope/PFP streaming API",
+    "terminal-specific complete-value bound",
+    "Ledger source implementation not yet frozen",
+    "central real issuer/tail not implemented"
+  ],
+  "ownedSuccessorPaths": [
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift",
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift"
+  ],
+  "parentFullSourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "parentHEAD": "dbdb4649e3e405eb50a1d2b443c8d7c061831a1a",
+  "reasoningEffort": "xhigh",
+  "schemaVersion": 1,
+  "status": "frozen_input_only_incomplete_not_installable"
+}

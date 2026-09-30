@@ -1,0 +1,30 @@
+{
+  "fragmentCopy": {
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1/inputs/FIRST_CAPTURE_SCOPE_INTERFACE_V2.swift.fragment",
+    "sha256": "0d330bd56a10d7df5186a5176ab1acdcf9fc488f465494224b0e023c1138b156"
+  },
+  "inputs": [
+    {
+      "path": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds/.codex-temp/live-notification-completed-retry-successor-v1/FIRST_CAPTURE_SCOPE_INTERFACE_V2.swift.fragment",
+      "role": "FirstCaptureV2",
+      "sha256": "0d330bd56a10d7df5186a5176ab1acdcf9fc488f465494224b0e023c1138b156"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/cold-firstcapture-root-decision-v1/DECISION.md",
+      "role": "RootCurrentDataAndBudgetDecision",
+      "sha256": "7cb3225bcfa525663c127757f6c2f4f1a91a818e9e836b6937ce69c1f036b141"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/generic-scratch-firstcapture-premise-review-sol61-xhigh-v1/REVIEW.md",
+      "role": "IndependentFrozenDesignPremise",
+      "sha256": "9a3be9b27afbcc5d140c94946715b102034794d4ccc77062e93a9d50a79126d2"
+    },
+    {
+      "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/generic-scratch-firstcapture-premise-review-sol61-xhigh-v1/BUDGET_REVIEW.md",
+      "role": "IndependentBudgetAddendum",
+      "sha256": "01d6919b2e8d2616b7c3525c9f241f2c7caf07ebe1d6b637349e30f539f0ff69"
+    }
+  ],
+  "productAuthority": "Root owner-delegated reversible decision14/20; exact frozen design premise and budget retain their conditional source-only scopes. No implementation/compile/native/gate approval inherited.",
+  "schemaVersion": 1
+}

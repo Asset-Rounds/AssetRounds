@@ -1,0 +1,70 @@
+{
+  "schema": "PlatformAdapterConcurrencyReceiptV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P00-C11",
+  "authority": {
+    "attemptID": 1,
+    "executionMode": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION",
+    "baseHead": "fad0ca2711ec891a13ca51f68c54bc934e1ca8d8",
+    "baseTree": "a49abf914a26c99e4efe284a7d2c3ba04f7933f6",
+    "candidateBinding": "EXTERNAL_EXACT_HEAD_AND_TREE_RECEIPT_REQUIRED",
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "dossierDigest": "e3c9b8153149009205e9d01b6355808723b24e281a162488cfa7774f8d8bae63",
+    "canonicalRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "selectorManifestDigest": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2",
+    "relationManifestDigest": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4",
+    "dependencyDispositionDigest": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c",
+    "ownerOverrideReceiptDigest": "e928e8f8415d8a35bbedbdf33a14c20c7f85f2d02600e762465eed8b48bae452",
+    "frozenS10ReservationDigest": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a",
+    "bootstrapContextDigest": "97c5d75eaaf3419ed74148c287050a47bee417cc2074bc3821d10caf2a9cf220",
+    "bootstrapPathFenceDigest": "560b3bd0401d0da46bcedc9f7184c8041e198db8cbe8af3011731fc0ad6cc8b1",
+    "hydratedSpecDigest": "5ff0da398f4ddecad4ca7a815b772bc830e7267e53629a5dee69d705d2f5fffb",
+    "hydratedPathFenceDigest": "99386013a49cc8ac6b8c1fa94f474898cce3d1812679fd1ed118c10585b1a8ed",
+    "provisionalPrerequisiteDigest": "635f08847548049ea43b6aa82caecfb0d962569171787b8598eabb47392012d7",
+    "writerAuthority": {
+      "ownerID": "A00_BOOTSTRAP_CONTROLLER",
+      "writerGeneration": 0
+    },
+    "ledgerDigest": "83ec06eee415745899c939ea1b4629e2da75ceb1b73ebe3bd2ade187d85e9171",
+    "ledgerCASSequence": 31,
+    "phase10PollingDuringParallelExecution": false,
+    "acceptanceEnabled": false,
+    "hostedDispatchEnabled": false,
+    "adoptionEnabled": false,
+    "requiresAcceptedS10_6Reconciliation": true,
+    "releaseCredit": false
+  },
+  "mailBoundary": {
+    "adapterPath": "FieldEvidenceApp/Infrastructure/Feedback/MailComposerAdapter.swift",
+    "delegateWitnessIsolation": "NONISOLATED_MAP_THEN_SYNCHRONOUS_MAIN_ACTOR_ASSERTION",
+    "messageUIValuesCrossActorBoundary": false,
+    "unstructuredTaskCreated": false,
+    "terminalOutcomes": [
+      "cancelled",
+      "failed",
+      "saved",
+      "sent"
+    ],
+    "errorPrecedence": "ERROR_ALWAYS_MAPS_TO_FAILED",
+    "exactlyOnceGuard": "FIRST_TERMINAL_CALLBACK_WINS_ON_MAIN_ACTOR",
+    "declaredTests": [
+      "testEveryMailOutcomeCompletesExactlyOnceOnMainActor",
+      "testErrorOverridesMessageUIResultAndDuplicateCompletionIsIgnored",
+      "testResultMappingDoesNotCrossMessageUIValuesIntoMainActor"
+    ]
+  },
+  "systemAsyncBoundary": {
+    "adapterPath": "FieldEvidenceApp/Infrastructure/System/SystemAsyncAdapters.swift",
+    "portPath": "FieldEvidenceApp/Application/Ports/DeterministicAsyncPorts.swift",
+    "consumerPath": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "cancellationPreserved": true,
+    "nonCancellationErrorsPropagate": true
+  },
+  "nativePlatformTestsRan": false,
+  "nativeCompileRan": false,
+  "provisionalDisposition": "STATIC_PLATFORM_CONTRACT_GREEN_NATIVE_CALLBACK_REPROOF_DEFERRED",
+  "acceptanceCredit": false,
+  "releaseCredit": false,
+  "artifactDigest": "6c50e85dcaff2c658adcbc91f68c04f83c00000ab8bedc69ca8203045f52410f"
+}

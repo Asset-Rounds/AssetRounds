@@ -1,0 +1,49 @@
+{
+  "afterFullSourceMapSHA256": "6dfd0fc5f0daae542c0768d443f52f21ca5c5af5938dc608eb2938d15e1e162f",
+  "artifacts": {
+    "AFTER_SOURCE_MAP.json": "6dfd0fc5f0daae542c0768d443f52f21ca5c5af5938dc608eb2938d15e1e162f",
+    "CANDIDATE.diff": "2e940667268f12a716ce3d6574c797526085a15f6542ff5b58aa9aab03428d8d",
+    "CASE_MATRIX.md": "f41d4dfcf8bdf874aad66ee0a4fbe28e50c7f2abd6b8ce23c216f4627cd93bf4",
+    "HANDOFF.md": "bbac26728e7a49334b38e5d813958c0e5056eb828319095e17629b288abd0c99",
+    "INTERFACES.md": "7cf19a3fa8f53d667f9d3787a305298bcbefd47fd03ec0265130126f2090f5d1",
+    "PARSE.json": "d5ce97e5f4b075c95d1ffb05f60eb738893dfbbe84e4f32d404f1cc4f2ccacec",
+    "READ_WORK_PROOF.md": "33e8b1694e1740a6d17cdc3d52c9c4855d76710f81a47dcb5824f91f4307b71a",
+    "SOURCE_ONLY_CHECKS.json": "4fa85958f701dbff4fade52d3da4ca3cc56444bedb0a5dedeee2a4626f9927e4",
+    "SOURCE_SUCCESSION.json": "574a0b3d5ec04d99f7d570f198b0c328c14ff7b817fe67d90d78621e5e8850af",
+    "SUCCESSOR.diff": "124eb04bab3b9de917df4d7ff2c92b7cba83af8d0d573f75011034238c6a55e6",
+    "WORKING_HANDOFF.md": "b8c26e3ccd3eae09898bba801d759edd20f4a5d09341812fd10ce06246c33efe",
+    "add_original_pair_roster.py": "76af739295052dcbf9702a7d6bd4ad07b8621e93d75105f378bfa6e683c92587",
+    "add_pair_accounting.py": "957436f3fe20b81354b78299c11827c9f81148f0193bbdb05b7d3d82ca06ff6a"
+  },
+  "authorModel": "gpt-6.1-sol",
+  "beforeFullSourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+  "candidates": {
+    "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift": {
+      "bytes": 155209,
+      "candidateSHA256": "520f88bff0b60ee9cdf2c3eb90b0cf5cf9727cecaaa47dd039f9de9cc765b8bd",
+      "immediateBeforeSHA256": "be12586882e2f15fa22df6448cc17a5a50a90c5958b06ac8369ee4a023822ae0",
+      "publishedBeforeSHA256": "eb1203f66b13bcb7750fb12ad00f89e17b6189e4925013824150e0f1713c12ee"
+    },
+    "FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift": {
+      "bytes": 1920921,
+      "candidateSHA256": "f61127930a7ab69f217a8bb46cf09a2914de0cb482a430415fb723a80782dcd7",
+      "immediateBeforeSHA256": "e8c5f1e3b9a07460c2f16ca492f126f9e56c60fac1ba0cf76ceb48ac9b7b6883",
+      "publishedBeforeSHA256": "b8445c9fba7371c261f58defcb6424881bf8b02181608cd2672f8f3086c89f6e"
+    }
+  },
+  "head": "93159755395d697a5a9da02f41374120433c50f9",
+  "openObligations": [
+    "Real FirstCapture complete source/owner issuer and raw census work budget",
+    "Complete sealed-P generic scope/PFP overload and actual alias-loss effect/replay receipts",
+    "Lossless versioned original accounting source for metadata disappearance and existing full producer bounds",
+    "Authentic Registry consumed subset/new births/remaining fixed descendant postorder and G exhaustion prefix",
+    "Store lossless logical commitment helper and complete central source/record/external/terminal coupling",
+    "Root semantic compiler/fullbuild/native independent review and all required gates"
+  ],
+  "parentBindingSHA256": "21d824dbb1b63be350cffc9ae22320d7589193f3f754507bd953ad3a6c1fd287",
+  "reasoningEffort": "xhigh",
+  "schemaVersion": 4,
+  "sourceInputs": 1206,
+  "status": "sealed_source_only_PARTIAL_NONINSTALLABLE_complete_companion_consumers_due",
+  "trackedSourceDrift": {}
+}

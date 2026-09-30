@@ -1,0 +1,19 @@
+{
+  "schema": "V23P05C01ExactCodeCandidateGateCorpusV1",
+  "schemaVersion": 1,
+  "cardID": "V23-P05-C01",
+  "customerData": false,
+  "cases": [
+    {"id": "G01", "kind": "GOLDEN", "input": "exact_134_2952775_selector_set", "expected": "PROVISIONAL_STATIC_ONLY"},
+    {"id": "A01", "kind": "ALTERNATE", "input": "same_members_and_digests_with_unexecuted_lanes", "expected": "PROVISIONAL_STATIC_ONLY"},
+    {"id": "H01_MALFORMED", "kind": "HOSTILE", "input": "malformed_json_or_unknown_root_key", "expected": "REJECT"},
+    {"id": "H01_DUPLICATE", "kind": "HOSTILE", "input": "duplicate_selector_or_member", "expected": "REJECT"},
+    {"id": "H01_STALE_IDENTITY", "kind": "HOSTILE", "input": "stale_base_head_tree_or_c29_boundary", "expected": "REJECT"},
+    {"id": "H01_FALSE_READY", "kind": "HOSTILE", "input": "accepted_count_positive_or_predicate_true", "expected": "REJECT"},
+    {"id": "H01_FALSE_RELEASE", "kind": "HOSTILE", "input": "any_native_hosted_physical_adoption_acceptance_publication_release_or_phase_flag_true", "expected": "REJECT"},
+    {"id": "I01", "kind": "INTERRUPTION", "input": "partial_gate_or_missing_required_binding", "expected": "NO_PARTIAL_READY_OR_CREDIT"},
+    {"id": "R01", "kind": "RECOVERY", "input": "same_complete_static_input_replayed", "expected": "IDEMPOTENT_PROVISIONAL_STATIC_ONLY"}
+  ],
+  "requiredCounts": {"selectorMembers": [19, 40, 65, 15, 132, 11, 72], "provisionalStateCountVector": [112, 14, 5, 1], "commonJourneys": 14, "featureJourneys": 17, "scenarioRows": 5, "logicalAcceptanceLanes": 5},
+  "forbiddenOutcomes": ["READY", "ACCEPTED", "RELEASE_READY", "RELEASED", "PHASE_INTEGRATED", "P05_C02", "P05_C03", "P06"]
+}

@@ -1,0 +1,20 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "xhigh",
+  "beforeSHA256": "b4eef0e28bff89de4512ed9d240ea01184a872c501c5b6b062ee1dcd69eb09c0",
+  "candidateSHA256": "3ee0ce67df9c2826522f3048a469c7224b3720a62e745c6b59ea7de826809814",
+  "status": "WORKING foundation only; NOT callable/installable",
+  "implemented": [
+    "Closed request/outcome/data image declarations",
+    "Retained attempt/source/request/owned-resource lifetime foundation",
+    "Real private readback identity consumption in primitive perform",
+    "Receipt interfaces for central/Migration, no numeric inspection in settlement"
+  ],
+  "mandatoryRemaining": [
+    "Static live entry and complete source capture/primitive/controller wiring",
+    "Typed close intent/readback before drain; current owner drain safety is not full close-effect binding",
+    "All nested producer/getter/IO/policy/partial/rename/unlink bridges",
+    "Actual central/Registry/FirstObserver/PFP issuer and source/capacity origins",
+    "Independent review, semantic compile and runtime/gates"
+  ]
+}

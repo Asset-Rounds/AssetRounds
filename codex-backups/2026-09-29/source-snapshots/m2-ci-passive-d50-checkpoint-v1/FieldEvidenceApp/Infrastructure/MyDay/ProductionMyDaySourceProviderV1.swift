@@ -1,0 +1,620 @@
+import Foundation
+import SwiftData
+
+enum MyDaySourceReadFailureV1: Error, Equatable {
+    case sessionChanged, sourcesChanged, corruptSourceClosure
+}
+
+enum MyDayReadinessAssessmentV1: Equatable, Sendable {
+    case notAssessed
+    case roundManifest(OfflineReadinessManifestV1)
+    case unavailable(ProductionRoundReadinessUnavailableV1)
+
+    var readiness: MyDayReadinessV1 {
+        switch self {
+        case .notAssessed, .unavailable: return .unavailable
+        case let .roundManifest(manifest):
+            switch manifest.status {
+            case .ready: return .ready
+            case .blocked: return .blocked
+            case .warning, .stale: return .notReady
+            }
+        }
+    }
+}
+
+/// Ephemeral exact-source evidence, never a cached access capability.
+struct MyDaySourceReadinessAssessmentV1: Equatable, Sendable {
+    let reference: MyDayEligibleReferenceV1
+    let assessment: MyDayReadinessAssessmentV1
+}
+
+/// Derived source facts, not planning or readiness persistence. Packet versions
+/// remain separate choices; selecting a plan still requires unique stable keys.
+struct MyDayLiveSourceV1: Equatable, Sendable {
+    let reference: MyDayEligibleReferenceV1
+    let state: MyDaySourceStateV1
+    let dueAt: Date?
+    let replacementOccurrenceID: OccurrenceIDV1?
+
+    var isSelectable: Bool { MyDaySourceSemanticsV1.isSelectable(state, reference: reference) }
+}
+
+/// This value is not an access capability. The composing surface must discard
+/// it under the privacy cover and freshly authorize every render/navigation.
+struct MyDaySourceSnapshotV1: Sendable {
+    let workspaceID: WorkspaceID
+    let evaluatedAt: Date
+    let sources: [MyDayLiveSourceV1]
+    let frontiers: [MyDaySourceFrontierV1]
+    let dueQueue: OccurrenceDueQueueStateV1
+    let sourceClosureSHA256: String
+    let readinessAssessments: [MyDaySourceReadinessAssessmentV1]
+
+    var eligibleReferences: [MyDayEligibleReferenceV1] {
+        sources.filter(\.isSelectable).map(\.reference)
+    }
+}
+
+/// Private scheduling evidence, never a portable read capability. Repair reads
+/// contain only the schedule closure and cannot expose the general MyDay view.
+struct NotificationCopySourceV1: Codable, Equatable, Sendable {
+    let occurrenceID: OccurrenceIDV1
+    let scheduleRelease: ScheduleDefinitionReleaseReferenceV1
+    let kind: ScheduledWorkKindV1
+    let timeZoneIdentifier: String
+    let effectiveBasis: ResolvedOccurrenceBasisV1
+}
+
+struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
+    let projection: ReminderProjectionV1
+    let generationID: UUID
+    let uiGenerationToken: UInt64
+    let writerRevision: WorkspaceRevisionV1
+    let rootDevice: UInt64
+    let rootInode: UInt64
+    let sourceClosureSHA256: String
+    var copySources: [NotificationCopySourceV1]? = nil
+}
+
+/// A revocable, generation-bound read entry. It neither conforms to nor exports
+/// a permanently authorized synchronous source reader. The concrete gate is
+/// mandatory; there is no permissive protocol default or cached permit.
+@MainActor final class ProductionMyDaySourceProviderV1 {
+    private weak var session: StoreSessionCoordinator?
+    private let accessGate: AppAccessGateV1
+    private let workspaceID: WorkspaceID
+    private let generationID: UUID
+    private let uiGenerationToken: UInt64
+    private weak var originalWriter: WorkspaceWriterV1?
+    private let readinessAuthority: ProductionOfflineReadinessAuthorityV1?
+
+    #if DEBUG
+    /// Fault-injection only; cannot supply data, readiness or authorization.
+    var afterSourceMaterializationForTesting: (@MainActor () async throws -> Void)?
+    #endif
+
+    init(session: StoreSessionCoordinator, accessGate: AppAccessGateV1) {
+        self.session = session
+        self.accessGate = accessGate
+        workspaceID = session.workspaceID
+        generationID = session.generationID
+        uiGenerationToken = session.uiGenerationToken
+        originalWriter = session.workspaceWriter
+        readinessAuthority = nil
+    }
+
+    init(session: StoreSessionCoordinator, accessGate: AppAccessGateV1,
+         readinessAuthority: ProductionOfflineReadinessAuthorityV1) {
+        self.session = session; self.accessGate = accessGate
+        workspaceID = session.workspaceID; generationID = session.generationID
+        uiGenerationToken = session.uiGenerationToken; originalWriter = session.workspaceWriter
+        self.readinessAuthority = readinessAuthority
+    }
+
+    func snapshot(for plan: MyDayPlanV1? = nil, evaluatedAt: Date) async throws -> MyDaySourceSnapshotV1 {
+        let token = try await accessGate.beginContentRead(for: .render)
+        try Task.checkCancellation()
+        try plan?.validate()
+        try MyDayLimitsV1.millisecondInstant(evaluatedAt)
+        guard plan.map({ $0.key.workspaceID == workspaceID }) ?? true else {
+            throw MyDayFailureV1.wrongWorkspace
+        }
+        let current = try currentSession()
+        let revision = try current.workspaceWriter.currentRevision()
+        let closure = try SourceClosure(context: current.modelContext, workspaceID: workspaceID,
+                                        includeReadiness: readinessAuthority != nil)
+        let sourceResult = try closure.snapshot(workspaceID: workspaceID, plan: plan, evaluatedAt: evaluatedAt)
+        var assessments: [MyDaySourceReadinessAssessmentV1] = []
+        for source in sourceResult.sources {
+            if let readinessAuthority, case .roundSession = source.reference {
+                assessments.append(try await readinessAuthority.assess(source.reference))
+            } else {
+                assessments.append(.init(reference: source.reference, assessment: .notAssessed))
+            }
+        }
+        let frontiers = try sourceResult.frontiers.map { frontier in
+            let assessment = assessments.first { $0.reference == frontier.currentReference }
+            return try MyDaySourceFrontierV1(membershipID: frontier.membershipID,
+                plannedReference: frontier.plannedReference, currentReference: frontier.currentReference,
+                state: frontier.state, readiness: assessment?.assessment.readiness ?? .unavailable,
+                dueAt: frontier.dueAt, evaluatedAt: frontier.evaluatedAt)
+        }
+        let result = MyDaySourceSnapshotV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
+            sources: sourceResult.sources, frontiers: frontiers, dueQueue: sourceResult.dueQueue,
+            sourceClosureSHA256: sourceResult.sourceClosureSHA256, readinessAssessments: assessments)
+        let completionRoot = try await readinessAuthority?.validateCompletionsForPublication(assessments, token: token)
+        #if DEBUG
+        try await afterSourceMaterializationForTesting?()
+        #endif
+        // Gate validation is an asynchronous publication boundary. A lock or
+        // lock/unlock cycle during materialization invalidates this operation.
+        try await accessGate.validateContentRead(token, for: .render)
+        try Task.checkCancellation()
+        try readinessAuthority?.validateStorageForPublication(assessments,
+            expectedGenerationRootIdentity: completionRoot)
+        let rereadSession = try currentSession()
+        guard try rereadSession.workspaceWriter.currentRevision() == revision else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        let reread = try SourceClosure(context: rereadSession.modelContext, workspaceID: workspaceID,
+                                      includeReadiness: readinessAuthority != nil)
+        guard try reread.sha256() == result.sourceClosureSHA256 else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        return result
+    }
+
+    /// Identity validation only; this grants no read or write capability.
+    func validatePlanningBinding(_ access: AppAccessPresentationV1.ContentAccess,
+                                 expectedSession: StoreSessionCoordinator) throws {
+        guard access.isBound(to: accessGate), try currentSession() === expectedSession else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+    }
+
+    /// The only synchronous planning entry owns the entire read/CAS/write
+    /// interval. Its lazy source reader never escapes this operation.
+    func commitPlanningSave(_ command: MyDayCommandV1,
+                            expectedSession: StoreSessionCoordinator,
+                            authorizing access: AppAccessPresentationV1.ContentAccess) throws -> MyDayCommandResultV1 {
+        guard case .save = command else { throw AppAccessContractFailureV1.accessDenied }
+        return try commitPlanningCommand(command, expectedSession: expectedSession, authorizing: access)
+    }
+
+    func commitPlanningCommand(_ command: MyDayCommandV1,
+                               expectedSession: StoreSessionCoordinator,
+                               authorizing access: AppAccessPresentationV1.ContentAccess) throws -> MyDayCommandResultV1 {
+        try command.validate()
+        guard access.isBound(to: accessGate), command.workspaceID == workspaceID else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        try Task.checkCancellation()
+        return try access.withRead {
+            let current = try currentSession()
+            guard current === expectedSession else { throw MyDaySourceReadFailureV1.sessionChanged }
+            _ = try current.workspaceWriter.currentRevision()
+            let reader = PlanningCommitSources { plan, instant in
+                let checked = try self.currentSession()
+                guard checked === current, plan.key.workspaceID == self.workspaceID else {
+                    throw MyDaySourceReadFailureV1.sessionChanged
+                }
+                let closure = try SourceClosure(context: checked.modelContext,
+                    workspaceID: self.workspaceID, includeReadiness: false)
+                return try closure.snapshot(workspaceID: self.workspaceID,
+                    plan: plan, evaluatedAt: instant).frontiers
+            }
+            let canonical = MyDayCoordinatorV1(writer: current.workspaceWriter, sourceReader: reader)
+            switch command {
+            case let .save(successor, predecessor):
+                return try canonical.save(successor: successor, predecessor: predecessor)
+            case let .carryover(plan, source, target, receipt):
+                return try canonical.carryover(plan: plan, source: source, target: target, receipt: receipt)
+            }
+        }
+    }
+
+    /// Rechecks the immutable carryover selection under the original content
+    /// hold. This read returns no command, target authority, or write proof.
+    func withValidatedPlanningCarryoverSelection<T>(
+        sourceReference: MyDayPlanReferenceV1,
+        membershipIDs: [UUID],
+        evaluatedAt: Date,
+        expectedSession: StoreSessionCoordinator,
+        authorizing access: AppAccessPresentationV1.ContentAccess,
+        _ body: (StoreSessionCoordinator, MyDayPlanV1) throws -> T
+    ) throws -> T {
+        try sourceReference.validate()
+        try MyDayLimitsV1.millisecondInstant(evaluatedAt)
+        guard access.isBound(to: accessGate), sourceReference.key.workspaceID == workspaceID else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        try Task.checkCancellation()
+        return try access.withRead {
+            let current = try currentSession()
+            guard current === expectedSession else { throw MyDaySourceReadFailureV1.sessionChanged }
+            _ = try current.workspaceWriter.currentRevision()
+            guard let source = try current.workspaceWriter.currentPlan(for: sourceReference.key),
+                  try MyDayPlanReferenceV1(source) == sourceReference else {
+                throw MyDayFailureV1.staleRevision
+            }
+            let closure = try SourceClosure(context: current.modelContext,
+                workspaceID: workspaceID, includeReadiness: false)
+            let sourceFacts = try closure.snapshot(workspaceID: workspaceID,
+                plan: source, evaluatedAt: evaluatedAt)
+            let readiness = try MyDayReadinessProjectionV1(plan: source,
+                evaluatedAt: evaluatedAt, frontiers: sourceFacts.frontiers)
+            try readiness.validate(plan: source)
+            guard !membershipIDs.isEmpty, Set(membershipIDs).count == membershipIDs.count else {
+                throw MyDayFailureV1.invalidCarryover
+            }
+            let selected = source.items.filter { membershipIDs.contains($0.membershipID) }
+            guard selected.map(\.membershipID) == membershipIDs else {
+                throw MyDayFailureV1.invalidCarryover
+            }
+            guard zip(source.items, readiness.frontiers).allSatisfy({ item, frontier in
+                !membershipIDs.contains(item.membershipID)
+                    || MyDaySummaryItemV1.isCarryoverEligible(
+                        plannedReference: item.reference,
+                        currentReference: frontier.currentReference,
+                        state: frontier.state
+                    )
+            }) else {
+                throw MyDayWorkflowFailureV1.carryoverIneligible
+            }
+            return try body(current, source)
+        }
+    }
+
+    /// Resolve both exact plan tips and current source facts before freezing a
+    /// carryover command. These read values never grant later commit authority.
+    func preparePlanningCarryover(sourceReference: MyDayPlanReferenceV1,
+                                  targetKey: MyDayKeyV1, targetReference: MyDayPlanReferenceV1?,
+                                  membershipIDs: [UUID], targetPlanID: UUID, mutationID: MutationIDV1,
+                                  actor: ActorSnapshotV1, authoredAt: Date,
+                                  expectedSession: StoreSessionCoordinator,
+                                  authorizing access: AppAccessPresentationV1.ContentAccess) throws -> MyDayCommandV1 {
+        try sourceReference.validate()
+        try targetKey.validate()
+        try targetReference?.validate()
+        guard access.isBound(to: accessGate), sourceReference.key.workspaceID == workspaceID,
+              targetKey.workspaceID == workspaceID else { throw AppAccessContractFailureV1.accessDenied }
+        try Task.checkCancellation()
+        return try access.withRead {
+            let current = try currentSession()
+            guard current === expectedSession else { throw MyDaySourceReadFailureV1.sessionChanged }
+            _ = try current.workspaceWriter.currentRevision()
+            guard let source = try current.workspaceWriter.currentPlan(for: sourceReference.key),
+                  try MyDayPlanReferenceV1(source) == sourceReference else {
+                throw MyDayFailureV1.staleRevision
+            }
+            let target = try current.workspaceWriter.currentPlan(for: targetKey)
+            let actualTarget = try target.map { try MyDayPlanReferenceV1($0) }
+            guard actualTarget == targetReference else { throw MyDayFailureV1.staleRevision }
+            let closure = try SourceClosure(context: current.modelContext,
+                workspaceID: workspaceID, includeReadiness: false)
+            let sourceFacts = try closure.snapshot(workspaceID: workspaceID,
+                plan: source, evaluatedAt: authoredAt)
+            let readiness = try MyDayReadinessProjectionV1(plan: source,
+                evaluatedAt: authoredAt, frontiers: sourceFacts.frontiers)
+            return try MyDayWorkflowCoordinatorV1.prepareCarryover(source: source, readiness: readiness,
+                targetKey: targetKey, targetPredecessor: target, membershipIDs: membershipIDs,
+                targetPlanID: targetPlanID, mutationID: mutationID, actor: actor, authoredAt: authoredAt)
+        }
+    }
+
+    @MainActor
+    private final class PlanningCommitSources: MyDaySourceFrontierReadingV1 {
+        private let read: @MainActor (MyDayPlanV1, Date) throws -> [MyDaySourceFrontierV1]
+        init(read: @escaping @MainActor (MyDayPlanV1, Date) throws -> [MyDaySourceFrontierV1]) { self.read = read }
+        func sourceFrontiers(for plan: MyDayPlanV1, evaluatedAt: Date) throws -> [MyDaySourceFrontierV1] {
+            try read(plan, evaluatedAt)
+        }
+    }
+
+    private func currentSession() throws -> StoreSessionCoordinator {
+        guard let session, let originalWriter, session.workspaceID == workspaceID,
+              session.generationID == generationID, session.uiGenerationToken == uiGenerationToken,
+              originalWriter === session.workspaceWriter else {
+            throw MyDaySourceReadFailureV1.sessionChanged
+        }
+        return session
+    }
+
+    func notificationSnapshot(authorization: NotificationOperationAuthorizationV1,
+                              evaluatedAt: Date) async throws -> NotificationSourceSnapshotV1 {
+        guard authorization.gate === accessGate else { throw AppAccessContractFailureV1.accessDenied }
+        try await authorization.validateRead()
+        try Task.checkCancellation()
+        let current = try currentSession()
+        let root = try ReportPDFAnchoredFile.rootIdentity(at: current.generationRootURL)
+        let revision = try current.workspaceWriter.currentRevision()
+        let closure = try ScheduleSourceClosure(context: current.modelContext, workspaceID: workspaceID)
+        let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
+            definitions: closure.definitions, history: closure.occurrences)
+        var value = NotificationSourceSnapshotV1(projection: try .init(dueQueue: due,
+            localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue),
+            generationID: generationID, uiGenerationToken: uiGenerationToken, writerRevision: revision,
+            rootDevice: UInt64(root.device), rootInode: UInt64(root.inode),
+            sourceClosureSHA256: try MyDayCanonicalCodecV1.sha256(closure))
+        value.copySources = try Self.notificationCopySources(closure: closure, due: due, projection: value.projection)
+        try await validateNotificationSnapshot(value, authorization: authorization)
+        return value
+    }
+
+    func validateNotificationSnapshot(_ expected: NotificationSourceSnapshotV1,
+                                      authorization: NotificationOperationAuthorizationV1) async throws {
+        guard authorization.gate === accessGate else { throw AppAccessContractFailureV1.accessDenied }
+        try await authorization.validateRead()
+        try Task.checkCancellation()
+        try validateNotificationStorage(expected)
+    }
+
+    /// A reopened process has a new writer instance and UI token. Configuration
+    /// recovery may rebind those ephemeral identities only after freshly
+    /// proving the unchanged durable generation, revision and schedule closure.
+    /// Effect-time validation remains strict against the rebound snapshot.
+    func revalidatePersistedNotificationSnapshot(_ expected: NotificationSourceSnapshotV1,
+                                                authorization: NotificationOperationAuthorizationV1) async throws -> NotificationSourceSnapshotV1 {
+        if case .content = authorization.proof { throw AppAccessContractFailureV1.accessDenied }
+        var current = try await notificationSnapshot(authorization: authorization,
+            evaluatedAt: expected.projection.evaluatedAt)
+        if expected.copySources == nil { current.copySources = nil }
+        guard current.copySources == expected.copySources,
+              current.projection == expected.projection,
+              current.generationID == expected.generationID,
+              current.rootDevice == expected.rootDevice, current.rootInode == expected.rootInode,
+              current.sourceClosureSHA256 == expected.sourceClosureSHA256,
+              current.writerRevision.workspaceID == expected.writerRevision.workspaceID,
+              current.writerRevision.generationID == expected.writerRevision.generationID,
+              current.writerRevision.revision == expected.writerRevision.revision,
+              current.writerRevision.entityRevisions == expected.writerRevision.entityRevisions else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        return current
+    }
+
+    /// Keeps canonical reads behind the original proof and rechecks that proof
+    /// and the same source after the effect. A failed postcheck does not imply
+    /// that the effect did not occur; the effect owner must retain/clean it up.
+    func performNotificationEffect<Result: Sendable>(
+        snapshot: NotificationSourceSnapshotV1,
+        authorization: NotificationOperationAuthorizationV1,
+        effect: @MainActor () async throws -> Result
+    ) async throws -> Result {
+        try await validateNotificationSnapshot(snapshot, authorization: authorization)
+        let result = try await effect()
+        try await validateNotificationSnapshot(snapshot, authorization: authorization)
+        return result
+    }
+
+    private func validateNotificationStorage(_ expected: NotificationSourceSnapshotV1) throws {
+        let current = try currentSession()
+        let root = try ReportPDFAnchoredFile.rootIdentity(at: current.generationRootURL)
+        guard expected.projection.workspaceID == workspaceID,
+              expected.generationID == generationID, expected.uiGenerationToken == uiGenerationToken,
+              expected.rootDevice == UInt64(root.device), expected.rootInode == UInt64(root.inode),
+              try current.workspaceWriter.currentRevision() == expected.writerRevision else {
+            throw MyDaySourceReadFailureV1.sessionChanged
+        }
+        let closure = try ScheduleSourceClosure(context: current.modelContext, workspaceID: workspaceID)
+        guard try MyDayCanonicalCodecV1.sha256(closure) == expected.sourceClosureSHA256 else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+        let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: expected.projection.evaluatedAt,
+            definitions: closure.definitions, history: closure.occurrences)
+        if let expectedCopy = expected.copySources {
+            guard try Self.notificationCopySources(closure: closure, due: due,
+                projection: expected.projection) == expectedCopy else { throw MyDaySourceReadFailureV1.sourcesChanged }
+        }
+        guard try ReminderProjectionV1(dueQueue: due,
+            localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue) == expected.projection else {
+            throw MyDaySourceReadFailureV1.sourcesChanged
+        }
+    }
+
+    private static func notificationCopySources(closure: ScheduleSourceClosure,
+        due: DueQueueProjectionV1, projection: ReminderProjectionV1) throws -> [NotificationCopySourceV1] {
+        try projection.reminders.map { reminder in
+            let entries = due.entries.filter { $0.occurrenceID == reminder.occurrenceID }
+            guard entries.count == 1, let entry = entries.first,
+                  entry.effectiveDueAtUTC == reminder.fireAtUTC else { throw MyDaySourceReadFailureV1.sourcesChanged }
+            let releases = try closure.definitions.filter { try ScheduleDefinitionReleaseReferenceV1($0) == entry.scheduleRelease }
+            let events = closure.occurrences.filter { $0.occurrenceID == reminder.occurrenceID }
+            guard releases.count == 1, let release = releases.first,
+                  let event = events.max(by: { $0.revision < $1.revision }),
+                  event.scheduleRelease == entry.scheduleRelease,
+                  event.effectiveBasis.resolvedAtUTC == reminder.fireAtUTC,
+                  event.effectiveBasis.utcOffsetSeconds != nil else { throw MyDaySourceReadFailureV1.sourcesChanged }
+            return NotificationCopySourceV1(occurrenceID: reminder.occurrenceID,
+                scheduleRelease: entry.scheduleRelease, kind: release.workDefinition.kind,
+                timeZoneIdentifier: release.timeBasis.ianaTimeZoneIdentifier, effectiveBasis: event.effectiveBasis)
+        }
+    }
+
+    /// Shared by ordinary MyDay materialization and notification-only repair.
+    private struct ScheduleSourceClosure: Encodable {
+        let definitions: [ScheduleDefinitionReleaseV1]
+        let occurrences: [OccurrenceHistoryEventV1]
+
+        @MainActor init(context: ModelContext, workspaceID: WorkspaceID) throws {
+            guard !context.hasChanges else { throw MyDaySourceReadFailureV1.sourcesChanged }
+            let workspace = workspaceID.rawValue
+            definitions = try context.fetch(FetchDescriptor<ScheduleDefinitionReleaseRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString }
+            occurrences = try context.fetch(FetchDescriptor<OccurrenceHistoryEventRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.eventID.uuidString < $1.eventID.uuidString }
+        }
+    }
+
+    private struct SourceClosure: Encodable {
+        let manifests: [WorkPacketManifestV1]
+        let claims: [WorkItemClaimV1]
+        let leases: [WorkLeaseV1]
+        let releases: [WorkReleaseV1]
+        let handoffs: [WorkHandoffV1]
+        let rounds: [RoundSessionV1]
+        let definitions: [ScheduleDefinitionReleaseV1]
+        let occurrences: [OccurrenceHistoryEventV1]
+        let drafts: [FieldDraftCheckpointV1]
+        let readinessSources: ProductionOfflineReadinessSourceClosureV1?
+
+        @MainActor init(context: ModelContext, workspaceID: WorkspaceID, includeReadiness: Bool) throws {
+            guard !context.hasChanges else { throw MyDaySourceReadFailureV1.sourcesChanged }
+            let workspace = workspaceID.rawValue
+            manifests = try context.fetch(FetchDescriptor<WorkPacketManifestRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.manifestID.uuidString < $1.manifestID.uuidString }
+            claims = try context.fetch(FetchDescriptor<WorkItemClaimRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.claimID.uuidString < $1.claimID.uuidString }
+            leases = try context.fetch(FetchDescriptor<WorkLeaseRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.leaseID.uuidString < $1.leaseID.uuidString }
+            releases = try context.fetch(FetchDescriptor<WorkReleaseRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.releaseID.uuidString < $1.releaseID.uuidString }
+            handoffs = try context.fetch(FetchDescriptor<WorkHandoffRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.handoffID.uuidString < $1.handoffID.uuidString }
+            rounds = try context.fetch(FetchDescriptor<RoundSessionRevisionRowV1>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { ($0.sessionID.uuidString, $0.revision) < ($1.sessionID.uuidString, $1.revision) }
+            let schedules = try ScheduleSourceClosure(context: context, workspaceID: workspaceID)
+            definitions = schedules.definitions
+            occurrences = schedules.occurrences
+            drafts = try context.fetch(FetchDescriptor<FieldDraftCheckpointRow>(predicate: #Predicate { $0.workspaceID == workspace }))
+                .map { try $0.value() }.sorted { $0.draftID.uuidString < $1.draftID.uuidString }
+            readinessSources = includeReadiness ? try ProductionOfflineReadinessSourceClosureV1(context: context, workspaceID: workspaceID) : nil
+        }
+
+        func sha256() throws -> String { try MyDayCanonicalCodecV1.sha256(self) }
+
+        func snapshot(workspaceID: WorkspaceID, plan: MyDayPlanV1?, evaluatedAt: Date) throws -> MyDaySourceSnapshotV1 {
+            try validatePacketClosure()
+            guard Set(drafts.map(\.draftID)).count == drafts.count else {
+                throw MyDaySourceReadFailureV1.corruptSourceClosure
+            }
+            let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
+                definitions: definitions, history: occurrences).recurringRoundState()
+            var sources: [MyDayLiveSourceV1] = []
+            for manifest in manifests {
+                let projection = try WorkPacketProjectionBuilderV1.rebuild(workspaceID: workspaceID,
+                    manifest: manifest, claims: claims, leases: leases, releases: releases,
+                    handoffs: handoffs, at: evaluatedAt)
+                let state: MyDaySourceStateV1
+                if projection.items.contains(where: { !$0.exceptions.isEmpty }) {
+                    state = .conflicted
+                } else if projection.items.allSatisfy({ $0.currentClaim == nil && $0.latestRelease?.reason == .completed }) {
+                    state = .completed
+                } else if projection.items.contains(where: { item in
+                    guard let claim = item.currentClaim else { return false }
+                    return releases.contains { $0.item == item.item && $0.reason == .completed && $0.releasedAt <= claim.claimedAt }
+                }) {
+                    state = .reopened
+                } else {
+                    state = .active
+                }
+                sources.append(.init(reference: .workPacket(try .init(manifest)), state: state,
+                                     dueAt: nil, replacementOccurrenceID: nil))
+            }
+            for (sessionID, history) in Dictionary(grouping: rounds, by: \.sessionID) {
+                guard let current = try RoundSessionHistoryValidatorV1.validate(history,
+                    workspaceID: workspaceID, sessionID: sessionID) else {
+                    throw MyDaySourceReadFailureV1.corruptSourceClosure
+                }
+                let state: MyDaySourceStateV1
+                switch current.state {
+                case .draft: state = .draft
+                case .active: state = .active
+                case .paused: state = .paused
+                case .completed: state = .completed
+                case .archived: state = .archived
+                }
+                sources.append(.init(reference: .roundSession(workspaceID: workspaceID, sessionID: sessionID,
+                    revision: current.revision, sessionSHA256: current.sessionSHA256), state: state,
+                    dueAt: nil, replacementOccurrenceID: nil))
+            }
+            for events in Dictionary(grouping: occurrences, by: \.occurrenceID).values {
+                guard let current = events.max(by: { $0.revision < $1.revision }),
+                      let item = due.items.first(where: { $0.entry.occurrenceID == current.occurrenceID }) else {
+                    throw MyDaySourceReadFailureV1.corruptSourceClosure
+                }
+                let state: MyDaySourceStateV1
+                if current.exception?.kind == .retiredForRuleChange { state = .ruleRetired }
+                else {
+                    switch item.reason {
+                    case .explicitlyMissed: state = .missed
+                    case .explicitlySkipped: state = .skipped
+                    case .explicitlyCancelled: state = .cancelled
+                    case .completed: state = .completed
+                    default: state = .active
+                    }
+                }
+                sources.append(.init(reference: .scheduleOccurrence(try .init(event: current),
+                    sourceEventSHA256: current.eventSHA256), state: state,
+                    dueAt: item.entry.effectiveDueAtUTC,
+                    replacementOccurrenceID: current.exception?.replacementOccurrenceID))
+            }
+            for checkpoint in drafts {
+                // Planning checkpoints remain in the validated/hash-bound source
+                // closure, but cannot become work inside another My Day plan.
+                if checkpoint.purpose == .myDayPlanning {
+                    try MyDayPlanningDraftCodecV1.validateCheckpointPayload(checkpoint)
+                    continue
+                }
+                let state: MyDaySourceStateV1
+                switch checkpoint.state {
+                case .active: state = .draft
+                case .committing: state = .committing
+                case .conflicted: state = .conflicted
+                case .recoveryRequired: state = .recoveryRequired
+                case .committed: state = .committed
+                case .discardPending: state = .discardPending
+                case .discarded: state = .discarded
+                }
+                sources.append(.init(reference: .resumableDraft(workspaceID: workspaceID,
+                    draftID: checkpoint.draftID, revision: checkpoint.draftRevision,
+                    checkpointSHA256: checkpoint.checkpointSHA256, anchor: checkpoint.resumeAnchor),
+                    state: state, dueAt: nil, replacementOccurrenceID: nil))
+            }
+            sources.sort { ($0.reference.stableKey, $0.reference.sourceRevision, $0.reference.sourceSHA256)
+                < ($1.reference.stableKey, $1.reference.sourceRevision, $1.reference.sourceSHA256) }
+            let frontiers = try (plan?.items ?? []).map { item -> MyDaySourceFrontierV1 in
+                let matching: [MyDayLiveSourceV1]
+                if case let .workPacket(reference) = item.reference {
+                    matching = sources.filter {
+                        if case let .workPacket(current) = $0.reference { return current.manifestID == reference.manifestID }
+                        return false
+                    }
+                } else { matching = sources.filter { $0.reference.stableKey == item.reference.stableKey } }
+                guard matching.count <= 1 else { throw MyDaySourceReadFailureV1.corruptSourceClosure }
+                let current = matching.first
+                return try .init(membershipID: item.membershipID, plannedReference: item.reference,
+                    currentReference: current?.reference, state: current?.state ?? .missing,
+                    readiness: .unavailable, dueAt: current?.dueAt, evaluatedAt: evaluatedAt)
+            }
+            return .init(workspaceID: workspaceID, evaluatedAt: evaluatedAt, sources: sources,
+                frontiers: frontiers, dueQueue: due, sourceClosureSHA256: try sha256(),
+                readinessAssessments: sources.map { .init(reference: $0.reference, assessment: .notAssessed) })
+        }
+
+        private func validatePacketClosure() throws {
+            guard Set(manifests.map(\.manifestID)).count == manifests.count,
+                  Set(manifests.map { "\($0.packetID)|\($0.packetVersion)" }).count == manifests.count,
+                  Set(claims.map(\.claimID)).count == claims.count,
+                  Set(leases.map(\.leaseID)).count == leases.count,
+                  Set(releases.map(\.releaseID)).count == releases.count,
+                  Set(handoffs.map(\.handoffID)).count == handoffs.count else {
+                throw MyDaySourceReadFailureV1.corruptSourceClosure
+            }
+            let references = try Set(manifests.map(WorkPacketManifestReferenceV1.init))
+            let itemReferences = try Set(manifests.flatMap { manifest in
+                try manifest.items.map { try WorkPacketItemReferenceV1(manifest: manifest, item: $0) }
+            })
+            guard claims.allSatisfy({ references.contains($0.manifest) && itemReferences.contains($0.item) }),
+                  leases.allSatisfy({ lease in
+                      itemReferences.contains(lease.item) && claims.contains {
+                          $0.claimID == lease.claimID && $0.item == lease.item && $0.holder.actor == lease.holder.actor
+                      }
+                  }), releases.allSatisfy({ itemReferences.contains($0.item) }),
+                  handoffs.allSatisfy({ itemReferences.contains($0.item) }) else {
+                throw MyDaySourceReadFailureV1.corruptSourceClosure
+            }
+        }
+    }
+}

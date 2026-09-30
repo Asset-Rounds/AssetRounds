@@ -1,0 +1,191 @@
+{
+  "artifacts": {
+    "CASE_MATRIX.md": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/CASE_MATRIX.md",
+      "sha256": "c1d07ba7fbb8bbf7767054696b5bae96f6f97937f6f89b93b1a82184d48c555f"
+    },
+    "HANDOFF.md": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/HANDOFF.md",
+      "sha256": "186c528427aef87d165648158ffff13a119e549f964b376dfc4e76893ce9a1fe"
+    },
+    "INPUTS.json": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/INPUTS.json",
+      "sha256": "0ed30aad21e7df63e8a6f4d4bdc522b73de185945b64439b4f3659619201496f"
+    },
+    "SEALED_GENERIC_INTERFACE_V1.md": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/SEALED_GENERIC_INTERFACE_V1.md",
+      "sha256": "716f53e42847aaa965ffc87377769626c61f85dc555ac405975b8653f2cdf5c2"
+    },
+    "SOURCE_SAFETY_LEDGER.json": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/SOURCE_SAFETY_LEDGER.json",
+      "sha256": "9dad75d1f60b740200baaf1e3e777036dc33617ff579c9cb45734bb19aa36943"
+    },
+    "inputs/ORIGINAL_PAIR_ACCOUNTING_DATA_INPUT.swift.fragment": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/inputs/ORIGINAL_PAIR_ACCOUNTING_DATA_INPUT.swift.fragment",
+      "sha256": "6b40cb73d5ef1c143eaf1c9adc5248fa35b9cceec448d48d20f909e2143479a0"
+    },
+    "inputs/SEALED_GENERIC_OBSERVATION_V1.swift.fragment": {
+      "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/inputs/SEALED_GENERIC_OBSERVATION_V1.swift.fragment",
+      "sha256": "afcccf2438ae96d12f14662c8914fc3f68bf6e2a2d9f5d05141148ee4ea624d4"
+    }
+  },
+  "author": {
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh"
+  },
+  "baseline": {
+    "head": "dbdb4649e3e405eb50a1d2b443c8d7c061831a1a",
+    "path": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-author-baseline-v1/BASELINE.json",
+    "sha256": "30c40dcbf0661d0b3065c8dfc4dd86d197b545662ba58a842f5b9652650eedb7",
+    "sourceCount": 1206,
+    "sourceMapSHA256": "b24e3ab9995ad05a643e9c80bd155fe8702d706a35d17b512a73ce8a11377789",
+    "sourceMismatches": []
+  },
+  "historicalPackets": [
+    {
+      "approvalNotInherited": true,
+      "files": {
+        "BINDING.json": "2b18d4a50f66375add2cabf20145a9dea35b1cf1c6a435eb6c07073c216ee7ea",
+        "CASE_MATRIX.md": "9a04bbf88da0ac88aa58be9827dce07a1868b9db052776464b496989cf36966a",
+        "HANDOFF.md": "cf80c3a57fd6f9aca149081a56da5fdfc89c3bfd16740d6591db4b632586aeca",
+        "ProtectedFilePolicy.diff": "df8baada9b53d671b46785244f8f8f0596e053da36e58610cf2ed76539570773",
+        "candidate/ProtectedFilePolicy.swift": "8db23f0eddb1f73a0702c61bd04df59f60a253660b64cfa4fda5612a02daee7a"
+      },
+      "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-successor-v1"
+    },
+    {
+      "approvalNotInherited": true,
+      "files": {
+        "BINDING.json": "c44d55f0e137ecacf487c13fce01d06ae2e15773be297581fa41abd1ce41c6e4",
+        "CASE_MATRIX.md": "51b8bc9c4570c54f714b3e03068f1906f25409d5e5fbf3c4e1ce105436ac0b7c",
+        "HANDOFF.md": "6252fe3d2f664b0eee39324b81245be35bfa91d49d2aa4e7f2aa54ab2d9d07e1",
+        "ProtectedFilePolicy.diff": "918e298d78656ec1ee647f4e15327802af2b6fb729267410ef90f5cb1da68636",
+        "candidate/ProtectedFilePolicy.swift": "4e5b589273907064a2da59328a9fe421d17a63b2b94665bc76f4b9c32966cbf3"
+      },
+      "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstp-successor-v1"
+    },
+    {
+      "approvalNotInherited": true,
+      "files": {
+        "BINDING.json": "59157420ad89706934dac4d372fe8f1beca9774f8391ac8d66b60c91a6589d7d",
+        "CASE_MATRIX.md": "a26f3553f83557521588a052c6f2eabc98b1d40fe4bf665dac3874ec4395b690",
+        "HANDOFF.md": "66d7b2e816110ee6d4ef8d85dbd272f78d80a248d2fdd5dddf4c41dc19d2bc8d",
+        "ProtectedFilePolicy.diff": "3d7193e1e808e088e416e08cdd386d69232f3bf01afc75de7b27c8c3da6180e1",
+        "candidate/ProtectedFilePolicy.swift": "a2a38ec4875ad25136532c159740f12f75bc97b8c018236dc431947b139c0ed9"
+      },
+      "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-initial-successor-v1"
+    },
+    {
+      "approvalNotInherited": true,
+      "files": {
+        "BINDING.json": "39ae97f2935b48f52ff4293108d97e0862655d90758ab385a13c220a304b55ad",
+        "CASE_MATRIX.md": "ea2be946e38a1e471c1e49bd89b3367997e66f8ae97c04d21a1313e0930f2328",
+        "HANDOFF.md": "30995664f2a4044e36772e189c54543bf4c06fb94e632c572760481b2706edf3",
+        "ProtectedFilePolicy.diff": "55a79eacd9132ef349c565df50ea7e9b0653c0a805178816300d561d5837e244",
+        "candidate/ProtectedFilePolicy.swift": "330938cb61f5c5e1c3c7b8655f7603af31e8f15e1ff890542940a802678aa6bd"
+      },
+      "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-firstcapture-successor-v1"
+    }
+  ],
+  "interface": {
+    "api": "@MainActor static func observeEraseObservedOwnedGenericAliasTemporalPairWithCheckedClose(aliasURLs: [URL], scope: OriginalEraseSealedGenericObservationScopeV1, retainUncertainDescriptor: (Int32) -> Void) throws -> [TemporalPolicyObservationV1]",
+    "authorityRule": "Observation only. Actual live or retained original accounting/P/controls/EX/G/phase/progress/current source/root/table callbacks at issuance/EACHIO nonrecursive and permanently poisoned. No fake source/plan/record/effects/survivor adoption.",
+    "indexRule": "Exact nonnegative private complete finite table membership/checked ACTUAL count, no global100k/fake C16settle.",
+    "line": 3241,
+    "mappingRule": "Exact original metadata/member source parent mapped to actual current parent under unchanged or authentic c16ParentRename actual fixed step/record/parent identity; no originalDir==currentDir false refusal, no string/range authority.",
+    "metadataRule": "Original source ownedOrphan versus validatedLease stays immutable; current originalAbsent/unchanged/consumedMixed/consumedC16 actual record relation separate. No current absent fallback or valid original\u2192orphan rewrite; positive canonical source/current presence/receipt proof private issuer due.",
+    "observerRule": "Exact nofollow parent/both aliases/commoninode+nlink2/full11\u2192observed9/mode/UID/GID/dev/count/SHA around unchanged private temporal predicate; permanent checked owner lifecycle.",
+    "pairFields": [
+      "members:[OriginalEraseObservedOwnedGenericAliasPairV1.Member] exact2 ordered current9/11/path/URL",
+      "original:OriginalEraseAuxiliaryPairAccountingDataV1.Row immutable source DATA",
+      "metadataRelation:OriginalEraseSealedScratchMetadataRelationV1",
+      "pathMapping:OriginalEraseSealedGenericPathMappingV1",
+      "operationID:UUID",
+      "originBinding:String",
+      "accountingSHA256:String",
+      "computed common sha256/byteCount/device/inode/declaredPairIndex from original"
+    ],
+    "pairType": "OriginalEraseSealedOwnedGenericAliasPairV1",
+    "scopeFields": [
+      "operationID:UUID",
+      "originBinding:String",
+      "accountingSHA256:String",
+      "origin:OriginalEraseSealedGenericObservationOriginV1"
+    ],
+    "scopeMethods": [
+      "requireCurrentBinding() throws",
+      "requireObservedOwnedGenericAliases(aliasURLs:[URL]) throws -> OriginalEraseSealedOwnedGenericAliasPairV1",
+      "retainObservationAttempt(_ attempt:OriginalEraseC16CurrentTemporalObservationAttemptV1)",
+      "poisonOnUncertainObservation()"
+    ],
+    "scopeType": "OriginalEraseSealedGenericObservationScopeV1; Router actual private issuer only",
+    "singletonRule": "This pair API refuses1member. Exact real evolution consumed target/disposition/record/source\u2192current full11/SHA/mapping THEN unchanged ordinarynlink1; exhaustive physical/provider consumers due.",
+    "workRule": "Fact/SHA/policy/close tail byte-identical toPreP;4 payload streams/call64KiB. Purecurrent8/allopaque+generic4 helpers unchanged, actual leaf0...1GiB independent tree/entry/depth/work. Scope/issuer/control/metadata and walker IO separately bounded, no2B assumption."
+  },
+  "openObligations": [
+    "Actual private generic issuer/retained accounting+original roster/source/control/EX/G/current phase+record stage proofs at issuance/everyIO",
+    "Complete authentic immutable originalMetadata schema/request/purpose/owner/bounds/policy and actual current presence/consumed receipt/absence; no canonical role overlap/duplicates",
+    "Actual parent rename/member consumption mapping+exact fixed target/step/record/prefix/postimage/current fact proof, not callback/range shape",
+    "Fresh provider wiring/borrowed entries/physical exhaustive allorigins+evolution consumers and actual effect admission",
+    "Complete independently derived finite namespace/leaf/tree/unique typed alias/node/depth/payload+issuer/control/metadata read-work caps",
+    "Capacity/source/lossless controls for unique1GiB+metadata/producer4GiB/mixed codecs and oldInitial<100k compatibility",
+    "Actual source independent review/coupledcompile/native/actual-bytepinCI381+42/all same-headgates"
+  ],
+  "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1",
+  "predecessor": {
+    "allSealFilesExact": true,
+    "approvalNotInherited": true,
+    "bindingSHA256": "0bcf176f19d9b7c765f8b1cffaa56e3c2ea74de5b18f9c6819938d4eaf67937f",
+    "candidateSHA256": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700",
+    "packet": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-generic-alias-successor-v1",
+    "sealSHA256": "d5f927210960cac262c40b8905172fbac935d1f1d5832a2196df88cedfe5395a"
+  },
+  "preserved": {
+    "addedLines": 411,
+    "newFactReadSHApolicyCloseTailByteIdenticalToPreP": true,
+    "newSealedAttemptMethodsNormalizeToFirstCaptureExactly": true,
+    "priorAttemptMethodsExact": true,
+    "priorFiveAPIsAndOrdinaryExtensionExact": true,
+    "privateTemporalReaderAndStrictPredicateExact": true,
+    "trackedPFP_SHA256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41",
+    "workHelpersExact": true,
+    "zeroRemovedDiffLines": true
+  },
+  "schemaVersion": 1,
+  "scope": "Ignored PFP-only successor. Root alone owns integration/compilers/native/CI/Git/dispatch.",
+  "source": {
+    "addedLines": 411,
+    "beforePath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/before/ProtectedFilePolicy.swift",
+    "beforeSHA256": "99dccec332f74ae19bcd73a9b2b35e7150ac7524d4dadbb05f2d24b251a6e700",
+    "candidatePath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/candidate/ProtectedFilePolicy.swift",
+    "candidateSHA256": "fb3020533cfe03022e9d590984f7ae19a386debc95f4ecb1777fc538b5b2daeb",
+    "diffPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/ProtectedFilePolicy.diff",
+    "diffSHA256": "cdb3a12632278ab6a03823c321c2bfa33ca1074995aa605fbc6c6104a57173d1",
+    "removedLines": 0,
+    "trackedPath": "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift",
+    "trackedSHA256": "20abe423c0b06b4084b6b5b8edf6f89eecca625f97407f1a3637f6a1fb966b41"
+  },
+  "status": "SEALED SOURCE-ONLY; noninstallable complete recovery pending actual issuer/controls/providers/physical dispatch/source review/coupled compile/native/CI/allgates.",
+  "verification": {
+    "CI": "NOT RUN; root actual-byte pins retaining20abehistory/full381+42 due",
+    "acceptanceCredit": false,
+    "allGates": "DUE",
+    "compiler": "NOT RUN; root actual semanticDEBUG/nonDEBUG compile due",
+    "debugParse": {
+      "command": "xcrun swiftc -frontend -parse -D DEBUG .codex-temp/cold-pair-policy-sealed-generic-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "exitCode": 0,
+      "logPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/parse-debug.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "independentReview": "Same read-onlySolxhigh reviewer to review correction; no prior approval inherited",
+    "native": "NOT RUN; root affected development due",
+    "nondebugParse": {
+      "command": "xcrun swiftc -frontend -parse .codex-temp/cold-pair-policy-sealed-generic-successor-v1/candidate/ProtectedFilePolicy.swift",
+      "exitCode": 0,
+      "logPath": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds/.codex-temp/cold-pair-policy-sealed-generic-successor-v1/parse-nondebug.log",
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "wholeRecoveryInstallable": false
+  },
+  "worktree": "/Users/rentamac/.codex/worktrees/cold-pair-policy/AssetRounds"
+}

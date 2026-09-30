@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "createdUTC": "2026-09-30T03:08:30.827137+00:00",
+  "snapshotRoot": "/Users/rentamac/.codex/worktrees/cold-control-continuation/AssetRounds/.codex-temp/cold-control-backup-handoff-v1",
+  "sourceEvidence": "DEVELOPMENT / archival source inventory; incomplete/noninstallable; no semantic compile/runtime/gate approval",
+  "githubBackupVerified": false,
+  "files": {
+    "INVENTORY.json": {
+      "sha256": "f0f3b2ee8d87089521a706da59823ec161d0a992b006c9ef51333c2a2fbf5344",
+      "byteCount": 130915
+    },
+    "CONTENT_GROUPS.json": {
+      "sha256": "4010580616137f7353deff0e202d4afd35b2cd6423b5e078b362de1b43ff82ae",
+      "byteCount": 51308
+    },
+    "STORE_VERSIONS.json": {
+      "sha256": "be6196d5f1348335a0e823ecf38b56208f7ec6119472b3cb9a6f35265d2564df",
+      "byteCount": 5719
+    },
+    "HANDOFF.md": {
+      "sha256": "ae3e771c343bfd7d4a5c6055b628a0ebfe5ea69de97f2d31b2854267502185e8",
+      "byteCount": 2688
+    },
+    "MANIFEST.json": {
+      "sha256": "956993a85264e341a4f01861965749dfa047c011a2a1d4be95d7177b59334312",
+      "byteCount": 26356
+    },
+    "seal_backup.py": {
+      "sha256": "9943fc042c641011a6ddfb888e1b8667e59755b35f68db25f8a0fe9e6ccb0af8",
+      "byteCount": 8576
+    }
+  },
+  "sourceFileCount": 126,
+  "sourceLogicalByteCount": 10179174,
+  "distinctObjectCount": 116,
+  "distinctObjectByteCount": 8918515
+}

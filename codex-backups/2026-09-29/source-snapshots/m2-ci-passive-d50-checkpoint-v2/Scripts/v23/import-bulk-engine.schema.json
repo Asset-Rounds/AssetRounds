@@ -1,0 +1,445 @@
+{
+  "$id": "https://assetrounds.invalid/v23/import-bulk-engine.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authorityContracts": {
+      "const": [
+        "ImportSourceV1",
+        "ImportSchemaReleaseV1",
+        "ImportMappingProfileV1",
+        "ImportRowIdentityV1",
+        "ImportRowDispositionV1",
+        "ImportPlanV1",
+        "BulkCommandPlanV1",
+        "BulkSessionV1",
+        "BulkCommitReceiptV1",
+        "ImportLifecycleDispositionV1",
+        "DeterministicCSVExportV1",
+        "ImportCorrectionArtifactV1",
+        "ExportSchemaReleaseV1"
+      ]
+    },
+    "cardID": {
+      "const": "V23-P04-C08"
+    },
+    "executionStates": {
+      "const": [
+        "PREVIEW_ONLY",
+        "ALL_OR_NOTHING_PREVIEW",
+        "CHUNKED_PREVIEW",
+        "COMMITTED",
+        "PARTIAL_COMMITTED",
+        "INTERRUPTED",
+        "STALE"
+      ]
+    },
+    "finalHashesSealed": {
+      "const": true
+    },
+    "forbidden": {
+      "const": [
+        "ACCOUNT",
+        "AUTHENTICATION",
+        "TENANCY",
+        "REMOTE_SYNC",
+        "BACKEND",
+        "NETWORK_TRANSPORT",
+        "TELEMETRY",
+        "REMOTE_CLAIMS",
+        "NATIVE_IPAD",
+        "QR_OR_NETWORK_TAG_RESOLUTION",
+        "RECURRENCE",
+        "DUE_QUEUE",
+        "NOTIFICATION",
+        "TEAM_DISPATCH",
+        "PROVIDER_OUTBOX_INBOX_ACK_UPLOAD_STATE",
+        "REMOTE_EMAIL_OR_LINK",
+        "ANALYTICS",
+        "FUZZY_MATCH",
+        "NAME_ONLY_MATCH",
+        "DELETE_BY_IMPORT",
+        "MERGE_BY_IMPORT",
+        "FINALIZED_FIELD_UPDATE",
+        "XLSX_EXECUTION",
+        "ARBITRARY_TRANSFORM",
+        "CLOUD_SPREADSHEET",
+        "MEDIA_URL_FETCH",
+        "SECOND_WRITER",
+        "SECOND_STORE",
+        "SECOND_PARSER",
+        "SECOND_RENDERER",
+        "SECOND_IMPORTER",
+        "SECOND_IDENTITY",
+        "PREVIEW_WRITE",
+        "HIDDEN_PARTIAL_COMMIT",
+        "RECEIPT_DELETION",
+        "DATABASE_REWIND",
+        "S10_ROUTE_WIRING"
+      ]
+    },
+    "lifecycle": {
+      "const": [
+        "SCHEMA_VERSION",
+        "WRITER_QUERY",
+        "MIGRATION",
+        "BACKUP_REPLACE_RESTORE",
+        "CLONE_FORK",
+        "IMPORT_EXPORT",
+        "JOURNAL_REPLAY",
+        "SEARCH_REBUILD",
+        "REPORT_PROJECTION",
+        "DELETE_ERASE",
+        "RETENTION",
+        "COMPATIBILITY",
+        "DOWNGRADE_FORWARD_FIX",
+        "INTERRUPTION",
+        "IDEMPOTENT_RECEIPTS"
+      ]
+    },
+    "ordinal": {
+      "const": 96
+    },
+    "persistentKinds": {
+      "const": [
+        "ImportMappingProfileV1",
+        "BulkSessionV1",
+        "BulkCommitReceiptV1"
+      ]
+    },
+    "physicalLockedState": {
+      "const": "REQUIRED_PENDING_OWNER"
+    },
+    "provisional": {
+      "const": false
+    },
+    "rowDispositions": {
+      "const": [
+        "CREATE",
+        "UPDATE_EXACT_MATCH",
+        "UNCHANGED",
+        "DUPLICATE_SOURCE",
+        "AMBIGUOUS_TARGET",
+        "CONFLICT",
+        "INVALID",
+        "UNSUPPORTED",
+        "SKIPPED_BY_USER"
+      ]
+    },
+    "schema": {
+      "const": "IMPORT_BULK_ENGINE_V1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectors": {
+      "const": [
+        "testV23P04C08G01PreviewFirstImportBulkAndDeterministicExportGolden",
+        "testV23P04C08A01CorrectionAndPoseRoundTripAlternate",
+        "testV23P04C08H01HostileBudgetIdentityAndFormulaSafety",
+        "testV23P04C08I01ChunkBoundaryInterruptionAndResume",
+        "testV23P04C08R01IdempotentRetryCompensationAndLifecycleRecovery"
+      ]
+    },
+    "semantics": {
+      "const": {
+        "accessibilityAndLocalization": {
+          "darkContrastNonColor": true,
+          "interruptionRecovery": true,
+          "largerText": true,
+          "permissionFallback": true,
+          "syntheticFixturesOnly": true,
+          "voiceControl": true,
+          "voiceOver": true
+        },
+        "adapterScope": {
+          "allowlistedExactKeyAssetUpdate": true,
+          "arbitraryTransform": false,
+          "assetCreate": true,
+          "assetPlacement": true,
+          "cloudSpreadsheet": false,
+          "deleteByImport": false,
+          "finalizedFieldUpdate": false,
+          "fuzzyUpdate": false,
+          "locationCreate": true,
+          "mediaURLFetch": false,
+          "merge": false,
+          "xlsxExecution": false
+        },
+        "authorityContracts": [
+          "ImportSourceV1",
+          "ImportSchemaReleaseV1",
+          "ImportMappingProfileV1",
+          "ImportRowIdentityV1",
+          "ImportRowDispositionV1",
+          "ImportPlanV1",
+          "BulkCommandPlanV1",
+          "BulkSessionV1",
+          "BulkCommitReceiptV1",
+          "ImportLifecycleDispositionV1",
+          "DeterministicCSVExportV1",
+          "ImportCorrectionArtifactV1",
+          "ExportSchemaReleaseV1"
+        ],
+        "canonicalWriter": "V23-P02-C01_WORKSPACE_WRITER_ONLY",
+        "chunks": "DETERMINISTIC_PLAN_CHUNK_MUTATION_IDS_FIRST_MISSING_RECEIPT_RESUME",
+        "commit": "ALL_OR_NOTHING_OR_PREVIEWED_CHUNKED_ATOMIC",
+        "commitRules": {
+          "allOrNothingOrExplicitChunkedAtomic": true,
+          "canonicalWriterOnly": true,
+          "committedChunksNeverRolledBackClaim": true,
+          "deterministicPlanChunkMutationIDs": true,
+          "expectedRevision": true,
+          "firstMissingReceiptResume": true,
+          "samePlanRetryIdempotent": true
+        },
+        "evidenceIDs": [
+          "V23-P04-C08-G01",
+          "V23-P04-C08-A01",
+          "V23-P04-C08-H01",
+          "V23-P04-C08-I01",
+          "V23-P04-C08-R01"
+        ],
+        "executionStates": [
+          "PREVIEW_ONLY",
+          "ALL_OR_NOTHING_PREVIEW",
+          "CHUNKED_PREVIEW",
+          "COMMITTED",
+          "PARTIAL_COMMITTED",
+          "INTERRUPTED",
+          "STALE"
+        ],
+        "export": "DETERMINISTIC_UTF8_NFC_LOCALE_NEUTRAL_FORMULA_CONTROL_SAFE",
+        "forbidden": [
+          "ACCOUNT",
+          "AUTHENTICATION",
+          "TENANCY",
+          "REMOTE_SYNC",
+          "BACKEND",
+          "NETWORK_TRANSPORT",
+          "TELEMETRY",
+          "REMOTE_CLAIMS",
+          "NATIVE_IPAD",
+          "QR_OR_NETWORK_TAG_RESOLUTION",
+          "RECURRENCE",
+          "DUE_QUEUE",
+          "NOTIFICATION",
+          "TEAM_DISPATCH",
+          "PROVIDER_OUTBOX_INBOX_ACK_UPLOAD_STATE",
+          "REMOTE_EMAIL_OR_LINK",
+          "ANALYTICS",
+          "FUZZY_MATCH",
+          "NAME_ONLY_MATCH",
+          "DELETE_BY_IMPORT",
+          "MERGE_BY_IMPORT",
+          "FINALIZED_FIELD_UPDATE",
+          "XLSX_EXECUTION",
+          "ARBITRARY_TRANSFORM",
+          "CLOUD_SPREADSHEET",
+          "MEDIA_URL_FETCH",
+          "SECOND_WRITER",
+          "SECOND_STORE",
+          "SECOND_PARSER",
+          "SECOND_RENDERER",
+          "SECOND_IMPORTER",
+          "SECOND_IDENTITY",
+          "PREVIEW_WRITE",
+          "HIDDEN_PARTIAL_COMMIT",
+          "RECEIPT_DELETION",
+          "DATABASE_REWIND",
+          "S10_ROUTE_WIRING"
+        ],
+        "forbiddenCapabilities": [
+          "ACCOUNT",
+          "AUTHENTICATION",
+          "TENANCY",
+          "REMOTE_SYNC",
+          "BACKEND",
+          "NETWORK_TRANSPORT",
+          "TELEMETRY",
+          "REMOTE_CLAIMS",
+          "NATIVE_IPAD",
+          "QR_OR_NETWORK_TAG_RESOLUTION",
+          "RECURRENCE",
+          "DUE_QUEUE",
+          "NOTIFICATION",
+          "TEAM_DISPATCH",
+          "PROVIDER_OUTBOX_INBOX_ACK_UPLOAD_STATE",
+          "REMOTE_EMAIL_OR_LINK",
+          "ANALYTICS",
+          "FUZZY_MATCH",
+          "NAME_ONLY_MATCH",
+          "DELETE_BY_IMPORT",
+          "MERGE_BY_IMPORT",
+          "FINALIZED_FIELD_UPDATE",
+          "XLSX_EXECUTION",
+          "ARBITRARY_TRANSFORM",
+          "CLOUD_SPREADSHEET",
+          "MEDIA_URL_FETCH",
+          "SECOND_WRITER",
+          "SECOND_STORE",
+          "SECOND_PARSER",
+          "SECOND_RENDERER",
+          "SECOND_IMPORTER",
+          "SECOND_IDENTITY",
+          "PREVIEW_WRITE",
+          "HIDDEN_PARTIAL_COMMIT",
+          "RECEIPT_DELETION",
+          "DATABASE_REWIND",
+          "S10_ROUTE_WIRING"
+        ],
+        "identity": "SOURCE_DIGEST_ORDINAL_CANONICAL_ROW_DIGEST_AND_STABLE_EXTERNAL_KEY",
+        "identityRules": {
+          "displayNameOnlyNeverMatches": true,
+          "duplicateAndAmbiguousVisible": true,
+          "sourceDigestOrdinalCanonicalRowDigestStableExternalKey": true
+        },
+        "lifecycle": [
+          "SCHEMA_VERSION",
+          "WRITER_QUERY",
+          "MIGRATION",
+          "BACKUP_REPLACE_RESTORE",
+          "CLONE_FORK",
+          "IMPORT_EXPORT",
+          "JOURNAL_REPLAY",
+          "SEARCH_REBUILD",
+          "REPORT_PROJECTION",
+          "DELETE_ERASE",
+          "RETENTION",
+          "COMPATIBILITY",
+          "DOWNGRADE_FORWARD_FIX",
+          "INTERRUPTION",
+          "IDEMPOTENT_RECEIPTS"
+        ],
+        "lifecycleCoverage": {
+          "BACKUP_REPLACE_RESTORE": true,
+          "CLONE_FORK": true,
+          "COMPATIBILITY": true,
+          "DELETE_ERASE": true,
+          "DOWNGRADE_FORWARD_FIX": true,
+          "IDEMPOTENT_RECEIPTS": true,
+          "IMPORT_EXPORT": true,
+          "INTERRUPTION": true,
+          "JOURNAL_REPLAY": true,
+          "MIGRATION": true,
+          "REPORT_PROJECTION": true,
+          "RETENTION": true,
+          "SCHEMA_VERSION": true,
+          "SEARCH_REBUILD": true,
+          "WRITER_QUERY": true
+        },
+        "lifecycleOwner": "IMPORT_BULK_LIFECYCLE_ADAPTER_BOUNDED_PARSE_SCRATCH_ADAPTERS_LIFECYCLE_EXPORT_DELEGATION",
+        "lineage": "EXACT_WITH_GENERATION_REBIND",
+        "namedContracts": [
+          "ImportSourceV1",
+          "ImportSchemaReleaseV1",
+          "ImportMappingProfileV1",
+          "ImportRowIdentityV1",
+          "ImportRowDispositionV1",
+          "ImportPlanV1",
+          "BulkCommandPlanV1",
+          "BulkSessionV1",
+          "BulkCommitReceiptV1",
+          "ImportLifecycleDispositionV1",
+          "DeterministicCSVExportV1",
+          "ImportCorrectionArtifactV1",
+          "ExportSchemaReleaseV1"
+        ],
+        "noNativeIPad": true,
+        "noS10RouteWiring": true,
+        "noSecondWriterStoreParserRendererOrIdentity": true,
+        "parse": "BOUNDED_VERSIONED_BYTE_ROW_COLUMN_CELL_SCALAR_BUDGETS",
+        "parseRules": {
+          "boundedByteRowColumnCellScalar": true,
+          "controlsAndFormulasNeutralized": true,
+          "sourceScratchLeasedAndCleaned": true,
+          "unsupportedVersionClosed": true
+        },
+        "persistentContractMode": "IMPORT_BULK_PROFILE_SESSION_RECEIPT_V1",
+        "persistentKinds": [
+          "ImportMappingProfileV1",
+          "BulkSessionV1",
+          "BulkCommitReceiptV1"
+        ],
+        "policyProfile": "PERSISTENT_OR_PRODUCT_DELTA",
+        "preview": "ZERO_WRITE",
+        "previewRules": {
+          "repeatBytesDeterministic": true,
+          "sourceOrRevisionChangeRequiresNewPreview": true,
+          "zeroCanonicalMutation": true,
+          "zeroFilePublication": true,
+          "zeroIndexChange": true,
+          "zeroReceiptChange": true
+        },
+        "recovery": "SAME_PLAN_RESUME_FIRST_MISSING_RECEIPT_NEVER_ROLLBACK_COMMITTED_CHUNK",
+        "rowDispositions": [
+          "CREATE",
+          "UPDATE_EXACT_MATCH",
+          "UNCHANGED",
+          "DUPLICATE_SOURCE",
+          "AMBIGUOUS_TARGET",
+          "CONFLICT",
+          "INVALID",
+          "UNSUPPORTED",
+          "SKIPPED_BY_USER"
+        ],
+        "selectors": [
+          "testV23P04C08G01PreviewFirstImportBulkAndDeterministicExportGolden",
+          "testV23P04C08A01CorrectionAndPoseRoundTripAlternate",
+          "testV23P04C08H01HostileBudgetIdentityAndFormulaSafety",
+          "testV23P04C08I01ChunkBoundaryInterruptionAndResume",
+          "testV23P04C08R01IdempotentRetryCompensationAndLifecycleRecovery"
+        ],
+        "sourceScratch": "LEASED_BOUNDED_DELETE_ON_SUCCESS_CANCEL_FAILURE_OR_EXPIRY",
+        "typedAdapterRegistrationSeam": "REQUIRED_LOCAL_UNNAMED_NOT_FOURTEENTH_AUTHORITY_CONTRACT",
+        "ui": "POST_S10_6_ADOPTION_SKIP_NO_RESERVED_COMPOSITION_EDIT"
+      }
+    },
+    "sourceReady": {
+      "type": "boolean"
+    },
+    "statusFlags": {
+      "const": {
+        "acceptance": false,
+        "activation": false,
+        "adoption": false,
+        "hosted": false,
+        "hostedAcceptance": false,
+        "native": false,
+        "nativeAcceptance": false,
+        "phase10PollingDuringParallelExecution": false,
+        "physicalEvidence": false,
+        "release": false
+      }
+    },
+    "uiAcceptanceCredit": {
+      "const": false
+    },
+    "uiAdoptionSkipped": {
+      "const": true
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "ordinal",
+    "selectors",
+    "authorityContracts",
+    "persistentKinds",
+    "rowDispositions",
+    "executionStates",
+    "lifecycle",
+    "forbidden",
+    "semantics",
+    "sourceReady",
+    "physicalLockedState",
+    "uiAdoptionSkipped",
+    "uiAcceptanceCredit",
+    "statusFlags",
+    "finalHashesSealed",
+    "provisional"
+  ],
+  "title": "V23-P04-C08 import bulk engine",
+  "type": "object"
+}

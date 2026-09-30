@@ -1,0 +1,86 @@
+[
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "debug": true,
+    "argv": [
+      "swiftc",
+      "-frontend",
+      "-parse",
+      "-D",
+      "DEBUG",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift",
+    "debug": false,
+    "argv": [
+      "swiftc",
+      "-frontend",
+      "-parse",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "debug": true,
+    "argv": [
+      "swiftc",
+      "-frontend",
+      "-parse",
+      "-D",
+      "DEBUG",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift",
+    "debug": false,
+    "argv": [
+      "swiftc",
+      "-frontend",
+      "-parse",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "debug": true,
+    "argv": [
+      "swiftc",
+      "-frontend",
+      "-parse",
+      "-D",
+      "DEBUG",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "path": "FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift",
+    "debug": false,
+    "argv": [
+      "swiftc",
+      "-frontend",
+      "-parse",
+      ".codex-temp/cold-schema2-continuation-successor-v1/candidate/FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

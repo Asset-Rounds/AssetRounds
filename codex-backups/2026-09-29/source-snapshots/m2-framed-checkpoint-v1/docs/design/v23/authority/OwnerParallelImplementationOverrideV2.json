@@ -1,0 +1,118 @@
+{
+  "schema": "OwnerParallelImplementationOverrideV2",
+  "schemaVersion": 2,
+  "overrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-002",
+  "supersedesOverrideID": "V23-OWNER-PARALLEL-IMPLEMENTATION-001",
+  "supersedesPath": "docs/design/v23/authority/OwnerParallelImplementationOverrideV1.json",
+  "program": "AssetRounds V23",
+  "programBranch": "phase/v23-expansion",
+  "authorityRoots": {
+    "packageDigest": "99a2719885ad1abfb8cf5d49c6b2099754bb0ba4b5d27fcbae06476aad507570",
+    "cardRegisterDigest": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd",
+    "directGraphDigest": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae",
+    "directEdgeCount": 230,
+    "cardCount": 146,
+    "originMainHead": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "originMainTree": "95b6520f4b36a671a1a541734699129d465ba5ea",
+    "a00ImplementationHead": "85a223a9f4edbecac07dc597e67bc7f9fda5976d",
+    "a00ImplementationTree": "5831ab5c378f46c876cd5d7ab4c65371b402bb7b",
+    "a00AnchorHead": "d6b5e88622c5356770c6e9aa3a619afc771b759d",
+    "a00AnchorTree": "facca4fd13fc1c13accef1aae8a007cde642caa9"
+  },
+  "activePhase10": {
+    "branch": "phase/s10-brand-refresh",
+    "observedHead": "728f76fa51186dd99f4359a529272c667fd1218f",
+    "observedTree": "6d5bbeb47bcbcbdb6fc83267906b36405fc59b21",
+    "mergeBaseWithOriginMain": "01233f789b1cef5a6f56c7ff4caa9271409cd3bc",
+    "reservationPath": "docs/design/v23/foundation/ActiveS10OwnershipReservationV1.json",
+    "reservationContentDigest": "c72ff93db9e007ab303b562c2dae49174f28942058ced06bc488c438570ffb58",
+    "reservedPathCount": 86,
+    "statusAtAuthorization": "ACTIVE_NOT_ACCEPTED"
+  },
+  "authorityPrecedenceAmendments": [
+    {
+      "source": "docs/design/v23/EXPANSION_V23_HANDOFF.md",
+      "supersededText": "Read-only reconnaissance and off-repository planning may continue while S10 is active, but cannot mutate the app, install A00 against an unaccepted base, or claim card acceptance.",
+      "replacement": "Owner-authorized provisional V23 mutation and testing may continue on phase/v23-expansion under exact Phase-10-disjoint path fences; A00 is already anchored; card acceptance remains prohibited until accepted S10.6 reconciliation."
+    },
+    {
+      "source": "AGENTS.md",
+      "supersededRule": "docs/execution/CURRENT_TASK.md is the sole selected-card authority",
+      "replacement": "While Phase 10 owns docs/execution/CURRENT_TASK.md, V23 uses the protected external BootstrapExecutionLedgerEnvelopeV1 plus ActiveWorkSetProjectionV1 and per-attempt BootstrapCardContextV1/BootstrapPathFenceV1. docs/execution remains read-only and Phase-10-owned."
+    }
+  ],
+  "canonicalStructure": {
+    "cardRegisterChanged": false,
+    "directGraphChanged": false,
+    "topologicalOrderChanged": false,
+    "planningClassificationChanged": false,
+    "productSemanticsChanged": false
+  },
+  "automaticProvisionalExecution": {
+    "eligibleClassifications": ["IMPLEMENT_NOW", "IMPLEMENT_TOOLING_NOW", "PREPARE_NOW"],
+    "eligibleActivities": ["HYDRATE", "MUTATE_EXACT_FENCE", "STATIC_VERIFY", "TASK_NAMED_MACOS_CI", "PROVISIONAL_CHECKPOINT"],
+    "prerequisiteRule": "EVERY_DIRECT_PREDECESSOR_REQUIRES_CURRENT_CANONICAL_ACCEPTANCE_OR_VERIFIED_PROVISIONAL_CHECKPOINT",
+    "nonDirectRelationsGrantReadiness": false,
+    "officialAcceptanceEnabled": false,
+    "releaseCredit": false
+  },
+  "nonautonomousExecution": {
+    "classifications": ["VALIDATE_NEXT", "DEFER", "OWNER_ACTION", "MONITOR"],
+    "automaticAuthorityGranted": false,
+    "rule": "REQUIRES_THE_FROZEN_CARD_SPECIFIC_TRIGGER_REENTRY_OR_OWNER_EVIDENCE_IN_ADDITION_TO_CURRENT_DIRECT_PREDECESSOR_EVIDENCE"
+  },
+  "pathAndConcurrency": {
+    "exactDigestBoundFenceRequired": true,
+    "activePhase10ReservationExcluded": true,
+    "phase10WinsEverySharedConflict": true,
+    "disjointImplementationMayProceedConcurrently": true,
+    "sourceIntegrationRemainsSerial": true,
+    "remotePhase10MutationAuthorized": false,
+    "remoteMainMutationAuthorized": false
+  },
+  "provisionalEvidence": {
+    "checkpointSchema": "ProvisionalCardCheckpointReceiptV1",
+    "prerequisiteSchema": "ProvisionalExecutionPrerequisiteReceiptV1",
+    "acceptanceReceiptProhibited": true,
+    "inclusionProofProhibited": true,
+    "selectorCreditProhibited": true,
+    "implementationCreditProhibited": true,
+    "acceptanceCreditProhibited": true,
+    "releaseCreditProhibited": true
+  },
+  "expiryAndInvalidation": [
+    "PACKAGE_DIGEST_CHANGE",
+    "REGISTER_OR_DIRECT_GRAPH_DIGEST_CHANGE",
+    "ANCHOR_HEAD_OR_TREE_CHANGE",
+    "ORIGIN_MAIN_HEAD_OR_TREE_CHANGE",
+    "ACTIVE_S10_HEAD_OR_TREE_CHANGE",
+    "ACTIVE_S10_RESERVATION_DIGEST_CHANGE",
+    "WRITER_AUTHORITY_CHANGE",
+    "OWNER_REVOCATION_OR_OVERRIDE_CHANGE",
+    "REMOTE_V23_BRANCH_MOVEMENT",
+    "UNOWNED_DIRTY_WORKTREE_OVERLAP",
+    "PATH_OVERLAP_DISCOVERED",
+    "PROVISIONAL_PREDECESSOR_SUPERSESSION",
+    "CANDIDATE_TOOLCHAIN_OR_TEST_FIXTURE_CHANGE",
+    "ACCEPTED_S10_6_RECONCILIATION_START"
+  ],
+  "onPhase10Movement": {
+    "freezeNewAdmissions": true,
+    "refreshReservationAndEveryActiveFence": true,
+    "overlappingWork": "QUARANTINE_AND_REHYDRATE",
+    "nonoverlappingWork": "REVERIFY_BEFORE_CONTINUING"
+  },
+  "policyCellLifecycle": ["ACTIVE", "FROZEN", "RECONCILIATION_PENDING", "RETIRED", "INVALIDATED"],
+  "s10_6Reconciliation": {
+    "trigger": "OWNER_REPORTS_S10_6_ACCEPTED",
+    "freezeNewAdmissionsFirst": true,
+    "verifyExactHeadTreeReceiptAndCI": true,
+    "nonForceIncorporationRequired": true,
+    "rebuildPreV23CompatibilitySeed": true,
+    "classifyEveryProvisionalCandidate": ["COMPATIBLE", "CORRECTION_REQUIRED", "SUPERSEDED"],
+    "provisionalEvidenceRemainsHistoricalOnly": true,
+    "automaticConversionToAcceptance": false,
+    "rerunAffectedTestsInCanonicalOrder": true
+  },
+  "effectiveAt": "2026-08-25T14:01:04.977Z"
+}

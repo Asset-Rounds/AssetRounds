@@ -1,0 +1,632 @@
+{
+  "$id": "https://assetrounds.invalid/v23/ConflictResolutionCorpusManifestV1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptanceCredit": {
+      "const": false
+    },
+    "acceptanceEnabled": {
+      "const": false
+    },
+    "adoptionEnabled": {
+      "const": false
+    },
+    "artifactDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregateAcceptanceMemberships": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "AutonomousRequiredAcceptedSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "appBaseHead": {
+          "const": "e05839a52a93a367cf4b118974a45db0d47182d0"
+        },
+        "appBaseTree": {
+          "const": "49dc23d51ddb18d1752e97c6820ec918b27aefca"
+        },
+        "attemptID": {
+          "const": 1
+        },
+        "branch": {
+          "const": "phase/v23-expansion"
+        },
+        "cardID": {
+          "const": "V23-P02-C03"
+        },
+        "classification": {
+          "const": "IMPLEMENT_NOW"
+        },
+        "conformanceSubjects": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "KernelConformanceSubjectSetV1"
+            }
+          ],
+          "type": "array"
+        },
+        "contextDigest": {
+          "const": "977fa96c1c91515720786d629fe2ca50cec87d544653171811f1bb4430138426"
+        },
+        "coordinationAuthorityHead": {
+          "const": "e0a662ca9f050b03c3f04439d3083c83b6bb89b9"
+        },
+        "coordinationAuthorityTree": {
+          "const": "cb77483ead8b0bb3a38a2a35afdf8dd0c5ea6b71"
+        },
+        "coordinationCASSequence": {
+          "const": 92
+        },
+        "coordinationLedgerDigest": {
+          "const": "ccf99b6769d804d48277d2e24f7bbaef2057452d019d482cac63cb1512e199db"
+        },
+        "dependencyDispositionDigest": {
+          "const": "f30d779c19e94d57d9b3114c09ac07538588676606c78d2e369683ee91169b8c"
+        },
+        "deterministicEvidenceIDs": {
+          "items": false,
+          "maxItems": 5,
+          "minItems": 5,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C03-G01"
+            },
+            {
+              "const": "V23-P02-C03-A01"
+            },
+            {
+              "const": "V23-P02-C03-H01"
+            },
+            {
+              "const": "V23-P02-C03-I01"
+            },
+            {
+              "const": "V23-P02-C03-R01"
+            }
+          ],
+          "type": "array"
+        },
+        "directGraphDigest": {
+          "const": "4e9feb8b0cb65deddd3a5802efb380911a3439e44f1a0dc56656eadb29aac2ae"
+        },
+        "directPrerequisites": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C02"
+            }
+          ],
+          "type": "array"
+        },
+        "dossierDigest": {
+          "const": "19d5bdf991e30ad2bc9d9533ce7236aeb4a813e6c8ad576f916f984be4997eb9"
+        },
+        "executionMode": {
+          "const": "PRE_S10_6_PROVISIONAL_ORDERED_IMPLEMENTATION"
+        },
+        "facetManifestDigest": {
+          "const": "b255fe1249ef40cf835fb6717876f20eee864407c206e4ae3baf4a109ab8949f"
+        },
+        "foundationRegisterDigest": {
+          "const": "edd6109aab118cc35c91495b789f70eb0b7c4d5f3d0780ad7a1918e5379e4cbd"
+        },
+        "frozenS10ReservationDigest": {
+          "const": "274b8e3d9eff11805f5abfec7e1b8a702b91751056f0952e432388c35fe6657a"
+        },
+        "hydrationProjectionDigest": {
+          "const": "5cdfc8faf30aeea2ccd9f021fe1b655b6e8e801278cf19d16ee3e996047cdaca"
+        },
+        "hydrationTransitionDigest": {
+          "const": "0755effff93435a3771fc797bbe9228868dbcff78c9039b71ef7b1f91f5af2e6"
+        },
+        "impactManifestDigest": {
+          "const": "a460620a0f0242fe0e71d8604284826204f000bb45fa09249c2db994dd0fa70b"
+        },
+        "inheritedV21BlockDigest": {
+          "const": "457ff9a99e9541d4e7590b946bafa8e0efc29129d65a21bfdf912a2e6455cadb"
+        },
+        "invalidationConsumers": {
+          "items": false,
+          "maxItems": 1,
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "const": "V23-P02-C04"
+            }
+          ],
+          "type": "array"
+        },
+        "lineage": {
+          "const": "EXACT_WITH_GENERATION_REBIND"
+        },
+        "lineageSource": {
+          "const": "V21-P02-C03"
+        },
+        "ownerParallelOverrideAuthorityReceiptDigest": {
+          "const": "07adfd64d92e9dbe27fa0011d9ab59c190da6ac5b63b99257d307434c1115752"
+        },
+        "pathFenceDigest": {
+          "const": "20ae2fa339b0dfe67a9f862415d67ad85630b6440812063f6c278551777e1ee3"
+        },
+        "planningStatus": {
+          "const": "NOT_STARTED"
+        },
+        "provisionalPrerequisiteDigest": {
+          "const": "213b125f708006475ab59e23d99a424e8b767c6efcc3808d167a25012f8af971"
+        },
+        "registerOrdinal": {
+          "const": 23
+        },
+        "registerRowDigest": {
+          "const": "2de00be32e26c5e366d28707f2323f3054f873aa95f15402bc7b671ab8a40188"
+        },
+        "relationManifestDigest": {
+          "const": "9b5c7f664af7d79d219e3ca55a28352bc0da7d9ddf998033b9a82187b428fac4"
+        },
+        "selectorManifestDigest": {
+          "const": "6ef4089521319677f3d69ed691d638dcc12521789c575c7939966e47670ce7f2"
+        },
+        "title": {
+          "const": "SyncClassificationRegistryV1, ReplicationPolicyV1, and ConflictPolicyV1 completeness gates"
+        }
+      },
+      "required": [
+        "cardID",
+        "attemptID",
+        "registerOrdinal",
+        "title",
+        "classification",
+        "planningStatus",
+        "lineage",
+        "lineageSource",
+        "executionMode",
+        "branch",
+        "appBaseHead",
+        "appBaseTree",
+        "coordinationAuthorityHead",
+        "coordinationAuthorityTree",
+        "coordinationCASSequence",
+        "coordinationLedgerDigest",
+        "hydrationProjectionDigest",
+        "contextDigest",
+        "pathFenceDigest",
+        "provisionalPrerequisiteDigest",
+        "hydrationTransitionDigest",
+        "registerRowDigest",
+        "dossierDigest",
+        "inheritedV21BlockDigest",
+        "foundationRegisterDigest",
+        "directGraphDigest",
+        "facetManifestDigest",
+        "selectorManifestDigest",
+        "relationManifestDigest",
+        "dependencyDispositionDigest",
+        "impactManifestDigest",
+        "frozenS10ReservationDigest",
+        "ownerParallelOverrideAuthorityReceiptDigest",
+        "directPrerequisites",
+        "invalidationConsumers",
+        "aggregateAcceptanceMemberships",
+        "conformanceSubjects",
+        "deterministicEvidenceIDs"
+      ],
+      "type": "object"
+    },
+    "cardID": {
+      "const": "V23-P02-C03"
+    },
+    "customerDataPresent": {
+      "const": false
+    },
+    "evidence": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C03-G01"
+            },
+            "testMethod": {
+              "const": "testV10_03G01CatalogCompletenessAndLifecycleRouting"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C03-A01"
+            },
+            "testMethod": {
+              "const": "testV10_03A01SixRuleMatrixAndPermutationIdentity"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C03-H01"
+            },
+            "testMethod": {
+              "const": "testV10_03H01UnknownLimitsPrivacyDependencyLeakAndCollisionRejection"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C03-I01"
+            },
+            "testMethod": {
+              "const": "testV10_03I01NamedInputsDeferredAndInterruptionBoundaries"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "evidenceID": {
+              "const": "V23-P02-C03-R01"
+            },
+            "testMethod": {
+              "const": "testV10_03R01FrozenBasisRelaunchIdempotencyAndLateCompetitor"
+            }
+          },
+          "required": [
+            "evidenceID",
+            "testMethod"
+          ],
+          "type": "object"
+        }
+      ],
+      "type": "array"
+    },
+    "evidenceIDs": {
+      "items": false,
+      "maxItems": 5,
+      "minItems": 5,
+      "prefixItems": [
+        {
+          "const": "V23-P02-C03-G01"
+        },
+        {
+          "const": "V23-P02-C03-A01"
+        },
+        {
+          "const": "V23-P02-C03-H01"
+        },
+        {
+          "const": "V23-P02-C03-I01"
+        },
+        {
+          "const": "V23-P02-C03-R01"
+        }
+      ],
+      "type": "array"
+    },
+    "exactFiveTestMethods": {
+      "const": true
+    },
+    "fixtureGeneratedByTooling": {
+      "const": false
+    },
+    "fixturePath": {
+      "const": "FieldEvidenceAppTests/Fixtures/V21/ReplicationPolicy/V21P02C03ReplicationConflictPolicyCorpusV1.json"
+    },
+    "fixtureSchema": {
+      "const": "V21P02C03ReplicationConflictPolicyCorpusV1"
+    },
+    "fixtureSchemaVersion": {
+      "const": 1
+    },
+    "fixtureTopLevelFields": {
+      "items": false,
+      "maxItems": 11,
+      "minItems": 11,
+      "prefixItems": [
+        {
+          "const": "schema"
+        },
+        {
+          "const": "schemaVersion"
+        },
+        {
+          "const": "cardID"
+        },
+        {
+          "const": "caseIDs"
+        },
+        {
+          "const": "inventoryExpectations"
+        },
+        {
+          "const": "rules"
+        },
+        {
+          "const": "permutations"
+        },
+        {
+          "const": "hostileCases"
+        },
+        {
+          "const": "interruptionBoundaries"
+        },
+        {
+          "const": "lifecycle"
+        },
+        {
+          "const": "privacy"
+        }
+      ],
+      "type": "array"
+    },
+    "hostedDispatchRan": {
+      "const": false
+    },
+    "hostileFailClosed": {
+      "const": true
+    },
+    "lifecycle": {
+      "additionalProperties": false,
+      "properties": {
+        "backupRestoreDeleteExportCompatibilityRequired": {
+          "const": true
+        },
+        "downgradeDisposition": {
+          "const": "DORMANT_REVERT_ALLOWED"
+        },
+        "lastAcceptedRegistryRemainsActiveUntilReplacementAccepted": {
+          "const": true
+        },
+        "persistentMode": {
+          "const": "DECLARATION_ONLY"
+        },
+        "schemaMigrationRequired": {
+          "const": false
+        },
+        "unclassifiedSubjectAfterRevert": {
+          "const": "FAIL_CLOSED"
+        }
+      },
+      "required": [
+        "persistentMode",
+        "schemaMigrationRequired",
+        "backupRestoreDeleteExportCompatibilityRequired",
+        "downgradeDisposition",
+        "lastAcceptedRegistryRemainsActiveUntilReplacementAccepted",
+        "unclassifiedSubjectAfterRevert"
+      ],
+      "type": "object"
+    },
+    "nativeCompileRan": {
+      "const": false
+    },
+    "phase10PollingDuringParallelExecution": {
+      "const": false
+    },
+    "physicalEvidenceComplete": {
+      "const": false
+    },
+    "provisional": {
+      "const": true
+    },
+    "releaseCredit": {
+      "const": false
+    },
+    "releaseReady": {
+      "const": false
+    },
+    "requiredCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "A01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "ALL_SIX_RULES"
+            },
+            {
+              "const": "TWO_AND_THREE_WAY_PERMUTATIONS"
+            },
+            {
+              "const": "ORDER_INDEPENDENT_IDENTITY"
+            }
+          ],
+          "type": "array"
+        },
+        "G01": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "EXACT_CURRENT_CATALOG"
+            },
+            {
+              "const": "ALL_LIFECYCLE_ROUTES"
+            },
+            {
+              "const": "NO_SEARCH"
+            },
+            {
+              "const": "NO_SECRETS"
+            }
+          ],
+          "type": "array"
+        },
+        "H01": {
+          "items": false,
+          "maxItems": 9,
+          "minItems": 9,
+          "prefixItems": [
+            {
+              "const": "UNKNOWN_SCHEMA_SUBJECT_POLICY_RULE"
+            },
+            {
+              "const": "UNKNOWN_DECLARED_MODEL_OR_FILE_KIND_NAME"
+            },
+            {
+              "const": "SIZE_LIMIT"
+            },
+            {
+              "const": "PRIVACY"
+            },
+            {
+              "const": "SECRET_PORTABILITY_REJECTED"
+            },
+            {
+              "const": "DEPENDENCY_LEAK"
+            },
+            {
+              "const": "COLLISION"
+            },
+            {
+              "const": "PROVIDER_AUTHORITY_REJECTED"
+            },
+            {
+              "const": "PROVIDER_CONTROLLED_RETENTION_REJECTED"
+            }
+          ],
+          "type": "array"
+        },
+        "I01": {
+          "items": false,
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "const": "NAMED_INPUT_DEFERRAL"
+            },
+            {
+              "const": "INTERRUPTION_BOUNDARIES"
+            },
+            {
+              "const": "NO_PARTIAL_RESOLUTION"
+            }
+          ],
+          "type": "array"
+        },
+        "R01": {
+          "items": false,
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "const": "FROZEN_BASIS"
+            },
+            {
+              "const": "RELAUNCH_IDEMPOTENCY"
+            },
+            {
+              "const": "LATE_COMPETITOR_SUCCESSOR"
+            },
+            {
+              "const": "PRIOR_BASIS_IMMUTABLE"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "required": [
+        "G01",
+        "A01",
+        "H01",
+        "I01",
+        "R01"
+      ],
+      "type": "object"
+    },
+    "requiresAcceptedS10_6Reconciliation": {
+      "const": true
+    },
+    "schema": {
+      "const": "ConflictResolutionCorpusManifestV1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "secretsPresent": {
+      "const": false
+    },
+    "testPath": {
+      "const": "FieldEvidenceAppTests/V10_03ReplicationConflictRegistryTests.swift"
+    }
+  },
+  "required": [
+    "schema",
+    "schemaVersion",
+    "cardID",
+    "authority",
+    "fixturePath",
+    "testPath",
+    "fixtureSchema",
+    "fixtureSchemaVersion",
+    "fixtureTopLevelFields",
+    "evidence",
+    "requiredCoverage",
+    "hostileFailClosed",
+    "customerDataPresent",
+    "secretsPresent",
+    "fixtureGeneratedByTooling",
+    "exactFiveTestMethods",
+    "lifecycle",
+    "evidenceIDs",
+    "provisional",
+    "nativeCompileRan",
+    "hostedDispatchRan",
+    "physicalEvidenceComplete",
+    "adoptionEnabled",
+    "acceptanceEnabled",
+    "acceptanceCredit",
+    "releaseReady",
+    "releaseCredit",
+    "phase10PollingDuringParallelExecution",
+    "requiresAcceptedS10_6Reconciliation",
+    "artifactDigest"
+  ],
+  "title": "ConflictResolutionCorpusManifestV1",
+  "type": "object"
+}

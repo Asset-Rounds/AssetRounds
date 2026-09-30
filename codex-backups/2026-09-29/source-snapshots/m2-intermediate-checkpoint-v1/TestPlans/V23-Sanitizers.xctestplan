@@ -1,0 +1,29 @@
+{
+  "configurations": [
+    {
+      "id": "C0900000-0000-4000-8000-000000000004",
+      "name": "Default",
+      "options": {
+        "addressSanitizerEnabled": true,
+        "undefinedBehaviorSanitizerEnabled": true
+      }
+    }
+  ],
+  "defaultOptions": {
+    "targetForVariableExpansion": {
+      "containerPath": "container:FieldEvidenceApp.xcodeproj",
+      "identifier": "A00000000000000000000030",
+      "name": "FieldEvidenceApp"
+    }
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:FieldEvidenceApp.xcodeproj",
+        "identifier": "A00000000000000000000031",
+        "name": "FieldEvidenceAppTests"
+      }
+    }
+  ],
+  "version": 1
+}

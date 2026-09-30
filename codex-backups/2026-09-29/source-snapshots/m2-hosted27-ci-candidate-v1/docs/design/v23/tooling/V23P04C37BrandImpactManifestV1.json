@@ -1,0 +1,33 @@
+{
+  "cardID": "V23-P04-C37",
+  "customerDataPresent": false,
+  "customerSecretsPresent": false,
+  "finalHashesSealed": false,
+  "flags": {
+    "acceptance": false,
+    "acceptanceCredit": false,
+    "adoption": false,
+    "adoptionEvidence": false,
+    "hosted": false,
+    "hostedAcceptance": false,
+    "native": false,
+    "nativeAcceptance": false,
+    "phase10PollingDuringParallelExecution": false,
+    "physicalDevice": false,
+    "physicalEvidence": false,
+    "release": false,
+    "releaseReadiness": false
+  },
+  "licenseTrademarkEvidence": false,
+  "nativeOrHostedAdoption": false,
+  "networkOrSDK": false,
+  "ordinal": 122,
+  "profileState": "DISABLED_NO_SELECTED_PROFILE",
+  "providerSuccessClaim": false,
+  "requiresAcceptedS10_6Reconciliation": true,
+  "schema": "BrandImpactManifestV1",
+  "selectedProfileCount": 0,
+  "syncDeliveryAcceptanceClaim": false,
+  "uiAcceptanceCredit": false,
+  "uiAdoptionSkipped": true
+}

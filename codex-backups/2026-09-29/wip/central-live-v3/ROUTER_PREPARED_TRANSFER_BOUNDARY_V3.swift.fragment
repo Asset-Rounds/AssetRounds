@@ -1,0 +1,88 @@
+    func retainPrepared(_ value: EraseCleanupAfterRetirementV1) throws {
+        guard let router, !detached, prepared == nil, value.binding == binding else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try router.requireEraseRetirementOperation(self)
+        try requireOriginalScratchCleanupCheckedBoundaryIfStarted()
+        prepared = value
+    }
+
+    func detach(coordinator: StoreSessionCoordinator) async throws {
+        guard let router, !detaching, !detached, let prepared, let binding else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        try requireOriginalScratchCleanupCheckedBoundaryIfStarted()
+        #if DEBUG
+        print("V23_ERASE_DETACH_V1 stage=source-proof.enter")
+        #endif
+        try router.requireEraseTransferSource(self, coordinator: coordinator)
+        #if DEBUG
+        print("V23_ERASE_DETACH_V1 stage=source-proof.complete")
+        #endif
+        detaching = true
+        defer { detaching = false }
+        #if DEBUG
+        print("V23_ERASE_DETACH_V1 stage=inventory-seal.enter")
+        #endif
+        if drain == nil { drain = try inventory.seal(binding: binding) }
+        #if DEBUG
+        print("V23_ERASE_DETACH_V1 stage=inventory-seal.complete")
+        #endif
+        guard let drain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        if transferredExclusion == nil {
+            if originalExclusion == nil {
+                if startedExclusionAcquisition {
+                    originalExclusion = try coordinator.retryTemporalNormalizationExclusion()
+                } else {
+                    startedExclusionAcquisition = true
+                    #if DEBUG
+                    print("V23_ERASE_DETACH_V1 stage=exclusion-acquire.enter")
+                    #endif
+                    originalExclusion = try await coordinator.drainTemporalProducersForNormalization()
+                    #if DEBUG
+                    print("V23_ERASE_DETACH_V1 stage=exclusion-acquire.complete")
+                    #endif
+                }
+            }
+            // Retain the returned EX before checking a potentially revoked
+            // outer execution. A failure cannot lose the actual acquired owner.
+            try router.requireEraseTransferSource(self, coordinator: coordinator)
+            guard let originalExclusion else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            #if DEBUG
+            print("V23_ERASE_DETACH_V1 stage=permit.enter")
+            #endif
+            let permit = try router.makeEraseRetirementPermit(ticket, coordinator: coordinator,
+                binding: binding, drain: drain, exclusion: originalExclusion)
+            #if DEBUG
+            print("V23_ERASE_DETACH_V1 stage=permit.complete")
+            #endif
+            #if DEBUG
+            print("V23_ERASE_DETACH_V1 stage=exclusion-transfer.enter")
+            #endif
+            transferredExclusion = try originalExclusion.transferToEraseRetirement(
+                binding: binding, drain: drain, permit: permit)
+            #if DEBUG
+            print("V23_ERASE_DETACH_V1 stage=exclusion-transfer.complete")
+            #endif
+        }
+        guard let transferredExclusion else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        #if DEBUG
+        print("V23_ERASE_DETACH_V1 stage=retirement-retain.enter")
+        #endif
+        retirement = try prepared.retainTransferredExclusion(transferredExclusion, drain: drain)
+        #if DEBUG
+        print("V23_ERASE_DETACH_V1 stage=retirement-retain.complete")
+        #endif
+        // This consuming Router edge drops all of its actual aggregate aliases.
+        // Service/caller frames still must return before the weak witness passes.
+        #if DEBUG
+        print("V23_ERASE_DETACH_V1 stage=aggregate-detach.enter")
+        #endif
+        try router.detachEraseAggregate(self, coordinator: coordinator)
+        #if DEBUG
+        print("V23_ERASE_DETACH_V1 stage=aggregate-detach.complete")
+        #endif
+        originalExclusion = nil
+        detached = true
+    }
+
