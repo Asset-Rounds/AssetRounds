@@ -1277,6 +1277,44 @@ final class EraseAllService {
         "cleanup.notification.root-policy.complete",
         "cleanup.notification.publisher.enter",
         "cleanup.notification.publisher.complete",
+        "cleanup.notification.before-begin.enter",
+        "cleanup.notification.before-begin.complete",
+        "cleanup.notification.marker.enter",
+        "cleanup.notification.marker.complete",
+        "cleanup.notification.after-begin.enter",
+        "cleanup.notification.after-begin.complete",
+        "cleanup.notification.drain.enter",
+        "cleanup.notification.drain.complete",
+        "cleanup.notification.storage-before.enter",
+        "cleanup.notification.storage-before.complete",
+        "cleanup.notification.mapping.enter",
+        "cleanup.notification.mapping.complete",
+        "cleanup.notification.journal.enter",
+        "cleanup.notification.journal.complete",
+        "cleanup.notification.system-remove.enter",
+        "cleanup.notification.system-remove.complete",
+        "cleanup.notification.storage-after-remove.enter",
+        "cleanup.notification.storage-after-remove.complete",
+        "cleanup.notification.system-readback.enter",
+        "cleanup.notification.system-readback.complete",
+        "cleanup.notification.storage-after-readback.enter",
+        "cleanup.notification.storage-after-readback.complete",
+        "cleanup.notification.owned-settlement.enter",
+        "cleanup.notification.owned-settlement.complete",
+        "cleanup.notification.record-removal.enter",
+        "cleanup.notification.record-removal.complete",
+        "cleanup.notification.after-success.enter",
+        "cleanup.notification.after-success.complete",
+        "original.failure.app-access.invalid-value",
+        "original.failure.app-access.invalid-transition",
+        "original.failure.app-access.stale-attempt",
+        "original.failure.app-access.access-denied",
+        "original.failure.app-access.configuration-unknown",
+        "original.failure.app-access.ingress-limit-exceeded",
+        "original.failure.app-access.ingress-not-found",
+        "original.failure.app-access.ingress-already-terminal",
+        "original.failure.app-access.notification-reconciliation-required",
+        "original.failure.app-access.effect-mismatch",
         "original.search.canonical-binding.enter",
         "original.search.checked-publication.enter",
         "original.search.checked-publication.reproved",
@@ -2463,6 +2501,24 @@ final class EraseAllService {
 
     private func traceEraseOriginalFailure(_ error: Error) {
 #if DEBUG
+        if let failure = error as? AppAccessContractFailureV1 {
+            let label: String
+            switch failure {
+            case .invalidValue: label = "original.failure.app-access.invalid-value"
+            case .invalidTransition: label = "original.failure.app-access.invalid-transition"
+            case .staleAttempt: label = "original.failure.app-access.stale-attempt"
+            case .accessDenied: label = "original.failure.app-access.access-denied"
+            case .configurationUnknown: label = "original.failure.app-access.configuration-unknown"
+            case .ingressLimitExceeded: label = "original.failure.app-access.ingress-limit-exceeded"
+            case .ingressNotFound: label = "original.failure.app-access.ingress-not-found"
+            case .ingressAlreadyTerminal: label = "original.failure.app-access.ingress-already-terminal"
+            case .notificationReconciliationRequired: label = "original.failure.app-access.notification-reconciliation-required"
+            case .effectMismatch: label = "original.failure.app-access.effect-mismatch"
+            }
+            let failedStage = eraseFixedPhaseForTesting
+            traceErasePhase(label)
+            print("V23_C05_ORIGINAL_APP_ACCESS_ERROR_DIAG_V1 case=\(label) stage=\(failedStage)")
+        }
         if let failure = error as? EraseAllServiceError {
             let label: String
             switch failure {
@@ -12854,6 +12910,66 @@ private extension EraseAllService {
                 }
                 traceErasePhase("cleanup.notification.publisher.enter")
 #endif
+#if DEBUG
+                let receipt = try await DeviceLocalNotificationOwnerV1
+                    .withOriginalEraseFixedDiagnostics(operationID: value.eraseID, control: notifications,
+                        report: { [weak self] stage in self?.traceErasePhase(stage) }) {
+                    try await DeviceLocalNotificationOwnerV1
+                    .eraseForOriginalRetainedOwner(
+                        control: notifications, system: notificationSystem,
+                        operationID: value.eraseID,
+                        beginMarker: {
+                            try originalAuxiliaryOperation
+                                .publishOriginalEraseAuxiliaryNotificationMarker(
+                                    control: notifications,
+                                    coordinator: coordinator,
+                                    store: intentStore)
+                        },
+                        removeRecords: { absence in
+                            try originalAuxiliaryOperation
+                                .removeOriginalEraseAuxiliaryNotificationRecords(
+                                    absence, control: notifications,
+                                    coordinator: coordinator,
+                                    store: intentStore)
+                        },
+                        beforeBegin: {
+                            try originalAuxiliaryOperation
+                                .beginOriginalEraseAuxiliaryNotification(
+                                    control: notifications,
+                                    coordinator: coordinator,
+                                    store: intentStore)
+#if DEBUG
+                            try self.originalColdExitFrame?
+                                .beforeOriginalNotificationRevocation()
+#endif
+                        }, afterBegin: { revocation in
+#if DEBUG
+                            try self.originalColdExitFrame?
+                                .afterOriginalNotificationRevocation(revocation)
+#endif
+                        }, observedOwnedRefusal: { revocation, owned,
+                            observedOwned in
+#if DEBUG
+                            try self.originalColdExitFrame?
+                                .recordOriginalNotificationRefusal(
+                                    revocation: revocation, owned: owned,
+                                    observedOwned: observedOwned,
+                                    subject: binding.subject)
+#endif
+                        }, afterSuccess: { revocation in
+                            try originalAuxiliaryOperation
+                                .observeOriginalEraseAuxiliaryNotificationSuccess(
+                                    revocation, control: notifications,
+                                    coordinator: coordinator)
+#if DEBUG
+                            try self.originalColdExitFrame?
+                                .afterOriginalNotificationSuccess(revocation)
+                            originalNotificationAfterOSReadback = try notifications
+                                .postRetiredSnapshot(subject: binding.subject)
+#endif
+                        })
+                }
+#else
                 let receipt = try await DeviceLocalNotificationOwnerV1
                     .eraseForOriginalRetainedOwner(
                         control: notifications, system: notificationSystem,
@@ -12908,6 +13024,7 @@ private extension EraseAllService {
                                 .postRetiredSnapshot(subject: binding.subject)
 #endif
                         })
+#endif
 #if DEBUG
                 traceErasePhase("cleanup.notification.publisher.complete")
 #endif

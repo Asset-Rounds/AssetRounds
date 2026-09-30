@@ -1256,6 +1256,36 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
         return result
     }
 
+#if DEBUG
+    private struct OriginalEraseFixedDiagnosticContextV1: Sendable {
+        let operationID: UUID
+        let controlIdentity: ObjectIdentifier
+        let report: @MainActor @Sendable (String) -> Void
+    }
+    @TaskLocal private static var originalEraseFixedDiagnosticContext:
+        OriginalEraseFixedDiagnosticContextV1?
+
+    /// A lexical task scope, not a shared mutable reporter. The operation ID
+    /// is used only to reject inherited callbacks belonging to another owner;
+    /// it is never emitted or used to authorize an effect.
+    static func withOriginalEraseFixedDiagnostics(
+        operationID: UUID, control: any NotificationEraseControlOwnerV1,
+        report: @escaping @MainActor @Sendable (String) -> Void,
+        _ body: @MainActor () async throws -> OriginalEraseNotificationEffectReceiptV1
+    ) async rethrows -> OriginalEraseNotificationEffectReceiptV1 {
+        try await $originalEraseFixedDiagnosticContext.withValue(
+            OriginalEraseFixedDiagnosticContextV1(operationID: operationID,
+                controlIdentity: ObjectIdentifier(control), report: report), operation: body)
+    }
+
+    private static func traceOriginalEraseFixedDiagnostic(
+        _ stage: String, operationID: UUID, control: any NotificationEraseControlOwnerV1) {
+        guard let context = originalEraseFixedDiagnosticContext,
+              context.operationID == operationID,
+              context.controlIdentity == ObjectIdentifier(control) else { return }
+        context.report(stage)
+    }
+#endif
     /// The same source-free implementation serves actual EraseAll recovery.
     static func erase(control: any NotificationEraseControlOwnerV1, system: any NotificationSystemPortV1,
                       operationID: UUID) async throws {
@@ -1358,7 +1388,13 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             OriginalEraseNotificationOSAbsenceReceiptV1) throws -> Void)? = nil,
         requiresOriginalRemoveRecords: Bool = false
     ) async throws -> NotificationEraseRevocationV1 {
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.before-begin.enter", operationID: operationID, control: control)
+#endif
         try beforeBegin?()
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.before-begin.complete", operationID: operationID, control: control)
+#endif
         guard !requiresOriginalBeginMarker ||
                 originalBeginMarker != nil else {
             throw AppAccessContractFailureV1
@@ -1369,6 +1405,9 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             throw AppAccessContractFailureV1
                 .notificationReconciliationRequired
         }
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.marker.enter", operationID: operationID, control: control)
+#endif
         let firstCut: (
             NotificationEraseOwnedIDsProvenanceV1?,
             NotificationEraseRevocationV1)
@@ -1397,21 +1436,54 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
                 operationID: operationID))
         }
         let (provenance, revocation) = firstCut
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.marker.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.after-begin.enter", operationID: operationID, control: control)
+#endif
         try afterBegin?(revocation)
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.after-begin.complete", operationID: operationID, control: control)
+#endif
         if let provenance {
             try coldControl?.requireSchema2ColdOwnedIDs(provenance)
         }
         let priorDrain = try coldControl?.loadSchema2ColdDrainRecord(
             revocation: revocation)
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.drain.enter", operationID: operationID, control: control)
+#endif
         await NotificationAddDrainV1.wait(root: control.notificationRootIdentity)
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.drain.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.storage-before.enter", operationID: operationID, control: control)
+#endif
         try control.verifyNotificationStorage()
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.storage-before.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.mapping.enter", operationID: operationID, control: control)
+#endif
         let mapping = try control.loadPrivateNotificationMapping()
         guard mapping?.entries.allSatisfy({ $0.admissionID == nil }) ?? true else {
             // A killed process may leave an unacknowledged system add. Neither
             // an absent runtime task nor an empty OS snapshot proves its drain.
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.mapping.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.journal.enter", operationID: operationID, control: control)
+#endif
         let journal = try control.loadControl()?.journal
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.journal.complete", operationID: operationID, control: control)
+#endif
         let predecessorOwned = Set((mapping?.ownedRequestIDs ?? []) +
             (journal?.projections.map(\.requestID) ?? []))
         if let provenance {
@@ -1434,10 +1506,37 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
         let owned = priorDrain.map { Set($0.ownedRequestIDs) }
             ?? provenance.map { Set($0.ownedRequestIDs) }
             ?? predecessorOwned
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.system-remove.enter", operationID: operationID, control: control)
+#endif
         try await system.remove(owned.sorted())
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.system-remove.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.storage-after-remove.enter", operationID: operationID, control: control)
+#endif
         try control.verifyNotificationStorage()
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.storage-after-remove.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.system-readback.enter", operationID: operationID, control: control)
+#endif
         let observed = try await system.observations()
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.system-readback.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.storage-after-readback.enter", operationID: operationID, control: control)
+#endif
         try control.verifyNotificationStorage()
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.storage-after-readback.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.owned-settlement.enter", operationID: operationID, control: control)
+#endif
         let observedOwned = Set(observed.map(\.requestID)).intersection(owned)
         guard !NotificationAddDrainV1.isActive(root: control.notificationRootIdentity),
               try control.loadPrivateNotificationMapping() == mapping,
@@ -1448,6 +1547,9 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             try observedOwnedRefusal?(revocation, owned, observedOwned)
             throw AppAccessContractFailureV1.notificationReconciliationRequired
         }
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.owned-settlement.complete", operationID: operationID, control: control)
+#endif
         if let coldControl {
             let record = try NotificationEraseDrainRecordV1(
                 revocation: revocation, ownedRequestIDs: owned)
@@ -1463,6 +1565,9 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
             try coldControl.requireSchema2ColdDrainRecord(
                 record, revocation: revocation)
         }
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.record-removal.enter", operationID: operationID, control: control)
+#endif
         if let originalRemoveRecords {
             try originalRemoveRecords(
                 OriginalEraseNotificationOSAbsenceReceiptV1(
@@ -1472,7 +1577,16 @@ extension AppLockNotificationControlStoreV1: NotificationEraseControlOwnerV1 {}
         } else {
             try control.removeNotificationRecordsAfterErase(revocation)
         }
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.record-removal.complete", operationID: operationID, control: control)
+#endif
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.after-success.enter", operationID: operationID, control: control)
+#endif
         try afterSuccess?(revocation)
+#if DEBUG
+        traceOriginalEraseFixedDiagnostic("cleanup.notification.after-success.complete", operationID: operationID, control: control)
+#endif
         return revocation
     }
 
