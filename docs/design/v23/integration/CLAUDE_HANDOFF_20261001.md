@@ -1,6 +1,6 @@
 # AssetRounds handoff — owner-requested stop, 2026-10-01
 
-Owner requested: stop, save current work, provide a Claude handoff, finish existing tasks and start no more. Then requested an immediate turn restart after disabling fast mode. Do not infer permission to resume from this file. The primary goal is paused until the owner resumes it. Existing Python CI may finish without a new dispatch; see the live-job section.
+Owner requested: stop, save current work, provide a Claude handoff, finish existing tasks and start no more. Then requested an immediate turn restart after disabling fast mode. Do not infer permission to resume from this file. The primary goal is paused until the owner resumes it. The previously running Python CI finished; see the settled-job section. No job is left running from this handoff.
 
 ## Read first and preserve
 
@@ -44,13 +44,13 @@ Actual development verification completed:
 - DEBUG 604-source app compilation: exit 0, 131.326 s; conditional nonDEBUG 604-source compilation: exit 0, 130.232 s. Root packet `.codex-temp/root-auxiliary-retirement-compilation-v1`, `COMPILE_COMPLETE.json` `cb7f164f`, source map `6c70480b`. Swift 5/Onone conditional nonDEBUG is not optimized Release and does not prove linking/runtime.
 - All 306 unit files typechecked against the actual new DEBUG module: exit 0, 35.444 s. Packet `.codex-temp/root-auxiliary-retirement-unit-compilation-v1`, RESULT `18e2bfa5`, module map `751692ea`. Original COMMAND `8276653f` contains stale copied descriptive fields; preserve it. `ADDITIVE_COUPLING_CORRECTION.json` `2429e2a7` truthfully joins the actual new driver/argv/filelist/source/module/result. Same independent reviewer accepted this; no duplicate compilation is due merely to fix metadata.
 - Genuine generator: exit 0, 2.566 s, RESULT `946958e8`, AUDIT `d2d9642b` in `.codex-temp/root-auxiliary-retirement-enrollment-v1/generator-v1`. 3,712 source-censused methods, 33 partitions, 306 files; five additions only in S13, prior 3,707 ordering/assignments/tiers/budgets intact. Eight timing estimates recomputed from historical timing inputs, not current runtime. Post-generation full source map `92f2df0d`; only coverage JSON differs from compilation map.
-- Required CI on `92f2df0d`: native-CI passed 381/381, zero skip/failure/error, exit 0, 232.205 s; RESULT `a61e159a`, log `6e63beb9`. Selection-generator 42 is still running at handoff unless its terminal receipt now exists. Do not claim both suites passed without reading the actual receipt.
+- Required CI on `92f2df0d`: native-CI passed 381/381, zero skip/failure/error, exit 0, 232.205 s; RESULT `a61e159a`, log `6e63beb9`. Selection-generator also passed 42/42, zero skip/failure/error, exit 0, 365.723 s; RESULT `731ad46c`, log `3eed20f9`. Final two-suite RESULT `1a56e1b6` confirms both on unchanged `92f2df0d`. Independent actual CI-result review remains DUE.
 
 New full Xcode build, linked Products, affected native runtime, CI-result review and all gates remain DUE. Cold/legacy cleanup and source-free/extraretired paths remain explicit separate obligations; see `.codex-temp/auxiliary-retirement-cold-legacy-obligations-v1` REPORT `3bf76401`, BINDING `945c46a6`.
 
-## Existing live job — settle before any new work
+## Previously running job — now settled
 
-Root `RUN_CI.py` under `.codex-temp/root-auxiliary-retirement-required-ci-v1` launched one sequential two-suite question using normal `/opt/homebrew/bin/python3 -B`, four workers and unchanged 3,600-second worker watchdog. Exec session `27763` remains open; native-CI child `41185` finished, selection-generator controller `45261` was launched. Read `selection-generator-RESULT.json` and final `RESULT.json` when present; if absent, check the actual process/session. Preserve partial logs and report unknown/incomplete status honestly. Do not launch duplicate suites or kill a healthy existing run just to restart the chat. No Xcode/native/xctrace or deletion is active from this handoff.
+Root `RUN_CI.py` under `.codex-temp/root-auxiliary-retirement-required-ci-v1` ran one sequential two-suite question using normal `/opt/homebrew/bin/python3 -B`, four workers and unchanged 3,600-second worker watchdog. Exec session `27763` CLOSED 0. Native-CI child `41185` and selection-generator controller `45261` both finished. Root read both terminal receipts and final `RESULT.json` `1a56e1b6`; 381/381 and 42/42 pass, no skip/failure/error, all 2,705 source inputs unchanged. This is local development only, not independent review, app runtime or a gate. Do not duplicate those unchanged suites. No Xcode/native/xctrace/deletion or Root CI job remains active. Helpers and assisting chat are stopped/idle.
 
 ## Old failed native original — preserve all of it
 
@@ -86,11 +86,11 @@ The owner connected the Dropbox plugin in Codex. Claude must first inspect its o
 
 ## Coordination and resume order
 
-Owner-authorized assisting chat: `codex://threads/01a0f2f6-76ae-7396-b9fb-9f07a07a10c1?hostId=durable`, exact title **Coordinate AssetRounds build assistance**. Root sent stop/save instructions; it is finishing only its existing five-selector read-only plan and preserving context. Latest observed cursor `e54fdd1b-150c-4bf1-814f-5481ffcfc5f4:63`. No duplicate effects. Private C43 AppShell packet stays unimported/uncompiled; C40–C45 live production journeys and 27-state owner checklist are not acceptance.
+Owner-authorized assisting chat: `codex://threads/01a0f2f6-76ae-7396-b9fb-9f07a07a10c1?hostId=durable`, exact title **Coordinate AssetRounds build assistance**. Root sent stop/save instructions; it finished/sealed the five-selector read-only plan and is idle with preserved context. PLAN `0d1eb14a`, BINDING `912e1262`, SEAL `01937f0e`; no executable implementation or effects. Latest observed cursor `e54fdd1b-150c-4bf1-814f-5481ffcfc5f4:64`. No duplicate effects. Private C43 AppShell packet stays unimported/uncompiled; C40–C45 live production journeys and 27-state owner checklist are not acceptance.
 
 When the owner resumes:
 
-1. Settle/read the existing CI terminal receipts and review their exact scope; inspect Git/worktree state and fresh resources. Reuse the same relevant reviewer context.
+1. Review the completed CI terminal receipts in their exact scope; inspect Git/worktree state and fresh resources. Reuse the same relevant reviewer context.
 2. Finish safe storage admission; obtain an actual fresh full Xcode build and new linked Products for the auxiliary candidate. Prepare/review the bounded five-selector adapter; run every selector once on distinct genuine hosts without reset. Keep old failures/HOLD/DUE coverage.
 3. Resolve actual affected failures by proven family, then integrate a coherent reviewed, compiled and affected-tested checkpoint with explicit paths/non-force push. Do not apply the archived WIP patch as if it were already runtime-verified.
 4. Complete cold payload tooling/qualification, deliberate hosted stabilization, then all five same-head phase gates including genuine owner UI review, main fast-forward and exact-main verification. Full later V23 scope and physical/privacy/release obligations remain.
