@@ -4,7 +4,7 @@ AGENTS.md governs; PERFORMANCE_WORKFLOW.md coordinates lanes. All results below 
 
 ## Where and who
 
-- Observed checkpoint parent/published branch codex/v23-s10-integration-20260910 at414ebc4445d393caff26016a08456b56ec37d50c;19-path development checkpoint staged, independent conditionalGOc59ec13a, final record binding before commit/push due. Git refs are current authority. Main remains acceptedS10b1d04ae5. Latest known hosted36467104007 failed on0de9; no new dispatch.
+- Published code checkpoint codex/v23-s10-integration-20260910 at3c5830e94df0d1c10e4c1a6ff2bdf65114f3a6cf, parent414, exact19-path finalGO88c3eb4e and non-force remote verification. Owner requested stop/save; CLAUDE_HANDOFF_20261001.md and checkpoints/20261001 preserve unfinished source and resume steps. Save-only records commit may follow. Git refs are current authority. Main remains acceptedS10b1d04ae5. Latest known hosted36467104007 failed on0de9; no new dispatch.
 - Every helper GPT-6.1 Sol xhigh; up10+root within useful actualcapacity. Reuse context/disjoint scope. Root alone imports/Git/dispatches/Xcode/native/collects/storage.
 - Owner-authorized assisting chat01a0f2f6-76ae-7396-b9fb-9f07a07a10c1 (durable), title Coordinate AssetRounds build assistance, supplies independent reviews and isolated support. No duplicate builds, collectors or storage effects.
 - Preserve drafts/unowned CODEX_RESUME.md/frozen/V30/ledgers/originals/Products/modules/DeskIn. Never edit S10 receipts/Release or weaken any test/predicate/budget.
@@ -35,7 +35,12 @@ AGENTS.md governs; PERFORMANCE_WORKFLOW.md coordinates lanes. All results below 
 - Dropbox193 verifiedcopies/22.34GB, final152offload17.85GB. Portable EVIDENCE_ARCHIVE_20260930.json/index-v3d40ac supports selective immutableID/revision/hash recovery. Current/future evidence and manifests/logs staylocal; no wholesale restore or deletion of needed build/evidence.
 - Latest measured free4538933248B and memorypressure1 after failed native. Fresh DD would breach3GiB floor; bounded preservation/warm-build plan is read-only and DUE. One root native/buildstream, choose measured worker counts; preserve admissionfloors. No cleanup while adequate.
 
-## Next
+## Owner-requested pause
+
+- New work stopped. Existing CI session27763: native381/381PASS232.205s/a61e159a; selection42 already running45261, terminal receipt must be read before claiming pass. No new dispatch/build/native/cleanup. Auxiliary source-onlyGO2f1fad44 plus actual604DEBUG/nonDEBUG and306typecheck/enrollmentGO29705cc9/ae5e10e7; actualmap6c, only later coverage521c/fullmap92f,3712methods/33partitions. New linked Products/runtime remain due.
+- Cold caller v3 bc445/c381 actual canonical27=21PASS6FAIL0ERROR/c97bca88, independent failure assessment7df3f5f6; exclusive inner assertion unknown, no v4/livecopy. Distinct no-exec diagnosticcd468 equal marshal/semantics does not locate old failure. Cleanup a7fcef is UNEXECUTED/HOLD; no deletion/admission.
+
+## Next after owner resumes
 
 1. Complete isolated authentic auxiliary-control retirement correction, unchanged guards and behavior regressions; same independent review, fresh compilation/storage admission and affected native on corrected inputs. Retain failed original and all remaining coverage obligations.
 2. Continue independent cold caller source correction/review; admit any actual copy/export separately with fresh exact evidence/resources. Assisting chat owns checkpoint transfer checklist; no duplicate builds/collectors/storage effects.

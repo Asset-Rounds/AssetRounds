@@ -1,0 +1,38 @@
+{
+  "acceptance": false,
+  "actualCompileEnrollmentApproval": "29705cc9b86b9bb47137ac4b538c15397d394f79484f0ac0ad5ac272c640a08f",
+  "affectedNativeNotExecuted": true,
+  "atUTC": "2026-10-01T10:21:57.598563+00:00",
+  "basePublishedCodeHead": "3c5830e94df0d1c10e4c1a6ff2bdf65114f3a6cf",
+  "compressedPatchFilename": "AUXILIARY_RETIREMENT_UNINTEGRATED.patch.gz",
+  "compressedPatchSHA256": "caf8e76acc369f3c55fceb727e3b17ae04a678334f545df8281125284777dd98",
+  "paths": {
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift": {
+      "baseSHA256": "d3f620a6018b74c4cc2a0cb547188b32080b2555af202ed5f23a0462553f8edb",
+      "savedBytes": 657575,
+      "savedSHA256": "6a83f09e964b14038432865d24ad8b17b61f3c462976475a971be87d72185a84"
+    },
+    "FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift": {
+      "baseSHA256": "58684317f8cd35f13144f8283310c24c9978bf8a88ba2d2e3430d9ec2c91a898",
+      "savedBytes": 531512,
+      "savedSHA256": "0a0bb59160523431068835dec1b5dc98689b749e4e1393ba7d11cb299dba4e51"
+    },
+    "FieldEvidenceAppTests/V23ProductionAppAccessTests.swift": {
+      "baseSHA256": "902a59226a8e98220b166a707312e2b1540f616d482709b098babc22e29abf31",
+      "savedBytes": 240505,
+      "savedSHA256": "eb2779b593a02187f38eb352b38f65df8d8bd3492c02cd1236214ce52f207349"
+    },
+    "Scripts/v23-coverage-partitions.json": {
+      "baseSHA256": "341a063e9dd0a35f9d6e74677cbf4b76e10caf380fccd3048a17068f1e69cde9",
+      "savedBytes": 488849,
+      "savedSHA256": "521ce33ff25a736019227e1950e256cd414dc214380716c4a68ab541c5a2bd8c"
+    }
+  },
+  "recovery": "Decompress compressedPatchFilename in a fresh owned recovery directory; verify compressedPatchSHA256 and uncompressedPatchSHA256. On a clean separate checkout at basePublishedCodeHead, inspect and git apply --check the recovered patch; apply only after owner resumes, then verify all four savedSHA256 values. Do not apply to existing populated candidate.",
+  "releaseReady": false,
+  "schema": "v23.saved-unintegrated-source-patch.v1",
+  "shippingSourceApplied": false,
+  "sourceApproval": "2f1fad448904c048f7fa42b7a777c8a52f2c8a40f2bd5aba99555c434d8f4f6f",
+  "uncompressedPatchSHA256": "2559296bf46fc0a2dc819c43c06e93e730f83bb04daf03f2d73c7661587b7481",
+  "worktreeHead": "414ebc4445d393caff26016a08456b56ec37d50c"
+}
