@@ -1,0 +1,2105 @@
+{
+  "createdUTC": "2026-10-01T16:48:35.481874+00:00",
+  "scope": "Codex source preservation only; not a complete evidence/Mac backup, reconstructed Git worktree registry, integrated app change or execution-ready tooling package",
+  "publishedBase": "cca175753e0d29b1da4b02eddb88ab75114b7353",
+  "repository": "https://github.com/Asset-Rounds/AssetRounds.git",
+  "excluded": [
+    "Claude worktrees/history and claude-prefixed packets",
+    "large evidence/native Products/raw logs/modules",
+    "Codex authentication/app state databases",
+    "ignored non-source packet assets/JSON configurations/manifests/fixtures",
+    "source in missing live worktrees unless retained in a private Git snapshot or historical checkpoint patch"
+  ],
+  "liveCount": 34,
+  "privateRefCount": 26,
+  "records": [
+    {
+      "kind": "live",
+      "name": "primary",
+      "originalPath": "/Users/rentamac/Developer/AssetRounds",
+      "originalHEAD": "cca175753e0d29b1da4b02eddb88ab75114b7353",
+      "statusPorcelainAtFinalCapture": "?? .DS_Store\n?? FieldEvidenceApp/.DS_Store\n?? FieldEvidenceAppTests/.DS_Store\n?? Scripts/.DS_Store\n?? docs/.DS_Store\n?? docs/design/v23/integration/CODEX_RESUME.md\n?? docs/design/v23/integration/checkpoints/20261001-codex-migration/\n",
+      "diffFromPublishedBase": {
+        "file": "live/primary.patch.gz",
+        "bytes": 20,
+        "sha256": "ac73670af3abed54ac6fb4695131f4099be9fbe39d6076c5d0264a6bbdae9d83",
+        "uncompressedBytes": 0,
+        "uncompressedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "untracked": {
+        "file": "live/primary.untracked.tar.gz",
+        "bytes": 1055,
+        "sha256": "fa594173595ced7ccde562db6443932fa160f1a52916d98fcd4993b89a7bb7d4",
+        "entries": [
+          {
+            "path": "docs/design/v23/integration/CODEX_RESUME.md",
+            "bytes": 1336,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__cold-payload-reader-bridge__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/cold-payload-reader-bridge/AssetRounds",
+      "originalHEAD": "9ee9d6b4e045bb4d02c9d97c9c383fde5db38d72",
+      "statusPorcelainAtFinalCapture": " M Scripts/dev/v23-original.py\n M Scripts/dev/v23-retained-payload.py\n M Scripts/v23-phase1-gates.py\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__cold-payload-reader-bridge__AssetRounds.patch.gz",
+        "bytes": 176360,
+        "sha256": "2d43a3606a48e9ba2e54e401f1549eae4850197cefeb60dc6b48668c66e34035",
+        "uncompressedBytes": 664579,
+        "uncompressedSHA256": "e4b54e545455ddd63916f60be1320f6fa7d4542e719c1440d1e790c49cc77af9"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__cold-payload-reader-bridge__AssetRounds.untracked.tar.gz",
+        "bytes": 118,
+        "sha256": "09dbffb28406abeb031bed05c5e7f7a1ae56f169fe29bdb40973c4986b27f49d",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__cold-payload-retention-tests__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/cold-payload-retention-tests/AssetRounds",
+      "originalHEAD": "6930303b0d5bd65334b2b94832123cb75a79d5a4",
+      "statusPorcelainAtFinalCapture": " M Scripts/dev/test_v23_original.py\n M Scripts/dev/v23-original.py\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__cold-payload-retention-tests__AssetRounds.patch.gz",
+        "bytes": 229712,
+        "sha256": "02caa9070e7a2d7bcd951c749df116f3fc31b757361a627e9f70bc7628c753e2",
+        "uncompressedBytes": 888809,
+        "uncompressedSHA256": "ee61bb4f22ead89eaa9f4a634a9f66091c1eb76a221932e96b195eb94ccba32d"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__cold-payload-retention-tests__AssetRounds.untracked.tar.gz",
+        "bytes": 120,
+        "sha256": "9d284f1be82b11edf78ce2660f94e7449f71ba27475eea7bbf4abc804d5fad29",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__cold-payload-retention__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/cold-payload-retention/AssetRounds",
+      "originalHEAD": "6930303b0d5bd65334b2b94832123cb75a79d5a4",
+      "statusPorcelainAtFinalCapture": " M Scripts/dev/v23-original.py\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__cold-payload-retention__AssetRounds.patch.gz",
+        "bytes": 237174,
+        "sha256": "a92d43ce258722c492d80860cb19c5b47e737dba0829becf4b91e823f2fbb6b3",
+        "uncompressedBytes": 930284,
+        "uncompressedSHA256": "c09f8bb61c0ea02ca32f0047306c8d18cb6dd898adbfec4e15d2a32accda7777"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__cold-payload-retention__AssetRounds.untracked.tar.gz",
+        "bytes": 114,
+        "sha256": "680df19bb11f2a9a77d90bd2290b82d941a92a9bdc1211da12bc4be6268da96c",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__cold-physical-continuation__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/cold-physical-continuation/AssetRounds",
+      "originalHEAD": "93159755395d697a5a9da02f41374120433c50f9",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__cold-physical-continuation__AssetRounds.patch.gz",
+        "bytes": 505835,
+        "sha256": "e850b154eba59646866e8962d8ebc85d7c113137132071982ca1eb05700ec05a",
+        "uncompressedBytes": 2171786,
+        "uncompressedSHA256": "36917490e78768693fd5e5fd385469bd90c83cf576af67007256cf3ff44fae27"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__cold-physical-continuation__AssetRounds.untracked.tar.gz",
+        "bytes": 118,
+        "sha256": "0f68bd11935f4b71e43dccf98fa3e4678786d9e9b2b2da1d1722feeefc7211c7",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__erase-reader-retirement__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/erase-reader-retirement/AssetRounds",
+      "originalHEAD": "7293fb5f2a444c56123d70e7218779f207171d92",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__erase-reader-retirement__AssetRounds.patch.gz",
+        "bytes": 2416823,
+        "sha256": "0325ea053fdfbe6c117a792b15197576e1f5595dec5b8f68120a9f1e83ca6717",
+        "uncompressedBytes": 13442658,
+        "uncompressedSHA256": "ca24e422a93c6c5ace45aff91c4af20ec47069a530480f88ba276beef09fcaa7"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__erase-reader-retirement__AssetRounds.untracked.tar.gz",
+        "bytes": 115,
+        "sha256": "75b306b3f4cb08001b278d0797941c334801095ae761a868f3372941708832a0",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__fixture-lifetime__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/fixture-lifetime/AssetRounds",
+      "originalHEAD": "c66da7f50abfc8d440b75fdf548bbdb9e2d99782",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift\n M FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__fixture-lifetime__AssetRounds.patch.gz",
+        "bytes": 2913411,
+        "sha256": "7654602b234795dd771e85272888a0378157fc4ae1aad674bf3eeee0a2bb5194",
+        "uncompressedBytes": 15378385,
+        "uncompressedSHA256": "868010b92ae560c430135edc940e7bf19e2023b6f4e25f52674733876de70159"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__fixture-lifetime__AssetRounds.untracked.tar.gz",
+        "bytes": 108,
+        "sha256": "c27e8ccf69f1da7493ae75824bac87912a2c2670a43b0eded070e0590ed3caba",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__historical-read__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/historical-read/AssetRounds",
+      "originalHEAD": "aaf9bc626468b36b32ca8cca0e5a3a846bcb7ff0",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift\n M FieldEvidenceApp/Domain/Backup/CheckRunnerPhotoBackupHistoryV1.swift\n M FieldEvidenceApp/Domain/Backup/RepetitiveCaptureSourceGraphReviewV2.swift\n M FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift\n M FieldEvidenceApp/Domain/Content/TemporalEvidenceContractsV1.swift\n M FieldEvidenceApp/Domain/InspectionKernel/FindingContractRegistryV1.swift\n M FieldEvidenceApp/Domain/InspectionKernel/FindingContractsV1.swift\n M FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift\n M FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift\n M FieldEvidenceApp/Domain/Workflow/FinalizationContracts.swift\n M FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift\n M FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionCheckRunnerItemDraftServiceV1.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionRepetitiveCaptureProgressServiceV2.swift\n M FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift\n M FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift\n M FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift\n M FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift\n M FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift\n M FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift\n M FieldEvidenceAppTests/S4_5CorrectionTests.swift\n M FieldEvidenceAppTests/S6_2BackupExportTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift\n M FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift\n M FieldEvidenceAppTests/V9_02FileAuthorityTests.swift\n M FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift\n M FieldEvidenceAppTests/V9_14FindingLifecycleTests.swift\n M FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift\n M FieldEvidenceAppTests/V9_25AuthorityCriterionDerivationTests.swift\n M FieldEvidenceAppTests/V9_30FieldDraftResilienceTests.swift\n M FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift\n M FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests.swift\n M FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests.swift\n M Scripts/v23-coverage-partitions.json\n?? FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift\n?? FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift\n?? FieldEvidenceAppTests/V23FindingInstantParserTests.swift\n?? FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift\n?? FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__historical-read__AssetRounds.patch.gz",
+        "bytes": 2760016,
+        "sha256": "903815f92662e2fa863e031d9b308a3a6533cd7f61eb1db26044c16915f4deb9",
+        "uncompressedBytes": 14657817,
+        "uncompressedSHA256": "d3e4b0bc3c02217e866140e3dd2f9fb95adea24d6a01228333f1f18ca6742d39"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__historical-read__AssetRounds.untracked.tar.gz",
+        "bytes": 21363,
+        "sha256": "8a2580887dd912d97806b6063d09368ca750b4c687497140b660517314918452",
+        "entries": [
+          {
+            "path": "FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift",
+            "bytes": 13153,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift",
+            "bytes": 25116,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23FindingInstantParserTests.swift",
+            "bytes": 12427,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift",
+            "bytes": 19179,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift",
+            "bytes": 26199,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__integration-checkpoint__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/integration-checkpoint/AssetRounds",
+      "originalHEAD": "4a21cccb58f3534b9cdbb19ffda806bd71d7c192",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/App/AppAccessPresentationV1.swift\n M FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift\n M FieldEvidenceApp/App/FieldEvidenceAppApp.swift\n M FieldEvidenceApp/Application/AssetSemantics/AssetLocatorCoordinatorV1.swift\n M FieldEvidenceApp/Application/Content/TemporalEvidenceCoordinatorV1.swift\n M FieldEvidenceApp/Application/FileExchange/EncryptedPortableEnvelopeCoordinatorV1.swift\n M FieldEvidenceApp/Application/ImportExport/ImportBulkCoordinatorV1.swift\n M FieldEvidenceApp/Application/ImportExport/PartyContactSiteRoleImportCoordinatorV1.swift\n M FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift\n M FieldEvidenceApp/Domain/Accountability/PartyAccountabilityContractsV1.swift\n M FieldEvidenceApp/Domain/Backup/CheckRunnerPhotoBackupHistoryV1.swift\n M FieldEvidenceApp/Domain/Backup/RepetitiveCaptureSourceGraphReviewV2.swift\n M FieldEvidenceApp/Domain/Backup/RestoreIdentityV1.swift\n M FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift\n M FieldEvidenceApp/Domain/ImportExport/ImportBulkContractsV1.swift\n M FieldEvidenceApp/Domain/ImportExport/PartyContactSiteRoleImportMutationV1.swift\n M FieldEvidenceApp/Domain/InspectionKernel/FindingContractRegistryV1.swift\n M FieldEvidenceApp/Domain/InspectionKernel/FindingContractsV1.swift\n M FieldEvidenceApp/Domain/Labels/AssetLabelContractsV1.swift\n M FieldEvidenceApp/Domain/Models/OperationalContactPersistenceModelsV1.swift\n M FieldEvidenceApp/Domain/Mutation/MutationReceiptV1.swift\n M FieldEvidenceApp/Domain/Workflow/FinalizationContracts.swift\n M FieldEvidenceApp/Domain/WorkspaceExperience/WorkspaceExperienceContractsV1.swift\n M FieldEvidenceApp/Features/CheckRunner/CheckRunnerContracts.swift\n M FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift\n M FieldEvidenceApp/Features/CheckRunner/ProductionCheckRunnerItemCaptureHostV1.swift\n M FieldEvidenceApp/Infrastructure/AssetSemantics/AssetLocatorLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\n M FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift\n M FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift\n M FieldEvidenceApp/Infrastructure/Drafts/DraftAttachmentStagingAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionCheckRunnerItemDraftServiceV1.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionRepetitiveCaptureProgressServiceV2.swift\n M FieldEvidenceApp/Infrastructure/FileExchange/EncryptedPortableEnvelopeLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift\n M FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift\n M FieldEvidenceApp/Infrastructure/Finalization/FinalizationService.swift\n M FieldEvidenceApp/Infrastructure/ImportExport/ImportBulkLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceQualityLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Media/TemporalEvidenceLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/FastSurveyInboxLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ReinspectionExceptionQueueLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Persistence/WorkspaceWriterAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Recovery/MaintenanceSalvageExportV1.swift\n M FieldEvidenceApp/Infrastructure/Reporting/AssetLabelLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Reporting/DeterministicPDFRendererV1.swift\n M FieldEvidenceApp/Infrastructure/Reporting/ReportProjectionRegistryV1.swift\n M FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift\n M FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift\n M FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Search/PrivateSystemDiscoveryIndexStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Search/SearchIndexRebuildCoordinatorV1.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceApp/Infrastructure/Workflow/RecurringRoundExperienceLifecycleAdapterV1.swift\n M FieldEvidenceAppTests/S2PersistenceLedgerTests.swift\n M FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift\n M FieldEvidenceAppTests/S4_5CorrectionTests.swift\n M FieldEvidenceAppTests/S6_1DeletionGraphTests.swift\n M FieldEvidenceAppTests/S6_2BackupExportTests.swift\n M FieldEvidenceAppTests/S6_3BackupValidationTests.swift\n M FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift\n M FieldEvidenceAppTests/S7_5DataRightsIntegrationTests.swift\n M FieldEvidenceAppTests/TestSupport/PortableContracts/KernelConformanceFixtureHarnessV1.swift\n M FieldEvidenceAppTests/V23BackupManifestMemberTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift\n M FieldEvidenceAppTests/V23CompletedWorkResponseBackupRestoreTests.swift\n M FieldEvidenceAppTests/V23MutationReceiptSafetyTests.swift\n M FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n M FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests.swift\n M FieldEvidenceAppTests/V23SearchReconciliationTests.swift\n M FieldEvidenceAppTests/V23StoreSemanticValidationTests.swift\n M FieldEvidenceAppTests/V9_02FileAuthorityTests.swift\n M FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift\n M FieldEvidenceAppTests/V9_06DeletionArchiveIntegrationTests.swift\n M FieldEvidenceAppTests/V9_06DeletionRightsTests.swift\n M FieldEvidenceAppTests/V9_07CompatibilityCorpusIntegrationTests.swift\n M FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift\n M FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift\n M FieldEvidenceAppTests/V9_11ObservationTemporalSemanticsTests.swift\n M FieldEvidenceAppTests/V9_14FindingLifecycleTests.swift\n M FieldEvidenceAppTests/V9_15AppLockLifecycleTests.swift\n M FieldEvidenceAppTests/V9_30FieldDraftResilienceTests.swift\n M FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests.swift\n M FieldEvidenceAppTests/V9_52AssetLabelTests.swift\n M FieldEvidenceAppTests/V9_53OperationalContactTests.swift\n M FieldEvidenceAppTests/V9_54ActivityContractFamiliesTests.swift\n M FieldEvidenceAppTests/V9_62EncryptedPortableEnvelopeTests.swift\n M FieldEvidenceAppTests/V9_70RoundSessionStateTests.swift\n M FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests.swift\n M FieldEvidenceAppTests/V9_78PrivateSystemDiscoveryTests.swift\n M FieldEvidenceAppTests/V9_79WorkspaceExperienceTests.swift\n M FieldEvidenceAppTests/V9_93AssetLabelOutputTests.swift\n M FieldEvidenceAppTests/V9_95PartyContactSiteRoleImportTests.swift\n M FieldEvidenceAppTests/V9_98RecipientReviewWorkflowTests.swift\n M FieldEvidenceAppUITests/S1ShellUITests.swift\n M Scripts/test-v23-native-ci.py\n M Scripts/test-v23-selection-generator.py\n M Scripts/v23-coverage-partitions.json\n M Scripts/v23-native-ci.py\n?? FieldEvidenceApp/Application/Content/TemporalEvidenceOperationalNormalizerV1.swift\n?? FieldEvidenceApp/Application/Content/TemporalNormalizationContentFamilyReferencesV1.swift\n?? FieldEvidenceApp/Application/Content/TemporalNormalizationOperationalFamilyReferencesV1.swift\n?? FieldEvidenceApp/Infrastructure/Persistence/CompletedAbortSQLitePhysicalImageV1.swift\n?? FieldEvidenceApp/Infrastructure/Persistence/EraseUnadmittedControlObservationV1.swift\n?? FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/\n?? FieldEvidenceAppTests/TemporalCaptureOwnerTests.swift\n?? FieldEvidenceAppTests/TemporalReportEndpointTests.swift\n?? FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests.swift\n?? FieldEvidenceAppTests/TestSupport/V23EraseOperationHarnessV1.swift\n?? FieldEvidenceAppTests/V23BackupSchemaAdmissionTests.swift\n?? FieldEvidenceAppTests/V23C05PublicationAuthorityTests.swift\n?? FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift\n?? FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests.swift\n?? FieldEvidenceAppTests/V23EraseUnadmittedControlObservationTests.swift\n?? FieldEvidenceAppTests/V23FindingInstantParserTests.swift\n?? FieldEvidenceAppTests/V23LateEraseAbandonmentTests.swift\n?? FieldEvidenceAppTests/V23OperationalContactImportAuthorityTests.swift\n?? FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift\n?? FieldEvidenceAppTests/V23TemporalNormalizationTests.swift\n?? FieldEvidenceAppTests/V23TemporalProducerOwnershipTests.swift\n?? FieldEvidenceAppTests/V23TemporalPromotionJournalSeparationTests.swift\n?? FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests.swift\n?? FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests.swift\n?? FieldEvidenceAppTests/V23WholeSignSharedOwnerTests.swift\n?? FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__integration-checkpoint__AssetRounds.patch.gz",
+        "bytes": 2089705,
+        "sha256": "1d1072acc17e0f8d2033bad0f39b44615b6330b76170ed22e3bf352c80ec3dec",
+        "uncompressedBytes": 10487226,
+        "uncompressedSHA256": "b3370fa7e59c4001d849383b867ed3c267d0eba39c955a653a99a05c61d66fb3"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__integration-checkpoint__AssetRounds.untracked.tar.gz",
+        "bytes": 196014,
+        "sha256": "14d9a6dfc33de8f3b164dbe40ac694669bca94954fafbc39f99bf8302a82a9b0",
+        "entries": [
+          {
+            "path": "FieldEvidenceApp/Application/Content/TemporalEvidenceOperationalNormalizerV1.swift",
+            "bytes": 146558,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceApp/Application/Content/TemporalNormalizationContentFamilyReferencesV1.swift",
+            "bytes": 120571,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceApp/Application/Content/TemporalNormalizationOperationalFamilyReferencesV1.swift",
+            "bytes": 85020,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceApp/Infrastructure/Persistence/CompletedAbortSQLitePhysicalImageV1.swift",
+            "bytes": 13593,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceApp/Infrastructure/Persistence/EraseUnadmittedControlObservationV1.swift",
+            "bytes": 8105,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-00.bin",
+            "bytes": 4228,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-01.bin",
+            "bytes": 4525,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-02.bin",
+            "bytes": 4497,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-03.bin",
+            "bytes": 4453,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-04.bin",
+            "bytes": 4543,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-05.bin",
+            "bytes": 4513,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-06.bin",
+            "bytes": 4481,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-07.bin",
+            "bytes": 4501,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-08.bin",
+            "bytes": 45270,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-09.bin",
+            "bytes": 45220,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-10.bin",
+            "bytes": 16090,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-11.bin",
+            "bytes": 2973,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-12.bin",
+            "bytes": 5664,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-13.bin",
+            "bytes": 5659,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-14.bin",
+            "bytes": 2697,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-15.bin",
+            "bytes": 4393,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-16.bin",
+            "bytes": 4367,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-17.bin",
+            "bytes": 4325,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-18.bin",
+            "bytes": 4401,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-19.bin",
+            "bytes": 4379,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-20.bin",
+            "bytes": 4367,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-member-21.bin",
+            "bytes": 4377,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/Fixtures/S6_3LegacyV1/S6_3LegacyV1-provenance.json",
+            "bytes": 8052,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/TemporalCaptureOwnerTests.swift",
+            "bytes": 18561,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/TemporalReportEndpointTests.swift",
+            "bytes": 2250,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/TemporalUncommittedOriginalClassifierTests.swift",
+            "bytes": 14531,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/TestSupport/V23EraseOperationHarnessV1.swift",
+            "bytes": 11012,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests.swift",
+            "bytes": 19520,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23C05PublicationAuthorityTests.swift",
+            "bytes": 7606,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift",
+            "bytes": 54235,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests.swift",
+            "bytes": 23464,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23EraseUnadmittedControlObservationTests.swift",
+            "bytes": 7642,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23FindingInstantParserTests.swift",
+            "bytes": 12427,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23LateEraseAbandonmentTests.swift",
+            "bytes": 24504,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23OperationalContactImportAuthorityTests.swift",
+            "bytes": 7270,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift",
+            "bytes": 19179,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23TemporalNormalizationTests.swift",
+            "bytes": 12553,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23TemporalProducerOwnershipTests.swift",
+            "bytes": 13900,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23TemporalPromotionJournalSeparationTests.swift",
+            "bytes": 9773,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests.swift",
+            "bytes": 43474,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23UnadmittedEraseReturnRouteTests.swift",
+            "bytes": 16724,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23WholeSignSharedOwnerTests.swift",
+            "bytes": 14548,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift",
+            "bytes": 27015,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__ledger-readback-diagnostic__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/ledger-readback-diagnostic/AssetRounds",
+      "originalHEAD": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift\n M FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceAppTests/V9_02FileAuthorityTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__ledger-readback-diagnostic__AssetRounds.patch.gz",
+        "bytes": 345186,
+        "sha256": "493acee4672a1007821b4d483f875621aa09e02ab7a6c1f1e88ec38f89ca6a74",
+        "uncompressedBytes": 1218115,
+        "uncompressedSHA256": "49ac8798534a1122c6403520c05e090e19c94d573d022ac1469b1bb015e9a0aa"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__ledger-readback-diagnostic__AssetRounds.untracked.tar.gz",
+        "bytes": 118,
+        "sha256": "46ae29348a26b1b779f3c289a54be0868c30a2b5212913aa79d233b5af60ee59",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__legacy-package-producer__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/legacy-package-producer/AssetRounds",
+      "originalHEAD": "b1d04ae5e684aa9c6807af655089efa1df8a7ed6",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceAppTests/S6_3BackupValidationTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__legacy-package-producer__AssetRounds.patch.gz",
+        "bytes": 16997134,
+        "sha256": "0914c614a60fe313c0d84eecc059c77f89fbcebd2959fceddc4989540db63168",
+        "uncompressedBytes": 132191789,
+        "uncompressedSHA256": "27be9a0fd6f355685d26e52322a03406d2e969c0e671801ef134766001592a30"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__legacy-package-producer__AssetRounds.untracked.tar.gz",
+        "bytes": 115,
+        "sha256": "9778ed63302680a46f80e142e6f5f694f5f5dea0687b4006979a0843da7e1cba",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__live-notification-absence__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/live-notification-absence/AssetRounds",
+      "originalHEAD": "dbdb4649e3e405eb50a1d2b443c8d7c061831a1a",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__live-notification-absence__AssetRounds.patch.gz",
+        "bytes": 517492,
+        "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+        "uncompressedBytes": 2204856,
+        "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__live-notification-absence__AssetRounds.untracked.tar.gz",
+        "bytes": 117,
+        "sha256": "0171f34a93f96b993529d0cbf5ce0a76d31e803b8350f2f8b8a2272537de8b2a",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__next-app-access__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/next-app-access/AssetRounds",
+      "originalHEAD": "414ebc4445d393caff26016a08456b56ec37d50c",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n M Scripts/dev/v23-original.py\n M Scripts/dev/v23-retained-payload.py\n M Scripts/test-v23-native-ci.py\n M Scripts/v23-coverage-partitions.json\n M Scripts/v23-native-ci.py\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__next-app-access__AssetRounds.patch.gz",
+        "bytes": 114184,
+        "sha256": "3262569dbc5859e94fde5933f0e15097792d38c450083b2160b9d2ee47a01c89",
+        "uncompressedBytes": 410095,
+        "uncompressedSHA256": "48982c9aa80757a2021837655e1eb666a6b6475ddc15946d7faae5a6d7cb2227"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__next-app-access__AssetRounds.untracked.tar.gz",
+        "bytes": 107,
+        "sha256": "5e95c8efdbbbe53e963f6cbd3b442ba0d0c185ebb8103f70228e77b17cf6cb60",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__original-model-alias__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/original-model-alias/AssetRounds",
+      "originalHEAD": "414ebc4445d393caff26016a08456b56ec37d50c",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n M Scripts/dev/v23-original.py\n M Scripts/dev/v23-retained-payload.py\n M Scripts/test-v23-native-ci.py\n M Scripts/v23-coverage-partitions.json\n M Scripts/v23-native-ci.py\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__original-model-alias__AssetRounds.patch.gz",
+        "bytes": 106333,
+        "sha256": "95888d3c6b5feffb0251712b3ce0bcee16d81f47f0c82dc7554235161eb571c4",
+        "uncompressedBytes": 358845,
+        "uncompressedSHA256": "8a5f3b21076355094894db9bd231c5eb07f916df9c2db96c09ef35fed158ad61"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__original-model-alias__AssetRounds.untracked.tar.gz",
+        "bytes": 112,
+        "sha256": "def673ed26c203a353e52a4b19453bd1f214419040e73ca0d3272ccc2dab97df",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__original-scratch-cleanup__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/original-scratch-cleanup/AssetRounds",
+      "originalHEAD": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__original-scratch-cleanup__AssetRounds.patch.gz",
+        "bytes": 458846,
+        "sha256": "f1225389c79c1a34e265e57f3899352e7e3f3f6cb26720323fb5e3837de76252",
+        "uncompressedBytes": 1964005,
+        "uncompressedSHA256": "7bd2db286bb3bfa87cc101cf31c05093c3b318057925dabeb7c045a2055120d1"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__original-scratch-cleanup__AssetRounds.untracked.tar.gz",
+        "bytes": 116,
+        "sha256": "435013770774491787980165eff46f8e4f8a832afcf92040da3ae856664fe711",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__original-target-reader__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/original-target-reader/AssetRounds",
+      "originalHEAD": "de779b09e013e7cf4f560594d2bc49a8feec3db3",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift\n M FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift\n M FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift\n M FieldEvidenceApp/Infrastructure/Persistence/CompletedAbortSQLitePhysicalImageV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift\n M FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift\n M FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceApp/Infrastructure/Workflow/RecurringRoundExperienceLifecycleAdapterV1.swift\n M FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n?? FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__original-target-reader__AssetRounds.patch.gz",
+        "bytes": 830170,
+        "sha256": "cfa044da6ba6c5b51d2d51ef67234db8cd642cc9b099275a837295944e5a4070",
+        "uncompressedBytes": 3761413,
+        "uncompressedSHA256": "d54601099bca18e731bb12b13cf854d53991618ce2f48be0e4a2eab60bbed160"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__original-target-reader__AssetRounds.untracked.tar.gz",
+        "bytes": 3845,
+        "sha256": "e33d25b2fa060e6170a08e8c4aac805ffe4767f3cb229aabfdce597701fd9c90",
+        "entries": [
+          {
+            "path": "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+            "bytes": 15862,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__parent-directory-link-law__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/parent-directory-link-law/AssetRounds",
+      "originalHEAD": "6930303b0d5bd65334b2b94832123cb75a79d5a4",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__parent-directory-link-law__AssetRounds.patch.gz",
+        "bytes": 231458,
+        "sha256": "05e95b419f8a97e28e35168089f1a3be8ad951a0d2d55053298115e2bc78a6d4",
+        "uncompressedBytes": 901547,
+        "uncompressedSHA256": "7cf99d37cd7225a48899d38f1dfdb6095f11d4f5d2d604557f554dda719149b5"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__parent-directory-link-law__AssetRounds.untracked.tar.gz",
+        "bytes": 117,
+        "sha256": "3517b9c01b4a2ebc6e4621724053a9724e9a90b67a6890de0b73955d2f91ec26",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__parent-directory-link-tests__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/parent-directory-link-tests/AssetRounds",
+      "originalHEAD": "6930303b0d5bd65334b2b94832123cb75a79d5a4",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__parent-directory-link-tests__AssetRounds.patch.gz",
+        "bytes": 229214,
+        "sha256": "86ad3c9250dee780cf3b02796309f054ed9c3689715e2f5e3acb93bf3d96db7b",
+        "uncompressedBytes": 887762,
+        "uncompressedSHA256": "f57bc45d1d5ee9028d3adf66af6c69908904c89bf78754fbb7f87f2d50d6363f"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__parent-directory-link-tests__AssetRounds.untracked.tar.gz",
+        "bytes": 119,
+        "sha256": "4adad821916954f776ff29d3b50db6b5a65f36a70dcc9afff0f91f137b1a117d",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__photo-continuation__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/photo-continuation/AssetRounds",
+      "originalHEAD": "aab6d3036a7a3b8a968465a93546342e091b7e1a",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift\n M FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift\n M FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionCheckRunnerItemDraftServiceV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift\n M FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift\n M FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests.swift\n M FieldEvidenceAppTests/V23ProductionCheckRunnerItemHostTests.swift\n M FieldEvidenceAppTests/V23RepetitiveCaptureProgressDraftPayloadV2Tests.swift\n M FieldEvidenceAppTests/V9_45EvidenceContextTests.swift\n M FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests.swift\n M Scripts/v23-coverage-partitions.json\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__photo-continuation__AssetRounds.patch.gz",
+        "bytes": 2882569,
+        "sha256": "7e33445609654621a1f41f8e58bc143f23a9b9685e54689d598e60e6af01e3fd",
+        "uncompressedBytes": 15198841,
+        "uncompressedSHA256": "139d9cba38555f0d61667c3a073c5b3876d3a2bf86b54d96c744980c2d6766e0"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__photo-continuation__AssetRounds.untracked.tar.gz",
+        "bytes": 110,
+        "sha256": "c99a3d90af14ff8253669daef2e3d1edab7f6159b00f5d0ffccfd9ad41276a8f",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__photo-crash-diagnostic__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/photo-crash-diagnostic/AssetRounds",
+      "originalHEAD": "aaf9bc626468b36b32ca8cca0e5a3a846bcb7ff0",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/App/AppAccessPresentationV1.swift\n M FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift\n M FieldEvidenceApp/Domain/Backup/CheckRunnerPhotoBackupHistoryV1.swift\n M FieldEvidenceApp/Domain/Backup/RepetitiveCaptureSourceGraphReviewV2.swift\n M FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift\n M FieldEvidenceApp/Domain/Content/TemporalEvidenceContractsV1.swift\n M FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift\n M FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift\n M FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift\n M FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\n M FieldEvidenceApp/Infrastructure/Commerce/EntitlementStore.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/OrphanFileCleanupService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift\n M FieldEvidenceApp/Infrastructure/Drafts/DraftAttachmentStagingAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionCheckRunnerItemDraftServiceV1.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionRepetitiveCaptureProgressServiceV2.swift\n M FieldEvidenceApp/Infrastructure/Finalization/FinalizationIntentStore.swift\n M FieldEvidenceApp/Infrastructure/Finalization/FinalizationRecoveryService.swift\n M FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift\n M FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift\n M FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift\n M FieldEvidenceApp/Infrastructure/Recovery/MaintenanceSalvageExportV1.swift\n M FieldEvidenceApp/Infrastructure/Reporting/ReportRecoveryService.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift\n M FieldEvidenceAppTests/S6_2BackupExportTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift\n M FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift\n M FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift\n M FieldEvidenceAppTests/V9_10LifecycleBoundaryTests.swift\n M FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift\n M FieldEvidenceAppTests/V9_25AuthorityCriterionDerivationTests.swift\n M FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift\n M FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests.swift\n M FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests.swift\n M Scripts/v23-coverage-partitions.json\n?? FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift\n?? FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift\n?? FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift\n?? FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__photo-crash-diagnostic__AssetRounds.patch.gz",
+        "bytes": 2774569,
+        "sha256": "a4d3d5de76d2f64f7dda32c8d77c01fd4cc99fbc2020208f1ad7fb56206a5d1c",
+        "uncompressedBytes": 14737353,
+        "uncompressedSHA256": "ba491b23a6f9d51b04fc82d58b67da7d6e52ed615ab14baaffdf704c5bd9dd5c"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__photo-crash-diagnostic__AssetRounds.untracked.tar.gz",
+        "bytes": 17916,
+        "sha256": "9c96bbd93b34a07919cf76926b2710ebbe9acd96d8ed60e860dc456aae9f8b71",
+        "entries": [
+          {
+            "path": "FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift",
+            "bytes": 13153,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift",
+            "bytes": 25116,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift",
+            "bytes": 19179,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift",
+            "bytes": 26199,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__post-close-drain__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/post-close-drain/AssetRounds",
+      "originalHEAD": "414ebc4445d393caff26016a08456b56ec37d50c",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n M Scripts/dev/v23-original.py\n M Scripts/dev/v23-retained-payload.py\n M Scripts/test-v23-native-ci.py\n M Scripts/v23-coverage-partitions.json\n M Scripts/v23-native-ci.py\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__post-close-drain__AssetRounds.patch.gz",
+        "bytes": 97957,
+        "sha256": "2bf8badcfd0e9f546bbe1a2603d8a31e4c9035ff13ee504987bd0701302d4f44",
+        "uncompressedBytes": 312532,
+        "uncompressedSHA256": "ea9ed900e9e7db3e313d97e094206f3b05c928209efb44eca252821a204f9c38"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__post-close-drain__AssetRounds.untracked.tar.gz",
+        "bytes": 108,
+        "sha256": "9cb60263d687865bc89427420a3d9633c800703ce9116939576f647930bc23c6",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__report-full-source__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/report-full-source/AssetRounds",
+      "originalHEAD": "aaf9bc626468b36b32ca8cca0e5a3a846bcb7ff0",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Domain/InspectionKernel/WorkPacketManifestContractsV1.swift\n M FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift\n M FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift\n M FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift\n M FieldEvidenceAppTests/S4_1DeterministicRendererTests.swift\n M FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift\n M FieldEvidenceAppTests/V9_25AuthorityCriterionDerivationTests.swift\n M FieldEvidenceAppTests/V9_44PlacementPoseTests.swift\n M Scripts/v23-coverage-partitions.json\n?? FieldEvidenceAppTests/TestSupport/C37PoseTestSupport.swift\n?? FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__report-full-source__AssetRounds.patch.gz",
+        "bytes": 2726427,
+        "sha256": "832be01265b14ecde36ead99f47f57b654ccac607d483afc2674f97046b5776c",
+        "uncompressedBytes": 14234560,
+        "uncompressedSHA256": "ce28a07061c3d3f92f462a19c99b9320ad302b22df6ede733546ed52cf1a4b9d"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__report-full-source__AssetRounds.untracked.tar.gz",
+        "bytes": 6566,
+        "sha256": "277b205b4059d3f01f24ebd2485b06175ad2f8da68a4171f1c3597385f4926cf",
+        "entries": [
+          {
+            "path": "FieldEvidenceAppTests/TestSupport/C37PoseTestSupport.swift",
+            "bytes": 17091,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift",
+            "bytes": 13153,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__report-publication-basis__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/report-publication-basis/AssetRounds",
+      "originalHEAD": "aab6d3036a7a3b8a968465a93546342e091b7e1a",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift\n M FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift\n M FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift\n M FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift\n M FieldEvidenceAppTests/V9_25AuthorityCriterionDerivationTests.swift\n M Scripts/v23-coverage-partitions.json\n?? FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__report-publication-basis__AssetRounds.patch.gz",
+        "bytes": 2893681,
+        "sha256": "0465333a2bd663f150c86697a3f93b9675130e6c5b996ee66339fde822bcad9a",
+        "uncompressedBytes": 15284907,
+        "uncompressedSHA256": "0e971a0b84c3424be9828abad8144a52ca5b7a04a5616252015768acc1009b33"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__report-publication-basis__AssetRounds.untracked.tar.gz",
+        "bytes": 3296,
+        "sha256": "8c6206bc0f4a9e238ac40695daa36e049a14421c7079c8d174e37ed2d1b713ea",
+        "entries": [
+          {
+            "path": "FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift",
+            "bytes": 13153,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__restore-frontier__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/restore-frontier/AssetRounds",
+      "originalHEAD": "aaf9bc626468b36b32ca8cca0e5a3a846bcb7ff0",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift\n M FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift\n M FieldEvidenceApp/Domain/Content/TemporalEvidenceContractsV1.swift\n M FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift\n M FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift\n M FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift\n M FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionCheckRunnerItemDraftServiceV1.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionRepetitiveCaptureProgressServiceV2.swift\n M FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift\n M FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceAppTests/S6_2BackupExportTests.swift\n M FieldEvidenceAppTests/S6_3BackupValidationTests.swift\n M FieldEvidenceAppTests/V23BackupManifestMemberTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift\n M FieldEvidenceAppTests/V23MutationReceiptSafetyTests.swift\n M FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift\n M FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift\n M FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift\n M FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift\n M FieldEvidenceAppTests/V9_25AuthorityCriterionDerivationTests.swift\n M FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift\n M FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests.swift\n M FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests.swift\n M Scripts/v23-coverage-partitions.json\n?? FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift\n?? FieldEvidenceAppTests/V23BackupSchemaAdmissionTests.swift\n?? FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift\n?? FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift\n?? FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__restore-frontier__AssetRounds.patch.gz",
+        "bytes": 2779023,
+        "sha256": "3f4b24c79e383297ad849552b619e5f35f27b08d8cd72704a2e6c63e7d6d0971",
+        "uncompressedBytes": 14738237,
+        "uncompressedSHA256": "1a031b95ad97ba8bb00fc44b821d3fab7424eecb0a08dca1cc68010e4711ce66"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__restore-frontier__AssetRounds.untracked.tar.gz",
+        "bytes": 25252,
+        "sha256": "c4e5037a72a65d0c86ed14981a0463841158897cf3cae3bacbfe20e1dd1038e8",
+        "entries": [
+          {
+            "path": "FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift",
+            "bytes": 13153,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests.swift",
+            "bytes": 19520,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift",
+            "bytes": 43123,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift",
+            "bytes": 19179,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift",
+            "bytes": 27015,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__resume-recovery__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/resume-recovery/AssetRounds",
+      "originalHEAD": "aab6d3036a7a3b8a968465a93546342e091b7e1a",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Application/Content/TemporalEvidenceCaptureCoordinatorV1.swift\n M FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift\n M FieldEvidenceApp/Domain/Content/TemporalEvidenceContractsV1.swift\n M FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift\n M FieldEvidenceApp/Infrastructure/Media/TemporalEvidenceCaptureLifecycleAdapterV1.swift\n M FieldEvidenceApp/PrivacyInfo.xcprivacy\n M FieldEvidenceAppTests/S3_4ResumeRecoveryTests.swift\n M FieldEvidenceAppTests/S6_2BackupExportTests.swift\n M FieldEvidenceAppTests/S6_4AtomicRestoreTests.swift\n M FieldEvidenceAppTests/S9_1ReleasePreflightTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerItemFieldEditingTests.swift\n M FieldEvidenceAppTests/V23MutationReceiptSafetyTests.swift\n M FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift\n M FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift\n M FieldEvidenceAppTests/V9_45EvidenceContextTests.swift\n M FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests.swift\n M FieldEvidenceAppTests/V9_88TemporalEvidenceCaptureTests.swift\n M Scripts/test-v23-native-ci.py\n M Scripts/v23-coverage-partitions.json\n M docs/design/v23/integration/privacy-supply-chain-review-v23.json\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__resume-recovery__AssetRounds.patch.gz",
+        "bytes": 2862638,
+        "sha256": "e56ae10c801e3955a8eb8ae9b5243d17971055fc840a69a07c8e2156033eedac",
+        "uncompressedBytes": 15100839,
+        "uncompressedSHA256": "e3c3a3458d9c9a727512b5edb09e042f8626e10547c85b1f5de60e92d835975a"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__resume-recovery__AssetRounds.untracked.tar.gz",
+        "bytes": 107,
+        "sha256": "61532b9e279c0dbd2f1481329b501b0d96c43e2c9b051b08a8fedf30c2f77bf2",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__retired-pointer-commitment__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/retired-pointer-commitment/AssetRounds",
+      "originalHEAD": "de779b09e013e7cf4f560594d2bc49a8feec3db3",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/App/Composition/ProductionCompositionRoot.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseIntentStore.swift\n M FieldEvidenceApp/Infrastructure/Deletion/WholeSignDeletionService.swift\n M FieldEvidenceApp/Infrastructure/Jobs/LocalJobStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Jobs/ResumableLocalJobRunnerV1.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift\n M FieldEvidenceApp/Infrastructure/Persistence/CompletedAbortSQLitePhysicalImageV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Reporting/ReportDeliveryCoordinator.swift\n M FieldEvidenceApp/Infrastructure/ReviewExchange/PortableExchangeSessionStoreV2.swift\n M FieldEvidenceApp/Infrastructure/Search/LocalSearchIndexStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceApp/Infrastructure/Workflow/RecurringRoundExperienceLifecycleAdapterV1.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n?? FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__retired-pointer-commitment__AssetRounds.patch.gz",
+        "bytes": 888833,
+        "sha256": "5a0021998a8c04c47ee50599a4b2566f7d878b0e1fe3d458b98decdcc074b4f9",
+        "uncompressedBytes": 4193888,
+        "uncompressedSHA256": "c1d7b0da851e619275d9ed2c338d552bade9b63e574a198e1d6db46e2dc53964"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__retired-pointer-commitment__AssetRounds.untracked.tar.gz",
+        "bytes": 3847,
+        "sha256": "840b8639752089ef5b010c83877e441b13129bb89c62c83645b4b6c418b07e88",
+        "entries": [
+          {
+            "path": "FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift",
+            "bytes": 15862,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__temporal-recovery__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/temporal-recovery/AssetRounds",
+      "originalHEAD": "aaf9bc626468b36b32ca8cca0e5a3a846bcb7ff0",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/Application/Content/TemporalEvidenceCoordinatorV1.swift\n M FieldEvidenceApp/Application/Mutation/WorkspaceWriterV1.swift\n M FieldEvidenceApp/Domain/Backup/V4BackupContracts.swift\n M FieldEvidenceApp/Domain/Content/TemporalEvidenceContractsV1.swift\n M FieldEvidenceApp/Domain/Packs/SurveyDefinitionContractsV1.swift\n M FieldEvidenceApp/Domain/Reporting/ReportProjectionContractsV1.swift\n M FieldEvidenceApp/Domain/Workflow/ReportSnapshotV1.swift\n M FieldEvidenceApp/Features/CheckRunner/CheckRunnerCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalDecoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupCanonicalEncoderV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupPackageValidatorV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupRestoreService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionCheckRunnerItemDraftServiceV1.swift\n M FieldEvidenceApp/Infrastructure/Drafts/ProductionRepetitiveCaptureProgressServiceV2.swift\n M FieldEvidenceApp/Infrastructure/Finalization/ReportSnapshotEncoderV1.swift\n M FieldEvidenceApp/Infrastructure/Media/EvidenceBundleStore.swift\n M FieldEvidenceApp/Infrastructure/Media/TemporalEvidenceLifecycleAdapterV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/MutationJournal/MutationJournalStoreV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceAppTests/S6_2BackupExportTests.swift\n M FieldEvidenceAppTests/S6_3BackupValidationTests.swift\n M FieldEvidenceAppTests/V23BackupManifestMemberTests.swift\n M FieldEvidenceAppTests/V23CheckRunnerFrozenBeginPreparationTests.swift\n M FieldEvidenceAppTests/V23MutationReceiptSafetyTests.swift\n M FieldEvidenceAppTests/V23PartsStockReplacementHistoryTests.swift\n M FieldEvidenceAppTests/V9_05RestoreIdentityTests.swift\n M FieldEvidenceAppTests/V9_08GenerationLeaseTests.swift\n M FieldEvidenceAppTests/V9_16SnapshotProjectionTests.swift\n M FieldEvidenceAppTests/V9_25AuthorityCriterionDerivationTests.swift\n M FieldEvidenceAppTests/V9_39SurveyDefinitionTests.swift\n M FieldEvidenceAppTests/V9_49TemporalEvidenceClipTests.swift\n M FieldEvidenceAppTests/V9_74EvidenceQualityCoachTests.swift\n M Scripts/v23-coverage-partitions.json\n?? FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift\n?? FieldEvidenceAppTests/V23BackupSchemaAdmissionTests.swift\n?? FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift\n?? FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift\n?? FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests.swift\n?? FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__temporal-recovery__AssetRounds.patch.gz",
+        "bytes": 2769650,
+        "sha256": "d597a68e9fce0dd57c9752f1b729b73bfeb209d62cdd16d2f51e1eee29d48578",
+        "uncompressedBytes": 14671711,
+        "uncompressedSHA256": "a19bb73172bf6a35f6a87267aa7d3ace25ff6f3996d0c0d51d498448dda2a12a"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__temporal-recovery__AssetRounds.untracked.tar.gz",
+        "bytes": 33484,
+        "sha256": "5b12a825cd050fe27f91ce67c9d900a407632a760840bc0908299f78ec53ad8d",
+        "entries": [
+          {
+            "path": "FieldEvidenceAppTests/TestSupport/C40AuthorityCriterionFixtureV1.swift",
+            "bytes": 13153,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23BackupSchemaAdmissionTests.swift",
+            "bytes": 19520,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23ErasePreexistingRetiredAuthorityTests.swift",
+            "bytes": 43123,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23StartupMediaOwnershipReadTests.swift",
+            "bytes": 19179,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23TemporalPublicationRecoveryTests.swift",
+            "bytes": 43474,
+            "type": "0",
+            "linkname": ""
+          },
+          {
+            "path": "FieldEvidenceAppTests/V23WorkPacketRestoreProjectionTests.swift",
+            "bytes": 27015,
+            "type": "0",
+            "linkname": ""
+          }
+        ]
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__terminal-fd-fence__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/terminal-fd-fence/AssetRounds",
+      "originalHEAD": "1867edb19436c5243cbfccbd9bf2404b39abf53a",
+      "statusPorcelainAtFinalCapture": " M FieldEvidenceApp/App/AppAccessPresentationV1.swift\n M FieldEvidenceApp/Infrastructure/Backup/BackupExportService.swift\n M FieldEvidenceApp/Infrastructure/Deletion/EraseAllService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/EraseSchema2ColdAuxiliaryFirstObservationV1.swift\n M FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StartupRouter.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreGenerationFactory.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreMigrationService.swift\n M FieldEvidenceApp/Infrastructure/Persistence/StoreSessionCoordinator.swift\n M FieldEvidenceApp/Infrastructure/Storage/OwnedStorageLedgerV1.swift\n M FieldEvidenceApp/Infrastructure/Workflow/RecurringRoundExperienceLifecycleAdapterV1.swift\n M FieldEvidenceAppTests/S6_6EraseRecoveryTests.swift\n M FieldEvidenceAppTests/V23ProductionAppAccessTests.swift\n M FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests.swift\n M Scripts/test-v23-native-ci.py\n M Scripts/v23-coverage-partitions.json\n M Scripts/v23-dev-batch.json\n M Scripts/v23-native-ci.py\n",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__terminal-fd-fence__AssetRounds.patch.gz",
+        "bytes": 604411,
+        "sha256": "41d7778c98da9f99088d073345e5fe364cb2bf1b0f0b24dff591b59b62fbedea",
+        "uncompressedBytes": 2546325,
+        "uncompressedSHA256": "d8a242cefece9f2a3c21c450d30787bf403878065f4e601a7204a397ff887407"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__terminal-fd-fence__AssetRounds.untracked.tar.gz",
+        "bytes": 109,
+        "sha256": "66afb312fe1751aa09368ea0b8e7727efd6776ed9ece4abcead03c5cb3f82edb",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": ".codex__worktrees__v949-fixture-migration__AssetRounds",
+      "originalPath": "/Users/rentamac/.codex/worktrees/v949-fixture-migration/AssetRounds",
+      "originalHEAD": "b34cb89291dbf2ccd87cdb3b4aa876a9a099f001",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/.codex__worktrees__v949-fixture-migration__AssetRounds.patch.gz",
+        "bytes": 2375854,
+        "sha256": "d207aa420b660f661baf8cdd95425a3e9021772fd64e3398c4c9ae321e681257",
+        "uncompressedBytes": 13295897,
+        "uncompressedSHA256": "4ac214f5a5e05c9a997f7ad039c437a7d58a3bebba73eeacfe214b83ef1c93dd"
+      },
+      "untracked": {
+        "file": "live/.codex__worktrees__v949-fixture-migration__AssetRounds.untracked.tar.gz",
+        "bytes": 114,
+        "sha256": "1c90d75a76c511194cb61fed2ddc708836e2698958470f2bc73a4141a378b28d",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": "Developer__wt__anchors",
+      "originalPath": "/Users/rentamac/Developer/wt/anchors",
+      "originalHEAD": "d4a60543158b78706ca8767e4dc0f5301faab716",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/Developer__wt__anchors.patch.gz",
+        "bytes": 3452934,
+        "sha256": "86678d7d6c3892579fd33aabfd4ebcbeed6e929162a6a0a364b921dc9a6bca01",
+        "uncompressedBytes": 18491086,
+        "uncompressedSHA256": "13b07f813b7a93a5e6b88ade2c79600a5348859d6f8efd0730b7b34c0370f981"
+      },
+      "untracked": {
+        "file": "live/Developer__wt__anchors.untracked.tar.gz",
+        "bytes": 82,
+        "sha256": "8b1afdbdcb77388c899c7c5d43cf3bd017835fead38e9940e0aa8bfc01b0f95a",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": "Developer__wt__c13",
+      "originalPath": "/Users/rentamac/Developer/wt/c13",
+      "originalHEAD": "4c4fce741aa7d8aaf3902f1f6a9920d84e800c47",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/Developer__wt__c13.patch.gz",
+        "bytes": 3454371,
+        "sha256": "18c2fdf8712b25e5e0366b3b12fbe63ef4448a16ddca1d9b221012258e6e41be",
+        "uncompressedBytes": 18498362,
+        "uncompressedSHA256": "65168ab43743e9cbe18a943dae1816a8b5acd149315fa98b2aea48768386a7a7"
+      },
+      "untracked": {
+        "file": "live/Developer__wt__c13.untracked.tar.gz",
+        "bytes": 78,
+        "sha256": "b87bbbf3e1ce942f7ad6e2230df5d49f10d9d34eec41773e982dfe6eaf445167",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": "Developer__wt__clone",
+      "originalPath": "/Users/rentamac/Developer/wt/clone",
+      "originalHEAD": "367e48546aadadf9a0580c73818d0a074860fc82",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/Developer__wt__clone.patch.gz",
+        "bytes": 3455127,
+        "sha256": "35eff3faadacfc03f1dbbf903d64556a986b9e620dc343a555150d135388d162",
+        "uncompressedBytes": 18503105,
+        "uncompressedSHA256": "f8798d37b03bd2f12d5a497b396d468bdc12a58394fa5fe8e352006af35bf533"
+      },
+      "untracked": {
+        "file": "live/Developer__wt__clone.untracked.tar.gz",
+        "bytes": 80,
+        "sha256": "9a3f2a6821993e4373e5f2a4ff603de692c8b11e866fb2ef319fab1c1c0ce32b",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": "Developer__wt__family",
+      "originalPath": "/Users/rentamac/Developer/wt/family",
+      "originalHEAD": "b50a0c0a3f48c84f5b575f1db477aeec0848f8d8",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/Developer__wt__family.patch.gz",
+        "bytes": 3453173,
+        "sha256": "4f2f060c7292b94b1c50c53fe380b0c27fc3c3d529ff2aea859b04d5950b1e86",
+        "uncompressedBytes": 18487943,
+        "uncompressedSHA256": "5fba2ca2fa7746f0442e730f6a0c45166b10b2866ff0f47fb77bca347f65270e"
+      },
+      "untracked": {
+        "file": "live/Developer__wt__family.untracked.tar.gz",
+        "bytes": 81,
+        "sha256": "481f8dff095f55b34f22e6cb12359eefc1756c52874074072503307e80ff1978",
+        "entries": []
+      }
+    },
+    {
+      "kind": "live",
+      "name": "Developer__wt__perf2",
+      "originalPath": "/Users/rentamac/Developer/wt/perf2",
+      "originalHEAD": "7d8937362d3ca1ea9a85e48ff27894fe23145324",
+      "statusPorcelainAtFinalCapture": "",
+      "diffFromPublishedBase": {
+        "file": "live/Developer__wt__perf2.patch.gz",
+        "bytes": 3455533,
+        "sha256": "d2f52aa4ac668c88ea7a33e835cc38e95c16b61d980049c8fd132544d8007b66",
+        "uncompressedBytes": 18504610,
+        "uncompressedSHA256": "329a9bc7e960939c94d680a10d89b7a8a19f6bc31257c3688f8a369a9626dcba"
+      },
+      "untracked": {
+        "file": "live/Developer__wt__perf2.untracked.tar.gz",
+        "bytes": 80,
+        "sha256": "94640a07a39445ed1d0a869136980d0772ed52c29a5a5c4826e8ddd089e01109",
+        "entries": []
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/0cc554676a01e18f5d1c3de969b1f4d5972042c3",
+      "object": "e2eaa1e06fe88d41390be4765cc70fc527443e64",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/00-e2eaa1e06fe8.patch.gz",
+        "bytes": 331786,
+        "sha256": "521f4ea117843bda496ab36cb31f5678da015e26cb04b66520631b2b22cf1589",
+        "uncompressedBytes": 1172357,
+        "uncompressedSHA256": "a65e0d645f58679d093640d06c7fef9c1a44b263dd3768a83bb0452a04a028a9"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/0e5960e7ad5ce3dbcf1d900fabfc713139538908",
+      "object": "3e39f658e22ae875033dd144ddb776f7e80f4670",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/01-3e39f658e22a.patch.gz",
+        "bytes": 2919292,
+        "sha256": "6900f395771642ba6c64b1228772f19927164bb70becb91cd01e9a62231f0c11",
+        "uncompressedBytes": 15420631,
+        "uncompressedSHA256": "db9e39002b9c6f0bec8764dae95b307b181a7b96fcd4e8ba9eb9270eb95ef746"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/0e69f3fa95d7f76c2a13d26817ae78131f7ce802",
+      "object": "20e80720787b706e2253e6c1fbf7efd7df60bc39",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/02-20e80720787b.patch.gz",
+        "bytes": 517492,
+        "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+        "uncompressedBytes": 2204856,
+        "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/115afbd6feb0cf1f5ff83cf9bed803c2f5911c94",
+      "object": "00d19f00806abeaa63b6954388b67e9850e3f842",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/03-00d19f00806a.patch.gz",
+        "bytes": 517492,
+        "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+        "uncompressedBytes": 2204856,
+        "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/20599591aeae8d209ebace88778b3a93edba0837",
+      "object": "ca8ba5eee328b2d2812a35cb600b055f9d7bc420",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/04-ca8ba5eee328.patch.gz",
+        "bytes": 3437775,
+        "sha256": "b3547bcab06b0a15882bc7e1487788cc803ff6095f71d789a50f76ba3360b723",
+        "uncompressedBytes": 18425591,
+        "uncompressedSHA256": "c101b0c85ff0d4349ec4622bc48684ceb64cbeaaac04a09710c61873ef5d817e"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/2d44b1a402f2803d91be18cbc0b2195d7a749003",
+      "object": "88781a5f940094a507a0aee6a9819d2f1e796a1f",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/05-88781a5f9400.patch.gz",
+        "bytes": 3770462,
+        "sha256": "7dd562be537105dc8086c64eb22118c63e3fbfced966c92e4134abf2f15f36b0",
+        "uncompressedBytes": 17465346,
+        "uncompressedSHA256": "841d26c73280ea2f25b3883bb5d5ee6e25a6f61bf265c99add39da32cd74ce10"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/339389f1db735855d817786e25de2ea602007991",
+      "object": "bbb3c1a66242874625e4354d54590c38bb5ede26",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/06-bbb3c1a66242.patch.gz",
+        "bytes": 3438477,
+        "sha256": "c270efb742ab7d34b9d643673ba88dc9881c22a2d249b006633a80f2c9ef4ff4",
+        "uncompressedBytes": 18427088,
+        "uncompressedSHA256": "85d80d787220b73d0b4b243b9303b49455101501fe3c436d4fd5f0e8137c03cb"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/4483e0d1666519444f2ccd45f3a41e95122a9e06",
+      "object": "89d1f3159aa84b662e9696e864365492d94ff148",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/07-89d1f3159aa8.patch.gz",
+        "bytes": 2789808,
+        "sha256": "416f5ca21bbaa3bab51cabf4261f8a6f40175a302c60f3fd411fbe65e164a04f",
+        "uncompressedBytes": 14559504,
+        "uncompressedSHA256": "5182c13ef382f28302814c0590a0d70ad3b17d6cefdd1e6206d842803d091d22"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/4eee990fc5d3a7260c48ce73291955494867b3ca",
+      "object": "719e08a05c0ae832cb5fe488c000e95c59ae0ca3",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/08-719e08a05c0a.patch.gz",
+        "bytes": 677802,
+        "sha256": "1ccd75282ad02a1a641abee7da52f7cc08b3e59d3303bed1ebd41a605cba036f",
+        "uncompressedBytes": 3014977,
+        "uncompressedSHA256": "eea229a6ae8cea4b24fd44cf8b25acf587c469084c94504cf7c0e645c7633954"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/5ac258396ccb7162590a85411b3238e0649992a8",
+      "object": "a1e21cfaff5749b265afeec58476d5841844ece0",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/09-a1e21cfaff57.patch.gz",
+        "bytes": 1556918,
+        "sha256": "7f5a09ee34d005b068ea59e63872c2a83b19c02df2daeaa6909c8b329542de7e",
+        "uncompressedBytes": 8652740,
+        "uncompressedSHA256": "cbbff33a4b374aff5eb6e4bb2eb763e3d0dbc614e8463dbc8f82b4b0f3a061b2"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/651a3510ed616f085982b376e0a5fe82232544ee",
+      "object": "e456ae38b9fb4a369003a97409179134cc657e25",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/10-e456ae38b9fb.patch.gz",
+        "bytes": 164413,
+        "sha256": "b773df6c9da8de2737fe14305d1e3bb6830f59f7a4fa40232524ee20c46c4931",
+        "uncompressedBytes": 604002,
+        "uncompressedSHA256": "410b3c8573815ed30e5d8405eec175929cb36882ae12dc886bdd6bc29d34385d"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/67b41886e40ffaf54d6eb20a6cda914731f233e8",
+      "object": "9a3e2ebe1d43b94a1cae67810cdd9e8599d51b0a",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/11-9a3e2ebe1d43.patch.gz",
+        "bytes": 99346,
+        "sha256": "164559f9f99f0b4d13b57e495cbd4f7c30c06001a32591dfdc3b8f1a26067370",
+        "uncompressedBytes": 316096,
+        "uncompressedSHA256": "56fee982389ecc9fa7f5c691083bacd4ba12d7b6b6bda857f1957f8133daaa01"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/6a2451ed399ffb749972b65b34e979a0c05c92bd",
+      "object": "9513ec34643a5974581f67b63553cf8779fdecca",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/12-9513ec34643a.patch.gz",
+        "bytes": 2411118,
+        "sha256": "e44d62558d1e5cc1eb191b1e0789104f76590f4d20571b2878fd89336a43c448",
+        "uncompressedBytes": 13422246,
+        "uncompressedSHA256": "bf4d663f6d104ed0a2c68e23908138cab396ad8153bb57a8c3710b47e8607804"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/892cbc6fcb39c5cb20b853f7c967d886e1d720c7",
+      "object": "fe3231394c5524855f783a91a03f9a700da26785",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/13-fe3231394c55.patch.gz",
+        "bytes": 88438,
+        "sha256": "dc21a8d6b33626111387603670bba32c92044f3b9b794ff20abb5ea41d1da6fe",
+        "uncompressedBytes": 264939,
+        "uncompressedSHA256": "c8f1cd59d9fe5897d472c74e289f8fc8e9e8a4ba1970121b240ab207f547e220"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/893bfdd8e7bf4ad04cc653d4a26fb3a18dc51657",
+      "object": "10c99aa2598f75d32749de8f1af2dbafa58cfd45",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/14-10c99aa2598f.patch.gz",
+        "bytes": 2874961,
+        "sha256": "b0c42856dfc5da3a2d11d3b0bc502e2b1a4988328aa4a5d3d7b0c69bda0f9185",
+        "uncompressedBytes": 14359300,
+        "uncompressedSHA256": "0d3bc46de3f92557fa0250f561c8dbb466116fcf30af64151438ff19203cfd32"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/8fe3cd330c37480799075df63e1ad5520e3892bf",
+      "object": "9cc20c4fefdc6dfa99c31f0203892d07ec70508f",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/15-9cc20c4fefdc.patch.gz",
+        "bytes": 3039460,
+        "sha256": "f03fa919fe7a662ad405c101c8b171de05d525f97e519d4fd41376c7bb63ec1a",
+        "uncompressedBytes": 16032149,
+        "uncompressedSHA256": "db0794a94d6cc04da3a1bf44f0235004a1a8c27abec14a61b65cbe8804f14029"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/a41a02f325782be2863aefd39ccb3c88029a04b9",
+      "object": "cea620ba99b492153e1f0d9e8771082839350019",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/16-cea620ba99b4.patch.gz",
+        "bytes": 89527,
+        "sha256": "afed49ee626929814709b05add410fd6558498e37981e39c1a513e0d74bd0d07",
+        "uncompressedBytes": 268932,
+        "uncompressedSHA256": "00fa52025755da6362499ecac76db53f826f54fff69ab8ca186a56113df03ac4"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/c8fea5294eff85a0f3d9f0c334d3f0347cd8ace1",
+      "object": "20e80720787b706e2253e6c1fbf7efd7df60bc39",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/17-20e80720787b.patch.gz",
+        "bytes": 517492,
+        "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+        "uncompressedBytes": 2204856,
+        "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/c97437eacf528af2b8066bd3e927e01bb884dda0",
+      "object": "20e80720787b706e2253e6c1fbf7efd7df60bc39",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/18-20e80720787b.patch.gz",
+        "bytes": 517492,
+        "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+        "uncompressedBytes": 2204856,
+        "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/d05dcaa730c8ac0ceefd8e300487ccafbf87b8dd",
+      "object": "e68807b237ddc031ab8cc5e0cac1bed6a11a5037",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/19-e68807b237dd.patch.gz",
+        "bytes": 4086138,
+        "sha256": "d87029f61f05d1f0e2f80469fb2068c4d2db52b3420b2cf38add6a1887408c03",
+        "uncompressedBytes": 16644716,
+        "uncompressedSHA256": "6d1ce9d387761e083ea4357d5666a0c22e9645ab9cd363c161c04e2cf1944cbe"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/d9685208a7c591e51068fd4503712c4d351426e4",
+      "object": "d11c25acb6129e440ac7abb7dbb10fdb84cd7ef0",
+      "message": "Codex worktree snapshot: startup-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/20-d11c25acb612.patch.gz",
+        "bytes": 1551653,
+        "sha256": "4479a6b960fea8cc588ca1875e74f322df7885afb5b17e4f1a1d9afbb1113578",
+        "uncompressedBytes": 8619569,
+        "uncompressedSHA256": "9b497ade320162807cf33be66cb7002314aacb5702f72d200d6a6170336b9e89"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/e1bd49ac4bda7ae553f7257a528befd792a10b35",
+      "object": "da55495b599c7b433ef408467385ad580294e67a",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/21-da55495b599c.patch.gz",
+        "bytes": 2990232,
+        "sha256": "b5f0e06a3595fe8569185e7090e3b552f836b9b5d75beccaa6a8e1d70c3f8a96",
+        "uncompressedBytes": 15732903,
+        "uncompressedSHA256": "42fdc3267dade7c90eb041d67f2eb8a9be7b6517dcdbe9725e91c3523ec71715"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/snapshots/e6ca9b83c4cdd8f4b941477831b50f270f2c4a24",
+      "object": "ae218dd79b9b62161d7a7a3798d44b33f3d893e9",
+      "message": "Codex worktree snapshot: archive-cleanup\n\nCo-authored-by: Codex",
+      "diffFromPublishedBase": {
+        "file": "archived/22-ae218dd79b9b.patch.gz",
+        "bytes": 4041949,
+        "sha256": "9fe698cdb0ec7424dd1dd4e378981b03c1b4014a3c99800df6ae79242d471a1f",
+        "uncompressedBytes": 17677915,
+        "uncompressedSHA256": "9847aef58bf19f5a2e2194ad3d01c97608f1188b023832c6ea6900a14af7deee"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/turn-diffs/captures/1790871812659/ea6f01d4-437d-4b6c-a868-a37cc9a3e6cd/base",
+      "object": "79a47643e99c2fe0d3ea23d8ca8a5e4a2fb197d3",
+      "message": "tree 79a47643e99c2fe0d3ea23d8ca8a5e4a2fb197d3\n\n.DS_Store\n.codex/\n.gitattributes\n.github/\nAGENTS.md\nCLAUDE.md\nFieldEvidenceApp.xcodeproj/\nFieldEvidenceApp/\nFieldEvidenceAppTests/\nFieldEvidenceAppUITests/\nRelease/\nScripts/\nTestFixtures/\nTestPlans/\nTestSupport/\ndocs/",
+      "diffFromPublishedBase": {
+        "file": "archived/23-79a47643e99c.patch.gz",
+        "bytes": 4329,
+        "sha256": "ff47175e536ecb7537d650a4ba9dc3ee680e975377ca42b359ef95cc2f669172",
+        "uncompressedBytes": 6357,
+        "uncompressedSHA256": "a701bf27c3d2bed0e5fa858c35118919bd2f49b8c29f48e34fbcad0b9464437a"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/turn-diffs/checkpoints/9095a92ac8ccc73999facbb508d04429/ae409c26a70ab0c078581eb89523601f/1790871831316/9cfb953a-d65a-44ca-9982-741bae656631",
+      "object": "79a47643e99c2fe0d3ea23d8ca8a5e4a2fb197d3",
+      "message": "tree 79a47643e99c2fe0d3ea23d8ca8a5e4a2fb197d3\n\n.DS_Store\n.codex/\n.gitattributes\n.github/\nAGENTS.md\nCLAUDE.md\nFieldEvidenceApp.xcodeproj/\nFieldEvidenceApp/\nFieldEvidenceAppTests/\nFieldEvidenceAppUITests/\nRelease/\nScripts/\nTestFixtures/\nTestPlans/\nTestSupport/\ndocs/",
+      "diffFromPublishedBase": {
+        "file": "archived/24-79a47643e99c.patch.gz",
+        "bytes": 4329,
+        "sha256": "ff47175e536ecb7537d650a4ba9dc3ee680e975377ca42b359ef95cc2f669172",
+        "uncompressedBytes": 6357,
+        "uncompressedSHA256": "a701bf27c3d2bed0e5fa858c35118919bd2f49b8c29f48e34fbcad0b9464437a"
+      }
+    },
+    {
+      "kind": "private-git-snapshot",
+      "ref": "refs/codex/turn-diffs/checkpoints/d04de64d5c76589ad35cbe563bf1fc49/3a044b4872e867e6e358860e46cc1e03/1790510771293/d05f5b39-46f6-4728-bd99-754b0b6b9a80",
+      "object": "6a384ecab11f174366ada2da04963ec64a12ae5e",
+      "message": "tree 6a384ecab11f174366ada2da04963ec64a12ae5e\n\n.codex-temp/\n.codex/\n.gitattributes\n.github/\nAGENTS.md\nCLAUDE.md\nFieldEvidenceApp.xcodeproj/\nFieldEvidenceApp/\nFieldEvidenceAppTests/\nFieldEvidenceAppUITests/\nRelease/\nScripts/\nTestFixtures/\nTestPlans/\nTestSupport/\ndocs/",
+      "diffFromPublishedBase": {
+        "file": "archived/25-6a384ecab11f.patch.gz",
+        "bytes": 3620197,
+        "sha256": "59e1f9a2b461fde88e0b1d186342d852661652298f21517e0c5e0c30f4870762",
+        "uncompressedBytes": 14790452,
+        "uncompressedSHA256": "8b319b5ef3db69fb36db25319b0b05a7b5e4909da575cfe74308949b2dd0e910"
+      }
+    }
+  ],
+  "privateTools": {
+    "file": "CODEX_PRIVATE_TOOLS_AND_HANDOFFS.tar.gz",
+    "bytes": 45191672,
+    "sha256": "3242f1362e204e6611ae1f1be6d3221efa2432a53f0faaebbb3e8bfec2c3a683",
+    "files": 5922,
+    "index": {
+      "file": "PRIVATE_TOOLS_INDEX.json",
+      "bytes": 1418053,
+      "sha256": "7ad398aa5dc05fdedb419ff7c28cc488dcacc45c433a4b66aafed58aaee3dd02"
+    }
+  },
+  "historicalSourceCheckpoint": "../20261001/AUXILIARY_RETIREMENT_UNINTEGRATED.patch.gz",
+  "allGatesRemainOpen": true,
+  "releaseReady": false,
+  "artifacts": [
+    {
+      "file": "CODEX_PRIVATE_TOOLS_AND_HANDOFFS.tar.gz",
+      "bytes": 45191672,
+      "sha256": "3242f1362e204e6611ae1f1be6d3221efa2432a53f0faaebbb3e8bfec2c3a683"
+    },
+    {
+      "file": "PRIVATE_TOOLS_INDEX.json",
+      "bytes": 1418053,
+      "sha256": "7ad398aa5dc05fdedb419ff7c28cc488dcacc45c433a4b66aafed58aaee3dd02"
+    },
+    {
+      "file": "archived/00-e2eaa1e06fe8.patch.gz",
+      "bytes": 331786,
+      "sha256": "521f4ea117843bda496ab36cb31f5678da015e26cb04b66520631b2b22cf1589",
+      "uncompressedBytes": 1172357,
+      "uncompressedSHA256": "a65e0d645f58679d093640d06c7fef9c1a44b263dd3768a83bb0452a04a028a9"
+    },
+    {
+      "file": "archived/01-3e39f658e22a.patch.gz",
+      "bytes": 2919292,
+      "sha256": "6900f395771642ba6c64b1228772f19927164bb70becb91cd01e9a62231f0c11",
+      "uncompressedBytes": 15420631,
+      "uncompressedSHA256": "db9e39002b9c6f0bec8764dae95b307b181a7b96fcd4e8ba9eb9270eb95ef746"
+    },
+    {
+      "file": "archived/02-20e80720787b.patch.gz",
+      "bytes": 517492,
+      "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+      "uncompressedBytes": 2204856,
+      "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+    },
+    {
+      "file": "archived/03-00d19f00806a.patch.gz",
+      "bytes": 517492,
+      "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+      "uncompressedBytes": 2204856,
+      "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+    },
+    {
+      "file": "archived/04-ca8ba5eee328.patch.gz",
+      "bytes": 3437775,
+      "sha256": "b3547bcab06b0a15882bc7e1487788cc803ff6095f71d789a50f76ba3360b723",
+      "uncompressedBytes": 18425591,
+      "uncompressedSHA256": "c101b0c85ff0d4349ec4622bc48684ceb64cbeaaac04a09710c61873ef5d817e"
+    },
+    {
+      "file": "archived/05-88781a5f9400.patch.gz",
+      "bytes": 3770462,
+      "sha256": "7dd562be537105dc8086c64eb22118c63e3fbfced966c92e4134abf2f15f36b0",
+      "uncompressedBytes": 17465346,
+      "uncompressedSHA256": "841d26c73280ea2f25b3883bb5d5ee6e25a6f61bf265c99add39da32cd74ce10"
+    },
+    {
+      "file": "archived/06-bbb3c1a66242.patch.gz",
+      "bytes": 3438477,
+      "sha256": "c270efb742ab7d34b9d643673ba88dc9881c22a2d249b006633a80f2c9ef4ff4",
+      "uncompressedBytes": 18427088,
+      "uncompressedSHA256": "85d80d787220b73d0b4b243b9303b49455101501fe3c436d4fd5f0e8137c03cb"
+    },
+    {
+      "file": "archived/07-89d1f3159aa8.patch.gz",
+      "bytes": 2789808,
+      "sha256": "416f5ca21bbaa3bab51cabf4261f8a6f40175a302c60f3fd411fbe65e164a04f",
+      "uncompressedBytes": 14559504,
+      "uncompressedSHA256": "5182c13ef382f28302814c0590a0d70ad3b17d6cefdd1e6206d842803d091d22"
+    },
+    {
+      "file": "archived/08-719e08a05c0a.patch.gz",
+      "bytes": 677802,
+      "sha256": "1ccd75282ad02a1a641abee7da52f7cc08b3e59d3303bed1ebd41a605cba036f",
+      "uncompressedBytes": 3014977,
+      "uncompressedSHA256": "eea229a6ae8cea4b24fd44cf8b25acf587c469084c94504cf7c0e645c7633954"
+    },
+    {
+      "file": "archived/09-a1e21cfaff57.patch.gz",
+      "bytes": 1556918,
+      "sha256": "7f5a09ee34d005b068ea59e63872c2a83b19c02df2daeaa6909c8b329542de7e",
+      "uncompressedBytes": 8652740,
+      "uncompressedSHA256": "cbbff33a4b374aff5eb6e4bb2eb763e3d0dbc614e8463dbc8f82b4b0f3a061b2"
+    },
+    {
+      "file": "archived/10-e456ae38b9fb.patch.gz",
+      "bytes": 164413,
+      "sha256": "b773df6c9da8de2737fe14305d1e3bb6830f59f7a4fa40232524ee20c46c4931",
+      "uncompressedBytes": 604002,
+      "uncompressedSHA256": "410b3c8573815ed30e5d8405eec175929cb36882ae12dc886bdd6bc29d34385d"
+    },
+    {
+      "file": "archived/11-9a3e2ebe1d43.patch.gz",
+      "bytes": 99346,
+      "sha256": "164559f9f99f0b4d13b57e495cbd4f7c30c06001a32591dfdc3b8f1a26067370",
+      "uncompressedBytes": 316096,
+      "uncompressedSHA256": "56fee982389ecc9fa7f5c691083bacd4ba12d7b6b6bda857f1957f8133daaa01"
+    },
+    {
+      "file": "archived/12-9513ec34643a.patch.gz",
+      "bytes": 2411118,
+      "sha256": "e44d62558d1e5cc1eb191b1e0789104f76590f4d20571b2878fd89336a43c448",
+      "uncompressedBytes": 13422246,
+      "uncompressedSHA256": "bf4d663f6d104ed0a2c68e23908138cab396ad8153bb57a8c3710b47e8607804"
+    },
+    {
+      "file": "archived/13-fe3231394c55.patch.gz",
+      "bytes": 88438,
+      "sha256": "dc21a8d6b33626111387603670bba32c92044f3b9b794ff20abb5ea41d1da6fe",
+      "uncompressedBytes": 264939,
+      "uncompressedSHA256": "c8f1cd59d9fe5897d472c74e289f8fc8e9e8a4ba1970121b240ab207f547e220"
+    },
+    {
+      "file": "archived/14-10c99aa2598f.patch.gz",
+      "bytes": 2874961,
+      "sha256": "b0c42856dfc5da3a2d11d3b0bc502e2b1a4988328aa4a5d3d7b0c69bda0f9185",
+      "uncompressedBytes": 14359300,
+      "uncompressedSHA256": "0d3bc46de3f92557fa0250f561c8dbb466116fcf30af64151438ff19203cfd32"
+    },
+    {
+      "file": "archived/15-9cc20c4fefdc.patch.gz",
+      "bytes": 3039460,
+      "sha256": "f03fa919fe7a662ad405c101c8b171de05d525f97e519d4fd41376c7bb63ec1a",
+      "uncompressedBytes": 16032149,
+      "uncompressedSHA256": "db0794a94d6cc04da3a1bf44f0235004a1a8c27abec14a61b65cbe8804f14029"
+    },
+    {
+      "file": "archived/16-cea620ba99b4.patch.gz",
+      "bytes": 89527,
+      "sha256": "afed49ee626929814709b05add410fd6558498e37981e39c1a513e0d74bd0d07",
+      "uncompressedBytes": 268932,
+      "uncompressedSHA256": "00fa52025755da6362499ecac76db53f826f54fff69ab8ca186a56113df03ac4"
+    },
+    {
+      "file": "archived/17-20e80720787b.patch.gz",
+      "bytes": 517492,
+      "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+      "uncompressedBytes": 2204856,
+      "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+    },
+    {
+      "file": "archived/18-20e80720787b.patch.gz",
+      "bytes": 517492,
+      "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+      "uncompressedBytes": 2204856,
+      "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+    },
+    {
+      "file": "archived/19-e68807b237dd.patch.gz",
+      "bytes": 4086138,
+      "sha256": "d87029f61f05d1f0e2f80469fb2068c4d2db52b3420b2cf38add6a1887408c03",
+      "uncompressedBytes": 16644716,
+      "uncompressedSHA256": "6d1ce9d387761e083ea4357d5666a0c22e9645ab9cd363c161c04e2cf1944cbe"
+    },
+    {
+      "file": "archived/20-d11c25acb612.patch.gz",
+      "bytes": 1551653,
+      "sha256": "4479a6b960fea8cc588ca1875e74f322df7885afb5b17e4f1a1d9afbb1113578",
+      "uncompressedBytes": 8619569,
+      "uncompressedSHA256": "9b497ade320162807cf33be66cb7002314aacb5702f72d200d6a6170336b9e89"
+    },
+    {
+      "file": "archived/21-da55495b599c.patch.gz",
+      "bytes": 2990232,
+      "sha256": "b5f0e06a3595fe8569185e7090e3b552f836b9b5d75beccaa6a8e1d70c3f8a96",
+      "uncompressedBytes": 15732903,
+      "uncompressedSHA256": "42fdc3267dade7c90eb041d67f2eb8a9be7b6517dcdbe9725e91c3523ec71715"
+    },
+    {
+      "file": "archived/22-ae218dd79b9b.patch.gz",
+      "bytes": 4041949,
+      "sha256": "9fe698cdb0ec7424dd1dd4e378981b03c1b4014a3c99800df6ae79242d471a1f",
+      "uncompressedBytes": 17677915,
+      "uncompressedSHA256": "9847aef58bf19f5a2e2194ad3d01c97608f1188b023832c6ea6900a14af7deee"
+    },
+    {
+      "file": "archived/23-79a47643e99c.patch.gz",
+      "bytes": 4329,
+      "sha256": "ff47175e536ecb7537d650a4ba9dc3ee680e975377ca42b359ef95cc2f669172",
+      "uncompressedBytes": 6357,
+      "uncompressedSHA256": "a701bf27c3d2bed0e5fa858c35118919bd2f49b8c29f48e34fbcad0b9464437a"
+    },
+    {
+      "file": "archived/24-79a47643e99c.patch.gz",
+      "bytes": 4329,
+      "sha256": "ff47175e536ecb7537d650a4ba9dc3ee680e975377ca42b359ef95cc2f669172",
+      "uncompressedBytes": 6357,
+      "uncompressedSHA256": "a701bf27c3d2bed0e5fa858c35118919bd2f49b8c29f48e34fbcad0b9464437a"
+    },
+    {
+      "file": "archived/25-6a384ecab11f.patch.gz",
+      "bytes": 3620197,
+      "sha256": "59e1f9a2b461fde88e0b1d186342d852661652298f21517e0c5e0c30f4870762",
+      "uncompressedBytes": 14790452,
+      "uncompressedSHA256": "8b319b5ef3db69fb36db25319b0b05a7b5e4909da575cfe74308949b2dd0e910"
+    },
+    {
+      "file": "live/.codex__worktrees__cold-payload-reader-bridge__AssetRounds.patch.gz",
+      "bytes": 176360,
+      "sha256": "2d43a3606a48e9ba2e54e401f1549eae4850197cefeb60dc6b48668c66e34035",
+      "uncompressedBytes": 664579,
+      "uncompressedSHA256": "e4b54e545455ddd63916f60be1320f6fa7d4542e719c1440d1e790c49cc77af9"
+    },
+    {
+      "file": "live/.codex__worktrees__cold-payload-reader-bridge__AssetRounds.untracked.tar.gz",
+      "bytes": 118,
+      "sha256": "09dbffb28406abeb031bed05c5e7f7a1ae56f169fe29bdb40973c4986b27f49d"
+    },
+    {
+      "file": "live/.codex__worktrees__cold-payload-retention-tests__AssetRounds.patch.gz",
+      "bytes": 229712,
+      "sha256": "02caa9070e7a2d7bcd951c749df116f3fc31b757361a627e9f70bc7628c753e2",
+      "uncompressedBytes": 888809,
+      "uncompressedSHA256": "ee61bb4f22ead89eaa9f4a634a9f66091c1eb76a221932e96b195eb94ccba32d"
+    },
+    {
+      "file": "live/.codex__worktrees__cold-payload-retention-tests__AssetRounds.untracked.tar.gz",
+      "bytes": 120,
+      "sha256": "9d284f1be82b11edf78ce2660f94e7449f71ba27475eea7bbf4abc804d5fad29"
+    },
+    {
+      "file": "live/.codex__worktrees__cold-payload-retention__AssetRounds.patch.gz",
+      "bytes": 237174,
+      "sha256": "a92d43ce258722c492d80860cb19c5b47e737dba0829becf4b91e823f2fbb6b3",
+      "uncompressedBytes": 930284,
+      "uncompressedSHA256": "c09f8bb61c0ea02ca32f0047306c8d18cb6dd898adbfec4e15d2a32accda7777"
+    },
+    {
+      "file": "live/.codex__worktrees__cold-payload-retention__AssetRounds.untracked.tar.gz",
+      "bytes": 114,
+      "sha256": "680df19bb11f2a9a77d90bd2290b82d941a92a9bdc1211da12bc4be6268da96c"
+    },
+    {
+      "file": "live/.codex__worktrees__cold-physical-continuation__AssetRounds.patch.gz",
+      "bytes": 505835,
+      "sha256": "e850b154eba59646866e8962d8ebc85d7c113137132071982ca1eb05700ec05a",
+      "uncompressedBytes": 2171786,
+      "uncompressedSHA256": "36917490e78768693fd5e5fd385469bd90c83cf576af67007256cf3ff44fae27"
+    },
+    {
+      "file": "live/.codex__worktrees__cold-physical-continuation__AssetRounds.untracked.tar.gz",
+      "bytes": 118,
+      "sha256": "0f68bd11935f4b71e43dccf98fa3e4678786d9e9b2b2da1d1722feeefc7211c7"
+    },
+    {
+      "file": "live/.codex__worktrees__erase-reader-retirement__AssetRounds.patch.gz",
+      "bytes": 2416823,
+      "sha256": "0325ea053fdfbe6c117a792b15197576e1f5595dec5b8f68120a9f1e83ca6717",
+      "uncompressedBytes": 13442658,
+      "uncompressedSHA256": "ca24e422a93c6c5ace45aff91c4af20ec47069a530480f88ba276beef09fcaa7"
+    },
+    {
+      "file": "live/.codex__worktrees__erase-reader-retirement__AssetRounds.untracked.tar.gz",
+      "bytes": 115,
+      "sha256": "75b306b3f4cb08001b278d0797941c334801095ae761a868f3372941708832a0"
+    },
+    {
+      "file": "live/.codex__worktrees__fixture-lifetime__AssetRounds.patch.gz",
+      "bytes": 2913411,
+      "sha256": "7654602b234795dd771e85272888a0378157fc4ae1aad674bf3eeee0a2bb5194",
+      "uncompressedBytes": 15378385,
+      "uncompressedSHA256": "868010b92ae560c430135edc940e7bf19e2023b6f4e25f52674733876de70159"
+    },
+    {
+      "file": "live/.codex__worktrees__fixture-lifetime__AssetRounds.untracked.tar.gz",
+      "bytes": 108,
+      "sha256": "c27e8ccf69f1da7493ae75824bac87912a2c2670a43b0eded070e0590ed3caba"
+    },
+    {
+      "file": "live/.codex__worktrees__historical-read__AssetRounds.patch.gz",
+      "bytes": 2760016,
+      "sha256": "903815f92662e2fa863e031d9b308a3a6533cd7f61eb1db26044c16915f4deb9",
+      "uncompressedBytes": 14657817,
+      "uncompressedSHA256": "d3e4b0bc3c02217e866140e3dd2f9fb95adea24d6a01228333f1f18ca6742d39"
+    },
+    {
+      "file": "live/.codex__worktrees__historical-read__AssetRounds.untracked.tar.gz",
+      "bytes": 21363,
+      "sha256": "8a2580887dd912d97806b6063d09368ca750b4c687497140b660517314918452"
+    },
+    {
+      "file": "live/.codex__worktrees__integration-checkpoint__AssetRounds.patch.gz",
+      "bytes": 2089705,
+      "sha256": "1d1072acc17e0f8d2033bad0f39b44615b6330b76170ed22e3bf352c80ec3dec",
+      "uncompressedBytes": 10487226,
+      "uncompressedSHA256": "b3370fa7e59c4001d849383b867ed3c267d0eba39c955a653a99a05c61d66fb3"
+    },
+    {
+      "file": "live/.codex__worktrees__integration-checkpoint__AssetRounds.untracked.tar.gz",
+      "bytes": 196014,
+      "sha256": "14d9a6dfc33de8f3b164dbe40ac694669bca94954fafbc39f99bf8302a82a9b0"
+    },
+    {
+      "file": "live/.codex__worktrees__ledger-readback-diagnostic__AssetRounds.patch.gz",
+      "bytes": 345186,
+      "sha256": "493acee4672a1007821b4d483f875621aa09e02ab7a6c1f1e88ec38f89ca6a74",
+      "uncompressedBytes": 1218115,
+      "uncompressedSHA256": "49ac8798534a1122c6403520c05e090e19c94d573d022ac1469b1bb015e9a0aa"
+    },
+    {
+      "file": "live/.codex__worktrees__ledger-readback-diagnostic__AssetRounds.untracked.tar.gz",
+      "bytes": 118,
+      "sha256": "46ae29348a26b1b779f3c289a54be0868c30a2b5212913aa79d233b5af60ee59"
+    },
+    {
+      "file": "live/.codex__worktrees__legacy-package-producer__AssetRounds.patch.gz",
+      "bytes": 16997134,
+      "sha256": "0914c614a60fe313c0d84eecc059c77f89fbcebd2959fceddc4989540db63168",
+      "uncompressedBytes": 132191789,
+      "uncompressedSHA256": "27be9a0fd6f355685d26e52322a03406d2e969c0e671801ef134766001592a30"
+    },
+    {
+      "file": "live/.codex__worktrees__legacy-package-producer__AssetRounds.untracked.tar.gz",
+      "bytes": 115,
+      "sha256": "9778ed63302680a46f80e142e6f5f694f5f5dea0687b4006979a0843da7e1cba"
+    },
+    {
+      "file": "live/.codex__worktrees__live-notification-absence__AssetRounds.patch.gz",
+      "bytes": 517492,
+      "sha256": "67711d62e8107ec69373392c62e6316da0026b4629891d86fb454b9883c41e63",
+      "uncompressedBytes": 2204856,
+      "uncompressedSHA256": "1b8d86bb4c0a562038c76f901eda5754896ab933c41fa8ae6fa9ffe901e86e3f"
+    },
+    {
+      "file": "live/.codex__worktrees__live-notification-absence__AssetRounds.untracked.tar.gz",
+      "bytes": 117,
+      "sha256": "0171f34a93f96b993529d0cbf5ce0a76d31e803b8350f2f8b8a2272537de8b2a"
+    },
+    {
+      "file": "live/.codex__worktrees__next-app-access__AssetRounds.patch.gz",
+      "bytes": 114184,
+      "sha256": "3262569dbc5859e94fde5933f0e15097792d38c450083b2160b9d2ee47a01c89",
+      "uncompressedBytes": 410095,
+      "uncompressedSHA256": "48982c9aa80757a2021837655e1eb666a6b6475ddc15946d7faae5a6d7cb2227"
+    },
+    {
+      "file": "live/.codex__worktrees__next-app-access__AssetRounds.untracked.tar.gz",
+      "bytes": 107,
+      "sha256": "5e95c8efdbbbe53e963f6cbd3b442ba0d0c185ebb8103f70228e77b17cf6cb60"
+    },
+    {
+      "file": "live/.codex__worktrees__original-model-alias__AssetRounds.patch.gz",
+      "bytes": 106333,
+      "sha256": "95888d3c6b5feffb0251712b3ce0bcee16d81f47f0c82dc7554235161eb571c4",
+      "uncompressedBytes": 358845,
+      "uncompressedSHA256": "8a5f3b21076355094894db9bd231c5eb07f916df9c2db96c09ef35fed158ad61"
+    },
+    {
+      "file": "live/.codex__worktrees__original-model-alias__AssetRounds.untracked.tar.gz",
+      "bytes": 112,
+      "sha256": "def673ed26c203a353e52a4b19453bd1f214419040e73ca0d3272ccc2dab97df"
+    },
+    {
+      "file": "live/.codex__worktrees__original-scratch-cleanup__AssetRounds.patch.gz",
+      "bytes": 458846,
+      "sha256": "f1225389c79c1a34e265e57f3899352e7e3f3f6cb26720323fb5e3837de76252",
+      "uncompressedBytes": 1964005,
+      "uncompressedSHA256": "7bd2db286bb3bfa87cc101cf31c05093c3b318057925dabeb7c045a2055120d1"
+    },
+    {
+      "file": "live/.codex__worktrees__original-scratch-cleanup__AssetRounds.untracked.tar.gz",
+      "bytes": 116,
+      "sha256": "435013770774491787980165eff46f8e4f8a832afcf92040da3ae856664fe711"
+    },
+    {
+      "file": "live/.codex__worktrees__original-target-reader__AssetRounds.patch.gz",
+      "bytes": 830170,
+      "sha256": "cfa044da6ba6c5b51d2d51ef67234db8cd642cc9b099275a837295944e5a4070",
+      "uncompressedBytes": 3761413,
+      "uncompressedSHA256": "d54601099bca18e731bb12b13cf854d53991618ce2f48be0e4a2eab60bbed160"
+    },
+    {
+      "file": "live/.codex__worktrees__original-target-reader__AssetRounds.untracked.tar.gz",
+      "bytes": 3845,
+      "sha256": "e33d25b2fa060e6170a08e8c4aac805ffe4767f3cb229aabfdce597701fd9c90"
+    },
+    {
+      "file": "live/.codex__worktrees__parent-directory-link-law__AssetRounds.patch.gz",
+      "bytes": 231458,
+      "sha256": "05e95b419f8a97e28e35168089f1a3be8ad951a0d2d55053298115e2bc78a6d4",
+      "uncompressedBytes": 901547,
+      "uncompressedSHA256": "7cf99d37cd7225a48899d38f1dfdb6095f11d4f5d2d604557f554dda719149b5"
+    },
+    {
+      "file": "live/.codex__worktrees__parent-directory-link-law__AssetRounds.untracked.tar.gz",
+      "bytes": 117,
+      "sha256": "3517b9c01b4a2ebc6e4621724053a9724e9a90b67a6890de0b73955d2f91ec26"
+    },
+    {
+      "file": "live/.codex__worktrees__parent-directory-link-tests__AssetRounds.patch.gz",
+      "bytes": 229214,
+      "sha256": "86ad3c9250dee780cf3b02796309f054ed9c3689715e2f5e3acb93bf3d96db7b",
+      "uncompressedBytes": 887762,
+      "uncompressedSHA256": "f57bc45d1d5ee9028d3adf66af6c69908904c89bf78754fbb7f87f2d50d6363f"
+    },
+    {
+      "file": "live/.codex__worktrees__parent-directory-link-tests__AssetRounds.untracked.tar.gz",
+      "bytes": 119,
+      "sha256": "4adad821916954f776ff29d3b50db6b5a65f36a70dcc9afff0f91f137b1a117d"
+    },
+    {
+      "file": "live/.codex__worktrees__photo-continuation__AssetRounds.patch.gz",
+      "bytes": 2882569,
+      "sha256": "7e33445609654621a1f41f8e58bc143f23a9b9685e54689d598e60e6af01e3fd",
+      "uncompressedBytes": 15198841,
+      "uncompressedSHA256": "139d9cba38555f0d61667c3a073c5b3876d3a2bf86b54d96c744980c2d6766e0"
+    },
+    {
+      "file": "live/.codex__worktrees__photo-continuation__AssetRounds.untracked.tar.gz",
+      "bytes": 110,
+      "sha256": "c99a3d90af14ff8253669daef2e3d1edab7f6159b00f5d0ffccfd9ad41276a8f"
+    },
+    {
+      "file": "live/.codex__worktrees__photo-crash-diagnostic__AssetRounds.patch.gz",
+      "bytes": 2774569,
+      "sha256": "a4d3d5de76d2f64f7dda32c8d77c01fd4cc99fbc2020208f1ad7fb56206a5d1c",
+      "uncompressedBytes": 14737353,
+      "uncompressedSHA256": "ba491b23a6f9d51b04fc82d58b67da7d6e52ed615ab14baaffdf704c5bd9dd5c"
+    },
+    {
+      "file": "live/.codex__worktrees__photo-crash-diagnostic__AssetRounds.untracked.tar.gz",
+      "bytes": 17916,
+      "sha256": "9c96bbd93b34a07919cf76926b2710ebbe9acd96d8ed60e860dc456aae9f8b71"
+    },
+    {
+      "file": "live/.codex__worktrees__post-close-drain__AssetRounds.patch.gz",
+      "bytes": 97957,
+      "sha256": "2bf8badcfd0e9f546bbe1a2603d8a31e4c9035ff13ee504987bd0701302d4f44",
+      "uncompressedBytes": 312532,
+      "uncompressedSHA256": "ea9ed900e9e7db3e313d97e094206f3b05c928209efb44eca252821a204f9c38"
+    },
+    {
+      "file": "live/.codex__worktrees__post-close-drain__AssetRounds.untracked.tar.gz",
+      "bytes": 108,
+      "sha256": "9cb60263d687865bc89427420a3d9633c800703ce9116939576f647930bc23c6"
+    },
+    {
+      "file": "live/.codex__worktrees__report-full-source__AssetRounds.patch.gz",
+      "bytes": 2726427,
+      "sha256": "832be01265b14ecde36ead99f47f57b654ccac607d483afc2674f97046b5776c",
+      "uncompressedBytes": 14234560,
+      "uncompressedSHA256": "ce28a07061c3d3f92f462a19c99b9320ad302b22df6ede733546ed52cf1a4b9d"
+    },
+    {
+      "file": "live/.codex__worktrees__report-full-source__AssetRounds.untracked.tar.gz",
+      "bytes": 6566,
+      "sha256": "277b205b4059d3f01f24ebd2485b06175ad2f8da68a4171f1c3597385f4926cf"
+    },
+    {
+      "file": "live/.codex__worktrees__report-publication-basis__AssetRounds.patch.gz",
+      "bytes": 2893681,
+      "sha256": "0465333a2bd663f150c86697a3f93b9675130e6c5b996ee66339fde822bcad9a",
+      "uncompressedBytes": 15284907,
+      "uncompressedSHA256": "0e971a0b84c3424be9828abad8144a52ca5b7a04a5616252015768acc1009b33"
+    },
+    {
+      "file": "live/.codex__worktrees__report-publication-basis__AssetRounds.untracked.tar.gz",
+      "bytes": 3296,
+      "sha256": "8c6206bc0f4a9e238ac40695daa36e049a14421c7079c8d174e37ed2d1b713ea"
+    },
+    {
+      "file": "live/.codex__worktrees__restore-frontier__AssetRounds.patch.gz",
+      "bytes": 2779023,
+      "sha256": "3f4b24c79e383297ad849552b619e5f35f27b08d8cd72704a2e6c63e7d6d0971",
+      "uncompressedBytes": 14738237,
+      "uncompressedSHA256": "1a031b95ad97ba8bb00fc44b821d3fab7424eecb0a08dca1cc68010e4711ce66"
+    },
+    {
+      "file": "live/.codex__worktrees__restore-frontier__AssetRounds.untracked.tar.gz",
+      "bytes": 25252,
+      "sha256": "c4e5037a72a65d0c86ed14981a0463841158897cf3cae3bacbfe20e1dd1038e8"
+    },
+    {
+      "file": "live/.codex__worktrees__resume-recovery__AssetRounds.patch.gz",
+      "bytes": 2862638,
+      "sha256": "e56ae10c801e3955a8eb8ae9b5243d17971055fc840a69a07c8e2156033eedac",
+      "uncompressedBytes": 15100839,
+      "uncompressedSHA256": "e3c3a3458d9c9a727512b5edb09e042f8626e10547c85b1f5de60e92d835975a"
+    },
+    {
+      "file": "live/.codex__worktrees__resume-recovery__AssetRounds.untracked.tar.gz",
+      "bytes": 107,
+      "sha256": "61532b9e279c0dbd2f1481329b501b0d96c43e2c9b051b08a8fedf30c2f77bf2"
+    },
+    {
+      "file": "live/.codex__worktrees__retired-pointer-commitment__AssetRounds.patch.gz",
+      "bytes": 888833,
+      "sha256": "5a0021998a8c04c47ee50599a4b2566f7d878b0e1fe3d458b98decdcc074b4f9",
+      "uncompressedBytes": 4193888,
+      "uncompressedSHA256": "c1d7b0da851e619275d9ed2c338d552bade9b63e574a198e1d6db46e2dc53964"
+    },
+    {
+      "file": "live/.codex__worktrees__retired-pointer-commitment__AssetRounds.untracked.tar.gz",
+      "bytes": 3847,
+      "sha256": "840b8639752089ef5b010c83877e441b13129bb89c62c83645b4b6c418b07e88"
+    },
+    {
+      "file": "live/.codex__worktrees__temporal-recovery__AssetRounds.patch.gz",
+      "bytes": 2769650,
+      "sha256": "d597a68e9fce0dd57c9752f1b729b73bfeb209d62cdd16d2f51e1eee29d48578",
+      "uncompressedBytes": 14671711,
+      "uncompressedSHA256": "a19bb73172bf6a35f6a87267aa7d3ace25ff6f3996d0c0d51d498448dda2a12a"
+    },
+    {
+      "file": "live/.codex__worktrees__temporal-recovery__AssetRounds.untracked.tar.gz",
+      "bytes": 33484,
+      "sha256": "5b12a825cd050fe27f91ce67c9d900a407632a760840bc0908299f78ec53ad8d"
+    },
+    {
+      "file": "live/.codex__worktrees__terminal-fd-fence__AssetRounds.patch.gz",
+      "bytes": 604411,
+      "sha256": "41d7778c98da9f99088d073345e5fe364cb2bf1b0f0b24dff591b59b62fbedea",
+      "uncompressedBytes": 2546325,
+      "uncompressedSHA256": "d8a242cefece9f2a3c21c450d30787bf403878065f4e601a7204a397ff887407"
+    },
+    {
+      "file": "live/.codex__worktrees__terminal-fd-fence__AssetRounds.untracked.tar.gz",
+      "bytes": 109,
+      "sha256": "66afb312fe1751aa09368ea0b8e7727efd6776ed9ece4abcead03c5cb3f82edb"
+    },
+    {
+      "file": "live/.codex__worktrees__v949-fixture-migration__AssetRounds.patch.gz",
+      "bytes": 2375854,
+      "sha256": "d207aa420b660f661baf8cdd95425a3e9021772fd64e3398c4c9ae321e681257",
+      "uncompressedBytes": 13295897,
+      "uncompressedSHA256": "4ac214f5a5e05c9a997f7ad039c437a7d58a3bebba73eeacfe214b83ef1c93dd"
+    },
+    {
+      "file": "live/.codex__worktrees__v949-fixture-migration__AssetRounds.untracked.tar.gz",
+      "bytes": 114,
+      "sha256": "1c90d75a76c511194cb61fed2ddc708836e2698958470f2bc73a4141a378b28d"
+    },
+    {
+      "file": "live/Developer__wt__anchors.patch.gz",
+      "bytes": 3452934,
+      "sha256": "86678d7d6c3892579fd33aabfd4ebcbeed6e929162a6a0a364b921dc9a6bca01",
+      "uncompressedBytes": 18491086,
+      "uncompressedSHA256": "13b07f813b7a93a5e6b88ade2c79600a5348859d6f8efd0730b7b34c0370f981"
+    },
+    {
+      "file": "live/Developer__wt__anchors.untracked.tar.gz",
+      "bytes": 82,
+      "sha256": "8b1afdbdcb77388c899c7c5d43cf3bd017835fead38e9940e0aa8bfc01b0f95a"
+    },
+    {
+      "file": "live/Developer__wt__c13.patch.gz",
+      "bytes": 3454371,
+      "sha256": "18c2fdf8712b25e5e0366b3b12fbe63ef4448a16ddca1d9b221012258e6e41be",
+      "uncompressedBytes": 18498362,
+      "uncompressedSHA256": "65168ab43743e9cbe18a943dae1816a8b5acd149315fa98b2aea48768386a7a7"
+    },
+    {
+      "file": "live/Developer__wt__c13.untracked.tar.gz",
+      "bytes": 78,
+      "sha256": "b87bbbf3e1ce942f7ad6e2230df5d49f10d9d34eec41773e982dfe6eaf445167"
+    },
+    {
+      "file": "live/Developer__wt__clone.patch.gz",
+      "bytes": 3455127,
+      "sha256": "35eff3faadacfc03f1dbbf903d64556a986b9e620dc343a555150d135388d162",
+      "uncompressedBytes": 18503105,
+      "uncompressedSHA256": "f8798d37b03bd2f12d5a497b396d468bdc12a58394fa5fe8e352006af35bf533"
+    },
+    {
+      "file": "live/Developer__wt__clone.untracked.tar.gz",
+      "bytes": 80,
+      "sha256": "9a3f2a6821993e4373e5f2a4ff603de692c8b11e866fb2ef319fab1c1c0ce32b"
+    },
+    {
+      "file": "live/Developer__wt__family.patch.gz",
+      "bytes": 3453173,
+      "sha256": "4f2f060c7292b94b1c50c53fe380b0c27fc3c3d529ff2aea859b04d5950b1e86",
+      "uncompressedBytes": 18487943,
+      "uncompressedSHA256": "5fba2ca2fa7746f0442e730f6a0c45166b10b2866ff0f47fb77bca347f65270e"
+    },
+    {
+      "file": "live/Developer__wt__family.untracked.tar.gz",
+      "bytes": 81,
+      "sha256": "481f8dff095f55b34f22e6cb12359eefc1756c52874074072503307e80ff1978"
+    },
+    {
+      "file": "live/Developer__wt__perf2.patch.gz",
+      "bytes": 3455533,
+      "sha256": "d2f52aa4ac668c88ea7a33e835cc38e95c16b61d980049c8fd132544d8007b66",
+      "uncompressedBytes": 18504610,
+      "uncompressedSHA256": "329a9bc7e960939c94d680a10d89b7a8a19f6bc31257c3688f8a369a9626dcba"
+    },
+    {
+      "file": "live/Developer__wt__perf2.untracked.tar.gz",
+      "bytes": 80,
+      "sha256": "94640a07a39445ed1d0a869136980d0772ed52c29a5a5c4826e8ddd089e01109"
+    },
+    {
+      "file": "live/primary.patch.gz",
+      "bytes": 20,
+      "sha256": "ac73670af3abed54ac6fb4695131f4099be9fbe39d6076c5d0264a6bbdae9d83",
+      "uncompressedBytes": 0,
+      "uncompressedSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "live/primary.untracked.tar.gz",
+      "bytes": 1055,
+      "sha256": "fa594173595ced7ccde562db6443932fa160f1a52916d98fcd4993b89a7bb7d4"
+    }
+  ]
+}
