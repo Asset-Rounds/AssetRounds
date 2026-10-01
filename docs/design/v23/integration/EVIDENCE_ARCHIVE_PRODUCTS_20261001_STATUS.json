@@ -1,0 +1,479 @@
+{
+  "actualEffect": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-RESULT.json",
+    "sha256": "86ac8d794327c0511974608bdaf077f3ae08cb831e09e2d5d7d8b52fce91d2c6"
+  },
+  "actualIntent": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-INTENT.json",
+    "sha256": "48665ad6eb7fd290889e3c3f89dfe61ddc6ac3747a4b4ad5cc59fc70bbfbec6b"
+  },
+  "allFivePhase1Gates": "OPEN",
+  "capturedUTC": "2026-10-01T13:03:32.110952+00:00",
+  "count": 40,
+  "destinationFolder": "/AssetRounds-Archive-20260930",
+  "effectApproval": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-next-batch-20261001-review-v1/effect-review-v4/APPROVAL.json",
+    "sha256": "fa7e734652603c78d68c8b3e31f9ccbd46fa83858c16005d89a0a7b20d636369"
+  },
+  "effectConfig": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/OFFLOAD_CONFIG.v4.json",
+    "sha256": "6ce7625273990a6f7d2d490c370770d8eb7ef06ca44444e5a25bddfb35fcefc1"
+  },
+  "effectSource": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/ROOT_OFFLOAD40.v4.py",
+    "sha256": "a1502f53a8e8222fcea7928ae78274a11444871855228ad1323b43127f64ca7c"
+  },
+  "freeAfter": 14696427520,
+  "freeBefore": 5388312576,
+  "independentActualClosure": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-next-batch-20261001-review-v1/effect-review-v4/actual-closure-v1/VERDICT.json",
+    "sha256": "be48c1e310cb1f50cd0ccb40f8870a5dbf98f18930a0720a1f46a307c68f3f37"
+  },
+  "independentActualSeal": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-next-batch-20261001-review-v1/effect-review-v4/actual-closure-v1/SEAL.json",
+    "sha256": "2bfecb786af4c2487d1d552bb336d7dacd13902e9f9bc0f14a6cdc1c15334e7a"
+  },
+  "logicalBytesRemoved": 9376015470,
+  "measuredFreeIncrease": 9308114944,
+  "mergeState": "PAUSED",
+  "namespaceID": "719383756",
+  "originalHOLDReleased": false,
+  "portableLookup": {
+    "path": "/Users/rentamac/Developer/AssetRounds/docs/design/v23/integration/EVIDENCE_ARCHIVE_PRODUCTS_20261001.json",
+    "sha256": "dcc1dd933ab2b109ba40d69f03710d1e86f2619cca74ab38ee96bf9285376966"
+  },
+  "protectedAfter": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-PROTECTED-POST.json",
+    "sha256": "bbb028b3492acb262e2e752f15d55fdfaaf43c40229f879633ea0a6e93c75ce8"
+  },
+  "protectedBefore": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-PROTECTED-PRE.json",
+    "sha256": "bbb028b3492acb262e2e752f15d55fdfaaf43c40229f879633ea0a6e93c75ce8"
+  },
+  "proxyFreeRoute": "UNVERIFIED",
+  "rawAll40": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/RAW-ALL40-COMPLETE.json",
+    "sha256": "8011bfbd7b2d19898a8d70e2aabbfd7ce3780554a2fa5b9d70ae0a9f34ab9ce7"
+  },
+  "recovery": "The immutable lookup was captured before removal; this additive status records subsequent local ZIP absences. Original paths describe this Mac, not restored filesystem identity. Future selective40 restoration/extraction needs a separately reviewed no-overwrite operation and fresh authenticated ID/revision/path/size/full raw SHA checks. Old193 RESTORE_FILE.py is not admitted for these40. Never replay completed offload or sample scripts.",
+  "releaseReady": false,
+  "reviewer": {
+    "author": false,
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "xhigh"
+  },
+  "rows": [
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/c6-primitives-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-00-RESULT.json",
+        "sha256": "53c9303665a89d4ee8abc78792a7b79a5fe440dd785a24786b3f902e60467c59"
+      },
+      "row": 0
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-cold-activated-forward-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-01-RESULT.json",
+        "sha256": "790140b16ded9708802b93a18b6bc6f53ea1b93c85124895233b6a5d4a791c5e"
+      },
+      "row": 1
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-cold-entry-diagnostic-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-02-RESULT.json",
+        "sha256": "2bb987da4e2ee6360ca0ce412e8f0748bfc30e3dd6fa8444a3f36b356c351d50"
+      },
+      "row": 2
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-cold-generation-inventory-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-03-RESULT.json",
+        "sha256": "5daaa1463302b5ed1d61c80e86a697962d8b05a5e5ae6d5459d0db642c5dec8c"
+      },
+      "row": 3
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-cold-r-forward-diagnostic-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-04-RESULT.json",
+        "sha256": "252910a196c9782eaf84abc184b05a6f394058f951e59180f777adab8bac6d1c"
+      },
+      "row": 4
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-manifest-lease-link-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-05-RESULT.json",
+        "sha256": "14a8da7c0d46a7312d4a0ca81188f39548b1b8bfd1402c4df887477829a2ecd3"
+      },
+      "row": 5
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-manifest-lease-link-live-native-v2-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-06-RESULT.json",
+        "sha256": "f19fa2f11a8ff7dc5dc4182c9d1c9e3379c7f1d2135776f9489835d861957a42"
+      },
+      "row": 6
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-manifest-reader-finish-diagnostic-live-native-v1-products/Products.lossless-20260928.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-07-RESULT.json",
+        "sha256": "ce1c425f009feea1c4c161fabe63c51d0524ef6eb075107d49f371f4e7ab5407"
+      },
+      "row": 7
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-manifest-reader-lease-names-diagnostic-live-native-v2-products/Products.lossless-20260928.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-08-RESULT.json",
+        "sha256": "cc5bcfce5e48fce2319df1b26ed70a53b267932bccfec14372f2aab8a8883a4e"
+      },
+      "row": 8
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-notification-fixture-diagnostic-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-09-RESULT.json",
+        "sha256": "4e2dbed7b8c43b3e93cc0f40a4a182aa2026b54ec5464a3b60caf03932e798d4"
+      },
+      "row": 9
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-notification-fixture-diagnostic-live-native-v2-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-10-RESULT.json",
+        "sha256": "96798fb4143123876c7c8ade50d1374cc3227c304d6a302a465ed46ebc4147ed"
+      },
+      "row": 10
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-notification-fixture-diagnostic-live-native-v3-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-11-RESULT.json",
+        "sha256": "5e72f982ba699023f16bb9250755c16aee4833bc5e826de2822a823cbc020bf1"
+      },
+      "row": 11
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-notification-fixture-diagnostic-live-native-v4-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-12-RESULT.json",
+        "sha256": "44a4403f41fe2adc8a2c8a81f427a944c7b744e34999dbc00ec7792deb4ba6cd"
+      },
+      "row": 12
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-postintent-release-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-13-RESULT.json",
+        "sha256": "4ea41f7271906bddf136bbd559a8226af092dfde989eca9bfb8bdb0813701ece"
+      },
+      "row": 13
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-r-reader-held-g-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-14-RESULT.json",
+        "sha256": "7420a7f713eb0a814722cf5167de01bf372040b2876a9b2242f8da05ce2f9c2e"
+      },
+      "row": 14
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-reader-initial-policy-live-native-v3-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-15-RESULT.json",
+        "sha256": "dd9248a5a40510b392454f10ad088f0a7ad0fe18cea72bc541d138435b259e9e"
+      },
+      "row": 15
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-reader-publisher-diagnostic-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-16-RESULT.json",
+        "sha256": "790cdd95d20f9ad8142798e5d0b23ea930b8ee28f24b1dae5d1d3f52662efddb"
+      },
+      "row": 16
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-c05-reader-rename-projection-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-17-RESULT.json",
+        "sha256": "31b5d0dec0d5e0168cf12361b484d9032feb37403118fe1ccad7e7cfe59daf22"
+      },
+      "row": 17
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-manifest-preserve-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-18-RESULT.json",
+        "sha256": "45659b338b1da06c755461dbc07ba55053c5bc92f1cbaafc2b399080dcfd6171"
+      },
+      "row": 18
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-appaccess-diagnostic-products-v3/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-19-RESULT.json",
+        "sha256": "4c5710e6509aa8f0059e32e4dcd399a3be4fa2f52f59a9262f5e0246db48577a"
+      },
+      "row": 19
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-cold-activation-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-20-RESULT.json",
+        "sha256": "c131d477b1a6a76bc6555748e077dda91164c71e53b4ffe715e18da1e6c64ccf"
+      },
+      "row": 20
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-cold-journal-diagnostics-products-v2/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-21-RESULT.json",
+        "sha256": "2a67f9281a6beed53caf5d31f76b378edacc1ef3a0179b0770bce7da4594416d"
+      },
+      "row": 21
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-final-reader-diagnostic-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-22-RESULT.json",
+        "sha256": "da69706b5318e975599a3d58aa371539a556437f33bf7dac69ceda28d7c1ecc1"
+      },
+      "row": 22
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-journal-behavior-substages-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-23-RESULT.json",
+        "sha256": "6903330897fffcc9479933eaf46d07b366300c313212adbe27fc3acb92bfc5d1"
+      },
+      "row": 23
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-manifest-family-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-24-RESULT.json",
+        "sha256": "0ac422939012de3ba91e77ec0e21c9b08852e67319f32696ab6141b1012fbd6d"
+      },
+      "row": 24
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-pointer-negative-auxphase-diagnostic-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-25-RESULT.json",
+        "sha256": "d95974942bc32fb283c9ab5b3ca5339d041f6d9753c3b9b71e58f12055f34d3d"
+      },
+      "row": 25
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-pointer-negative-auxphase-inflight-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-26-RESULT.json",
+        "sha256": "d6b789cff97dd75a9f517d5640fff2c01d62a24c530a2e6c337f7fef6d218d1a"
+      },
+      "row": 26
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-pointer-sibling-fixed-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-27-RESULT.json",
+        "sha256": "54c97158f651a3eefd6d0bf765f71c502458523180c137befd17caf8ce3d7e04"
+      },
+      "row": 27
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-pointer-target-session-drain-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-28-RESULT.json",
+        "sha256": "bde824dba9d26b49e4ad97a55305e901929dd501a4f945e6d250f9ae6e416be6"
+      },
+      "row": 28
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-postclose-three-test-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-29-RESULT.json",
+        "sha256": "f70e6a499bd60cc82013a8f23cfc803f6232dce651a17bfd9167e63032597481"
+      },
+      "row": 29
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-private-retry-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-30-RESULT.json",
+        "sha256": "5281e559d695caf7bc9cd59ea51f36a36d0e30728f16a6252aa7654c4c6394dc"
+      },
+      "row": 30
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-reader-authority-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-31-RESULT.json",
+        "sha256": "b0b77298d4b7a96eed31ca2eb7e29a34422d38d4a4be8815d00fa5b70d41d670"
+      },
+      "row": 31
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-retained-retry-products-v1/Products.lossless-20260928.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-32-RESULT.json",
+        "sha256": "6644991196e7aea11e2ee6ef3732d72009d4a692e9a1fd29da38c23289092bc0"
+      },
+      "row": 32
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-retired-read-diagnostic-products-v2/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-33-RESULT.json",
+        "sha256": "4ddad3603756afe05e3d77c092ed37d4a302ee11bfb4813308dae73a5b819408"
+      },
+      "row": 33
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-retry-only-products-v1/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-34-RESULT.json",
+        "sha256": "2cfd0c9f9ea8b9d74beb44ec86e692a8ccc2cc869b6648c5302a6df2d470cf90"
+      },
+      "row": 34
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-original-terminal-close-products-v3/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-35-RESULT.json",
+        "sha256": "39b6dde64aa3c287424e6af7fdfc0b8c1f3b42823b9827996dbdc58b9b1bec4c"
+      },
+      "row": 35
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-s6-rollback-diagnostic-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-36-RESULT.json",
+        "sha256": "1443e819c7e34356f7cda3624998c0457f14d6fd732790a23ef1904d1ddc6340"
+      },
+      "row": 36
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-v949-private-source-products-v2/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-37-RESULT.json",
+        "sha256": "22a062b0b66e25f0689d6f1335513826fd0151836d9384a62309f7ca507ae54f"
+      },
+      "row": 37
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-v949-shm-diagnostic-live-native-v1-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-38-RESULT.json",
+        "sha256": "498da8546a7579eee7cd247f78abc6f7c32bb03c88b5633b9c95139c926e7bb9"
+      },
+      "row": 38
+    },
+    {
+      "localZIPStatus": "ABSENT_AFTER_APPROVED_OFFLOAD",
+      "originalPath": "/Users/rentamac/AssetRounds-v23-review-evidence/m2-v949-shm-diagnostic-live-native-v3-products/Products.lossless-20260929.zip",
+      "reason": "Verified private Dropbox copy, full raw-byte proof, retained manifests and reviewed exact-leaf offload; current local Products excluded.",
+      "removalReceipt": {
+        "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/offload-corrected-v4/OFFLOAD-39-RESULT.json",
+        "sha256": "439d060cf78fca4fb7edf094463b8ef3dfaae2a38936d1b0653e780c321c128e"
+      },
+      "row": 39
+    }
+  ],
+  "sampleRecovery": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/RECOVERY-COMPLETE.json",
+    "sha256": "2ab18c1879f7b9fe030213fcef75e8ce2a746b37cb7c477a6c3521a3d42d4a43"
+  },
+  "schema": "assetrounds.dropbox.historical-products-disposition.v1",
+  "scope": "Owner-approved historical archived Products ZIPs only; current local Products and evidence controls retained. Storage preservation, not test or gate acceptance.",
+  "state": "COMPLETE_EXACT40_ZIP_LEAF_OFFLOAD",
+  "toolReturnTranscription": {
+    "path": "/Users/rentamac/Developer/AssetRounds/.codex-temp/dropbox-historical-products-proposal-20261001-v1/SESSION64950-TOOL-RETURN.json",
+    "sha256": "d6056897665ac5e0a5e720c6b60d34c2c7e0019c2dca2615ec5d3c1f3e3696f0"
+  },
+  "wrapperQualification": "Precheck verified exact source/config/APP/seal SHA digests then TypeError iterating dict-valued SEAL.files as list. Shell had no set-e and continued to the one actual v4 invocation; script independently validated exact authorization and all guards. No rerun."
+}
