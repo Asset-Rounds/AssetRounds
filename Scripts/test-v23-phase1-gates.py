@@ -31,6 +31,21 @@ def fixture(purpose=G.CANDIDATE, selection=G.SHARED):
 
 
 class PlanContractTests(unittest.TestCase):
+    def test_retained_reader_is_one_of_exactly_26_frozen_sources(self):
+        self.assertEqual(len(G.SOURCES), 26)
+        self.assertEqual(len(set(G.SOURCES)), 26)
+        self.assertIn("Scripts/dev/v23-retained-payload.py", G.SOURCES)
+        plan, _, _ = fixture()
+        for change in ("missing", "extra", "alternate-reader"):
+            with self.subTest(change=change):
+                changed = copy.deepcopy(plan)
+                if change != "extra":
+                    changed["sources"].pop("Scripts/dev/v23-retained-payload.py")
+                if change != "missing":
+                    changed["sources"]["Scripts/dev/caller-chosen-reader.py"] = "A" * 64
+                with self.assertRaises(G.Refused):
+                    G.validate_plan(changed)
+
     def test_closed_questions_differ_on_same_sha(self):
         candidate, _, _ = fixture()
         main, _, _ = fixture(G.EXACT_MAIN)

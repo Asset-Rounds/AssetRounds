@@ -32,7 +32,7 @@ DIGEST_NAME = TAR_NAME + ".sha256"
 METADATA = "v23-shared-payload.json"
 EXECUTABLE_SOURCES = {
     "Scripts/v23-native-ci.py": "87f6bd5d2ecaa1250deab0467ee6ddafeb67e6abc13f2ea11acdac3ca1f696c8",
-    "Scripts/v23-phase1-gates.py": "e72117104442bb6698b9d75bfacd806a488718c546816dc1a33f3caff06a6af2",
+    "Scripts/v23-phase1-gates.py": "d9fcbf89aebd0b97ed471b27b641eb3b97247c2c917d2bab6779269bdc2e9c92",
     "Scripts/s10-4-build-payload.py": "ea731fd64278d3ab242956bf2f36d486254903a10f5f8bc17c65de3d10397521",
     "Scripts/v23-selection-generator.py": "4a987864e3046e165c35bb8af1278a693c83a4bb90d2d398e81d528cff2c1c2a",
 }
@@ -83,6 +83,11 @@ def decode(raw):
 def snapshot(info):
     return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
             info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def durable_fsync(descriptor):
+    """No unsupported-platform fallback: a failed sync cannot publish success."""
+    os.fsync(descriptor)
 
 
 def clean_absolute(path):
@@ -174,6 +179,8 @@ class Owned:
             self.identity = os.fstat(self.fd)
             require(self.identity.st_uid == os.getuid() and stat.S_IMODE(self.identity.st_mode) == 0o700,
                     "exclusive private owned destination")
+            durable_fsync(self.fd)
+            durable_fsync(self.parents[-1])
             self.check()
         except BaseException:
             self.close()
@@ -196,14 +203,18 @@ class Owned:
     def write(self, name, raw):
         self.check()
         require("/" not in name and name not in (".", ".."), "fixed receipt filename")
+        require(type(raw) is bytes and 0 < len(raw) <= JSON_BYTES, "bounded owned receipt bytes")
         descriptor = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                              0o600, dir_fd=self.fd)
         try:
             with os.fdopen(descriptor, "wb", closefd=False) as stream:
-                stream.write(raw)
+                require(stream.write(raw) == len(raw), "complete owned receipt write")
                 stream.flush()
+                durable_fsync(descriptor)
+            durable_fsync(self.fd)
         finally:
             os.close(descriptor)
+        self.check()
 
     def copy(self, source, name, limit, receipts):
         self.check()
@@ -233,13 +244,77 @@ class Owned:
                                   sourceStat=list(snapshot(before)))
             try:
                 if target is not None:
-                    os.close(target)
+                    try:
+                        durable_fsync(target)
+                        durable_fsync(self.fd)
+                    finally:
+                        os.close(target)
             finally:
                 regular_finish(source, descriptor, before, handles)
         receipts[name]["state"] = "COMPLETE_OWNED_COPY"
         receipts[name]["ownedStat"] = list(snapshot((self.path / name).lstat()))
         self.check()
         return receipts[name]
+
+    def sync_tree(self):
+        """Fsync the bounded owned projection, with held no-follow identities.
+
+        Files precede containing directories; the original parent follows the
+        root. No cleanup or link traversal is permitted, including on failure.
+        """
+        self.check()
+        pending = [(self.path, snapshot(os.fstat(self.fd)), False)]
+        files = directories = total = census_bytes = 0
+        states = hashlib.sha256()
+        while pending:
+            path, expected, finishing = pending.pop()
+            handles = directory_chain(path)
+            try:
+                descriptor = handles[-1]
+                require(snapshot(os.fstat(descriptor)) == expected, "durable directory changed")
+                if finishing:
+                    durable_fsync(descriptor)
+                    require(snapshot(os.fstat(descriptor)) == expected, "directory changed during fsync")
+                    continue
+                directories += 1
+                require(files + directories <= TAR_MEMBERS + 16, "durable projection member bound")
+                pending.append((path, expected, True))
+                with os.scandir(descriptor) as scan:
+                    for entry in scan:
+                        child = path / entry.name
+                        relative = child.relative_to(self.path).as_posix()
+                        info = os.stat(entry.name, dir_fd=descriptor, follow_symlinks=False)
+                        state = snapshot(info)
+                        encoded = canonical({"path": relative, "identity": list(state)})
+                        census_bytes += len(encoded)
+                        require(census_bytes <= JSON_BYTES, "durable projection census byte bound")
+                        states.update(encoded)
+                        if stat.S_ISDIR(info.st_mode):
+                            pending.append((child, state, False))
+                            continue
+                        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1, "durable single-link regular file")
+                        files += 1
+                        total += info.st_size
+                        require(files + directories <= TAR_MEMBERS + 16 and
+                                total <= ZIP_BYTES + 2 * TAR_BYTES + 3 * JSON_BYTES + 256,
+                                "durable projection byte/member bound")
+                        fd = os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
+                        try:
+                            require(snapshot(os.fstat(fd)) == state, "durable file changed before fsync")
+                            durable_fsync(fd)
+                            require(snapshot(os.fstat(fd)) == state ==
+                                    snapshot(os.stat(entry.name, dir_fd=descriptor, follow_symlinks=False)),
+                                    "durable file changed during fsync")
+                        finally:
+                            os.close(fd)
+            finally:
+                for handle in reversed(handles):
+                    os.close(handle)
+        durable_fsync(self.parents[-1])
+        self.check()
+        return {"schema": "v23-retained-payload-durable-tree.v1", "status": "FSYNCED_OWNED_DATA_PROJECTION",
+                "files": files, "directories": directories, "bytes": total,
+                "visitedIdentitySHA256": states.hexdigest().upper()}
 
     def close(self):
         try:
@@ -758,6 +833,8 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
                 and ci["shared_products_binding"](kernel, extracted) == products
                 and regular_bytes(extracted / METADATA) == raw, "owned TAR/metadata/products changed")
         owned.check()
+        stage = "durable-publication"
+        durability = owned.sync_tree()
         result = {"schema": FACT_SCHEMA, "status": "RECOMPUTED_RETAINED_PAYLOAD_DATA",
                   "envelopeSHA256": receipts["input-envelope.json"]["sha256"],
                   "outerZIP": {"bytes": receipts["payload.zip"]["bytes"], "sha256": receipts["payload.zip"]["sha256"].lower(),
@@ -770,13 +847,18 @@ def recompute_retained_payload(zip_path, envelope_path, source_root, destination
                   "products": products, "archiveMemberCensus": census, "workerJoins": joins,
                   "originalPayloadClassification": {"developmentOnly": metadata["developmentOnly"], "acceptance": metadata["acceptance"]},
                   "declaredBuildDigests": {key: metadata[key] for key in ("buildCommandReceiptSHA256", "buildLogSHA256")},
-                  "pendingProof": list(PENDING), "ownedCopies": receipts}
+                  "pendingProof": list(PENDING), "ownedCopies": receipts,
+                  "durability": durability}
         owned.write("FACTS.json", canonical(result))
         return result
     except BaseException as error:
+        try:
+            durability = owned.sync_tree()
+        except Exception as sync_error:
+            durability = {"status": "UNPROVEN", "errorType": type(sync_error).__name__}
         failure = {"schema": "v23-retained-payload-failure.v1", "status": "REFUSED_PARTIAL_OWNED_DATA_RETAINED",
                    "stage": stage, "errorType": type(error).__name__, "reason": str(error)[:1000],
-                   "ownedCopies": receipts, "pendingProof": list(PENDING)}
+                   "ownedCopies": receipts, "pendingProof": list(PENDING), "durability": durability}
         try:
             owned.write("FAILURE.json", canonical(failure))
         except Exception as receipt_error:

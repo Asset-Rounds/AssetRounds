@@ -39,6 +39,7 @@ COLLECTOR = "Scripts/dev/v23-original.py"
 # Exact source closure is also bound by the Git tree. No caller-selected paths.
 SOURCES = (
     "Scripts/v23-phase1-gates.py", COLLECTOR, "Scripts/v23-native-ci.py",
+    "Scripts/dev/v23-retained-payload.py",
     ".github/workflows/ios-ci.yml", ".github/workflows/ios-ci-worker.yml",
     ".github/workflows/ios-ci-shared-worker.yml", "Scripts/v23-shared-worker.sh",
     "Scripts/v23-ui-evidence.py", "Scripts/v23-ui-smoke.sh", "Scripts/v23-ui-batch.json",

@@ -1812,6 +1812,518 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
     return summary(receipt, target / "receipt.json")
 
 
+PHASE1_RETAINED_READER_SHA256 = "C61C8AEC5DF974990081C5A0604EBFC795DD9620D77D4D6F1131EEC6344A7DBA"
+
+
+PHASE1_PAYLOAD_READER_BOOTSTRAP = r'''
+import hashlib, json, os, stat, sys
+from pathlib import Path
+
+def bounded_regular(path, limit):
+    if not path.is_absolute() or any(part in (".", "..") for part in path.parts):
+        raise ValueError("unsupported private bridge path")
+    handles = [os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)]
+    descriptor = None
+    try:
+        for part in path.parts[1:-1]:
+            handles.append(os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=handles[-1]))
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=handles[-1])
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or not 0 < before.st_size <= limit:
+            raise ValueError("unsupported private bridge regular bytes")
+        raw = bytearray()
+        while True:
+            block = os.read(descriptor, min(1024 * 1024, limit + 1 - len(raw)))
+            if not block:
+                break
+            raw.extend(block)
+            if len(raw) > limit:
+                raise ValueError("private bridge first-excess bytes")
+        after = os.fstat(descriptor)
+        fields = ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")
+        named = os.stat(path.name, dir_fd=handles[-1], follow_symlinks=False)
+        if len(raw) != before.st_size or any(getattr(before, key) != getattr(after, key) or
+                getattr(before, key) != getattr(named, key) for key in fields):
+            raise ValueError("private bridge named bytes changed")
+        return bytes(raw)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        for handle in reversed(handles):
+            os.close(handle)
+
+request_path, root = Path(sys.argv[1]), Path(sys.argv[2])
+request_raw = bounded_regular(request_path, 8 * 1024 * 1024)
+if hashlib.sha256(request_raw).hexdigest().upper() != sys.argv[4]:
+    raise ValueError("private bridge request bytes changed")
+request = json.loads(request_raw)
+if (json.dumps(request, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False) + "\n").encode() != request_raw:
+    raise ValueError("noncanonical private bridge request")
+relative = "Scripts/dev/v23-retained-payload.py"
+raw = bounded_regular(root / relative, 32 * 1024 * 1024)
+if hashlib.sha256(raw).hexdigest().upper() != sys.argv[3] or sys.argv[3] != request["binding"]["sources"][relative]:
+    raise ValueError("unsupported private bridge reader bytes")
+namespace = {"__name__": "v23_retained_original_payload", "__file__": str(root / relative)}
+exec(compile(raw, str(root / relative), "exec"), namespace)
+namespace["recompute_retained_payload"](Path(request["rawPath"]), request_path.parent / "input-envelope.json",
+    root, request_path.parent / "reader-owned", retained_workers=Path(request["workersPath"]))
+'''
+
+
+def phase1_payload_reader_run(archived_root, request_path, request_sha256):
+    """Private exact-source DATA child, never a reader CLI or native replay."""
+    return subprocess.run([sys.executable, "-B", "-c", PHASE1_PAYLOAD_READER_BOOTSTRAP,
+        str(request_path), str(archived_root), PHASE1_RETAINED_READER_SHA256,
+        request_sha256], cwd=archived_root, stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
+
+
+def phase1_bridge_tree(gate, path, *, durable=False, file_hashes=None):
+    """Complete bounded no-follow byte/identity fold, including directories."""
+    ancestors = phase1_payload_ancestors(gate, path)
+    pending, count, encoded_bytes, total = [path], 0, 0, 0
+    directories = []
+    digest = hashlib.sha256()
+    digest.update(gate.canonical({"path": ".", "identity": phase1_payload_identity(path.lstat())}))
+    while pending:
+        current = pending.pop()
+        before = current.lstat()
+        directories.append((current, phase1_payload_identity(before)))
+        gate.require(stat.S_ISDIR(before.st_mode), "bridge regular tree directory")
+        descriptor = os.open(current, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            gate.exact(phase1_payload_identity(os.fstat(descriptor)), phase1_payload_identity(before),
+                       "bridge named directory changed")
+            with os.scandir(descriptor) as scan:
+                entries = []
+                for entry in scan:
+                    gate.require(len(entries) < 100016, "bridge directory first-excess members")
+                    entries.append(entry)
+                entries.sort(key=lambda entry: entry.name)
+            for entry in entries:
+                child = current / entry.name
+                info = os.stat(entry.name, dir_fd=descriptor, follow_symlinks=False)
+                row = {"path": child.relative_to(path).as_posix(), "identity": phase1_payload_identity(info)}
+                count += 1
+                gate.require(count <= 100016, "bridge complete tree member bound")
+                if stat.S_ISDIR(info.st_mode):
+                    pending.append(child)
+                else:
+                    gate.require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
+                                 "bridge single-link regular tree file")
+                    snapshot = phase1_payload_snapshot(gate, child)
+                    gate.exact(snapshot["identity"], row["identity"], "bridge file changed after scan")
+                    row.update(bytes=snapshot["bytes"], SHA256=snapshot["SHA256"])
+                    total += snapshot["bytes"]
+                    if file_hashes is not None:
+                        file_hashes[row["path"]] = snapshot["SHA256"]
+                    if durable:
+                        fd = os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
+                        try:
+                            gate.exact(phase1_payload_identity(os.fstat(fd)), row["identity"], "bridge durable file identity")
+                            os.fsync(fd)
+                            gate.exact(phase1_payload_identity(os.fstat(fd)), row["identity"], "bridge durable file changed")
+                        finally:
+                            os.close(fd)
+                raw = gate.canonical(row)
+                encoded_bytes += len(raw)
+                gate.require(encoded_bytes <= 32 * 1024 * 1024, "bridge tree census byte bound")
+                digest.update(raw)
+            gate.exact(phase1_payload_identity(os.fstat(descriptor)), phase1_payload_identity(before),
+                       "bridge directory changed during scan")
+            gate.exact(phase1_payload_identity(current.lstat()), phase1_payload_identity(before),
+                       "bridge directory path changed")
+        finally:
+            os.close(descriptor)
+    if durable:
+        for current, expected in reversed(directories):
+            fd = os.open(current, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            try:
+                gate.exact(phase1_payload_identity(os.fstat(fd)), expected, "bridge durable directory identity")
+                os.fsync(fd)
+                gate.exact(phase1_payload_identity(os.fstat(fd)), expected, "bridge durable directory changed")
+            finally:
+                os.close(fd)
+        fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    gate.exact(phase1_payload_ancestors(gate, path), ancestors, "bridge tree ancestor changed")
+    return {"members": count, "fileBytes": total, "closureSHA256": digest.hexdigest().upper(), "ancestors": ancestors}
+
+
+PHASE1_DISCOVERY_PROJECT = "FieldEvidenceApp.xcodeproj/project.pbxproj"
+PHASE1_DISCOVERY_POLICY_SOURCE = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+PHASE1_DISCOVERY_ROOT = "FieldEvidenceAppTests"
+PHASE1_DISCOVERY_MAX_SWIFT_FILES = 1000
+PHASE1_DISCOVERY_MAX_MEMBERS = 10000
+PHASE1_DISCOVERY_FILE_BYTES = 32 * 1024 * 1024
+PHASE1_DISCOVERY_TOTAL_BYTES = 128 * 1024 * 1024
+PHASE1_DISCOVERY_CENSUS_BYTES = 4 * 1024 * 1024
+
+
+def phase1_bridge_discovery_content(gate, value):
+    """Stable read-input DATA bytes, independent of a fresh archive's inodes."""
+    gate.require(type(value) is dict and set(value) == {"schema", "files", "orderedSwiftPaths", "members",
+        "directories", "ancestors", "contentSHA256"} and value["schema"] == "v23-phase1-discovery-inputs.v1",
+        "bridge closed discovery input census")
+    gate.require(type(value["files"]) is dict and 2 < len(value["files"]) <= PHASE1_DISCOVERY_MAX_SWIFT_FILES + 2
+        and type(value["orderedSwiftPaths"]) is list and
+        value["orderedSwiftPaths"] == sorted(set(value["orderedSwiftPaths"])) and
+        set(value["files"]) == {PHASE1_DISCOVERY_PROJECT, PHASE1_DISCOVERY_POLICY_SOURCE, *value["orderedSwiftPaths"]},
+        "bridge complete ordered discovery files")
+    stable = {"files": {name: {"bytes": row["bytes"], "SHA256": row["SHA256"]}
+                        for name, row in value["files"].items()},
+              "orderedSwiftPaths": value["orderedSwiftPaths"], "members": value["members"]}
+    encoded = gate.canonical(stable)
+    gate.require(len(encoded) <= PHASE1_DISCOVERY_CENSUS_BYTES, "bridge discovery content byte bound")
+    return gate.sha(encoded)
+
+
+def phase1_bridge_discovery_inputs(gate, archived_root):
+    """Bound non-executable source reads in the real shared payload reader.
+
+    The executable/source allowlist is separate and unchanged. Read the fixed
+    project, actual ordered unit Swift files and Simulator allowance source;
+    unit membership is complete, held no-follow, first-excess bounded, uncached.
+    """
+    unit_root = archived_root / PHASE1_DISCOVERY_ROOT
+    project = archived_root / PHASE1_DISCOVERY_PROJECT
+    policy = archived_root / PHASE1_DISCOVERY_POLICY_SOURCE
+    ancestors = {**phase1_payload_ancestors(gate, unit_root),
+                 **phase1_payload_ancestors(gate, project.parent),
+                 **phase1_payload_ancestors(gate, policy.parent)}
+    def chain(path):
+        handles = [os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)]
+        try:
+            for part in path.parts[1:]:
+                handles.append(os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=handles[-1]))
+            return handles
+        except BaseException:
+            for fd in reversed(handles): os.close(fd)
+            raise
+    def snapshot_at(parent, name, limit):
+        before = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        gate.require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1 and 0 <= before.st_size <= limit,
+                     "bridge discovery single-link regular file/bound")
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+        digest, count = hashlib.sha256(), 0
+        identity = phase1_payload_identity(before)
+        try:
+            gate.exact(phase1_payload_identity(os.fstat(fd)), identity, "bridge discovery file changed before read")
+            while block := os.read(fd, min(PHASE1_PAYLOAD_CHUNK_BYTES, limit + 1 - count)):
+                count += len(block)
+                gate.require(count <= limit, "bridge discovery file first-excess bytes")
+                digest.update(block)
+            gate.exact(phase1_payload_identity(os.fstat(fd)), identity, "bridge discovery file changed during read")
+            gate.exact(phase1_payload_identity(os.stat(name, dir_fd=parent, follow_symlinks=False)), identity,
+                       "bridge discovery named file changed")
+        finally:
+            os.close(fd)
+        gate.require(count == before.st_size, "bridge discovery complete file read")
+        return {"identity": identity, "bytes": count, "SHA256": digest.hexdigest().upper()}
+    census_bytes = 0
+    def charge(value):
+        nonlocal census_bytes
+        census_bytes += len(gate.canonical(value))
+        gate.require(census_bytes <= PHASE1_DISCOVERY_CENSUS_BYTES, "bridge discovery census first-excess bytes")
+    project_handles = chain(project.parent)
+    try:
+        project_row = snapshot_at(project_handles[-1], project.name, 4 * 1024 * 1024)
+    finally:
+        for fd in reversed(project_handles): os.close(fd)
+    policy_handles = chain(policy.parent)
+    try:
+        policy_row = snapshot_at(policy_handles[-1], policy.name, PHASE1_DISCOVERY_FILE_BYTES)
+    finally:
+        for fd in reversed(policy_handles): os.close(fd)
+    files = {PHASE1_DISCOVERY_PROJECT: project_row, PHASE1_DISCOVERY_POLICY_SOURCE: policy_row}
+    total = project_row["bytes"] + policy_row["bytes"]
+    gate.require(total <= PHASE1_DISCOVERY_TOTAL_BYTES, "bridge discovery total byte bound")
+    charge({"path": PHASE1_DISCOVERY_PROJECT, **project_row})
+    charge({"path": PHASE1_DISCOVERY_POLICY_SOURCE, **policy_row})
+    root_handles = chain(unit_root)
+    try:
+        root_identity = phase1_payload_identity(os.fstat(root_handles[-1]))
+        gate.exact(root_identity, phase1_payload_identity(unit_root.lstat()), "bridge named discovery root")
+        members = [{"path": PHASE1_DISCOVERY_ROOT, "kind": "directory"}]
+        directories = {}
+        charge({"path": PHASE1_DISCOVERY_ROOT, "identity": root_identity})
+        pending = [((), root_identity)]
+        while pending:
+            parts, expected = pending.pop()
+            handles = [os.dup(root_handles[-1])]
+            try:
+                for part in parts:
+                    handles.append(os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=handles[-1]))
+                fd = handles[-1]
+                gate.exact(phase1_payload_identity(os.fstat(fd)), expected, "bridge discovery directory changed")
+                relative = "/".join((PHASE1_DISCOVERY_ROOT, *parts))
+                directories[relative] = expected
+                with os.scandir(fd) as scan:
+                    entries = []
+                    for entry in scan:
+                        gate.require(len(entries) < PHASE1_DISCOVERY_MAX_MEMBERS, "bridge discovery directory first-excess members")
+                        entries.append(entry.name)
+                for name in sorted(entries):
+                    info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                    is_directory = stat.S_ISDIR(info.st_mode)
+                    gate.require(is_directory or (stat.S_ISREG(info.st_mode) and info.st_nlink == 1),
+                                 "bridge discovery regular no-follow namespace")
+                    path = relative + "/" + name
+                    gate.require(len(members) < PHASE1_DISCOVERY_MAX_MEMBERS, "bridge discovery total first-excess members")
+                    row = {"path": path, "kind": "directory" if is_directory else "file"}
+                    charge({**row, "identity": phase1_payload_identity(info)})
+                    members.append(row)
+                    if is_directory:
+                        pending.append((parts + (name,), phase1_payload_identity(info)))
+                    elif name.endswith(".swift"):
+                        gate.require(len(files) < PHASE1_DISCOVERY_MAX_SWIFT_FILES + 2, "bridge discovery first-excess Swift files")
+                        snapshot = snapshot_at(fd, name, PHASE1_DISCOVERY_FILE_BYTES)
+                        gate.exact(snapshot["identity"], phase1_payload_identity(info), "bridge Swift changed after census")
+                        files[path] = snapshot
+                        total += snapshot["bytes"]
+                        gate.require(total <= PHASE1_DISCOVERY_TOTAL_BYTES, "bridge discovery total byte bound")
+                gate.exact(phase1_payload_identity(os.fstat(fd)), expected, "bridge discovery directory changed during census")
+                if parts:
+                    gate.exact(phase1_payload_identity(os.stat(parts[-1], dir_fd=handles[-2], follow_symlinks=False)),
+                               expected, "bridge named discovery directory changed")
+            finally:
+                for fd in reversed(handles): os.close(fd)
+        gate.exact(phase1_payload_identity(unit_root.lstat()), root_identity, "bridge discovery root changed")
+    finally:
+        for fd in reversed(root_handles): os.close(fd)
+    gate.exact({**phase1_payload_ancestors(gate, unit_root), **phase1_payload_ancestors(gate, project.parent),
+                **phase1_payload_ancestors(gate, policy.parent)}, ancestors, "bridge discovery ancestors changed")
+    value = {"schema": "v23-phase1-discovery-inputs.v1", "files": files,
+        "orderedSwiftPaths": sorted(name for name in files if name not in (PHASE1_DISCOVERY_PROJECT, PHASE1_DISCOVERY_POLICY_SOURCE)),
+        "members": sorted(members, key=lambda row: row["path"]), "directories": directories,
+        "ancestors": ancestors, "contentSHA256": None}
+    gate.require(value["orderedSwiftPaths"] and len(gate.canonical(value)) <= PHASE1_DISCOVERY_CENSUS_BYTES,
+                 "bridge nonempty bounded discovery census")
+    value["contentSHA256"] = phase1_bridge_discovery_content(gate, value)
+    gate.require(len(gate.canonical(value)) <= PHASE1_DISCOVERY_CENSUS_BYTES, "bridge final discovery census byte bound")
+    return value
+
+
+def phase1_bridge_inputs(gate, directory, plan, archived_root, raw_path):
+    controls = ("dispatch.json", "collector.claim.json", "phase1-registration.json", "phase1-attempt.json",
+                "run.json", "run-attempt-1.json", "workflow.json", "jobs.json", "artifacts.json",
+                (raw_path.parent / "request.json").relative_to(directory).as_posix(),
+                (raw_path.parent / "receipt.json").relative_to(directory).as_posix())
+    return {"raw": phase1_payload_snapshot(gate, raw_path),
+            "controls": {name: phase1_payload_snapshot(gate, directory / name) for name in controls},
+            "workers": phase1_bridge_tree(gate, directory / "artifacts"),
+            "sources": {name: phase1_payload_snapshot(gate, archived_root / name) for name in plan["sources"]},
+            "discovery": phase1_bridge_discovery_inputs(gate, archived_root)}
+
+
+def phase1_payload_reader_headroom(gate, directory, zip_bytes):
+    """Actual copy plus existing bounded TAR/projection and a 3GiB reserve."""
+    info = os.statvfs(directory)
+    available = info.f_bavail * info.f_frsize
+    required = zip_bytes + 4 * 1024 ** 3 + 96 * 1024 ** 2 + 256 + 3 * 1024 ** 3
+    gate.require(available >= required, "bridge measured reader storage headroom")
+    return {"availableBytes": available, "requiredBytes": required, "reserveBytes": 3 * 1024 ** 3}
+
+
+def phase1_recompute_payload(gate, directory, plan, attempt, claim_value, payload_api, payload_transport,
+                             archived_root, resume):
+    """Private authenticated caller bridge. Receipts remain INCOMPLETE DATA."""
+    gate.require(directory.is_absolute() and archived_root.is_absolute(), "bridge absolute owned paths")
+    phase1_payload_ancestors(gate, directory)
+    phase1_payload_ancestors(gate, archived_root)
+    gate.require(hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NOFOLLOW"), "bridge supported no-follow platform")
+    gate.require(plan["selection"] == SHARED_SELECTION_ID and type(resume) is bool,
+                 "bridge shared original only")
+    gate.exact(gate.decode(gate.regular_bytes(directory / "collector.claim.json")), claim_value, "bridge sole claim")
+    registration_raw = gate.regular_bytes(directory / "phase1-registration.json")
+    registration = gate.decode(registration_raw)
+    gate.exact(registration.get("plan"), plan, "bridge immutable registered plan")
+    gate.require(gate.sha(registration_raw) == claim_value["registrationSHA256"], "bridge registration hash")
+    attempt_raw = gate.regular_bytes(directory / "phase1-attempt.json", limit=gate.MAX_ATTEMPT_BYTES)
+    gate.exact(gate.decode(attempt_raw, limit=gate.MAX_ATTEMPT_BYTES), attempt, "bridge immutable attempt")
+    gate.require(gate.sha(attempt_raw) == claim_value["attemptSHA256"] and
+                 gate.sha(gate.regular_bytes(directory / "dispatch.json", limit=4 * 1024 * 1024)) == claim_value["dispatchSHA256"],
+                 "bridge original dispatch/attempt hashes")
+    dispatched = gate.decode(gate.regular_bytes(directory / "dispatch.json", limit=4 * 1024 * 1024), limit=4 * 1024 * 1024)
+    labels = ["producer"] + dispatched["sharedPartitions"]["partitionIDs"]
+    gate.require(sorted(p.name for p in (directory / "artifacts").iterdir()) == sorted(labels), "bridge complete worker census")
+    expected_names = shared_artifact_names(claim_value["runID"], plan["head"], labels[1:])
+    phase1_api_original(gate, gate.decode(gate.regular_bytes(directory / "run-attempt-1.json")),
+                        claim_value["runID"], plan, attempt)
+    listing = gate.decode(gate.regular_bytes(directory / "artifacts.json", limit=32 * 1024 * 1024),
+                          limit=32 * 1024 * 1024)["artifacts"]
+    gate.require(type(listing) is list and all(type(row) is dict and type(row.get("id")) is int and row["id"] > 0
+        and type(row.get("name")) is str for row in listing) and
+        len({row["id"] for row in listing}) == len({row["name"] for row in listing}) == len(listing),
+        "bridge unambiguous complete API census")
+    gate.require({row["name"] for row in listing} == {expected_names["payload"], expected_names["producer"], *expected_names["consumers"].values()},
+                 "bridge exact complete API artifact names")
+    name = "v23-shared-payload-%d-1-%s" % (claim_value["runID"], plan["head"])
+    matches = [row for row in listing if row["name"] == name]
+    gate.require(len(matches) == 1, "bridge exact payload name")
+    gate.exact(matches[0], payload_api, "bridge full authenticated API object")
+    gate.require(payload_transport["transportStatus"] == "COMPLETE" and payload_transport["downloaded"] is True
+        and payload_transport["id"] == payload_api["id"] and payload_transport["digest"] == payload_api["digest"],
+        "bridge requires COMPLETE authenticated raw transport")
+    raw_relative = payload_transport["rawZIP"]["path"]
+    receipt_relative = payload_transport["transportReceipt"]["path"]
+    gate.require(type(raw_relative) is str and type(receipt_relative) is str and
+        re.fullmatch(r"phase1-payload-transports/%d/[0-9]{6}/raw\.zip" % payload_api["id"], raw_relative)
+        and receipt_relative == raw_relative.removesuffix("raw.zip") + "receipt.json", "bridge fixed raw/control paths")
+    raw_path = directory / raw_relative
+    transport_raw = gate.regular_bytes(directory / receipt_relative)
+    transport = gate.decode(transport_raw)
+    gate.require(gate.sha(transport_raw) == payload_transport["transportReceipt"]["SHA256"] and
+        transport["schema"] == "v23-phase1-payload-transport.v1" and transport["status"] == "COMPLETE"
+        and all(transport[key] is True for key in ("responseComplete", "durableRaw", "digestVerified")),
+        "bridge immutable durable raw receipt")
+    transport_request_raw = gate.regular_bytes(raw_path.parent / "request.json")
+    transport_request = gate.decode(transport_request_raw)
+    binding = {"runID": claim_value["runID"], "runAttempt": 1, "head": plan["head"], "tree": plan["tree"], "ref": plan["ref"],
+        "planSHA256": gate.sha(gate.canonical(plan)), "claimSHA256": gate.sha(gate.canonical(claim_value)),
+        "attemptSHA256": gate.sha(attempt_raw), "dispatchSHA256": claim_value["dispatchSHA256"],
+        "registrationSHA256": gate.sha(registration_raw), "sources": plan["sources"],
+        "apiArtifactSHA256": gate.sha(gate.canonical(payload_api)), "artifactID": payload_api["id"],
+        "apiDigest": payload_api["digest"], "declaredAPISizeBytes": payload_api["size_in_bytes"],
+        "rawZIP": payload_transport["rawZIP"], "transportReceiptSHA256": gate.sha(transport_raw),
+        "transportRequestSHA256": gate.sha(transport_request_raw)}
+    for value in (transport_request, transport):
+        gate.exact({key: value.get(key) for key in ("runID", "runAttempt", "claimSHA256", "apiArtifactSHA256",
+                    "artifactID", "apiDigest", "declaredAPISizeBytes")},
+                   {key: binding[key] for key in ("runID", "runAttempt", "claimSHA256", "apiArtifactSHA256",
+                    "artifactID", "apiDigest", "declaredAPISizeBytes")}, "bridge raw original/API/claim join")
+    before = phase1_bridge_inputs(gate, directory, plan, archived_root, raw_path)
+    binding["discoveryInputsSHA256"] = before["discovery"]["contentSHA256"]
+    gate.exact(before["raw"], {"identity": transport["rawIdentity"], "bytes": transport["actualZIPBytes"],
+               "SHA256": transport["actualZIPSHA256"]}, "bridge current raw receipt identity")
+    gate.exact({"path": raw_relative, "bytes": before["raw"]["bytes"], "SHA256": before["raw"]["SHA256"]},
+               binding["rawZIP"], "bridge raw summary bytes")
+    gate.require("sha256:" + before["raw"]["SHA256"].lower() == payload_api["digest"], "bridge actual outer ZIP digest")
+    gate.exact({key: value["SHA256"] for key, value in before["sources"].items()}, plan["sources"], "bridge archived source bytes")
+    gate.require(plan["sources"]["Scripts/dev/v23-retained-payload.py"] == PHASE1_RETAINED_READER_SHA256,
+                 "bridge literal approved reader version")
+    envelope = {"schema": "v23-retained-payload-input.v1", "plan": plan, "runID": claim_value["runID"],
+                "runAttempt": 1, "payloadArtifact": payload_api}
+    envelope_raw = gate.canonical(envelope)
+    headroom = phase1_payload_reader_headroom(gate, directory, before["raw"]["bytes"])
+    root = directory / "phase1-payload-recomputations"
+    gate.durable_directory(root)
+    entries = sorted(root.iterdir())
+    gate.require(len(entries) < 1000 and [p.name for p in entries] == ["%06d" % i for i in range(len(entries))]
+                 and (resume or not entries), "bridge same-claim bounded history")
+    def summary(receipt, path):
+        return {"status": receipt["status"], "receipt": {"path": path.relative_to(directory).as_posix(),
+                "SHA256": gate.sha(gate.canonical(receipt))}, "functionalQualification": gate.PENDING,
+                "acceptance": False, "providerQualification": False, "releaseReady": False,
+                "continuationRequired": receipt["continuationRequired"]}
+    comparable = {key: before[key] for key in ("raw", "controls", "workers")}
+    retained_hashes = {}
+    for index, previous in enumerate(entries):
+        phase1_payload_ancestors(gate, previous)
+        gate.require(sorted(p.name for p in previous.iterdir()) == ["input-envelope.json", "reader-owned", "receipt.json", "request.json"],
+                     "bridge unresolved history; inspect before resume")
+        old_request_raw = gate.regular_bytes(previous / "request.json", limit=gate.MAX_ATTEMPT_BYTES)
+        old_receipt_raw = gate.regular_bytes(previous / "receipt.json", limit=gate.MAX_ATTEMPT_BYTES)
+        request_old = gate.decode(old_request_raw, limit=gate.MAX_ATTEMPT_BYTES)
+        receipt_old = gate.decode(old_receipt_raw, limit=gate.MAX_ATTEMPT_BYTES)
+        gate.require(type(request_old) is dict and set(request_old) == {"schema", "index", "atUTC", "binding", "inputs", "envelopeSHA256", "rawPath", "workersPath", "headroom"}
+            and request_old["schema"] == "v23-phase1-payload-recomputation-request.v1", "bridge closed history request")
+        gate.require(type(receipt_old) is dict and set(receipt_old) == {"schema", "status", "index", "atUTC", "requestSHA256", "ownedTree", "results", "failureCategory",
+            "inputInvariance", "continuationRequired", "proofStatus", "functionalQualification", "acceptance", "providerQualification", "releaseReady"}, "bridge closed history receipt")
+        gate.exact({key: receipt_old[key] for key in ("index", "proofStatus", "functionalQualification", "acceptance", "providerQualification", "releaseReady")},
+            {"index": index, "proofStatus": "INCOMPLETE", "functionalQualification": gate.PENDING, "acceptance": False, "providerQualification": False, "releaseReady": False}, "bridge history DATA classification")
+        gate.require(type(request_old["index"]) is int and request_old["index"] == index and
+            type(receipt_old["inputInvariance"]) is bool and type(receipt_old["continuationRequired"]) is bool, "bridge history index/flags")
+        gate.exact(request_old["binding"], binding, "bridge same original/source/claim history")
+        gate.require(phase1_bridge_discovery_content(gate, request_old["inputs"]["discovery"]) ==
+            request_old["inputs"]["discovery"]["contentSHA256"] == binding["discoveryInputsSHA256"],
+            "bridge discovery read-input content changed on resume")
+        gate.exact({key: request_old["inputs"][key] for key in comparable}, comparable, "bridge original inputs changed on resume")
+        gate.require(gate.regular_bytes(previous / "input-envelope.json") == envelope_raw and
+            receipt_old["requestSHA256"] == gate.sha(gate.canonical(request_old)) and
+            receipt_old["schema"] == "v23-phase1-payload-recomputation.v1" and
+            receipt_old["status"] in ("RECOMPUTED_DURABLE_PAYLOAD_DATA", "REFUSED_PRESERVED_DATA"), "bridge immutable history controls")
+        previous_files = {}
+        gate.exact(phase1_bridge_tree(gate, previous / "reader-owned", file_hashes=previous_files), receipt_old["ownedTree"], "bridge retained DATA changed")
+        prefix = previous.relative_to(directory).as_posix() + "/"
+        retained_hashes.update({prefix + "reader-owned/" + name: digest for name, digest in previous_files.items()})
+        retained_hashes.update({prefix + "request.json": gate.sha(old_request_raw), prefix + "receipt.json": gate.sha(old_receipt_raw),
+            prefix + "input-envelope.json": gate.sha(envelope_raw)})
+        gate.require(receipt_old["status"] != "RECOMPUTED_DURABLE_PAYLOAD_DATA",
+                     "bridge prior successful record without completed original requires inspection")
+    partials = directory / "phase1-collection-partials"
+    if entries and partials.exists():
+        phase1_payload_ancestors(gate, partials)
+        for path in sorted(partials.iterdir()):
+            partial = gate.decode(gate.regular_bytes(path, limit=32 * 1024 * 1024), limit=32 * 1024 * 1024)
+            gate.require(partial["schema"] == "v23-phase1-collection-partial.v1", "bridge collection partial schema")
+            gate.exact({key: partial[key] for key in ("runID", "runAttempt", "planSHA256")},
+                {"runID": binding["runID"], "runAttempt": 1, "planSHA256": binding["planSHA256"]}, "bridge same original partial")
+            for name, digest in partial["retainedFiles"].items():
+                if name.startswith(root.relative_to(directory).as_posix() + "/"):
+                    gate.require(retained_hashes.get(name) == digest, "bridge retained partial history changed")
+    target = root / ("%06d" % len(entries))
+    target.mkdir(mode=0o700)
+    gate.durable_directory(target)
+    gate.write_immutable(target / "input-envelope.json", envelope_raw)
+    request = {"schema": "v23-phase1-payload-recomputation-request.v1", "index": len(entries), "atUTC": now(),
+        "binding": binding, "inputs": before, "envelopeSHA256": gate.sha(envelope_raw),
+        "rawPath": str(raw_path), "workersPath": str(directory / "artifacts"), "headroom": headroom}
+    request_raw = gate.canonical(request)
+    gate.write_immutable(target / "request.json", request_raw)
+    status, failure, interruption = "REFUSED_PRESERVED_DATA", None, None
+    try:
+        completed = phase1_payload_reader_run(archived_root, target / "request.json", gate.sha(request_raw))
+        gate.require(completed.returncode == 0, "bridge reader child exit")
+        facts_raw = gate.regular_bytes(target / "reader-owned/FACTS.json", limit=32 * 1024 * 1024)
+        facts = gate.decode(facts_raw, limit=32 * 1024 * 1024)
+        gate.require(facts["schema"] == "v23-retained-payload-facts.v1" and facts["status"] == "RECOMPUTED_RETAINED_PAYLOAD_DATA"
+            and facts["durability"]["status"] == "FSYNCED_OWNED_DATA_PROJECTION" and facts["pendingProof"]
+            and facts["workerJoins"]["status"] == "RECOMPUTED_ALL_RETAINED_WORKER_JOINS_DATA", "bridge DATA-only durable complete worker result")
+        gate.exact(facts["sourceSHA256"], plan["sources"], "bridge reader source result")
+        gate.exact(facts["outerZIP"], {"bytes": before["raw"]["bytes"], "sha256": before["raw"]["SHA256"].lower(),
+                   "declaredAPIArtifact": payload_api}, "bridge reader actual outer ZIP result")
+        gate.exact(facts["originalDATA"], {"repository": plan["route"]["repository"], "ref": plan["ref"], "head": plan["head"],
+                   "tree": plan["tree"], "runID": claim_value["runID"], "runAttempt": 1, "planSHA256": binding["planSHA256"]},
+                   "bridge reader frozen original result")
+        gate.require(facts["envelopeSHA256"] == gate.sha(envelope_raw) and
+                     set(facts["workerJoins"]["workers"]) == set(labels), "bridge complete worker/envelope result")
+        status = "RECOMPUTED_DURABLE_PAYLOAD_DATA"
+    except (Exception, KeyboardInterrupt) as error:
+        failure = type(error).__name__
+        if isinstance(error, KeyboardInterrupt): interruption = error
+    owned_path = target / "reader-owned"
+    gate.require(owned_path.is_dir() and not owned_path.is_symlink(), "bridge unresolved child destination retained; inspect before resume")
+    owned_tree = phase1_bridge_tree(gate, owned_path, durable=status != "RECOMPUTED_DURABLE_PAYLOAD_DATA")
+    result_files = {name: phase1_payload_snapshot(gate, owned_path / name) for name in ("FACTS.json", "FAILURE.json")
+                    if (owned_path / name).exists()}
+    invariant = True
+    try:
+        gate.exact(phase1_bridge_inputs(gate, directory, plan, archived_root, raw_path), before, "bridge inputs changed during reader")
+        gate.require(gate.regular_bytes(target / "request.json", limit=gate.MAX_ATTEMPT_BYTES) == request_raw and
+                     gate.regular_bytes(target / "input-envelope.json") == envelope_raw, "bridge controls changed during reader")
+        if status == "RECOMPUTED_DURABLE_PAYLOAD_DATA":
+            gate.require(result_files["FACTS.json"]["SHA256"] == gate.sha(facts_raw), "bridge FACTS changed during publication")
+    except Exception as error:
+        invariant, status, failure = False, "REFUSED_PRESERVED_DATA", type(error).__name__
+    retryable = (not invariant or failure in ("OSError", "TimeoutExpired", "KeyboardInterrupt") or
+                 (status != "RECOMPUTED_DURABLE_PAYLOAD_DATA" and "FAILURE.json" not in result_files))
+    if "FAILURE.json" in result_files:
+        reader_failure = gate.decode(gate.regular_bytes(owned_path / "FAILURE.json", limit=32 * 1024 * 1024), limit=32 * 1024 * 1024)
+        retryable = retryable or reader_failure.get("errorType") == "OSError"
+    receipt = {"schema": "v23-phase1-payload-recomputation.v1", "status": status, "index": len(entries), "atUTC": now(),
+        "requestSHA256": gate.sha(request_raw), "ownedTree": owned_tree, "results": result_files, "failureCategory": failure,
+        "inputInvariance": invariant, "continuationRequired": retryable,
+        "proofStatus": "INCOMPLETE", "functionalQualification": gate.PENDING, "acceptance": False,
+        "providerQualification": False, "releaseReady": False}
+    gate.write_immutable(target / "receipt.json", gate.canonical(receipt))
+    if interruption: raise interruption
+    return summary(receipt, target / "receipt.json")
+
+
 def collect_phase1(run_id, resume):
     """Actual API/retention caller; complete functional proof remains INCOMPLETE.
 
@@ -2046,12 +2558,35 @@ def collect_phase1(run_id, resume):
         request = retain("phase1-chain-request.json", gate.canonical({"schema": "v23-phase1-retained-chain-request.v1",
             "runID": run_id, "planSHA256": attempt["planSHA256"]}))
         checker_log, chain_bytes = b"", None
+        payload_recomputation = {"status": "PENDING_MISSING_PAYLOAD_OR_WORKERS"}
         with tempfile.TemporaryDirectory(prefix="phase1-exact-source-") as temporary:
             with tarfile.open(fileobj=io.BytesIO(git_bytes("archive", "--format=tar", plan["head"]))) as archive:
                 archive.extractall(temporary, filter="data")
             for relative, digest in plan["sources"].items():
                 gate.require(gate.sha(gate.regular_bytes(Path(temporary) / relative, limit=32 * 1024 * 1024)) == digest,
                              "exact archived collection source")
+            if plan["selection"] == SHARED_SELECTION_ID:
+                try:
+                    gate.require(type(resolved.get("sharedCoverage")) is dict and
+                        resolved["sharedCoverage"].get("partitionIDs") == partitions and
+                        resolved["sharedCoverage"].get("partitionID", "MISSING") is None and
+                        not duplicate_names and not duplicate_ids and
+                        len(artifact_names) == len(artifacts) and set(artifact_names) == wanted and
+                        set(input_bindings) == set(expected.values()) and
+                        all(proof_artifacts.get(label, {}).get("downloaded") for label in expected.values()) and
+                        proof_artifacts.get("payload", {}).get("transportStatus") == "COMPLETE",
+                        "bridge pending complete authenticated payload/workers")
+                    payload_api = next(a for a in artifacts if a["name"] == payload_name)
+                    payload_recomputation = phase1_recompute_payload(gate, directory, plan, attempt, claim_value,
+                        payload_api, proof_artifacts["payload"], Path(temporary).resolve(), resume)
+                    if payload_recomputation["status"] != "RECOMPUTED_DURABLE_PAYLOAD_DATA":
+                        notes.append("payload recomputation DATA refused; see retained receipt")
+                    if payload_recomputation["continuationRequired"]:
+                        transport_problems.append("payload recomputation publication unresolved")
+                except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
+                    notes.append("payload recomputation DATA unavailable: " + type(error).__name__)
+                    if not isinstance(error, ValueError) or str(error).find("pending complete authenticated") == -1:
+                        transport_problems.append("payload recomputation unresolved; inspect retained history")
             command = [sys.executable, "-B", "Scripts/v23-native-ci.py", "phase1-retained-chain",
                        "--phase1-request", str(request.resolve())]
             try:
@@ -2091,7 +2626,8 @@ def collect_phase1(run_id, resume):
         retain("phase1-lifecycle.json", gate.canonical({"request": request_outcome, "history": discovery_history}))
         proof = {"schema": "v23-phase1-raw-proof.v1", "status": "INCOMPLETE", "runID": run_id,
             "runAttempt": 1, "planSHA256": attempt["planSHA256"], "head": plan["head"], "tree": plan["tree"],
-            "originalAttribution": attribution(), "artifacts": proof_artifacts, "dispatchInputBindings": input_bindings, "problems": notes, "functionalQualification": gate.PENDING,
+            "originalAttribution": attribution(), "artifacts": proof_artifacts, "payloadRecomputation": payload_recomputation,
+            "dispatchInputBindings": input_bindings, "problems": notes, "functionalQualification": gate.PENDING,
             "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
             "physicalProtectionReleaseBlocker": True, "acceptance": False, "providerQualification": False,
             "releaseReady": False}

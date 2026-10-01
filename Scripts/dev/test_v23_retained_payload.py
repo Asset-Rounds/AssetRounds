@@ -61,6 +61,9 @@ class RetainedPayloadBehaviorTests(unittest.TestCase):
             sources=cls.sources, requested_at="2026-09-29T12:00:00Z")
 
     def setUp(self):
+        # Collector bridge fixtures reuse these real-kernel bytes at their own
+        # authenticated original ID; the standalone reader default stays 123.
+        self.run_id = getattr(self, "run_id", 123)
         self.temp = tempfile.TemporaryDirectory(prefix="synthetic-retained-payload-")
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name).resolve()
@@ -84,7 +87,7 @@ class RetainedPayloadBehaviorTests(unittest.TestCase):
             "schema": self.ci["SHARED_PAYLOAD_SCHEMA"], "routeID": self.ci["SHARED_SELECTION_ID"],
             "repository": self.plan["route"]["repository"], "ref": self.plan["ref"], "head": self.plan["head"],
             "gitTree": self.plan["tree"], "workspace": "/synthetic/original/workspace",
-            "runID": "123", "runAttempt": "1", "payloadArtifactName": "v23-shared-payload-123-1-" + self.plan["head"],
+            "runID": str(self.run_id), "runAttempt": "1", "payloadArtifactName": "v23-shared-payload-%d-1-%s" % (self.run_id, self.plan["head"]),
             "planSHA256": M.sha(self.ci["canonical"](self.resolved)),
             "partitionsSHA256": self.resolved[self.ci["SHARED_KEY"]]["partitionsSHA256"],
             "toolchain": {"xcodeVersion": "Xcode 26.6", "xcodeBuild": "17F113", "sdkName": "iphonesimulator26.5",
@@ -97,10 +100,10 @@ class RetainedPayloadBehaviorTests(unittest.TestCase):
         self.zip = self.base / "retained-original.zip"
         self.envelope_path = self.base / "retained-envelope.json"
         self.destination = self.base / "owned-recomputation"
-        self.envelope = {"schema": M.INPUT_SCHEMA, "plan": copy.deepcopy(self.plan), "runID": 123, "runAttempt": 1,
+        self.envelope = {"schema": M.INPUT_SCHEMA, "plan": copy.deepcopy(self.plan), "runID": self.run_id, "runAttempt": 1,
                          "payloadArtifact": {"id": 456, "name": self.metadata["payloadArtifactName"],
                              "digest": "sha256:" + "0" * 64, "size_in_bytes": 987654, "expired": False,
-                             "workflow_run": {"id": 123, "head_sha": self.plan["head"],
+                             "workflow_run": {"id": self.run_id, "head_sha": self.plan["head"],
                                               "head_branch": self.plan["ref"].removeprefix("refs/heads/")}}}
         self.rebuild_archive()
 
@@ -163,6 +166,95 @@ class RetainedPayloadBehaviorTests(unittest.TestCase):
         self.assertEqual((self.destination / "transport" / M.TAR_NAME).read_bytes(), self.tar.read_bytes())
         self.assertEqual(stat.S_IMODE(self.destination.stat().st_mode), 0o700)
         self.assertEqual(M.decode((self.destination / "FACTS.json").read_bytes()), result)
+
+    def test_actual_gate_executable_pin_and_reader_source_closure_are_bound(self):
+        self.assertEqual(len(self.sources), 26)
+        self.assertIn("Scripts/dev/v23-retained-payload.py", self.sources)
+        self.assertEqual(M.EXECUTABLE_SOURCES["Scripts/v23-phase1-gates.py"],
+                         hashlib.sha256((self.root / "Scripts/v23-phase1-gates.py").read_bytes()).hexdigest())
+        self.assertEqual(self.sources["Scripts/dev/v23-retained-payload.py"],
+                         M.sha((self.root / "Scripts/dev/v23-retained-payload.py").read_bytes()))
+
+    def test_success_fsyncs_actual_reader_owned_files_and_directories_before_return(self):
+        synced = set()
+        actual = M.durable_fsync
+        def witnessed(descriptor):
+            info = os.fstat(descriptor)
+            synced.add((info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode)))
+            return actual(descriptor)
+        with mock.patch.object(M, "durable_fsync", witnessed):
+            result = self.run_helper()
+        self.assertEqual(result["status"], "RECOMPUTED_RETAINED_PAYLOAD_DATA")
+        for path in [self.destination, *self.destination.rglob("*")]:
+            with self.subTest(path=path.relative_to(self.destination).as_posix()):
+                info = path.lstat()
+                self.assertIn((info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode)), synced)
+
+    def test_raw_copy_fsync_failure_retains_owned_partial_and_never_returns_success(self):
+        actual = M.durable_fsync
+        failed = []
+        def fail_once(descriptor):
+            info = os.fstat(descriptor)
+            if stat.S_ISREG(info.st_mode) and info.st_size and not failed:
+                failed.append((info.st_dev, info.st_ino))
+                raise OSError("synthetic owned-copy fsync failure")
+            return actual(descriptor)
+        original_zip, original_envelope = self.zip.read_bytes(), self.envelope_path.read_bytes()
+        with mock.patch.object(M, "durable_fsync", fail_once), self.assertRaises(M.Refused):
+            self.run_helper()
+        self.assertTrue(failed)
+        self.assertEqual(self.zip.read_bytes(), original_zip)
+        self.assertEqual(self.envelope_path.read_bytes(), original_envelope)
+        failure = M.decode((self.destination / "FAILURE.json").read_bytes())
+        self.assertEqual(failure["errorType"], "OSError")
+        self.assertTrue(failure["pendingProof"])
+        self.assertFalse((self.destination / "FACTS.json").exists())
+
+    def test_destination_constructor_fsync_failure_preserves_unresolved_private_directory(self):
+        original_zip, original_envelope = self.zip.read_bytes(), self.envelope_path.read_bytes()
+        with mock.patch.object(M, "durable_fsync", side_effect=OSError("synthetic new-directory fsync failure")), \
+                self.assertRaises(OSError):
+            self.run_helper()
+        self.assertTrue(self.destination.is_dir())
+        self.assertEqual(stat.S_IMODE(self.destination.stat().st_mode), 0o700)
+        self.assertEqual(list(self.destination.iterdir()), [])
+        self.assertEqual(self.zip.read_bytes(), original_zip)
+        self.assertEqual(self.envelope_path.read_bytes(), original_envelope)
+        with self.assertRaises(FileExistsError):
+            self.run_helper()
+
+    def test_extracted_tree_fsync_failure_preserves_projection_and_failure(self):
+        with mock.patch.object(M.Owned, "sync_tree", side_effect=OSError("synthetic tree fsync failure")), \
+                self.assertRaises(M.Refused):
+            self.run_helper()
+        self.assertTrue((self.destination / "extracted" / M.METADATA).is_file())
+        self.assertEqual((self.destination / "payload.zip").read_bytes(), self.zip.read_bytes())
+        failure = M.decode((self.destination / "FAILURE.json").read_bytes())
+        self.assertEqual(failure["errorType"], "OSError")
+        self.assertFalse((self.destination / "FACTS.json").exists())
+
+    def test_facts_fsync_failure_preserves_ambiguous_bytes_and_refuses_completion(self):
+        actual = M.durable_fsync
+        failures = []
+        def fail_facts_once(descriptor):
+            path = self.destination / "FACTS.json"
+            if path.exists():
+                opened, named = os.fstat(descriptor), path.lstat()
+                if (opened.st_dev, opened.st_ino) == (named.st_dev, named.st_ino) and not failures:
+                    failures.append(True)
+                    raise OSError("synthetic canonical FACTS fsync failure")
+            return actual(descriptor)
+        with mock.patch.object(M, "durable_fsync", fail_facts_once), self.assertRaises(M.Refused):
+            self.run_helper()
+        self.assertEqual(failures, [True])
+        facts = (self.destination / "FACTS.json").read_bytes()
+        failure = M.decode((self.destination / "FAILURE.json").read_bytes())
+        self.assertEqual(failure["errorType"], "OSError")
+        self.assertTrue(failure["pendingProof"])
+        with self.assertRaises(FileExistsError):
+            self.run_helper()
+        self.assertEqual((self.destination / "FACTS.json").read_bytes(), facts)
+        self.assertEqual((self.destination / "payload.zip").read_bytes(), self.zip.read_bytes())
 
     def test_valid_stored_per_member_zip64_and_streaming_descriptors(self):
         class StreamingBuffer(io.BytesIO):
@@ -568,7 +660,7 @@ class RetainedPayloadBehaviorTests(unittest.TestCase):
         entries = self.kernel["inventory"](self.payload / self.kernel["ROOT_LABEL"])
         census = self.ci["phase1_tar_census"](self.tar, self.kernel)
         binding = {"schema": self.gate["EVENT_SCHEMA"], "plan": self.plan,
-                   "planSHA256": M.sha(M.canonical(self.plan)), "runID": "123", "runAttempt": "1",
+                   "planSHA256": M.sha(M.canonical(self.plan)), "runID": str(self.run_id), "runAttempt": "1",
                    "functionalQualification": self.gate["PENDING"]}
         labels = ["producer"] + self.resolved[self.ci["SHARED_KEY"]]["partitionIDs"]
         for label in labels:
@@ -579,7 +671,7 @@ class RetainedPayloadBehaviorTests(unittest.TestCase):
             selected = self.resolved if producer else self.ci["shared_selection"](self.root, label)
             record = {**self.ci["source_binding"](self.root),
                       "repository": self.plan["route"]["repository"], "ref": self.plan["ref"],
-                      "head": self.plan["head"], "gitTree": self.plan["tree"], "runID": "123", "runAttempt": "1",
+                      "head": self.plan["head"], "gitTree": self.plan["tree"], "runID": str(self.run_id), "runAttempt": "1",
                       "selectionID": self.ci["SHARED_SELECTION_ID"], "phase1Gate": binding,
                       "selectionSHA256": M.sha(self.ci["canonical"](selected)),
                       self.ci["SHARED_KEY"]: {"role": role, "partitionID": None if producer else label,
@@ -643,6 +735,18 @@ class RetainedPayloadBehaviorTests(unittest.TestCase):
         directory.mkdir()
         (directory / "producer").mkdir()
         self.refused("complete producer/every-consumer", retained_workers=directory)
+
+    def test_missing_final_consumer_and_extra_label_cannot_appear_complete(self):
+        directory, labels = self.worker_fixture()
+        held = self.base / "held-final-consumer"
+        (directory / labels[-1]).rename(held)  # Disposable synthetic fixtures only.
+        self.refused("complete producer/every-consumer", retained_workers=directory)
+        held.rename(directory / labels[-1])
+        extra = directory / "caller-extra-worker"
+        extra.mkdir()
+        with self.assertRaises(M.Refused):
+            M.recompute_retained_payload(self.zip, self.envelope_path, self.root,
+                                        self.base / "extra-worker-refusal", retained_workers=directory)
 
     def test_last_consumer_self_consistent_false_archive_join_is_recomputed_and_refused(self):
         directory, labels = self.worker_fixture()

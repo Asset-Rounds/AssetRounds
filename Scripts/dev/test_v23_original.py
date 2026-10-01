@@ -24,14 +24,18 @@ import json
 import os
 import re
 import shutil
+import stat
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
+REAL_SUBPROCESS_RUN = subprocess.run
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
 TOOL = HERE / "v23-original.py"
@@ -2898,10 +2902,16 @@ class Phase1AttemptLifecycleTests(unittest.TestCase):
 class Phase1CollectionCallerTests(unittest.TestCase):
     """Synthetic root/API originals; no native, hosted or human approval fixtures."""
 
-    def fixture(self, base, shared=False):
+    def fixture(self, base, shared=False, reader=False):
         import tarfile
         gate = NEW.phase1_gates()
         selected = {"unitTestSelectors": ["SyntheticTests/Test/testOnly"], "uiTestSelectors": []}
+        reader_case = None
+        if reader:
+            self.assertTrue(shared)
+            reader_tests = load(HERE / "test_v23_retained_payload.py", "collector_real_reader_fixtures")
+            ci, reader_gate, kernel = reader_tests.M.source_modules(REPO_ROOT)
+            selected = ci["shared_selection"](REPO_ROOT)
         plan = gate.make_plan(purpose=gate.CANDIDATE, head=HEAD, tree="9" * 40,
             selection=gate.SHARED if shared else gate.RUI1, resolved_bytes=gate.canonical(selected),
             sources={p: gate.sha((REPO_ROOT / p).read_bytes()) for p in gate.SOURCES},
@@ -2922,6 +2932,8 @@ class Phase1CollectionCallerTests(unittest.TestCase):
             "phase1RegistrationSHA256": attempt["registrationSHA256"], "phase1RegistrationSchema": gate.REGISTRATION_SCHEMA,
             "resolvedSelectionSHA256": plan["selectionSHA256"], "requestedAtUTC": attempt["requestedAtUTC"]}
         partitions = {"partitionIDs": ["S01"]}
+        if reader:
+            partitions = {"partitionIDs": selected[ci["SHARED_KEY"]]["partitionIDs"]}
         if shared:
             record["sharedPartitions"] = partitions
         directory = base / str(RUN)
@@ -2961,9 +2973,30 @@ class Phase1CollectionCallerTests(unittest.TestCase):
             "shared-payload.tar": self.stage1_inner_tar,
             "transport-only.txt": b"synthetic Stage1 raw original",
         })
+        worker_blobs = {}
+        if reader:
+            reader_case = reader_tests.RetainedPayloadBehaviorTests("test_success_recomputes_real_kernel_facts_but_original_proof_stays_pending")
+            for key, value in {"root": REPO_ROOT, "ci": ci, "gate": reader_gate, "kernel": kernel,
+                               "sources": plan["sources"], "resolved": selected, "plan": plan,
+                               "run_id": RUN}.items():
+                setattr(reader_case, key, value)
+            reader_case.setUp()
+            self.addCleanup(reader_case.doCleanups)
+            workers, labels = reader_case.worker_fixture()
+            event = gate.canonical({"repository": {"full_name": REPO}, "ref": plan["ref"],
+                                    "inputs": gate.dispatch_inputs(plan)})
+            for label in labels:
+                files = tree_bytes(workers / label)
+                if label != "producer":
+                    files["phase1-activity-logs/"] = b""
+                files["phase1-original-event.json"] = event
+                worker_blobs[label] = zip_bytes(files)
+            self.stage1_payload_zip = reader_case.zip.read_bytes()
+            self.stage1_inner_tar = reader_case.tar.read_bytes()
+            self.stage2_reader_fixture = reader_case
         if shared:
-            names = NEW.shared_artifact_names(RUN, HEAD, ["S01"])
-            artifact_names = [names["producer"], names["consumers"]["S01"], names["payload"]]
+            names = NEW.shared_artifact_names(RUN, HEAD, partitions["partitionIDs"])
+            artifact_names = [names["producer"], *names["consumers"].values(), names["payload"]]
         else:
             artifact_names = [f"ios-ci-native-github-{gate.RUI1}-{RUN}-1"]
         artifacts = [{"id": index + 20, "name": name, "expired": False, "digest": "sha256:" + sha(zipped).lower(),
@@ -2975,9 +3008,28 @@ class Phase1CollectionCallerTests(unittest.TestCase):
             artifacts[-1].update(digest="sha256:" + sha(self.stage1_payload_zip).lower(),
                 # API declaration and actual outer-ZIP byte count are separate.
                 size_in_bytes=len(self.stage1_payload_zip) + 17)
+        artifact_blobs = {}
+        if reader:
+            for artifact, label in zip(artifacts[:-1], ["producer"] + partitions["partitionIDs"]):
+                blob = worker_blobs[label]
+                artifact_blobs[artifact["id"]] = blob
+                artifact.update(digest="sha256:" + sha(blob).lower(), size_in_bytes=len(blob))
         source = io.BytesIO()
+        archive_paths = list(gate.SOURCES)
+        if reader:
+            # The real Git archive contains the complete checkout. Source-
+            # resolved selection and diagnostic worker joins read this real
+            # project, every unit Swift input and the approved allowance source.
+            allowance_source = REPO_ROOT / ci["SIMULATOR_DIAGNOSTIC_SOURCE_PATH"]
+            self.assertEqual(sha(allowance_source.read_bytes()), ci["SIMULATOR_DIAGNOSTIC_SOURCE_SHA256"])
+            discovery_inputs = [REPO_ROOT / ci["UNIT_PROJECT_PATH"], allowance_source,
+                                *ci["unit_test_source_files"](REPO_ROOT)]
+            for path in discovery_inputs:
+                relative = path.relative_to(REPO_ROOT).as_posix()
+                self.assertNotIn(relative, archive_paths)
+                archive_paths.append(relative)
         with tarfile.open(fileobj=source, mode="w") as archive:
-            for p in gate.SOURCES:
+            for p in archive_paths:
                 archive.add(REPO_ROOT / p, arcname=p)
         calls, downloads, commands = [], [], []
         def api(endpoint):
@@ -3014,6 +3066,10 @@ class Phase1CollectionCallerTests(unittest.TestCase):
                 self.assertNotEqual(endpoint,
                     f"repos/{REPO}/actions/artifacts/{payload_identifier}/zip",
                     "prospective payload transport must use the bounded stream")
+            if reader:
+                match = re.fullmatch(r"repos/" + re.escape(REPO) + r"/actions/artifacts/(\d+)/zip", endpoint)
+                if match:
+                    return artifact_blobs[int(match[1])]
             return zipped
         def payload_chunks(identifier):
             self.assertIs(type(identifier), int)
@@ -3030,6 +3086,13 @@ class Phase1CollectionCallerTests(unittest.TestCase):
             return source.getvalue()
         def checked(args, **kwargs):
             commands.append(args)
+            if reader and args[:3] == [sys.executable, "-B", "-c"]:
+                self.assertEqual(args[3], NEW.PHASE1_PAYLOAD_READER_BOOTSTRAP)
+                self.assertEqual(Path(args[-3]), Path(kwargs["cwd"]))
+                self.assertEqual(args[-2], NEW.PHASE1_RETAINED_READER_SHA256)
+                self.assertEqual(args[-2], sha((REPO_ROOT / "Scripts/dev/v23-retained-payload.py").read_bytes()))
+                self.assertRegex(args[-1], r"^[0-9A-F]{64}$")
+                return REAL_SUBPROCESS_RUN(args, **kwargs)
             self.assertEqual(args[:4], [sys.executable, "-B", "Scripts/v23-native-ci.py", "phase1-retained-chain"])
             self.assertEqual(args[-1], str((directory / "phase1-chain-request.json").resolve()))
             self.assertTrue((Path(kwargs["cwd"]) / "Scripts/v23-native-ci.py").is_file())
@@ -3046,6 +3109,9 @@ class Phase1CollectionCallerTests(unittest.TestCase):
         stack.enter_context(mock.patch.object(NEW.subprocess, "run", checked))
         stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
         self.addCleanup(stack.close)
+        if reader:
+            self.stage2_artifact_blobs = artifact_blobs
+            self.stage2_source_tar = source
         return gate, directory, attempt_path, observed, artifacts, calls, downloads, commands
 
     def test_real_collection_caller_requires_origin_retains_payload_and_never_completes_transport_only(self):
@@ -3819,6 +3885,605 @@ class Phase1CollectionCallerTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     NEW.phase1_zip_extract(gate, archive, Path(temporary) / "out")
 
+
+
+class Phase1PayloadBridgeTests(unittest.TestCase):
+    """Actual dormant collector + frozen real-reader child, synthetic bytes only."""
+    fixture = Phase1CollectionCallerTests.fixture
+    collection_state = Phase1CollectionCallerTests.collection_state
+    payload_attempts = Phase1CollectionCallerTests.payload_attempts
+    assert_payload_transport = Phase1CollectionCallerTests.assert_payload_transport
+
+    def bridge_attempts(self, directory):
+        root = directory / "phase1-payload-recomputations"
+        if not root.exists():
+            return []
+        attempts = sorted(root.iterdir())
+        self.assertEqual([p.name for p in attempts], ["%06d" % i for i in range(len(attempts))])
+        return attempts
+
+    def fixture_bridge(self, temporary):
+        return self.fixture(Path(temporary).resolve(), shared=True, reader=True)
+
+    def collect_incomplete(self, resume=False):
+        with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+            NEW.collect_phase1(RUN, resume)
+
+    def bind_payload(self, artifacts):
+        self.stage1_payload_zip = self.stage2_reader_fixture.zip.read_bytes()
+        artifacts[-1].update(digest="sha256:" + sha(self.stage1_payload_zip).lower(),
+                             size_in_bytes=len(self.stage1_payload_zip) + 17)
+
+    def assert_pending(self, gate, directory):
+        state = self.collection_state(directory)
+        self.assertEqual(state["status"], "INCOMPLETE")
+        self.assertEqual(state["functionalQualification"], gate.PENDING)
+        for key in ("acceptance", "releaseReady"):
+            self.assertIs(state[key], False)
+        if "providerQualification" in state:
+            self.assertIs(state["providerQualification"], False)
+        return state
+
+    def assert_no_success(self, directory):
+        for path in (directory / "phase1-payload-recomputations").glob("*/receipt.json"):
+            receipt = json.loads(path.read_bytes())
+            self.assertNotEqual(receipt["status"], "RECOMPUTED_DURABLE_PAYLOAD_DATA")
+
+    def assert_actual_discovery_inputs(self, gate, archived_root, request):
+        root = Path(archived_root)
+        project = root / "FieldEvidenceApp.xcodeproj/project.pbxproj"
+        allowance = root / "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
+        unit_root = root / "FieldEvidenceAppTests"
+        namespace = [unit_root, *sorted(unit_root.rglob("*"))]
+        swift_paths = sorted(p.relative_to(root).as_posix() for p in namespace
+                             if p.is_file() and p.suffix == ".swift")
+        identity_keys = ("dev", "ino", "mode", "uid", "gid", "nlink", "size", "mtime_ns", "ctime_ns", "flags")
+        def identity(path, keys=identity_keys):
+            info = path.lstat()
+            return {key: getattr(info, "st_" + key, 0) for key in keys}
+        files = {}
+        for relative in [project.relative_to(root).as_posix(), allowance.relative_to(root).as_posix(), *swift_paths]:
+            path = root / relative
+            raw = path.read_bytes()
+            self.assertNotIn(relative, gate.SOURCES)
+            files[relative] = {"identity": identity(path), "bytes": len(raw), "SHA256": sha(raw)}
+        members = sorted([{"path": p.relative_to(root).as_posix(),
+                           "kind": "directory" if p.is_dir() else "file"} for p in namespace],
+                         key=lambda row: row["path"])
+        directories = {p.relative_to(root).as_posix(): identity(p) for p in namespace if p.is_dir()}
+        ancestors = {str(p): identity(p, ("dev", "ino", "mode", "uid", "gid"))
+                     for start in (unit_root, project.parent, allowance.parent) for p in (start, *start.parents)}
+        stable = {"files": {name: {"bytes": row["bytes"], "SHA256": row["SHA256"]}
+                            for name, row in files.items()},
+                  "orderedSwiftPaths": swift_paths, "members": members}
+        expected = {"schema": "v23-phase1-discovery-inputs.v1", "files": files,
+                    "orderedSwiftPaths": swift_paths, "members": members, "directories": directories,
+                    "ancestors": ancestors, "contentSHA256": sha(canonical(stable))}
+        self.assertEqual(request["inputs"]["discovery"], expected)
+        self.assertEqual(request["binding"]["discoveryInputsSHA256"], expected["contentSHA256"])
+        self.assertTrue(swift_paths)
+        return expected
+
+    def test_authenticated_full_join_uses_frozen_child_and_actual_data_hashes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, downloads, commands = self.fixture_bridge(temporary)
+            real_child = NEW.phase1_payload_reader_run
+            discovery_inputs = []
+            def observed(root, request_path, request_sha256):
+                request = json.loads(request_path.read_bytes())
+                discovery_inputs.append(self.assert_actual_discovery_inputs(gate, root, request))
+                result = real_child(root, request_path, request_sha256)
+                self.assertEqual(self.assert_actual_discovery_inputs(gate, root, request), discovery_inputs[-1])
+                return result
+            with mock.patch.object(NEW, "phase1_payload_reader_run", observed):
+                self.collect_incomplete()
+            self.assertEqual(len(discovery_inputs), 1)
+            state = self.assert_pending(gate, directory)
+            self.assert_payload_transport(directory, state, self.stage1_payload_zip, "COMPLETE")
+            attempts = self.bridge_attempts(directory)
+            self.assertEqual(len(attempts), 1)
+            bridge = attempts[0]
+            request_raw = (bridge / "request.json").read_bytes()
+            request = json.loads(request_raw)
+            receipt = json.loads((bridge / "receipt.json").read_bytes())
+            self.assertEqual(receipt["schema"], "v23-phase1-payload-recomputation.v1")
+            self.assertEqual(receipt["status"], "RECOMPUTED_DURABLE_PAYLOAD_DATA")
+            reader = bridge / "reader-owned"
+            facts_raw = (reader / "FACTS.json").read_bytes()
+            facts = json.loads(facts_raw)
+            envelope_raw = (bridge / "input-envelope.json").read_bytes()
+            envelope = json.loads(envelope_raw)
+            listing = json.loads((directory / "artifacts.json").read_bytes())
+            payload_api = next(a for a in listing["artifacts"] if a["id"] == artifacts[-1]["id"])
+            self.assertEqual(set(request), {"schema", "index", "atUTC", "binding", "inputs", "envelopeSHA256", "rawPath", "workersPath", "headroom"})
+            self.assertEqual(request["schema"], "v23-phase1-payload-recomputation-request.v1")
+            self.assertEqual(request["index"], 0)
+            raw_path = directory / state["artifacts"]["payload"]["rawZIP"]["path"]
+            transport_receipt = directory / state["artifacts"]["payload"]["transportReceipt"]["path"]
+            binding = request["binding"]
+            self.assertEqual(binding, {"runID": RUN, "runAttempt": 1, "head": HEAD,
+                "tree": self.stage2_reader_fixture.plan["tree"], "ref": self.stage2_reader_fixture.plan["ref"],
+                "planSHA256": sha(gate.canonical(self.stage2_reader_fixture.plan)),
+                "claimSHA256": sha((directory / "collector.claim.json").read_bytes()),
+                "attemptSHA256": sha((directory / "phase1-attempt.json").read_bytes()),
+                "dispatchSHA256": sha((directory / "dispatch.json").read_bytes()),
+                "registrationSHA256": sha((directory / "phase1-registration.json").read_bytes()),
+                "sources": {p: sha((REPO_ROOT / p).read_bytes()) for p in gate.SOURCES},
+                "apiArtifactSHA256": sha(gate.canonical(payload_api)), "artifactID": payload_api["id"],
+                "apiDigest": payload_api["digest"], "declaredAPISizeBytes": payload_api["size_in_bytes"],
+                "rawZIP": {"path": raw_path.relative_to(directory).as_posix(), "bytes": len(raw_path.read_bytes()),
+                           "SHA256": sha(raw_path.read_bytes())},
+                "transportReceiptSHA256": sha(transport_receipt.read_bytes()),
+                "transportRequestSHA256": sha((raw_path.parent / "request.json").read_bytes()),
+                "discoveryInputsSHA256": discovery_inputs[0]["contentSHA256"]})
+            self.assertEqual(request["envelopeSHA256"], sha(envelope_raw))
+            self.assertEqual(request["rawPath"], str(raw_path))
+            self.assertEqual(request["workersPath"], str(directory / "artifacts"))
+            self.assertEqual(set(request["headroom"]), {"availableBytes", "requiredBytes", "reserveBytes"})
+            self.assertGreaterEqual(request["headroom"]["availableBytes"], request["headroom"]["requiredBytes"])
+            self.assertEqual(request["headroom"]["reserveBytes"], 3 * 1024 ** 3)
+            self.assertEqual(set(request["inputs"]), {"raw", "controls", "workers", "sources", "discovery"})
+            self.assertEqual(request["inputs"]["discovery"], discovery_inputs[0])
+            self.assertEqual(request["inputs"]["raw"]["SHA256"], sha(raw_path.read_bytes()))
+            self.assertEqual(request["inputs"]["raw"]["bytes"], len(raw_path.read_bytes()))
+            self.assertEqual(request["inputs"]["raw"]["identity"], NEW.phase1_payload_identity(raw_path.lstat()))
+            self.assertEqual(set(request["inputs"]["controls"]), {"dispatch.json", "collector.claim.json", "phase1-registration.json",
+                "phase1-attempt.json", "run.json", "run-attempt-1.json", "workflow.json", "jobs.json", "artifacts.json",
+                (raw_path.parent / "request.json").relative_to(directory).as_posix(),
+                transport_receipt.relative_to(directory).as_posix()})
+            for name, snapshot in request["inputs"]["controls"].items():
+                raw = (directory / name).read_bytes()
+                self.assertEqual(snapshot, {"bytes": len(raw), "SHA256": sha(raw),
+                    "identity": NEW.phase1_payload_identity((directory / name).lstat())})
+            self.assertEqual({name: snapshot["SHA256"] for name, snapshot in request["inputs"]["sources"].items()}, binding["sources"])
+            self.assertEqual(request["inputs"]["workers"], NEW.phase1_bridge_tree(gate, directory / "artifacts"))
+            self.assertEqual(receipt["requestSHA256"], sha(request_raw))
+            self.assertEqual(receipt["ownedTree"], NEW.phase1_bridge_tree(gate, reader))
+            self.assertEqual(receipt["results"]["FACTS.json"], {"bytes": len(facts_raw), "SHA256": sha(facts_raw),
+                "identity": NEW.phase1_payload_identity((reader / "FACTS.json").lstat())})
+            self.assertEqual(receipt["proofStatus"], "INCOMPLETE")
+            self.assertEqual(receipt["functionalQualification"], gate.PENDING)
+            self.assertIs(receipt["inputInvariance"], True)
+            for key in ("acceptance", "providerQualification", "releaseReady", "continuationRequired"):
+                self.assertIs(receipt[key], False)
+            self.assertEqual(envelope, {"schema": "v23-retained-payload-input.v1", "plan": self.stage2_reader_fixture.plan,
+                "runID": RUN, "runAttempt": 1, "payloadArtifact": payload_api})
+            self.assertEqual((reader / "input-envelope.json").read_bytes(), envelope_raw)
+            self.assertEqual((reader / "payload.zip").read_bytes(), self.stage1_payload_zip)
+            self.assertEqual(facts["envelopeSHA256"], sha(envelope_raw))
+            self.assertEqual(facts["outerZIP"]["sha256"], sha(self.stage1_payload_zip).lower())
+            self.assertEqual(facts["archive"]["sha256"], sha((reader / "transport" / "FieldEvidencePayload.tar").read_bytes()))
+            self.assertNotEqual(facts["outerZIP"]["sha256"].upper(), facts["archive"]["sha256"])
+            self.assertNotEqual(facts["outerZIP"]["bytes"], payload_api["size_in_bytes"])
+            metadata_raw = (reader / "extracted" / "v23-shared-payload.json").read_bytes()
+            metadata = json.loads(metadata_raw)
+            self.assertEqual(facts["metadataSHA256"], sha(metadata_raw))
+            self.assertEqual(metadata["planSHA256"], envelope["plan"]["selectionSHA256"])
+            self.assertNotEqual(metadata["planSHA256"], sha(gate.canonical(envelope["plan"])))
+            self.assertEqual(set(facts["workerJoins"]["workers"]),
+                {"producer", *self.stage2_reader_fixture.resolved[self.stage2_reader_fixture.ci["SHARED_KEY"]]["partitionIDs"]})
+            self.assertEqual(facts["workerJoins"]["status"], "RECOMPUTED_ALL_RETAINED_WORKER_JOINS_DATA")
+            self.assertTrue(facts["pendingProof"])
+            self.assertEqual(facts["sourceSHA256"], envelope["plan"]["sources"])
+            self.assertEqual(facts["products"], self.stage2_reader_fixture.products)
+            children = [c for c in commands if c[:3] == [sys.executable, "-B", "-c"]]
+            self.assertEqual(len(children), 1)
+            self.assertEqual(children[0][-1], sha(request_raw))
+            self.assertEqual(downloads.count(f"repos/{REPO}/actions/artifacts/{artifacts[-1]['id']}/zip"), 1)
+            with self.assertRaisesRegex(gate.Refused, "dispatch disabled"):
+                gate.refuse_dispatch()
+
+    def test_foreign_and_forged_payload_api_cannot_reach_reader_child(self):
+        cases = ("run", "head", "ref", "attempt-original", "name", "id", "digest", "expired")
+        for case in cases:
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, observed, artifacts, _, _, _ = self.fixture_bridge(temporary)
+                payload = artifacts[-1]
+                if case == "run": payload["workflow_run"]["id"] = RUN + 1
+                elif case == "head": payload["workflow_run"]["head_sha"] = "a" * 40
+                elif case == "ref": payload["workflow_run"]["head_branch"] = "main"
+                elif case == "attempt-original": observed["run_attempt"] = 2
+                elif case == "name": payload["name"] = "caller-chosen-payload"
+                elif case == "id": payload["id"] = True
+                elif case == "digest": payload["digest"] = "sha256:" + "f" * 64
+                elif case == "expired": payload["expired"] = True
+                with mock.patch.object(NEW, "phase1_payload_reader_run", side_effect=AssertionError("unapproved reader execution")):
+                    if case == "attempt-original":
+                        with self.assertRaises(ValueError): NEW.collect_phase1(RUN, False)
+                    else:
+                        self.collect_incomplete()
+                self.assert_no_success(directory)
+                self.assertEqual(self.bridge_attempts(directory), [])
+
+    def test_api_extra_fields_stay_data_and_cannot_select_reader_or_envelope(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, directory, _, _, artifacts, _, _, commands = self.fixture_bridge(temporary)
+            payload = artifacts[-1]
+            payload["reader"] = "/caller/unapproved.py"
+            payload["envelope"] = {"schema": "caller-authenticated", "acceptance": True}
+            self.collect_incomplete()
+            bridge = self.bridge_attempts(directory)[0]
+            envelope = json.loads((bridge / "input-envelope.json").read_bytes())
+            self.assertEqual(envelope["schema"], "v23-retained-payload-input.v1")
+            self.assertEqual(envelope["payloadArtifact"], payload)
+            children = [c for c in commands if c[:3] == [sys.executable, "-B", "-c"]]
+            self.assertEqual(len(children), 1)
+            self.assertEqual(children[0][3], NEW.PHASE1_PAYLOAD_READER_BOOTSTRAP)
+            self.assertNotIn(payload["reader"], children[0])
+            self.assertEqual(json.loads((bridge / "receipt.json").read_bytes())["status"], "RECOMPUTED_DURABLE_PAYLOAD_DATA")
+
+    def test_complete_self_consistent_foreign_original_cannot_cross_root_authority(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, downloads, _ = self.fixture_bridge(temporary)
+            template = self.stage2_reader_fixture
+            reader_tests = load(HERE / "test_v23_retained_payload.py", "foreign_original_real_reader_fixtures")
+            foreign = reader_tests.RetainedPayloadBehaviorTests("test_success_recomputes_real_kernel_facts_but_original_proof_stays_pending")
+            plan = gate.make_plan(purpose=gate.CANDIDATE, head="a" * 40, tree="b" * 40,
+                selection=gate.SHARED, resolved_bytes=gate.canonical(template.resolved),
+                sources=template.sources, requested_at=template.plan["requestedAtUTC"])
+            for key, value in {"root": template.root, "ci": template.ci, "gate": template.gate,
+                               "kernel": template.kernel, "sources": template.sources,
+                               "resolved": template.resolved, "plan": plan, "run_id": RUN + 1}.items():
+                setattr(foreign, key, value)
+            foreign.setUp()
+            self.addCleanup(foreign.doCleanups)
+            workers, labels = foreign.worker_fixture()
+            names = NEW.shared_artifact_names(RUN + 1, plan["head"], labels[1:])
+            foreign_names = [names["producer"], *names["consumers"].values(), names["payload"]]
+            event = gate.canonical({"repository": {"full_name": REPO}, "ref": plan["ref"], "inputs": gate.dispatch_inputs(plan)})
+            for artifact, label, name in zip(artifacts[:-1], labels, foreign_names[:-1]):
+                files = tree_bytes(workers / label)
+                files["phase1-original-event.json"] = event
+                if label != "producer": files["phase1-activity-logs/"] = b""
+                blob = zip_bytes(files)
+                self.stage2_artifact_blobs[artifact["id"]] = blob
+                artifact.update(name=name, digest="sha256:" + sha(blob).lower(), size_in_bytes=len(blob))
+            self.stage1_payload_zip = foreign.zip.read_bytes()
+            artifacts[-1].update(name=foreign_names[-1], digest="sha256:" + sha(self.stage1_payload_zip).lower(),
+                                 size_in_bytes=len(self.stage1_payload_zip) + 17)
+            for artifact in artifacts:
+                artifact["workflow_run"].update(id=RUN + 1, head_sha=plan["head"])
+            with mock.patch.object(NEW, "phase1_payload_reader_run", side_effect=AssertionError("foreign reader execution")):
+                self.collect_incomplete()
+            self.assert_pending(gate, directory)
+            self.assertEqual(self.bridge_attempts(directory), [])
+            self.assertEqual(downloads, [f"repos/{REPO}/actions/runs/{RUN}/attempts/1/logs",
+                                         f"repos/{REPO}/actions/jobs/1/logs"])
+
+    def test_missing_final_or_extra_worker_never_produces_complete_data(self):
+        for case in ("missing-final", "extra-census"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, _, commands = self.fixture_bridge(temporary)
+                if case == "missing-final": artifacts.pop(-2)
+                else: artifacts.append(dict(artifacts[0], id=99999, name="unexpected-worker"))
+                self.collect_incomplete()
+                self.assert_pending(gate, directory)
+                self.assert_no_success(directory)
+                self.assertEqual(len([c for c in commands if c[:3] == [sys.executable, "-B", "-c"]]), 0)
+
+    def test_insufficient_measured_storage_refuses_before_reader_or_new_destination(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, _, _ = self.fixture_bridge(temporary)
+            with mock.patch.object(NEW.os, "statvfs", return_value=SimpleNamespace(f_bavail=1, f_frsize=1)), \
+                    mock.patch.object(NEW, "phase1_payload_reader_run", side_effect=AssertionError("insufficient-space reader")):
+                self.collect_incomplete()
+            state = self.assert_pending(gate, directory)
+            self.assert_payload_transport(directory, state, self.stage1_payload_zip, "COMPLETE")
+            self.assertEqual(self.bridge_attempts(directory), [])
+            self.assert_no_success(directory)
+
+    def test_unapproved_archived_reader_bytes_refuse_before_any_child(self):
+        import tarfile
+        with tempfile.TemporaryDirectory() as temporary:
+            _, directory, _, _, _, _, _, commands = self.fixture_bridge(temporary)
+            buffer = io.BytesIO()
+            self.stage2_source_tar.seek(0)
+            with tarfile.open(fileobj=self.stage2_source_tar, mode="r") as original, tarfile.open(fileobj=buffer, mode="w") as forged:
+                for entry in original.getmembers():
+                    if not entry.isfile():
+                        forged.addfile(entry)
+                        continue
+                    raw = original.extractfile(entry).read()
+                    if entry.name == "Scripts/dev/v23-retained-payload.py":
+                        raw += b"\nraise RuntimeError('unapproved reader must never execute')\n"
+                        entry.size = len(raw)
+                    forged.addfile(entry, io.BytesIO(raw))
+            self.stage2_source_tar.seek(0)
+            self.stage2_source_tar.truncate()
+            self.stage2_source_tar.write(buffer.getvalue())
+            with self.assertRaisesRegex(ValueError, "archived.*source|source.*archived"):
+                NEW.collect_phase1(RUN, False)
+            self.assertEqual(commands, [])
+            self.assert_no_success(directory)
+
+    def test_raw_source_or_final_worker_change_during_child_cannot_seal_success(self):
+        for case in ("raw", "source", "last-worker"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, _, _ = self.fixture_bridge(temporary)
+                real_child = NEW.phase1_payload_reader_run
+                def changed(root, request, request_sha256):
+                    result = real_child(root, request, request_sha256)
+                    if case == "source":
+                        path = Path(root) / "Scripts/dev/v23-retained-payload.py"
+                    elif case == "raw":
+                        path = directory / "phase1-payload-transports" / str(artifacts[-1]["id"]) / "000000/raw.zip"
+                    else:
+                        labels = self.stage2_reader_fixture.resolved[self.stage2_reader_fixture.ci["SHARED_KEY"]]["partitionIDs"]
+                        path = directory / "artifacts" / labels[-1] / "test-smoke.log"
+                    with path.open("ab") as stream: stream.write(b"\nsynthetic interval substitution\n")
+                    return result
+                with mock.patch.object(NEW, "phase1_payload_reader_run", changed):
+                    self.collect_incomplete()
+                self.assert_pending(gate, directory)
+                self.assert_no_success(directory)
+                self.assertTrue(self.bridge_attempts(directory))
+
+    def test_nonexecutable_project_and_swift_discovery_changes_during_child_stay_unresolved(self):
+        for case in ("project", "allowance-source", "swift-comment", "swift-body", "swift-add", "swift-remove"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, downloads, commands = self.fixture_bridge(temporary)
+                real_child = NEW.phase1_payload_reader_run
+                observations = []
+                def changed(root, request_path, request_sha256):
+                    request = json.loads(request_path.read_bytes())
+                    discovery = request["inputs"]["discovery"]
+                    archived = Path(root)
+                    executable_bytes = {p: (archived / p).read_bytes() for p in gate.SOURCES}
+                    result = real_child(root, request_path, request_sha256)
+                    self.assertEqual(result.returncode, 0)
+                    facts = request_path.parent / "reader-owned/FACTS.json"
+                    facts_raw = facts.read_bytes()
+                    self.assertFalse((facts.parent / "FAILURE.json").exists())
+                    if case in ("project", "allowance-source"):
+                        relative = self.stage2_reader_fixture.ci["UNIT_PROJECT_PATH" if case == "project"
+                                                                 else "SIMULATOR_DIAGNOSTIC_SOURCE_PATH"]
+                        path = archived / relative
+                        before = path.read_bytes()
+                        changed_bytes = before + b"\n// synthetic fixed read-input interval substitution\n"
+                    elif case == "swift-add":
+                        relative = "FieldEvidenceAppTests/Stage2DiscoveryIntervalAdded.swift"
+                        path = archived / relative
+                        self.assertFalse(path.exists())
+                        self.assertNotIn(relative, discovery["files"])
+                        before = None
+                        changed_bytes = b"// synthetic Swift census addition after reader completion\n"
+                    else:
+                        candidates = []
+                        for relative in discovery["orderedSwiftPaths"]:
+                            path = archived / relative
+                            raw = path.read_bytes()
+                            body = re.search(rb"\bfunc\s+test[A-Za-z0-9_]+\s*\([^)]*\)[^{]*\{", raw)
+                            if body is not None:
+                                candidates.append((relative, path, raw, body))
+                        self.assertTrue(candidates, "actual unit Swift census must contain a test body")
+                        relative, path, before, body = candidates[0]
+                        if case == "swift-comment":
+                            changed_bytes = before + b"\n// synthetic Swift interval substitution\n"
+                        elif case == "swift-body":
+                            changed_bytes = before[:body.end()] + b"\n        _ = 17\n" + before[body.end():]
+                        else:
+                            changed_bytes = None
+                    self.assertNotIn(relative, gate.SOURCES)
+                    if before is not None:
+                        self.assertEqual(discovery["files"][relative]["SHA256"], sha(before))
+                        self.assertEqual(discovery["files"][relative]["bytes"], len(before))
+                    if changed_bytes is None:
+                        path.unlink()
+                        self.assertFalse(path.exists())
+                    else:
+                        path.write_bytes(changed_bytes)
+                        self.assertNotEqual(changed_bytes, before)
+                        self.assertEqual(path.read_bytes(), changed_bytes)
+                    self.assertEqual({p: (archived / p).read_bytes() for p in gate.SOURCES}, executable_bytes)
+                    observations.append({"path": relative, "facts": facts_raw})
+                    return result
+                with mock.patch.object(NEW, "phase1_payload_reader_run", changed):
+                    self.collect_incomplete()
+                self.assertEqual(len(observations), 1)
+                bridge = self.bridge_attempts(directory)[0]
+                receipt = json.loads((bridge / "receipt.json").read_bytes())
+                self.assertEqual(receipt["status"], "REFUSED_PRESERVED_DATA")
+                self.assertIs(receipt["inputInvariance"], False)
+                self.assertIs(receipt["continuationRequired"], True)
+                self.assertEqual((bridge / "reader-owned/FACTS.json").read_bytes(), observations[0]["facts"])
+                self.assertFalse((directory / "manifest.json").exists())
+                self.assertFalse((directory / "phase1-raw-proof.json").exists())
+                state = self.assert_pending(gate, directory)
+                self.assert_payload_transport(directory, state, self.stage1_payload_zip, "COMPLETE")
+                self.assert_no_success(directory)
+                self.assertEqual(downloads.count(f"repos/{REPO}/actions/artifacts/{artifacts[-1]['id']}/zip"), 1)
+                self.assertEqual(len([c for c in commands if c[:3] == [sys.executable, "-B", "-c"]]), 1)
+
+    def test_captured_request_sha_refuses_canonical_substitution_before_reader_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, _, _, _, commands = self.fixture_bridge(temporary)
+            real_child = NEW.phase1_payload_reader_run
+            captures = []
+            def substituted(root, request_path, request_sha256):
+                original = request_path.read_bytes()
+                self.assertEqual(request_sha256, sha(original))
+                request = json.loads(original)
+                request["binding"]["apiArtifactSHA256"] = "F" * 64
+                substituted_raw = gate.canonical(request)
+                self.assertNotEqual(sha(substituted_raw), request_sha256)
+                request_path.write_bytes(substituted_raw)
+                captures.append(substituted_raw)
+                return real_child(root, request_path, request_sha256)
+            with mock.patch.object(NEW, "phase1_payload_reader_run", substituted):
+                self.collect_incomplete()
+            self.assertEqual(len(captures), 1)
+            bridge = self.bridge_attempts(directory)[0]
+            self.assertEqual((bridge / "request.json").read_bytes(), captures[0])
+            self.assertFalse((bridge / "reader-owned").exists())
+            self.assertEqual(list(bridge.rglob("FACTS.json")), [])
+            self.assert_no_success(directory)
+            self.assert_pending(gate, directory)
+            self.assertFalse((directory / "manifest.json").exists())
+            self.assertEqual(len([c for c in commands if c[:3] == [sys.executable, "-B", "-c"]]), 1)
+
+    def test_hostile_zip_tar_and_distinct_inner_digest_keep_raw_originals(self):
+        import tarfile
+        for case in ("zip-path", "zip-symlink", "zip-crc", "tar-path", "tar-link", "tar-sparse", "inner-digest"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                gate, directory, _, _, artifacts, _, _, _ = self.fixture_bridge(temporary)
+                reader = self.stage2_reader_fixture
+                if case == "zip-path": reader.write_zip(members=[("../escape", b"bad")])
+                elif case == "zip-symlink":
+                    info = zipfile.ZipInfo("FieldEvidencePayload.tar")
+                    info.create_system, info.external_attr = 3, (stat.S_IFLNK | 0o777) << 16
+                    buffer = io.BytesIO()
+                    with zipfile.ZipFile(buffer, "w") as bundle: bundle.writestr(info, b"target")
+                    reader.zip.write_bytes(buffer.getvalue())
+                elif case == "zip-crc":
+                    raw = bytearray(reader.zip.read_bytes())
+                    local, central = raw.index(b"PK\x03\x04"), raw.index(b"PK\x01\x02")
+                    wrong = (struct.unpack_from("<I", raw, local + 14)[0] + 1) & 0xFFFFFFFF
+                    struct.pack_into("<I", raw, local + 14, wrong)
+                    struct.pack_into("<I", raw, central + 16, wrong)
+                    reader.zip.write_bytes(raw)
+                elif case.startswith("tar-"):
+                    info = tarfile.TarInfo("FieldEvidencePayload/../escape" if case == "tar-path" else "FieldEvidencePayload/hostile")
+                    if case == "tar-link": info.type, info.linkname = tarfile.LNKTYPE, "target"
+                    if case == "tar-sparse": info.pax_headers = {"GNU.sparse.name": "hidden"}
+                    reader.hostile_tar([(info, b"")])
+                else: reader.write_zip(digest=("F" * 64 + " %d FieldEvidencePayload.tar\n" % reader.archive["bytes"]).encode())
+                self.bind_payload(artifacts)
+                raw_before = self.stage1_payload_zip
+                self.collect_incomplete()
+                state = self.assert_pending(gate, directory)
+                self.assert_payload_transport(directory, state, raw_before, "COMPLETE")
+                self.assert_no_success(directory)
+                self.assertTrue(self.bridge_attempts(directory))
+                self.assertFalse((Path(temporary) / "escape").exists())
+
+    def test_lost_child_completion_and_same_claim_resume_preserve_old_index(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, artifacts, _, downloads, _ = self.fixture_bridge(temporary)
+            real_child = NEW.phase1_payload_reader_run
+            def lost_completion(root, request, request_sha256):
+                real_child(root, request, request_sha256)
+                raise subprocess.TimeoutExpired("synthetic lost child completion", 180)
+            with mock.patch.object(NEW, "phase1_payload_reader_run", lost_completion):
+                self.collect_incomplete()
+            old = self.bridge_attempts(directory)
+            self.assertEqual(len(old), 1)
+            old_bytes = tree_bytes(old[0])
+            claim = (directory / "collector.claim.json").read_bytes()
+            self.assert_no_success(directory)
+            self.collect_incomplete(resume=True)
+            attempts = self.bridge_attempts(directory)
+            self.assertEqual(len(attempts), 2)
+            self.assertEqual(tree_bytes(attempts[0]), old_bytes)
+            self.assertEqual((directory / "collector.claim.json").read_bytes(), claim)
+            self.assertEqual(json.loads((attempts[1] / "receipt.json").read_bytes())["status"], "RECOMPUTED_DURABLE_PAYLOAD_DATA")
+            self.assert_pending(gate, directory)
+            self.assertEqual(downloads.count(f"repos/{REPO}/actions/artifacts/{artifacts[-1]['id']}/zip"), 1)
+
+    def test_unexplained_nonzero_child_cannot_seal_original_without_failure_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            gate, directory, _, _, _, _, _, _ = self.fixture_bridge(temporary)
+            real_child = NEW.phase1_payload_reader_run
+            def failed_response(root, request, request_sha256):
+                completed = real_child(root, request, request_sha256)
+                self.assertEqual(completed.returncode, 0)
+                return subprocess.CompletedProcess(completed.args, 1)
+            with mock.patch.object(NEW, "phase1_payload_reader_run", failed_response):
+                self.collect_incomplete()
+            bridge = self.bridge_attempts(directory)[0]
+            receipt = json.loads((bridge / "receipt.json").read_bytes())
+            self.assertEqual(receipt["status"], "REFUSED_PRESERVED_DATA")
+            self.assertIs(receipt["continuationRequired"], True)
+            self.assertTrue((bridge / "reader-owned/FACTS.json").is_file())
+            self.assertFalse((bridge / "reader-owned/FAILURE.json").exists())
+            self.assertFalse((directory / "manifest.json").exists())
+            self.assertFalse((directory / "phase1-raw-proof.json").exists())
+            self.assert_pending(gate, directory)
+
+    def test_preexisting_or_linked_history_refuses_without_blind_repair(self):
+        for case in ("unresolved-index", "symlink-root", "hardlinked-control"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                _, directory, _, _, _, _, _, _ = self.fixture_bridge(temporary)
+                owner = Path(temporary) / "owner-content"
+                owner.mkdir()
+                sentinel = owner / "preserve.json"
+                sentinel.write_bytes(b"owner bytes must remain exact\n")
+                root = directory / "phase1-payload-recomputations"
+                if case == "symlink-root":
+                    root.symlink_to(owner, target_is_directory=True)
+                else:
+                    root.mkdir(mode=0o700)
+                    attempt = root / "000000"
+                    attempt.mkdir(mode=0o700)
+                    if case == "hardlinked-control": os.link(sentinel, attempt / "request.json")
+                    else: (attempt / "owner-partial").write_bytes(b"preserve partial\n")
+                before = tree_bytes(owner)
+                with mock.patch.object(NEW, "phase1_payload_reader_run", side_effect=AssertionError("unresolved history executed")):
+                    with self.assertRaises((SystemExit, ValueError, OSError)):
+                        NEW.collect_phase1(RUN, False)
+                self.assertEqual(tree_bytes(owner), before)
+                self.assertFalse((root / "000001").exists())
+                self.assert_no_success(directory)
+
+    def test_bridge_request_fsync_failure_precedes_child_and_stays_unresolved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, directory, _, _, artifacts, _, _, _ = self.fixture_bridge(temporary)
+            actual_fsync = os.fsync
+            failed = []
+            def failure(descriptor):
+                opened = os.fstat(descriptor)
+                for path in (directory / "phase1-payload-recomputations").glob("*/request.json"):
+                    named = path.lstat()
+                    if (opened.st_dev, opened.st_ino) == (named.st_dev, named.st_ino) and not failed:
+                        failed.append(path)
+                        raise OSError("synthetic bridge request fsync failure")
+                return actual_fsync(descriptor)
+            with mock.patch.object(NEW.os, "fsync", failure), \
+                    mock.patch.object(NEW, "phase1_payload_reader_run", side_effect=AssertionError("non-durable bridge child")):
+                with self.assertRaises((SystemExit, ValueError, OSError)):
+                    NEW.collect_phase1(RUN, False)
+            self.assertEqual(len(failed), 1)
+            root = directory / "phase1-payload-recomputations"
+            before = tree_bytes(root)
+            self.assertEqual(list(root.rglob("FACTS.json")), [])
+            self.assertFalse((directory / "manifest.json").exists())
+            self.assert_no_success(directory)
+            with mock.patch.object(NEW, "phase1_payload_reader_run", side_effect=AssertionError("blindly repaired bridge child")):
+                with self.assertRaises((SystemExit, ValueError, OSError)):
+                    NEW.collect_phase1(RUN, True)
+            self.assertEqual(tree_bytes(root), before)
+            self.assertFalse((root / "000001").exists())
+            self.assertEqual((directory / "phase1-payload-transports" / str(artifacts[-1]["id"]) /
+                              "000000/raw.zip").read_bytes(), self.stage1_payload_zip)
+
+
+    def test_final_receipt_fsync_failure_has_no_sealed_original_or_blind_resume(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, directory, _, _, _, _, _, _ = self.fixture_bridge(temporary)
+            actual_fsync, failed = os.fsync, []
+            def failure(descriptor):
+                opened = os.fstat(descriptor)
+                for path in (directory / "phase1-payload-recomputations").glob("*/receipt.json"):
+                    named = path.lstat()
+                    if (opened.st_dev, opened.st_ino) == (named.st_dev, named.st_ino) and not failed:
+                        failed.append(path)
+                        raise OSError("synthetic final bridge receipt fsync failure")
+                return actual_fsync(descriptor)
+            with mock.patch.object(NEW.os, "fsync", failure):
+                with self.assertRaises((SystemExit, ValueError, OSError)):
+                    NEW.collect_phase1(RUN, False)
+            self.assertEqual(len(failed), 1)
+            self.assertFalse((directory / "manifest.json").exists())
+            self.assertFalse((directory / "phase1-raw-proof.json").exists())
+            root = directory / "phase1-payload-recomputations"
+            before = tree_bytes(root)
+            self.assertTrue((root / "000000/reader-owned/FACTS.json").is_file())
+            # Immutable success-looking bytes whose fsync failed are retained
+            # for inspection; absence of a completed original blocks reuse.
+            with mock.patch.object(NEW, "phase1_payload_reader_run", side_effect=AssertionError("unsealed receipt reused")):
+                with self.assertRaises((SystemExit, ValueError, OSError)):
+                    NEW.collect_phase1(RUN, True)
+            self.assertEqual(tree_bytes(root), before)
+            self.assertFalse((root / "000001").exists())
 
 
 class Phase1ReviewRegistrationTests(unittest.TestCase):
