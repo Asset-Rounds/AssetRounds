@@ -1859,11 +1859,11 @@ fileprivate final class OriginalEraseScratchTemporalPolicyReadContextV1 {
         }
         switch selection {
         case .node(let n):
-            guard Self.sameNode(try scope.requirePolicyNode(n.kind, at: n.url, fullFact: n.fullFact), n) else {
+            guard Self.sameNode(try scope.policyNodeData(n.kind, at: n.url, fullFact: n.fullFact), n) else {
                 throw ProtectedFilePolicyError.identityChanged
             }
         case .pair(let p, let urls):
-            guard Self.samePair(try scope.requirePair(aliasURLs: urls), p) else { throw ProtectedFilePolicyError.identityChanged }
+            guard Self.samePair(try scope.pairData(aliasURLs: urls), p) else { throw ProtectedFilePolicyError.identityChanged }
         }
         try scope.requireCurrentBinding(); try attempt.requireObserving()
     }

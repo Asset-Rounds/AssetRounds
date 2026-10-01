@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "bcc9844fa5715ac8e3cbc4a7f47c122c07d1adb3",
+  "generatedAtHead": "414ebc4445d393caff26016a08456b56ec37d50c",
   "sweepOrder": [
     "S01",
     "S02",
@@ -49,7 +49,7 @@
     {
       "id": "S02",
       "tier": "D50C",
-      "estimatedSeconds": 2169.0,
+      "estimatedSeconds": 1607.6,
       "selectors": [
         "FieldEvidenceAppTests/C27S82TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV901VersionedSchemaIdentity/testC33V901VersionedSchemaIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -381,7 +381,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 2890.0,
+      "estimatedSeconds": 1756.4,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -565,7 +565,7 @@
     {
       "id": "S06",
       "tier": "D50C",
-      "estimatedSeconds": 1619.9,
+      "estimatedSeconds": 1535.7,
       "selectors": [
         "FieldEvidenceAppTests/C32OperationalContactRestoreBoundaryTests/testV23P03C46HistoricalIntentAcceptsGenuineC32SuccessorAndRejectsMissingReceipt",
         "FieldEvidenceAppTests/C32OperationalContactRestoreBoundaryTests/testV23P04C32RestoreRebindsOneAggregateReceiptWithoutContactFanout",
@@ -1100,7 +1100,7 @@
     {
       "id": "S12",
       "tier": "D50C",
-      "estimatedSeconds": 2185.1,
+      "estimatedSeconds": 1805.5,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV903MigrationRecovery/testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV945EvidenceContext/testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -1180,7 +1180,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 2923.5,
+      "estimatedSeconds": 2188.8,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1324,10 +1324,23 @@
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testAuthenticatedReadyRestoreRefusesPostDrainSourceSHMByteMutation",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactoryKeepsStartupUnopenedAndBindsItsExactGateOnce",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactorySettingTransactionsCompleteAndReopenWithoutRepair",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerCompletesAndRefusesForeignReceiptAndBinding",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesChangedCurrentPointerWithoutCompletion",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesUnexpectedDataMemberWithoutCompletion",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalScratchDeclaredPairDataRequiresExactMembershipAndOrderAfterNaturalRevocation",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalScratchEarlierImmutablePairProjectionCannotSelectLaterDeclaredPairData",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalScratchNodeDataRequiresExactSelectionAndNaturalRevocation",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesForeignOperationsChildWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceEligibilityRefusesPostOpenV3HistoryDriftWithoutRepair",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceRestoreAdmissionRefusesForeignOrReplacedValidatedStage",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testMaintenanceRestoreClearProbeRefusesMissingOrLinkedChildWithoutRepair",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryAggregateDetachInterruptionRetainsSameTransferredExclusionUntilRetry",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryExternalSourceSessionAliasBlocksDrainUntilNaturalCallerRelease",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryProjectionRejectsDetachedCallbacksBeforeReadOrPoison",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryProjectionRejectsForeignOperationAndOwnerBeforePoison",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryProjectionSameOwnerPhysicalFailureStillPoisons",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryProjectionSameOwnerWrongFirstImageStillPoisons",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRecoveryScratchUncertainSettlementRetainsModelOwnerAssociations",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testOriginalRetryRefusesNestedOperationsSubstitutionBeforePriorRead",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationConsumesAuthenticAbortAndASecondEraseUsesNewAuthority",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testPresentationDeferredEraseRetainsDrainAcrossPauseAndResumesWithFreshService",
@@ -1723,7 +1736,7 @@
     {
       "id": "S15",
       "tier": "D50C",
-      "estimatedSeconds": 1559.9,
+      "estimatedSeconds": 1511.5,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS6_2BackupExport/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorV9_06DeletionArchiveIntegration/testTypedEvidenceContextContractAnchor",
@@ -1860,7 +1873,7 @@
     {
       "id": "S16",
       "tier": "D50C",
-      "estimatedSeconds": 1622.4,
+      "estimatedSeconds": 1510.6,
       "selectors": [
         "FieldEvidenceAppTests/C27ChangeJournalTypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C32AssistanceAnchorV939SurveyDefinition/testC32V939SurveyDefinitionCompatibilityKeepsProposalAtExplicitReviewBoundary",
@@ -2224,7 +2237,7 @@
     {
       "id": "S17",
       "tier": "D50C",
-      "estimatedSeconds": 1919.9,
+      "estimatedSeconds": 1615.5,
       "selectors": [
         "FieldEvidenceAppTests/C32AssistanceAnchorV9ChangeJournalCheckpointReplay/testC32V9ChangeJournalCheckpointReplayCompatibilityKeepsProposalAtExplicitReviewBoundary",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS82GoldenAccessibility/testC33S82GoldenAccessibilityCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -2440,7 +2453,7 @@
     {
       "id": "S19",
       "tier": "D50C",
-      "estimatedSeconds": 2459.9,
+      "estimatedSeconds": 1738.9,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorV9_17KernelPersistence/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS41DeterministicRenderer/testC33S41DeterministicRendererCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -2734,7 +2747,7 @@
     {
       "id": "S22",
       "tier": "D50C",
-      "estimatedSeconds": 1619.9,
+      "estimatedSeconds": 1531.5,
       "selectors": [
         "FieldEvidenceAppTests/C32AssistanceAnchorV906DeletionRights/testC32V906DeletionRightsCompatibilityKeepsProposalAtExplicitReviewBoundary",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS83DiagnosticPrivacy/testC33S83DiagnosticPrivacyCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -3087,7 +3100,7 @@
     {
       "id": "S26",
       "tier": "D50C",
-      "estimatedSeconds": 1739.9,
+      "estimatedSeconds": 1579.2,
       "selectors": [
         "FieldEvidenceAppTests/C27S36TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C27S66TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
@@ -3934,7 +3947,7 @@
     {
       "id": "S33",
       "tier": "D50C",
-      "estimatedSeconds": 1140.0,
+      "estimatedSeconds": 1500.0,
       "selectors": [
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2DrainActualPrefixTemporaryCut",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2DrainActualZeroTemporaryCut",
@@ -3947,6 +3960,12 @@
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PopulatedNotificationColdRDrainsBeforeFirstGenerationUnlink",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2RevocationActualPrefixTemporaryCut",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2RevocationActualZeroTemporaryCut",
+        "FieldEvidenceAppTests/V23EraseDirectoryEntryLinkModelTests/testCompleteRootNamesIncludeUnwalkedAnchorsAndExcludeDescendants",
+        "FieldEvidenceAppTests/V23EraseDirectoryEntryLinkModelTests/testDirectEntryCountRequiresExactParentAndOneNonemptyComponent",
+        "FieldEvidenceAppTests/V23EraseDirectoryEntryLinkModelTests/testDisposablePrimitivesKeepHeldNamedFactsAndDeclaredParentEntryDeltas",
+        "FieldEvidenceAppTests/V23EraseDirectoryEntryLinkModelTests/testExpectedLinkCountsRequireExactNonnegativeCheckedDomain",
+        "FieldEvidenceAppTests/V23EraseDirectoryEntryLinkModelTests/testLinkDeltasValidateBothEndpointsIncludingZeroDeltaOverflow",
+        "FieldEvidenceAppTests/V23EraseDirectoryEntryLinkModelTests/testMatchesRefuseWrongBeforeAfterOffByOneAndDirectoryOnlyCounts",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testAlreadyClearedRetiredPointerCompletesGenuineErase",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testCompletePreSwapTemporaryCompletesGenuineErase",
         "FieldEvidenceAppTests/V23EraseRetiredPointerCutsTests/testEmptyReservedTemporaryCompletesGenuineErase",

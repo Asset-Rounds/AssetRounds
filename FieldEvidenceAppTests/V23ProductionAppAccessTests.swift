@@ -2407,3 +2407,1396 @@ private struct ProductionAccessImmediateSleeper: ApplicationSleeper {
         requests.removeAll { requestIDs.contains($0.notification.requestID) }
     }
 }
+
+// These tests exercise the real production count model and disposable filesystem
+// facts. They do not create an erase owner, permit, policy receipt, or authority.
+final class V23EraseDirectoryEntryLinkModelTests: XCTestCase {
+    private typealias Model = EraseDirectoryEntryLinkModelV1
+
+    func testExpectedLinkCountsRequireExactNonnegativeCheckedDomain() {
+        XCTAssertEqual(Int.bitWidth, 64)
+        XCTAssertEqual(Model.expectedLinkCount(directEntryCount: 0), 2)
+        XCTAssertEqual(Model.expectedLinkCount(directEntryCount: 1), 3)
+        XCTAssertEqual(Model.expectedLinkCount(directEntryCount: 7), 9)
+        XCTAssertEqual(Model.expectedLinkCount(directEntryCount: Int.max - 2), Int64.max)
+        for invalid in [Int.min, -1, Int.max - 1, Int.max] {
+            XCTAssertNil(Model.expectedLinkCount(directEntryCount: invalid))
+        }
+    }
+
+    func testMatchesRefuseWrongBeforeAfterOffByOneAndDirectoryOnlyCounts() {
+        for count in [0, 1, 2, 7] {
+            let expected = Int64(count) + 2
+            XCTAssertTrue(Model.matches(linkCount: expected, directEntryCount: count))
+            XCTAssertFalse(Model.matches(linkCount: expected - 1, directEntryCount: count))
+            XCTAssertFalse(Model.matches(linkCount: expected + 1, directEntryCount: count))
+        }
+        for invalidLinkCount in [Int64.min, -1, 0, 1] {
+            XCTAssertFalse(Model.matches(linkCount: invalidLinkCount, directEntryCount: 0))
+        }
+        XCTAssertFalse(Model.matches(linkCount: 2, directEntryCount: -1))
+        XCTAssertFalse(Model.matches(linkCount: 2, directEntryCount: Int.min))
+        XCTAssertFalse(Model.matches(linkCount: Int64.max, directEntryCount: Int.max))
+        XCTAssertTrue(Model.matches(linkCount: Int64.max, directEntryCount: Int.max - 2))
+
+        // A file, its hard-link alias, and a directory are three names. A
+        // directory-only or distinct-inode count must not substitute for them.
+        XCTAssertTrue(Model.matches(linkCount: 5, directEntryCount: 3))
+        XCTAssertFalse(Model.matches(linkCount: 3, directEntryCount: 3))
+        XCTAssertFalse(Model.matches(linkCount: 4, directEntryCount: 3))
+        // Retained-before and declared-after facts each have their own law.
+        XCTAssertTrue(Model.matches(linkCount: 6, directEntryCount: 4))
+        XCTAssertFalse(Model.matches(linkCount: 6, directEntryCount: 3))
+        XCTAssertFalse(Model.matches(linkCount: 5, directEntryCount: 4))
+        // An unaccounted extra or missing direct name cannot explain the
+        // declared after count merely by changing the observed count input.
+        XCTAssertFalse(Model.matches(linkCount: 7, directEntryCount: 4))
+    }
+
+    func testLinkDeltasValidateBothEndpointsIncludingZeroDeltaOverflow() {
+        let cases: [(Int, Int, Int64?)] = [
+            (0, 0, 0), (0, 1, 1), (1, 0, -1), (7, 7, 0),
+            (0, Int.max - 2, Int64.max - 2),
+            (Int.max - 2, 0, -(Int64.max - 2)),
+            (-1, 0, nil), (0, -1, nil), (Int.min, Int.min, nil),
+            (Int.max, Int.max, nil), (Int.max - 1, Int.max - 1, nil),
+            (0, Int.max, nil), (Int.max, 0, nil)
+        ]
+        for (before, after, expected) in cases {
+            XCTAssertEqual(Model.linkDelta(beforeDirectEntryCount: before,
+                                           afterDirectEntryCount: after), expected)
+        }
+        // An absent same-parent rename keeps two names; replacing an existing
+        // final removes one declared name. Neither delta uses observed nlink.
+        XCTAssertEqual(Model.linkDelta(beforeDirectEntryCount: 2, afterDirectEntryCount: 2), 0)
+        XCTAssertEqual(Model.linkDelta(beforeDirectEntryCount: 2, afterDirectEntryCount: 1), -1)
+    }
+
+    func testDirectEntryCountRequiresExactParentAndOneNonemptyComponent() {
+        let paths: Set<String> = [
+            "", "ScratchDataV1", "ScratchDataV1/", "ScratchDataV1/source",
+            "ScratchDataV1/alias", "ScratchDataV1/directory",
+            "ScratchDataV1/directory/descendant", "ScratchDataV1//malformed",
+            "ScratchDataV10/prefix-neighbor", "ScratchDataV1-other/source",
+            "ProtectedIngressReceiptsV1/receipt", "/ScratchDataV1/absolute"
+        ]
+        XCTAssertEqual(Model.directEntryCount(paths: paths, parentPath: "ScratchDataV1"), 3)
+        XCTAssertEqual(Model.directEntryCount(paths: paths, parentPath: "ScratchDataV1/directory"), 1)
+        XCTAssertEqual(Model.directEntryCount(paths: paths, parentPath: "ProtectedIngressReceiptsV1"), 1)
+        XCTAssertEqual(Model.directEntryCount(paths: paths, parentPath: "absent"), 0)
+        XCTAssertEqual(Model.directEntryCount(paths: ["source", "alias"], parentPath: ""), 2)
+        XCTAssertEqual(Model.directEntryCount(paths: [], parentPath: ""), 0)
+    }
+
+    func testCompleteRootNamesIncludeUnwalkedAnchorsAndExcludeDescendants() {
+        let paths: Set<String> = [
+            "ScratchDataV1", "ProtectedIngressReceiptsV1", "unwalked-file-anchor",
+            "unwalked-directory-anchor", "ScratchDataV1/partial",
+            "ProtectedIngressReceiptsV1/receipt", "unwalked-directory-anchor/child",
+            "", "trailing/", "/absolute"
+        ]
+        let roots: Set<String> = ["ScratchDataV1", "ProtectedIngressReceiptsV1",
+                                  "unwalked-file-anchor", "unwalked-directory-anchor"]
+        XCTAssertEqual(Model.directEntryCount(paths: paths, parentPath: ""), roots.count)
+        XCTAssertTrue(Model.matches(linkCount: 6, directEntryCount: roots.count))
+        XCTAssertFalse(Model.matches(linkCount: 6, directEntryCount: 2))
+
+        // Equal counts do not establish exact namespace closure. That remains
+        // a production observer obligation, covered by the unchanged tests.
+        let substituted: Set<String> = ["ScratchDataV1", "ProtectedIngressReceiptsV1",
+                                        "unwalked-file-anchor", "undeclared-root"]
+        XCTAssertEqual(Model.directEntryCount(paths: substituted, parentPath: ""), roots.count)
+        XCTAssertNotEqual(substituted, roots)
+    }
+
+    func testDisposablePrimitivesKeepHeldNamedFactsAndDeclaredParentEntryDeltas() throws {
+        let operations = FileManager.default.temporaryDirectory
+            .appendingPathComponent("V23-DirectoryEntryLinkModel-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: operations, withIntermediateDirectories: false,
+                                               attributes: [.posixPermissions: 0o700])
+        var descriptors: [Int32] = []
+        defer {
+            for descriptor in descriptors.reversed() {
+                XCTAssertEqual(Darwin.close(descriptor), 0)
+            }
+            try? FileManager.default.removeItem(at: operations)
+        }
+        let operationsFD = try openDirectory(operations)
+        descriptors.append(operationsFD)
+        let scratch = operations.appendingPathComponent("ScratchDataV1", isDirectory: true)
+        let ingress = operations.appendingPathComponent("ProtectedIngressReceiptsV1", isDirectory: true)
+
+        try assertDeclaredTransition(in: operationsFD, at: operations, before: [],
+                                     after: ["ScratchDataV1"], delta: 1) {
+            try requireZero(Darwin.mkdir(scratch.path, mode_t(0o700)))
+        }
+        try assertDeclaredTransition(in: operationsFD, at: operations, before: ["ScratchDataV1"],
+                                     after: ["ScratchDataV1", "ProtectedIngressReceiptsV1"], delta: 1) {
+            try requireZero(Darwin.mkdir(ingress.path, mode_t(0o700)))
+        }
+        var anchorFD: Int32 = -1
+        try assertDeclaredTransition(in: operationsFD, at: operations,
+                                     before: ["ScratchDataV1", "ProtectedIngressReceiptsV1"],
+                                     after: ["ScratchDataV1", "ProtectedIngressReceiptsV1", "unwalked-anchor"], delta: 1) {
+            anchorFD = try createEmptyFile(parent: operationsFD, name: "unwalked-anchor")
+            descriptors.append(anchorFD)
+        }
+        let operationsBaseline = try snapshot(operationsFD, at: operations)
+        XCTAssertEqual(operationsBaseline.names.count, 3)
+        XCTAssertEqual(operationsBaseline.links, 5)
+        let untouchedOperations = (operationsFD, operations)
+        let ingressFD = try openDirectory(ingress)
+        descriptors.append(ingressFD)
+
+        var temporaryFD: Int32 = -1
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: [],
+                                     after: ["temporary"], delta: 1, untouchedRoot: untouchedOperations) {
+            temporaryFD = try createEmptyFile(parent: ingressFD, name: "temporary")
+            descriptors.append(temporaryFD)
+        }
+        let originalFile = try assertFileHeldNamed(temporaryFD, at: ingress.appendingPathComponent("temporary"), links: 1)
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: ["temporary"],
+                                     after: ["temporary", "published"], delta: 1, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.linkat(ingressFD, "temporary", ingressFD, "published", 0))
+        }
+        let linkedFile = try assertFileHeldNamed(temporaryFD, at: ingress.appendingPathComponent("temporary"), links: 2)
+        assertStableMetadata(originalFile, linkedFile)
+        assertFullFacts(linkedFile, try namedStat(ingress.appendingPathComponent("published")))
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: ["temporary", "published"],
+                                     after: ["published"], delta: -1, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.unlinkat(ingressFD, "temporary", 0))
+        }
+        _ = try assertFileHeldNamed(temporaryFD, at: ingress.appendingPathComponent("published"), links: 1)
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: ["published"],
+                                     after: ["renamed"], delta: 0, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.renameat(ingressFD, "published", ingressFD, "renamed"))
+        }
+        let renamedFile = try assertFileHeldNamed(temporaryFD, at: ingress.appendingPathComponent("renamed"), links: 1)
+        assertStableMetadata(originalFile, renamedFile)
+
+        var replacementFD: Int32 = -1
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: ["renamed"],
+                                     after: ["renamed", "replacement"], delta: 1, untouchedRoot: untouchedOperations) {
+            replacementFD = try createEmptyFile(parent: ingressFD, name: "replacement")
+            descriptors.append(replacementFD)
+        }
+        let replacement = try assertFileHeldNamed(replacementFD, at: ingress.appendingPathComponent("replacement"), links: 1)
+        XCTAssertNotEqual(replacement.st_ino, renamedFile.st_ino)
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: ["renamed", "replacement"],
+                                     after: ["renamed"], delta: -1, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.renameat(ingressFD, "replacement", ingressFD, "renamed"))
+        }
+        let installed = try assertFileHeldNamed(replacementFD, at: ingress.appendingPathComponent("renamed"), links: 1)
+        assertStableMetadata(replacement, installed)
+        XCTAssertEqual(try heldStat(temporaryFD).st_nlink, 0)
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: ["renamed"],
+                                     after: [], delta: -1, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.unlinkat(ingressFD, "renamed", 0))
+        }
+        XCTAssertEqual(try heldStat(replacementFD).st_nlink, 0)
+
+        let lease = ingress.appendingPathComponent("lease", isDirectory: true)
+        let tombstone = ingress.appendingPathComponent("tombstone", isDirectory: true)
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: [],
+                                     after: ["lease"], delta: 1, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.mkdir(lease.path, mode_t(0o700)))
+        }
+        let leaseFD = try openDirectory(lease)
+        descriptors.append(leaseFD)
+        let ingressBeforeNestedCreate = try snapshot(ingressFD, at: ingress)
+        var innerFD: Int32 = -1
+        try assertDeclaredTransition(in: leaseFD, at: lease, before: [],
+                                     after: ["inner"], delta: 1, untouchedRoot: untouchedOperations) {
+            innerFD = try createEmptyFile(parent: leaseFD, name: "inner")
+            descriptors.append(innerFD)
+        }
+        let innerBeforeRename = try assertFileHeldNamed(innerFD, at: lease.appendingPathComponent("inner"), links: 1)
+        let leaseBeforeRename = try snapshot(leaseFD, at: lease)
+        assertFullFacts(ingressBeforeNestedCreate.held, try snapshot(ingressFD, at: ingress).held)
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: ["lease"],
+                                     after: ["tombstone"], delta: 0, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.renameat(ingressFD, "lease", ingressFD, "tombstone"))
+        }
+        let leaseAfterRename = try snapshot(leaseFD, at: tombstone)
+        assertStableMetadata(leaseBeforeRename.held, leaseAfterRename.held)
+        XCTAssertEqual(leaseAfterRename.names, ["inner"])
+        XCTAssertEqual(leaseAfterRename.links, leaseBeforeRename.links)
+        assertFullFacts(innerBeforeRename, try namedStat(tombstone.appendingPathComponent("inner")))
+        let ingressBeforeNestedRemoval = try snapshot(ingressFD, at: ingress)
+        try assertDeclaredTransition(in: leaseFD, at: tombstone, before: ["inner"],
+                                     after: [], delta: -1, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.unlinkat(leaseFD, "inner", 0))
+        }
+        assertFullFacts(ingressBeforeNestedRemoval.held, try snapshot(ingressFD, at: ingress).held)
+        try assertDeclaredTransition(in: ingressFD, at: ingress, before: ["tombstone"],
+                                     after: [], delta: -1, untouchedRoot: untouchedOperations) {
+            try requireZero(Darwin.rmdir(tombstone.path))
+        }
+        let operationsAfterNestedEffects = try snapshot(operationsFD, at: operations)
+        XCTAssertEqual(operationsAfterNestedEffects.names, operationsBaseline.names)
+        assertFullFacts(operationsBaseline.held, operationsAfterNestedEffects.held)
+        _ = try assertFileHeldNamed(anchorFD, at: operations.appendingPathComponent("unwalked-anchor"), links: 1)
+
+        try assertDeclaredTransition(in: operationsFD, at: operations,
+                                     before: ["ScratchDataV1", "ProtectedIngressReceiptsV1", "unwalked-anchor"],
+                                     after: ["ProtectedIngressReceiptsV1", "unwalked-anchor"], delta: -1) {
+            try requireZero(Darwin.rmdir(scratch.path))
+        }
+        try assertDeclaredTransition(in: operationsFD, at: operations,
+                                     before: ["ProtectedIngressReceiptsV1", "unwalked-anchor"],
+                                     after: ["unwalked-anchor"], delta: -1) {
+            try requireZero(Darwin.rmdir(ingress.path))
+        }
+        try assertDeclaredTransition(in: operationsFD, at: operations,
+                                     before: ["unwalked-anchor"], after: [], delta: -1) {
+            try requireZero(Darwin.unlinkat(operationsFD, "unwalked-anchor", 0))
+        }
+        let final = try snapshot(operationsFD, at: operations)
+        XCTAssertEqual(final.names, [])
+        XCTAssertEqual(final.links, 2)
+    }
+
+    private struct DirectorySnapshot {
+        let held: stat
+        let names: Set<String>
+        let links: Int64
+    }
+
+    private enum FixtureFailure: Error {
+        case syscall(Int32)
+        case nonconformingDirectory
+    }
+
+    private func requireZero(_ result: Int32) throws {
+        guard result == 0 else { throw FixtureFailure.syscall(errno) }
+    }
+
+    private func openDirectory(_ url: URL) throws -> Int32 {
+        let descriptor = Darwin.open(url.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else { throw FixtureFailure.syscall(errno) }
+        return descriptor
+    }
+
+    private func createEmptyFile(parent: Int32, name: String) throws -> Int32 {
+        let descriptor = Darwin.openat(parent, name, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
+        guard descriptor >= 0 else { throw FixtureFailure.syscall(errno) }
+        return descriptor
+    }
+
+    private func heldStat(_ descriptor: Int32) throws -> stat {
+        var value = stat()
+        try requireZero(Darwin.fstat(descriptor, &value))
+        return value
+    }
+
+    private func namedStat(_ url: URL) throws -> stat {
+        var value = stat()
+        try requireZero(Darwin.lstat(url.path, &value))
+        return value
+    }
+
+    private func snapshot(_ descriptor: Int32, at url: URL) throws -> DirectorySnapshot {
+        let before = try heldStat(descriptor)
+        assertFullFacts(before, try namedStat(url))
+        let names = Set(try FileManager.default.contentsOfDirectory(atPath: url.path))
+        let after = try heldStat(descriptor)
+        assertFullFacts(before, after)
+        assertFullFacts(after, try namedStat(url))
+        return DirectorySnapshot(held: after, names: names,
+                                 links: try XCTUnwrap(Int64(exactly: after.st_nlink)))
+    }
+
+    private func assertDeclaredTransition(in parent: Int32, at url: URL,
+                                          before declaredBefore: Set<String>, after declaredAfter: Set<String>,
+                                          delta declaredDelta: Int64, untouchedRoot: (Int32, URL)? = nil,
+                                          effect: () throws -> Void) throws {
+        let before = try snapshot(parent, at: url)
+        let rootBefore = try untouchedRoot.map { try snapshot($0.0, at: $0.1) }
+        // Build the relative model keys only from the declared parent URL and
+        // declared names. Captured after names/nlink never choose a prediction.
+        let parentPath: String
+        if let untouchedRoot {
+            let rootPrefix = untouchedRoot.1.path + "/"
+            XCTAssertTrue(url.path.hasPrefix(rootPrefix))
+            parentPath = String(url.path.dropFirst(rootPrefix.count))
+        } else {
+            parentPath = ""
+        }
+        let prefix = parentPath.isEmpty ? "" : parentPath + "/"
+        let beforeKeys = Set(declaredBefore.map { prefix + $0 })
+        let expectedKeys = Set(declaredAfter.map { prefix + $0 })
+        let beforeCount = Model.directEntryCount(paths: beforeKeys, parentPath: parentPath)
+        let afterCount = Model.directEntryCount(paths: expectedKeys, parentPath: parentPath)
+        let predicted = try XCTUnwrap(Model.linkDelta(beforeDirectEntryCount: beforeCount,
+                                                     afterDirectEntryCount: afterCount))
+        XCTAssertEqual(predicted, declaredDelta)
+        XCTAssertEqual(before.names, declaredBefore)
+        // A nonconforming filesystem fails this fixture before any primitive;
+        // there is no alternate law, skip, or learned post-effect allowance.
+        guard Model.matches(linkCount: before.links, directEntryCount: beforeCount) else {
+            XCTFail("Disposable directory does not satisfy the strict complete-name law")
+            throw FixtureFailure.nonconformingDirectory
+        }
+        try effect()
+        let after = try snapshot(parent, at: url)
+        XCTAssertEqual(after.names, declaredAfter)
+        XCTAssertTrue(Model.matches(linkCount: after.links, directEntryCount: afterCount))
+        let actual = after.links.subtractingReportingOverflow(before.links)
+        XCTAssertFalse(actual.overflow)
+        XCTAssertEqual(actual.partialValue, predicted)
+        assertStableMetadata(before.held, after.held)
+        if let untouchedRoot, let rootBefore {
+            let rootAfter = try snapshot(untouchedRoot.0, at: untouchedRoot.1)
+            XCTAssertEqual(rootAfter.names, rootBefore.names)
+            assertFullFacts(rootBefore.held, rootAfter.held)
+        }
+    }
+
+    @discardableResult
+    private func assertFileHeldNamed(_ descriptor: Int32, at url: URL, links: Int64) throws -> stat {
+        let value = try heldStat(descriptor)
+        assertFullFacts(value, try namedStat(url))
+        XCTAssertEqual(value.st_mode & S_IFMT, S_IFREG)
+        XCTAssertEqual(value.st_mode & 0o777, 0o600)
+        XCTAssertEqual(value.st_size, 0)
+        XCTAssertEqual(try XCTUnwrap(Int64(exactly: value.st_nlink)), links)
+        XCTAssertEqual(try Data(contentsOf: url), Data())
+        assertFullFacts(value, try heldStat(descriptor))
+        assertFullFacts(value, try namedStat(url))
+        return value
+    }
+
+    private func assertStableMetadata(_ before: stat, _ after: stat) {
+        XCTAssertEqual(after.st_dev, before.st_dev)
+        XCTAssertEqual(after.st_ino, before.st_ino)
+        XCTAssertEqual(after.st_mode, before.st_mode)
+        XCTAssertEqual(after.st_uid, before.st_uid)
+        XCTAssertEqual(after.st_gid, before.st_gid)
+    }
+
+    private func assertFullFacts(_ before: stat, _ after: stat) {
+        assertStableMetadata(before, after)
+        XCTAssertEqual(after.st_nlink, before.st_nlink)
+        XCTAssertEqual(after.st_size, before.st_size)
+        XCTAssertEqual(after.st_mtimespec.tv_sec, before.st_mtimespec.tv_sec)
+        XCTAssertEqual(after.st_mtimespec.tv_nsec, before.st_mtimespec.tv_nsec)
+        XCTAssertEqual(after.st_ctimespec.tv_sec, before.st_ctimespec.tv_sec)
+        XCTAssertEqual(after.st_ctimespec.tv_nsec, before.st_ctimespec.tv_nsec)
+    }
+}
+
+#if DEBUG
+@MainActor
+private enum OriginalScratchIssuerDataFixtureRetentionV1 {
+    // Existing harness retains Router/root. A Service may still own genuine
+    // intent/control resources, so no test removes or implicitly closes it.
+    static var services: [(URL, EraseAllService)] = []
+}
+
+@MainActor
+private final class OriginalPostCloseSourceControlsStateV1 {
+    var receipts: [CompletedEraseReceiptV1] = []
+    var readbacks: [ErasePostCloseSourceControlsReadbackV1] = []
+    var mutationApplied = false
+    var originalPointerBytes: Data?
+}
+
+private enum OriginalPostCloseSourceFaultV1 {
+    case none, pointerBytes, dataMembership
+}
+
+@MainActor
+private struct OriginalPostCloseSourceFixtureV1 {
+    let root: URL
+    let support: URL
+    let owner: V23EraseOperationHarnessV1
+    let operation: EraseRouterOperationV1
+    let state: OriginalPostCloseSourceControlsStateV1
+    let originalGeneration: UUID
+}
+
+extension V23ProductionAppAccessTests {
+    @MainActor
+    func testGenuineOriginalPostCloseSourceOwnerCompletesAndRefusesForeignReceiptAndBinding() async throws {
+        let foreign = try await prepareOriginalPostCloseSourceFixture(fault: .none)
+        try await foreign.owner.completeCleanup()
+        XCTAssertEqual(foreign.state.receipts.count, 1)
+        assertOriginalPostCloseSourceReadback(foreign.state, expectsForeignOwner: false)
+        let (_, foreignProof, foreignReceipt) = try foreign.operation.completedRetirement()
+        XCTAssertNotNil(foreignReceipt)
+
+        let fixture = try await prepareOriginalPostCloseSourceFixture(
+            fault: .none, foreignOwner: foreignProof)
+        try await fixture.owner.completeCleanup()
+        XCTAssertEqual(fixture.state.receipts.count, 1)
+        assertOriginalPostCloseSourceReadback(fixture.state, expectsForeignOwner: true)
+        let completed = try XCTUnwrap(fixture.state.receipts.first)
+        XCTAssertNotEqual(completed.subject, try XCTUnwrap(foreignReceipt).subject)
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            fixture.support.appendingPathComponent("FieldEvidenceOperations").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            fixture.support.appendingPathComponent("FieldEvidenceErase").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            StoreGenerationFactory(applicationSupportURL: fixture.support)
+                .installedGenerationURL(id: fixture.originalGeneration).path))
+        try await fixture.owner.adoptCompletedReceipt()
+        try await fixture.owner.activateFreshOrdinarySession()
+        guard case let .ready(fresh, _, _) = fixture.owner.router.route else {
+            return XCTFail("The actual post-close source owner must finish and activate its new ordinary owner")
+        }
+        XCTAssertEqual(fresh.generationID, completed.subject.newGenerationID)
+        XCTAssertNotEqual(fresh.generationID, fixture.originalGeneration)
+        XCTAssertEqual(try fresh.workspaceWriter.currentRevision().generationID, fresh.generationID)
+    }
+
+    @MainActor
+    func testGenuineOriginalPostCloseSourceOwnerRefusesChangedCurrentPointerWithoutCompletion() async throws {
+        try await assertOriginalPostCloseSourceFaultRefusesCompletion(.pointerBytes)
+    }
+
+    @MainActor
+    func testGenuineOriginalPostCloseSourceOwnerRefusesUnexpectedDataMemberWithoutCompletion() async throws {
+        try await assertOriginalPostCloseSourceFaultRefusesCompletion(.dataMembership)
+    }
+
+    @MainActor
+    private func prepareOriginalPostCloseSourceFixture(
+        fault: OriginalPostCloseSourceFaultV1,
+        foreignOwner: ErasedRegistryRetirementProofV1? = nil
+    ) async throws -> OriginalPostCloseSourceFixtureV1 {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(
+            "V23-OriginalPostCloseSource-" + UUID().uuidString, isDirectory: true)
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let caches = root.appendingPathComponent("Library/Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        for directory in [support, caches, temporary] {
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let suite = "V23.OriginalPostCloseSource." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let shipping = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [shipping])
+        let owner = V23EraseOperationHarnessV1(retainingRoot: root,
+            applicationSupportURL: support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: profiles)
+        let state = OriginalPostCloseSourceControlsStateV1()
+        // No coordinator, session, context or container escapes this genuine
+        // preparation frame. The retained operation still decides real drain.
+        let originalGeneration = try await { @MainActor () async throws -> UUID in
+            let (coordinator, diagnostics) = try await owner.startOriginalOwner()
+            let originalGeneration = coordinator.generationID
+            try await owner.admit(coordinator: coordinator)
+            let service = try owner.configure(EraseAllService(applicationSupportURL: support,
+                cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                userDefaults: defaults, defaultsDomainName: suite,
+                admitErase: { try await owner.admitSubject($0) },
+                didCompleteErase: { state.receipts.append($0) }))
+            service.postCloseSourceForeignOwnerForTesting = foreignOwner
+            service.afterTerminalSourceValidationForTesting = { observed in
+                state.readbacks.append(observed)
+                // This is a hostile mutation after real owner/close validation,
+                // never a callback returning a favorable authorization result.
+                switch fault {
+                case .none: break
+                case .pointerBytes:
+                    let pointer = support.appendingPathComponent("FieldEvidenceData/current.json")
+                    var bytes = try Data(contentsOf: pointer)
+                    guard !bytes.isEmpty else { throw EraseAllServiceError.invalidAuthority }
+                    state.originalPointerBytes = bytes
+                    bytes[bytes.startIndex] = bytes[bytes.startIndex] ^ 1
+                    try bytes.write(to: pointer)
+                    state.mutationApplied = true
+                case .dataMembership:
+                    try Data("hostile post-close member".utf8).write(to:
+                        support.appendingPathComponent("FieldEvidenceData/post-close-unexpected.json"))
+                    state.mutationApplied = true
+                }
+            }
+            // Retain the genuine admitted service before preparation may throw.
+            OriginalScratchIssuerDataFixtureRetentionV1.services.append((root, service))
+            try await owner.prepareCompatibility(service: service, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
+            return originalGeneration
+        }()
+        XCTAssertTrue(state.receipts.isEmpty)
+        XCTAssertTrue(state.readbacks.isEmpty, "The close probe cannot run during original preparation")
+        return OriginalPostCloseSourceFixtureV1(root: root, support: support, owner: owner,
+            operation: try owner.originalOperationForInterruption(), state: state,
+            originalGeneration: originalGeneration)
+    }
+
+    @MainActor
+    private func assertOriginalPostCloseSourceReadback(
+        _ state: OriginalPostCloseSourceControlsStateV1, expectsForeignOwner: Bool
+    ) {
+        XCTAssertEqual(state.readbacks.count, 1, "One genuine close, no repeated probe or reset")
+        guard let observed = state.readbacks.first else { return XCTFail("Genuine post-close DATA is required") }
+        XCTAssertTrue(observed.sameOwnerSourceValidated)
+        XCTAssertTrue(observed.closedAuthorityReaderRefused,
+            "Retained manifest ownership never reopens the closed generation authority")
+        if expectsForeignOwner {
+            XCTAssertEqual(observed.foreignReceiptRefused, true)
+            XCTAssertEqual(observed.foreignBindingRefused, true)
+        } else {
+            XCTAssertNil(observed.foreignReceiptRefused)
+            XCTAssertNil(observed.foreignBindingRefused)
+        }
+    }
+
+    @MainActor
+    private func assertOriginalPostCloseSourceFaultRefusesCompletion(
+        _ fault: OriginalPostCloseSourceFaultV1
+    ) async throws {
+        let fixture = try await prepareOriginalPostCloseSourceFixture(fault: fault)
+        var refusal: Error?
+        do {
+            try await fixture.owner.completeCleanup()
+            XCTFail("Fresh post-close source checks must refuse the actual changed namespace")
+        } catch { refusal = error }
+        XCTAssertEqual(refusal as? StoreMigrationFailure, .invalidIdentity)
+        assertOriginalPostCloseSourceReadback(fixture.state, expectsForeignOwner: false)
+        XCTAssertTrue(fixture.state.mutationApplied, "Refusal must follow the completed hostile mutation")
+        XCTAssertTrue(fixture.state.receipts.isEmpty)
+        XCTAssertThrowsError(try fixture.operation.completedRetirement())
+        guard case let .eraseCleanupPending(.retiring(retained)) = fixture.owner.router.route else {
+            return XCTFail("The actual failed owner and recovery controls must remain retained")
+        }
+        XCTAssertTrue(retained === fixture.operation)
+        for name in ["FieldEvidenceOperations", "FieldEvidenceErase"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath:
+                fixture.support.appendingPathComponent(name).path))
+        }
+        switch fault {
+        case .pointerBytes:
+            let before = try XCTUnwrap(fixture.state.originalPointerBytes)
+            XCTAssertNotEqual(try Data(contentsOf:
+                fixture.support.appendingPathComponent("FieldEvidenceData/current.json")), before)
+        case .dataMembership:
+            XCTAssertEqual(try Data(contentsOf: fixture.support.appendingPathComponent(
+                "FieldEvidenceData/post-close-unexpected.json")), Data("hostile post-close member".utf8))
+        case .none: XCTFail("A genuine hostile source change is required")
+        }
+        // No second advance, repair, forced holder release or root teardown.
+        // All original resources and the refused namespace remain retained.
+    }
+
+    @MainActor
+    func testGenuineOriginalScratchNodeDataRequiresExactSelectionAndNaturalRevocation() async throws {
+        try await runGenuineOriginalScratchIssuerDataProfile(.node)
+    }
+
+    @MainActor
+    func testGenuineOriginalScratchDeclaredPairDataRequiresExactMembershipAndOrderAfterNaturalRevocation() async throws {
+        try await runGenuineOriginalScratchIssuerDataProfile(.declaredPair)
+    }
+
+    @MainActor
+    func testGenuineOriginalScratchEarlierImmutablePairProjectionCannotSelectLaterDeclaredPairData() async throws {
+        try await runGenuineOriginalScratchIssuerDataProfile(.earlierPairProjectionMembership)
+    }
+
+    @MainActor
+    private func runGenuineOriginalScratchIssuerDataProfile(
+        _ profile: OriginalEraseScratchIssuerDataProfileV1
+    ) async throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(
+            "V23-GenuineScratchIssuerData-" + UUID().uuidString, isDirectory: true)
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let caches = root.appendingPathComponent("Library/Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        for directory in [support, caches, temporary] {
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let suite = "V23.GenuineScratchIssuerData." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let shipping = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [shipping])
+        let owner = V23EraseOperationHarnessV1(retainingRoot: root,
+            applicationSupportURL: support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            profileRegistry: profiles)
+        var completions = [CompletedEraseReceiptV1]()
+        // Coordinator/context aliases exist only in this lexical original
+        // preparation frame. The next genuine advance sees their actual drain.
+        let (operation, ticket, slot, originalGeneration) = try await {
+            @MainActor () async throws ->
+                (EraseRouterOperationV1, StartupRouter.OriginalOperationTicket, UUID, UUID) in
+            let (coordinator, diagnostics) = try await owner.startOriginalOwner()
+            let originalGeneration = coordinator.generationID
+            let payloadBytes = Data("genuine issuer DATA payload".utf8)
+            let created = Date(timeIntervalSince1970: 1_786_800_012)
+            weak var endedProducer: ScratchDataLeaseStoreV1?
+            let payloadURL = try await { @MainActor () async throws -> URL in
+                let scratch = try ScratchDataLeaseStoreV1(applicationSupportURL: support,
+                    clock: { created }, capacityProvider: { _ in Int64.max })
+                let requestedByteCount = try XCTUnwrap(UInt64(exactly: payloadBytes.count))
+                let request = try ScratchDataLeaseRequestV1(leaseID: UUID(),
+                    purpose: .supportExport, owner: .supportExport, ownerOperationID: UUID(),
+                    requestedByteCount: requestedByteCount, createdAt: created,
+                    expiresAt: created.addingTimeInterval(900))
+                let lease = try await scratch.acquireScratchLease(request)
+                let actualURL = try await scratch.writeScratchData(payloadBytes,
+                    named: "support.json", lease: lease)
+                endedProducer = scratch
+                return actualURL
+            }()
+            XCTAssertNil(endedProducer, "The real producer must end before original cleanup admission")
+            XCTAssertEqual(try Data(contentsOf: payloadURL), payloadBytes)
+            try await owner.admit(coordinator: coordinator)
+            let operation = try owner.originalOperationForInterruption()
+            let ticket = try owner.originalTicketForInterruption()
+            let slot = try OriginalEraseScratchIssuerDataTestsV1.arm(profile,
+                support: support, operation: operation)
+            // Occupancy is refused without replacing the current profile or
+            // slot, even when a caller asks for another declared fixed case.
+            XCTAssertThrowsError(try OriginalEraseScratchIssuerDataTestsV1.arm(
+                profile == .node ? .declaredPair : .node, support: support, operation: operation)) {
+                XCTAssertEqual($0 as? OriginalEraseScratchIssuerDataTestErrorV1, .occupied,
+                    "An occupied fixed case must refuse replacement")
+            }
+            XCTAssertEqual(try OriginalEraseScratchIssuerDataTestsV1.report(slot: slot).profile, profile)
+            let service = try owner.configure(EraseAllService(applicationSupportURL: support,
+                cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                userDefaults: defaults, defaultsDomainName: suite,
+                admitErase: { try await owner.admitSubject($0) },
+                didCompleteErase: { completions.append($0) }))
+            OriginalScratchIssuerDataFixtureRetentionV1.services.append((root, service))
+            try await owner.prepareCompatibility(service: service, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
+            return (operation, ticket, slot, originalGeneration)
+        }()
+        XCTAssertTrue(completions.isEmpty)
+        // One actual advancement, no polling, callback success, repeated
+        // primitive, timeout extension or fallback owner.
+        try await owner.completeCleanup()
+        XCTAssertEqual(completions.count, 1)
+        let reservation = try owner.originalReservationForInterruption()
+        let completed = try XCTUnwrap(completions.first)
+        XCTAssertEqual(completed.reservation, reservation)
+        XCTAssertEqual(completed.subject, reservation.subject)
+        XCTAssertEqual(completed.subject.applicationSupportURL, support.standardizedFileURL)
+        let report = try OriginalEraseScratchIssuerDataTestsV1.report(slot: slot)
+        XCTAssertEqual(report.supportDevice, completed.subject.applicationSupportDevice)
+        XCTAssertEqual(report.supportInode, completed.subject.applicationSupportInode)
+        assertGenuineOriginalScratchIssuerDataReport(report, profile: profile,
+            operationID: operation.operationID)
+        // This window precedes normal activation removing the original Router
+        // association. The helper obtains actual retirement/proof internally.
+        try OriginalEraseScratchIssuerDataTestsV1.restoreAfterCompletedRetirement(
+            slot: slot, support: support, router: owner.router, ticket: ticket,
+            operation: operation, reservation: reservation)
+        XCTAssertThrowsError(try OriginalEraseScratchIssuerDataTestsV1.report(slot: slot))
+        try await owner.adoptCompletedReceipt()
+        try await owner.activateFreshOrdinarySession()
+        guard case let .ready(fresh, _, _) = owner.router.route else {
+            return XCTFail("Genuine DATA probes must leave actual Erase able to activate its fresh ordinary owner")
+        }
+        XCTAssertEqual(fresh.generationID, completed.subject.newGenerationID)
+        XCTAssertNotEqual(fresh.generationID, originalGeneration)
+        XCTAssertEqual(try fresh.workspaceWriter.currentRevision().generationID, fresh.generationID)
+        for name in ["FieldEvidenceErase", "FieldEvidenceOperations/ScratchDataV1",
+            "FieldEvidenceOperations/ProtectedIngressReceiptsV1"] {
+            XCTAssertFalse(manager.fileExists(atPath: support.appendingPathComponent(name).path))
+        }
+        XCTAssertFalse(manager.fileExists(atPath: StoreGenerationFactory(applicationSupportURL: support)
+            .installedGenerationURL(id: originalGeneration).path))
+        // Root/Harness/Service/new ordinary owner remain host-retained. Their
+        // actual checked root teardown and uncertain recovery are not claimed.
+    }
+
+    @MainActor
+    private func assertGenuineOriginalScratchIssuerDataReport(
+        _ report: OriginalEraseScratchIssuerDataReportV1,
+        profile: OriginalEraseScratchIssuerDataProfileV1, operationID: UUID
+    ) {
+        let nodeProbes: Set<OriginalEraseScratchIssuerDataProbeV1> = [
+            .nodeExact, .nodeMissingURL, .nodeWrongKind, .nodeWrongFact,
+            .nodeAfterRevoke, .nodeCurrentBindingRevoked, .nodeAuthorizedRevoked, .nodePairProjectionAfterRevoke]
+        let pairProbes: Set<OriginalEraseScratchIssuerDataProbeV1> = [
+            .pairNodeExact, .pairExact, .pairZeroCount, .pairOneCount, .pairThreeCount,
+            .pairReordered, .pairDuplicateMember, .pairMissingMember,
+            .pairNodeAfterRevoke, .pairAfterRevoke, .pairCurrentBindingRevoked,
+            .pairNodeAuthorizedRevoked, .pairAuthorizedRevoked, .pairProjectionAfterRevoke]
+        let expectedProbes: Set<OriginalEraseScratchIssuerDataProbeV1>
+        switch profile {
+        case .node: expectedProbes = nodeProbes
+        case .declaredPair: expectedProbes = pairProbes
+        case .earlierPairProjectionMembership: expectedProbes = nodeProbes.union(pairProbes).union([.earlierPairProjectionMissing])
+        }
+        let equalDataProbes: Set<OriginalEraseScratchIssuerDataProbeV1> = [
+            .nodeExact, .nodeAfterRevoke, .nodePairProjectionAfterRevoke, .pairNodeExact, .pairExact,
+            .pairNodeAfterRevoke, .pairAfterRevoke, .pairProjectionAfterRevoke]
+        let selectedCount: UInt64 = profile == .earlierPairProjectionMembership ? 2 : 1
+        XCTAssertEqual(report.profile, profile)
+        XCTAssertEqual(report.operationID, operationID)
+        XCTAssertTrue(report.completedSelectedProfile)
+        XCTAssertNil(report.firstFailure)
+        XCTAssertEqual(report.driverScopeHolderCount, 0)
+        XCTAssertEqual(report.selectedIssuances, selectedCount)
+        XCTAssertEqual(report.selectedRevokes, selectedCount)
+        XCTAssertEqual(report.selectedObservationIDs.count, Int(selectedCount))
+        XCTAssertEqual(Set(report.selectedObservationIDs).count, Int(selectedCount))
+        XCTAssertEqual(report.revokedObservationIDs, report.selectedObservationIDs)
+        XCTAssertEqual(report.revokedDriverScopeHolderCounts, Array(repeating: 0, count: Int(selectedCount)))
+        XCTAssertEqual(report.issuedPairProjections.count, Int(selectedCount))
+        XCTAssertEqual(report.revokedPairProjections.count, Int(selectedCount))
+        XCTAssertEqual(report.ordinaryIssuances, report.ordinaryRevokes)
+        XCTAssertEqual(Set(report.probes.keys), expectedProbes, "No missing, repeated or conditional probe can pass")
+        for name in expectedProbes {
+            XCTAssertEqual(report.probes[name], equalDataProbes.contains(name) ? .equalData : .invalidAuthority,
+                "Actual API/outcome for " + name.rawValue)
+        }
+        if profile == .earlierPairProjectionMembership {
+            // The complete earliest immutable pair list is genuinely empty.
+            // The later real arguments exercise the same DEBUG selector on
+            // this projection; no later call on an earlier Scope is claimed.
+            XCTAssertTrue(report.issuedPairProjections.first?.isEmpty == true)
+            XCTAssertTrue(report.revokedPairProjections.first?.isEmpty == true)
+        }
+        if profile != .declaredPair {
+            guard let expected = report.expectedNode, let observed = report.observedNode else {
+                return XCTFail("Selected genuine earliest node DATA is required")
+            }
+            assertGenuineIssuerNodeData(observed, equals: expected)
+        }
+        if profile != .node {
+            guard let expectedNode = report.expectedPairNode, let observedNode = report.observedPairNode,
+                  let expected = report.expectedPair, let observed = report.observedPair else {
+                return XCTFail("Selected actual declared-publication pair/node DATA is required")
+            }
+            assertGenuineIssuerNodeData(observedNode, equals: expectedNode)
+            XCTAssertEqual(observed.kind, expected.kind)
+            XCTAssertEqual(observed.sha256, expected.sha256)
+            XCTAssertEqual(observed.byteCount, expected.byteCount)
+            XCTAssertGreaterThan(observed.byteCount, 0)
+            XCTAssertEqual(observed.device, expected.device)
+            XCTAssertEqual(observed.inode, expected.inode)
+            XCTAssertEqual(observed.user, expected.user)
+            XCTAssertEqual(observed.group, expected.group)
+            XCTAssertEqual(observed.parentURL, expected.parentURL)
+            XCTAssertEqual(observed.parentFullFact, expected.parentFullFact)
+            XCTAssertEqual(observed.members.map(\.relativePath), expected.members.map(\.relativePath))
+            XCTAssertEqual(observed.members.map(\.url), expected.members.map(\.url))
+            XCTAssertEqual(observed.members.map(\.fullFact), expected.members.map(\.fullFact))
+            XCTAssertEqual(observed.ancestors.map(\.url), expected.ancestors.map(\.url))
+            XCTAssertEqual(observed.ancestors.map(\.fullFact), expected.ancestors.map(\.fullFact))
+            XCTAssertEqual(observed.ancestors.map(\.directoryRole), expected.ancestors.map(\.directoryRole))
+            XCTAssertEqual(observed.members.count, 2)
+            if observed.members.count == 2 {
+                XCTAssertNotEqual(observed.members[0].url, observed.members[1].url)
+                XCTAssertTrue(observed.members[0].relativePath.utf8.lexicographicallyPrecedes(
+                    observed.members[1].relativePath.utf8))
+            }
+            switch (observed.role, expected.role) {
+            case let (.declaredLinkPublication(ac, al, at, af), .declaredLinkPublication(bc, bl, bt, bf)):
+                XCTAssertEqual(ac, bc); XCTAssertEqual(al, bl)
+                XCTAssertEqual(at, bt); XCTAssertEqual(af, bf)
+            default: XCTFail("Only the actual declared create/link publication role qualifies")
+            }
+        }
+    }
+
+    @MainActor
+    private func assertGenuineIssuerNodeData(_ observed: OriginalEraseScratchTemporalPolicyNodeV1,
+        equals expected: OriginalEraseScratchTemporalPolicyNodeV1) {
+        XCTAssertEqual(observed.kind, expected.kind)
+        XCTAssertEqual(observed.url, expected.url)
+        XCTAssertEqual(observed.fullFact, expected.fullFact)
+        XCTAssertEqual(observed.parentURL, expected.parentURL)
+        XCTAssertEqual(observed.parentFullFact, expected.parentFullFact)
+        XCTAssertEqual(observed.directoryRole, expected.directoryRole)
+        XCTAssertEqual(observed.ancestors.map(\.url), expected.ancestors.map(\.url))
+        XCTAssertEqual(observed.ancestors.map(\.fullFact), expected.ancestors.map(\.fullFact))
+        XCTAssertEqual(observed.ancestors.map(\.directoryRole), expected.ancestors.map(\.directoryRole))
+    }
+}
+#endif
+
+#if DEBUG
+@MainActor
+private final class OriginalRecoveryTransitionFixtureStateV1 {
+    var serviceCount = 0
+    var services = [EraseAllService]()
+    var reservations = [AppAccessGateV1.EraseAdoptionToken]()
+    var completions = [CompletedEraseReceiptV1]()
+    var originalGenerationID: UUID?
+    var targetGenerationID: UUID?
+    var recoveryTargetsEntries = 0
+    var probeFailure: Error?
+    var probeReports = [OriginalRecoveryProjectionCallbackObservationForTestingV1]()
+    var abandonedPayloadURL: URL?
+    var abandonedPayloadBytes: Data?
+    var hostileWriter: FileHandle?
+    var hostileWriterCloseAttemptCount = 0
+    var hostileWriterCloseReturned = false
+    var hostileWriterIOOrCloseUncertain = false
+    var hostileWriterFailure: Error?
+    var atRecoveryTargets: ((StartupRouter) throws ->
+        [OriginalRecoveryProjectionCallbackObservationForTestingV1])?
+}
+
+@MainActor
+private final class OriginalRecoveryTransitionFixtureV1 {
+    let root: URL
+    let support: URL
+    let router: StartupRouter
+    let session: ProductionAppAccessSessionV1
+    let presentation: AppAccessPresentationV1
+    let state: OriginalRecoveryTransitionFixtureStateV1
+    var abandonedPayloadURL: URL? { state.abandonedPayloadURL }
+    var abandonedPayloadBytes: Data? { state.abandonedPayloadBytes }
+    private static var retained: [OriginalRecoveryTransitionFixtureV1] = []
+
+    init(root: URL, support: URL, router: StartupRouter,
+        session: ProductionAppAccessSessionV1, presentation: AppAccessPresentationV1,
+        state: OriginalRecoveryTransitionFixtureStateV1) {
+        self.root = root; self.support = support; self.router = router
+        self.session = session; self.presentation = presentation; self.state = state
+        // Retain genuine production owners before startup/admission. A refused
+        // fixture keeps its live tree and descriptors for the host lifetime.
+        Self.retained.append(self)
+    }
+}
+
+private enum OriginalRecoveryTransitionFixtureFailureV1: Error {
+    case originalPointerSwitchNotReached, duplicateRecoveryTargets, payloadNotAvailable
+}
+
+extension V23ProductionAppAccessTests {
+    @MainActor
+    private func startOriginalRecoveryTransitionFixture(
+        withAbandonedPayload: Bool = false
+    ) async throws -> OriginalRecoveryTransitionFixtureV1 {
+        let manager = FileManager.default
+        let suite = "V23.OriginalRecoveryTransition." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = manager.temporaryDirectory.appendingPathComponent(
+            "V23-OriginalRecoveryTransition-" + UUID().uuidString, isDirectory: true)
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let caches = root.appendingPathComponent("Library/Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        for directory in [support, caches, temporary] {
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let system = ProductionAccessNotificationSystem()
+        let router = StartupRouter(applicationSupportURL: support)
+        let session = try await ProductionCompositionRoot.makeAppAccessSession(
+            applicationSupportURL: support, startupRouter: router, defaults: defaults,
+            authenticationClient: ProductionAccessAuthentication(), notificationSystem: system)
+        let state = OriginalRecoveryTransitionFixtureStateV1()
+        let presentation = AppAccessPresentationV1(startupRouter: router,
+            eraseServiceFactory: { admission, completion, aborted, sceneState in
+                state.serviceCount += 1
+                let service = EraseAllService(applicationSupportURL: support,
+                    cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                    userDefaults: defaults, defaultsDomainName: suite,
+                    failureInjection: state.serviceCount == 1
+                        ? EraseAllFailureInjection(failOnceAt: .afterPointerSwitch) : nil,
+                    sceneNavigationStatePort: sceneState,
+                    privateSystemDiscoveryIndex: nil, notificationSystem: system,
+                    admitErase: { subject in
+                        let actualAdmission = try XCTUnwrap(admission)
+                        let reservation = try await actualAdmission(subject)
+                        state.reservations.append(reservation)
+                        return reservation
+                    }, didCompleteErase: { receipt in
+                        state.completions.append(receipt); completion?(receipt)
+                    }, didAbortEraseAdmission: aborted)
+                if state.serviceCount > 1 {
+                    service.erasePhaseDiagnosticForTesting = { phase in
+                        guard phase == "recovery.targets" else { return }
+                        state.recoveryTargetsEntries += 1
+                        guard let probe = state.atRecoveryTargets else { return }
+                        state.atRecoveryTargets = nil
+                        guard state.recoveryTargetsEntries == 1 else {
+                            state.probeFailure = OriginalRecoveryTransitionFixtureFailureV1.duplicateRecoveryTargets
+                            return
+                        }
+                        do { state.probeReports = try probe(router) }
+                        catch { state.probeFailure = error }
+                    }
+                }
+                state.services.append(service)
+                return service
+            }, sessionFactory: { session })
+        let fixture = OriginalRecoveryTransitionFixtureV1(root: root, support: support,
+            router: router, session: session, presentation: presentation, state: state)
+        let ready = expectation(description: "Genuine original transition fixture publishes")
+        let publication = presentation.$permitsContentPresentation.filter { $0 }.prefix(1)
+            .sink { _ in ready.fulfill() }
+        defer { publication.cancel() }
+        await presentation.bootstrapIfNeeded()
+        await fulfillment(of: [ready], timeout: 30)
+        XCTAssertTrue(presentation.permitsContentPresentation)
+        guard case .ready = router.route else {
+            XCTFail("The production Router must publish its authentic original writer")
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        if withAbandonedPayload {
+            // The already retained genuine original is ready. Seed the real
+            // abandoned lease now, before Erase admission/first-P capture.
+            let bytes = Data("original recovery physical projection control".utf8)
+            let created = Date(timeIntervalSince1970: 1_786_800_012)
+            weak var endedProducer: ScratchDataLeaseStoreV1?
+            state.abandonedPayloadURL = try await { @MainActor () async throws -> URL in
+                let producer = try ScratchDataLeaseStoreV1(applicationSupportURL: support,
+                    clock: { created }, capacityProvider: { _ in Int64.max })
+                let request = try ScratchDataLeaseRequestV1(leaseID: UUID(),
+                    purpose: .supportExport, owner: .supportExport, ownerOperationID: UUID(),
+                    requestedByteCount: try XCTUnwrap(UInt64(exactly: bytes.count)),
+                    createdAt: created, expiresAt: created.addingTimeInterval(900))
+                let lease = try await producer.acquireScratchLease(request)
+                let url = try await producer.writeScratchData(bytes, named: "support.json", lease: lease)
+                endedProducer = producer
+                return url
+            }()
+            XCTAssertNil(endedProducer, "The genuine Scratch producer ends before admission")
+            XCTAssertEqual(try Data(contentsOf: try XCTUnwrap(state.abandonedPayloadURL)), bytes)
+            state.abandonedPayloadBytes = bytes
+        }
+        return fixture
+    }
+
+    @MainActor
+    private func interruptOriginalRecoveryAfterPointerSwitch(
+        _ fixture: OriginalRecoveryTransitionFixtureV1
+    ) async throws {
+        // No coordinator/model alias escapes this actual preparation frame.
+        // Presentation, Router and the operation retain their genuine owners.
+        try await { @MainActor () async throws -> Void in
+            guard case let .ready(coordinator, diagnostics, _) = fixture.router.route else {
+                throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+            fixture.state.originalGenerationID = coordinator.generationID
+            do {
+                try await fixture.presentation.performErase(applicationSupportURL: fixture.support,
+                    confirmation: "ERASE", coordinator: coordinator, diagnosticsStore: diagnostics)
+                XCTFail("The genuine original must reach its one-shot pointer-switch interruption")
+                throw OriginalRecoveryTransitionFixtureFailureV1.originalPointerSwitchNotReached
+            } catch {
+                guard error as? EraseAllServiceError == .injectedFailure else { throw error }
+            }
+        }()
+        XCTAssertEqual(fixture.state.serviceCount, 1)
+        XCTAssertEqual(fixture.state.reservations.count, 1)
+        XCTAssertTrue(fixture.state.completions.isEmpty)
+        XCTAssertFalse(fixture.presentation.permitsContentPresentation)
+        let intent = try EraseIntentCodecV1.decode(Data(contentsOf:
+            fixture.support.appendingPathComponent("FieldEvidenceErase/erase.json")))
+        let reservation = try XCTUnwrap(fixture.state.reservations.first)
+        XCTAssertEqual(intent.phase, .emptyGenerationPrepared)
+        XCTAssertEqual(intent.oldGenerationID, fixture.state.originalGenerationID)
+        XCTAssertEqual(intent.eraseID, reservation.subject.eraseID)
+        XCTAssertEqual(intent.newGenerationID, reservation.subject.newGenerationID)
+        guard case .v3(let pointer, _) = try CurrentPointerCodecV1.decode(Data(contentsOf:
+            fixture.support.appendingPathComponent("FieldEvidenceData/current.json"))) else {
+            XCTFail("Only a genuine target-current original recovery exercises these controls")
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        XCTAssertEqual(UUID(uuidString: pointer.generationID), intent.newGenerationID)
+        fixture.state.targetGenerationID = intent.newGenerationID
+    }
+
+    @MainActor
+    private func finishOriginalRecoveryTransition(
+        _ fixture: OriginalRecoveryTransitionFixtureV1
+    ) async throws {
+        let ready = expectation(description: "Normal original recovery publishes its actual target")
+        let publication = fixture.presentation.$permitsContentPresentation.filter { $0 }.prefix(1)
+            .sink { _ in ready.fulfill() }
+        defer { publication.cancel() }
+        await fixture.presentation.retryStartup()
+        await fulfillment(of: [ready], timeout: 30)
+        XCTAssertNil(fixture.state.probeFailure)
+        XCTAssertTrue(fixture.presentation.permitsContentPresentation)
+        XCTAssertNil(fixture.presentation.failure)
+        XCTAssertEqual(fixture.state.serviceCount, 2)
+        XCTAssertEqual(fixture.state.reservations.count, 2)
+        let reservation = try XCTUnwrap(fixture.state.reservations.first)
+        XCTAssertTrue(fixture.state.reservations.allSatisfy { $0 == reservation })
+        XCTAssertEqual(fixture.state.completions.count, 1)
+        XCTAssertEqual(fixture.state.completions.first?.subject, reservation.subject)
+        guard case let .ready(coordinator, _, _) = fixture.router.route else {
+            XCTFail("Actual ordinary continuation must activate the target writer")
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        XCTAssertEqual(coordinator.generationID, fixture.state.targetGenerationID)
+        XCTAssertEqual(try coordinator.workspaceWriter.currentRevision().generationID,
+            fixture.state.targetGenerationID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            fixture.support.appendingPathComponent("FieldEvidenceErase").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            StoreGenerationFactory(applicationSupportURL: fixture.support)
+                .installedGenerationURL(id: try XCTUnwrap(fixture.state.originalGenerationID)).path))
+    }
+
+    @MainActor
+    private func assertOriginalRecoveryOwnersRetained(
+        _ observed: OriginalRecoveryTransitionObservationForTestingV1,
+        fixture: OriginalRecoveryTransitionFixtureV1
+    ) throws {
+        XCTAssertFalse(observed.detached)
+        let owner = try XCTUnwrap(observed.postPointerOwnerIdentity)
+        XCTAssertEqual(observed.startingImageOwnerIdentity, owner)
+        XCTAssertNil(observed.terminalOwnerIdentity)
+        XCTAssertTrue(fixture.state.completions.isEmpty)
+        XCTAssertFalse(fixture.presentation.permitsContentPresentation)
+        for name in ["FieldEvidenceErase", "FieldEvidenceOperations"] {
+            XCTAssertTrue(FileManager.default.fileExists(atPath:
+                fixture.support.appendingPathComponent(name).path))
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath:
+            StoreGenerationFactory(applicationSupportURL: fixture.support)
+                .installedGenerationURL(id: try XCTUnwrap(fixture.state.originalGenerationID)).path))
+    }
+
+    @MainActor
+    private func assertOriginalRecoveryCallbackRefusedBeforeEntry(
+        _ report: OriginalRecoveryProjectionCallbackObservationForTestingV1
+    ) {
+        XCTAssertTrue(report.callbackInvoked)
+        XCTAssertEqual(report.outcome, .uncertainOwner)
+        XCTAssertEqual(report.after, report.before, "Foreign/terminal refusal precedes every projection entry")
+        XCTAssertEqual(report.sourceModelReadsAfter, report.sourceModelReadsBefore)
+        XCTAssertEqual(report.callbackOwnerUncertainAfter, report.callbackOwnerUncertainBefore)
+        XCTAssertFalse(report.callbackOwnerUncertainBefore)
+        XCTAssertFalse(report.after.failed)
+    }
+
+    @MainActor
+    private func assertOriginalRecoveryHealthyWrapper(
+        _ report: OriginalRecoveryProjectionCallbackObservationForTestingV1
+    ) {
+        XCTAssertEqual(report.probe, .exactBoundHealthyWrapper)
+        XCTAssertTrue(report.callbackInvoked)
+        XCTAssertEqual(report.outcome, .returned)
+        XCTAssertFalse(report.before.failed)
+        XCTAssertFalse(report.after.failed)
+        XCTAssertFalse(report.callbackOwnerUncertainBefore)
+        XCTAssertFalse(report.callbackOwnerUncertainAfter)
+        XCTAssertGreaterThan(report.after.continuationEntries, report.before.continuationEntries)
+        // This counter covers the selected actual requested coordinator's
+        // retained-source identity reads, not every possible model read.
+        XCTAssertGreaterThan(report.sourceModelReadsAfter, report.sourceModelReadsBefore)
+        XCTAssertGreaterThan(report.after.sourceStoreEntries, report.before.sourceStoreEntries)
+        XCTAssertGreaterThan(report.after.borrowedSupportBodyEntries, report.before.borrowedSupportBodyEntries)
+        XCTAssertGreaterThan(report.after.observerEntries, report.before.observerEntries)
+        XCTAssertGreaterThan(report.after.bodyEntries, report.before.bodyEntries)
+    }
+
+    @MainActor
+    func testOriginalRecoveryScratchUncertainSettlementRetainsModelOwnerAssociations() async throws {
+        let fixture = try await startOriginalRecoveryTransitionFixture()
+        try await interruptOriginalRecoveryAfterPointerSwitch(fixture)
+        try fixture.router.armOriginalRecoveryTransitionControlForTesting(.beforeScratchReceiptSettlement)
+        await fixture.presentation.retryStartup()
+        let observed = try fixture.router.originalRecoveryTransitionObservationForTesting()
+        try assertOriginalRecoveryOwnersRetained(observed, fixture: fixture)
+        XCTAssertEqual(observed.scratchCallerBoundaryInterruptions, 1)
+        XCTAssertEqual(observed.aggregateMutationInterruptions, 0)
+        XCTAssertTrue(observed.scratchInFlight)
+        XCTAssertTrue(observed.scratchUncertain)
+        XCTAssertFalse(observed.scratchReceiptPresent)
+        XCTAssertEqual(observed.cleanupCompletedReturns, 0)
+        XCTAssertThrowsError(try fixture.router.armOriginalRecoveryTransitionControlForTesting(
+            .beforeScratchReceiptSettlement)) {
+            XCTAssertEqual($0 as? OriginalRecoveryTransitionControlFailureForTestingV1, .alreadyConsumed)
+        }
+        // The injected refusal proves this caller settlement boundary only.
+        // The actual uncertain operation, G evidence and owner remain held;
+        // no native-close failure, rearm or recovery success is manufactured.
+    }
+
+    @MainActor
+    func testOriginalRecoveryAggregateDetachInterruptionRetainsSameTransferredExclusionUntilRetry() async throws {
+        let fixture = try await startOriginalRecoveryTransitionFixture()
+        try await interruptOriginalRecoveryAfterPointerSwitch(fixture)
+        try fixture.router.armOriginalRecoveryTransitionControlForTesting(.afterExTransferBeforeAggregate)
+        await fixture.presentation.retryStartup()
+        let before = try fixture.router.originalRecoveryTransitionObservationForTesting()
+        try assertOriginalRecoveryOwnersRetained(before, fixture: fixture)
+        let successor = try XCTUnwrap(before.transferredExclusionIdentity)
+        let owner = try XCTUnwrap(before.postPointerOwnerIdentity)
+        XCTAssertEqual(before.aggregateMutationInterruptions, 1)
+        XCTAssertTrue(before.scratchReceiptPresent)
+        XCTAssertFalse(before.scratchUncertain)
+        XCTAssertEqual(before.cleanupCompletedReturns, 0)
+        XCTAssertThrowsError(try fixture.router.armOriginalRecoveryTransitionControlForTesting(
+            .afterExTransferBeforeAggregate)) {
+            XCTAssertEqual($0 as? OriginalRecoveryTransitionControlFailureForTestingV1, .alreadyConsumed)
+        }
+        try await finishOriginalRecoveryTransition(fixture)
+        let after = try fixture.router.originalRecoveryTransitionObservationForTesting()
+        XCTAssertEqual(after.operationID, before.operationID)
+        XCTAssertTrue(after.detached)
+        XCTAssertNil(after.postPointerOwnerIdentity)
+        XCTAssertNil(after.startingImageOwnerIdentity)
+        XCTAssertEqual(after.terminalOwnerIdentity, owner)
+        XCTAssertEqual(after.transferredExclusionIdentity, successor)
+        XCTAssertEqual(after.aggregateMutationInterruptions, 1)
+        XCTAssertEqual(after.cleanupCompletedReturns, 1)
+    }
+
+    @MainActor
+    func testOriginalRecoveryProjectionRejectsDetachedCallbacksBeforeReadOrPoison() async throws {
+        let old = try await startOriginalRecoveryTransitionFixture()
+        try await interruptOriginalRecoveryAfterPointerSwitch(old)
+        try old.router.armOriginalRecoveryTransitionControlForTesting(.detachedProjectionCallbacks)
+        try await finishOriginalRecoveryTransition(old)
+        let detached = old.router.originalRecoveryDetachedProjectionCallbackObservationsForTesting()
+        let expectedDetached: [OriginalRecoveryProjectionCallbackProbeForTestingV1] = [
+            .detachedFirst, .detachedProjected, .detachedReaderStartingImage, .detachedWrapper]
+        XCTAssertEqual(detached.map(\.probe), expectedDetached)
+        for report in detached {
+            XCTAssertEqual(report.before.operationDetached, true)
+            assertOriginalRecoveryCallbackRefusedBeforeEntry(report)
+        }
+        let expired = try XCTUnwrap(old.router.originalRecoveryRetainedProjectionEntryObservationForTesting())
+        XCTAssertTrue(!expired.operationPresent || !expired.ownerPresent,
+            "The actual weak original association must expire naturally")
+        let next = try await startOriginalRecoveryTransitionFixture()
+        try await interruptOriginalRecoveryAfterPointerSwitch(next)
+        next.state.atRecoveryTargets = { router in
+            var reports = [try router.probeOriginalRecoveryProjectionForTesting(.exactBoundHealthyWrapper)]
+            let probes: [OriginalRecoveryProjectionCallbackProbeForTestingV1] = [
+                .expiredFirst, .expiredProjected, .expiredReaderStartingImage, .expiredWrapper]
+            for probe in probes {
+                reports.append(try old.router.probeExpiredOriginalRecoveryProjectionForTesting(
+                    probe, requestedRouter: router))
+            }
+            return reports
+        }
+        try await finishOriginalRecoveryTransition(next)
+        XCTAssertEqual(next.state.recoveryTargetsEntries, 1)
+        XCTAssertEqual(next.state.probeReports.map(\.probe), [.exactBoundHealthyWrapper,
+            .expiredFirst, .expiredProjected, .expiredReaderStartingImage, .expiredWrapper])
+        guard let healthy = next.state.probeReports.first else {
+            return XCTFail("The genuine B wrapper baseline is mandatory")
+        }
+        assertOriginalRecoveryHealthyWrapper(healthy)
+        for report in next.state.probeReports.dropFirst() {
+            XCTAssertTrue(!report.before.operationPresent || !report.before.ownerPresent)
+            assertOriginalRecoveryCallbackRefusedBeforeEntry(report)
+        }
+    }
+
+    @MainActor
+    func testOriginalRecoveryExternalSourceSessionAliasBlocksDrainUntilNaturalCallerRelease() async throws {
+        let fixture = try await startOriginalRecoveryTransitionFixture()
+        // This is the sole added strong caller alias. The getter returns the
+        // existing Router-published session before genuine Erase admission.
+        var alias: StoreGenerationSession? = try {
+            guard case let .ready(coordinator, _, _) = fixture.router.route else {
+                throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+            return try coordinator.sourceSessionForV949EraseFixture(router: fixture.router)
+        }()
+        weak var actualSourceSession = alias
+        try await interruptOriginalRecoveryAfterPointerSwitch(fixture)
+        let pending = expectation(description: "Actual cleanup observes the live external original session")
+        var reportedPending = false
+        fixture.presentation.eraseRecoveryDiagnosticForTesting = { message in
+            if message == "phase=resume.cleanup-incomplete category=none", !reportedPending {
+                reportedPending = true; pending.fulfill()
+            }
+        }
+        defer { fixture.presentation.eraseRecoveryDiagnosticForTesting = nil }
+        await fixture.presentation.retryStartup()
+        await fulfillment(of: [pending], timeout: 30)
+        XCTAssertNotNil(alias)
+        XCTAssertNotNil(actualSourceSession)
+        let before = try fixture.router.originalRecoveryTransitionObservationForTesting()
+        XCTAssertTrue(before.detached)
+        XCTAssertNil(before.postPointerOwnerIdentity)
+        XCTAssertNil(before.startingImageOwnerIdentity)
+        XCTAssertNotNil(before.terminalOwnerIdentity)
+        XCTAssertGreaterThanOrEqual(before.cleanupPendingReturns, 1)
+        XCTAssertEqual(before.cleanupCompletedReturns, 0)
+        XCTAssertTrue(fixture.state.completions.isEmpty)
+        XCTAssertFalse(fixture.presentation.permitsContentPresentation)
+        XCTAssertTrue(FileManager.default.fileExists(atPath:
+            StoreGenerationFactory(applicationSupportURL: fixture.support)
+                .installedGenerationURL(id: try XCTUnwrap(fixture.state.originalGenerationID)).path))
+        alias = nil
+        XCTAssertNil(actualSourceSession, "Only natural release of the actual caller alias permits model drain")
+        try await finishOriginalRecoveryTransition(fixture)
+        let after = try fixture.router.originalRecoveryTransitionObservationForTesting()
+        XCTAssertEqual(after.operationID, before.operationID)
+        XCTAssertGreaterThanOrEqual(after.cleanupPendingReturns, before.cleanupPendingReturns)
+        XCTAssertEqual(after.cleanupCompletedReturns, 1)
+    }
+
+    @MainActor
+    func testOriginalRecoveryProjectionRejectsForeignOperationAndOwnerBeforePoison() async throws {
+        let old = try await startOriginalRecoveryTransitionFixture()
+        try await interruptOriginalRecoveryAfterPointerSwitch(old)
+        try old.router.armOriginalRecoveryTransitionControlForTesting(.afterExTransferBeforeAggregate)
+        await old.presentation.retryStartup()
+        let donorCut = try old.router.originalRecoveryTransitionObservationForTesting()
+        try assertOriginalRecoveryOwnersRetained(donorCut, fixture: old)
+        XCTAssertEqual(donorCut.aggregateMutationInterruptions, 1)
+        let donorSuccessor = try XCTUnwrap(donorCut.transferredExclusionIdentity)
+        XCTAssertTrue(donorCut.scratchReceiptPresent)
+        XCTAssertFalse(donorCut.scratchInFlight)
+        XCTAssertFalse(donorCut.scratchUncertain)
+        let next = try await startOriginalRecoveryTransitionFixture()
+        try await interruptOriginalRecoveryAfterPointerSwitch(next)
+        let probes: [OriginalRecoveryProjectionCallbackProbeForTestingV1] = [
+            .foreignFirstOperation, .foreignFirstOwner, .foreignFirstOperationAndOwner,
+            .foreignProjectedOperation, .foreignProjectedOwner, .foreignProjectedOperationAndOwner,
+            .foreignReaderStartingImage, .foreignWrapper]
+        next.state.atRecoveryTargets = { router in
+            var reports = [try router.probeOriginalRecoveryProjectionForTesting(.exactBoundHealthyWrapper)]
+            for probe in probes {
+                reports.append(try old.router.probeOriginalRecoveryProjectionForTesting(
+                    probe, requestedRouter: router))
+            }
+            let peer = try XCTUnwrap(router.originalRecoveryTransitionObservationForTesting().projection)
+            XCTAssertFalse(peer.failed)
+            XCTAssertEqual(peer.ownerUncertain, false,
+                "The genuine live B peer remains healthy after A's foreign callbacks")
+            return reports
+        }
+        try await finishOriginalRecoveryTransition(next)
+        XCTAssertEqual(next.state.recoveryTargetsEntries, 1)
+        XCTAssertEqual(next.state.probeReports.map(\.probe), [.exactBoundHealthyWrapper] + probes)
+        guard let healthy = next.state.probeReports.first else {
+            return XCTFail("A genuine B wrapper baseline must precede all foreign callbacks")
+        }
+        assertOriginalRecoveryHealthyWrapper(healthy)
+        for report in next.state.probeReports.dropFirst() {
+            XCTAssertTrue(report.before.operationPresent)
+            XCTAssertTrue(report.before.ownerPresent)
+            XCTAssertEqual(report.before.operationDetached, false)
+            assertOriginalRecoveryCallbackRefusedBeforeEntry(report)
+        }
+        XCTAssertEqual(try old.router.originalRecoveryTransitionObservationForTesting()
+            .transferredExclusionIdentity, donorSuccessor)
+        try await finishOriginalRecoveryTransition(old)
+    }
+
+    @MainActor
+    func testOriginalRecoveryProjectionSameOwnerWrongFirstImageStillPoisons() async throws {
+        let other = try await startOriginalRecoveryTransitionFixture()
+        try await interruptOriginalRecoveryAfterPointerSwitch(other)
+        try other.router.armOriginalRecoveryTransitionControlForTesting(.afterExTransferBeforeAggregate)
+        await other.presentation.retryStartup()
+        let donorCut = try other.router.originalRecoveryTransitionObservationForTesting()
+        try assertOriginalRecoveryOwnersRetained(donorCut, fixture: other)
+        XCTAssertEqual(donorCut.aggregateMutationInterruptions, 1)
+        let donorSuccessor = try XCTUnwrap(donorCut.transferredExclusionIdentity)
+        XCTAssertTrue(donorCut.scratchReceiptPresent)
+        XCTAssertFalse(donorCut.scratchInFlight)
+        XCTAssertFalse(donorCut.scratchUncertain)
+        let fixture = try await startOriginalRecoveryTransitionFixture()
+        try await interruptOriginalRecoveryAfterPointerSwitch(fixture)
+        fixture.state.atRecoveryTargets = { router in
+            [try router.probeOriginalRecoveryProjectionForTesting(.exactBoundHealthyWrapper),
+             try router.probeOriginalRecoveryProjectionForTesting(.exactBoundWrongFirst,
+                requestedRouter: other.router)]
+        }
+        await fixture.presentation.retryStartup()
+        XCTAssertNil(fixture.state.probeFailure)
+        XCTAssertEqual(fixture.state.recoveryTargetsEntries, 1)
+        XCTAssertEqual(fixture.state.probeReports.map(\.probe), [.exactBoundHealthyWrapper, .exactBoundWrongFirst])
+        guard fixture.state.probeReports.count == 2 else {
+            return XCTFail("The real healthy B wrapper and another genuine first image are both required")
+        }
+        assertOriginalRecoveryHealthyWrapper(fixture.state.probeReports[0])
+        let poisoned = fixture.state.probeReports[1]
+        XCTAssertTrue(poisoned.callbackInvoked)
+        XCTAssertEqual(poisoned.outcome, .uncertainOwner)
+        XCTAssertGreaterThan(poisoned.after.firstComparisonEntries, poisoned.before.firstComparisonEntries)
+        XCTAssertTrue(poisoned.after.failed)
+        XCTAssertEqual(poisoned.after.ownerUncertain, true)
+        XCTAssertEqual(poisoned.after.observerEntries, poisoned.before.observerEntries)
+        XCTAssertEqual(poisoned.after.bodyEntries, poisoned.before.bodyEntries)
+        XCTAssertEqual(poisoned.sourceModelReadsAfter, poisoned.sourceModelReadsBefore)
+        XCTAssertFalse(poisoned.callbackOwnerUncertainBefore)
+        XCTAssertTrue(poisoned.callbackOwnerUncertainAfter, "The actual exact-bound B callback owner is poisoned")
+        let donorAfter = try other.router.originalRecoveryTransitionObservationForTesting()
+        XCTAssertEqual(donorAfter.transferredExclusionIdentity, donorSuccessor)
+        let donor = try XCTUnwrap(donorAfter.projection)
+        XCTAssertFalse(donor.failed)
+        XCTAssertEqual(donor.ownerUncertain, false, "The independent real first-image donor A remains healthy")
+        try assertOriginalRecoveryOwnersRetained(
+            fixture.router.originalRecoveryTransitionObservationForTesting(), fixture: fixture)
+        // The exact-bound owner is genuinely poisoned. Never advance it again
+        // or reuse this fixture as a later healthy companion.
+    }
+
+    @MainActor
+    func testOriginalRecoveryProjectionSameOwnerPhysicalFailureStillPoisons() async throws {
+        let fixture = try await startOriginalRecoveryTransitionFixture(withAbandonedPayload: true)
+        try await interruptOriginalRecoveryAfterPointerSwitch(fixture)
+        fixture.state.atRecoveryTargets = { router in
+            let healthy = try router.probeOriginalRecoveryProjectionForTesting(.exactBoundHealthyWrapper)
+            guard let url = fixture.abandonedPayloadURL, let bytes = fixture.abandonedPayloadBytes,
+                  !bytes.isEmpty, FileManager.default.fileExists(atPath: url.path),
+                  try Data(contentsOf: url) == bytes else {
+                throw OriginalRecoveryTransitionFixtureFailureV1.payloadNotAvailable
+            }
+            let leaf = try FileHandle(forUpdating: url)
+            // Retain this actual object before the first throwing IO. A failed
+            // seek/write/sync/close keeps it for the host lifetime, with the
+            // actual attempt/return DATA and no close retry or reopened leaf.
+            fixture.state.hostileWriter = leaf
+            do {
+                try leaf.seek(toOffset: 0)
+                try leaf.write(contentsOf: Data([bytes[bytes.startIndex] ^ 0xff]))
+                try leaf.synchronize()
+                fixture.state.hostileWriterCloseAttemptCount += 1
+                try leaf.close()
+                fixture.state.hostileWriterCloseReturned = true
+            } catch {
+                fixture.state.hostileWriterIOOrCloseUncertain = true
+                fixture.state.hostileWriterFailure = error
+                throw error
+            }
+            // The observer path follows only an actually returned close.
+            XCTAssertNotEqual(try Data(contentsOf: url), bytes)
+            let poisoned = try router.probeOriginalRecoveryProjectionForTesting(.exactBoundPhysicalWrapper)
+            return [healthy, poisoned]
+        }
+        await fixture.presentation.retryStartup()
+        XCTAssertNil(fixture.state.probeFailure,
+            "An absent leaf or earlier guard failure is a fixture gap, not proof of projection poisoning")
+        XCTAssertNotNil(fixture.state.hostileWriter)
+        XCTAssertEqual(fixture.state.hostileWriterCloseAttemptCount, 1)
+        XCTAssertTrue(fixture.state.hostileWriterCloseReturned)
+        XCTAssertFalse(fixture.state.hostileWriterIOOrCloseUncertain)
+        XCTAssertNil(fixture.state.hostileWriterFailure)
+        XCTAssertEqual(fixture.state.recoveryTargetsEntries, 1)
+        XCTAssertEqual(fixture.state.probeReports.map(\.probe),
+            [.exactBoundHealthyWrapper, .exactBoundPhysicalWrapper])
+        guard fixture.state.probeReports.count == 2 else {
+            return XCTFail("The genuine existing-leaf hostile callback must actually run")
+        }
+        assertOriginalRecoveryHealthyWrapper(fixture.state.probeReports[0])
+        let poisoned = fixture.state.probeReports[1]
+        XCTAssertTrue(poisoned.callbackInvoked)
+        XCTAssertEqual(poisoned.outcome, .otherFailure,
+            "The real physical observer preserves EraseAllServiceError.invalidAuthority")
+        XCTAssertGreaterThan(poisoned.sourceModelReadsAfter, poisoned.sourceModelReadsBefore)
+        XCTAssertGreaterThan(poisoned.after.sourceStoreEntries, poisoned.before.sourceStoreEntries)
+        XCTAssertGreaterThan(poisoned.after.borrowedSupportBodyEntries, poisoned.before.borrowedSupportBodyEntries)
+        XCTAssertGreaterThan(poisoned.after.observerEntries, poisoned.before.observerEntries)
+        XCTAssertEqual(poisoned.after.bodyEntries, poisoned.before.bodyEntries)
+        XCTAssertTrue(poisoned.after.failed)
+        XCTAssertEqual(poisoned.after.ownerUncertain, true)
+        XCTAssertFalse(poisoned.callbackOwnerUncertainBefore)
+        XCTAssertTrue(poisoned.callbackOwnerUncertainAfter)
+        try assertOriginalRecoveryOwnersRetained(
+            fixture.router.originalRecoveryTransitionObservationForTesting(), fixture: fixture)
+        // No metadata repair, second hostile primitive, reset, rearm, cleanup
+        // retry or deletion of the retained source namespace follows refusal.
+    }
+}
+#endif

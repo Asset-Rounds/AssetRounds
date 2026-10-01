@@ -10023,6 +10023,11 @@ final class ErasePreparedGenerationDiscardV1 {
 final class EraseCurrentManifestScopeV1 {
     let binding: EraseRetirementBindingV1
     fileprivate let pointerData: Data
+#if DEBUG
+    /// Immutable DATA for the fixed post-close observation only; source
+    /// validation still uses the original manifest owner's fresh checks.
+    var postClosePointerDataForTesting: Data { pointerData }
+#endif
     fileprivate let store: StoreMigrationJournalStoreV1?
 
     fileprivate init(binding: EraseRetirementBindingV1, pointerData: Data,
@@ -10067,6 +10072,13 @@ fileprivate final class EraseSessionWeakObservationV1 {
         constructorStarted = true
         returnedContainerObserved = true
         constructionInProgress = false
+    }
+#endif
+
+#if DEBUG
+    /// Fixed scalar diagnostics only; this never grants drain or retains a model.
+    fileprivate var constructorReturnUnobservedForTesting: Bool {
+        constructorStarted && !returnedContainerObserved
     }
 #endif
 
@@ -10789,6 +10801,38 @@ final class EraseSessionDrainWitnessV1 {
 
     var isActuallyDrained: Bool { observations.allSatisfy { $0.isDrained } }
 
+#if DEBUG
+    /// Counts are an instantaneous diagnostic, never retirement authorization.
+    /// Only the existing live isActuallyDrained predicate decides progression.
+    func fixedDrainCensusForTesting() -> String {
+        func census(_ cohort: ArraySlice<EraseSessionWeakObservationV1>, label: String) -> String {
+            var undrained = 0
+            var liveSessions = 0
+            var liveContexts = 0
+            var liveContainers = 0
+            var inProgress = 0
+            var unobservedReturns = 0
+            for observation in cohort {
+                if !observation.isDrained { undrained += 1 }
+                if observation.session != nil { liveSessions += 1 }
+                if observation.context != nil { liveContexts += 1 }
+                if observation.container != nil { liveContainers += 1 }
+                if observation.constructionInProgress { inProgress += 1 }
+                if observation.constructorReturnUnobservedForTesting { unobservedReturns += 1 }
+            }
+            return "\(label)Count=\(cohort.count) \(label)Undrained=\(undrained)"
+                + " \(label)LiveSession=\(liveSessions) \(label)LiveContext=\(liveContexts)"
+                + " \(label)LiveContainer=\(liveContainers) \(label)InProgress=\(inProgress)"
+                + " \(label)UnobservedReturn=\(unobservedReturns)"
+        }
+        // Clamp only diagnostic grouping; retain the actual declared count.
+        let split = min(max(0, originalObservationCount), observations.count)
+        return "total=\(observations.count) originalDeclared=\(originalObservationCount) "
+            + census(observations.prefix(split), label: "original") + " "
+            + census(observations.dropFirst(split), label: "preparation")
+    }
+#endif
+
     /// These are the original wrappers, never reconstructed handles. The
     /// transferred exclusion independently proves their physical namespace.
     var capturedReaders: [GenerationLeaseHandleV1] {
@@ -10811,6 +10855,19 @@ final class EraseSessionDrainWitnessV1 {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         postDrainValidation = attempt
+    }
+
+    /// Transfer source revalidation only through the actual completed close.
+    /// The live weak aliases and registered private-copy state still decide
+    /// every subsequent drain; this records no successful drain Boolean.
+    func registerTerminalSourceOwner(_ completed: EraseGenerationAuthorityTerminalCloseReceiptV1,
+        retirement: ErasedRegistryRetirementProofV1,
+        authority: StoreRestoreGenerationAuthority) throws {
+        guard isActuallyDrained, let postDrainValidation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try postDrainValidation.registerTerminalSourceOwner(completed,
+            retirement: retirement, authority: authority, witness: self)
     }
 
     func registerManifestRetirement(_ attempt: EraseManifestRetirementAttemptV1,
@@ -11745,6 +11802,7 @@ final class EraseGenerationAuthorityTerminalCloseReceiptV1 {
     private weak var authority: StoreRestoreGenerationAuthority?
     private weak var cleanup: EraseCleanupAfterRetirementV1?
     private weak var proof: ErasedRegistryRetirementProofV1?
+    private let binding: EraseRetirementBindingV1
 
     fileprivate init(authority: StoreRestoreGenerationAuthority,
         cleanup: EraseCleanupAfterRetirementV1,
@@ -11752,6 +11810,7 @@ final class EraseGenerationAuthorityTerminalCloseReceiptV1 {
         self.authority = authority
         self.cleanup = cleanup
         self.proof = proof
+        binding = proof.binding
     }
 
     func matches(proof expected: ErasedRegistryRetirementProofV1) -> Bool {
@@ -11763,6 +11822,35 @@ final class EraseGenerationAuthorityTerminalCloseReceiptV1 {
         authority expectedAuthority: StoreRestoreGenerationAuthority) -> Bool {
         proof === expectedProof && cleanup === expectedCleanup
             && authority === expectedAuthority
+    }
+
+    /// Identity of the one completed close, never permission to read its FDs.
+    func matchesSourceOwner(proof expectedProof: ErasedRegistryRetirementProofV1,
+        authority expectedAuthority: StoreRestoreGenerationAuthority,
+        binding expectedBinding: EraseRetirementBindingV1) -> Bool {
+        proof === expectedProof && authority === expectedAuthority && cleanup != nil
+            && binding == expectedBinding && expectedProof.binding == expectedBinding
+            && expectedAuthority.eraseRetirementTerminalCloseAttempted
+    }
+
+    func matchesSourceDirectories(authority expectedAuthority: StoreRestoreGenerationAuthority,
+        supportDevice: dev_t, supportInode: ino_t,
+        dataDevice: dev_t, dataInode: ino_t) -> Bool {
+        authority === expectedAuthority && proof != nil && cleanup != nil
+            && expectedAuthority.matchesTerminalSourceDirectories(supportDevice: supportDevice,
+                supportInode: supportInode, dataDevice: dataDevice, dataInode: dataInode)
+    }
+
+    func matchesSourcePointer(authority expectedAuthority: StoreRestoreGenerationAuthority,
+        data: Data, fact: stat) -> Bool {
+        authority === expectedAuthority && proof != nil && cleanup != nil
+            && expectedAuthority.matchesTerminalSourcePointer(data: data, fact: fact)
+    }
+
+    func matchesSourceGenerationParent(authority expectedAuthority: StoreRestoreGenerationAuthority,
+        fact: stat) -> Bool {
+        authority === expectedAuthority && proof != nil && cleanup != nil
+            && expectedAuthority.matchesTerminalSourceGenerationParent(fact)
     }
 }
 
@@ -14340,6 +14428,34 @@ final class StoreRestoreGenerationAuthority {
     private let originalRecoveryIO = EraseAbortCheckedSnapshotIOV1()
     private var originalRecoveryCloseAttempted = false
     private(set) var eraseRetirementTerminalCloseAttempted = false
+
+    /// Immutable origin identity only; no access to the closed descriptors.
+    fileprivate func matchesTerminalSourceDirectories(supportDevice: dev_t,
+        supportInode: ino_t, dataDevice: dev_t, dataInode: ino_t) -> Bool {
+        eraseRetirementTerminalCloseAttempted
+            && applicationSupportIdentity.device == supportDevice
+            && applicationSupportIdentity.inode == supportInode
+            && dataIdentity.device == dataDevice && dataIdentity.inode == dataInode
+    }
+
+    fileprivate func matchesTerminalSourcePointer(data: Data, fact: stat) -> Bool {
+        guard eraseRetirementTerminalCloseAttempted,
+              let provenance = eraseRetirementPointerProvenance["current.json"] else { return false }
+        let expectedData: Data
+        let expectedFact: String
+        switch provenance {
+        case .captured(let bytes, let token), .published(let bytes, let token):
+            expectedData = bytes; expectedFact = token
+        }
+        return data == expectedData
+            && Self.eraseRetirementFactToken(EraseRetirementFileFact(fact)) == expectedFact
+    }
+
+    fileprivate func matchesTerminalSourceGenerationParent(_ fact: stat) -> Bool {
+        eraseRetirementTerminalCloseAttempted && fact.st_mode & S_IFMT == S_IFDIR
+            && fact.st_dev == installedGenerationsIdentity.device
+            && fact.st_ino == installedGenerationsIdentity.inode
+    }
     private var originalRecoveryRetiredStageAttempted = false
     private var originalRecoveryRetiredRenameAttempted = false
     private static let originalRecoveryUncertainCloseLock = NSLock()
@@ -17411,6 +17527,8 @@ final class StoreRestoreGenerationAuthority {
         exclusion: EraseRetirementExclusionV1) throws -> Data {
 #if DEBUG
         print("C46_ERASE_ADVANCE_V1 stage=pointer-name-enter")
+        let nameCategory = name == "current.json" ? 1 : name == "retired.json" ? 2 : 0
+        print("C46_ERASE_POINTER_ENTRY_V1 terminalCloseAttempted=\(eraseRetirementTerminalCloseAttempted ? 1 : 0) nameCategory=\(nameCategory)")
 #endif
         guard !eraseRetirementTerminalCloseAttempted,
               name == "current.json" || name == "retired.json" else {
@@ -18409,7 +18527,44 @@ final class StoreRestoreGenerationAuthority {
     @MainActor
     func snapshotTargetForEraseValidation(binding: EraseRetirementBindingV1,
         exclusion: EraseRetirementExclusionV1) throws -> MigrationCloneResult {
+        try snapshotTargetForEraseValidation(binding: binding, exclusion: exclusion,
+            postClose: nil)
+    }
+
+    private struct ErasePostCloseTargetSource {
+        let manifest: EraseManifestRetirementAttemptV1
+        let receipt: EraseGenerationAuthorityTerminalCloseReceiptV1
+        let retirement: ErasedRegistryRetirementProofV1
+        let pointerData: Data
+    }
+
+    @MainActor
+    fileprivate func snapshotTargetForPostCloseEraseValidation(binding: EraseRetirementBindingV1,
+        exclusion: EraseRetirementExclusionV1, manifest: EraseManifestRetirementAttemptV1,
+        receipt: EraseGenerationAuthorityTerminalCloseReceiptV1,
+        retirement: ErasedRegistryRetirementProofV1, pointerData: Data) throws -> MigrationCloneResult {
+        guard receipt.matchesSourceOwner(proof: retirement, authority: self, binding: binding) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return try snapshotTargetForEraseValidation(binding: binding, exclusion: exclusion,
+            postClose: ErasePostCloseTargetSource(manifest: manifest, receipt: receipt,
+                retirement: retirement, pointerData: pointerData))
+    }
+
+    /// The fixed tree/policy/digest algorithm is shared. Only the exact live
+    /// descriptor owner changes after the genuine terminal-close transfer.
+    @MainActor
+    private func snapshotTargetForEraseValidation(binding: EraseRetirementBindingV1,
+        exclusion: EraseRetirementExclusionV1,
+        postClose: ErasePostCloseTargetSource?) throws -> MigrationCloneResult {
         func requireInstalledAuthority() throws {
+            if let postClose {
+                _ = try postClose.manifest.requirePostCloseSourceControls(binding: binding,
+                    exclusion: exclusion, retirement: postClose.retirement,
+                    receipt: postClose.receipt, authority: self,
+                    expectedPointerData: postClose.pointerData)
+                return
+            }
             try exclusion.requireSupport(binding: binding)
             guard applicationSupportURL.standardizedFileURL == binding.subject.applicationSupportURL,
                   Int64(applicationSupportIdentity.device) == binding.subject.applicationSupportDevice,
@@ -18436,8 +18591,17 @@ final class StoreRestoreGenerationAuthority {
             }
             try eraseRetirementCheckedSnapshotIO.requireSettled()
             try requireInstalledAuthority()
-            let checked = try eraseRetirementCheckedSnapshotIO.treeWithNodes(
-                parent: installedGenerationsDescriptor, name: name)
+            let checked: (digest: String, nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode])
+            if let postClose {
+                checked = try postClose.manifest.readPostCloseTargetTree(binding: binding,
+                    exclusion: exclusion, retirement: postClose.retirement,
+                    receipt: postClose.receipt, authority: self,
+                    expectedPointerData: postClose.pointerData,
+                    checkedIO: eraseRetirementCheckedSnapshotIO)
+            } else {
+                checked = try eraseRetirementCheckedSnapshotIO.treeWithNodes(
+                    parent: installedGenerationsDescriptor, name: name)
+            }
             var byPath = [String: EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]()
             for node in checked.nodes {
                 guard byPath.updateValue(node, forKey: node.path) == nil else {
@@ -18545,8 +18709,12 @@ final class StoreRestoreGenerationAuthority {
             }
         }
         try requireInstalledAuthority()
-        guard try Self.requiredDirectoryIdentity(parent: installedGenerationsDescriptor,
-            name: name) == identity else { throw StoreGenerationFailure.dataPointerInvalid }
+        if postClose != nil {
+            guard try snapshotTree() == baseline else { throw StoreGenerationFailure.dataPointerInvalid }
+        } else {
+            guard try Self.requiredDirectoryIdentity(parent: installedGenerationsDescriptor,
+                name: name) == identity else { throw StoreGenerationFailure.dataPointerInvalid }
+        }
         return MigrationCloneResult(files: files,
             sourceTreeDigest: StoreMigrationCanonicalJSONV1.sha256(try StoreMigrationCanonicalJSONV1.encode(files)),
             frozenIdentityDigest: StoreMigrationCanonicalJSONV1.sha256(Data(tokens.sorted().joined(separator: "\n").utf8)))
@@ -30686,6 +30854,8 @@ extension StoreRestoreGenerationAuthority {
         private weak var privateContext: ModelContext?
         private var returnedContainerObserved = false
         private var closeAdmissionClosed = false
+        private var terminalSourceReceipt: EraseGenerationAuthorityTerminalCloseReceiptV1?
+        private weak var terminalSourceRetirement: ErasedRegistryRetirementProofV1?
 
         fileprivate init(authority: StoreRestoreGenerationAuthority,
             binding: EraseRetirementBindingV1, exclusion: EraseRetirementExclusionV1,
@@ -30698,6 +30868,29 @@ extension StoreRestoreGenerationAuthority {
         }
 
         fileprivate func isBound(to value: EraseSessionDrainWitnessV1) -> Bool { witness === value }
+
+        fileprivate func registerTerminalSourceOwner(
+            _ completed: EraseGenerationAuthorityTerminalCloseReceiptV1,
+            retirement: ErasedRegistryRetirementProofV1,
+            authority expectedAuthority: StoreRestoreGenerationAuthority,
+            witness expectedWitness: EraseSessionDrainWitnessV1) throws {
+            guard authority === expectedAuthority, witness === expectedWitness,
+                  terminalSourceReceipt == nil, terminalSourceRetirement == nil,
+                  phase == .ready, closeAdmissionClosed, original != nil,
+                  copyTask == nil, copyDescriptor == nil,
+                  privateContainer == nil, privateContext == nil,
+                  let manifestRetirement, let exclusion,
+                  manifestRetirement.matches(binding: binding, exclusion: exclusion,
+                    retirement: retirement),
+                  completed.matchesSourceOwner(proof: retirement, authority: authority,
+                    binding: binding) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            // Retain the authentic completed close before any later source
+            // observation can fail. A refused transfer is never reset/reopened.
+            terminalSourceReceipt = completed
+            terminalSourceRetirement = retirement
+        }
         fileprivate var modelURL: URL {
             authority.stagingGenerationsURL.appendingPathComponent(
                 StoreRestoreGenerationAuthority.canonical(copyID), isDirectory: true)
@@ -30717,25 +30910,44 @@ extension StoreRestoreGenerationAuthority {
                   let store = manifestScope.store else {
                 throw GenerationLeaseRegistryFailureV1.uncertainOwner
             }
-            guard try authority.readPointerForEraseRetirement(name: "current.json",
-                expectedData: manifestScope.pointerData,
-                binding: binding, exclusion: exclusion) == manifestScope.pointerData else {
-                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
-            }
             let observedManifest: StoreGenerationManifestV1
-            if let manifestRetirement {
-                observedManifest = try manifestRetirement.requireCurrentManifest(
-                    binding: binding, exclusion: exclusion)
+            let current: StoreRestoreGenerationAuthority.MigrationCloneResult
+            if let completed = terminalSourceReceipt {
+                guard let retirement = terminalSourceRetirement, let manifestRetirement else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                observedManifest = try manifestRetirement.requirePostCloseSourceControls(
+                    binding: binding, exclusion: exclusion, retirement: retirement,
+                    receipt: completed, authority: authority,
+                    expectedPointerData: manifestScope.pointerData)
+                guard observedManifest == manifest else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+                current = try authority.snapshotTargetForPostCloseEraseValidation(
+                    binding: binding, exclusion: exclusion, manifest: manifestRetirement,
+                    receipt: completed, retirement: retirement,
+                    pointerData: manifestScope.pointerData)
             } else {
-                observedManifest = try store.readManifestForEraseRetirement(
-                    targetGenerationID: binding.subject.newGenerationID,
-                    expectedDigest: binding.generationEpoch.generationManifestSHA256,
-                    binding: binding, exclusion: exclusion)
+                guard terminalSourceRetirement == nil,
+                      try authority.readPointerForEraseRetirement(name: "current.json",
+                        expectedData: manifestScope.pointerData,
+                        binding: binding, exclusion: exclusion) == manifestScope.pointerData else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+                if let manifestRetirement {
+                    observedManifest = try manifestRetirement.requireCurrentManifest(
+                        binding: binding, exclusion: exclusion)
+                } else {
+                    observedManifest = try store.readManifestForEraseRetirement(
+                        targetGenerationID: binding.subject.newGenerationID,
+                        expectedDigest: binding.generationEpoch.generationManifestSHA256,
+                        binding: binding, exclusion: exclusion)
+                }
+                guard observedManifest == manifest else {
+                    throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
+                }
+                current = try authority.snapshotTargetForEraseValidation(binding: binding, exclusion: exclusion)
             }
-            guard observedManifest == manifest else {
-                throw StoreMigrationFailure.maintenanceRequired(.sourceMismatch)
-            }
-            let current = try authority.snapshotTargetForEraseValidation(binding: binding, exclusion: exclusion)
             guard current.files == original.files,
                   current.sourceTreeDigest == original.sourceTreeDigest,
                   current.frozenIdentityDigest == original.frozenIdentityDigest else {

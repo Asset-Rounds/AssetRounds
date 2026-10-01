@@ -179,6 +179,7 @@ final class StoreSessionCoordinator: ObservableObject {
          applicationSupportURL: URL,
          kind: OriginalEraseJournalRecoveryProbeV1,
          report: @MainActor (OriginalEraseJournalRecoveryProbeResultV1) -> Void)?
+    private(set) var originalRecoveryRetainedSourceModelReadsForTesting = 0
 #endif
     @Published private(set) var uiGenerationToken: UInt64 = 0
 
@@ -2939,6 +2940,22 @@ extension StoreSessionCoordinator {
     }
 }
 
+#if DEBUG
+struct OriginalRecoveryProjectionEntryObservationForTestingV1: Equatable {
+    let operationPresent: Bool
+    let ownerPresent: Bool
+    let operationDetached: Bool?
+    let ownerUncertain: Bool?
+    let failed: Bool
+    let firstComparisonEntries: Int
+    let observerEntries: Int
+    let continuationEntries: Int
+    let sourceStoreEntries: Int
+    let borrowedSupportBodyEntries: Int
+    let bodyEntries: Int
+}
+#endif
+
 /// Carries the final checked-close first-image projection across the Q
 /// continuation. It never grants a new effect or a fresh baseline.
 @MainActor
@@ -2949,6 +2966,38 @@ final class OriginalRecoveryPostPointerAuxiliaryProjectionV1 {
     private let first: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
     private let projected: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot
     private var failed = false
+#if DEBUG
+    private var originalFirstComparisonEntriesForTesting = 0
+    private var projectedObserverEntriesForTesting = 0
+    private var continuationEntriesForTesting = 0
+    private var sourceStoreEntriesForTesting = 0
+    private var borrowedSupportBodyEntriesForTesting = 0
+    private var bodyEntriesForTesting = 0
+
+    enum WrapperEntryForTesting { case continuation, sourceStore, borrowedSupportBody, body }
+
+    fileprivate func recordWrapperEntryForTesting(_ entry: WrapperEntryForTesting) {
+        switch entry {
+        case .continuation: continuationEntriesForTesting += 1
+        case .sourceStore: sourceStoreEntriesForTesting += 1
+        case .borrowedSupportBody: borrowedSupportBodyEntriesForTesting += 1
+        case .body: bodyEntriesForTesting += 1
+        }
+    }
+
+    func entryObservationForTesting() -> OriginalRecoveryProjectionEntryObservationForTestingV1 {
+        OriginalRecoveryProjectionEntryObservationForTestingV1(
+            operationPresent: operation != nil, ownerPresent: owner != nil,
+            operationDetached: operation?.detached,
+            ownerUncertain: owner.map { $0.state == .uncertain }, failed: failed,
+            firstComparisonEntries: originalFirstComparisonEntriesForTesting,
+            observerEntries: projectedObserverEntriesForTesting,
+            continuationEntries: continuationEntriesForTesting,
+            sourceStoreEntries: sourceStoreEntriesForTesting,
+            borrowedSupportBodyEntries: borrowedSupportBodyEntriesForTesting,
+            bodyEntries: bodyEntriesForTesting)
+    }
+#endif
 
     fileprivate init(operation: EraseRouterOperationV1,
         owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
@@ -2965,13 +3014,33 @@ final class OriginalRecoveryPostPointerAuxiliaryProjectionV1 {
     /// This receipt can be consumed for a reader only if the recovery
     /// observer's first image is exactly the immutable original P image.
     /// Earlier Operations mutations require their own typed projection.
+    /// Association admission is pure: foreign, expired and detached callbacks
+    /// refuse before source/FD access or either owner's uncertainty mutation.
+    func requireUndetachedAssociation(
+        operation expectedOperation: EraseRouterOperationV1?,
+        owner expectedOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1?
+    ) throws {
+        guard let actualOperation = operation, let actualOwner = owner,
+              let expectedOperation, let expectedOwner,
+              actualOperation === expectedOperation,
+              actualOwner === expectedOwner,
+              !actualOperation.detached, !expectedOperation.detached else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try actualOwner.requireUndetachedOriginalRecoveryOperation(expectedOperation)
+    }
+
     func requireOriginalPFirst(
         _ expected: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
         operation expectedOperation: EraseRouterOperationV1,
         owner expectedOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1
     ) throws {
-        guard !failed, operation === expectedOperation,
-              owner === expectedOwner, first == expected else {
+        try requireUndetachedAssociation(operation: expectedOperation,
+            owner: expectedOwner)
+#if DEBUG
+        originalFirstComparisonEntriesForTesting += 1
+#endif
+        guard !failed, first == expected else {
             failed = true
             expectedOwner.poisonOnUncertainScratch()
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
@@ -2994,11 +3063,15 @@ final class OriginalRecoveryPostPointerAuxiliaryProjectionV1 {
     func requireProjected(operation expectedOperation: EraseRouterOperationV1,
         owner expectedOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
         support: Int32) throws {
-        guard !failed, operation === expectedOperation,
-              owner === expectedOwner else {
+        try requireUndetachedAssociation(operation: expectedOperation,
+            owner: expectedOwner)
+        guard !failed else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         do {
+#if DEBUG
+            projectedObserverEntriesForTesting += 1
+#endif
             try observer.requirePostPointerOperationsProjected(
                 first: first, projected: projected, support: support)
         } catch {
@@ -3389,6 +3462,9 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
     }
     fileprivate enum State { case captured, held, closing, released, uncertain }
     fileprivate var state = State.captured
+#if DEBUG
+    var originalRecoveryUncertainForTesting: Bool { state == .uncertain }
+#endif
 
     fileprivate init(coordinator: StoreSessionCoordinator,
                      operation: EraseRouterOperationV1,
@@ -3405,6 +3481,52 @@ final class StoreOriginalEraseRecoveryPreOpenOwnerV1 {
         self.writerToken = writerToken
         self.registry = registry; self.supportURL = supportURL
         self.retainedOriginalExclusion = retainedOriginalExclusion
+    }
+
+    /// Reject stale or foreign callbacks before they consult source models.
+    func requireUndetachedOriginalRecoveryOperation(
+        _ expectedOperation: EraseRouterOperationV1
+    ) throws {
+        guard operation === expectedOperation, !expectedOperation.detached else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// Pure binding/settlement reproof before the exact EX transfer and Router
+    /// consume this model-owning association. This EX already exists, so the
+    /// retained-recovery detach path cannot await another acquisition.
+    /// This grants no filesystem effect or replacement retirement authority.
+    func requireReleasedForOriginalRetirementImage(
+        operation expectedOperation: EraseRouterOperationV1,
+        coordinator expectedCoordinator: StoreSessionCoordinator,
+        exclusion expectedExclusion: StoreTemporalNormalizationExclusionV1,
+        binding: EraseRetirementBindingV1,
+        transferredExclusion: EraseRetirementExclusionV1?
+    ) throws {
+        try requireUndetachedOriginalRecoveryOperation(expectedOperation)
+        guard coordinator === expectedCoordinator, state == .released,
+              uncertainPolicyDescriptors.isEmpty,
+              publishedObservation?.intent?.phase == .pointerSwitched,
+              retainedOriginalExclusion === expectedExclusion,
+              expectedExclusion.id == id,
+              expectedExclusion.registry === registry,
+              expectedExclusion.activity === activity,
+              expectedExclusion.physicalRoot === root else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let transferredExclusion {
+            // A failed aggregate detach retains the already consumed exact
+            // EX successor. Retry must reprove that same transfer, not demand
+            // the coordinator/writer which it legitimately consumed.
+            try transferredExclusion.requireOriginalRecoveryImageTransfer(
+                binding: binding, originalExclusion: expectedExclusion)
+        } else {
+            guard expectedExclusion.owner === expectedCoordinator,
+                  expectedExclusion.writer === expectedCoordinator.workspaceWriter else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+        }
+        try intentIO.requireSettled()
     }
 
     /// Pure identity check for the physical root's synchronous borrowed FD.
@@ -4709,6 +4831,7 @@ extension StoreSessionCoordinator {
         operation: EraseRouterOperationV1,
         intent: EraseIntentV1
     ) throws {
+        try owner.requireUndetachedOriginalRecoveryOperation(operation)
         guard let transfer = originalRecoveryTargetTransfer,
               owner.state == .released,
               owner.publishedIntentForTargetTransfer == intent,
@@ -4741,6 +4864,7 @@ extension StoreSessionCoordinator {
         operation: EraseRouterOperationV1,
         intent: EraseIntentV1
     ) throws {
+        try owner.requireUndetachedOriginalRecoveryOperation(operation)
         guard let exclusion = owner.retainedOriginalExclusion,
               owner.state == .released,
               owner.publishedIntentForTargetTransfer == intent,
@@ -4754,8 +4878,13 @@ extension StoreSessionCoordinator {
               exclusion.owner === self,
               exclusion.physicalRoot === owner.root,
               exclusion.activity === owner.activity,
-              exclusion.registry === owner.registry,
-              session === owner.source,
+              exclusion.registry === owner.registry else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+#if DEBUG
+        originalRecoveryRetainedSourceModelReadsForTesting += 1
+#endif
+        guard session === owner.source,
               workspaceWriter === owner.writer,
               writerLeaseHandle.token == owner.writerToken,
               writerFence.retainedTemporalRegistry === owner.registry else {
@@ -4776,6 +4905,11 @@ extension StoreSessionCoordinator {
         projection: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
         _ body: () throws -> Value
     ) throws -> Value {
+        try projection.requireUndetachedAssociation(operation: operation,
+            owner: owner)
+#if DEBUG
+        projection.recordWrapperEntryForTesting(.continuation)
+#endif
         try requireOriginalRecoveryRetainedSourceContinuation(
             owner: owner, operation: operation, intent: intent)
         guard let exclusion = owner.retainedOriginalExclusion,
@@ -4787,6 +4921,9 @@ extension StoreSessionCoordinator {
               exclusion.physicalRoot === root else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
+#if DEBUG
+        projection.recordWrapperEntryForTesting(.sourceStore)
+#endif
         let store = try operation.requireOriginalRecoveryProjectedAuxiliaryStore(
             coordinator: self, switched: intent)
         do {
@@ -4796,8 +4933,16 @@ extension StoreSessionCoordinator {
                 try root.withOriginalErasePostPointerRetainedSupport(
                     owner: owner, coordinator: self,
                     operation: operation, intent: intent) { support in
+#if DEBUG
+                    // This is support-body entry after named FD revalidation;
+                    // it does not prove every later physical-root check passed.
+                    projection.recordWrapperEntryForTesting(.borrowedSupportBody)
+#endif
                     try projection.requireProjected(
                         operation: operation, owner: owner, support: support)
+#if DEBUG
+                    projection.recordWrapperEntryForTesting(.body)
+#endif
                     let result = try body()
                     try projection.requireProjected(
                         operation: operation, owner: owner, support: support)
@@ -5057,6 +5202,7 @@ final class StoreTemporalPhysicalRootExclusionV1 {
         intent: EraseIntentV1,
         _ body: (Int32) throws -> Value
     ) throws -> Value {
+        try owner.requireUndetachedOriginalRecoveryOperation(operation)
         guard !checkedCloseUncertain,
               owner.root === self,
               owner.retainedOriginalExclusion?.physicalRoot === self else {
@@ -5410,6 +5556,8 @@ final class StoreOriginalEraseAuxiliaryFirstCaptureOwnerV1 {
         coordinator: StoreSessionCoordinator,
         exclusion: StoreTemporalNormalizationExclusionV1
     ) throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+        try sealed.requireUndetachedAssociation(operation: operation,
+            owner: recoveryOwner)
         guard firstSnapshot == originalP,
               readerStartingSnapshot == nil,
               !readerStartingProjectionFailed,
@@ -6026,6 +6174,20 @@ final class EraseRetirementExclusionV1 {
         physicalRoot: StoreTemporalPhysicalRootExclusionV1) {
         self.binding = binding; self.drain = drain; writer = .absentAtColdAdmission
         self.registry = registry; self.activity = activity; self.physicalRoot = physicalRoot
+    }
+    /// Exact comparison DATA for a pre-detach retry. This cannot authorize
+    /// model drain, resource close, deletion or a second exclusion transfer.
+    fileprivate func requireOriginalRecoveryImageTransfer(
+        binding expected: EraseRetirementBindingV1,
+        originalExclusion: StoreTemporalNormalizationExclusionV1
+    ) throws {
+        guard case .retained = writer, binding == expected,
+              registry === originalExclusion.registry,
+              activity === originalExclusion.activity,
+              physicalRoot === originalExclusion.physicalRoot,
+              originalExclusion.owner == nil, originalExclusion.writer == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
     }
     fileprivate func requireColdAcquisitionRetry() throws {
         guard case .absentAtColdAdmission = writer, !released, !writerClosed, !retirementStarted, !coldFailureClosing,

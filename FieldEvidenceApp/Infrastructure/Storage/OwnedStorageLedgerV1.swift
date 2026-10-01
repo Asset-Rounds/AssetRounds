@@ -2,6 +2,80 @@ import Darwin
 import CryptoKit
 import Foundation
 
+#if DEBUG
+import Dispatch
+
+/// Diagnostic data only. Never describe an arbitrary Error or its userInfo:
+/// associated values can contain private paths, bytes or owner identifiers.
+enum OriginalEraseScratchFirstErrorDiagnosticV1 {
+    static func now() -> UInt64 {
+        let saved = errno
+        defer { errno = saved }
+        return DispatchTime.now().uptimeNanoseconds
+    }
+
+    private static func category(_ error: Error) -> String {
+        if let value = error as? ScratchDataLeaseStoreFailureV1 {
+            switch value {
+            case .invalidRoot: return "scratch.invalidRoot"
+            case .invalidLease: return "scratch.invalidLease"
+            case .leaseCollision: return "scratch.leaseCollision"
+            case .leaseExpired: return "scratch.leaseExpired"
+            case .sizeLimitExceeded: return "scratch.sizeLimitExceeded"
+            case .protectedDataUnavailable: return "scratch.protectedDataUnavailable"
+            case .insufficientCapacity: return "scratch.insufficientCapacity"
+            }
+        }
+        if let value = error as? EraseAllServiceError {
+            switch value {
+            case .contextHasChanges: return "erase.contextHasChanges"
+            case .invalidAuthority: return "erase.invalidAuthority"
+            case .invalidConfirmation: return "erase.invalidConfirmation"
+            case .recoveryRequired: return "erase.recoveryRequired"
+            case .injectedFailure: return "erase.injectedFailure"
+            }
+        }
+        if let value = error as? ProtectedFilePolicyError {
+            switch value {
+            case .invalidURL: return "policy.invalidURL"
+            case .invalidRelativePath: return "policy.invalidRelativePath"
+            case .missing: return "policy.missing"
+            case .symbolicLink: return "policy.symbolicLink"
+            case .invalidType: return "policy.invalidType"
+            case .hardLink: return "policy.hardLink"
+            case .identityChanged: return "policy.identityChanged"
+            case .attributeWriteFailed: return "policy.attributeWriteFailed"
+            case .resourceValueMismatch: return "policy.resourceValueMismatch"
+            case .protectedDataUnavailable: return "policy.protectedDataUnavailable"
+            }
+        }
+        if error is GenerationLeaseRegistryFailureV1 { return "registry.failure" }
+        if let value = error as? StoreGenerationFailure {
+            switch value {
+            case .dataPointerInvalid: return "generation.dataPointerInvalid"
+            case .dataGenerationMissing: return "generation.dataGenerationMissing"
+            }
+        }
+        if error is DecodingError { return "decoding.failure" }
+        if error is EncodingError { return "encoding.failure" }
+        return "other"
+    }
+
+    static func emit(owner: String, stage: String, error: Error,
+        started: UInt64, stageStarted: UInt64) {
+        let saved = errno
+        defer { errno = saved }
+        let time = now()
+        let elapsed = time >= started ? (time - started) / 1_000_000 : 0
+        let stageElapsed = time >= stageStarted ? (time - stageStarted) / 1_000_000 : 0
+        let line = "V23_ORIGINAL_SCRATCH_FIRST_ERROR_V1 owner=" + owner
+            + " stage=" + stage + " category=" + category(error)
+            + " elapsedMs=" + String(elapsed) + " stageElapsedMs=" + String(stageElapsed)
+        FileHandle.standardError.write(Data((line + "\n").utf8))
+    }
+}
+#endif
+
 /// Keep the original owner's checked descriptor lifetime on the main actor.
 /// The callback performs synchronous owner reproofs; it cannot cross an await.
 @MainActor private extension EraseAbortCheckedSnapshotIOV1 {
@@ -4274,9 +4348,22 @@ final class OriginalEraseScratchCleanupAttemptV1 {
     #if DEBUG
     fileprivate enum DiagnosticStage: String {
         case initialAdmission, sourceCatalog, sourceRead, publisher, controlRead
-        case beforePrimitive, actualPrimitive, readback, checkedClose, terminalSettlement
+        case primitiveAdmission, beforePrimitive, actualPrimitive, permitDidPerform
+        case readbackRequireBound, permitAfterReadback, checkedClose, terminalSettlement
     }
-    fileprivate var diagnosticStage = DiagnosticStage.initialAdmission
+    fileprivate var diagnosticStage = DiagnosticStage.initialAdmission {
+        didSet { diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now() }
+    }
+    private let diagnosticStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+    private var diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+    private var diagnosticFirstErrorRecorded = false
+    fileprivate func recordOriginalFailureDiagnostic(_ error: Error) {
+        guard !diagnosticFirstErrorRecorded else { return }
+        diagnosticFirstErrorRecorded = true
+        OriginalEraseScratchFirstErrorDiagnosticV1.emit(owner: "ledger",
+            stage: diagnosticStage.rawValue, error: error,
+            started: diagnosticStarted, stageStarted: diagnosticStageStarted)
+    }
     fileprivate func recordFailureDiagnostic() {
         let kind: String
         switch activeIntent?.kind {
@@ -4532,7 +4619,12 @@ final class OriginalEraseScratchCleanupAttemptV1 {
             try permit.requireHeld()
             errno = actualErrno
             return try value.get()
-        } catch { poison(); throw error }
+        } catch {
+            #if DEBUG
+            recordOriginalFailureDiagnostic(error)
+            #endif
+            poison(); throw error
+        }
     }
 
     fileprivate func retainDescriptor(_ descriptor: Int32, path: String, role: ResourceRole) throws {
@@ -4584,7 +4676,12 @@ final class OriginalEraseScratchCleanupAttemptV1 {
         // Ownership precedes the first callback or validation after open.
         if descriptor >= 0 { try retainDescriptor(descriptor, path: path, role: selectedRole) }
         do { try permit.requireHeld() }
-        catch { poison(); errno = actualErrno; throw error }
+        catch {
+            #if DEBUG
+            recordOriginalFailureDiagnostic(error)
+            #endif
+            poison(); errno = actualErrno; throw error
+        }
         errno = actualErrno
         return descriptor
     }
@@ -4601,6 +4698,9 @@ final class OriginalEraseScratchCleanupAttemptV1 {
         _ syscall: () throws -> Int64) throws -> Int64 {
         let incomingErrno = errno
         do {
+            #if DEBUG
+            diagnosticStage = .primitiveAdmission
+            #endif
             let isClose: Bool
             if case .closeOwnedResource = kind { isClose = true } else { isClose = false }
             if isClose, lifetime == .closing { try permit.requireHeld() }
@@ -4643,17 +4743,28 @@ final class OriginalEraseScratchCleanupAttemptV1 {
                 result: result, syscallErrno: actualErrno)
             activeOutcome = outcome
             #if DEBUG
-            diagnosticStage = .readback
+            diagnosticStage = .permitDidPerform
             #endif
             let readback = try permit.didPerform(outcome)
+            #if DEBUG
+            diagnosticStage = .readbackRequireBound
+            #endif
             try readback.requireBound(to: outcome)
             image = readback.after
             sequence = next.partialValue
             activeOutcome = nil; activeIntent = nil
+            #if DEBUG
+            diagnosticStage = .permitAfterReadback
+            #endif
             try permit.requireHeld()
             errno = actualErrno
             return try actualCall.get()
-        } catch { poison(); throw error }
+        } catch {
+            #if DEBUG
+            recordOriginalFailureDiagnostic(error)
+            #endif
+            poison(); throw error
+        }
     }
 
     fileprivate func closeResource(_ resource: Resource, terminalCleanup: Bool) throws {
@@ -4707,6 +4818,9 @@ final class OriginalEraseScratchCleanupAttemptV1 {
                 guard result == 0 else { poison(); throw ScratchDataLeaseStoreFailureV1.invalidRoot }
             } catch {
                 let failure = error
+                #if DEBUG
+                recordOriginalFailureDiagnostic(failure)
+                #endif
                 poison()
                 // A rejected before-proof still leaves this exact retained
                 // owner to settle. An entered close is never retried.
@@ -5213,6 +5327,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             return names.sorted()
         } catch {
             let failure = error
+            #if DEBUG
+            attempt.recordOriginalFailureDiagnostic(failure)
+            #endif
             attempt.poison()
             try? attempt.closeResource(resource, terminalCleanup: true)
             throw failure
@@ -5377,6 +5494,9 @@ final class ScratchDataLeaseStoreV1: ScratchDataLeasePortV1, @unchecked Sendable
             return try OriginalEraseScratchCleanupReceiptV1(attempt: attempt)
         } catch {
             let failure = error
+            #if DEBUG
+            attempt.recordOriginalFailureDiagnostic(failure)
+            #endif
             attempt.poison()
             do { try attempt.drainOwnedResources() } catch { throw error }
             throw failure

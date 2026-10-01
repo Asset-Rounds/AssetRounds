@@ -3903,6 +3903,12 @@ class Phase1PayloadBridgeTests(unittest.TestCase):
         return attempts
 
     def fixture_bridge(self, temporary):
+        # Synthetic positive storage measurement; keep the real headroom guard
+        # and reader child. Nested insufficient-space patches still override it.
+        storage = mock.patch.object(NEW.os, "statvfs", return_value=SimpleNamespace(
+            f_bavail=8 * 1024 ** 3, f_frsize=1))
+        storage.start()
+        self.addCleanup(storage.stop)
         return self.fixture(Path(temporary).resolve(), shared=True, reader=True)
 
     def collect_incomplete(self, resume=False):
@@ -4021,6 +4027,9 @@ class Phase1PayloadBridgeTests(unittest.TestCase):
             self.assertEqual(request["workersPath"], str(directory / "artifacts"))
             self.assertEqual(set(request["headroom"]), {"availableBytes", "requiredBytes", "reserveBytes"})
             self.assertGreaterEqual(request["headroom"]["availableBytes"], request["headroom"]["requiredBytes"])
+            self.assertEqual(request["headroom"]["availableBytes"], 8 * 1024 ** 3)
+            self.assertEqual(request["headroom"]["requiredBytes"],
+                len(raw_path.read_bytes()) + 4 * 1024 ** 3 + 96 * 1024 ** 2 + 256 + 3 * 1024 ** 3)
             self.assertEqual(request["headroom"]["reserveBytes"], 3 * 1024 ** 3)
             self.assertEqual(set(request["inputs"]), {"raw", "controls", "workers", "sources", "discovery"})
             self.assertEqual(request["inputs"]["discovery"], discovery_inputs[0])
@@ -4160,6 +4169,32 @@ class Phase1PayloadBridgeTests(unittest.TestCase):
                 self.assert_pending(gate, directory)
                 self.assert_no_success(directory)
                 self.assertEqual(len([c for c in commands if c[:3] == [sys.executable, "-B", "-c"]]), 0)
+
+    def test_reader_headroom_accepts_exact_required_bytes(self):
+        gate = NEW.phase1_gates()
+        outer_zip = zip_bytes({"synthetic-only.txt": b"synthetic headroom boundary"})
+        required = len(outer_zip) + 4 * 1024 ** 3 + 96 * 1024 ** 2 + 256 + 3 * 1024 ** 3
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            with mock.patch.object(NEW.os, "statvfs", return_value=SimpleNamespace(
+                    f_bavail=required, f_frsize=1)) as measured_storage:
+                headroom = NEW.phase1_payload_reader_headroom(gate, directory, len(outer_zip))
+            measured_storage.assert_called_once_with(directory)
+            self.assertEqual(headroom, {"availableBytes": required, "requiredBytes": required,
+                                        "reserveBytes": 3 * 1024 ** 3})
+
+    def test_reader_headroom_refuses_one_byte_below_required(self):
+        gate = NEW.phase1_gates()
+        outer_zip = zip_bytes({"synthetic-only.txt": b"synthetic headroom boundary"})
+        required = len(outer_zip) + 4 * 1024 ** 3 + 96 * 1024 ** 2 + 256 + 3 * 1024 ** 3
+        available = SimpleNamespace(f_bavail=required - 1, f_frsize=1)
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            with mock.patch.object(NEW.os, "statvfs", return_value=available) as measured_storage:
+                with self.assertRaisesRegex(gate.Refused, "bridge measured reader storage headroom"):
+                    NEW.phase1_payload_reader_headroom(gate, directory, len(outer_zip))
+            measured_storage.assert_called_once_with(directory)
+            self.assertEqual(available.f_bavail * available.f_frsize, required - 1)
 
     def test_insufficient_measured_storage_refuses_before_reader_or_new_destination(self):
         with tempfile.TemporaryDirectory() as temporary:

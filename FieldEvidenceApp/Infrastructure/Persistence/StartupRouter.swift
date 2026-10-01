@@ -159,6 +159,14 @@ final class StartupRouter: ObservableObject {
         set { generationFactory.coldOpenFixedDiagnosticsForTesting = newValue }
     }
     private var currentOpenBoundaryForTesting = "unobserved"
+    // The projection contains immutable observation DATA and its existing weak
+    // associations. No DEBUG source/model/recovery owner survives a callback.
+    private var originalRecoveryRetainedProjectionForTesting:
+        OriginalRecoveryPostPointerAuxiliaryProjectionV1?
+    private var originalRecoveryDetachedCallbacksForTesting:
+        [OriginalRecoveryProjectionCallbackObservationForTestingV1] = []
+    private var lastOriginalRecoveryTransitionObservationForTesting:
+        OriginalRecoveryTransitionObservationForTestingV1?
 
     private func reportStartupFailureForTesting(_ error: Error) {
         guard let observe = startupFailureDiagnosticForTesting else { return }
@@ -6790,8 +6798,342 @@ enum OriginalEraseScratchLoanDiagnosticStepV1: String {
 }
 #endif
 
+#if DEBUG
+enum OriginalRecoveryTransitionControlForTestingV1: Hashable {
+    case beforeScratchReceiptSettlement
+    case afterExTransferBeforeAggregate
+    case detachedProjectionCallbacks
+}
+
+enum OriginalRecoveryTransitionControlFailureForTestingV1: Error, Equatable {
+    case invalidConfiguration, alreadyConsumed
+    case occupiedProjectionCapture
+    case scratchReceiptCallerBoundaryInterruption
+    case aggregateMutationInterruption
+}
+
+enum OriginalRecoveryProjectionCallbackProbeForTestingV1: Hashable {
+    case foreignFirstOperation, foreignFirstOwner, foreignFirstOperationAndOwner
+    case foreignProjectedOperation, foreignProjectedOwner, foreignProjectedOperationAndOwner
+    case foreignReaderStartingImage, foreignWrapper
+    case exactBoundFirst, exactBoundWrongFirst, exactBoundHealthyWrapper, exactBoundPhysicalWrapper
+    case detachedFirst, detachedProjected, detachedReaderStartingImage, detachedWrapper
+    case expiredFirst, expiredProjected, expiredReaderStartingImage, expiredWrapper
+}
+
+enum OriginalRecoveryProjectionCallbackOutcomeForTestingV1: Equatable {
+    case returned, uncertainOwner, otherFailure
+}
+
+struct OriginalRecoveryProjectionCallbackObservationForTestingV1: Equatable {
+    let probe: OriginalRecoveryProjectionCallbackProbeForTestingV1
+    let callbackInvoked: Bool
+    let outcome: OriginalRecoveryProjectionCallbackOutcomeForTestingV1
+    let before: OriginalRecoveryProjectionEntryObservationForTestingV1
+    let after: OriginalRecoveryProjectionEntryObservationForTestingV1
+    let callbackOwnerUncertainBefore: Bool
+    let callbackOwnerUncertainAfter: Bool
+    let sourceModelReadsBefore: Int
+    let sourceModelReadsAfter: Int
+}
+
+struct OriginalRecoveryTransitionObservationForTestingV1: Equatable {
+    let operationID: UUID
+    let detached: Bool
+    let postPointerOwnerIdentity: ObjectIdentifier?
+    let startingImageOwnerIdentity: ObjectIdentifier?
+    let terminalOwnerIdentity: ObjectIdentifier?
+    let originalExclusionIdentity: ObjectIdentifier?
+    let transferredExclusionIdentity: ObjectIdentifier?
+    let scratchInFlight: Bool
+    let scratchUncertain: Bool
+    let scratchReceiptPresent: Bool
+    let scratchCallerBoundaryInterruptions: Int
+    let aggregateMutationInterruptions: Int
+    let cleanupPendingReturns: Int
+    let cleanupCompletedReturns: Int
+    let projection: OriginalRecoveryProjectionEntryObservationForTestingV1?
+}
+#endif
+
 @MainActor
 final class EraseRouterOperationV1 {
+#if DEBUG
+    private var armedOriginalRecoveryControlsForTesting:
+        Set<OriginalRecoveryTransitionControlForTestingV1> = []
+    private var pendingOriginalRecoveryControlsForTesting:
+        Set<OriginalRecoveryTransitionControlForTestingV1> = []
+    private var usedOriginalRecoveryProjectionProbesForTesting:
+        Set<OriginalRecoveryProjectionCallbackProbeForTestingV1> = []
+    private var scratchCallerBoundaryInterruptionsForTesting = 0
+    private var aggregateMutationInterruptionsForTesting = 0
+    private var cleanupPendingReturnsForTesting = 0
+    private var cleanupCompletedReturnsForTesting = 0
+
+    fileprivate func armOriginalRecoveryControlForTesting(
+        _ control: OriginalRecoveryTransitionControlForTestingV1
+    ) throws {
+        guard !armedOriginalRecoveryControlsForTesting.contains(control) else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.alreadyConsumed
+        }
+        guard let router, !detached, !detaching, prepared == nil,
+              originalPointerPublished, originalAuxiliaryFirstSnapshot != nil else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        try router.requireEraseRetirementOperation(self)
+        if control == .detachedProjectionCallbacks {
+            try router.requireOriginalRecoveryProjectionCaptureAvailableForTesting(self)
+        }
+        armedOriginalRecoveryControlsForTesting.insert(control)
+        pendingOriginalRecoveryControlsForTesting.insert(control)
+    }
+
+    fileprivate func originalRecoveryTransitionObservationForTesting()
+        -> OriginalRecoveryTransitionObservationForTestingV1 {
+        let startingOwner: ObjectIdentifier?
+        let terminalOwner: ObjectIdentifier?
+        switch originalTargetReaderStartingImage {
+        case .some(.retainedRecovery(_, let owner)):
+            startingOwner = ObjectIdentifier(owner); terminalOwner = nil
+        case .some(.detachedRecovery(_, let identity)):
+            startingOwner = nil; terminalOwner = identity
+        case .none, .some(.originalP(_)):
+            startingOwner = nil; terminalOwner = nil
+        }
+        return OriginalRecoveryTransitionObservationForTestingV1(
+            operationID: operationID, detached: detached,
+            postPointerOwnerIdentity: originalRecoveryPostPointerOwner.map { ObjectIdentifier($0) },
+            startingImageOwnerIdentity: startingOwner, terminalOwnerIdentity: terminalOwner,
+            originalExclusionIdentity: originalExclusion.map { ObjectIdentifier($0) },
+            transferredExclusionIdentity: transferredExclusion.map { ObjectIdentifier($0) },
+            scratchInFlight: originalScratchCleanupInFlight,
+            scratchUncertain: originalScratchCleanupUncertain,
+            scratchReceiptPresent: originalScratchCleanupReceipt != nil,
+            scratchCallerBoundaryInterruptions: scratchCallerBoundaryInterruptionsForTesting,
+            aggregateMutationInterruptions: aggregateMutationInterruptionsForTesting,
+            cleanupPendingReturns: cleanupPendingReturnsForTesting,
+            cleanupCompletedReturns: cleanupCompletedReturnsForTesting,
+            projection: originalRecoveryPostPointerAuxiliaryProjection?.entryObservationForTesting())
+    }
+
+    private func refuseOriginalRecoveryScratchCallerBoundaryForTesting() throws {
+        guard pendingOriginalRecoveryControlsForTesting.contains(.beforeScratchReceiptSettlement) else { return }
+        guard !detached, !detaching, originalScratchCleanupInFlight,
+              !originalScratchCleanupUncertain,
+              let owner = originalRecoveryPostPointerOwner,
+              case .some(.retainedRecovery(let projection, let imageOwner)) = originalTargetReaderStartingImage,
+              imageOwner === owner,
+              projection === originalRecoveryPostPointerAuxiliaryProjection else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        pendingOriginalRecoveryControlsForTesting.remove(.beforeScratchReceiptSettlement)
+        scratchCallerBoundaryInterruptionsForTesting += 1
+        // G/control revocation and both IO checks really completed. This
+        // interruption proves only the caller boundary before receipt reproof.
+        throw OriginalRecoveryTransitionControlFailureForTestingV1.scratchReceiptCallerBoundaryInterruption
+    }
+
+    fileprivate func refuseOriginalRecoveryAggregateMutationForTesting() throws {
+        guard pendingOriginalRecoveryControlsForTesting.contains(.afterExTransferBeforeAggregate) else { return }
+        guard detaching, !detached, retirement != nil, transferredExclusion != nil,
+              let owner = originalRecoveryPostPointerOwner,
+              case .some(.retainedRecovery(_, let imageOwner)) = originalTargetReaderStartingImage,
+              imageOwner === owner else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        pendingOriginalRecoveryControlsForTesting.remove(.afterExTransferBeforeAggregate)
+        aggregateMutationInterruptionsForTesting += 1
+        throw OriginalRecoveryTransitionControlFailureForTestingV1.aggregateMutationInterruption
+    }
+
+    private func observeOriginalRecoveryProjectionCallbackForTesting(
+        _ probe: OriginalRecoveryProjectionCallbackProbeForTestingV1,
+        projection: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+        callbackOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        requestedCoordinator: StoreSessionCoordinator?,
+        _ body: () throws -> Void
+    ) -> OriginalRecoveryProjectionCallbackObservationForTestingV1 {
+        let before = projection.entryObservationForTesting()
+        let ownerBefore = callbackOwner.originalRecoveryUncertainForTesting
+        let readsBefore = requestedCoordinator?.originalRecoveryRetainedSourceModelReadsForTesting ?? 0
+        let outcome: OriginalRecoveryProjectionCallbackOutcomeForTestingV1
+        do { try body(); outcome = .returned }
+        catch {
+            outcome = error as? GenerationLeaseRegistryFailureV1 == .uncertainOwner
+                ? .uncertainOwner : .otherFailure
+        }
+        return OriginalRecoveryProjectionCallbackObservationForTestingV1(
+            probe: probe, callbackInvoked: true, outcome: outcome, before: before,
+            after: projection.entryObservationForTesting(),
+            callbackOwnerUncertainBefore: ownerBefore,
+            callbackOwnerUncertainAfter: callbackOwner.originalRecoveryUncertainForTesting,
+            sourceModelReadsBefore: readsBefore,
+            sourceModelReadsAfter: requestedCoordinator?.originalRecoveryRetainedSourceModelReadsForTesting ?? 0)
+    }
+
+    fileprivate func probeOriginalRecoveryProjectionForTesting(
+        _ probe: OriginalRecoveryProjectionCallbackProbeForTestingV1,
+        requestedOperation: EraseRouterOperationV1
+    ) throws -> OriginalRecoveryProjectionCallbackObservationForTestingV1 {
+        guard usedOriginalRecoveryProjectionProbesForTesting.insert(probe).inserted else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.alreadyConsumed
+        }
+        guard !detached, !requestedOperation.detached,
+              let projection = originalRecoveryPostPointerAuxiliaryProjection,
+              let owner = originalRecoveryPostPointerOwner,
+              let first = originalAuxiliaryFirstSnapshot,
+              let requestedOwner = requestedOperation.originalRecoveryPostPointerOwner,
+              requestedOperation.originalRecoveryPostPointerAuxiliaryProjection != nil else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        switch probe {
+        case .foreignFirstOperation, .foreignFirstOwner, .foreignFirstOperationAndOwner,
+             .foreignProjectedOperation, .foreignProjectedOwner, .foreignProjectedOperationAndOwner,
+             .foreignReaderStartingImage, .foreignWrapper, .exactBoundWrongFirst:
+            guard requestedOperation !== self, requestedOwner !== owner else {
+                throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+        case .exactBoundFirst, .exactBoundHealthyWrapper, .exactBoundPhysicalWrapper:
+            guard requestedOperation === self else {
+                throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+        default: throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        let coordinator = requestedOperation.preparationCoordinator
+        if probe == .foreignWrapper || probe == .exactBoundHealthyWrapper || probe == .exactBoundPhysicalWrapper {
+            guard coordinator != nil, requestedOperation.originalAuxiliaryProjectedIntent != nil else {
+                throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+        }
+        if probe == .exactBoundWrongFirst {
+            guard let otherFirst = requestedOperation.originalAuxiliaryFirstSnapshot,
+                  otherFirst != first else {
+                throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+        }
+        // Observe the exact owner passed to this callback, which differs from
+        // the donor operation's owner in these fixed operation-only profiles.
+        let callbackOwner: StoreOriginalEraseRecoveryPreOpenOwnerV1
+        switch probe {
+        case .foreignFirstOperation, .foreignProjectedOperation, .exactBoundWrongFirst:
+            callbackOwner = owner
+        default:
+            callbackOwner = requestedOwner
+        }
+        return observeOriginalRecoveryProjectionCallbackForTesting(probe,
+            projection: projection, callbackOwner: callbackOwner,
+            requestedCoordinator: coordinator) {
+            switch probe {
+            case .foreignFirstOperation:
+                try projection.requireOriginalPFirst(first, operation: requestedOperation, owner: owner)
+            case .foreignFirstOwner:
+                try projection.requireOriginalPFirst(first, operation: self, owner: requestedOwner)
+            case .foreignFirstOperationAndOwner:
+                try projection.requireOriginalPFirst(first, operation: requestedOperation, owner: requestedOwner)
+            case .foreignProjectedOperation:
+                try projection.requireProjected(operation: requestedOperation, owner: owner, support: -1)
+            case .foreignProjectedOwner:
+                try projection.requireProjected(operation: self, owner: requestedOwner, support: -1)
+            case .foreignProjectedOperationAndOwner:
+                try projection.requireProjected(operation: requestedOperation, owner: requestedOwner, support: -1)
+            case .foreignReaderStartingImage:
+                _ = try projection.requireReaderStartingImage(originalP: first,
+                    operation: requestedOperation, owner: requestedOwner, support: -1)
+            case .exactBoundFirst:
+                try projection.requireOriginalPFirst(first, operation: self, owner: owner)
+            case .exactBoundWrongFirst:
+                guard let otherFirst = requestedOperation.originalAuxiliaryFirstSnapshot,
+                      otherFirst != first else {
+                    throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+                }
+                try projection.requireOriginalPFirst(otherFirst, operation: self, owner: owner)
+            case .foreignWrapper, .exactBoundHealthyWrapper, .exactBoundPhysicalWrapper:
+                guard let coordinator,
+                      let intent = requestedOperation.originalAuxiliaryProjectedIntent else {
+                    throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+                }
+                try coordinator.withOriginalRecoveryPostPointerOperationsReproof(
+                    owner: requestedOwner, operation: requestedOperation,
+                    intent: intent, projection: projection) {}
+            default: throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+        }
+    }
+
+    fileprivate func probeExpiredOriginalRecoveryProjectionForTesting(
+        _ probe: OriginalRecoveryProjectionCallbackProbeForTestingV1,
+        projection: OriginalRecoveryPostPointerAuxiliaryProjectionV1
+    ) throws -> OriginalRecoveryProjectionCallbackObservationForTestingV1 {
+        guard usedOriginalRecoveryProjectionProbesForTesting.insert(probe).inserted else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.alreadyConsumed
+        }
+        let actual = projection.entryObservationForTesting()
+        guard !actual.operationPresent || !actual.ownerPresent,
+              !detached, let owner = originalRecoveryPostPointerOwner,
+              let first = originalAuxiliaryFirstSnapshot else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        switch probe {
+        case .expiredFirst, .expiredProjected, .expiredReaderStartingImage: break
+        case .expiredWrapper:
+            guard preparationCoordinator != nil, originalAuxiliaryProjectedIntent != nil else {
+                throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+        default: throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        return observeOriginalRecoveryProjectionCallbackForTesting(probe,
+            projection: projection, callbackOwner: owner,
+            requestedCoordinator: preparationCoordinator) {
+            switch probe {
+            case .expiredFirst:
+                try projection.requireOriginalPFirst(first, operation: self, owner: owner)
+            case .expiredProjected:
+                try projection.requireProjected(operation: self, owner: owner, support: -1)
+            case .expiredReaderStartingImage:
+                _ = try projection.requireReaderStartingImage(originalP: first,
+                    operation: self, owner: owner, support: -1)
+            case .expiredWrapper:
+                guard let coordinator = preparationCoordinator,
+                      let intent = originalAuxiliaryProjectedIntent else {
+                    throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+                }
+                try coordinator.withOriginalRecoveryPostPointerOperationsReproof(
+                    owner: owner, operation: self, intent: intent, projection: projection) {}
+            default: throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+        }
+    }
+
+    private func observeDetachedOriginalRecoveryCallbacksForTesting(
+        projection: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+        owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+        first: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+        intent: EraseIntentV1,
+        coordinator: StoreSessionCoordinator
+    ) -> [OriginalRecoveryProjectionCallbackObservationForTestingV1] {
+        let probes: [OriginalRecoveryProjectionCallbackProbeForTestingV1] = [
+            .detachedFirst, .detachedProjected, .detachedReaderStartingImage, .detachedWrapper]
+        return probes.map { probe in
+            observeOriginalRecoveryProjectionCallbackForTesting(probe,
+                projection: projection, callbackOwner: owner,
+                requestedCoordinator: coordinator) {
+                switch probe {
+                case .detachedFirst:
+                    try projection.requireOriginalPFirst(first, operation: self, owner: owner)
+                case .detachedProjected:
+                    try projection.requireProjected(operation: self, owner: owner, support: -1)
+                case .detachedReaderStartingImage:
+                    _ = try projection.requireReaderStartingImage(originalP: first,
+                        operation: self, owner: owner, support: -1)
+                case .detachedWrapper:
+                    try coordinator.withOriginalRecoveryPostPointerOperationsReproof(
+                        owner: owner, operation: self, intent: intent, projection: projection) {}
+                default: break // The literal probe list is closed above.
+                }
+            }
+        }
+    }
+#endif
 #if DEBUG
     private(set) var originalScratchLoanDiagnosticStep:
         OriginalEraseScratchLoanDiagnosticStepV1 = .notEntered
@@ -6844,6 +7186,10 @@ final class EraseRouterOperationV1 {
         case originalP(EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot)
         case retainedRecovery(OriginalRecoveryPostPointerAuxiliaryProjectionV1,
             StoreOriginalEraseRecoveryPreOpenOwnerV1)
+        // Terminal comparison DATA only. The projection retains its immutable
+        // first/post-pointer images, but no source session or writer owner.
+        case detachedRecovery(OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+            originalOwnerIdentity: ObjectIdentifier)
     }
     private var originalTargetReaderStartingImage:
         OriginalTargetReaderStartingImage?
@@ -8396,6 +8742,8 @@ final class EraseRouterOperationV1 {
         registry: GenerationLeaseRegistryV1,
         activity: GenerationTemporalActivityHandleV1
     ) throws {
+        try sealed.requireUndetachedAssociation(operation: self,
+            owner: recoveryOwner)
         guard let router, !detached, !detaching,
               originalTargetReaderInFlight,
               !originalTargetReaderUncertain,
@@ -8550,6 +8898,8 @@ final class EraseRouterOperationV1 {
                 allocation: allocation, registry: registry, activity: activity,
                 operation: self, coordinator: coordinator,
                 exclusion: exclusion)
+        case .detachedRecovery:
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         guard starting.operations == .present(
                 rootFact: operationsFact, digest: operationsDigest),
@@ -10698,6 +11048,9 @@ final class EraseRouterOperationV1 {
 #if DEBUG
             recordOriginalScratchLoanDiagnosticStep(.receiptFinalSettlement)
 #endif
+#if DEBUG
+            try refuseOriginalRecoveryScratchCallerBoundaryForTesting()
+#endif
             try receipt.requireCheckedSettlement()
 #if DEBUG
             recordOriginalScratchLoanDiagnosticStep(.receiptFinalOrigin)
@@ -10970,6 +11323,8 @@ final class EraseRouterOperationV1 {
             // This is the sealed receipt's pure original-image/owner binding,
             // not its obsolete whole post-pointer filesystem rewalk.
             try sealed.requireOriginalPFirst(first, operation: self, owner: owner)
+        case .detachedRecovery:
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         if let original = first.operationsChildren["ScratchDataV1"] {
             guard case .directory(let originalFact, _) = original,
@@ -12892,6 +13247,8 @@ final class EraseRouterOperationV1 {
         owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
         coordinator: StoreSessionCoordinator
     ) throws {
+        try projection.requireUndetachedAssociation(operation: self,
+            owner: owner)
         guard originalRecoveryAuxiliaryFirstMatchesOriginalP,
               originalRecoveryPreOpenOwner === owner,
               originalRecoveryAuxiliaryContinuity?.isCheckedClosed == true,
@@ -13345,10 +13702,85 @@ final class EraseRouterOperationV1 {
         prepared = value
     }
 
+    /// Select the existing comparison image without moving its live owner.
+    /// Only successful aggregate detachment consumes the two model-owning
+    /// associations; a failed check or transfer keeps them for exact recovery.
+    private func detachedOriginalRecoveryStartingImage(
+        coordinator: StoreSessionCoordinator
+    ) throws -> OriginalTargetReaderStartingImage? {
+        guard !detaching, !detached, prepared != nil,
+              originalRecoveryPreOpenOwner == nil,
+              originalRecoveryAuxiliaryContinuity == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        switch originalTargetReaderStartingImage {
+        case .none:
+            guard originalRecoveryPostPointerOwner == nil,
+                  originalRecoveryPostPointerAuxiliaryProjection == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return nil
+        case .some(.originalP(let first)):
+            guard originalRecoveryPostPointerOwner == nil,
+                  originalRecoveryPostPointerAuxiliaryProjection == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return .some(.originalP(first))
+        case .some(.retainedRecovery(let projection, let owner)):
+            guard originalRecoveryPostPointerOwner === owner,
+                  originalRecoveryPostPointerAuxiliaryProjection === projection,
+                  originalRecoveryAuxiliaryFirstMatchesOriginalP,
+                  let first = originalAuxiliaryFirstSnapshot,
+                  let exclusion = originalExclusion,
+                  let binding,
+                  originalScratchCleanupReceipt != nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            // The retained-recovery image has this exact EX already installed:
+            // detach will not await another acquisition. Reprove the actual
+            // Scratch receipt/G/IO settlement before entering detaching state.
+            try requireOriginalScratchCleanupCheckedBoundaryIfStarted()
+            try projection.requireOriginalPFirst(first, operation: self, owner: owner)
+            try owner.requireReleasedForOriginalRetirementImage(operation: self,
+                coordinator: coordinator, exclusion: exclusion,
+                binding: binding, transferredExclusion: transferredExclusion)
+            return .some(.detachedRecovery(projection,
+                originalOwnerIdentity: ObjectIdentifier(owner)))
+        case .some(.detachedRecovery(_, _)):
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
     func detach(coordinator: StoreSessionCoordinator) async throws {
         guard let router, !detaching, !detached, let prepared, let binding else {
             throw AppAccessContractFailureV1.staleAttempt
         }
+#if DEBUG
+        // Qualify the exact armed question before source/EX/aggregate effects.
+        // Its genuine retained-recovery image already has EX, so this lexical
+        // borrow cannot cross the acquisition await below. It is a legitimate
+        // model alias until this frame returns; no expiry/drain is proved here.
+        let detachedCallbackInputsForTesting: (
+            owner: StoreOriginalEraseRecoveryPreOpenOwnerV1,
+            projection: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+            first: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot,
+            intent: EraseIntentV1)?
+        if pendingOriginalRecoveryControlsForTesting.contains(.detachedProjectionCallbacks) {
+            try router.requireOriginalRecoveryProjectionCaptureAvailableForTesting(self)
+            guard let owner = originalRecoveryPostPointerOwner,
+                  case .some(.retainedRecovery(let projection, let imageOwner)) = originalTargetReaderStartingImage,
+                  imageOwner === owner,
+                  projection === originalRecoveryPostPointerAuxiliaryProjection,
+                  let first = originalAuxiliaryFirstSnapshot,
+                  let intent = originalAuxiliaryProjectedIntent,
+                  originalExclusion != nil else {
+                throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+            }
+            detachedCallbackInputsForTesting = (owner, projection, first, intent)
+        } else {
+            detachedCallbackInputsForTesting = nil
+        }
+#endif
         try requireOriginalScratchCleanupCheckedBoundaryIfStarted()
         #if DEBUG
         print("V23_ERASE_DETACH_V1 stage=source-proof.enter")
@@ -13357,6 +13789,8 @@ final class EraseRouterOperationV1 {
         #if DEBUG
         print("V23_ERASE_DETACH_V1 stage=source-proof.complete")
         #endif
+        let detachedStartingImage = try detachedOriginalRecoveryStartingImage(
+            coordinator: coordinator)
         detaching = true
         defer { detaching = false }
         #if DEBUG
@@ -13420,8 +13854,25 @@ final class EraseRouterOperationV1 {
         #if DEBUG
         print("V23_ERASE_DETACH_V1 stage=aggregate-detach.complete")
         #endif
-        originalExclusion = nil
         detached = true
+        // No throwing edge or await follows successful aggregate detachment.
+        // Preserve the original images and checked Scratch receipts as DATA,
+        // consuming both remaining associations to the immutable source owner.
+        originalTargetReaderStartingImage = detachedStartingImage
+        originalRecoveryPostPointerOwner = nil
+        originalExclusion = nil
+#if DEBUG
+        if let inputs = detachedCallbackInputsForTesting {
+            pendingOriginalRecoveryControlsForTesting.remove(.detachedProjectionCallbacks)
+            let observations = observeDetachedOriginalRecoveryCallbacksForTesting(
+                projection: inputs.projection, owner: inputs.owner,
+                first: inputs.first, intent: inputs.intent, coordinator: coordinator)
+            router.recordDetachedOriginalRecoveryProjectionForTesting(
+                inputs.projection, observations: observations)
+        }
+        router.recordOriginalRecoveryTransitionObservationForTesting(
+            originalRecoveryTransitionObservationForTesting())
+#endif
     }
 
     func advanceCleanup() async throws -> Bool {
@@ -13430,7 +13881,16 @@ final class EraseRouterOperationV1 {
 #endif
         guard let router, detached, let prepared else { throw AppAccessContractFailureV1.staleAttempt }
         try router.requireEraseRetirementOperation(self)
+#if DEBUG
+        let completed = try await prepared.advance()
+        if completed { cleanupCompletedReturnsForTesting += 1 }
+        else { cleanupPendingReturnsForTesting += 1 }
+        router.recordOriginalRecoveryTransitionObservationForTesting(
+            originalRecoveryTransitionObservationForTesting())
+        return completed
+#else
         return try await prepared.advance()
+#endif
     }
 
     func completedRetirement() throws -> (EraseSessionRetirementV1, ErasedRegistryRetirementProofV1, CompletedEraseReceiptV1?) {
@@ -13572,6 +14032,94 @@ final class EraseRouterOperationV1 {
 }
 
 extension StartupRouter {
+#if DEBUG
+    func armOriginalRecoveryTransitionControlForTesting(
+        _ control: OriginalRecoveryTransitionControlForTestingV1
+    ) throws {
+        guard let operation = retainedEraseRetirementOperation else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        try operation.armOriginalRecoveryControlForTesting(control)
+    }
+
+    func originalRecoveryTransitionObservationForTesting()
+        throws -> OriginalRecoveryTransitionObservationForTestingV1 {
+        if let operation = retainedEraseRetirementOperation {
+            try requireEraseRetirementOperation(operation)
+            return operation.originalRecoveryTransitionObservationForTesting()
+        }
+        guard let lastOriginalRecoveryTransitionObservationForTesting else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        return lastOriginalRecoveryTransitionObservationForTesting
+    }
+
+    func probeOriginalRecoveryProjectionForTesting(
+        _ probe: OriginalRecoveryProjectionCallbackProbeForTestingV1,
+        requestedRouter: StartupRouter? = nil
+    ) throws -> OriginalRecoveryProjectionCallbackObservationForTestingV1 {
+        let requested = requestedRouter ?? self
+        guard let operation = retainedEraseRetirementOperation,
+              let requestedOperation = requested.retainedEraseRetirementOperation else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        try requireEraseRetirementOperation(operation)
+        try requested.requireEraseRetirementOperation(requestedOperation)
+        return try operation.probeOriginalRecoveryProjectionForTesting(probe,
+            requestedOperation: requestedOperation)
+    }
+
+    func probeExpiredOriginalRecoveryProjectionForTesting(
+        _ probe: OriginalRecoveryProjectionCallbackProbeForTestingV1,
+        requestedRouter: StartupRouter
+    ) throws -> OriginalRecoveryProjectionCallbackObservationForTestingV1 {
+        guard let projection = originalRecoveryRetainedProjectionForTesting,
+              let requestedOperation = requestedRouter.retainedEraseRetirementOperation else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.invalidConfiguration
+        }
+        try requestedRouter.requireEraseRetirementOperation(requestedOperation)
+        return try requestedOperation.probeExpiredOriginalRecoveryProjectionForTesting(
+            probe, projection: projection)
+    }
+
+    func originalRecoveryDetachedProjectionCallbackObservationsForTesting()
+        -> [OriginalRecoveryProjectionCallbackObservationForTestingV1] {
+        // The sole successful armed capture is historical DATA. A second
+        // capture on this Router is refused, never substituted into this slot.
+        originalRecoveryDetachedCallbacksForTesting
+    }
+
+    func originalRecoveryRetainedProjectionEntryObservationForTesting()
+        -> OriginalRecoveryProjectionEntryObservationForTestingV1? {
+        originalRecoveryRetainedProjectionForTesting?.entryObservationForTesting()
+    }
+
+    fileprivate func recordDetachedOriginalRecoveryProjectionForTesting(
+        _ projection: OriginalRecoveryPostPointerAuxiliaryProjectionV1,
+        observations: [OriginalRecoveryProjectionCallbackObservationForTestingV1]
+    ) {
+        // Both arm and detach entry freshly qualify the empty slot. The
+        // qualified retained-recovery path has no await between that check and
+        // this sole call, so there is no silent occupied/missing-input outcome.
+        originalRecoveryRetainedProjectionForTesting = projection
+        originalRecoveryDetachedCallbacksForTesting = observations
+    }
+
+    fileprivate func requireOriginalRecoveryProjectionCaptureAvailableForTesting(
+        _ operation: EraseRouterOperationV1
+    ) throws {
+        try requireEraseRetirementOperation(operation)
+        guard originalRecoveryRetainedProjectionForTesting == nil else {
+            throw OriginalRecoveryTransitionControlFailureForTestingV1.occupiedProjectionCapture
+        }
+    }
+
+    fileprivate func recordOriginalRecoveryTransitionObservationForTesting(
+        _ observation: OriginalRecoveryTransitionObservationForTestingV1
+    ) {
+        lastOriginalRecoveryTransitionObservationForTesting = observation
+    }
+#endif
     func eraseRetirementOperation(for ticket: OriginalOperationTicket) throws -> EraseRouterOperationV1 {
         guard let value = retainedEraseRetirementOperation, value.ticket.owner === ticket.owner,
               value.ticket.mint === ticket.mint, value.ticket.operationID == ticket.operationID else {
@@ -14797,6 +15345,9 @@ extension StartupRouter {
         coordinator: StoreSessionCoordinator) throws {
         try requireEraseTransferSource(value, coordinator: coordinator)
         guard let retirement = value.retirement else { throw AppAccessContractFailureV1.staleAttempt }
+#if DEBUG
+        try value.refuseOriginalRecoveryAggregateMutationForTesting()
+#endif
         detachedEraseRetirement = retirement
         operationOwnedWriter = nil
         pendingErasedActivation = nil

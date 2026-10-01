@@ -507,7 +507,13 @@ final class EraseSessionRetirementV1 {
         authority: StoreRestoreGenerationAuthority, targetReader: GenerationLeaseHandleV1,
         manifestScope: EraseCurrentManifestScopeV1) async throws -> ErasedRegistryRetirementProofV1? {
         if let proof { return proof }
-        guard drain.isActuallyDrained else { return nil }
+        guard drain.isActuallyDrained else {
+#if DEBUG
+            FileHandle.standardError.write(Data(
+                ("C46_ERASE_DRAIN_CENSUS_V1 " + drain.fixedDrainCensusForTesting() + "\n").utf8))
+#endif
+            return nil
+        }
         guard try await factory.validateOrResumeEraseTargetAfterOriginalDrain(binding: binding,
             reader: targetReader, drain: drain, exclusion: exclusion, authority: authority,
             intent: frozenIntent, manifestScope: manifestScope) else { return nil }
@@ -699,12 +705,96 @@ final class ErasedRegistryRetirementProofV1 {
     func retainTerminalAuthorityClose(_ completed: EraseGenerationAuthorityTerminalCloseReceiptV1,
         cleanup: EraseCleanupAfterRetirementV1,
         authority: StoreRestoreGenerationAuthority) throws {
-        try requireTerminalAuthorityCloseAdmission()
-        guard completed.matches(proof: self, cleanup: cleanup, authority: authority) else {
+        guard phase == .manifestPreserved, terminalAuthorityClose == nil,
+              let attempt = manifestAttempt, drain.observesManifestRetirement(attempt),
+              attempt.matches(binding: binding, exclusion: exclusion, retirement: self),
+              completed.matches(proof: self, cleanup: cleanup, authority: authority),
+              completed.matchesSourceOwner(proof: self, authority: authority,
+                binding: binding) else {
             throw EraseAllServiceError.invalidAuthority
         }
+        // Closing the original authority has already consumed its FDs. Retain
+        // that genuine result before a fresh post-close observation can fail.
         terminalAuthorityClose = completed
+        try drain.registerTerminalSourceOwner(completed, retirement: self, authority: authority)
+        try exclusion.requireSupport(binding: binding)
+        try exclusion.requireNoLeasesAfterDrain(proof: drain)
+        try drain.requireDrained(binding: binding)
     }
+
+    /// Exact post-close source ownership only. The manifest owner performs
+    /// fresh physical readbacks; this does not cache or grant a drain result.
+    func requirePostCloseSourceValidationOwnership(
+        attempt: EraseManifestRetirementAttemptV1,
+        exclusion expectedExclusion: EraseRetirementExclusionV1,
+        binding expectedBinding: EraseRetirementBindingV1,
+        receipt: EraseGenerationAuthorityTerminalCloseReceiptV1,
+        authority: StoreRestoreGenerationAuthority) throws {
+        guard phase == .manifestPreserved || phase == .removingNamespace || phase == .namespaceRemoved,
+              binding == expectedBinding, exclusion === expectedExclusion,
+              terminalAuthorityClose === receipt, manifestAttempt === attempt,
+              drain.observesManifestRetirement(attempt),
+              attempt.matches(binding: binding, exclusion: exclusion, retirement: self),
+              receipt.matchesSourceOwner(proof: self, authority: authority, binding: binding) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
+#if DEBUG
+    /// Fixed genuine-owner probes return DATA only. No test receives the
+    /// authority, retained descriptor, EX or manifest attempt from this seam.
+    fileprivate func postCloseSourceControlsReadbackForTesting(
+        authority: StoreRestoreGenerationAuthority, pointerData: Data,
+        foreignOwner: ErasedRegistryRetirementProofV1?
+    ) throws -> ErasePostCloseSourceControlsReadbackV1 {
+        guard phase == .manifestPreserved, let attempt = manifestAttempt,
+              let receipt = terminalAuthorityClose else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try drain.requireDrained(binding: binding)
+        _ = try attempt.requirePostCloseSourceControls(binding: binding,
+            exclusion: exclusion, retirement: self, receipt: receipt,
+            authority: authority, expectedPointerData: pointerData)
+        let closedReaderRefused: Bool
+        print("C46_ERASE_POST_CLOSE_PROBE_V1 stage=closed-reader-refusal-enter")
+        do {
+            _ = try authority.readPointerForEraseRetirement(name: "current.json",
+                expectedData: pointerData, binding: binding, exclusion: exclusion)
+            closedReaderRefused = false
+        } catch StoreGenerationFailure.dataPointerInvalid {
+            closedReaderRefused = true
+        }
+        print("C46_ERASE_POST_CLOSE_PROBE_V1 stage=closed-reader-refusal-complete")
+        var foreignReceiptRefused: Bool?, foreignBindingRefused: Bool?
+        if let foreignOwner {
+            guard foreignOwner !== self, foreignOwner.binding != binding,
+                  let foreignReceipt = foreignOwner.terminalAuthorityClose else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            do {
+                _ = try attempt.requirePostCloseSourceControls(binding: binding,
+                    exclusion: exclusion, retirement: self, receipt: foreignReceipt,
+                    authority: authority, expectedPointerData: pointerData)
+                foreignReceiptRefused = false
+            } catch StoreMigrationFailure.invalidIdentity {
+                foreignReceiptRefused = true
+            }
+            do {
+                _ = try attempt.requirePostCloseSourceControls(binding: foreignOwner.binding,
+                    exclusion: exclusion, retirement: self, receipt: receipt,
+                    authority: authority, expectedPointerData: pointerData)
+                foreignBindingRefused = false
+            } catch StoreMigrationFailure.invalidIdentity {
+                foreignBindingRefused = true
+            }
+        }
+        try drain.requireDrained(binding: binding)
+        return ErasePostCloseSourceControlsReadbackV1(sameOwnerSourceValidated: true,
+            closedAuthorityReaderRefused: closedReaderRefused,
+            foreignReceiptRefused: foreignReceiptRefused,
+            foreignBindingRefused: foreignBindingRefused)
+    }
+#endif
 
     /// The transferred original EX still owns the complete drained cohort
     /// after the generation authority closes and before namespace removal.
@@ -1220,6 +1310,12 @@ final class EraseAllService {
     /// throw; the same retained operation then performs the real retry.
     var afterOldGenerationDeletionBeforeRetiredPointerClearForTesting:
         (@MainActor () throws -> Void)?
+    /// A foreign real completed proof is used only by fixed refusal probes.
+    /// The one-shot observer sees DATA after actual terminal close/source
+    /// validation; any fixture mutation is checked again by ordinary cleanup.
+    var postCloseSourceForeignOwnerForTesting: ErasedRegistryRetirementProofV1?
+    var afterTerminalSourceValidationForTesting:
+        (@MainActor (ErasePostCloseSourceControlsReadbackV1) throws -> Void)?
     /// The genuine cold Service's fresh retained-source context supplies a
     /// value-only before/after refusal readback. Test code never receives its
     /// ModelContext or retains a reader across the failed cold attempt.
@@ -12102,6 +12198,15 @@ enum PracticeWorkspaceProvenanceEraseAllPolicyV1 {
 // C52_BOUNDARY_ANCHOR: canonical-service-request-erase
 
 #if DEBUG
+/// Scalar results from the genuine post-close owner. These are observations,
+/// never capabilities or substitute cleanup/admission results.
+struct ErasePostCloseSourceControlsReadbackV1 {
+    let sameOwnerSourceValidated: Bool
+    let closedAuthorityReaderRefused: Bool
+    let foreignReceiptRefused: Bool?
+    let foreignBindingRefused: Bool?
+}
+
 /// Captured on the genuine post-retirement Service frame *before* injecting
 /// the fault. Every component belongs to the original retained owner.
 private final class ErasePostRetiredFaultWitnessV1 {
@@ -12222,6 +12327,22 @@ final class EraseCleanupAfterRetirementV1 {
             throw EraseAllServiceError.invalidAuthority
         }
         afterOldGenerationDeletionBeforeRetiredPointerClearForTesting = hook
+    }
+
+    private var postCloseSourceForeignOwnerForTesting: ErasedRegistryRetirementProofV1?
+    private var afterTerminalSourceValidationForTesting:
+        (@MainActor (ErasePostCloseSourceControlsReadbackV1) throws -> Void)?
+
+    fileprivate func installPostCloseSourceControlsHookForTesting(
+        foreignOwner: ErasedRegistryRetirementProofV1?,
+        hook: @escaping @MainActor (ErasePostCloseSourceControlsReadbackV1) throws -> Void
+    ) throws {
+        guard phase == .prepared, postCloseSourceForeignOwnerForTesting == nil,
+              afterTerminalSourceValidationForTesting == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        postCloseSourceForeignOwnerForTesting = foreignOwner
+        afterTerminalSourceValidationForTesting = hook
     }
     private var interruptedPostRetiredFault = false
     private var postRetiredWitness: ErasePostRetiredFaultWitnessV1?
@@ -12767,9 +12888,24 @@ final class EraseCleanupAfterRetirementV1 {
             do {
                 let completedClose = try authority.closeCheckedForEraseRetirement(
                     cleanup: self, proof: proof)
+#if DEBUG
+                print("C46_ERASE_ADVANCE_V1 stage=authority-close-returned")
+#endif
                 try proof.retainTerminalAuthorityClose(completedClose,
                     cleanup: self, authority: authority)
                 terminalAuthorityClose = completedClose
+#if DEBUG
+                if let hook = afterTerminalSourceValidationForTesting {
+                    // Clear before invocation. No retry repeats the probes or
+                    // mutation, and no callback return replaces fresh drain.
+                    afterTerminalSourceValidationForTesting = nil
+                    let observed = try proof.postCloseSourceControlsReadbackForTesting(
+                        authority: authority,
+                        pointerData: manifestScope.postClosePointerDataForTesting,
+                        foreignOwner: postCloseSourceForeignOwnerForTesting)
+                    try hook(observed)
+                }
+#endif
                 phase = .authorityClosed
             } catch {
                 if authority.eraseRetirementTerminalCloseAttempted {
@@ -13411,6 +13547,14 @@ private extension EraseAllService {
             originalNotificationAfterOSReadback)
         if let hook = afterOldGenerationDeletionBeforeRetiredPointerClearForTesting {
             try prepared.installRetiredPointerCutHookForTesting(hook)
+        }
+        if let hook = afterTerminalSourceValidationForTesting {
+            try prepared.installPostCloseSourceControlsHookForTesting(
+                foreignOwner: postCloseSourceForeignOwnerForTesting, hook: hook)
+        } else {
+            guard postCloseSourceForeignOwnerForTesting == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
         }
         if let originalColdExitFrame {
             try prepared.retainOriginalColdExitFrameForTesting(originalColdExitFrame)

@@ -2,6 +2,40 @@ import Darwin
 import CryptoKit
 import Foundation
 
+/// Pure topology arithmetic only. Matching these counts grants no authority;
+/// actual held/named facts and complete namespaces remain separately checked.
+enum EraseDirectoryEntryLinkModelV1 {
+    nonisolated static func expectedLinkCount(directEntryCount: Int) -> Int64? {
+        guard directEntryCount >= 0,
+              let count = Int64(exactly: directEntryCount) else { return nil }
+        let links = count.addingReportingOverflow(2)
+        return links.overflow ? nil : links.partialValue
+    }
+
+    nonisolated static func matches(linkCount: Int64, directEntryCount: Int) -> Bool {
+        guard linkCount >= 0,
+              let expected = expectedLinkCount(directEntryCount: directEntryCount) else { return false }
+        return linkCount == expected
+    }
+
+    nonisolated static func linkDelta(beforeDirectEntryCount: Int,
+        afterDirectEntryCount: Int) -> Int64? {
+        guard let before = expectedLinkCount(directEntryCount: beforeDirectEntryCount),
+              let after = expectedLinkCount(directEntryCount: afterDirectEntryCount) else { return nil }
+        let delta = after.subtractingReportingOverflow(before)
+        return delta.overflow ? nil : delta.partialValue
+    }
+
+    nonisolated static func directEntryCount(paths: Set<String>, parentPath: String) -> Int {
+        let prefix = parentPath.isEmpty ? "" : parentPath + "/"
+        return paths.lazy.filter { path in
+            guard path.hasPrefix(prefix) else { return false }
+            let entry = path.dropFirst(prefix.count)
+            return !entry.isEmpty && !entry.contains("/")
+        }.count
+    }
+}
+
 /// Observation only. These bytes never grant Erase, descriptor, policy or
 /// deletion authority. The operation/Manifest owners supply and retain the
 /// actual named ancestors, EX and activity exclusion around both scans.
@@ -1645,20 +1679,42 @@ final class OriginalEraseScratchTemporalObservationScopeV1 {
     func requirePolicyNode(_ kind: OwnedFileKindV1, at url: URL,
         fullFact: String) throws -> OriginalEraseScratchTemporalPolicyNodeV1 {
         try requireCurrentBinding()
-        guard let node = nodes[url], node.url == url,
-              node.kind == kind, node.fullFact == fullFact else {
-            throw EraseAllServiceError.invalidAuthority
-        }
+        let node = try policyNodeData(kind, at: url, fullFact: fullFact)
         try requireCurrentBinding(); return node
     }
     func requirePair(aliasURLs: [URL]) throws -> OriginalEraseScratchTemporalPairV1 {
         try requireCurrentBinding()
+        let pair = try pairData(aliasURLs: aliasURLs)
+        try requireCurrentBinding(); return pair
+    }
+    /// Immutable DATA selection only; grants no current binding or IO authority.
+    /// Protected uses must retain their own fresh live before/after boundaries.
+    func policyNodeData(_ kind: OwnedFileKindV1, at url: URL,
+        fullFact: String) throws -> OriginalEraseScratchTemporalPolicyNodeV1 {
+        guard let node = nodes[url], node.url == url,
+              node.kind == kind, node.fullFact == fullFact else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return node
+    }
+    /// Immutable DATA selection only, preserving the first exact ordered pair.
+    /// A returned value does not establish a live scope or authorize protected IO.
+    func pairData(aliasURLs: [URL]) throws -> OriginalEraseScratchTemporalPairV1 {
+        #if DEBUG
+        return try OriginalEraseScratchIssuerPairDataSelectionV1.select(pairs, aliasURLs: aliasURLs)
+        #else
         guard aliasURLs.count == 2,
               let pair = pairs.first(where: { $0.members.map(\.url) == aliasURLs }) else {
             throw EraseAllServiceError.invalidAuthority
         }
-        try requireCurrentBinding(); return pair
+        return pair
+        #endif
     }
+    #if DEBUG
+    /// Complete immutable ordered DATA, copied only at a selected natural revoke.
+    /// No Scope/G/owner reference or live/physical permission leaves this accessor.
+    fileprivate func pairDataProjectionForIssuerTests() -> [OriginalEraseScratchTemporalPairV1] { pairs }
+    #endif
     func retainObservationAttempt(_ attempt: OriginalEraseScratchTemporalPolicyAttemptV1) {
         owner?.retainPolicyAttempt(attempt)
     }
@@ -1853,6 +1909,47 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     private var nodeVisits: UInt64 = 0
     private var cursorEntries: UInt64 = 0
 
+    #if DEBUG
+    private enum DiagnosticBoundary: String {
+        case other, captureInitial, requireInitialImage, requireFinal
+        case requireCanonicalSource, willPerform, didPerform
+    }
+    private enum DiagnosticObservation: String { case none, first, second }
+    private enum DiagnosticDelta: String { case none, raw, image }
+    private enum DiagnosticStage: String {
+        case entry, checkedAdmission, checkedReturn, initialPremises, initialAgreement
+        case requestSettlement, requestFrame, publicationRequest, requestValidation
+        case outcomeFrame, policySettlement, observationAgreement, imageAgreement
+        case publicationRecipes, rawScan, initialRaw, rawDelta, sameRaw
+        case outsideBeforePolicy, policyBindings, policyPairs, policyCharge, policyScope
+        case pairPolicy, nodePolicy, policyValidation, secondRawScan, rawAgreement
+        case outsideAfterPolicy, imageDelta, observationReturn, finalDelta, commit, advance
+        case deltaPrimitive, deltaCreatedNode, deltaCreatedFile
+        case deltaNamespace, deltaParent, deltaOperations, deltaUntouched
+    }
+    private var diagnosticBoundary = DiagnosticBoundary.other
+    private var diagnosticObservation = DiagnosticObservation.none
+    private var diagnosticDelta = DiagnosticDelta.none
+    private var diagnosticStage = DiagnosticStage.entry {
+        didSet { diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now() }
+    }
+    private let diagnosticStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+    private var diagnosticStageStarted = OriginalEraseScratchFirstErrorDiagnosticV1.now()
+    private var diagnosticFirstErrorRecorded = false
+    private func beginDiagnostic(_ boundary: DiagnosticBoundary) {
+        diagnosticBoundary = boundary; diagnosticObservation = .none
+        diagnosticDelta = .none; diagnosticStage = .entry
+    }
+    private func recordOriginalFailureDiagnostic(_ error: Error) {
+        guard !diagnosticFirstErrorRecorded else { return }
+        diagnosticFirstErrorRecorded = true
+        OriginalEraseScratchFirstErrorDiagnosticV1.emit(owner: "observer",
+            stage: diagnosticBoundary.rawValue + "." + diagnosticObservation.rawValue
+                + "." + diagnosticDelta.rawValue + "." + diagnosticStage.rawValue,
+            error: error, started: diagnosticStarted, stageStarted: diagnosticStageStarted)
+    }
+    #endif
+
     init(admission: OriginalEraseScratchCleanupInitialAdmissionV1) {
         self.admission = admission; operationID = admission.operationID
     }
@@ -1880,11 +1977,31 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         policyAttempts.append(attempt)
     }
     private func checked<T>(_ body: () throws -> T) throws -> T {
-        guard callHeldScope == nil else { throw EraseAllServiceError.invalidAuthority }
+        #if DEBUG
+        diagnosticStage = .checkedAdmission
+        #endif
+        guard callHeldScope == nil else {
+            #if DEBUG
+            recordOriginalFailureDiagnostic(EraseAllServiceError.invalidAuthority)
+            #endif
+            throw EraseAllServiceError.invalidAuthority
+        }
         callHeldScope = admission.heldScope
         defer { callHeldScope = nil }
-        do { try requireHeld(); let value = try body(); try requireHeld(); return value }
-        catch { poison(); throw error }
+        do {
+            try requireHeld(); let value = try body();
+            #if DEBUG
+            diagnosticDelta = .none
+            diagnosticStage = .checkedReturn
+            #endif
+            try requireHeld(); return value
+        }
+        catch {
+            #if DEBUG
+            recordOriginalFailureDiagnostic(error)
+            #endif
+            poison(); throw error
+        }
     }
     private func add(_ value: UInt64, to destination: inout UInt64) throws {
         let sum = destination.addingReportingOverflow(value)
@@ -1923,9 +2040,12 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         let x = fields(a), y = fields(b)
         return x.count == 11 && y.count == 11 && Array(x[0...4]) == Array(y[0...4])
     }
-    private nonisolated static func directoryMutation(_ a: String, _ b: String, linkDelta: Int64) -> Bool {
+    private nonisolated static func directoryMutation(_ a: String, _ b: String,
+        linkDelta: Int64, beforeDirectEntryCount: Int, afterDirectEntryCount: Int) -> Bool {
         let x = fields(a), y = fields(b)
         guard stable(a,b), let old = Int64(x[5]), let new = Int64(y[5]),
+              EraseDirectoryEntryLinkModelV1.matches(linkCount:old,directEntryCount:beforeDirectEntryCount),
+              EraseDirectoryEntryLinkModelV1.matches(linkCount:new,directEntryCount:afterDirectEntryCount),
               let size = Int64(y[6]), size >= 0 else { return false }
         let next = old.addingReportingOverflow(linkDelta)
         return !next.overflow && next.partialValue == new
@@ -1940,7 +2060,13 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
 
     func captureInitial(support: Int32, caches: Int32, temporary: Int32,
         operations: Int32) throws -> Image {
-        try checked {
+        #if DEBUG
+        beginDiagnostic(.captureInitial)
+        #endif
+        return try checked {
+            #if DEBUG
+            diagnosticStage = .initialPremises
+            #endif
             guard !attempted else { throw EraseAllServiceError.invalidAuthority }
             attempted = true
             guard try admission.observer.firstObservation() == admission.firstSnapshot,
@@ -1969,16 +2095,28 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 }
             }
             try validateOriginalPremises()
+            #if DEBUG
+            diagnosticObservation = .first
+            #endif
             let one = try observe(support: support, caches: caches, temporary: temporary,
                 operations: operations, outcome: nil, initialCapture: true)
+            #if DEBUG
+            diagnosticObservation = .second
+            #endif
             let two = try observe(support: support, caches: caches, temporary: temporary,
                 operations: operations, outcome: nil, initialCapture: true)
+            #if DEBUG
+            diagnosticStage = .initialAgreement
+            #endif
             guard one == two else { throw EraseAllServiceError.invalidAuthority }
             initial = one; current = one; return one
         }
     }
     func requireInitialImage(_ image: Image, support: Int32, caches: Int32,
         temporary: Int32, operations: Int32) throws {
+        #if DEBUG
+        beginDiagnostic(.requireInitialImage)
+        #endif
         try checked {
             guard image == initial, current == initial, pending == nil else {
                 throw EraseAllServiceError.invalidAuthority
@@ -1989,6 +2127,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     }
     func requireFinal(_ image: Image, support: Int32, caches: Int32,
         temporary: Int32, operations: Int32) throws {
+        #if DEBUG
+        beginDiagnostic(.requireFinal)
+        #endif
         try checked {
             guard pending == nil, image == current else { throw EraseAllServiceError.invalidAuthority }
             try requireImage(image, support: support, caches: caches,
@@ -1996,6 +2137,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         }
     }
     func requireCanonicalSource(path: String, bytes: Data, fullFact: String) throws {
+        #if DEBUG
+        beginDiagnostic(.requireCanonicalSource)
+        #endif
         try checked {
             _ = try Self.path(path)
             guard let image = current, let node = Self.nodes(image)[path],
@@ -2024,8 +2168,17 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     }
     func willPerform(_ intent: Intent, support: Int32, caches: Int32,
         temporary: Int32, operations: Int32) throws {
+        #if DEBUG
+        beginDiagnostic(.willPerform)
+        #endif
         try checked {
+            #if DEBUG
+            diagnosticStage = .requestSettlement
+            #endif
             try settleObservationScopes()
+            #if DEBUG
+            diagnosticStage = .requestFrame
+            #endif
             guard activeCatalog == nil, pending == nil, intent.operationID == operationID,
                   intent.before == current,
                   attemptID == nil || attemptID == intent.attemptID,
@@ -2035,8 +2188,14 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             try requireImage(intent.before, support: support, caches: caches,
                 temporary: temporary, operations: operations)
             if case .createTemporary = intent.kind {
+                #if DEBUG
+                diagnosticStage = .publicationRequest
+                #endif
                 try admission.requirePublicationRequest(intent: intent)
             }
+            #if DEBUG
+            diagnosticStage = .requestValidation
+            #endif
             try validateRequest(intent)
             // Retain exact intent before the first effect; no future outcome.
             attemptID = intent.attemptID; pending = intent
@@ -2044,24 +2203,57 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     }
     func didPerform(_ outcome: Outcome, support: Int32, caches: Int32,
         temporary: Int32, operations: Int32) throws -> Image {
-        guard pending === outcome.intent else { poison(); throw EraseAllServiceError.invalidAuthority }
+        #if DEBUG
+        beginDiagnostic(.didPerform)
+        diagnosticStage = .outcomeFrame
+        #endif
+        guard pending === outcome.intent else {
+            #if DEBUG
+            recordOriginalFailureDiagnostic(EraseAllServiceError.invalidAuthority)
+            #endif
+            poison(); throw EraseAllServiceError.invalidAuthority
+        }
         observationOutcome = outcome
         defer { observationOutcome = nil }
         return try checked {
+            #if DEBUG
+            diagnosticStage = .outcomeFrame
+            #endif
             guard outcome.intent.operationID == operationID,
                   outcome.result >= 0 else { throw EraseAllServiceError.invalidAuthority }
             if case .requestPolicy = outcome.intent.kind {
+                #if DEBUG
+                diagnosticStage = .policySettlement
+                #endif
                 guard let scope = activeEffectScope else { throw EraseAllServiceError.invalidAuthority }
                 try scope.requireCheckedSettlement()
                 scope.revoke(); activeEffectScope = nil
             }
+            #if DEBUG
+            diagnosticObservation = .first
+            #endif
             let one = try observe(support: support, caches: caches, temporary: temporary,
                 operations: operations, outcome: outcome, initialCapture: false)
+            #if DEBUG
+            diagnosticObservation = .second
+            #endif
             let two = try observe(support: support, caches: caches, temporary: temporary,
                 operations: operations, outcome: outcome, initialCapture: false)
+            #if DEBUG
+            diagnosticStage = .observationAgreement
+            #endif
             guard one == two else { throw EraseAllServiceError.invalidAuthority }
+            #if DEBUG
+            diagnosticStage = .finalDelta
+            #endif
             try requireDelta(outcome, after: one)
+            #if DEBUG
+            diagnosticStage = .commit
+            #endif
             try commit(outcome)
+            #if DEBUG
+            diagnosticStage = .advance
+            #endif
             let next = outcome.intent.sequence.addingReportingOverflow(1)
             guard !next.overflow else { throw EraseAllServiceError.invalidAuthority }
             nextSequence = next.partialValue; current = one; pending = nil
@@ -2070,10 +2262,19 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     }
     private func requireImage(_ image: Image, support: Int32, caches: Int32,
         temporary: Int32, operations: Int32) throws {
+        #if DEBUG
+        diagnosticObservation = .first
+        #endif
         let one = try observe(support: support, caches: caches, temporary: temporary,
             operations: operations, outcome: nil, initialCapture: false)
+        #if DEBUG
+        diagnosticObservation = .second
+        #endif
         let two = try observe(support: support, caches: caches, temporary: temporary,
             operations: operations, outcome: nil, initialCapture: false)
+        #if DEBUG
+        diagnosticStage = .imageAgreement
+        #endif
         guard one == image, two == image else { throw EraseAllServiceError.invalidAuthority }
     }
 
@@ -2159,10 +2360,16 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             try requireHeld(); let value = try body(fd); try requireHeld()
             closeAttempted = true
             guard Darwin.close(fd) == 0 else {
+                #if DEBUG
+                recordOriginalFailureDiagnostic(EraseAllServiceError.invalidAuthority)
+                #endif
                 uncertainFDs.append(fd); poison(); throw EraseAllServiceError.invalidAuthority
             }
             try requireHeld(); return value
         } catch {
+            #if DEBUG
+            recordOriginalFailureDiagnostic(error)
+            #endif
             if !closeAttempted {
                 closeAttempted = true
                 if Darwin.close(fd) != 0 { uncertainFDs.append(fd) }
@@ -2217,6 +2424,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             }
             try requireHeld(); closeAttempted = true
             guard Darwin.closedir(directory) == 0 else {
+                #if DEBUG
+                recordOriginalFailureDiagnostic(EraseAllServiceError.invalidAuthority)
+                #endif
                 uncertainDirectories.append(directory); poison()
                 throw EraseAllServiceError.invalidAuthority
             }
@@ -2224,6 +2434,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             guard Set(values).count == values.count else { throw EraseAllServiceError.invalidAuthority }
             return values.sorted()
         } catch {
+            #if DEBUG
+            recordOriginalFailureDiagnostic(error)
+            #endif
             if !closeAttempted {
                 if let directory {
                     if Darwin.closedir(directory) != 0 { uncertainDirectories.append(directory) }
@@ -2333,6 +2546,10 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         let namespaceBudget = maximumBytes.multipliedReportingOverflow(by: 2)
         guard !namespaceBudget.overflow else { throw EraseAllServiceError.invalidAuthority }
         let rootNames = try names(operations, maximum: admission.notificationAfter.operationsChildren.count)
+        guard let rootLinks = Int64(exactly: ops.st_nlink),
+              EraseDirectoryEntryLinkModelV1.matches(linkCount:rootLinks,directEntryCount:rootNames.count) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         var visited = 0, namespaceBytes: Int64 = 0
         let admittedOriginalPaths = Set((admission.originalGenericPairs ?? []).flatMap(\.originalPaths)
             .map { currentPath($0,outcome:outcome) })
@@ -2363,6 +2580,10 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 func encoded(_ s: String) -> String { s.utf8.map { String(format:"%02x", $0) }.joined() }
                 if directory {
                     let entries = try names(fd, maximum: maximumNodes.partialValue)
+                    guard let directoryLinks = Int64(exactly: fact.st_nlink),
+                          EraseDirectoryEntryLinkModelV1.matches(linkCount:directoryLinks,directEntryCount:entries.count) else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
                     output.append(RawNode(path: path, fact: fact, sha256: nil, members: entries))
                     tokens.append("D|\(encoded(relative))|\(Self.nine(Self.full(fact)))|\(entries.map(encoded).joined(separator:","))")
                     for entry in entries {
@@ -2559,19 +2780,38 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     }
     private func observe(support: Int32, caches: Int32, temporary: Int32,
         operations: Int32, outcome: Outcome?, initialCapture: Bool) throws -> Image {
+        #if DEBUG
+        diagnosticDelta = .none
+        diagnosticStage = .publicationRecipes
+        #endif
         let recipes = try candidatePublications(outcome)
+        #if DEBUG
+        diagnosticStage = .rawScan
+        #endif
         let raw = try rawScan(operations:operations,support:support,publications:recipes,
             outcome: outcome)
+        #if DEBUG
+        if initialCapture { diagnosticStage = .initialRaw }
+        else if outcome != nil { diagnosticStage = .rawDelta }
+        else { diagnosticStage = .sameRaw }
+        #endif
         if initialCapture { try requireInitialRaw(raw) }
         else if let outcome { try requireRawDelta(outcome,after:raw) }
         else {
             guard let current else { throw EraseAllServiceError.invalidAuthority }
             try requireSameRaw(current,raw)
         }
+        #if DEBUG
+        diagnosticDelta = .none
+        diagnosticStage = .outsideBeforePolicy
+        #endif
         try admission.observer.requireOriginalScratchOutside(anchor:admission.notificationAfter,
             operationsFact:Self.full(raw.operationsFact),operationsNames:raw.operationsNames,
             support:support,caches:caches,temporary:temporary,operations:operations,
             requireHeld: { try self.requireHeld() })
+        #if DEBUG
+        diagnosticStage = .policyBindings
+        #endif
         var bindings = [URL:OriginalEraseScratchTemporalPolicyNodeV1]()
         var unaccepted = Set<String>()
         for recipe in recipes.values where !recipe.acceptedPolicy && raw.nodes[recipe.temporaryPath] != nil {
@@ -2583,6 +2823,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 throw EraseAllServiceError.invalidAuthority
             }
         }
+        #if DEBUG
+        diagnosticStage = .policyPairs
+        #endif
         var pairs = [OriginalEraseScratchTemporalPairV1](), pairPaths = Set<String>()
         for (index,premise) in (admission.originalGenericPairs ?? []).enumerated() {
             let paths = premise.originalPaths.map { currentPath($0,outcome:outcome) }
@@ -2615,6 +2858,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         }
         // Physical unique charge is permitted only after exact role/two-path
         // membership, both streamed SHA/current11 and same-inode proof above.
+        #if DEBUG
+        diagnosticStage = .policyCharge
+        #endif
         var uniqueBytes: Int64 = 0
         for node in raw.nodes.values where node.sha256 != nil {
             let next = uniqueBytes.addingReportingOverflow(Int64(node.fact.st_size))
@@ -2631,11 +2877,27 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             guard !sum.overflow else { throw EraseAllServiceError.invalidAuthority }; byteBound = sum.partialValue
         }
         guard uniqueBytes >= 0, uniqueBytes <= byteBound else { throw EraseAllServiceError.invalidAuthority }
+        #if DEBUG
+        diagnosticStage = .policyScope
+        #endif
         let scope = OriginalEraseScratchTemporalObservationScopeV1(owner:self,nodes:bindings,pairs:pairs)
         guard activeScope == nil else { throw EraseAllServiceError.invalidAuthority }
         activeScope = scope
-        defer { scope.revoke(); activeScope = nil }
+        #if DEBUG
+        OriginalEraseScratchIssuerDataTestsV1.issued(scope, nodes: bindings, pairs: pairs,
+            support: admission.applicationSupportURL, supportIdentity: admission.firstSnapshot.supportIdentity)
+        #endif
+        defer {
+            scope.revoke(); activeScope = nil
+            #if DEBUG
+            OriginalEraseScratchIssuerDataTestsV1.naturallyRevoked(scope,
+                support: admission.applicationSupportURL)
+            #endif
+        }
         var policies = [String:TemporalPolicyObservationV1]()
+        #if DEBUG
+        diagnosticStage = .pairPolicy
+        #endif
         for pair in pairs {
             let work = UInt64(pair.byteCount).multipliedReportingOverflow(by:4)
             guard !work.overflow else { throw EraseAllServiceError.invalidAuthority }
@@ -2646,6 +2908,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             guard values.count == 2 else { throw EraseAllServiceError.invalidAuthority }
             for (member,value) in zip(pair.members,values) { policies[member.relativePath] = value }
         }
+        #if DEBUG
+        diagnosticStage = .nodePolicy
+        #endif
         for node in raw.nodes.values.sorted(by: { $0.path.utf8.lexicographicallyPrecedes($1.path.utf8) })
             where !pairPaths.contains(node.path) && !unaccepted.contains(node.path) {
             guard let binding = bindings[url(node.path)] else { throw EraseAllServiceError.invalidAuthority }
@@ -2653,6 +2918,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 binding.kind,at:binding.url,fullFact:binding.fullFact,scope:scope,
                 retainUncertainDescriptor:{ self.uncertainFDs.append($0); self.poison() })
         }
+        #if DEBUG
+        diagnosticStage = .policyValidation
+        #endif
         for node in raw.nodes.values where !unaccepted.contains(node.path) {
             guard let value = policies[node.path], value.device == UInt64(node.fact.st_dev),
                   value.inode == UInt64(node.fact.st_ino), value.mode == UInt16(node.fact.st_mode),
@@ -2663,9 +2931,18 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 throw EraseAllServiceError.invalidAuthority
             }
         }
+        #if DEBUG
+        diagnosticStage = .secondRawScan
+        #endif
         let second = try rawScan(operations:operations,support:support,publications:recipes,
             outcome: outcome)
+        #if DEBUG
+        diagnosticStage = .rawAgreement
+        #endif
         guard Self.sameRaw(raw,second) else { throw EraseAllServiceError.invalidAuthority }
+        #if DEBUG
+        diagnosticStage = .outsideAfterPolicy
+        #endif
         try admission.observer.requireOriginalScratchOutside(anchor:admission.notificationAfter,
             operationsFact:Self.full(raw.operationsFact),operationsNames:raw.operationsNames,
             support:support,caches:caches,temporary:temporary,operations:operations,
@@ -2679,10 +2956,17 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         }
         let result = Image(operationsFullFact:Self.full(raw.operationsFact),
             operationsNames:raw.operationsNames,scratch:root(raw.scratch),ingress:root(raw.ingress))
+        #if DEBUG
+        diagnosticStage = .imageDelta
+        #endif
         if let outcome { try requireDelta(outcome,after:result) }
         else if !initialCapture, let current, result != current { throw EraseAllServiceError.invalidAuthority }
         lastRaw = raw; lastPolicyNodes = bindings; lastPairs = pairs
         lastMatchedHeldScope = admission.heldScope
+        #if DEBUG
+        diagnosticDelta = .none
+        diagnosticStage = .observationReturn
+        #endif
         try requireHeld(); return result
     }
     private nonisolated static func sameRaw(_ a: RawImage, _ b: RawImage) -> Bool {
@@ -2857,13 +3141,76 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         let sha: String?
         let policy: TemporalPolicyObservationV1?
     }
+    #if DEBUG
+    /// Describe only captured parent-guard inputs after the unchanged guard failed.
+    private func reportFailedParentDeltaDiagnostic(before: View?, after: View?,
+        linkDelta: Int64, checkPolicies: Bool) {
+        let saved = errno
+        defer { errno = saved }
+        let beforeFields = before.map { Self.fields($0.fact) }
+        let afterFields = after.map { Self.fields($0.fact) }
+        let x = beforeFields.flatMap { $0.count == 11 ? $0 : nil }
+        let y = afterFields.flatMap { $0.count == 11 ? $0 : nil }
+        func equal(_ index: Int) -> Bool? {
+            guard let x, let y else { return nil }
+            return x[index] == y[index]
+        }
+        func boolean(_ value: Bool?) -> String {
+            value.map { $0 ? "true" : "false" } ?? "unavailable"
+        }
+        func number(_ value: Int64?) -> String {
+            value.map { String($0) } ?? "unavailable"
+        }
+        let oldLinks = x.flatMap { Int64($0[5]) }
+        let newLinks = y.flatMap { Int64($0[5]) }
+        let afterSize = y.flatMap { Int64($0[6]) }
+        let sum = oldLinks.map { $0.addingReportingOverflow(linkDelta) }
+        let expectedLinks = sum.flatMap { $0.overflow ? nil : $0.partialValue }
+        let linksMatch = expectedLinks.flatMap { expected in newLinks.map { $0 == expected } }
+        let policyCompatible: Bool? = checkPolicies ? before.flatMap { a in
+            after.map { b in Self.samePolicy(a.policy,b.policy,allowLinkChange:linkDelta != 0) }
+        } : nil
+        let policyClausePassed: Bool? = checkPolicies ? policyCompatible : true
+        let parts = [
+            "V23_ORIGINAL_SCRATCH_PARENT_DELTA_DIAG_V1", "parent=nonempty",
+            "beforePresent=\(before != nil)", "afterPresent=\(after != nil)",
+            "beforeFieldCount=" + (beforeFields.map { String($0.count) } ?? "unavailable"),
+            "afterFieldCount=" + (afterFields.map { String($0.count) } ?? "unavailable"),
+            "beforeShape11=" + boolean(beforeFields.map { $0.count == 11 }),
+            "afterShape11=" + boolean(afterFields.map { $0.count == 11 }),
+            "devEqual=" + boolean(equal(0)), "inodeEqual=" + boolean(equal(1)),
+            "modeEqual=" + boolean(equal(2)), "uidEqual=" + boolean(equal(3)),
+            "gidEqual=" + boolean(equal(4)),
+            "oldLinksParsed=" + boolean(x.map { _ in oldLinks != nil }),
+            "newLinksParsed=" + boolean(y.map { _ in newLinks != nil }),
+            "oldLinks=" + number(oldLinks), "newLinks=" + number(newLinks),
+            "requestedLinkDelta=\(linkDelta)", "expectedLinks=" + number(expectedLinks),
+            "linkAddEvaluated=\(sum != nil)",
+            "linkAddNoOverflow=" + boolean(sum.map { !$0.overflow }),
+            "linkMatchesExpected=" + boolean(linksMatch),
+            "afterSizeParsed=" + boolean(y.map { _ in afterSize != nil }),
+            "afterSizeNonnegative=" + boolean(afterSize.map { $0 >= 0 }),
+            "shaAbsent=" + boolean(after.map { $0.sha == nil }),
+            "policyCheckRequired=\(checkPolicies)",
+            "policyCompatible=" + boolean(policyCompatible),
+            "policyClausePassed=" + boolean(policyClausePassed)
+        ]
+        FileHandle.standardError.write(Data((parts.joined(separator: " ") + "\n").utf8))
+    }
+    #endif
     private func requireRawDelta(_ outcome: Outcome, after: RawImage) throws {
+        #if DEBUG
+        diagnosticDelta = .raw
+        #endif
         try verifyDelta(outcome,operationsFact:Self.full(after.operationsFact),
             operationsNames:after.operationsNames,
             after:after.nodes.mapValues { View(fact:$0.fullFact,sha:$0.sha256,policy:nil) },
             checkPolicies:false)
     }
     private func requireDelta(_ outcome: Outcome, after: Image) throws {
+        #if DEBUG
+        diagnosticDelta = .image
+        #endif
         try verifyDelta(outcome,operationsFact:after.operationsFullFact,
             operationsNames:after.operationsNames,
             after:Self.nodes(after).mapValues { View(fact:$0.fullFact,sha:$0.contentSHA256,policy:$0.policy) },
@@ -2880,21 +3227,24 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     }
     private func verifyDelta(_ outcome: Outcome, operationsFact: String,
         operationsNames: [String], after: [String: View], checkPolicies: Bool) throws {
+        #if DEBUG
+        diagnosticStage = .deltaPrimitive
+        #endif
         let intent = outcome.intent
         let before = Self.nodes(intent.before).mapValues {
             View(fact:$0.fullFact,sha:$0.contentSHA256,policy:$0.policy)
         }
-        var expectedKeys = Set(before.keys)
+        let beforeKeys = Set(before.keys)
+        var expectedKeys = beforeKeys
         var changed = Set<String>()
         var mapped = [String:String]()
         var parentPath: String?
-        var parentLinks: Int64 = 0
         var expectedRootNames = intent.before.operationsNames
         func node(_ path: String) throws -> View {
             guard let value = after[path] else { throw EraseAllServiceError.invalidAuthority }; return value
         }
-        func parentChanged(_ path: String, links: Int64 = 0) {
-            parentPath = Self.parent(path); parentLinks = links
+        func parentChanged(_ path: String) {
+            parentPath = Self.parent(path)
             if let parentPath, !parentPath.isEmpty { changed.insert(parentPath) }
         }
         func ctime(_ path: String, old: View, links: Int64 = 0) throws {
@@ -2908,7 +3258,13 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         switch intent.kind {
         case .createTemporary(let path, _, _, _, let mode, _):
             expectedKeys.insert(path); changed.insert(path); parentChanged(path)
+            #if DEBUG
+            diagnosticStage = .deltaCreatedNode
+            #endif
             let value = try node(path), f = Self.fields(value.fact)
+            #if DEBUG
+            diagnosticStage = .deltaCreatedFile
+            #endif
             guard let createdFD = Int32(exactly:outcome.result),
                   Self.full(try held(createdFD)) == value.fact,
                   f.count == 11, f[5] == "1", f[6] == "0",
@@ -2970,30 +3326,59 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             for (other,value) in aliases { try ctime(other,old:value,links:-1) }
         case .removeDirectory(let path):
             guard outcome.result == 0 else { throw EraseAllServiceError.invalidAuthority }
-            expectedKeys.remove(path); parentChanged(path,links:-1)
+            expectedKeys.remove(path); parentChanged(path)
             if Self.parent(path).isEmpty { expectedRootNames.removeAll { $0 == path } }
         case .synchronize, .lockOwnedDirectory, .closeOwnedResource:
             guard outcome.result == 0 else { throw EraseAllServiceError.invalidAuthority }
         }
+        #if DEBUG
+        diagnosticStage = .deltaNamespace
+        #endif
         guard Set(after.keys) == expectedKeys, operationsNames == expectedRootNames else {
             throw EraseAllServiceError.invalidAuthority
         }
+        #if DEBUG
+        diagnosticStage = .deltaParent
+        #endif
         if let parentPath {
+            let beforeDirectEntryCount = parentPath.isEmpty
+                ? intent.before.operationsNames.count
+                : EraseDirectoryEntryLinkModelV1.directEntryCount(paths:beforeKeys,parentPath:parentPath)
+            let afterDirectEntryCount = parentPath.isEmpty
+                ? expectedRootNames.count
+                : EraseDirectoryEntryLinkModelV1.directEntryCount(paths:expectedKeys,parentPath:parentPath)
+            guard let parentLinks = EraseDirectoryEntryLinkModelV1.linkDelta(
+                beforeDirectEntryCount:beforeDirectEntryCount,
+                afterDirectEntryCount:afterDirectEntryCount) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
             if parentPath.isEmpty {
-                guard Self.directoryMutation(intent.before.operationsFullFact,operationsFact,linkDelta:parentLinks) else {
+                guard Self.directoryMutation(intent.before.operationsFullFact,operationsFact,linkDelta:parentLinks,
+                    beforeDirectEntryCount:beforeDirectEntryCount,afterDirectEntryCount:afterDirectEntryCount) else {
                     throw EraseAllServiceError.invalidAuthority
                 }
             } else {
                 guard let a = before[parentPath], let b = after[parentPath],
-                      Self.directoryMutation(a.fact,b.fact,linkDelta:parentLinks), b.sha == nil,
+                      Self.directoryMutation(a.fact,b.fact,linkDelta:parentLinks,
+                        beforeDirectEntryCount:beforeDirectEntryCount,afterDirectEntryCount:afterDirectEntryCount), b.sha == nil,
                       !checkPolicies || Self.samePolicy(a.policy,b.policy,allowLinkChange:parentLinks != 0) else {
+                    #if DEBUG
+                    reportFailedParentDeltaDiagnostic(before:before[parentPath],after:after[parentPath],
+                        linkDelta:parentLinks,checkPolicies:checkPolicies)
+                    #endif
                     throw EraseAllServiceError.invalidAuthority
                 }
             }
         }
+        #if DEBUG
+        diagnosticStage = .deltaOperations
+        #endif
         if parentPath?.isEmpty != true {
             guard operationsFact == intent.before.operationsFullFact else { throw EraseAllServiceError.invalidAuthority }
         }
+        #if DEBUG
+        diagnosticStage = .deltaUntouched
+        #endif
         for (path,value) in before {
             let target = mapped[path] ?? path
             if !expectedKeys.contains(target) || changed.contains(target) { continue }
@@ -3312,3 +3697,447 @@ extension OriginalEraseScratchCleanupImageOwnerV1 {
         }
     }
 }
+
+#if DEBUG
+// Fixed genuine-issuer DATA probes. This is test configuration and immutable
+// observation DATA, never a scope factory, permission or policy settlement.
+enum OriginalEraseScratchIssuerDataProfileV1: String, Equatable {
+    case node, declaredPair, earlierPairProjectionMembership
+}
+
+enum OriginalEraseScratchIssuerDataProbeV1: String, CaseIterable, Hashable {
+    case nodeExact, nodeMissingURL, nodeWrongKind, nodeWrongFact
+    case nodeAfterRevoke, nodeCurrentBindingRevoked, nodeAuthorizedRevoked, nodePairProjectionAfterRevoke
+    case pairNodeExact, pairExact, pairZeroCount, pairOneCount, pairThreeCount
+    case pairReordered, pairDuplicateMember, pairMissingMember, earlierPairProjectionMissing
+    case pairNodeAfterRevoke, pairAfterRevoke, pairCurrentBindingRevoked, pairProjectionAfterRevoke
+    case pairNodeAuthorizedRevoked, pairAuthorizedRevoked
+}
+
+enum OriginalEraseScratchIssuerDataOutcomeV1: Equatable {
+    case equalData, invalidAuthority, differentData, unexpectedSuccess
+    case unexpectedError(String)
+}
+
+enum OriginalEraseScratchIssuerDataTestErrorV1: Error, Equatable {
+    case occupied, invalidConfiguration, wrongSlot, unqualifiedRelease
+}
+
+struct OriginalEraseScratchIssuerDataReportV1 {
+    let profile: OriginalEraseScratchIssuerDataProfileV1
+    let operationID: UUID?
+    let supportDevice: Int64?
+    let supportInode: UInt64?
+    let selectedIssuances: UInt64
+    let selectedRevokes: UInt64
+    let ordinaryIssuances: UInt64
+    let ordinaryRevokes: UInt64
+    let selectedObservationIDs: [UUID]
+    let revokedObservationIDs: [UUID]
+    let issuedPairProjections: [[OriginalEraseScratchTemporalPairV1]]
+    let revokedPairProjections: [[OriginalEraseScratchTemporalPairV1]]
+    let revokedDriverScopeHolderCounts: [Int]
+    let completedSelectedProfile: Bool
+    let driverScopeHolderCount: Int
+    let firstFailure: String?
+    let probes: [OriginalEraseScratchIssuerDataProbeV1: OriginalEraseScratchIssuerDataOutcomeV1]
+    let expectedNode: OriginalEraseScratchTemporalPolicyNodeV1?
+    let observedNode: OriginalEraseScratchTemporalPolicyNodeV1?
+    let expectedPairNode: OriginalEraseScratchTemporalPolicyNodeV1?
+    let observedPairNode: OriginalEraseScratchTemporalPolicyNodeV1?
+    let expectedPair: OriginalEraseScratchTemporalPairV1?
+    let observedPair: OriginalEraseScratchTemporalPairV1?
+}
+
+@MainActor
+fileprivate enum OriginalEraseScratchIssuerPairDataSelectionV1 {
+    // The DEBUG Scope API and projection probes share this exact selector.
+    // No live scope/owner is accepted, created or consulted here.
+    static func select(_ pairs: [OriginalEraseScratchTemporalPairV1],
+        aliasURLs: [URL]) throws -> OriginalEraseScratchTemporalPairV1 {
+        guard aliasURLs.count == 2,
+              let pair = pairs.first(where: { $0.members.map(\.url) == aliasURLs }) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return pair
+    }
+}
+
+@MainActor
+enum OriginalEraseScratchIssuerDataTestsV1 {
+    // Occupancy has no implicit/deinit/defer reset. Failed original owners and
+    // incomplete profiles cannot grant another test configuration authority.
+    fileprivate static var occupied: OriginalEraseScratchIssuerDataDriverV1?
+
+    static func arm(_ profile: OriginalEraseScratchIssuerDataProfileV1,
+        support: URL, operation: EraseRouterOperationV1) throws -> UUID {
+        guard occupied == nil else { throw OriginalEraseScratchIssuerDataTestErrorV1.occupied }
+        guard support.isFileURL, support == support.standardizedFileURL else {
+            throw OriginalEraseScratchIssuerDataTestErrorV1.invalidConfiguration
+        }
+        let driver = OriginalEraseScratchIssuerDataDriverV1(profile: profile,
+            support: support, operationID: operation.operationID,
+            operationIdentity: ObjectIdentifier(operation))
+        occupied = driver
+        return driver.slot
+    }
+
+    static func report(slot: UUID) throws -> OriginalEraseScratchIssuerDataReportV1 {
+        guard let driver = occupied, driver.slot == slot else {
+            throw OriginalEraseScratchIssuerDataTestErrorV1.wrongSlot
+        }
+        return driver.report
+    }
+
+    /// DEBUG slot bookkeeping only, in the genuine post-cleanup/pre-activation
+    /// window. completedRetirement rechecks actual Router association and a
+    /// monotonic released receipt; it is NOT a fresh physical/policy rescan.
+    static func restoreAfterCompletedRetirement(slot: UUID, support: URL,
+        router: StartupRouter, ticket: StartupRouter.OriginalOperationTicket,
+        operation: EraseRouterOperationV1,
+        reservation: AppAccessGateV1.EraseAdoptionToken) throws {
+        guard let driver = occupied, driver.slot == slot,
+              driver.support == support, support == support.standardizedFileURL,
+              driver.operationIdentity == ObjectIdentifier(operation),
+              driver.expectedOperationID == operation.operationID,
+              driver.report.operationID == operation.operationID,
+              let supportDevice = driver.report.supportDevice, let supportInode = driver.report.supportInode,
+              driver.holderCount == 0, driver.canRestoreBookkeeping else {
+            throw OriginalEraseScratchIssuerDataTestErrorV1.unqualifiedRelease
+        }
+        guard try router.eraseRetirementOperation(for: ticket) === operation else {
+            throw OriginalEraseScratchIssuerDataTestErrorV1.unqualifiedRelease
+        }
+        // Obtain these actual owners internally now; never accept a caller's
+        // cached receipt/proof tuple or read/close/unlock a retained descriptor.
+        let (retirement, proof, possibleReceipt) = try operation.completedRetirement()
+        guard let receipt = possibleReceipt, let actualReservation = receipt.reservation,
+              actualReservation == reservation, receipt.subject == reservation.subject,
+              retirement.ownsProof(proof), retirement.binding == proof.binding,
+              proof.binding.operationID == driver.expectedOperationID,
+              proof.binding.subject == receipt.subject,
+              receipt.subject.applicationSupportURL == support,
+              receipt.subject.applicationSupportDevice == supportDevice,
+              receipt.subject.applicationSupportInode == supportInode else {
+            throw OriginalEraseScratchIssuerDataTestErrorV1.unqualifiedRelease
+        }
+        occupied = nil
+    }
+
+    fileprivate static func issued(_ scope: OriginalEraseScratchTemporalObservationScopeV1,
+        nodes: [URL: OriginalEraseScratchTemporalPolicyNodeV1],
+        pairs: [OriginalEraseScratchTemporalPairV1], support: URL,
+        supportIdentity: EraseSchema2ColdAuxiliaryFirstObserverV1.ParentIdentity) {
+        occupied?.issued(scope, nodes: nodes, pairs: pairs, support: support, supportIdentity: supportIdentity)
+    }
+
+    fileprivate static func naturallyRevoked(_ scope: OriginalEraseScratchTemporalObservationScopeV1,
+        support: URL) {
+        occupied?.naturallyRevoked(scope, support: support)
+    }
+}
+
+@MainActor
+fileprivate final class OriginalEraseScratchIssuerDataDriverV1 {
+    private enum Phase: Equatable { case waitingEarliest, waitingPair, earliestActive, pairActive, complete, failed }
+    private enum Entry { case ordinary, earliest, pair }
+    let slot = UUID()
+    let profile: OriginalEraseScratchIssuerDataProfileV1
+    let support: URL
+    let expectedOperationID: UUID
+    let operationIdentity: ObjectIdentifier
+    private var actualOperationID: UUID?
+    private var supportDevice: Int64?
+    private var supportInode: UInt64?
+    private var phase: Phase
+    private var activeID: UUID?
+    private var entry: Entry?
+    private var earliestScope: OriginalEraseScratchTemporalObservationScopeV1?
+    private var pairScope: OriginalEraseScratchTemporalObservationScopeV1?
+    private var node: OriginalEraseScratchTemporalPolicyNodeV1?
+    private var observedNode: OriginalEraseScratchTemporalPolicyNodeV1?
+    private var pairNode: OriginalEraseScratchTemporalPolicyNodeV1?
+    private var observedPairNode: OriginalEraseScratchTemporalPolicyNodeV1?
+    private var pair: OriginalEraseScratchTemporalPairV1?
+    private var observedPair: OriginalEraseScratchTemporalPairV1?
+    private var selectedIDs: [UUID] = []
+    private var revokedIDs: [UUID] = []
+    private var issuedPairProjections: [[OriginalEraseScratchTemporalPairV1]] = []
+    private var revokedPairProjections: [[OriginalEraseScratchTemporalPairV1]] = []
+    private var revokedHolderCounts: [Int] = []
+    private var selectedIssuances: UInt64 = 0
+    private var selectedRevokes: UInt64 = 0
+    private var ordinaryIssuances: UInt64 = 0
+    private var ordinaryRevokes: UInt64 = 0
+    private var firstFailure: String?
+    private var probes: [OriginalEraseScratchIssuerDataProbeV1: OriginalEraseScratchIssuerDataOutcomeV1] = [:]
+
+    init(profile: OriginalEraseScratchIssuerDataProfileV1, support: URL,
+        operationID: UUID, operationIdentity: ObjectIdentifier) {
+        self.profile = profile; self.support = support
+        expectedOperationID = operationID; self.operationIdentity = operationIdentity
+        phase = profile == .declaredPair ? .waitingPair : .waitingEarliest
+    }
+
+    var holderCount: Int { (earliestScope == nil ? 0 : 1) + (pairScope == nil ? 0 : 1) }
+    var canRestoreBookkeeping: Bool {
+        phase == .complete && firstFailure == nil && activeID == nil && entry == nil &&
+        ordinaryIssuances == ordinaryRevokes
+    }
+    var report: OriginalEraseScratchIssuerDataReportV1 {
+        .init(profile: profile, operationID: actualOperationID,
+            supportDevice: supportDevice, supportInode: supportInode,
+            selectedIssuances: selectedIssuances, selectedRevokes: selectedRevokes,
+            ordinaryIssuances: ordinaryIssuances, ordinaryRevokes: ordinaryRevokes,
+            selectedObservationIDs: selectedIDs, revokedObservationIDs: revokedIDs,
+            issuedPairProjections: issuedPairProjections, revokedPairProjections: revokedPairProjections,
+            revokedDriverScopeHolderCounts: revokedHolderCounts,
+            completedSelectedProfile: phase == .complete, driverScopeHolderCount: holderCount,
+            firstFailure: firstFailure, probes: probes, expectedNode: node,
+            observedNode: observedNode, expectedPairNode: pairNode,
+            observedPairNode: observedPairNode, expectedPair: pair, observedPair: observedPair)
+    }
+
+    private func clearExtraHolders() { earliestScope = nil; pairScope = nil }
+    private func fail(_ name: String) {
+        if firstFailure == nil { firstFailure = name }
+        phase = .failed; clearExtraHolders(); activeID = nil; entry = nil
+    }
+    private func increment(_ value: UInt64) -> UInt64? {
+        let next = value.addingReportingOverflow(1)
+        guard !next.overflow else { fail("counter-overflow"); return nil }
+        return next.partialValue
+    }
+    private func record(_ id: OriginalEraseScratchIssuerDataProbeV1,
+        _ outcome: OriginalEraseScratchIssuerDataOutcomeV1,
+        expecting expected: OriginalEraseScratchIssuerDataOutcomeV1) {
+        guard firstFailure == nil else { return }
+        guard probes[id] == nil else { fail("repeated-probe"); return }
+        probes[id] = outcome
+        if outcome != expected { fail("unexpected-probe-result") }
+    }
+    // Only fixed calls below use this private, nonescaping helper. No caller
+    // supplied callback is stored or reaches an authority/physical boundary.
+    private func invalid(_ id: OriginalEraseScratchIssuerDataProbeV1,
+        _ body: () throws -> Void) {
+        guard firstFailure == nil else { return }
+        do { try body(); record(id, .unexpectedSuccess, expecting: .invalidAuthority) }
+        catch {
+            let outcome: OriginalEraseScratchIssuerDataOutcomeV1 =
+                error as? EraseAllServiceError == .invalidAuthority ? .invalidAuthority :
+                .unexpectedError(String(String(reflecting: error).prefix(256)))
+            record(id, outcome, expecting: .invalidAuthority)
+        }
+    }
+    private static func sameNode(_ a: OriginalEraseScratchTemporalPolicyNodeV1,
+        _ b: OriginalEraseScratchTemporalPolicyNodeV1) -> Bool {
+        a.kind == b.kind && a.url == b.url && a.fullFact == b.fullFact &&
+        a.parentURL == b.parentURL && a.parentFullFact == b.parentFullFact &&
+        a.directoryRole == b.directoryRole && a.ancestors.count == b.ancestors.count &&
+        zip(a.ancestors, b.ancestors).allSatisfy {
+            $0.0.url == $0.1.url && $0.0.fullFact == $0.1.fullFact && $0.0.directoryRole == $0.1.directoryRole
+        }
+    }
+    private static func samePair(_ a: OriginalEraseScratchTemporalPairV1,
+        _ b: OriginalEraseScratchTemporalPairV1) -> Bool {
+        guard a.kind == b.kind, a.sha256 == b.sha256, a.byteCount == b.byteCount,
+              a.device == b.device, a.inode == b.inode, a.user == b.user, a.group == b.group,
+              a.parentURL == b.parentURL, a.parentFullFact == b.parentFullFact,
+              a.members.count == b.members.count, a.ancestors.count == b.ancestors.count,
+              zip(a.members, b.members).allSatisfy({ $0.0.relativePath == $0.1.relativePath &&
+                  $0.0.url == $0.1.url && $0.0.fullFact == $0.1.fullFact }),
+              zip(a.ancestors, b.ancestors).allSatisfy({ $0.0.url == $0.1.url &&
+                  $0.0.fullFact == $0.1.fullFact && $0.0.directoryRole == $0.1.directoryRole }) else { return false }
+        switch (a.role, b.role) {
+        case let (.declaredLinkPublication(ac, al, at, af), .declaredLinkPublication(bc, bl, bt, bf)):
+            return ac == bc && al == bl && at == bt && af == bf
+        default: return false // The fixed fixture has no generic-original-pair producer.
+        }
+    }
+    private func captureRevokedPairProjection(_ id: OriginalEraseScratchIssuerDataProbeV1,
+        scope: OriginalEraseScratchTemporalObservationScopeV1) {
+        guard firstFailure == nil, revokedPairProjections.count < issuedPairProjections.count,
+              issuedPairProjections.count <= 2 else { fail("unexpected-projection-capture"); return }
+        let expected = issuedPairProjections[revokedPairProjections.count]
+        let actual = scope.pairDataProjectionForIssuerTests()
+        let equal = actual.count == expected.count && zip(actual, expected).allSatisfy {
+            Self.samePair($0.0, $0.1)
+        }
+        record(id, equal ? .equalData : .differentData, expecting: .equalData)
+        guard firstFailure == nil else { return }
+        revokedPairProjections.append(actual)
+    }
+    private func clearSelectedHoldersAtNaturalRevoke() {
+        clearExtraHolders()
+        // Fixed DATA only remains after this selected hook. The original
+        // issuer's own Scope/G ownership and real checked unlock are untouched.
+        revokedHolderCounts.append(holderCount)
+    }
+    private func exactNode(_ id: OriginalEraseScratchIssuerDataProbeV1,
+        _ expected: OriginalEraseScratchTemporalPolicyNodeV1,
+        scope: OriginalEraseScratchTemporalObservationScopeV1)
+        -> OriginalEraseScratchTemporalPolicyNodeV1? {
+        guard firstFailure == nil else { return nil }
+        do {
+            let actual = try scope.policyNodeData(expected.kind, at: expected.url, fullFact: expected.fullFact)
+            record(id, Self.sameNode(actual, expected) ? .equalData : .differentData, expecting: .equalData)
+            return actual
+        } catch {
+            record(id, .unexpectedError(String(String(reflecting: error).prefix(256))), expecting: .equalData)
+            return nil
+        }
+    }
+    private func exactPair(_ id: OriginalEraseScratchIssuerDataProbeV1,
+        _ expected: OriginalEraseScratchTemporalPairV1,
+        scope: OriginalEraseScratchTemporalObservationScopeV1)
+        -> OriginalEraseScratchTemporalPairV1? {
+        guard firstFailure == nil else { return nil }
+        do {
+            let actual = try scope.pairData(aliasURLs: expected.members.map(\.url))
+            record(id, Self.samePair(actual, expected) ? .equalData : .differentData, expecting: .equalData)
+            return actual
+        } catch {
+            record(id, .unexpectedError(String(String(reflecting: error).prefix(256))), expecting: .equalData)
+            return nil
+        }
+    }
+    private func missingURL(for value: OriginalEraseScratchTemporalPolicyNodeV1) -> URL {
+        value.url.deletingLastPathComponent().appendingPathComponent("issuer-data-missing-" + slot.uuidString.lowercased())
+    }
+
+    func issued(_ scope: OriginalEraseScratchTemporalObservationScopeV1,
+        nodes: [URL: OriginalEraseScratchTemporalPolicyNodeV1],
+        pairs: [OriginalEraseScratchTemporalPairV1], support: URL,
+        supportIdentity: EraseSchema2ColdAuxiliaryFirstObserverV1.ParentIdentity) {
+        guard support == self.support, firstFailure == nil else { return }
+        guard scope.operationID == expectedOperationID else { fail("second-or-wrong-operation"); return }
+        guard let device = Int64(exactly: supportIdentity.device), device >= 0,
+              let inode = UInt64(exactly: supportIdentity.inode), inode > 0 else {
+            fail("invalid-captured-support-identity"); return
+        }
+        if let previousDevice = supportDevice, let previousInode = supportInode {
+            guard device == previousDevice, inode == previousInode else {
+                fail("captured-support-identity-drift"); return
+            }
+        } else {
+            supportDevice = device; supportInode = inode
+        }
+        actualOperationID = scope.operationID
+        guard activeID == nil, entry == nil else { fail("nested-issuance"); return }
+        guard !selectedIDs.contains(scope.observationID) else { fail("repeated-selected-issuance"); return }
+        activeID = scope.observationID
+        if phase == .waitingEarliest {
+            guard pairs.isEmpty, let actual = nodes.values.sorted(by: {
+                $0.url.path.utf8.lexicographicallyPrecedes($1.url.path.utf8)
+            }).first, nodes[missingURL(for: actual)] == nil,
+                  let next = increment(selectedIssuances) else { fail("earliest-fixture-selection"); return }
+            node = actual; earliestScope = scope; selectedIDs.append(scope.observationID)
+            issuedPairProjections.append(pairs)
+            selectedIssuances = next; entry = .earliest; phase = .earliestActive
+            observedNode = exactNode(.nodeExact, actual, scope: scope)
+            invalid(.nodeMissingURL) { _ = try scope.policyNodeData(actual.kind,
+                at: missingURL(for: actual), fullFact: actual.fullFact) }
+            invalid(.nodeWrongKind) { _ = try scope.policyNodeData(
+                actual.kind == .temporaryFile ? .stagingDirectory : .temporaryFile,
+                at: actual.url, fullFact: actual.fullFact) }
+            invalid(.nodeWrongFact) { _ = try scope.policyNodeData(actual.kind,
+                at: actual.url, fullFact: actual.fullFact + "|wrong-data") }
+            return
+        }
+        if phase == .waitingPair, !pairs.isEmpty {
+            guard pairs.count == 1, let actual = pairs.first,
+                  case .declaredLinkPublication = actual.role, actual.members.count == 2,
+                  actual.members[0].url != actual.members[1].url,
+                  let actualNode = nodes[actual.members[0].url], nodes[missingURL(for: actualNode)] == nil,
+                  let next = increment(selectedIssuances) else { fail("declared-pair-fixture-selection"); return }
+            pair = actual; pairNode = actualNode; pairScope = scope
+            issuedPairProjections.append(pairs)
+            selectedIDs.append(scope.observationID); selectedIssuances = next
+            entry = .pair; phase = .pairActive
+            observedPairNode = exactNode(.pairNodeExact, actualNode, scope: scope)
+            observedPair = exactPair(.pairExact, actual, scope: scope)
+            let urls = actual.members.map(\.url)
+            invalid(.pairZeroCount) { _ = try scope.pairData(aliasURLs: []) }
+            invalid(.pairOneCount) { _ = try scope.pairData(aliasURLs: [urls[0]]) }
+            invalid(.pairThreeCount) { _ = try scope.pairData(aliasURLs: [urls[0], urls[1], urls[0]]) }
+            invalid(.pairReordered) { _ = try scope.pairData(aliasURLs: [urls[1], urls[0]]) }
+            invalid(.pairDuplicateMember) { _ = try scope.pairData(aliasURLs: [urls[0], urls[0]]) }
+            invalid(.pairMissingMember) { _ = try scope.pairData(aliasURLs: [urls[0], missingURL(for: actualNode)]) }
+            if profile == .earlierPairProjectionMembership, firstFailure == nil {
+                guard earliestScope == nil, revokedIDs.count == 1,
+                      revokedIDs.first == selectedIDs.first, revokedPairProjections.count == 1,
+                      let earlierPairs = revokedPairProjections.first, earlierPairs.isEmpty,
+                      revokedHolderCounts == [0] else { fail("missing-earliest-natural-revoke"); return }
+                // Later real UUID/name arguments did not exist at the earliest
+                // revoke. This is shared-selector DATA-projection equivalence,
+                // not a later API invocation on the released earlier Scope.
+                invalid(.earlierPairProjectionMissing) {
+                    _ = try OriginalEraseScratchIssuerPairDataSelectionV1.select(earlierPairs, aliasURLs: urls)
+                }
+            }
+            return
+        }
+        guard phase == .waitingPair || phase == .complete,
+              let next = increment(ordinaryIssuances) else { fail("unexpected-issuance-phase"); return }
+        ordinaryIssuances = next; entry = .ordinary
+    }
+
+    func naturallyRevoked(_ scope: OriginalEraseScratchTemporalObservationScopeV1, support: URL) {
+        guard support == self.support, firstFailure == nil else { return }
+        guard scope.operationID == expectedOperationID, actualOperationID == scope.operationID,
+              activeID == scope.observationID, let currentEntry = entry else {
+            fail("unmatched-natural-revoke"); return
+        }
+        activeID = nil; entry = nil
+        switch currentEntry {
+        case .ordinary:
+            guard let next = increment(ordinaryRevokes) else { return }
+            ordinaryRevokes = next
+        case .earliest:
+            guard phase == .earliestActive, earliestScope === scope, let actual = node,
+                  !revokedIDs.contains(scope.observationID), let next = increment(selectedRevokes) else {
+                fail("unexpected-earliest-revoke"); return
+            }
+            _ = exactNode(.nodeAfterRevoke, actual, scope: scope)
+            invalid(.nodeCurrentBindingRevoked) { try scope.requireCurrentBinding() }
+            invalid(.nodeAuthorizedRevoked) { _ = try scope.requirePolicyNode(actual.kind,
+                at: actual.url, fullFact: actual.fullFact) }
+            captureRevokedPairProjection(.nodePairProjectionAfterRevoke, scope: scope)
+            clearSelectedHoldersAtNaturalRevoke()
+            guard firstFailure == nil else { return }
+            revokedIDs.append(scope.observationID); selectedRevokes = next
+            if profile == .node { completeSelectedProfile() } else { phase = .waitingPair }
+        case .pair:
+            guard phase == .pairActive, pairScope === scope, let actual = pair, let actualNode = pairNode,
+                  !revokedIDs.contains(scope.observationID), let next = increment(selectedRevokes) else {
+                fail("unexpected-pair-revoke"); return
+            }
+            _ = exactNode(.pairNodeAfterRevoke, actualNode, scope: scope)
+            _ = exactPair(.pairAfterRevoke, actual, scope: scope)
+            invalid(.pairCurrentBindingRevoked) { try scope.requireCurrentBinding() }
+            invalid(.pairNodeAuthorizedRevoked) { _ = try scope.requirePolicyNode(actualNode.kind,
+                at: actualNode.url, fullFact: actualNode.fullFact) }
+            invalid(.pairAuthorizedRevoked) { _ = try scope.requirePair(aliasURLs: actual.members.map(\.url)) }
+            captureRevokedPairProjection(.pairProjectionAfterRevoke, scope: scope)
+            clearSelectedHoldersAtNaturalRevoke()
+            guard firstFailure == nil else { return }
+            revokedIDs.append(scope.observationID); selectedRevokes = next
+            completeSelectedProfile()
+        }
+    }
+
+    private func completeSelectedProfile() {
+        let expectedCount: UInt64 = profile == .earlierPairProjectionMembership ? 2 : 1
+        guard selectedIssuances == expectedCount, selectedRevokes == expectedCount,
+              selectedIDs == revokedIDs, holderCount == 0,
+              revokedHolderCounts == Array(repeating: 0, count: Int(expectedCount)),
+              issuedPairProjections.count == Int(expectedCount),
+              revokedPairProjections.count == Int(expectedCount),
+              probes.count == (profile == .node ? 8 :
+                profile == .declaredPair ? 14 : 23) else { fail("incomplete-selected-profile"); return }
+        // Before this hook returns: immutable values only; no extra Scope/G
+        // holder survives the selected lexical revoke. This is NOT G release.
+        phase = .complete; clearExtraHolders()
+    }
+}
+#endif

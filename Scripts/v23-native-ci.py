@@ -786,7 +786,7 @@ SIMULATOR_DIAGNOSTIC_OWNER_POLICY_SHA256 = "FDCAF78EEAEDDFC9A2661CB283A16810B88F
 SIMULATOR_DIAGNOSTIC_POLICY_SHA256 = "4CE71CA43D961CF8A1318DA882BBA8989179700AB5202E5CE191185CFC0E44E0"
 SIMULATOR_DIAGNOSTIC_POLICY_ID = "V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
 SIMULATOR_DIAGNOSTIC_SOURCE_PATH = "FieldEvidenceApp/Infrastructure/Persistence/ProtectedFilePolicy.swift"
-SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "A154FD5A2D7EE9A9F1FC486237259F2A1D5C829CE3BFA1E0EC569260E3D94CB5"
+SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "724DB61680A9BB673E522E3971B6382CC777D3BFFF99972844DCC120CC413D36"
 # The original owner-approved allowance source remains admissible for historical replays;
 # the current source adds only development timing aggregates (2026-09-24).
 # 2026-09-25: the Simulator strict pre-check no longer throws, catches and logs the expected
@@ -811,6 +811,9 @@ SIMULATOR_DIAGNOSTIC_SOURCE_SHA256 = "A154FD5A2D7EE9A9F1FC486237259F2A1D5C829CE3
 # Recomputed SHA-256 from actual source bytes; retain EE62 as historical replay only.
 # 2026-09-30: exact reviewed a154 checked-policy helpers preserve strict/fallback
 # predicates; SHA-256 uses real source bytes. Prior20abe remains historical only.
+# Prospective PFP724 source-only successor: current raw SHA-256 is recomputed
+# from the exact candidate bytes. Prior published a154 is retained for historical
+# replay; this private draft supplies no future commit or execution provenance.
 SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38",
                                                  "FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB",
                                                  "A8B18FFF49DE387183EA9B8B2377669BF1EE9E73A6DB11992178503070EDE139",
@@ -820,7 +823,8 @@ SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S = ("7391B39F40D4C5DDE3B39AFCCB8A3
                                                  "AF9304FDB44AA61638253EF1EFC8AAE4617F2439ECE6C959D2DEE6C06AB7F1A0",
                                                  "755870276940DA63430F323ADE00D7CD6820BB3FC4DC84BDBBA076350D48AB31",
                                                  "EE62E3C5A306D9C60D3210143894EAB94D1CBC19AB82BEE7933AD781E1051DED",
-                                                 "20ABE423C0B06B4084B6B5B8EDF6F89EECCA625F97407F1A3637F6A1FB966B41")
+                                                 "20ABE423C0B06B4084B6B5B8EDF6F89EECCA625F97407F1A3637F6A1FB966B41",
+                                                 "A154FD5A2D7EE9A9F1FC486237259F2A1D5C829CE3BFA1E0EC569260E3D94CB5")
 SIMULATOR_DIAGNOSTIC_PREFIX = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
 # Owner decision 15 (2026-09-25): after the first exact event of a kind in a process, later
 # identical events of that kind are journaled as bounded per-kind summaries carrying a count.

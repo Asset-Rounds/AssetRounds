@@ -12214,6 +12214,91 @@ final class StoreMigrationJournalStoreV1 {
             case .registered, .moving, .closing, .released: throw StoreMigrationFailure.invalidIdentity
             }
         }
+
+        /// Fixed post-close source observation through this original manifest
+        /// owner's still-held Data/control descriptors. No descriptor or live
+        /// callable authority leaves this adapter.
+        func requirePostCloseSourceControls(binding expectedBinding: EraseRetirementBindingV1,
+            exclusion expectedExclusion: EraseRetirementExclusionV1,
+            retirement expectedRetirement: ErasedRegistryRetirementProofV1,
+            receipt: EraseGenerationAuthorityTerminalCloseReceiptV1,
+            authority: StoreRestoreGenerationAuthority,
+            expectedPointerData: Data) throws -> StoreGenerationManifestV1 {
+            guard phase == .preserved || phase == .namespaceRetiring,
+                  !dataCloseAttempted, dataDescriptor != nil,
+                  let dataIdentity,
+                  !closeUncertain, !store.retirementManifestReadCloseUncertain,
+                  matches(binding: expectedBinding, exclusion: expectedExclusion,
+                    retirement: expectedRetirement),
+                  receipt.matchesSourceDirectories(authority: authority,
+                    supportDevice: store.applicationSupportIdentity.device,
+                    supportInode: store.applicationSupportIdentity.inode,
+                    dataDevice: dataIdentity.device, dataInode: dataIdentity.inode) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try expectedRetirement.requirePostCloseSourceValidationOwnership(attempt: self,
+                exclusion: expectedExclusion, binding: expectedBinding,
+                receipt: receipt, authority: authority)
+            let observed = try requireCurrentManifest(binding: expectedBinding,
+                exclusion: expectedExclusion)
+            guard let pointer, let bytes = pointer.bytes, bytes == expectedPointerData else {
+                throw StoreMigrationFailure.digestMismatch
+            }
+            var heldPointer = stat(), namedPointer = stat()
+            guard let dataDescriptor,
+                  Darwin.fstat(pointer.descriptor, &heldPointer) == 0,
+                  Darwin.fstatat(dataDescriptor, "current.json", &namedPointer,
+                    AT_SYMLINK_NOFOLLOW) == 0,
+                  receipt.matchesSourcePointer(authority: authority, data: bytes, fact: heldPointer),
+                  receipt.matchesSourcePointer(authority: authority, data: bytes, fact: namedPointer) else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+            try expectedRetirement.requirePostCloseSourceValidationOwnership(attempt: self,
+                exclusion: expectedExclusion, binding: expectedBinding,
+                receipt: receipt, authority: authority)
+            return observed
+        }
+
+        /// Read-only target-tree DATA from the retained parent. The checked
+        /// IO's lexical children close once; no authority FD is reconstructed,
+        /// duplicated or retained beyond this call.
+        func readPostCloseTargetTree(binding expectedBinding: EraseRetirementBindingV1,
+            exclusion expectedExclusion: EraseRetirementExclusionV1,
+            retirement expectedRetirement: ErasedRegistryRetirementProofV1,
+            receipt: EraseGenerationAuthorityTerminalCloseReceiptV1,
+            authority: StoreRestoreGenerationAuthority,
+            expectedPointerData: Data, checkedIO: EraseAbortCheckedSnapshotIOV1) throws
+            -> (digest: String, nodes: [EraseAbortCheckedSnapshotIOV1.CheckedTreeNode]) {
+            _ = try requirePostCloseSourceControls(binding: expectedBinding,
+                exclusion: expectedExclusion, retirement: expectedRetirement,
+                receipt: receipt, authority: authority, expectedPointerData: expectedPointerData)
+            guard let dataDescriptor else { throw StoreMigrationFailure.invalidIdentity }
+            try checkedIO.requireSettled()
+            let result = try checkedIO.withOpen(parent: dataDescriptor, name: "generations",
+                flags: O_RDONLY | O_DIRECTORY) { generations in
+                @MainActor func requireParent() throws {
+                    try requireSupportAndDataIdentity()
+                    var held = stat(), named = stat()
+                    guard Darwin.fstat(generations, &held) == 0,
+                          Darwin.fstatat(dataDescriptor, "generations", &named,
+                            AT_SYMLINK_NOFOLLOW) == 0,
+                          receipt.matchesSourceGenerationParent(authority: authority, fact: held),
+                          receipt.matchesSourceGenerationParent(authority: authority, fact: named) else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                }
+                try requireParent()
+                let captured = try checkedIO.treeWithNodes(parent: generations,
+                    name: expectedBinding.subject.newGenerationID.uuidString.lowercased())
+                try requireParent()
+                return captured
+            }
+            try checkedIO.requireSettled()
+            _ = try requirePostCloseSourceControls(binding: expectedBinding,
+                exclusion: expectedExclusion, retirement: expectedRetirement,
+                receipt: receipt, authority: authority, expectedPointerData: expectedPointerData)
+            return result
+        }
         func preserveAfterLeaseDrain(retirement expected: ErasedRegistryRetirementProofV1) throws {
             diagnosticStage = "transfer-owner"
             var completed = false
