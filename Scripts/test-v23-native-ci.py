@@ -150,6 +150,7 @@ J2_SOURCE_SHA256 = {
 
 def before_driver_j2_experiment(relative, raw):
     """Reverse only the new driver experiment before the reviewed V4 inverse."""
+    raw = before_cold_development(relative, raw)
     if hashlib.sha256(raw).hexdigest() != J2_SOURCE_SHA256[relative]:
         raise AssertionError('changed reviewed driver-j2 source: ' + relative)
     text = raw.decode('utf-8')
@@ -209,6 +210,7 @@ def before_driver_j2_experiment(relative, raw):
 
 
 def before_passive_d50_observation(relative, raw):
+    raw = before_cold_development(relative, raw)
     if hashlib.sha256(raw).hexdigest() == J2_SOURCE_SHA256[relative]:
         raw = before_driver_j2_experiment(relative, raw)
     candidate_sha, base_sha = PASSIVE_D50_SOURCE_SHA256[relative]
@@ -1995,7 +1997,7 @@ class ReportPartitionTests(unittest.TestCase):
         expected.remove('c36-live-host')
         expected.remove('c36-round-item-mount')
         expected.remove('c36-round-item-completion')
-        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
+        expected[expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1:expected.index(CI.SAVED_REVIEW_SELECTION_ID)+1] = [CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, CI.COLD_SELECTION_ID, CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-live-host', 'c36-round-item-mount', 'c36-round-item-completion', CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit']
         expected.insert(expected.index('c36-restore-review') + 1, CI.NO_INDEX_SELECTION_ID)
         expected.insert(expected.index(CI.NO_INDEX_SELECTION_ID) + 1, CI.RESTORE_BUILD_WATCHDOG_SELECTION_ID)
         expected.insert(expected.index('notification-schedule-erase') + 1, CI.NOTIFICATION_SCHEDULE_ERASE_BUILD30_SELECTION_ID)
@@ -3636,8 +3638,13 @@ class FieldAutosaveBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
         self.assertEqual(identifiers.count(CI.UI_BATCH_SELECTION_ID), 1)
         with self.assertRaises(ValueError):
             old['resolve_selection'](previous, previous_map, CI.UI_BATCH_SELECTION_ID)
+        # The closed cold route postdates this parent; ColdSharedWorkerBoundaryTests
+        # retain its current full-census and exact per-partition checks.
+        self.assertEqual(identifiers.count(CI.COLD_SELECTION_ID), 1)
+        with self.assertRaises(ValueError):
+            old['resolve_selection'](previous, previous_map, CI.COLD_SELECTION_ID)
         for identifier in identifiers:
-            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, CI.COLD_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host'):
                 continue
             self.assertEqual(CI.resolve_selection(previous, previous_map, identifier),
                              old['resolve_selection'](previous, previous_map, identifier), identifier)
@@ -3706,8 +3713,13 @@ class SavedReviewFieldsBuild30DiagnosticTests(ReplacementPartitionDiagnosticTest
         self.assertEqual(choices.count(CI.UI_BATCH_SELECTION_ID), 1)
         with self.assertRaises(ValueError):
             CI.resolve_selection(old_pool, old_map, CI.UI_BATCH_SELECTION_ID)
+        # Only the newly closed cold route is absent from this historical map;
+        # its current semantics remain checked by ColdSharedWorkerBoundaryTests.
+        self.assertEqual(choices.count(CI.COLD_SELECTION_ID), 1)
+        with self.assertRaises(ValueError):
+            CI.resolve_selection(old_pool, old_map, CI.COLD_SELECTION_ID)
         for identifier in choices:
-            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
+            if identifier in (CI.ROUND_ITEM_MOUNT_SELECTION_ID, CI.STARTUP_RETIREMENT_SELECTION_ID, CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE, CI.COLD_SELECTION_ID, 'c36-round-item-mount', CI.ROUND_ITEM_COMPLETION_SELECTION_ID, 'c36-round-item-completion', CI.DEFAULT_SELECTION_ID, CI.LIVE_HOST_SELECTION_ID, 'c36-live-host', CI.FIELD_AUTOSAVE_SELECTION_ID, CI.SAVED_REVIEW_FIELDS_SELECTION_ID, 'c36-field-edit'):
                 continue
             previous = CI.resolve_selection(old_pool, old_map, identifier)
             additions = [s for s in EXPECTED_LIVE_HOST_RUNTIME if CI.selection_class(s) in next((g['classes'] for g in self.mapping['groups'] if g['id'] == identifier), [])]
@@ -8095,7 +8107,8 @@ class DevelopmentBatchRouteTests(unittest.TestCase):
         def choices(text):
             block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', text)
             return re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
-        current_choices = choices((ROOT / '.github/workflows/ios-ci.yml').read_text(encoding='utf-8'))
+        current_choices = choices(before_cold_development('.github/workflows/ios-ci.yml',
+            (ROOT / '.github/workflows/ios-ci.yml').read_bytes()).decode('utf-8'))
         base_choices = choices(base_workflow)
         self.assertEqual([item for item in current_choices if item not in (CI.DEV_BATCH_SELECTION_ID, CI.UI_BATCH_SELECTION_ID, SHARED_ROUTE)],
                          base_choices)
@@ -9241,6 +9254,7 @@ class SharedCoverageRouteTests(unittest.TestCase):
         block = re.search(r'(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)', workflow)
         options = re.findall(r'^          - ([a-z0-9.-]+)$', block.group(1), re.M)
         self.assertEqual(options.count(SHARED_ROUTE), 1)
+        self.assertEqual(options.count(CI.COLD_SELECTION_ID), 1)
         self.assertEqual(len(options), len(set(options)))
         self.assertIn('      native_shared_partitions: ${{ steps.native_selection.outputs.native_shared_partitions }}\n', workflow)
         jobs = workflow.split('\n  v23-shared-producer:\n', 1)[1].split('\n  getmac-shard:\n', 1)[0]
@@ -9252,7 +9266,8 @@ class SharedCoverageRouteTests(unittest.TestCase):
                  '      native_acceptance_contract: ${{ needs.shared-selection.outputs.native_acceptance_contract }}\n'
                  '      native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}\n'
                  '      native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}\n'
-                 '      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}\n')
+                 '      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}\n'
+                 '      v23_run_kind: ${{ inputs.v23_run_kind }}\n')
         payload = '      v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}\n'
         self.assertTrue(producer.endswith(bound + '      v23_shared_role: producer\n' + payload), producer)
         self.assertTrue(consumer.endswith(bound + '      v23_shared_role: consumer\n'
@@ -9262,6 +9277,9 @@ class SharedCoverageRouteTests(unittest.TestCase):
         self.assertIn(PARTITION_TIERS_OUTPUT, workflow)
         for text in (producer, consumer):
             self.assertIn("inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == '" + SHARED_ROUTE + "'", text)
+            self.assertIn("inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == '"
+                          + CI.COLD_SELECTION_ID + "' && needs.shared-selection.outputs.native_selection_id == '"
+                          + CI.COLD_SELECTION_ID + "'", text)
             self.assertNotIn('ios-ci-worker.yml', text)
         self.assertIn('    needs: shared-selection\n', producer)
         self.assertIn('    needs: [shared-selection, v23-shared-producer]\n', consumer)
@@ -9304,8 +9322,12 @@ class SharedCoverageRouteTests(unittest.TestCase):
         inputs_block = worker.split('    inputs:\n', 1)[1].split('\n\nconcurrency:', 1)[0]
         self.assertEqual(re.findall(r'^      ([a-z0-9_]+):$', inputs_block, re.M), [
             'native_acceptance_contract', 'native_selection_id', 'native_selection_sha256',
-            'native_selection_map_sha256', 'v23_shared_role', 'v23_partition_id', 'v23_partition_tier',
+            'native_selection_map_sha256', 'v23_run_kind', 'v23_shared_role', 'v23_partition_id', 'v23_partition_tier',
             'v23_payload_artifact_name'])
+        run_kind = inputs_block.split('      v23_run_kind:\n', 1)[1].split('      v23_shared_role:\n', 1)[0]
+        self.assertEqual(re.findall(r'^        (required|default|type): (.+)$', run_kind, re.M),
+                         [('required', 'false'), ('default', 'gate'), ('type', 'string')])
+        self.assertIn('      CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}\n', worker)
         self.assertNotIn('secrets', worker)
         self.assertIn(SHARED_WORKER_TIMEOUT, worker)
         self.assertIn('  group: v23-github-${{ inputs.native_selection_id }}-${{ inputs.v23_shared_role }}-'
@@ -9406,9 +9428,11 @@ class SharedCoverageRouteTests(unittest.TestCase):
                 'native_acceptance_contract': CI.CONTRACT, 'native_selection_id': SHARED_ROUTE,
                 'native_selection_sha256': e['DISPATCH_NATIVE_SELECTION_SHA256'],
                 'native_selection_map_sha256': e['DISPATCH_NATIVE_SELECTION_MAP_SHA256'],
+                'v23_run_kind': 'gate',
                 'v23_shared_role': role, 'v23_partition_id': partition,
                 'v23_partition_tier': CI.shared_selection(ROOT, partition)['tier'] if partition else '',
                 'v23_payload_artifact_name': e['V23_PAYLOAD_ARTIFACT_NAME']})
+            self.assertEqual(job['CI_V23_RUN_KIND'], 'gate')
             for key in set(job) & set(e):
                 self.assertEqual(job[key], e[key], key)
             actual = {key: value for key, value in e.items() if key.startswith('GITHUB_')}
@@ -11332,6 +11356,385 @@ class Phase1ExecutionProofTests(unittest.TestCase):
                 CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123)
             path.write_bytes(raw)
             self.assertIn("S01", CI.phase1_job_execution_facts(ROOT, directory, plan, resolved, 123))
+
+
+# Root-authorized fixture succession: historical byte questions retain their
+# original pins and assertions. These exact source-only cold additions reverse
+# to the frozen J2 input; actual-current cold tests below never call this inverse.
+# Author YAML_FROZEN_DELTA.patch SHA256
+# e0baf0f76cbc6f91737266a0c4fabbf83eecd1a08733c89ffc7d34352e685b33
+# and root COLD_GATE_AUTHOR_SOURCE_FREEZE
+# bind the before/after bytes. This inverse is data, never route admission.
+COLD_HISTORICAL_SOURCE_SHA256 = {
+    ".github/workflows/ios-ci.yml": "83c4f7195291b72e053ef6df49c39554f768fca437cdf5868d88513c7ca35b5b",
+    "Scripts/build-smoke.sh": "6e995c8fe1e4c900e457ed87810f75288f0978123e8ce3757245c7a058d3ce65",
+}
+COLD_PLAN_INPUT_BLOCK = ("      v23_cold_original_plan:\n"
+    "        description: Canonical closed cold DEVELOPMENT intent; qualification remains pending\n"
+    "        required: false\n        default: \"\"\n        type: string\n")
+COLD_PER_HEAD_TERM = ("${{ github.event.inputs.v23_run_kind == 'development' && "
+    "github.event.inputs.native_selection_id == 'v23-cold-shared-original-v1' && "
+    "format('-development-{0}', github.sha) || '' }}")
+
+
+def before_cold_development(relative, raw):
+    """Exact inverse for two historical fixtures; reject partial/unknown cold bytes."""
+    if type(raw) is not bytes:
+        raise AssertionError("cold historical inverse requires exact bytes")
+    if relative not in COLD_HISTORICAL_SOURCE_SHA256:
+        return raw
+    if b"v23-cold" not in raw and b"v23_cold" not in raw:
+        return raw  # Earlier fixtures still face their incumbent exact hash checks.
+    if hashlib.sha256(raw).hexdigest() != COLD_HISTORICAL_SOURCE_SHA256[relative]:
+        raise AssertionError("changed frozen cold historical input: " + relative)
+    text = raw.decode("utf-8")
+    cold = "v23-cold-shared-original-v1"
+    if relative == "Scripts/build-smoke.sh":
+        old = SHARED_BUILD_SMOKE_LINE + '   [ "${NATIVE_SELECTION_ID:-none}" = ' + cold + ' ] || \\\n'
+        text = remove_exactly_once(text, old, SHARED_BUILD_SMOKE_LINE)
+    else:
+        choice = "          - " + SHARED_ROUTE + "\n"
+        text = remove_exactly_once(text, choice + "          - " + cold + "\n", choice)
+        text = remove_exactly_once(text, PHASE1_PLAN_INPUT_BLOCK + COLD_PLAN_INPUT_BLOCK, PHASE1_PLAN_INPUT_BLOCK)
+        text = remove_exactly_once(text, DEVELOPMENT_PER_HEAD_TERM + COLD_PER_HEAD_TERM + "\n  cancel-in-progress: false\n",
+                                   DEVELOPMENT_PER_HEAD_TERM + "\n  cancel-in-progress: false\n")
+        shard = ("\n  github-shard:\n"
+            "    name: GitHub Xcode 26.6 acceptance · ${{ inputs.s10_4_shard_id }} · ${{ inputs.s10_4_shared_segment_id }}\n"
+            "    needs: shared-selection\n")
+        old_shard = ("    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && "
+            "(inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == "
+            "'github-xcode-26.6-shared-build-acceptance') && inputs.native_selection_id != '" + SHARED_ROUTE + "' }}\n")
+        current_shard = old_shard.replace(" && inputs.native_selection_id != '" + SHARED_ROUTE + "'",
+            " && inputs.native_selection_id != '" + cold + "' && inputs.native_selection_id != '" + SHARED_ROUTE + "'")
+        text = remove_exactly_once(text, shard + current_shard, shard + old_shard)
+        legacy_predicate = ("inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == '"
+            + SHARED_ROUTE + "' && needs.shared-selection.outputs.native_selection_id == '" + SHARED_ROUTE + "'")
+        cold_predicate = ("inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == '"
+            + cold + "' && needs.shared-selection.outputs.native_selection_id == '" + cold + "'")
+        for role, context in (("producer", "\n  v23-shared-producer:\n"
+                "    name: V23 shared coverage producer · build-for-testing (development only)\n"
+                "    needs: shared-selection\n"),
+                ("consumer", "\n  v23-shared-consumer:\n"
+                "    name: V23 shared coverage consumer · ${{ matrix.partition_id }} (development only)\n"
+                "    needs: [shared-selection, v23-shared-producer]\n")):
+            prefix = "    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && "
+            if role == "consumer": prefix += "needs.v23-shared-producer.result == 'success' && "
+            current = prefix + "((" + legacy_predicate + ") || (" + cold_predicate + ")) }}\n"
+            prior = prefix + legacy_predicate + " }}\n"
+            text = remove_exactly_once(text, context + current, context + prior)
+            forwarding_context = ("      native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}\n"
+                "      v23_run_kind: ${{ inputs.v23_run_kind }}\n      v23_shared_role: " + role + "\n")
+            text = remove_exactly_once(text, forwarding_context,
+                forwarding_context.replace("      v23_run_kind: ${{ inputs.v23_run_kind }}\n", ""))
+    result = text.encode("utf-8")
+    if b"v23-cold" in result or b"v23_cold" in result:
+        raise AssertionError("unknown cold historical term remains")
+    if hashlib.sha256(result).hexdigest() != J2_SOURCE_SHA256[relative]:
+        raise AssertionError("cold inverse changed frozen historical source: " + relative)
+    return result
+
+
+class ColdHistoricalInverseTests(unittest.TestCase):
+    """Fixture succession restores historical questions without changing their pins."""
+
+    def test_actual_frozen_cold_bytes_reverse_exactly_to_incumbent_j2_inputs(self):
+        for relative, after in COLD_HISTORICAL_SOURCE_SHA256.items():
+            with self.subTest(relative=relative):
+                raw = (ROOT / relative).read_bytes()
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), after)
+                previous = before_cold_development(relative, raw)
+                self.assertEqual(hashlib.sha256(previous).hexdigest(), J2_SOURCE_SHA256[relative])
+                self.assertEqual(before_cold_development(relative, previous), previous)
+                self.assertNotIn(b"v23-cold", previous)
+                self.assertNotIn(b"v23_cold", previous)
+
+    def test_missing_duplicated_partial_unknown_and_moved_cold_hunks_refuse_even_with_synthetic_pin(self):
+        relative = ".github/workflows/ios-ci.yml"
+        raw = (ROOT / relative).read_bytes()
+        choice = b"          - v23-cold-shared-original-v1\n"
+        block = COLD_PLAN_INPUT_BLOCK.encode()
+        cases = (raw.replace(choice, b"", 1), raw.replace(choice, choice + choice, 1),
+            raw.replace(block, block.replace(b"required: false", b"required: true"), 1),
+            raw.replace(block, block + block, 1),
+            raw.replace(COLD_PER_HEAD_TERM.encode(), b"", 1),
+            raw.replace(COLD_PER_HEAD_TERM.encode(), 2 * COLD_PER_HEAD_TERM.encode(), 1),
+            raw.replace(b"v23-cold-shared-original-v1", b"v23-cold-shared-original-v2", 1),
+            raw + b"# unknown v23_cold_original_override\n",
+            raw.replace(b"      v23_shared_role: producer\n", b"      v23_shared_role: consumer\n", 1),
+            raw.replace(b"  github-shard:\n", b"  misplaced-cold-shard:\n", 1))
+        for changed in cases:
+            with self.subTest(changedSHA256=hashlib.sha256(changed).hexdigest()):
+                self.assertNotEqual(changed, raw)
+                with self.assertRaises(AssertionError): before_cold_development(relative, changed)
+                # Synthetic test-only hash isolates the closed occurrence/context
+                # checks and unchanged historical output hash from the input pin.
+                with mock.patch.dict(COLD_HISTORICAL_SOURCE_SHA256, {relative: hashlib.sha256(changed).hexdigest()}):
+                    with self.assertRaises(AssertionError): before_cold_development(relative, changed)
+        relative = "Scripts/build-smoke.sh"; raw = (ROOT / relative).read_bytes()
+        line = b'   [ "${NATIVE_SELECTION_ID:-none}" = v23-cold-shared-original-v1 ] || \\\n'
+        for changed in (raw.replace(line, line + line, 1),
+                        raw.replace(b"v23-cold-shared-original-v1", b"v23-cold-shared-original-v1-forged", 1),
+                        raw.replace(SHARED_BUILD_SMOKE_LINE.encode() + line, line + SHARED_BUILD_SMOKE_LINE.encode(), 1)):
+            with self.subTest(relative=relative), mock.patch.dict(COLD_HISTORICAL_SOURCE_SHA256,
+                    {relative: hashlib.sha256(changed).hexdigest()}):
+                with self.assertRaises(AssertionError): before_cold_development(relative, changed)
+
+
+class ColdSharedWorkerBoundaryTests(unittest.TestCase):
+    """Dedicated cold DEVELOPMENT event on the real closed shared route."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.gate = CI.load_phase1_gates(ROOT)
+        cls.plan = CI.shared_selection(ROOT)
+        cls.intent = cls.gate.make_cold_plan(head=HEAD, tree="2" * 40,
+            resolved_bytes=CI.canonical(cls.plan),
+            sources={path: cls.gate.sha((ROOT / path).read_bytes()) for path in cls.gate.SOURCES},
+            requested_at="2026-09-26T12:00:00Z")
+
+    def fixture(self, base, role="producer", partition=""):
+        e = dict(environment(), NATIVE_SELECTION_ID=self.gate.COLD_SELECTION,
+            DISPATCH_NATIVE_SELECTION_ID=self.gate.COLD_SELECTION, GITHUB_REF=self.gate.INTEGRATION_REF,
+            GITHUB_WORKFLOW_SHA=HEAD,
+            GITHUB_WORKFLOW_REF=CI.REPOSITORY + "/" + self.gate.ROUTE["workflow"] + "@" + self.gate.INTEGRATION_REF,
+            V23_SHARED_ROLE=role, V23_PARTITION_ID=partition,
+            V23_PAYLOAD_ARTIFACT_NAME="v23-shared-payload-123-1-" + HEAD,
+            SHARED_UI="false", DISPATCH_RUN_UI_SMOKE="false")
+        event = base / "original-event.json"
+        event.write_bytes(CI.canonical({"repository": {"full_name": CI.REPOSITORY}, "ref": self.intent["ref"],
+                                      "inputs": self.gate.cold_dispatch_inputs(self.intent)}))
+        e["GITHUB_EVENT_PATH"] = str(event)
+        selected, record = CI.selected_input(ROOT, e)
+        e.update(DISPATCH_NATIVE_SELECTION_SHA256=record[CI.SHARED_KEY]["planSHA256"],
+                 DISPATCH_NATIVE_SELECTION_MAP_SHA256=record["selectionMapSHA256"])
+        return e, selected, record, event
+
+    def git_facts(self, argv, **kwargs):
+        self.assertEqual(argv[:2], ["git", "rev-parse"])
+        self.assertEqual(kwargs["cwd"], ROOT)
+        self.assertTrue(kwargs["text"])
+        self.assertIn(argv[2], ("HEAD", "HEAD^{tree}"))
+        return (HEAD if argv[2] == "HEAD" else "2" * 40) + "\n"
+
+    def test_cold_selection_resolves_same_full_census_and_each_closed_partition_as_legacy(self):
+        identifiers = self.plan[CI.SHARED_KEY]["partitionIDs"]
+        for role, partition in [("none", ""), ("producer", ""), *[("consumer", value) for value in identifiers]]:
+            payload = "" if role == "none" else "v23-shared-payload-123-1-" + HEAD
+            e = dict(environment(), V23_SHARED_ROLE=role, V23_PARTITION_ID=partition,
+                     V23_PAYLOAD_ARTIFACT_NAME=payload, NATIVE_SELECTION_ID=self.gate.COLD_SELECTION)
+            cold, cold_record = CI.selected_input(ROOT, e)
+            legacy, legacy_record = CI.selected_input(ROOT, dict(e, NATIVE_SELECTION_ID=SHARED_ROUTE))
+            self.assertEqual(cold, legacy)
+            self.assertEqual(cold_record[CI.SHARED_KEY], legacy_record[CI.SHARED_KEY])
+            self.assertEqual(cold_record["selectionID"], self.gate.COLD_SELECTION)
+            self.assertEqual(cold_record[CI.SHARED_KEY]["planSHA256"], self.intent["selectionSHA256"])
+        self.assertEqual(self.plan["unitTestSelectors"], CI.shared_selection(ROOT)["unitTestSelectors"])
+        self.assertEqual(len(self.plan["unitTestSelectors"]), len(set(self.plan["unitTestSelectors"])))
+        for changed in ({"V23_SHARED_ROLE": "observer"}, {"V23_PARTITION_ID": "S99"},
+                        {"V23_SHARED_ROLE": "consumer", "V23_PARTITION_ID": ""},
+                        {"V23_SHARED_ROLE": "producer", "V23_PARTITION_ID": identifiers[0]}):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                CI.selected_input(ROOT, dict(e, **changed))
+
+    def test_producer_and_consumer_bind_actual_event_checkout_and_full_plan_pending_only(self):
+        identifiers = self.plan[CI.SHARED_KEY]["partitionIDs"]
+        for role, partition in (("producer", ""), ("consumer", identifiers[0]), ("consumer", identifiers[-1])):
+            with self.subTest(role=role, partition=partition), tempfile.TemporaryDirectory() as temporary:
+                e, selected, selection_record, event = self.fixture(Path(temporary).resolve(), role, partition)
+                with mock.patch.object(CI.subprocess, "check_output", side_effect=self.git_facts):
+                    binding, raw, observed_selection, observed_record = CI.cold_worker_context(ROOT, e)
+                    admitted = CI.admission(selected, e, HEAD, "worker", selection_record, ROOT)
+                self.assertEqual(raw, event.read_bytes())
+                self.assertEqual(observed_selection, selected)
+                self.assertEqual(observed_record, selection_record)
+                self.assertEqual(admitted["coldOriginal"], binding)
+                self.assertNotIn("phase1Gate", admitted)
+                self.assertEqual(binding["plan"]["selectionSHA256"], self.intent["selectionSHA256"])
+                self.assertEqual((binding["kind"], binding["status"], binding["functionalQualification"]),
+                                 ("development", "INCOMPLETE", "PENDING"))
+                self.assertEqual(admitted[CI.SHARED_KEY]["role"], role)
+                for key in ("providerQualification", "acceptance", "releaseReady"):
+                    self.assertIs(binding[key], False); self.assertIs(admitted[key], False)
+
+    def test_absent_empty_genuine_event_and_environment_only_cold_intent_refuse_before_git(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            e, selected, record, event = self.fixture(Path(temporary).resolve())
+            for payload in ({}, {"inputs": {}}, {"inputs": {self.gate.COLD_PLAN_INPUT: ""}}):
+                event.write_bytes(CI.canonical(payload))
+                with self.subTest(payload=payload), mock.patch.object(CI.subprocess, "check_output") as git:
+                    with self.assertRaises(ValueError): CI.admission(selected, e, HEAD, "worker", record, ROOT)
+                    git.assert_not_called()
+            absent = dict(e); absent.pop("GITHUB_EVENT_PATH")
+            for changed in (absent, dict(absent, V23_COLD_ORIGINAL_PLAN=CI.canonical(self.intent).decode()),
+                            dict(absent, **{self.gate.COLD_PLAN_INPUT: CI.canonical(self.intent).decode()})):
+                with self.subTest(keys=changed.keys()), mock.patch.object(CI.subprocess, "check_output") as git:
+                    with self.assertRaises(ValueError): CI.admission(selected, changed, HEAD, "worker", record, ROOT)
+                    git.assert_not_called()
+        expected = CI.admission(selection(), environment(), HEAD, "worker")
+        with tempfile.TemporaryDirectory() as temporary:
+            event = Path(temporary) / "legacy-event.json"
+            for payload in ({}, {"inputs": {self.gate.COLD_PLAN_INPUT: "", self.gate.PLAN_INPUT: ""}}):
+                event.write_bytes(CI.canonical(payload))
+                actual = CI.admission(selection(), dict(environment(), GITHUB_EVENT_PATH=str(event)), HEAD, "worker")
+                self.assertEqual(actual, expected)
+
+    def test_simultaneous_gate_input_foreign_kind_attempt_workflow_and_unsafe_event_refuse(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            e, selected, record, event = self.fixture(base)
+            original = json.loads(event.read_bytes())
+            gate_plan = self.gate.make_plan(purpose=self.gate.CANDIDATE, head=HEAD, tree="2" * 40,
+                selection=SHARED_ROUTE, resolved_bytes=CI.canonical(self.plan), sources=self.intent["sources"],
+                requested_at=self.intent["requestedAtUTC"])
+            for key, value in ((self.gate.PLAN_INPUT, CI.canonical(gate_plan).decode()),
+                               ("v23_run_kind", "gate"), ("native_selection_id", SHARED_ROUTE),
+                               ("v23_d50_compiler_observation", "true"), ("run_ui_smoke", "true")):
+                changed = copy.deepcopy(original); changed["inputs"][key] = value
+                event.write_bytes(CI.canonical(changed))
+                with self.subTest(input=key), mock.patch.object(CI.subprocess, "check_output", side_effect=self.git_facts):
+                    with self.assertRaises(ValueError): CI.admission(selected, e, HEAD, "worker", record, ROOT)
+            event.write_bytes(CI.canonical(original))
+            for key, value in (("GITHUB_RUN_ATTEMPT", "2"), ("GITHUB_WORKFLOW_SHA", "9" * 40),
+                               ("GITHUB_WORKFLOW_REF", "foreign"), ("GITHUB_REF", "refs/heads/main")):
+                with self.subTest(environment=key), mock.patch.object(CI.subprocess, "check_output", side_effect=self.git_facts):
+                    with self.assertRaises(ValueError):
+                        CI.admission(selected, dict(e, **{key: value}), HEAD, "worker", record, ROOT)
+            for raw in (b"[]", b'{"inputs":{"v23_cold_original_plan":null}}',
+                        b'{"inputs":{},"inputs":{}}', b"x" * (self.gate.MAX_EVENT_BYTES + 1)):
+                event.write_bytes(raw)
+                with self.subTest(raw=raw[:80]), mock.patch.object(CI.subprocess, "check_output") as git:
+                    with self.assertRaises(ValueError): CI.admission(selected, e, HEAD, "worker", record, ROOT)
+                    git.assert_not_called()
+            event.write_bytes(CI.canonical(original))
+            link = base / "event-link.json"; link.symlink_to(event)
+            with mock.patch.object(CI.subprocess, "check_output") as git:
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    CI.admission(selected, dict(e, GITHUB_EVENT_PATH=str(link)), HEAD, "worker", record, ROOT)
+                git.assert_not_called()
+
+    def test_cold_uses_existing_two_shared_calls_five_consumers_and_strict_template_guard(self):
+        workflow = (ROOT / ".github/workflows/ios-ci.yml").read_text()
+        block = re.search(r"(?ms)^      native_selection_id:\n(.*?)(?=^      [A-Za-z_][A-Za-z0-9_]*:)", workflow)
+        choices = re.findall(r"^          - ([a-z0-9.-]+)$", block.group(1), re.M)
+        self.assertEqual(choices.count(self.gate.COLD_SELECTION), 1)
+        total, calls = called_template_bytes(workflow, lambda path: (ROOT / path).stat().st_size)
+        self.assertEqual(calls.count(SHARED_WORKER_PATH), 2)
+        self.assertLessEqual(total, CALLED_TEMPLATE_MAX_BYTES)
+        self.assertEqual(CALLED_TEMPLATE_MAX_BYTES, int(5.75 * 1024 * 1024))
+        jobs = workflow.split("\n  v23-shared-producer:\n", 1)[1].split("\n  getmac-shard:\n", 1)[0]
+        producer, consumer = jobs.split("\n  v23-shared-consumer:\n")
+        for text in (producer, consumer):
+            self.assertIn("inputs.native_selection_id == '" + self.gate.COLD_SELECTION + "'", text)
+            self.assertIn("needs.shared-selection.outputs.native_selection_id == '" + self.gate.COLD_SELECTION + "'", text)
+            self.assertNotIn("ios-ci-worker.yml", text)
+        self.assertIn("      fail-fast: false\n      max-parallel: 5\n", consumer)
+        shard = workflow.split("\n  github-shard:\n", 1)[1].split("\n  v23-shared-producer:\n", 1)[0]
+        self.assertIn("inputs.native_selection_id != '" + self.gate.COLD_SELECTION + "'", shard)
+        self.assertNotIn(self.gate.COLD_PLAN_INPUT, (ROOT / SHARED_WORKER_PATH).read_text())
+        self.assertIn(self.gate.COLD_SELECTION, (ROOT / SHARED_WORKER_SCRIPT).read_text())
+
+    def test_live_product_and_receipt_observation_binds_actual_bytes_but_lifetimes_stay_pending(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            e, selected, selection_record, _ = self.fixture(base)
+            e["RUNNER_TEMP"] = str(base)
+            with mock.patch.object(CI.subprocess, "check_output", side_effect=self.git_facts):
+                record = CI.admission(selected, e, HEAD, "worker", selection_record, ROOT)
+            record["gitTree"] = "2" * 40
+            artifact = base / "artifact"; artifact.mkdir()
+            (artifact / "native-admission.json").write_bytes(CI.canonical(record))
+            products = base / "FieldEvidenceDerivedData/Build/Products"; products.mkdir(parents=True)
+            product = products / "synthetic-product.txt"; product.write_bytes(b"test-only product bytes")
+            metadata = artifact / CI.SHARED_PAYLOAD_METADATA
+            metadata.write_bytes(b"synthetic payload metadata; no qualification\n")
+            kernel = CI.load_payload_kernel(ROOT)
+            before = CI.phase1_product_inventory(products, kernel)
+            with mock.patch.object(CI.subprocess, "check_output", side_effect=self.git_facts):
+                result = CI.cold_shared_observation(ROOT, artifact, record, e, "seal", kernel, source_before=before)
+            self.assertEqual(result["products"], before)
+            self.assertEqual(result["receiptSHA256"][metadata.name], CI.sha256(metadata.read_bytes()))
+            self.assertEqual(result["eventBindingSHA256"], CI.sha256(CI.canonical(record["coldOriginal"])))
+            self.assertEqual(result["admissionSHA256"], CI.sha256(CI.canonical(record)))
+            self.assertEqual((result["status"], result["functionalQualification"], result["processLifetimes"]),
+                             ("INCOMPLETE", "PENDING", "PENDING"))
+            self.assertEqual(result["executionScope"], self.gate.COLD_PURPOSE)
+            for key in ("providerQualification", "acceptance", "releaseReady"): self.assertIs(result[key], False)
+            path = artifact / "cold-shared-observation-seal.json"; original = path.read_bytes()
+            with mock.patch.object(CI.subprocess, "check_output", side_effect=self.git_facts):
+                with self.assertRaises((FileExistsError, ValueError)):
+                    CI.cold_shared_observation(ROOT, artifact, record, e, "seal", kernel, source_before=before)
+            self.assertEqual(path.read_bytes(), original)
+
+    def test_changed_source_product_or_admission_and_cross_role_observation_refuse_before_emission(self):
+        for variant in ("products", "admission", "role", "gate"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary).resolve()
+                e, selected, selection_record, _ = self.fixture(base)
+                e["RUNNER_TEMP"] = str(base)
+                with mock.patch.object(CI.subprocess, "check_output", side_effect=self.git_facts):
+                    record = CI.admission(selected, e, HEAD, "worker", selection_record, ROOT)
+                record["gitTree"] = "2" * 40
+                artifact = base / "artifact"; artifact.mkdir()
+                (artifact / "native-admission.json").write_bytes(CI.canonical(record))
+                products = base / "FieldEvidenceDerivedData/Build/Products"; products.mkdir(parents=True)
+                product = products / "synthetic-product.txt"; product.write_bytes(b"before")
+                kernel = CI.load_payload_kernel(ROOT); before = CI.phase1_product_inventory(products, kernel)
+                if variant == "products": product.write_bytes(b"after")
+                if variant == "admission": (artifact / "native-admission.json").write_bytes(b"{}\n")
+                if variant == "gate": record["phase1Gate"] = record["coldOriginal"]
+                with mock.patch.object(CI.subprocess, "check_output", side_effect=self.git_facts):
+                    with self.assertRaises(ValueError):
+                        CI.cold_shared_observation(ROOT, artifact, record, e,
+                            "restore" if variant == "role" else "seal", kernel, source_before=before)
+                self.assertFalse((artifact / "cold-shared-observation-seal.json").exists())
+                self.assertFalse((artifact / "cold-shared-observation-restore.json").exists())
+
+    def test_actual_worker_jq_accepts_exact_cold_producer_consumer_and_refuses_forged_ids_roles_and_authority(self):
+        identifiers = self.plan[CI.SHARED_KEY]["partitionIDs"]
+        for role, partition in (("producer", ""), ("consumer", identifiers[0]), ("consumer", identifiers[-1])):
+            selected = self.plan if role == "producer" else CI.shared_selection(ROOT, partition)
+            arguments = dict(NATIVE_SELECTION_ID=self.gate.COLD_SELECTION, V23_SHARED_ROLE=role, V23_PARTITION_ID=partition)
+            self.assertEqual(SharedCoverageRouteTests.jq(self, selected, **arguments), 0)
+            self.assertEqual(SharedCoverageRouteTests.jq(self, selected, **dict(arguments, NATIVE_SELECTION_ID=SHARED_ROUTE)), 0)
+            for changed in ({"NATIVE_SELECTION_ID": self.gate.COLD_SELECTION + "-forged"},
+                            {"NATIVE_SELECTION_ID": "v23-cold-shared-original-v2"},
+                            {"V23_SHARED_ROLE": "observer"},
+                            {"V23_SHARED_ROLE": "consumer" if role == "producer" else "producer"},
+                            {"V23_PARTITION_ID": "S99"}):
+                with self.subTest(role=role, changed=changed):
+                    self.assertNotEqual(SharedCoverageRouteTests.jq(self, selected, **dict(arguments, **changed)), 0)
+            for key, value in (("acceptance", True), ("developmentOnly", False)):
+                forged = copy.deepcopy(selected); forged[CI.SHARED_KEY][key] = value
+                with self.subTest(role=role, field=key):
+                    self.assertNotEqual(SharedCoverageRouteTests.jq(self, forged, **arguments), 0)
+
+    def test_actual_cold_producer_build_argv_has_prior_index_receipt_and_only_exact_id_gets_no_index(self):
+        for identifier in (SHARED_ROUTE, self.gate.COLD_SELECTION,
+                           self.gate.COLD_SELECTION + "-forged", "v23-cold-shared-original-v2"):
+            with self.subTest(identifier=identifier), tempfile.TemporaryDirectory() as temporary, \
+                    mock.patch.dict(os.environ, {"CI_V23_COMPILER_OBSERVATION": "false",
+                                                "CI_V23_SWIFT_DRIVER_JOBS_TWO": "false"}):
+                result, e, events, args = NoIndexBuildDiagnosticTests.run_mock_build(self, temporary, identifier)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = ["-project", "FieldEvidenceApp.xcodeproj", "-scheme", "FieldEvidenceApp",
+                    "-configuration", "Debug", "-destination", "platform=iOS Simulator,id=" + UDID,
+                    "-derivedDataPath", e["RUNNER_TEMP"] + "/FieldEvidenceDerivedData",
+                    "-resultBundlePath", e["CI_ARTIFACT_DIR"] + "/Build.xcresult", "CODE_SIGNING_ALLOWED=NO"]
+                if identifier in (SHARED_ROUTE, self.gate.COLD_SELECTION):
+                    expected.append("COMPILER_INDEX_STORE_ENABLE=NO")
+                    self.assertEqual(events, ["receipt", "build"])
+                    receipt_args = (Path(temporary) / "receipt-args").read_text().splitlines()
+                    self.assertEqual(receipt_args, ["Scripts/v23-native-ci.py", "record-no-index-build"])
+                else:
+                    self.assertEqual(events, ["build"])
+                    self.assertFalse((Path(temporary) / "receipt-args").exists())
+                self.assertEqual(args, expected + ["build-for-testing"])
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(os.environ, {
+                "CI_V23_COMPILER_OBSERVATION": "true", "CI_V23_RUN_KIND": "development",
+                "CI_V23_SWIFT_DRIVER_JOBS_TWO": "false"}):
+            result, _, events, args = NoIndexBuildDiagnosticTests.run_mock_build(self, temporary, self.gate.COLD_SELECTION)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual((events, args), ([], []))
 
 
 if __name__ == "__main__":

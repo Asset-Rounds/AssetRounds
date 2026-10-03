@@ -488,5 +488,273 @@ class ReviewProvenanceContractTests(unittest.TestCase):
         with self.assertRaises(G.Refused): G.validate_review_request(request, test_only=True)
 
 
+def cold_fixture():
+    """Synthetic cold DEVELOPMENT intent; these bytes grant no qualification."""
+    sources = {path: "A" * 64 for path in G.SOURCES}
+    sources.update(G.POLICIES)
+    selected = G.canonical({"tier": "D40P", "runUISmoke": False,
+        "unitTestSelectors": ["Tests/Example/testOne", "Tests/Example/testTwo"], "uiTestSelectors": [],
+        "sharedCoverage": {"partitionsPath": G.PARTITIONS, "partitionsSHA256": sources[G.PARTITIONS],
+                           "partitionIDs": ["S01", "S02"], "partitionID": None,
+                           "developmentOnly": True, "acceptance": False}})
+    value = G.make_cold_plan(head=HEAD, tree=TREE, resolved_bytes=selected,
+                             sources=sources, requested_at=STAMP)
+    return value, selected, sources
+
+
+class ColdDevelopmentPlanContractTests(unittest.TestCase):
+    """Paired cold/gate admission, with no genuine run or review fixtures."""
+
+    def test_cold_identity_is_closed_development_and_never_a_gate_projection(self):
+        cold, _, _ = cold_fixture()
+        candidate, _, _ = fixture()
+        exact_main, _, _ = fixture(G.EXACT_MAIN)
+        self.assertEqual((cold["schema"], cold["purpose"], cold["selection"], cold["kind"]),
+                         (G.COLD_SCHEMA, G.COLD_PURPOSE, G.COLD_SELECTION, "development"))
+        self.assertEqual(cold["classification"]["functionalQualification"], "PENDING")
+        self.assertEqual(cold["classification"]["status"], "INCOMPLETE")
+        self.assertIs(cold["classification"]["developmentOnly"], True)
+        for key in ("acceptance", "providerQualification", "releaseReady",
+                    "countsAsPerKindProtectionSuccess"):
+            self.assertIs(cold["classification"][key], False)
+        self.assertEqual(G.parse_cold_plan(G.canonical(cold)), cold)
+        for value in (candidate, exact_main):
+            with self.subTest(schema=value["schema"]), self.assertRaises(G.Refused):
+                G.validate_cold_plan(value)
+        with self.assertRaises(G.Refused):
+            G.validate_plan(cold)
+        for gate_plan in (candidate, exact_main):
+            self.assertEqual(G.parse_plan(G.canonical(gate_plan)), gate_plan)
+            with self.assertRaisesRegex(G.Refused, "dispatch disabled"):
+                G.refuse_dispatch()
+
+    def test_every_cold_field_is_required_and_arbitrary_authority_is_refused(self):
+        cold, _, _ = cold_fixture()
+        for key in cold:
+            changed = copy.deepcopy(cold)
+            del changed[key]
+            with self.subTest(missing=key), self.assertRaises(G.Refused):
+                G.validate_cold_plan(changed)
+        variants = {"schema": G.SCHEMA, "purpose": G.CANDIDATE, "selection": G.SHARED,
+                    "kind": "gate", "ref": "refs/heads/main", "approved": True,
+                    "dispatchEnabled": True, "head": G.BASE_MAIN}
+        for key, value in variants.items():
+            with self.subTest(key=key), self.assertRaises(G.Refused):
+                G.validate_cold_plan(dict(cold, **{key: value}))
+        for key, value in (("functionalQualification", "QUALIFIED"), ("status", "COMPLETE"),
+                           ("developmentOnly", 1), ("providerQualification", 0),
+                           ("acceptance", True), ("releaseReady", True)):
+            changed = copy.deepcopy(cold)
+            changed["classification"][key] = value
+            with self.subTest(classification=key), self.assertRaises(G.Refused):
+                G.validate_cold_plan(changed)
+        for raw in (G.canonical(cold).replace(b'"kind":', b'"kind":"gate","kind":'),
+                    b" " + G.canonical(cold), G.canonical(cold).rstrip(), b"[]\n", b"\xff",
+                    b"x" * (G.MAX_PLAN_BYTES + 1)):
+            with self.subTest(raw=raw[:80]), self.assertRaises(G.Refused):
+                G.parse_cold_plan(raw)
+
+    def test_cold_builder_does_not_accept_a_gate_or_free_question(self):
+        _, selected, sources = cold_fixture()
+        kwargs = dict(head=HEAD, tree=TREE, resolved_bytes=selected, sources=sources, requested_at=STAMP)
+        for changed in ({"purpose": G.CANDIDATE}, {"purpose": G.EXACT_MAIN},
+                        {"purpose": "retry"}, {"selection": G.SHARED}, {"selection": G.RUI1}):
+            with self.subTest(changed=changed), self.assertRaises(G.Refused):
+                G.make_cold_plan(**dict(kwargs, **changed))
+
+
+class ColdOriginalEventContractTests(unittest.TestCase):
+    """Real event input is necessary; environment labels never create intent."""
+
+    def fixture(self):
+        cold, selected, sources = cold_fixture()
+        event = {"repository": {"full_name": G.REPOSITORY}, "ref": cold["ref"],
+                 "inputs": G.cold_dispatch_inputs(cold)}
+        environment = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": G.REPOSITORY,
+                       "GITHUB_REF": cold["ref"], "GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "123",
+                       "GITHUB_RUN_ATTEMPT": "1", "GITHUB_WORKFLOW_SHA": HEAD,
+                       "GITHUB_WORKFLOW_REF": G.REPOSITORY + "/" + G.ROUTE["workflow"] + "@" + cold["ref"]}
+        facts = dict(head=HEAD, tree=TREE, resolved_bytes=selected, sources=sources)
+        api = {"id": 123, "head_sha": HEAD, "head_branch": cold["ref"].removeprefix("refs/heads/"),
+               "event": "workflow_dispatch", "path": G.ROUTE["workflow"], "run_attempt": 1}
+        return cold, event, environment, facts, api
+
+    def test_authentic_cold_event_binds_original_bytes_pending_only(self):
+        cold, event, environment, facts, api = self.fixture()
+        raw = json.dumps(event, indent=2).encode()
+        binding = G.bind_cold_original_event(raw, environment, **facts)
+        self.assertEqual(binding["schema"], G.COLD_EVENT_SCHEMA)
+        result = G.verify_cold_collected_event(binding, registered_plan_bytes=G.canonical(cold),
+            original_event_bytes=raw, api_run=api, **{key: value for key, value in facts.items() if key != "head"})
+        self.assertEqual(result["originalEventSHA256"], G.sha(raw))
+        self.assertEqual(result["kind"], "development")
+        self.assertEqual(result["functionalQualification"], "PENDING")
+        for key in ("acceptance", "providerQualification", "releaseReady"):
+            self.assertIs(result[key], False)
+
+    def test_simultaneous_gate_intent_and_cold_gate_masquerade_refuse(self):
+        cold, event, environment, facts, _ = self.fixture()
+        gate_plan, _, _ = fixture()
+        simultaneous = copy.deepcopy(event)
+        simultaneous["inputs"][G.PLAN_INPUT] = G.canonical(gate_plan).decode()
+        for changed in (simultaneous,
+                        dict(event, inputs=dict(event["inputs"], v23_run_kind="gate")),
+                        dict(event, inputs=dict(event["inputs"], native_selection_id=G.SHARED)),
+                        dict(event, inputs=dict(event["inputs"], run_ui_smoke="true")),
+                        dict(event, inputs=dict(event["inputs"], **{G.COLD_PLAN_INPUT: G.canonical(gate_plan).decode()}))):
+            with self.subTest(inputs=changed["inputs"].keys()), self.assertRaises(G.Refused):
+                G.bind_cold_original_event(G.canonical(changed), environment, **facts)
+        self.assertEqual(G.parse_cold_plan(G.canonical(cold)), cold)
+
+    def test_authenticated_run_workflow_tree_source_and_order_cannot_be_substituted(self):
+        _, event, environment, facts, _ = self.fixture()
+        raw = G.canonical(event)
+        reordered = json.loads(facts["resolved_bytes"])
+        reordered["unitTestSelectors"].reverse()
+        for key in environment:
+            with self.subTest(environment=key), self.assertRaises(G.Refused):
+                G.bind_cold_original_event(raw, dict(environment, **{key: "foreign"}), **facts)
+        for key, value in (("head", "9" * 40), ("tree", "9" * 40),
+                ("sources", dict(facts["sources"], **{G.COLLECTOR: "B" * 64})),
+                ("resolved_bytes", G.canonical(reordered))):
+            with self.subTest(fact=key), self.assertRaises(G.Refused):
+                G.bind_cold_original_event(raw, environment, **dict(facts, **{key: value}))
+
+    def test_collector_rechecks_api_attempt_original_bytes_and_closed_binding(self):
+        cold, event, environment, facts, api = self.fixture()
+        raw = G.canonical(event)
+        binding = G.bind_cold_original_event(raw, environment, **facts)
+        arguments = dict(registered_plan_bytes=G.canonical(cold), original_event_bytes=raw,
+                         api_run=api, **{key: value for key, value in facts.items() if key != "head"})
+        for key, value in (("id", 124), ("id", True), ("run_attempt", 2), ("run_attempt", True),
+                           ("head_sha", "9" * 40), ("head_branch", "main"),
+                           ("event", "push"), ("path", "different.yml")):
+            with self.subTest(api=key), self.assertRaises(G.Refused):
+                G.verify_cold_collected_event(binding, **dict(arguments, api_run=dict(api, **{key: value})))
+        for key, value in (("kind", "gate"), ("purpose", G.CANDIDATE), ("selection", G.SHARED),
+                           ("functionalQualification", "QUALIFIED"), ("unknown", "field")):
+            with self.subTest(binding=key), self.assertRaises(G.Refused):
+                G.verify_cold_collected_event(dict(binding, **{key: value}), **arguments)
+        for key in ("registered_plan_bytes", "original_event_bytes"):
+            with self.subTest(bytes=key), self.assertRaises(G.Refused):
+                G.verify_cold_collected_event(binding, **dict(arguments, **{key: arguments[key] + b" "}))
+
+
+class ColdAttemptContractTests(unittest.TestCase):
+    """Synthetic reserved original, paired with the unchanged gate contract."""
+
+    def fixture(self):
+        cold, _, _ = cold_fixture()
+        registration = G.canonical({"schema": G.COLD_REGISTRATION_SCHEMA, "plan": cold,
+            "planSHA256": G.sha(G.canonical(cold)), "dispatchEnabled": False, "functionalQualification": "PENDING"})
+        observations = {"repository": {"id": 7, "full_name": G.REPOSITORY},
+            "workflow": {"id": 9, "path": G.ROUTE["workflow"], "state": "active"},
+            "refs": {"integration": {"ref": G.INTEGRATION_REF, "object": {"type": "commit", "sha": HEAD}},
+                     "main": {"ref": "refs/heads/main", "object": {"type": "commit", "sha": G.BASE_MAIN}}},
+            "headRuns": {"total_count": 0, "workflow_runs": []},
+            "activeRuns": {status: {"total_count": 0, "workflow_runs": []} for status in G.ACTIVE_RUN_STATUSES}}
+        attempt = G.make_cold_attempt(cold, registration, collector_id="a" * 32, requested_at=STAMP,
+            observations=observations, ledger_bytes="", attempt_names=[])
+        return cold, registration, attempt
+
+    def with_active(self, attempt, count=1):
+        changed = copy.deepcopy(attempt)
+        rows = [{"id": index + 20, "head_sha": "9" * 40, "status": "queued", "run_attempt": 1,
+                 "path": G.ROUTE["workflow"], "event": "workflow_dispatch"} for index in range(count)]
+        changed["observations"]["activeRuns"]["queued"] = {"total_count": count, "workflow_runs": rows}
+        changed["ledgerBytes"] = "".join(G.canonical({"runID": row["id"], "head": row["head_sha"],
+            "selection": G.SHARED, "kind": "development"}).decode() for row in rows)
+        return changed
+
+    def test_closed_cold_attempt_carries_exact_request_and_never_admits_gate_attempt(self):
+        cold, registration, attempt = self.fixture()
+        self.assertEqual(G.validate_cold_attempt(attempt, cold, registration), attempt)
+        self.assertEqual(attempt["schema"], G.COLD_ATTEMPT_SCHEMA)
+        self.assertEqual(json.loads(attempt["inputBytes"])[G.PLAN_INPUT], "")
+        self.assertEqual(json.loads(attempt["inputBytes"])[G.COLD_PLAN_INPUT], G.canonical(cold).decode())
+        for key in attempt:
+            changed = copy.deepcopy(attempt); del changed[key]
+            with self.subTest(missing=key), self.assertRaises(G.Refused):
+                G.validate_cold_attempt(changed, cold, registration)
+        for key, value in (("schema", G.ATTEMPT_SCHEMA), ("collectorID", "invented"),
+                           ("workflowID", True), ("repositoryID", True), ("inputBytes", "{}\n"),
+                           ("argv", ["gh", "run", "rerun", "9"]), ("collectorSHA256", "B" * 64),
+                           ("registrationSHA256", "B" * 64), ("mainHead", HEAD),
+                           ("planBytes", G.canonical(dict(cold, kind="gate")).decode())):
+            with self.subTest(field=key), self.assertRaises(G.Refused):
+                G.validate_cold_attempt(dict(attempt, **{key: value}), cold, registration)
+        gate_plan, gate_registration, gate_attempt = AttemptContractTests.fixture(self)
+        self.assertEqual(G.validate_attempt(gate_attempt, gate_plan, gate_registration), gate_attempt)
+        with self.assertRaises(G.Refused):
+            G.validate_cold_attempt(gate_attempt, cold, registration)
+
+    def test_shared_capacity_allows_four_other_head_development_runs_and_refuses_five(self):
+        cold, registration, attempt = self.fixture()
+        four = self.with_active(attempt, 4)
+        self.assertEqual(G.validate_cold_attempt(four, cold, registration), four)
+        with self.assertRaises(G.Refused):
+            G.validate_cold_attempt(self.with_active(attempt, 5), cold, registration)
+
+    def test_active_gate_unmarked_unknown_same_head_second_attempt_and_duplicate_refuse(self):
+        cold, registration, attempt = self.fixture()
+        for variant in ("gate", "unmarked", "unknown", "same-head", "attempt", "phase1", "duplicate", "workflow"):
+            changed = self.with_active(attempt)
+            row = changed["observations"]["activeRuns"]["queued"]["workflow_runs"][0]
+            record = json.loads(changed["ledgerBytes"])
+            if variant == "gate": record["kind"] = "gate"
+            if variant == "unmarked": del record["kind"]
+            if variant == "unknown": record["runID"] += 1
+            if variant == "same-head": row["head_sha"] = record["head"] = HEAD
+            if variant == "attempt": row["run_attempt"] = 2
+            if variant == "phase1": record["phase1Purpose"] = G.CANDIDATE
+            if variant == "workflow": row["path"] = "foreign.yml"
+            if variant == "duplicate":
+                changed["observations"]["activeRuns"]["in_progress"] = {
+                    "total_count": 1, "workflow_runs": [dict(row, status="in_progress")]}
+            changed["ledgerBytes"] = G.canonical(record).decode()
+            with self.subTest(variant=variant), self.assertRaises(G.Refused):
+                G.validate_cold_attempt(changed, cold, registration)
+
+    def test_consumed_and_partial_cold_attempt_names_never_create_another_original(self):
+        cold, registration, attempt = self.fixture()
+        for name in (G.cold_original_stem(cold) + ".json", G.cold_original_stem(cold) + ".partial",
+                     HEAD + "-" + G.COLD_SELECTION + ".json", "../" + G.cold_original_stem(cold) + ".json"):
+            with self.subTest(name=name), self.assertRaises(G.Refused):
+                G.validate_cold_attempt(dict(attempt, attemptNames=[name]), cold, registration)
+        for record in ({"runID": 123, "head": HEAD, "selection": G.COLD_SELECTION, "kind": "development"},
+                       {"runID": 123, "head": HEAD, "selection": G.SHARED, "kind": "development", "coldPurpose": G.COLD_PURPOSE}):
+            with self.subTest(record=record), self.assertRaises(G.Refused):
+                G.validate_cold_attempt(dict(attempt, ledgerBytes=G.canonical(record).decode()), cold, registration)
+
+    def test_every_cold_requested_input_is_bound_including_empty_gate_and_false_experiments(self):
+        cold, _, attempt = self.fixture()
+        event = {"inputs": G.cold_dispatch_inputs(cold), "ref": cold["ref"],
+                 "repository": {"full_name": G.REPOSITORY}}
+        raw = json.dumps(event, indent=2).encode()
+        self.assertEqual(G.verify_cold_attempt_inputs(attempt, raw)["inputSHA256"], G.sha(attempt["inputBytes"].encode()))
+        for key in event["inputs"]:
+            for mode in ("replace", "remove"):
+                altered = copy.deepcopy(event)
+                if mode == "replace": altered["inputs"][key] = "substituted"
+                else: del altered["inputs"][key]
+                with self.subTest(key=key, mode=mode), self.assertRaises(G.Refused):
+                    G.verify_cold_attempt_inputs(attempt, json.dumps(altered).encode())
+        altered = copy.deepcopy(event); altered["inputs"]["unrequested"] = "true"
+        with self.assertRaises(G.Refused):
+            G.verify_cold_attempt_inputs(attempt, G.canonical(altered))
+
+    def test_cold_registration_is_immutable_and_retains_pending_only(self):
+        cold, _, _ = self.fixture()
+        with tempfile.TemporaryDirectory() as temporary:
+            target, record = G.register_cold(cold, Path(temporary).resolve())
+            original = target.read_bytes()
+            self.assertEqual(record["schema"], G.COLD_REGISTRATION_SCHEMA)
+            self.assertIs(record["dispatchEnabled"], False)
+            self.assertEqual(record["functionalQualification"], "PENDING")
+            with self.assertRaises(FileExistsError):
+                G.register_cold(cold, Path(temporary).resolve())
+            self.assertEqual(target.read_bytes(), original)
+
+
 if __name__ == "__main__":
     unittest.main()

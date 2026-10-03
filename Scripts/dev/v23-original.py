@@ -152,6 +152,9 @@ DEVELOPMENT_PER_HEAD_GROUP_TERM = (
     + ") && format('-development-{0}', github.sha) || '' }}")
 # A group that names the run is unique per run, which is at least per head.
 PER_RUN_GROUP_TERM = "${{ github.run_id }}"
+COLD_PER_HEAD_GROUP_TERM = ("${{ github.event.inputs.v23_run_kind == 'development' && "
+    "github.event.inputs.native_selection_id == 'v23-cold-shared-original-v1' && "
+    "format('-development-{0}', github.sha) || '' }}")
 MAX_REASON = 1000
 # Infrastructure classification of the first failing step of each failing job.
 TEST_STEP = "Run targeted tests"
@@ -172,6 +175,9 @@ INFRA_RUNNER_STEPS = frozenset({"Remove owned isolated Simulator", "Post Check o
 # producer/consumer job names come from ios-ci.yml (reusable caller name +
 # " / verify"), the artifact names from the worker's upload-name expression.
 SHARED_SELECTION_ID = "v23-shared-coverage-d50x"
+COLD_SELECTION_ID = "v23-cold-shared-original-v1"
+COLD_PURPOSE = "cold-shared-route-development-v1"
+SHARED_SELECTION_IDS = (SHARED_SELECTION_ID, COLD_SELECTION_ID)
 SHARED_PARTITIONS_PATH = "Scripts/v23-coverage-partitions.json"
 SHARED_PRODUCER_TIER = "D40P"
 SHARED_MAX_PARTITIONS = 60
@@ -291,9 +297,35 @@ def run_kind(selection, kind):
     return kind
 
 
+
+def cold_record_or_attempt(run_id=None, *, head=None, selection=None):
+    """Conservative detection also covers partial markers and consumed attempt bytes."""
+    records = [x for x in ledger_dispatches() if run_id is None or x.get("runID") == run_id]
+    path = EVIDENCE / str(run_id) / "dispatch.json" if run_id is not None else None
+    if path is not None and path.exists():
+        try:
+            value = json.loads(path.read_bytes())
+            if not isinstance(value, dict): return True
+            records.append(value)
+        except (ValueError, OSError):
+            return True
+    for record in records:
+        if (record.get("selection") == COLD_SELECTION_ID or any(str(k).startswith("cold") for k in record)):
+            if run_id is not None or head is None or record.get("head") == head:
+                return True
+    heads = {head} if head is not None else {str(row.get("head")) for row in records}
+    if ATTEMPTS.exists():
+        for target in ATTEMPTS.iterdir():
+            if any(target.name.startswith(str(h) + "-") for h in heads) and (COLD_SELECTION_ID in target.name or COLD_PURPOSE in target.name):
+                return True
+    return selection == COLD_SELECTION_ID
+
+
 def recorded_development(run_id):
     """(dispatch record, None) when RUN_ID is recorded as development in its ledger line
     and dispatch.json, else (record or None, why not). Unmarked runs are never development."""
+    if cold_record_or_attempt(run_id):
+        return None, "cold development originals and consumed attempts cannot be cancelled or rerun"
     lines = [x for x in ledger_dispatches() if x.get("runID") == run_id]
     if len(lines) != 1:
         return None, f"run {run_id} is not a ledgered original"
@@ -390,7 +422,9 @@ def route_jobs(caller_text, selection):
         condition = " ".join(yaml_scalar(x) or "" for x in re.findall(r"^    if:(.*)$", text, re.M))
         if "inputs.execution_lane" in condition and f"'{LANE}'" not in condition:
             continue
-        if any(x != selection for x in re.findall(r"native_selection_id == '([^']+)'", condition)):
+        alternatives = re.findall(r"native_selection_id == '([^']+)'", condition)
+        if any(x != selection for x in alternatives) and not (
+                set(alternatives) <= set(SHARED_SELECTION_IDS) and selection in alternatives):
             continue
         if f"native_selection_id != '{selection}'" in condition:
             continue
@@ -642,6 +676,8 @@ def infra_failure_classification(summary, jobs, run_id, head, selection):
 def infra_retry_admission(head, selection, resolved, resolved_sha, run_id, reason, kind):
     """Refuse unless RUN_ID is the recorded development original here, collected, terminal and
     infrastructure-failed, and head+selection has no gate or unmarked original and no rerun yet."""
+    if cold_record_or_attempt(run_id, head=head, selection=selection):
+        raise SystemExit("cold original/partial attempt is never an infrastructure retry")
     if kind != "development":
         raise SystemExit("an infrastructure rerun is a development run; it needs --kind development")
     if not development_route(selection, resolved):
@@ -1067,7 +1103,14 @@ def phase1_candidate_lifecycle(plan_path, *, selection=None, kind=None, infra_re
 
 
 def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan=None,
-             compiler_observation=False, swift_driver_jobs_two=False):
+             compiler_observation=False, swift_driver_jobs_two=False, cold_plan=None):
+    if cold_plan is not None:
+        if phase1_plan is not None or compiler_observation or swift_driver_jobs_two:
+            raise SystemExit("simultaneous cold/gate/compiler inputs are refused")
+        return cold_original_lifecycle(cold_plan, selection=selection, kind=kind,
+                                       infra_retry_of=infra_retry_of, reason=reason)
+    if selection == COLD_SELECTION_ID:
+        raise SystemExit("cold selection requires the dedicated canonical predispatch intent")
     if phase1_plan is not None:
         if compiler_observation or swift_driver_jobs_two:
             raise SystemExit("compiler experiments are development-only, never a Phase1 gate input")
@@ -1086,6 +1129,8 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
     if swift_driver_jobs_two and not compiler_observation:
         raise SystemExit("Swift driver two-job experiment requires explicit compiler observation")
     if infra_retry_of is not None:
+        if cold_record_or_attempt(infra_retry_of):
+            raise SystemExit("cold original/partial attempt is never an infrastructure retry")
         reason = (reason or "").strip()
         if not reason:
             raise SystemExit("--infra-retry-of requires a non-empty --reason")
@@ -1119,7 +1164,7 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
         raise SystemExit(f"--kind development is only for development routes; {selection} is not one")
     if compiler_observation:
         preflight_compiler_observation_source(head, resolved_sha, swift_driver_jobs_two)
-    shared = selection == SHARED_SELECTION_ID
+    shared = selection in SHARED_SELECTION_IDS
     partitions = shared_partitions(head, resolved) if shared else None
     if kind == "gate":
         # A gate original is the first and only original of its head+selection.
@@ -1185,7 +1230,7 @@ def dispatch(selection, kind=None, infra_retry_of=None, reason=None, phase1_plan
         if problems:
             raise SystemExit(f"{selection} is active at another head; a parallel original needs per-head "
                              "concurrency groups at this head: " + "; ".join(problems))
-    sweeps = [x for x in active if selection_by_run.get(x["id"]) == SHARED_SELECTION_ID]
+    sweeps = [x for x in active if selection_by_run.get(x["id"]) in SHARED_SELECTION_IDS]
     if not shared and sweeps:
         # An active shared run can occupy every macOS slot. A gate or unmarked sweep admits no
         # other original; a development sweep admits only development originals at other heads.
@@ -1357,6 +1402,8 @@ def collect(run_id, resume):
     directory = EVIDENCE / str(run_id)
     dispatched = json.loads((directory / "dispatch.json").read_text(encoding="utf-8"))
     check_compiler_observation_record(dispatched)
+    if dispatched.get("selection") == COLD_SELECTION_ID or any(str(key).startswith("cold") for key in dispatched):
+        return collect_cold(run_id, resume)
     if any(key.startswith("phase1") for key in dispatched):
         return collect_phase1(run_id, resume)
     claim = directory / "collector.claim.json"
@@ -1660,17 +1707,18 @@ def phase1_payload_snapshot(gate, path):
     return {"identity": phase1_payload_identity(before), "bytes": count, "SHA256": digest.hexdigest().upper()}
 
 
-def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
+def phase1_retain_payload(gate, directory, artifact, claim_value, resume, *, prefix="phase1"):
     """Caller admits API/original/attempt/claim first; receipts grant no DATA or qualification.
 
     Each transport owns a new raw inode. Prefixes and immutable controls are never
     replaced. Resume rechecks every earlier receipt/raw/ancestor under the same
     sole claim; unresolved immutable controls require root inspection, not repair.
     """
+    gate.require(prefix in ("phase1", "cold"), "closed raw retention namespace")
     identifier = artifact["id"]
     gate.require(type(identifier) is int and identifier > 0, "payload authenticated artifact ID")
     directory_ancestors = phase1_payload_ancestors(gate, directory)
-    root = directory / "phase1-payload-transports"
+    root = directory / (prefix + "-payload-transports")
     gate.durable_directory(root)
     history = root / str(identifier)
     gate.durable_directory(history)
@@ -1705,7 +1753,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
                      set(request) == set(core) | {"schema", "atUTC", "ancestors", "initialRawIdentity"},
                      "closed payload transport request")
         gate.exact({key: request.get(key) for key in core}, core, "payload same original/claim/API on resume")
-        gate.require(request["schema"] == "v23-phase1-payload-transport-request.v1", "payload request schema")
+        gate.require(request["schema"] == "v23-" + prefix + "-payload-transport-request.v1", "payload request schema")
         gate.require(type(request["initialRawIdentity"]) is dict and
                      set(request["initialRawIdentity"]) == set(phase1_payload_identity(previous.lstat())) and
                      all(type(value) is int for value in request["initialRawIdentity"].values()), "payload initial inode shape")
@@ -1718,7 +1766,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
         receipt_keys = set(request) | {"status", "actualZIPBytes", "actualZIPSHA256", "rawIdentity",
                                        "responseComplete", "durableRaw", "digestVerified", "failureCategory"}
         gate.require(type(receipt) is dict and set(receipt) == receipt_keys and
-                     receipt["schema"] == "v23-phase1-payload-transport.v1",
+                     receipt["schema"] == "v23-" + prefix + "-payload-transport.v1",
                      "closed payload transport receipt")
         gate.exact({key: receipt.get(key) for key in request if key not in ("schema", "atUTC")},
                    {key: request[key] for key in request if key not in ("schema", "atUTC")}, "payload receipt request binding")
@@ -1740,7 +1788,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
             terminal = summary(receipt, previous / "receipt.json")
     # The existing collection partial binds these exact retained bytes, including
     # transport controls. No partial/raw history is rewritten by a fresh attempt.
-    partials = directory / "phase1-collection-partials"
+    partials = directory / (prefix + "-collection-partials")
     if entries and partials.exists():
         gate.require(partials.is_dir() and not partials.is_symlink(), "payload regular partial history")
         partial_files = sorted(partials.iterdir())
@@ -1748,7 +1796,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
                      ["%06d.json" % i for i in range(len(partial_files))], "payload closed collection history")
         for path in partial_files:
             value = gate.decode(gate.regular_bytes(path, limit=32 * 1024 * 1024), limit=32 * 1024 * 1024)
-            gate.require(type(value) is dict and value.get("schema") == "v23-phase1-collection-partial.v1" and
+            gate.require(type(value) is dict and value.get("schema") == "v23-" + prefix + "-collection-partial.v1" and
                          type(value.get("retainedFiles")) is dict, "payload collection partial shape")
             gate.exact({key: value.get(key) for key in ("runID", "runAttempt", "planSHA256")},
                        {"runID": claim_value["runID"], "runAttempt": 1, "planSHA256": claim_value["planSHA256"]},
@@ -1767,7 +1815,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
     with raw_path.open("xb", buffering=0) as stream:
         initial = phase1_payload_identity(os.fstat(stream.fileno()))
         gate.require(stat.S_ISREG(initial["mode"]) and initial["nlink"] == 1, "payload exclusive raw inode")
-        request = {"schema": "v23-phase1-payload-transport-request.v1", "atUTC": now(), **common,
+        request = {"schema": "v23-" + prefix + "-payload-transport-request.v1", "atUTC": now(), **common,
                    "index": len(entries), "rawPath": raw_path.relative_to(directory).as_posix(),
                    "ancestors": phase1_payload_ancestors(gate, target), "initialRawIdentity": initial}
         gate.write_immutable(target / "request.json", gate.canonical(request))
@@ -1804,7 +1852,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
                 "sha256:" + snapshot["SHA256"].lower() == artifact["digest"])
     if complete and durable:
         status = "COMPLETE" if verified else "DIGEST_MISMATCH"
-    receipt = {**request, "schema": "v23-phase1-payload-transport.v1", "atUTC": now(), "status": status,
+    receipt = {**request, "schema": "v23-" + prefix + "-payload-transport.v1", "atUTC": now(), "status": status,
                "actualZIPBytes": snapshot["bytes"], "actualZIPSHA256": snapshot["SHA256"], "rawIdentity": snapshot["identity"],
                "responseComplete": complete, "durableRaw": durable, "digestVerified": verified, "failureCategory": failure}
     gate.write_immutable(target / "receipt.json", gate.canonical(receipt))
@@ -1812,7 +1860,7 @@ def phase1_retain_payload(gate, directory, artifact, claim_value, resume):
     return summary(receipt, target / "receipt.json")
 
 
-PHASE1_RETAINED_READER_SHA256 = "C93B7D69B58C219E0086F472D06C3C6DC89D3F03E6408A2D65B468865A41C45A"
+PHASE1_RETAINED_READER_SHA256 = "0A95A260F47B054BE4063D48D48D24EE10421F5FAC5F74745EC6DFAC0CD2EA96"
 
 
 PHASE1_PAYLOAD_READER_BOOTSTRAP = r'''
@@ -2934,8 +2982,10 @@ def shared_partitions_for(dispatched):
     return shared_partitions(dispatched["head"], dispatched["resolvedSelection"])
 
 
-def shared_artifact_names(run_id, head, partition_ids):
-    prefix = f"ios-ci-native-{PROVIDER}-{SHARED_SELECTION_ID}"
+def shared_artifact_names(run_id, head, partition_ids, *, selection=SHARED_SELECTION_ID):
+    if selection not in SHARED_SELECTION_IDS:
+        raise SystemExit("closed shared artifact identity")
+    prefix = f"ios-ci-native-{PROVIDER}-{selection}"
     return {"producer": f"{prefix}-producer-{run_id}-1",
             "consumers": {x: f"{prefix}-consumer-{x}-{run_id}-1" for x in partition_ids},
             "payload": f"v23-shared-payload-{run_id}-1-{head}"}
@@ -3501,6 +3551,8 @@ def cancel(run_id, reason):
     """Cancel one active original recorded as development; ledger intent before, completion after.
 
     The run keeps its dispatch record and is collected as usual afterwards."""
+    if cold_record_or_attempt(run_id):
+        raise SystemExit("cold original/partial attempt is never cancelled")
     reason = (reason or "").strip()
     if not reason:
         raise SystemExit("cancel requires a non-empty --reason")
@@ -3737,9 +3789,1444 @@ def assess_phase1_reviews(head, *, test_only=False):
         lock.rmdir()
 
 
+
+
+# Closed development cold lifecycle. No gate purpose or reader activation.
+def cold_gates():
+    return phase1_gates().ColdContract()
+
+
+def cold_file_manifest(directory):
+    return phase1_file_manifest(directory)
+
+
+def preregister_cold(plan_path):
+    """Register a source-frozen development intent; registration alone grants no execution.
+
+    Dispatcher rechecks this intent and authenticated current capacity before
+    consuming its one attempt. Qualification and every official gate remain closed.
+    """
+    gate = cold_gates()
+    try:
+        plan = gate.parse_plan(gate.regular_bytes(plan_path))
+        gate.require(plan["purpose"] == gate.CANDIDATE, "closed cold development purpose")
+        preflight_names = [p.name for p in ATTEMPTS.iterdir()] if ATTEMPTS.exists() else []
+        gate.require(not gate.conflicting_originals(plan, ledger(), preflight_names),
+                     "consumed cold question before registrar operations")
+        run("git", "fetch", "--quiet", "origin", BRANCH, "main")
+        head = run("git", "rev-parse", "HEAD").strip()
+        remote = run("git", "rev-parse", f"origin/{BRANCH}").strip()
+        main_head = run("git", "rev-parse", "origin/main").strip()
+        tree = run("git", "rev-parse", f"{head}^{{tree}}").strip()
+        resolved, resolved_sha = resolve_selection(head, plan["selection"])
+        selected_bytes = gate.canonical(resolved)
+        gate.require(gate.sha(selected_bytes) == resolved_sha, "resolver bytes/digest")
+        sources = {path: gate.sha(git_bytes("show", f"{head}:{path}")) for path in gate.SOURCES}
+        gate.bind_facts(plan, head=head, tree=tree, integration_head=remote, main_head=main_head,
+                        resolved_bytes=selected_bytes, sources=sources)
+        # The registrar itself must be the exact source it records, not newer local
+        # tooling making a promise on behalf of an older commit.
+        for path in (gate.COLLECTOR, "Scripts/v23-phase1-gates.py"):
+            gate.require(gate.sha(gate.regular_bytes(ROOT / path, limit=4 * 1024 * 1024)) == sources[path],
+                         "registrar differs from frozen source")
+        attempts = [p.name for p in ATTEMPTS.iterdir()] if ATTEMPTS.exists() else []
+        conflicts = gate.conflicting_originals(plan, ledger(), attempts)
+        gate.require(not conflicts, "original collision: " + "; ".join(conflicts))
+        # Unknown remote originals are never inferred harmless from their names.
+        known = {entry["runID"] for entry in ledger_dispatches()}
+        unknown = [record["id"] for record in runs_for(head) if record["id"] not in known]
+        gate.require(not unknown, "unledgered originals: " + str(unknown))
+        target, record = gate.register_candidate(plan, EVIDENCE / "v23-cold-plans")
+    except gate.Refused as error:
+        raise SystemExit(str(error)) from error
+    print(json.dumps({"path": str(target), "planSHA256": record["planSHA256"],
+                      "dispatchEnabled": False, "functionalQualification": gate.PENDING}, indent=2))
+    return record
+
+
+
+def cold_timestamp():
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+
+def cold_run_census(gate, query, captured=None):
+    """Actual bounded API pagination; no first-page or malformed-ID exemption."""
+    rows, total = [], None
+    separator = "&" if "?" in query else "?"
+    for page in range(1, -(-gate.MAX_ORIGINAL_RUNS // PAGE_SIZE) + 1):
+        endpoint = f"{query}{separator}per_page={PAGE_SIZE}&page={page}"
+        value = api(endpoint)
+        if captured is not None:
+            captured.append({"endpoint": endpoint, "response": value})
+        gate.require(type(value) is dict, "run census API object")
+        count, batch = value.get("total_count"), value.get("workflow_runs")
+        gate.require(type(count) is int and 0 <= count <= gate.MAX_ORIGINAL_RUNS
+                     and (total is None or count == total), "run census bounded stable total")
+        total = count
+        gate.require(type(batch) is list and len(batch) <= PAGE_SIZE, "run census bounded page")
+        rows.extend(batch)
+        gate.require(len(rows) <= total, "run census overcollection")
+        if len(rows) == total:
+            result = {"total_count": total, "workflow_runs": rows}
+            gate.validate_run_census(result)
+            return result
+        gate.require(bool(batch), "run census incomplete page")
+    raise gate.Refused("Cold development gate: run census page bound")
+
+
+
+def cold_ref_observations():
+    return {"integration": api(f"repos/{REPO}/git/ref/heads/{BRANCH}"),
+            "main": api(f"repos/{REPO}/git/ref/heads/main")}
+
+
+
+def cold_frozen_candidate(gate, plan, *, discovery=False):
+    gate.require(plan["purpose"] == gate.CANDIDATE, "candidate-only lifecycle")
+    run("git", "fetch", "--quiet", "origin", BRANCH, "main")
+    head = run("git", "rev-parse", "HEAD").strip()
+    tree = run("git", "rev-parse", head + "^{tree}").strip()
+    integration = run("git", "rev-parse", "origin/" + BRANCH).strip()
+    main_head = run("git", "rev-parse", "origin/main").strip()
+    gate.require(run("git", "diff", "--cached", "--name-only").strip() == "", "real index is not empty")
+    selected, selected_sha = resolve_selection(head, plan["selection"])
+    gate.require(selected_sha == gate.sha(gate.canonical(selected)), "resolver original bytes")
+    sources = {p: gate.sha(git_bytes("show", f"{head}:{p}")) for p in gate.SOURCES}
+    if discovery:
+        # A moved remote ref is retained by discovery below, not an excuse to
+        # replace the frozen local source or lose the uncertainty observation.
+        gate.require(head == plan["head"] and tree == plan["tree"], "frozen discovery source")
+        gate.exact(gate.make_plan(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
+            resolved_bytes=gate.canonical(selected), sources=sources, requested_at=plan["requestedAtUTC"]),
+            plan, "frozen discovery source/selection")
+    else:
+        gate.bind_facts(plan, head=head, tree=tree, integration_head=integration, main_head=main_head,
+                        resolved_bytes=gate.canonical(selected), sources=sources)
+    for p in (gate.COLLECTOR, "Scripts/v23-phase1-gates.py"):
+        gate.require(gate.sha(gate.regular_bytes(ROOT / p, limit=4 * 1024 * 1024)) == sources[p],
+                     "lifecycle implementation differs from frozen source")
+    registration = gate.regular_bytes(EVIDENCE / "v23-cold-plans" / (gate.original_stem(plan) + ".json"))
+    return selected, registration
+
+
+
+def cold_lifecycle_directory(gate, plan):
+    return ATTEMPTS / (gate.original_stem(plan) + ".discovery")
+
+
+
+def cold_request_receipt(gate, attempt, result=None, error=None):
+    return {"schema": "v23-cold-request-outcome.v1", "attemptSHA256": gate.sha(gate.canonical(attempt)),
+            "argvSHA256": gate.sha(gate.canonical(attempt["argv"])),
+            "inputSHA256": gate.sha(attempt["inputBytes"].encode("utf-8")),
+            "completedAtUTC": cold_timestamp(), "exitCode": result.returncode if result is not None else None,
+            "stdoutHex": result.stdout.hex() if result is not None else "",
+            "stderrHex": result.stderr.hex() if result is not None else "",
+            "error": type(error).__name__ if error is not None else None}
+
+
+
+def cold_validate_request(gate, attempt, receipt):
+    gate.require(type(receipt) is dict and set(receipt) == {"schema", "attemptSHA256", "argvSHA256", "inputSHA256",
+        "completedAtUTC", "exitCode", "stdoutHex", "stderrHex", "error"}, "closed request outcome")
+    gate.require(receipt["schema"] == "v23-cold-request-outcome.v1"
+        and receipt["attemptSHA256"] == gate.sha(gate.canonical(attempt))
+        and receipt["argvSHA256"] == gate.sha(gate.canonical(attempt["argv"]))
+        and receipt["inputSHA256"] == gate.sha(attempt["inputBytes"].encode("utf-8")), "request command/input binding")
+    plan = gate.parse_plan(attempt["planBytes"].encode("utf-8"))
+    gate.validate_plan(dict(plan, requestedAtUTC=receipt["completedAtUTC"]))
+    gate.require(receipt["completedAtUTC"] >= attempt["requestedAtUTC"]
+        and (receipt["exitCode"] is None or type(receipt["exitCode"]) is int)
+        and all(type(receipt[k]) is str and re.fullmatch(r"(?:[0-9a-f]{2})*", receipt[k]) for k in ("stdoutHex", "stderrHex"))
+        and (receipt["error"] is None or type(receipt["error"]) is str), "request outcome fields")
+    return receipt["exitCode"] == 0 and receipt["error"] is None
+
+
+
+def cold_discovery_state(gate, plan, attempt, snapshot, receipt, prior):
+    """Derive attribution from retained observations; never authorize another call.
+
+    An unresolved history does not prohibit a future independently reviewed
+    attribution mechanism. This stage provides no such mechanism and no reset.
+    """
+    problems, identifier = [], None
+    if receipt is None or not cold_validate_request(gate, attempt, receipt):
+        problems.append("request outcome unconfirmed; exact preauthorized original attribution remains due")
+    if any(x["status"] == "ATTRIBUTION_PENDING" for x in prior):
+        problems.append("prior attribution gap requires independent resolution outside this stage")
+    gate.require(type(snapshot) is dict and set(snapshot) == {"refs", "headRuns", "directRun", "error", "runPages", "repository", "transportFailure"},
+                 "closed discovery snapshot")
+    pages = snapshot["runPages"]
+    gate.require(type(pages) is list and len(pages) <= -(-gate.MAX_ORIGINAL_RUNS // PAGE_SIZE), "discovery page capture bound")
+    for index, page in enumerate(pages, 1):
+        gate.require(type(page) is dict and set(page) == {"endpoint", "response"}
+            and page["endpoint"] == f"repos/{REPO}/actions/runs?head_sha={plan['head']}&per_page={PAGE_SIZE}&page={index}",
+            "discovery original page endpoint")
+    gate.require(type(snapshot["transportFailure"]) is bool
+        and (not snapshot["transportFailure"] or type(snapshot["error"]) is str), "discovery transport observation")
+    if snapshot["error"] is not None:
+        gate.require(type(snapshot["error"]) is str, "failed discovery observation")
+        problems.append("discovery capture failed: " + snapshot["error"])
+    try:
+        repository = snapshot["repository"]
+        gate.require(type(repository) is dict and repository.get("full_name") == REPO
+            and type(repository.get("id")) is int and repository["id"] == attempt["repositoryID"],
+            "current repository identity changed/unavailable")
+        gate.validate_ref_observations(snapshot["refs"], plan)
+        gate.require(bool(pages), "complete discovery page captures")
+        captured_rows, total = [], snapshot["headRuns"].get("total_count")
+        for index, page in enumerate(pages):
+            value = page["response"]
+            gate.require(type(value) is dict and type(value.get("total_count")) is int
+                and value["total_count"] == total and type(value.get("workflow_runs")) is list
+                and len(value["workflow_runs"]) <= PAGE_SIZE, "captured discovery page")
+            captured_rows.extend(value["workflow_runs"])
+            gate.require(index == len(pages)-1 or (value["workflow_runs"] and len(captured_rows) < total),
+                         "captured discovery page order/completion")
+        gate.exact(snapshot["headRuns"], {"total_count": total, "workflow_runs": captured_rows}, "complete captured run census")
+        ids = gate.validate_run_census(snapshot["headRuns"], head=plan["head"])
+        gate.require(set(attempt["knownRunIDs"]) <= set(ids), "known original disappeared")
+        fresh = sorted(set(ids) - set(attempt["knownRunIDs"]))
+        gate.require(len(fresh) <= 1, "multiple new originals")
+        if fresh:
+            identifier = fresh[0]
+            row = next(x for x in snapshot["headRuns"]["workflow_runs"] if x["id"] == identifier)
+            cold_api_original(gate, row, identifier, plan, attempt)
+            cold_api_original(gate, snapshot["directRun"], identifier, plan, attempt)
+        else:
+            gate.require(snapshot["directRun"] is None, "unexpected direct original")
+        previous_ids = {x["runID"] for x in prior if x["runID"] is not None}
+        gate.require(not previous_ids or previous_ids == {identifier}, "previously observed original changed/disappeared")
+    except (ValueError, TypeError, KeyError, AttributeError) as error:
+        problems.append(str(error)[:1000])
+    return ("ATTRIBUTION_PENDING" if problems else "DISCOVERED_PENDING_PROOF" if identifier else "AWAITING_ORIGINAL"), identifier, problems
+
+
+
+def cold_read_lifecycle(gate, plan, attempt):
+    directory = cold_lifecycle_directory(gate, plan)
+    gate.require(directory.is_dir() and not directory.is_symlink(), "regular discovery directory")
+    names = sorted(p.name for p in directory.iterdir())
+    request = None
+    if "request.json" in names:
+        request = gate.decode(gate.regular_bytes(directory / "request.json", limit=gate.MAX_ATTEMPT_BYTES), limit=gate.MAX_ATTEMPT_BYTES)
+        cold_validate_request(gate, attempt, request)
+        names.remove("request.json")
+    gate.require(len(names) <= 1000 and names == ["%06d.json" % i for i in range(len(names))],
+                 "complete append-only discovery census")
+    previous, entries, retained_bytes = None, [], 0
+    for index, name in enumerate(names):
+        raw = gate.regular_bytes(directory / name, limit=gate.MAX_ATTEMPT_BYTES)
+        retained_bytes += len(raw)
+        gate.require(retained_bytes <= 64 * 1024 * 1024, "aggregate discovery retention bound")
+        item = gate.decode(raw, limit=gate.MAX_ATTEMPT_BYTES)
+        gate.require(type(item) is dict and set(item) == {"schema", "attemptSHA256", "index", "previousSHA256",
+            "observedAtUTC", "requestSHA256", "snapshot", "status", "runID", "problems"}, "closed discovery entry")
+        gate.require(item["schema"] == gate.DISCOVERY_SCHEMA and type(item["index"]) is int and item["index"] == index
+            and item["previousSHA256"] == previous and item["attemptSHA256"] == gate.sha(gate.canonical(attempt))
+            and item["requestSHA256"] == (gate.sha(gate.canonical(request)) if request is not None else None),
+            "discovery immutable attempt/request chain")
+        gate.validate_plan(dict(plan, requestedAtUTC=item["observedAtUTC"]))
+        gate.require(item["observedAtUTC"] >= (entries[-1]["observedAtUTC"] if entries else attempt["requestedAtUTC"]),
+                     "discovery time order")
+        state, identifier, problems = cold_discovery_state(gate, plan, attempt, item["snapshot"], request, entries)
+        gate.exact([item["status"], item["runID"], item["problems"]], [state, identifier, problems], "derived discovery state")
+        entries.append(item)
+        previous = gate.sha(raw)
+    anchors = [x for x in ledger_events() if x.get("event") == "cold-discovery"
+               and x.get("attemptSHA256") == gate.sha(gate.canonical(attempt))]
+    expected = [{"event": "cold-discovery", "attemptSHA256": gate.sha(gate.canonical(attempt)),
+                 "index": x["index"], "discoverySHA256": gate.sha(gate.canonical(x))} for x in entries]
+    gate.exact(anchors, expected, "complete ledger-anchored discovery history")
+    return request, entries
+
+
+
+def cold_append_ledger(gate, value):
+    with LEDGER.open("ab") as stream:
+        stream.write(gate.canonical(value)); stream.flush(); os.fsync(stream.fileno())
+
+
+
+def cold_record_discovery(gate, plan, attempt, snapshot):
+    request, entries = cold_read_lifecycle(gate, plan, attempt)
+    gate.require(len(entries) < 1000, "discovery record bound")
+    state, identifier, problems = cold_discovery_state(gate, plan, attempt, snapshot, request, entries)
+    value = {"schema": gate.DISCOVERY_SCHEMA, "attemptSHA256": gate.sha(gate.canonical(attempt)), "index": len(entries),
+        "previousSHA256": gate.sha(gate.canonical(entries[-1])) if entries else None, "observedAtUTC": cold_timestamp(),
+        "requestSHA256": gate.sha(gate.canonical(request)) if request is not None else None,
+        "snapshot": snapshot, "status": state, "runID": identifier, "problems": problems}
+    gate.write_immutable(cold_lifecycle_directory(gate, plan) / ("%06d.json" % len(entries)), gate.canonical(value))
+    cold_append_ledger(gate, {"event": "cold-discovery", "attemptSHA256": value["attemptSHA256"],
+                              "index": value["index"], "discoverySHA256": gate.sha(gate.canonical(value))})
+    return value
+
+
+
+def cold_dispatch_record(gate, plan, attempt, selected, entry):
+    identifier = entry["runID"]
+    record = {"coldDispatchSchema": "v23-cold-dispatch.v1", "runID": identifier, "runAttempt": 1, "head": plan["head"], "ref": plan["ref"], "selection": plan["selection"],
+        "kind": "development", "lane": LANE, "requestedAtUTC": attempt["requestedAtUTC"],
+        "url": f"https://github.com/{REPO}/actions/runs/{identifier}", "argv": attempt["argv"],
+        "resolvedSelection": selected, "resolvedSelectionSHA256": plan["selectionSHA256"],
+        "coldPurpose": plan["purpose"], "coldPlanBytes": attempt["planBytes"], "coldPlanSHA256": attempt["planSHA256"],
+        "coldRegistrationSHA256": attempt["registrationSHA256"], "coldRegistrationSchema": gate.REGISTRATION_SCHEMA,
+        "coldAttemptSHA256": gate.sha(gate.canonical(attempt)), "coldDiscoverySHA256": gate.sha(gate.canonical(entry)),
+        "functionalQualification": gate.PENDING, "status": "INCOMPLETE", "developmentOnly": True,
+        "providerQualification": False, "acceptance": False, "releaseReady": False}
+    if plan["selection"] == COLD_SELECTION_ID:
+        record["sharedPartitions"] = shared_partitions(plan["head"], selected)
+    return record
+
+
+
+def cold_capture_original(gate, plan, attempt):
+    """Fixed-endpoint live observations shared by discovery and collection.
+
+    Retain partial pages and independent successful responses after a failed
+    census. They are diagnostic observations, never complete attribution.
+    """
+    captured, errors, transport = [], [], []
+    def capture(label, action):
+        try:
+            return action()
+        except (ValueError, OSError, subprocess.CalledProcessError) as error:
+            errors.append(label + ": " + type(error).__name__ + ": " + str(error)[:1000])
+            transport.append(isinstance(error, (OSError, subprocess.CalledProcessError)))
+            return None
+    repository = capture("repository", lambda: api(f"repos/{REPO}"))
+    census = capture("head census", lambda: cold_run_census(gate, f"repos/{REPO}/actions/runs?head_sha={plan['head']}", captured))
+    fresh = [] if census is None else sorted(set(gate.validate_run_census(census)) - set(attempt["knownRunIDs"]))
+    direct = capture("direct original", lambda: api(f"repos/{REPO}/actions/runs/{fresh[0]}")) if len(fresh) == 1 else None
+    refs = {"integration": capture("integration ref", lambda: api(f"repos/{REPO}/git/ref/heads/{BRANCH}")),
+            "main": capture("main ref", lambda: api(f"repos/{REPO}/git/ref/heads/main"))}
+    return {"repository": repository, "headRuns": census, "directRun": direct, "refs": refs,
+            "error": "; ".join(errors) if errors else None, "runPages": captured, "transportFailure": any(transport)}
+
+
+
+def cold_discover_original(gate, plan, attempt, selected):
+    snapshot = cold_capture_original(gate, plan, attempt)
+    entry = cold_record_discovery(gate, plan, attempt, snapshot)
+    if entry["status"] != "DISCOVERED_PENDING_PROOF":
+        raise gate.Refused("Cold development gate: " + entry["status"] + "; consumed attempt; only discovery continuation, never redispatch")
+    identifier = entry["runID"]
+    record = cold_dispatch_record(gate, plan, attempt, selected, entry)
+    directory = EVIDENCE / str(identifier)
+    directory.mkdir(exist_ok=True)
+    gate.require(directory.is_dir() and not directory.is_symlink(), "regular discovered original directory")
+    path = directory / "dispatch.json"
+    if path.exists():
+        # A continuation never rewrites the original discovery binding.
+        existing = gate.decode(gate.regular_bytes(path, limit=gate.MAX_ATTEMPT_BYTES), limit=gate.MAX_ATTEMPT_BYTES)
+        _, history = cold_read_lifecycle(gate, plan, attempt)
+        gate.require(any(gate.sha(gate.canonical(x)) == existing.get("coldDiscoverySHA256")
+            and x["status"] == "DISCOVERED_PENDING_PROOF" and x["runID"] == identifier for x in history), "original discovery binding")
+        record["coldDiscoverySHA256"] = existing["coldDiscoverySHA256"]
+        gate.exact(existing, record, "immutable discovered original")
+    else:
+        gate.write_immutable(path, gate.canonical(record))
+    prior = [row for row in ledger_dispatches() if row.get("runID") == identifier]
+    if prior:
+        gate.require(len(prior) == 1, "duplicate discovered ledger original")
+        gate.exact(prior[0], record, "existing discovered ledger original")
+    else:
+        cold_append_ledger(gate, record)
+    return record
+
+
+
+def cold_original_lifecycle(plan_path, *, selection=None, kind=None, infra_retry_of=None, reason=None, discover=False):
+    """One distinct preconsumed development request; discovery never redispatches."""
+    gate = cold_gates()
+    plan = gate.parse_plan(gate.regular_bytes(plan_path))
+    gate.require((selection is None or selection == plan["selection"]) and kind == "development"
+        and infra_retry_of is None and reason is None, "candidate gate inputs; no retry or alternate kind")
+    target = ATTEMPTS / (gate.original_stem(plan) + ".json")
+    if not discover:
+        gate.require(not os.path.lexists(target), "cold attempt consumed, including partial records; never redispatch")
+    else:
+        registration_preflight = gate.regular_bytes(EVIDENCE / "v23-cold-plans" / (gate.original_stem(plan) + ".json"))
+        attempt_preflight = gate.decode(gate.regular_bytes(target, limit=gate.MAX_ATTEMPT_BYTES), limit=gate.MAX_ATTEMPT_BYTES)
+        gate.validate_attempt(attempt_preflight, plan, registration_preflight)
+    EVIDENCE.mkdir(parents=True, exist_ok=True)
+    gate.require(not EVIDENCE.is_symlink(), "regular root evidence directory")
+    lock = EVIDENCE / "cold-dispatch-active"
+    lock.mkdir()
+    try:
+        selected, registration = cold_frozen_candidate(gate, plan, discovery=discover)
+        gate.durable_directory(ATTEMPTS)
+        target = ATTEMPTS / (gate.original_stem(plan) + ".json")
+        if discover:
+            attempt = gate.decode(gate.regular_bytes(target, limit=gate.MAX_ATTEMPT_BYTES), limit=gate.MAX_ATTEMPT_BYTES)
+            gate.validate_attempt(attempt, plan, registration)
+            gate.durable_directory(cold_lifecycle_directory(gate, plan))
+        else:
+            # A failed/partial earlier consumed file is never read as permission
+            # to try again. The exclusive write below is the final race check.
+            gate.require(not os.path.lexists(target), "attempt already consumed; never redispatch")
+            workflow_text = git_bytes("show", f"{plan['head']}:{WORKFLOW_PATH}").decode("utf-8")
+            gate.require(COLD_PER_HEAD_GROUP_TERM in (concurrency_group(workflow_text) or ""),
+                         "cold shared-family caller concurrency binding")
+            gate.require(not per_head_concurrency_problems(plan["head"], workflow_text, COLD_SELECTION_ID),
+                         "cold shared-family caller/worker concurrency binding")
+            observations = {"repository": api(f"repos/{REPO}"),
+                "workflow": api(f"repos/{REPO}/actions/workflows/{WORKFLOW}"),
+                "activeRuns": {status: cold_run_census(gate, f"repos/{REPO}/actions/runs?status={status}")
+                               for status in gate.ACTIVE_RUN_STATUSES},
+                "headRuns": cold_run_census(gate, f"repos/{REPO}/actions/runs?head_sha={plan['head']}"),
+                "refs": cold_ref_observations()}
+            ledger_raw = gate.regular_bytes(LEDGER, limit=gate.MAX_ATTEMPT_BYTES) if LEDGER.exists() else b""
+            names = sorted(p.name for p in ATTEMPTS.iterdir())
+            attempt = gate.make_attempt(plan, registration, collector_id=os.urandom(16).hex(),
+                requested_at=cold_timestamp(), observations=observations, ledger_bytes=ledger_raw.decode("utf-8"), attempt_names=names)
+            gate.write_immutable(target, gate.canonical(attempt))
+            directory = cold_lifecycle_directory(gate, plan)
+            gate.durable_directory(directory)
+            try:
+                result = subprocess.run(attempt["argv"], input=attempt["inputBytes"].encode("utf-8"),
+                                        cwd=ROOT, capture_output=True, check=False)
+                receipt = cold_request_receipt(gate, attempt, result=result)
+            except (OSError, subprocess.SubprocessError) as error:
+                receipt = cold_request_receipt(gate, attempt, error=error)
+            gate.write_immutable(directory / "request.json", gate.canonical(receipt))
+        return cold_discover_original(gate, plan, attempt, selected)
+    finally:
+        lock.rmdir()
+
+
+
+def cold_original_context(run_id, *, retention_only=False):
+    """Bind root predispatch/attempt/discovery/ledger records before any collection API.
+
+    Worker data cannot manufacture this dedicated development identity or claim.
+    Retention-only continuation preserves incomplete attribution and every original.
+    """
+    gate = cold_gates()
+    gate.require(type(run_id) is int and run_id > 0, "collection original run ID")
+    directory = EVIDENCE / str(run_id)
+    gate.require(directory.is_dir() and not directory.is_symlink(), "root original directory")
+    raw = gate.regular_bytes(directory / "dispatch.json", limit=4 * 1024 * 1024)
+    dispatched = gate.decode(raw, limit=4 * 1024 * 1024)
+    plan = gate.parse_plan(dispatched.get("coldPlanBytes", "").encode("utf-8"))
+    gate.require(plan["purpose"] == gate.CANDIDATE, "exact-main collection prerequisites remain disabled")
+    gate.require((dispatched.get("kind"), dispatched.get("head"), dispatched.get("ref"),
+                  dispatched.get("selection"), dispatched.get("coldPurpose"), dispatched.get("runAttempt"))
+                 == ("development", plan["head"], plan["ref"], plan["selection"], plan["purpose"], 1)
+                 and type(dispatched.get("runAttempt")) is int
+                 and type(dispatched.get("runID")) is int and dispatched["runID"] == run_id,
+                 "root original kind/head/ref/purpose/attempt")
+    stem = gate.original_stem(plan)
+    registration_raw = gate.regular_bytes(EVIDENCE / "v23-cold-plans" / (stem + ".json"))
+    registration = gate.decode(registration_raw)
+    gate.exact(registration, {"schema": gate.REGISTRATION_SCHEMA, "plan": plan,
+        "planSHA256": gate.sha(gate.canonical(plan)), "dispatchEnabled": False,
+        "functionalQualification": gate.PENDING}, "root preregistered pending intent")
+    attempt_raw = gate.regular_bytes(ATTEMPTS / (stem + ".json"), limit=gate.MAX_ATTEMPT_BYTES)
+    attempt = gate.decode(attempt_raw, limit=gate.MAX_ATTEMPT_BYTES)
+    gate.validate_attempt(attempt, plan, registration_raw)
+    gate.require(attempt["planSHA256"] == dispatched.get("coldPlanSHA256")
+        and attempt["registrationSHA256"] == dispatched.get("coldRegistrationSHA256")
+        and gate.sha(attempt_raw) == dispatched.get("coldAttemptSHA256")
+        and dispatched.get("coldRegistrationSchema") == gate.REGISTRATION_SCHEMA
+        and attempt["requestedAtUTC"] == dispatched.get("requestedAtUTC")
+        and run_id not in attempt["knownRunIDs"], "root predispatch registration/attempt binding")
+    request, history = cold_read_lifecycle(gate, plan, attempt)
+    # Retention may continue for the historically bound selected original after
+    # current uniqueness is lost. This never admits attribution or acceptance.
+    gate.require(type(retention_only) is bool, "explicit retention context")
+    gate.require(history and (retention_only or (history[-1]["status"] == "DISCOVERED_PENDING_PROOF"
+        and history[-1]["runID"] == run_id)) and any(gate.sha(gate.canonical(x)) == dispatched.get("coldDiscoverySHA256")
+                and x["status"] == "DISCOVERED_PENDING_PROOF" and x["runID"] == run_id for x in history),
+        "attributed original discovery required")
+    sources = {p: gate.sha(git_bytes("show", f"{plan['head']}:{p}")) for p in gate.SOURCES}
+    gate.exact(sources, plan["sources"], "root frozen source closure")
+    gate.require(run("git", "rev-parse", plan["head"] + "^{tree}").strip() == plan["tree"], "root frozen Git tree")
+    resolved, resolved_sha = resolve_selection(plan["head"], plan["selection"])
+    gate.require(resolved_sha == plan["selectionSHA256"] == dispatched.get("resolvedSelectionSHA256"),
+                 "root original resolved selection")
+    if plan["selection"] == COLD_SELECTION_ID:
+        gate.exact(dispatched.get("sharedPartitions"), shared_partitions(plan["head"], resolved),
+                   "root exact committed partition census")
+    gate.exact(gate.make_plan(purpose=plan["purpose"], head=plan["head"], tree=plan["tree"],
+        selection=plan["selection"], resolved_bytes=gate.canonical(resolved), sources=sources,
+        requested_at=plan["requestedAtUTC"]), plan, "root recomputed exact plan")
+    bound_discovery = next(x for x in history if gate.sha(gate.canonical(x)) == dispatched["coldDiscoverySHA256"])
+    gate.exact(dispatched, cold_dispatch_record(gate, plan, attempt, resolved, bound_discovery),
+               "closed original dispatch writer/reader schema")
+    gate.require(attempt["collectorSHA256"] == sources[gate.COLLECTOR]
+        == gate.sha(gate.regular_bytes(Path(__file__), limit=4 * 1024 * 1024)), "sole exact-source collector")
+    same_question = [entry for entry in ledger_dispatches()
+                     if (entry.get("head"), entry.get("selection")) == (plan["head"], plan["selection"])]
+    gate.require(len(same_question) == 1 and all(same_question[0].get(key) == dispatched.get(key)
+        for key in ("runID", "kind", "head", "selection", "coldPurpose", "coldPlanBytes", "coldPlanSHA256",
+                    "coldRegistrationSchema", "coldAttemptSHA256", "coldDiscoverySHA256")), "sole preregistered ledger original")
+    other_attempts = [p.name for p in ATTEMPTS.iterdir() if p.name not in (stem + ".json", stem + ".discovery")]
+    gate.require(not gate.conflicting_originals(plan, [], other_attempts), "ambiguous historical original attempts")
+    return gate, directory, dispatched, plan, attempt, raw, registration_raw, attempt_raw, resolved
+
+
+
+def cold_api_original(gate, value, run_id, plan, attempt):
+    """Validate only responses fetched by this caller from the fixed repo endpoint."""
+    gate.require(type(value) is dict and type(value.get("id")) is int and value["id"] == run_id
+        and type(value.get("run_attempt")) is int and value["run_attempt"] == 1
+        and type(value.get("workflow_id")) is int and value["workflow_id"] == attempt["workflowID"]
+        and (value.get("head_sha"), value.get("head_branch"), value.get("path"), value.get("event"))
+            == (plan["head"], plan["ref"].removeprefix("refs/heads/"), WORKFLOW_PATH, "workflow_dispatch")
+        and value.get("repository", {}).get("full_name") == REPO
+        and value.get("head_repository", {}).get("full_name") == REPO
+        and type(value.get("repository", {}).get("id")) is int and value["repository"]["id"] > 0
+        and type(value.get("head_repository", {}).get("id")) is int
+        and value.get("head_repository", {}).get("id") == value["repository"]["id"] == attempt["repositoryID"],
+        "authenticated repository/run/attempt origin")
+    created = value.get("created_at")
+    gate.require(type(created) is str and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", created),
+                 "authenticated original creation time")
+    gate.require(datetime.datetime.fromisoformat(created.replace("Z", "+00:00"))
+        >= datetime.datetime.fromisoformat(attempt["requestedAtUTC"].replace("Z", "+00:00")),
+        "original predates consumed attempt")
+    return value
+
+
+
+def collect_cold(run_id, resume):
+    """Actual API/retention caller; complete functional proof remains INCOMPLETE.
+
+    No dispatch/rerun/cancel, provider qualification or human approval is performed.
+    A failed or partial original keeps its claim and every fetched original byte.
+    """
+    gate, directory, dispatched, plan, attempt, dispatch_raw, registration_raw, attempt_raw, resolved = cold_original_context(run_id, retention_only=True)
+    claim_value = {"schema": "v23-cold-sole-collector.v1", "runID": run_id, "runAttempt": 1,
+        "collectorID": attempt["collectorID"], "collectorSHA256": attempt["collectorSHA256"],
+        "planSHA256": attempt["planSHA256"], "attemptSHA256": gate.sha(attempt_raw),
+        "dispatchSHA256": gate.sha(dispatch_raw), "registrationSHA256": gate.sha(registration_raw)}
+    claim = directory / "collector.claim.json"
+    gate.require(not (directory / "manifest.json").exists(), "completed original is immutable")
+    if resume:
+        gate.exact(gate.decode(gate.regular_bytes(claim)), claim_value, "same sole collector claim on resume")
+    else:
+        with claim.open("xb") as stream:
+            stream.write(gate.canonical(claim_value)); stream.flush(); os.fsync(stream.fileno())
+    lock = directory / "cold-collector-active"
+    lock.mkdir(mode=0o700)  # A crashed owner leaves this lock closed for root inspection.
+    authority_lock = EVIDENCE / "cold-dispatch-active"
+    authority_locked, collection_ended = False, False
+    collection_observations = []
+    notes = ["INCOMPLETE: qualification lifecycle and independent cold review remain disabled"]
+    transport_problems = []
+    try:
+        authority_lock.mkdir()  # Serializes the shared append-only discovery writer.
+        authority_locked = True
+        def retain(name, raw):
+            path = directory / name
+            if path.exists() or path.is_symlink():
+                gate.require(gate.regular_bytes(path, limit=4 * 1024 ** 3) == raw, "retained original changed: " + name)
+            else:
+                with path.open("xb") as stream:
+                    stream.write(raw); stream.flush(); os.fsync(stream.fileno())
+            return path
+        def fetch_json(name, endpoint):
+            value = api(endpoint)
+            retain(name, gate.canonical(value))
+            return value
+        def observe_collection(phase):
+            nonlocal collection_ended
+            entry = cold_record_discovery(gate, plan, attempt, cold_capture_original(gate, plan, attempt))
+            observations = directory / "cold-collection-observations"
+            gate.durable_directory(observations)
+            value = {"schema": "v23-cold-collection-observation.v1", "phase": phase,
+                     "claimSHA256": gate.sha(gate.canonical(claim_value)), "entry": entry,
+                     "discoverySHA256": gate.sha(gate.canonical(entry)), "status": "INCOMPLETE"}
+            gate.write_immutable(observations / ("%06d.json" % entry["index"]), gate.canonical(value))
+            collection_observations.append(value)
+            if entry["status"] != "DISCOVERED_PENDING_PROOF" or entry["runID"] != run_id:
+                notes.append("collection " + phase + " attribution: " + entry["status"] + "; " + "; ".join(entry["problems"]))
+            if entry["snapshot"]["transportFailure"]:
+                transport_problems.append("collection " + phase + " census transport unresolved")
+            if phase != "begin": collection_ended = True
+        def attribution():
+            return {"status": "DISCOVERED_PENDING_PROOF" if collection_ended and all(
+                v["entry"]["status"] == "DISCOVERED_PENDING_PROOF" and v["entry"]["runID"] == run_id
+                for v in collection_observations) else "ATTRIBUTION_PENDING",
+                "retentionOnly": True, "observations": [v["discoverySHA256"] for v in collection_observations]}
+        observe_collection("begin")
+        base = f"repos/{REPO}/actions/runs/{run_id}"
+        observed = api(base)
+        cold_api_original(gate, observed, run_id, plan, attempt)
+        if observed.get("status") != "completed":
+            with (directory / "cold-monitor.jsonl").open("ab") as stream:
+                stream.write(gate.canonical(observed)); stream.flush(); os.fsync(stream.fileno())
+            raise gate.Refused("Cold development original is not completed; resume the same sole claim after completion")
+        retain("run.json", gate.canonical(observed))
+        original = fetch_json("run-attempt-1.json", base + "/attempts/1")
+        cold_api_original(gate, original, run_id, plan, attempt)
+        gate.require(observed.get("status") == original.get("status") == "completed", "original must be completed before collection")
+        # Retain original logs before downstream artifact validation can fail.
+        logs = retain("run-logs.zip", api_bytes(base + "/attempts/1/logs"))
+        if not (directory / "run-logs").exists():
+            phase1_zip_extract(gate, logs, directory / "run-logs")
+        else:
+            with tempfile.TemporaryDirectory(prefix="cold-logs-") as temporary:
+                comparison = Path(temporary) / "original"
+                phase1_zip_extract(gate, logs, comparison)
+                gate.require(cold_file_manifest(directory / "run-logs") == cold_file_manifest(comparison),
+                             "retained extracted run logs changed")
+        workflow = fetch_json("workflow.json", f"repos/{REPO}/actions/workflows/{attempt['workflowID']}")
+        gate.require(type(workflow.get("id")) is int and workflow["id"] == attempt["workflowID"] and workflow.get("path") == WORKFLOW_PATH,
+                     "authenticated original workflow")
+        jobs = paginated(base + "/attempts/1/jobs", "jobs", SHARED_MAX_JOBS)
+        retain("jobs.json", gate.canonical(jobs))
+        gate.require(all(type(j.get("id")) is int and j["id"] > 0 and type(j.get("run_id")) is int and j["run_id"] == run_id
+            and type(j.get("run_attempt")) is int and j["run_attempt"] == 1
+            and j.get("head_sha") == plan["head"] and j.get("status") == "completed" for j in jobs["jobs"]),
+            "authenticated job original/attempt/head")
+        listing = phase1_artifact_census(gate, base + "/artifacts")
+        retain("artifacts.json", gate.canonical(listing))
+        (directory / "cold-job-logs").mkdir(exist_ok=True)
+        gate.require((directory / "cold-job-logs").is_dir() and not (directory / "cold-job-logs").is_symlink(),
+                     "regular job-log retention directory")
+        for job in jobs["jobs"]:
+            # Job IDs came from the authenticated attempt1 endpoint above.
+            # Fixed job-log endpoints avoid trusting archive folder labels.
+            if job.get("conclusion") == "skipped" and not job.get("steps"):
+                continue
+            try:
+                raw = api_bytes(f"repos/{REPO}/actions/jobs/{job['id']}/logs")
+            except (OSError, subprocess.CalledProcessError) as error:
+                transport_problems.append("job %d log transport: %s" % (job["id"], type(error).__name__))
+                continue
+            try:
+                gate.require(type(raw) is bytes and 0 < len(raw) <= 256 * 1024 * 1024,
+                             "complete original job log bound")
+                retain("cold-job-logs/%d.log" % job["id"], raw)
+            except (ValueError, OSError, subprocess.CalledProcessError) as error:
+                notes.append("job %d log unavailable (%s): %s" %
+                             (job["id"], type(error).__name__, str(error)[:1000]))
+        if observed.get("conclusion") != "success" or original.get("conclusion") != "success":
+            notes.append("original execution did not succeed")
+        if plan["selection"] == COLD_SELECTION_ID:
+            partitions = shared_partitions_for(dispatched)["partitionIDs"]
+            names = shared_artifact_names(run_id, plan["head"], partitions, selection=COLD_SELECTION_ID)
+            expected = {names["producer"]: "producer", **{v: k for k, v in names["consumers"].items()}}
+            payload_name = names["payload"]
+        else:
+            expected = {f"ios-ci-native-{PROVIDER}-{plan['selection']}-{run_id}-1": "rui1"}
+            payload_name = None
+        artifacts = listing["artifacts"]
+        artifact_names = [a.get("name") for a in artifacts if type(a) is dict]
+        duplicate_names = {name for name in artifact_names if type(name) is str and artifact_names.count(name) > 1}
+        duplicate_ids = {a.get("id") for a in artifacts if type(a) is dict and type(a.get("id")) is int
+                         and sum(type(b) is dict and b.get("id") == a["id"] for b in artifacts) > 1}
+        if duplicate_names or duplicate_ids:
+            notes.append("duplicate artifact name or ID census")
+        wanted = set(expected) | ({payload_name} if payload_name else set())
+        if len(artifact_names) != len(artifacts) or set(name for name in artifact_names if type(name) is str) != wanted:
+            notes.append("missing or unexpected artifact census")
+        proof_artifacts = {}
+        (directory / "artifacts").mkdir(exist_ok=True)
+        gate.require((directory / "artifacts").is_dir() and not (directory / "artifacts").is_symlink(),
+                     "regular artifact retention directory")
+        for artifact_index, artifact in enumerate(artifacts):
+            try:
+                gate.require(type(artifact) is dict, "authenticated artifact object")
+                identifier = artifact.get("id")
+                name = artifact.get("name")
+                gate.require(type(name) is str and name not in duplicate_names
+                             and type(identifier) is int and identifier not in duplicate_ids,
+                             "unambiguous artifact identity")
+                gate.require(type(identifier) is int and identifier > 0 and type(name) is str,
+                             "authenticated artifact identity")
+                origin = artifact.get("workflow_run")
+                gate.require(type(origin) is dict and type(origin.get("id")) is int and origin["id"] == run_id
+                    and origin.get("head_sha") == plan["head"]
+                    and origin.get("head_branch") == plan["ref"].removeprefix("refs/heads/")
+                    and type(origin.get("repository_id")) is int and type(origin.get("head_repository_id")) is int
+                    and origin.get("repository_id") == observed["repository"]["id"]
+                    and origin.get("head_repository_id") == observed["head_repository"]["id"], "authenticated artifact run/head/ref")
+                digest = artifact.get("digest")
+                gate.require(type(digest) is str and re.fullmatch(r"sha256:[0-9a-f]{64}", digest)
+                    and type(artifact.get("expired")) is bool and type(artifact.get("size_in_bytes")) is int
+                    and 0 < artifact["size_in_bytes"] <= 4 * 1024 ** 3, "authenticated artifact digest/size")
+                if artifact["expired"]:
+                    notes.append("expired artifact " + name)
+                    continue
+                if name == payload_name:
+                    try:
+                        retained_payload = phase1_retain_payload(gate, directory, artifact, claim_value, resume, prefix="cold")
+                    except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+                        transport_problems.append("payload %d retained transport unresolved: %s" %
+                                                  (identifier, type(error).__name__))
+                        continue
+                    proof_artifacts["payload"] = retained_payload
+                    if retained_payload["transportStatus"] == "DIGEST_MISMATCH":
+                        notes.append("artifact[%d] refused: authenticated payload outer ZIP digest mismatch" % artifact_index)
+                    elif retained_payload["transportStatus"] != "COMPLETE":
+                        transport_problems.append("payload %d transport %s" % (identifier, retained_payload["transportStatus"]))
+                    continue
+                if name not in expected:
+                    continue
+                try:
+                    retained_worker = phase1_retain_payload(gate, directory, artifact, claim_value, resume, prefix="cold")
+                except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+                    transport_problems.append("artifact %d retained transport unresolved: %s" % (identifier, type(error).__name__))
+                    continue
+                if retained_worker["transportStatus"] == "DIGEST_MISMATCH":
+                    notes.append("artifact[%d] refused: authenticated worker outer ZIP digest mismatch" % artifact_index)
+                    continue
+                if retained_worker["transportStatus"] != "COMPLETE":
+                    transport_problems.append("artifact %d transport %s" % (identifier, retained_worker["transportStatus"]))
+                    continue
+                archive = directory / retained_worker["rawZIP"]["path"]
+                label = expected[name]
+                target = directory / "artifacts" / label
+                # C1 resume never trusts an earlier extracted tree: compare it against
+                # a fresh extraction of the immutable authenticated archive below.
+                if not target.exists():
+                    phase1_zip_extract(gate, archive, target)
+                else:
+                    with tempfile.TemporaryDirectory(prefix="cold-extract-") as temporary:
+                        comparison = Path(temporary) / "original"
+                        phase1_zip_extract(gate, archive, comparison)
+                        gate.require(cold_file_manifest(target) == cold_file_manifest(comparison),
+                                     "retained extracted artifact changed")
+                proof_artifacts[label] = retained_worker
+            except (ValueError, OSError, subprocess.CalledProcessError, zipfile.BadZipFile) as error:
+                # The invalid original still blocks proof. Continue retaining
+                # other independently authenticated originals; never extract an
+                # unauthenticated/invalid ZIP or let one bad member hide others.
+                notes.append("artifact[%d] refused (%s): %s" %
+                             (artifact_index, type(error).__name__, str(error)[:1000]))
+        input_bindings = {}
+        matched_jobs = match_shared_jobs(jobs["jobs"], partitions)
+        notes.extend("cold jobs: " + problem for problem in matched_jobs["problems"])
+        if (matched_jobs["selection"] is None or matched_jobs["producer"] is None
+                or set(matched_jobs["consumers"]) != set(partitions)
+                or matched_jobs["placeholders"] or matched_jobs["other"]
+                or len(jobs["jobs"]) != len(partitions) + 2
+                or len({job["id"] for job in jobs["jobs"]}) != len(jobs["jobs"])):
+            notes.append("cold complete unique shared-selection/producer/consumer job census unavailable")
+        for label in expected.values():
+            if not proof_artifacts.get(label, {}).get("downloaded"):
+                continue
+            try:
+                event_raw = gate.regular_bytes(directory / "artifacts" / label / "cold-original-event.json", limit=gate.MAX_EVENT_BYTES)
+                input_bindings[label] = gate.verify_attempt_inputs(attempt, event_raw)
+                worker = directory / "artifacts" / label
+                binding = gate.decode(gate.regular_bytes(worker / "cold-event-binding.json", limit=gate.MAX_EVENT_BYTES),
+                                      limit=gate.MAX_EVENT_BYTES)
+                gate.verify_collected_event(binding, registered_plan_bytes=gate.canonical(plan),
+                    original_event_bytes=event_raw, api_run=observed, tree=plan["tree"],
+                    resolved_bytes=gate.canonical(resolved), sources=plan["sources"])
+                record = gate.decode(gate.regular_bytes(worker / "native-admission.json", limit=32 * 1024 * 1024),
+                                     limit=32 * 1024 * 1024)
+                gate.require(type(record) is dict, "cold retained admission object")
+                gate.require(record.get("coldOriginal") == binding and "phase1Gate" not in record
+                    and (record.get("head"), record.get("gitTree"), record.get("ref"), record.get("runID"), record.get("runAttempt"), record.get("selectionID"))
+                    == (plan["head"], plan["tree"], plan["ref"], str(run_id), "1", COLD_SELECTION_ID),
+                    "cold retained worker original/source identity")
+                role = "producer" if label == "producer" else "consumer"
+                gate.exact(record.get("sharedCoverage"), {"role": role, "partitionID": None if role == "producer" else label,
+                    "payloadArtifactName": payload_name, "planSHA256": plan["selectionSHA256"],
+                    "partitionsSHA256": plan["sources"][SHARED_PARTITIONS_PATH]}, "cold retained worker role/partition/payload")
+                gate.require(gate.regular_bytes(worker / "cold-original-plan.json") == gate.canonical(plan), "cold worker intent bytes")
+                checkpoint = gate.decode(gate.regular_bytes(worker / "native-checkpoint.json", limit=32 * 1024 * 1024),
+                                         limit=32 * 1024 * 1024)
+                gate.require(type(checkpoint) is dict, "cold retained checkpoint object")
+                expected_units = [] if role == "producer" else sorted(dispatched["sharedPartitions"]["selectors"][label])
+                gate.require(checkpoint.get("coldOriginal") == binding and checkpoint.get("executedUnitMethods") == expected_units
+                    and checkpoint.get("executedUIMethods") == []
+                    and all(checkpoint.get(key) is False for key in ("providerQualification", "acceptance", "releaseReady")),
+                    "cold retained producer/consumer method census")
+                stages = ("seal",) if role == "producer" else ("restore", "before", "after")
+                retained_observations = {}
+                for stage in stages:
+                    value = gate.decode(gate.regular_bytes(worker / ("cold-shared-observation-%s.json" % stage),
+                        limit=32 * 1024 * 1024), limit=32 * 1024 * 1024)
+                    gate.require(type(value) is dict and value.get("schema") == "v23-cold-shared-live-observation.v1"
+                        and (value.get("stage"), value.get("head"), value.get("tree"), value.get("runID"), value.get("runAttempt"),
+                             value.get("role"), value.get("partitionID"), value.get("executionScope"))
+                            == (stage, plan["head"], plan["tree"], str(run_id), "1", role, None if role == "producer" else label, COLD_PURPOSE)
+                        and value.get("eventBindingSHA256") == gate.sha(gate.canonical(binding))
+                        and value.get("originalEventSHA256") == gate.sha(event_raw)
+                        and value.get("admissionSHA256") == gate.sha(gate.canonical(record))
+                        and value.get("planSHA256") == attempt["planSHA256"]
+                        and value.get("selectionSHA256") == plan["selectionSHA256"]
+                        and value.get("status") == "INCOMPLETE" and value.get("functionalQualification") == gate.PENDING
+                        and value.get("processLifetimes") == "PENDING" and value.get("developmentOnly") is True
+                        and all(value.get(key) is False for key in ("providerQualification", "acceptance", "releaseReady"))
+                        and type(value.get("products")) is list and type(value.get("receiptSHA256")) is dict,
+                        "cold retained live observation original/role/source binding")
+                    for name, digest in value["receiptSHA256"].items():
+                        gate.require(name in ("v23-shared-payload.json", "v23-shared-payload-receipt.json", "v23-shared-restore.json",
+                            "v23-shared-fingerprint-before.json", "v23-shared-fingerprint-after.json", "v23-shared-deriveddata-delta.json")
+                            and gate.sha(gate.regular_bytes(worker / name, limit=32 * 1024 * 1024)) == digest,
+                            "cold retained live observation receipt bytes")
+                    retained_observations[stage] = value
+                gate.exact(checkpoint.get("coldSharedObservations"), retained_observations,
+                           "cold checkpoint retains exact actual shared-step originals")
+            except (ValueError, OSError) as error:
+                notes.append("worker " + label + " original dispatch input binding: " + str(error)[:1000])
+        def retain_partial():
+            # No final manifest/checker output is sealed while an original's
+            # transport is unresolved. Resume revalidates the same claim and
+            # originals; this never retries or frees an execution question.
+            partials = directory / "cold-collection-partials"
+            partials.mkdir(exist_ok=True)
+            retained = cold_file_manifest(partials)
+            gate.require(sorted(retained) == ["%06d.json" % i for i in range(len(retained))]
+                         and len(retained) < 1000, "closed collection partial history")
+            partial = {"schema": "v23-cold-collection-partial.v1", "status": "INCOMPLETE", "runID": run_id,
+                       "runAttempt": 1, "planSHA256": attempt["planSHA256"], "problems": notes + transport_problems,
+                       "originalAttribution": attribution(), "artifacts": proof_artifacts, "retainedFiles": cold_file_manifest(directory),
+                       "functionalQualification": gate.PENDING, "developmentOnly": True, "providerQualification": False, "acceptance": False, "releaseReady": False}
+            retain("cold-collection-partials/%06d.json" % len(retained), gate.canonical(partial))
+            raise SystemExit("Cold development transport INCOMPLETE; safe originals retained; resume the same sole collector claim")
+        if transport_problems:
+            observe_collection("end-partial")
+            retain_partial()
+        retain("cold-registration.json", registration_raw)
+        retain("cold-attempt.json", attempt_raw)
+        final = fetch_json("run-after-collection.json", base)
+        cold_api_original(gate, final, run_id, plan, attempt)
+        gate.require(final.get("status") == "completed" and final.get("conclusion") == observed.get("conclusion"),
+                     "cold original changed during collection")
+        final_artifacts = phase1_artifact_census(gate, base + "/artifacts")
+        retain("artifacts-after-collection.json", gate.canonical(final_artifacts))
+        if gate.canonical(final_artifacts) != gate.canonical(listing):
+            notes.append("cold artifact API census changed during collection")
+        observe_collection("end")
+        if transport_problems:
+            retain_partial()
+        request_outcome, discovery_history = cold_read_lifecycle(gate, plan, attempt)
+        retain("cold-lifecycle.json", gate.canonical({"request": request_outcome, "history": discovery_history}))
+        proof = {"schema": "v23-cold-raw-proof.v1", "status": "INCOMPLETE", "runID": run_id,
+                 "runAttempt": 1, "planSHA256": attempt["planSHA256"], "head": plan["head"], "tree": plan["tree"],
+                 "originalAttribution": attribution(), "artifacts": proof_artifacts, "dispatchInputBindings": input_bindings,
+                 "problems": notes, "functionalQualification": gate.PENDING, "developmentOnly": True, "providerQualification": False,
+                 "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
+                 "physicalProtectionReleaseBlocker": True, "acceptance": False, "releaseReady": False,
+                 "pendingPredicates": ["payload DATA reader", "cold/no-rebuild/lifetime proof", "independent qualification"]}
+        retain("cold-raw-proof.json", gate.canonical(proof))
+        manifest = {"schema": "v23-cold-original-manifest.v1", "runID": run_id, "runAttempt": 1,
+                    "files": cold_file_manifest(directory), "rawProofSHA256": gate.sha(gate.canonical(proof))}
+        retain("manifest.json", gate.canonical(manifest))
+        print(json.dumps(proof, indent=2, sort_keys=True))
+        raise SystemExit("Cold development original retained; raw proof INCOMPLETE; qualification PENDING")
+    finally:
+        try:
+            if collection_observations and not collection_ended:
+                observe_collection("end-exception")
+        finally:
+            if authority_locked: authority_lock.rmdir()
+            lock.rmdir()
+
+
+# BEGIN LOCAL DEVELOPMENT EVENT V1
+# LOCAL DEVELOPMENT recording only. No launch, provider API, retry or admission.
+LOCAL_REQUEST_SCHEMA = "v23.local-development-request.v1"
+LOCAL_EVENT_SCHEMA = "v23.local-development-event.v1"
+LOCAL_POLICY_SHA = "9172bd2efe31bedee70ea9a2761751b9440f9bc4b2f81dd830d573d3773a6ea5"
+LOCAL_LIMIT = 256 * 1024 * 1024
+LOCAL_JSON_LIMIT = 8 * 1024 * 1024
+LOCAL_LEDGER_LIMIT = 64 * 1024 * 1024
+LOCAL_ROLES = ("sourceMap", "sourceFreeze", "policy", "toolchain", "host", "products",
+               "parentBuild", "command", "start", "result", "log", "manifest", "hold")
+LOCAL_CLASSIFICATION = {"kind": "development", "provider": "local", "developmentOnly": True,
+    "acceptance": False, "providerQualification": False, "gateQualification": False,
+    "exactMainVerification": False, "releaseReady": False, "executionAuthority": False,
+    "functionalQualification": "PENDING"}
+
+
+def local_require(condition, message):
+    if not condition:
+        raise ValueError("local DEVELOPMENT: " + message)
+
+
+def local_json(raw):
+    """Parse captured bytes before duplicate keys or nonfinite numbers can be lost."""
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            local_require(key not in result, "duplicate JSON key")
+            result[key] = value
+        return result
+    def finite_float(token):
+        value = float(token)
+        local_require(-float("inf") < value < float("inf"), "nonfinite JSON float")
+        return value
+    local_require(type(raw) is bytes and len(raw) <= LOCAL_JSON_LIMIT, "JSON byte bound")
+    try:
+        return json.loads(raw.decode("utf-8"), object_pairs_hook=pairs,
+            parse_float=finite_float,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON")))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("local DEVELOPMENT: invalid JSON") from error
+
+
+def local_canonical(value):
+    return (json.dumps(value, sort_keys=True, separators=(",", ":"),
+                       ensure_ascii=True, allow_nan=False) + "\n").encode("ascii")
+
+
+def local_sha(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def local_path(value):
+    local_require(type(value) is str and value.startswith("/") and "\x00" not in value,
+                  "absolute POSIX path")
+    path = Path(value)
+    local_require(str(path) == value and all(part not in (".", "..") for part in path.parts),
+                  "canonical path spelling")
+    return path
+
+
+def local_fact(info):
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid, info.st_nlink,
+            info.st_size, info.st_mtime_ns, info.st_ctime_ns, getattr(info, "st_flags", 0))
+
+
+def local_materialized(info, directory=False):
+    local_require((stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)),
+                  "directory/regular type")
+    local_require(not getattr(info, "st_flags", 0) & 0x40000000, "online-only/dataless input")
+    if not directory:
+        local_require(info.st_nlink == 1, "regular input must have one link")
+
+
+class LocalFence:
+    """Retain actual ancestor/file handles and initial facts through the whole call."""
+    def __init__(self):
+        self.held = []
+        self.absent = []
+
+    def open(self, path, *, directory=False, writable=False):
+        path = local_path(str(path))
+        parent = None
+        for index, component in enumerate(path.parts):
+            name = "/" if index == 0 else component
+            is_directory = directory or index < len(path.parts) - 1
+            named = os.stat(name, dir_fd=parent, follow_symlinks=False)
+            local_materialized(named, is_directory)
+            leaf_writable = writable and not is_directory
+            flags = os.O_NOFOLLOW | os.O_NONBLOCK | (os.O_RDWR | os.O_APPEND if leaf_writable else os.O_RDONLY)
+            if is_directory:
+                flags |= os.O_DIRECTORY
+            descriptor = os.open(name, flags, dir_fd=parent)
+            # Register the actual resource before any subsequent check can throw.
+            item = [descriptor, parent, name, local_fact(named), leaf_writable, str(Path(*path.parts[:index + 1]))]
+            self.held.append(item)
+            local_require(local_fact(os.fstat(descriptor)) == item[3], "named/held identity")
+            parent = descriptor
+        return self.held[-1]
+
+    def check(self, except_items=()):
+        for item in self.held:
+            if any(item is excluded for excluded in except_items):
+                continue
+            descriptor, parent, name, expected, _ = item[:5]
+            local_require(local_fact(os.fstat(descriptor)) == expected
+                and local_fact(os.stat(name, dir_fd=parent, follow_symlinks=False)) == expected,
+                "initial full facts changed")
+        for descriptor, name in self.absent:
+            try:
+                os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            raise ValueError("local DEVELOPMENT: prospective original appeared")
+
+    def close(self):
+        error = None
+        for item in reversed(self.held):
+            try:
+                os.close(item[0])
+            except OSError as caught:
+                error = error or caught
+        self.held = []
+        self.absent = []
+        if error is not None:
+            raise error  # Uncertain close is never retried or labelled settled.
+
+
+def local_ref(value):
+    local_require(type(value) is dict and set(value) == {"path", "sha256", "bytes"}, "closed raw reference")
+    local_path(value["path"])
+    local_require(type(value["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", value["sha256"]),
+                  "raw SHA256")
+    local_require(type(value["bytes"]) is int and 0 <= value["bytes"] <= LOCAL_LIMIT, "raw byte bound")
+    return value
+
+
+def local_read(fence, reference, *, capture=False, writable=False):
+    reference = local_ref(reference)
+    local_require(not capture or reference["bytes"] <= LOCAL_JSON_LIMIT, "captured JSON bound")
+    item = fence.open(reference["path"], writable=writable)
+    descriptor = item[0]
+    local_require(item[3][6] == reference["bytes"], "expected raw size")
+    digest, chunks, count = hashlib.sha256(), [], 0
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    while True:
+        block = os.read(descriptor, min(65536, reference["bytes"] - count + 1))
+        if not block:
+            break
+        count += len(block)
+        local_require(count <= reference["bytes"], "first excess raw byte")
+        digest.update(block)
+        if capture:
+            chunks.append(block)
+    local_require(count == reference["bytes"] and digest.hexdigest() == reference["sha256"], "raw digest/length")
+    fence.check()
+    return (b"".join(chunks) if capture else None), item
+
+
+def local_request(value):
+    keys = {"schema", "registrationMode", "originalKind", "originalDirectory", "questionID", "head",
+            "sourceWorktree", "selectors", "plannedArgv", "bindings", "registration"}
+    local_require(type(value) is dict and set(value) == keys and value["schema"] == LOCAL_REQUEST_SCHEMA,
+                  "closed request schema")
+    local_require(value["registrationMode"] in ("prospective", "after-the-fact"), "registration mode")
+    local_require(value["originalKind"] in ("build-for-testing", "test-without-building"), "original kind")
+    local_path(value["originalDirectory"]); local_path(value["sourceWorktree"])
+    local_require(type(value["head"]) is str and re.fullmatch(r"[0-9a-f]{40}", value["head"]), "source HEAD")
+    local_require(type(value["questionID"]) is str
+        and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,95}", value["questionID"]), "question ID")
+    selectors = value["selectors"]
+    local_require(type(selectors) is list and len(selectors) <= 4096
+        and all(type(x) is str and re.fullmatch(r"FieldEvidenceApp(?:UI)?Tests/[A-Za-z0-9_]+/test[A-Za-z0-9_]+", x)
+                for x in selectors) and len(set(selectors)) == len(selectors), "ordered unique native selectors")
+    local_require(bool(selectors) == (value["originalKind"] == "test-without-building"), "build/native selection")
+    argv = value["plannedArgv"]
+    local_require(type(argv) is list and 1 <= len(argv) <= 8192
+        and all(type(x) is str and 0 < len(x) <= 16384 and "\x00" not in x for x in argv), "planned argv")
+    if argv[0] != "xcodebuild":
+        local_path(argv[0])
+    local_require(Path(argv[0]).name == "xcodebuild" and len(argv) >= 2 and argv[1] == value["originalKind"],
+                  "actual xcodebuild execution-kind argv (comparison only; never launched)")
+    selected = [arg[len("-only-testing:"):] for arg in argv if arg.startswith("-only-testing:")]
+    local_require(selected == selectors, "actual ordered argv selection")
+    bindings = value["bindings"]
+    local_require(type(bindings) is dict and set(bindings) == set(LOCAL_ROLES), "closed binding roles")
+    for role, reference in bindings.items():
+        if reference is not None:
+            local_ref(reference)
+    for role in ("sourceMap", "sourceFreeze", "policy"):
+        local_require(bindings[role] is not None, "required " + role)
+    local_require(bindings["policy"]["sha256"] == LOCAL_POLICY_SHA, "owner local27 decision pin")
+    if value["registration"] is not None:
+        local_ref(value["registration"])
+    local_require(value["registrationMode"] != "after-the-fact" or value["registration"] is None,
+                  "after-the-fact cannot claim a reservation")
+    return value
+
+
+def local_question_key(request):
+    return local_sha(local_canonical({key: request[key] for key in
+        ("head", "sourceWorktree", "originalKind", "questionID", "selectors")} |
+        {"sourceMapSHA256": request["bindings"]["sourceMap"]["sha256"]}))
+
+
+def local_spec(request):
+    return {key: request[key] for key in ("originalDirectory", "head", "sourceWorktree", "originalKind",
+            "questionID", "selectors", "plannedArgv")} | {"sourceMap": request["bindings"]["sourceMap"],
+            "sourceFreeze": request["bindings"]["sourceFreeze"], "policy": request["bindings"]["policy"]}
+
+
+def local_validate_inputs(fence, request, event):
+    values = {}
+    original_path = Path(request["originalDirectory"])
+    if event == "local-development-registered":
+        parent = fence.open(original_path.parent, directory=True)
+        try:
+            os.stat(original_path.name, dir_fd=parent[0], follow_symlinks=False)
+        except FileNotFoundError:
+            fence.absent.append((parent[0], original_path.name))
+            original = parent
+        else:
+            original = fence.open(original_path, directory=True)
+            local_require(not set(os.listdir(original[0])) & {"COMMAND.json", "START.json", "RESULT.json",
+                "ROOT_COMMAND.json", "ROOT_START.json", "ROOT_RESULT.json"}, "registration after launch receipts exists")
+    else:
+        original = fence.open(original_path, directory=True)
+    for role, reference in request["bindings"].items():
+        if reference is not None:
+            raw, _ = local_read(fence, reference, capture=role not in ("log", "hold"))
+            if role not in ("log", "hold"):
+                values[role] = local_json(raw)
+    source_map = values["sourceMap"]
+    local_require(type(source_map) is dict and 1 <= len(source_map) <= 10000, "source map count")
+    for name, row in source_map.items():
+        local_require(type(name) is str and name and not name.startswith("/")
+            and all(x not in ("", ".", "..") for x in name.split("/")), "source member")
+        local_require(type(row) is dict and set(row) == {"sha256", "bytes", "mode"}
+            and type(row["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", row["sha256"])
+            and type(row["bytes"]) is int and row["bytes"] >= 0
+            and row["mode"] in ("0o644", "0o755", "0o600"), "source map row")
+    frozen = values["sourceFreeze"]
+    local_require(type(frozen) is dict and frozen.get("sourceHEAD") == request["head"]
+        and frozen.get("sourceWorktree") == request["sourceWorktree"]
+        and frozen.get("allInputs") == {key: request["bindings"]["sourceMap"][key] for key in ("path", "sha256")},
+        "HEAD/worktree/full source-map freeze join")
+    if "toolchain" in values:
+        toolchain = values["toolchain"]
+        local_require(type(toolchain) is dict
+            and (toolchain.get("xcodeVersion"), toolchain.get("xcodeBuild"), toolchain.get("runtimeVersion"),
+                 toolchain.get("runtimeBuild")) == ("27.0", "27A266a", "26.2", "23C54"),
+            "local27 toolchain/runtime tuple")
+    if event == "local-development-registered":
+        local_require(request["registrationMode"] == "prospective" and request["registration"] is None
+            and all(request["bindings"][role] is None for role in ("command", "start", "result", "log", "manifest", "hold")),
+            "registration must precede launch receipts")
+    else:
+        local_require(all(role in values for role in ("command", "start")), "actual COMMAND/START required")
+        for role in ("command", "start", "result"):
+            ref = request["bindings"][role]
+            if ref is not None:
+                local_require(Path(ref["path"]).parent == Path(request["originalDirectory"]), "original receipt parent")
+                local_require(Path(ref["path"]).name in {role.upper() + ".json", "ROOT_" + role.upper() + ".json"},
+                              "canonical original receipt role name")
+        command, start = values["command"], values["start"]
+        local_require(type(command) is dict and command.get("argv") == request["plannedArgv"]
+            and command.get("cwd") == request["sourceWorktree"], "actual command argv/source worktree")
+        local_require(type(start) is dict and any(type(start.get(key)) is int and start[key] > 0
+            for key in ("pid", "rootPID", "controllerPID")), "actual START process association")
+        started = start.get("atUTC", start.get("startedUTC"))
+        local_require(type(started) is str
+            and datetime.datetime.fromisoformat(started).utcoffset() == datetime.timedelta(0), "actual START UTC")
+        for row in (command, start):
+            local_require("questionID" not in row or row["questionID"] == request["questionID"], "actual question ID")
+        if request["registrationMode"] == "prospective":
+            local_require(request["registration"] is not None, "prospective actual reservation")
+            raw, _ = local_read(fence, request["registration"], capture=True)
+            registration = local_event(local_json(raw))
+            local_require(raw == local_canonical(registration), "reservation exact canonical captured bytes")
+            local_require(registration["event"] == "local-development-registered"
+                and registration["spec"] == local_spec(request)
+                and command.get("localDevelopmentRegistration") == {key: request["registration"][key]
+                    for key in ("path", "sha256")}
+                and start.get("commandSHA256") == request["bindings"]["command"]["sha256"],
+                "reservation embedded in actual COMMAND and START")
+        if "result" in values:
+            result = values["result"]
+            local_require(type(result) is dict and (type(result.get("exitCode")) is int
+                or type(result.get("controllerExitCode")) is int), "actual result exit (failure is retained)")
+            local_require("questionID" not in result or result["questionID"] == request["questionID"], "result question ID")
+            if "sourceHEAD" in result:
+                local_require(result["sourceHEAD"] == request["head"], "result HEAD")
+            if "trackedInputs" in result:
+                local_require(result["trackedInputs"] == {key: request["bindings"]["sourceMap"][key]
+                    for key in ("path", "sha256")}, "result input-map join")
+            if "trackedInputSHA256" in result:
+                local_require(result["trackedInputSHA256"] == request["bindings"]["sourceMap"]["sha256"],
+                              "native result input-map join")
+            if "command" in result:
+                local_require(result["command"] == {key: request["bindings"]["command"][key]
+                    for key in ("path", "sha256")}, "result COMMAND join")
+            local_require(request["originalKind"] != "build-for-testing"
+                or result.get("runtimeExecuted") is None or result.get("runtimeExecuted") is False,
+                "build cannot claim runtime execution")
+            local_require(result.get("runtimeExecuted") is None or type(result["runtimeExecuted"]) is bool,
+                          "runtime-executed DATA type")
+    fence.check()
+    return values, original
+
+
+def local_event(value):
+    keys = {"schema", "event", "questionKey", "recordedAtUTC", "requestBytes", "requestSHA256", "spec",
+            "originalIdentity", "registrationMode", "classification", "retentionStatus", "missingRoles",
+            "tupleFacts", "ledgerStatus"}
+    local_require(type(value) is dict and set(value) == keys and value["schema"] == LOCAL_EVENT_SCHEMA,
+                  "closed event schema")
+    local_require(value["event"] in ("local-development-registered", "local-development-recorded"), "event type")
+    local_require(value["classification"] == LOCAL_CLASSIFICATION
+        and all(type(value["classification"][key]) is type(expected) for key, expected in LOCAL_CLASSIFICATION.items())
+        and value["ledgerStatus"] == "PENDING_APPEND",
+                  "fixed DATA-only classification")
+    local_require(type(value["requestBytes"]) is str, "captured request bytes")
+    raw = value["requestBytes"].encode("utf-8")
+    request = local_request(local_json(raw))
+    local_require(local_sha(raw) == value["requestSHA256"] and value["questionKey"] == local_question_key(request)
+        and value["spec"] == local_spec(request) and value["registrationMode"] == request["registrationMode"],
+        "event immutable request/key/spec")
+    identity = {"directory": request["originalDirectory"], "command": request["bindings"]["command"],
+                "start": request["bindings"]["start"]}
+    local_require(value["originalIdentity"] == identity, "genuine original identity refs")
+    local_require(type(value["recordedAtUTC"]) is str
+        and datetime.datetime.fromisoformat(value["recordedAtUTC"]).utcoffset() == datetime.timedelta(0), "UTC recording time")
+    local_require(value["retentionStatus"] == "DATA_ONLY_UNQUALIFIED"
+        and value["missingRoles"] == [role for role in LOCAL_ROLES if request["bindings"][role] is None], "pending roles")
+    local_require(type(value["tupleFacts"]) is dict and set(value["tupleFacts"]) ==
+        {"sourceHEAD", "inputMapSHA256", "xcodeVersion", "xcodeBuild", "sdkVersion", "runtimeVersion", "runtimeBuild",
+         "compilerVersion", "sdkBuild", "macOS", "macOSBuild", "productsSHA256", "runtimeExecuted"}, "closed tuple DATA fields")
+    local_require(value["tupleFacts"]["sourceHEAD"] == request["head"]
+        and value["tupleFacts"]["inputMapSHA256"] == request["bindings"]["sourceMap"]["sha256"], "tuple source DATA")
+    return value
+
+
+def local_members(descriptor):
+    """Closed flat packet/attempt directories; bounded original members are never rebased."""
+    rows = {}
+    with os.scandir(descriptor) as entries:
+        for entry in entries:
+            local_require(len(rows) < 10000 and entry.name not in rows, "packet directory membership bound")
+            info = os.stat(entry.name, dir_fd=descriptor, follow_symlinks=False)
+            local_materialized(info)
+            rows[entry.name] = local_fact(info)
+    return rows
+
+
+def local_write_once(path, raw):
+    fence = LocalFence()
+    descriptor = None
+    try:
+        path = local_path(str(path))
+        parent = fence.open(path.parent, directory=True)
+        members = local_members(parent[0])
+        fence.check()
+        descriptor = os.open(path.name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             0o600, dir_fd=parent[0])
+        # descriptor is the retained actual owner immediately after allocation.
+        allocated = local_fact(os.fstat(descriptor))
+        local_materialized(os.fstat(descriptor))
+        local_require(allocated[2] == stat.S_IFREG | 0o600 and allocated[3] == os.geteuid()
+            and allocated[4] == parent[3][4] and allocated[6] == 0
+            and local_fact(os.stat(path.name, dir_fd=parent[0], follow_symlinks=False)) == allocated,
+            "allocated output named/held 0600 owner identity before write")
+        created_parent = local_fact(os.fstat(parent[0]))
+        local_require(created_parent[:5] == parent[3][:5] and created_parent[5] == parent[3][5] + 1
+            and created_parent[9] == parent[3][9]
+            and local_fact(os.stat(parent[2], dir_fd=parent[1], follow_symlinks=False)) == created_parent
+            and local_members(parent[0]) == members | {path.name: allocated},
+            "actual exclusive allocation parent projection before write: before=" + repr(parent[3])
+            + " creation=" + repr(created_parent))
+        parent[3] = created_parent  # Only the proved O_EXCL creation delta, before content writes.
+        fence.check()
+        count = 0
+        while count < len(raw):
+            written = os.write(descriptor, raw[count:])
+            local_require(type(written) is int and 0 < written <= len(raw) - count, "positive bounded write")
+            count += written
+        os.fsync(descriptor)
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        digest, read_count = hashlib.sha256(), 0
+        while True:
+            block = os.read(descriptor, min(65536, len(raw) - read_count + 1))
+            if not block:
+                break
+            read_count += len(block)
+            local_require(read_count <= len(raw), "immutable first excess readback")
+            digest.update(block)
+        local_require(read_count == len(raw) and digest.hexdigest() == local_sha(raw), "immutable exact readback")
+        info = os.fstat(descriptor)
+        local_materialized(info)
+        local_require(local_fact(info)[:6] == allocated[:6] and local_fact(info)[9] == allocated[9]
+            and info.st_size == len(raw) and local_fact(os.stat(path.name, dir_fd=parent[0],
+            follow_symlinks=False)) == local_fact(info), "new immutable allocated named/held file")
+        closing = descriptor; descriptor = None; os.close(closing)
+        os.fsync(parent[0])
+        expected_members = members | {path.name: local_fact(info)}
+        local_require(local_members(parent[0]) == expected_members, "immutable parent membership/full facts")
+        # Only the actual creation may change its immediate parent's time/size.
+        post = local_fact(os.fstat(parent[0]))
+        local_require(post == parent[3], "parent exact proved creation projection")
+        fence.check()
+        return local_fact(info), created_parent
+    finally:
+        try:
+            if descriptor is not None:
+                closing = descriptor; descriptor = None; os.close(closing)
+        finally:
+            fence.close()
+
+
+def local_tuple(request, values):
+    toolchain = values.get("toolchain", {})
+    facts = {key: toolchain.get(key) for key in ("xcodeVersion", "xcodeBuild", "sdkVersion", "runtimeVersion", "runtimeBuild")}
+    host = values.get("host", {}) if type(values.get("host", {})) is dict else {}
+    facts.update(sourceHEAD=request["head"], inputMapSHA256=request["bindings"]["sourceMap"]["sha256"],
+        compilerVersion=values.get("result", {}).get("compilerVersion"), sdkBuild=toolchain.get("sdkBuild"),
+        macOS=host.get("macOS"), macOSBuild=host.get("macOSBuild"),
+        productsSHA256=request["bindings"]["products"]["sha256"] if request["bindings"]["products"] else None,
+        runtimeExecuted=values.get("result", {}).get("runtimeExecuted"))
+    local_require(all(value is None or type(value) is str for key, value in facts.items() if key != "runtimeExecuted"),
+                  "literal tuple DATA strings (missing facts remain null)")
+    local_require(facts["runtimeExecuted"] is None or type(facts["runtimeExecuted"]) is bool, "runtime-executed DATA type")
+    return facts
+
+
+def local_prepare(request_ref, output, event):
+    local_require(sys.platform == "darwin", "local27 recording supports the reviewed macOS route only")
+    fence = LocalFence()
+    try:
+        raw, _ = local_read(fence, request_ref, capture=True)
+        request = local_request(local_json(raw))
+        values, _ = local_validate_inputs(fence, request, event)
+        facts = local_tuple(request, values)
+        value = {"schema": LOCAL_EVENT_SCHEMA, "event": event, "questionKey": local_question_key(request),
+            "recordedAtUTC": now(), "requestBytes": raw.decode("utf-8"), "requestSHA256": local_sha(raw),
+            "spec": local_spec(request), "originalIdentity": {"directory": request["originalDirectory"],
+                "command": request["bindings"]["command"], "start": request["bindings"]["start"]},
+            "registrationMode": request["registrationMode"], "classification": dict(LOCAL_CLASSIFICATION),
+            "retentionStatus": "DATA_ONLY_UNQUALIFIED", "missingRoles": [role for role in LOCAL_ROLES
+                if request["bindings"][role] is None], "tupleFacts": facts, "ledgerStatus": "PENDING_APPEND"}
+        local_event(value)
+        output = local_path(str(output))
+        local_require(output.parent != Path(request["originalDirectory"])
+            and Path(request["originalDirectory"]) not in output.parents
+            and Path(request["sourceWorktree"]) not in output.parents, "output cannot modify original/source")
+        local_require(not any(output.parent == Path(item[5]) for item in fence.held),
+                      "output parent must be distinct from retained input directories")
+        fence.check()
+        encoded = local_canonical(value)
+        local_require(len(encoded) <= LOCAL_JSON_LIMIT, "candidate event byte bound")
+        local_write_once(output, encoded)
+        fence.check()
+        return value
+    finally:
+        fence.close()
+
+
+def local_append(event_ref, ledger_sha256):
+    """Append to the existing canonical ledger only; a partial attempt permanently blocks repetition."""
+    local_require(sys.platform == "darwin", "local27 append supports the reviewed macOS route only")
+    import fcntl
+    local_require(type(ledger_sha256) is str and re.fullmatch(r"[0-9a-f]{64}", ledger_sha256), "canonical ledger preimage SHA")
+    fence = LocalFence()
+    claim = None
+    try:
+        event_raw, _ = local_read(fence, event_ref, capture=True)
+        event = local_event(local_json(event_raw))
+        local_require(event_raw == local_canonical(event), "event exact canonical captured bytes")
+        request = local_request(local_json(event["requestBytes"].encode("utf-8")))
+        values, _ = local_validate_inputs(fence, request, event["event"])
+        local_require(event["tupleFacts"] == local_tuple(request, values), "tuple DATA derives from bound raw inputs")
+        ledger_path = local_path(str(LEDGER))
+        ledger_item = fence.open(ledger_path, writable=True)
+        local_require(ledger_item[3][6] <= LOCAL_LEDGER_LIMIT, "canonical ledger byte bound")
+        fcntl.flock(ledger_item[0], fcntl.LOCK_EX | fcntl.LOCK_NB)
+        ledger_ref = {"path": str(ledger_path), "sha256": ledger_sha256, "bytes": ledger_item[3][6]}
+        # Retain/read the same locked descriptor; never substitute another ledger handle.
+        os.lseek(ledger_item[0], 0, os.SEEK_SET)
+        pieces, count = [], 0
+        while True:
+            block = os.read(ledger_item[0], min(65536, ledger_ref["bytes"] - count + 1))
+            if not block:
+                break
+            count += len(block); local_require(count <= ledger_ref["bytes"], "ledger first excess")
+            pieces.append(block)
+        before = b"".join(pieces)
+        local_require(len(before) == ledger_ref["bytes"] and local_sha(before) == ledger_sha256, "canonical ledger exact preimage")
+        local_require(bool(before.strip()), "historical canonical ledger must not be empty")
+        local_require(not before or before.endswith(b"\n"), "unterminated canonical ledger (no repair)")
+        lines = [line for line in before.splitlines(keepends=True) if line.strip()]
+        rows = [local_json(line) for line in lines]
+        local_require(all(type(row) is dict for row in rows), "canonical ledger objects")
+        local_rows = [row for row in rows if row.get("schema") == LOCAL_EVENT_SCHEMA]
+        for line, row in zip(lines, rows):
+            if row.get("schema") == LOCAL_EVENT_SCHEMA:
+                local_event(row)
+                local_require(line == local_canonical(row), "local ledger row exact canonical bytes")
+        same = [row for row in local_rows if row["questionKey"] == event["questionKey"]]
+        same_raw = [line for line, row in zip(lines, rows) if row.get("schema") == LOCAL_EVENT_SCHEMA
+                    and row["questionKey"] == event["questionKey"]]
+        local_require(not any(row["event"] == event["event"] for row in same), "event already ledgered")
+        if event["event"] == "local-development-registered":
+            local_require(not same, "question already recorded")
+        elif request["registrationMode"] == "prospective":
+            local_require(len(same) == 1 and same[0]["event"] == "local-development-registered"
+                and same[0]["spec"] == event["spec"], "prospective registration must already be ledgered")
+            local_require(len(same_raw) == 1 and local_sha(same_raw[0]) == request["registration"]["sha256"]
+                and len(same_raw[0]) == request["registration"]["bytes"],
+                "prospective exact captured reservation must be the actual ledgered registration")
+        else:
+            local_require(not same, "after-the-fact question already reserved/recorded")
+        addition = local_canonical(event)
+        local_require(len(before) + len(addition) <= LOCAL_LEDGER_LIMIT,
+                      "resulting canonical ledger byte bound before claim")
+        fence.check()
+        attempts = ledger_path.parent / "v23-local-development-attempts"
+        attempt_parent = fence.open(attempts, directory=True)  # Existing root-prepared directory only.
+        members = local_members(attempt_parent[0])
+        claim_name = event["questionKey"] + "-" + event["event"] + ".json"
+        claim = attempts / claim_name
+        local_require(claim_name not in members, "consumed/uncertain append key")
+        fence.check()
+        claim_raw = local_canonical({"schema": "v23.local-development-append-attempt.v1",
+            "eventSHA256": local_sha(event_raw), "event": event["event"], "questionKey": event["questionKey"],
+            "ledgerPreimageSHA256": ledger_sha256, "recordedAtUTC": now(), "state": "CONSUMED_BEFORE_APPEND"})
+        claim_expected, claim_creation_parent = local_write_once(claim, claim_raw)
+        claim_fact = local_fact(os.stat(claim_name, dir_fd=attempt_parent[0], follow_symlinks=False))
+        local_require(claim_fact == claim_expected, "actual consumed claim publication identity")
+        local_require(local_members(attempt_parent[0]) == members | {claim_name: claim_fact}, "attempt membership/full facts")
+        post = local_fact(os.fstat(attempt_parent[0]))
+        local_require(claim_creation_parent[:5] == attempt_parent[3][:5]
+            and claim_creation_parent[5] == attempt_parent[3][5] + 1
+            and claim_creation_parent[9] == attempt_parent[3][9]
+            and post == claim_creation_parent
+            and local_fact(os.stat(attempt_parent[2], dir_fd=attempt_parent[1],
+                follow_symlinks=False)) == claim_creation_parent,
+            "attempt directory exact original creation projection: before=" + repr(attempt_parent[3])
+            + " creation=" + repr(claim_creation_parent) + " current=" + repr(post))
+        attempt_parent[3] = claim_creation_parent
+        fence.check()
+        _, claim_item = local_read(fence, {"path": str(claim), "sha256": local_sha(claim_raw), "bytes": len(claim_raw)}, capture=True)
+        local_require(claim_item[3] == claim_expected, "consumed claim held identity")
+        count = 0
+        while count < len(addition):
+            written = os.write(ledger_item[0], addition[count:])
+            local_require(type(written) is int and 0 < written <= len(addition) - count, "ledger positive bounded write")
+            count += written
+        os.fsync(ledger_item[0])
+        # Own append is checked against complete original bytes, never a refreshed baseline.
+        after_fact = local_fact(os.fstat(ledger_item[0]))
+        local_require(after_fact[:6] == ledger_item[3][:6] and after_fact[9] == ledger_item[3][9]
+            and after_fact[6] == len(before) + len(addition), "ledger own append identity/size")
+        os.lseek(ledger_item[0], 0, os.SEEK_SET)
+        digest, actual = hashlib.sha256(), 0
+        expected = hashlib.sha256(before + addition).hexdigest()
+        while True:
+            block = os.read(ledger_item[0], min(65536, len(before) + len(addition) - actual + 1))
+            if not block:
+                break
+            actual += len(block); local_require(actual <= len(before) + len(addition), "ledger readback excess")
+            digest.update(block)
+        local_require(actual == len(before) + len(addition) and digest.hexdigest() == expected, "ledger exact append readback")
+        ledger_item[3] = after_fact
+        fence.check()
+        fence.close()  # Includes actual locked-ledger checked close before success.
+        return {"schema": "v23.local-development-append-result.v1", "eventSHA256": local_sha(event_raw),
+            "ledgerSHA256": expected, "ledgerAppended": True, "claim": str(claim),
+            "classification": dict(LOCAL_CLASSIFICATION)}
+    finally:
+        fence.close()
+
+
+def local_cli(args):
+    reference = {"path": args.request if args.command != "local-append" else args.event,
+                 "sha256": args.sha256, "bytes": args.bytes}
+    if args.command == "local-append":
+        result = local_append(reference, args.ledger_sha256)
+    else:
+        result = local_prepare(reference, args.output, "local-development-registered"
+            if args.command == "local-register" else "local-development-recorded")
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return result
+# END LOCAL DEVELOPMENT EVENT V1
+
 def main():
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
+    # Closed local DATA recording commands do not dispatch or grant admission.
+    for local_command in ("local-register", "local-record", "local-append"):
+        local_parser = commands.add_parser(local_command)
+        local_parser.add_argument("--event" if local_command == "local-append" else "--request", required=True)
+        local_parser.add_argument("--sha256", required=True)
+        local_parser.add_argument("--bytes", type=int, required=True)
+        if local_command == "local-append":
+            local_parser.add_argument("--ledger-sha256", required=True)
+        else:
+            local_parser.add_argument("--output", required=True)
     dispatch_parser = commands.add_parser("dispatch")
     dispatch_parser.add_argument("--selection", required=True)
     dispatch_parser.add_argument("--kind", choices=KINDS,
@@ -3755,6 +5242,11 @@ def main():
     dispatch_parser.add_argument("--reason", help="required with --infra-retry-of")
     dispatch_parser.add_argument("--phase1-plan", metavar="PATH",
                                  help="reserved Phase1 contract; dispatch is disabled pending implementation/review")
+    dispatch_parser.add_argument("--cold-plan", type=Path, help="dedicated cold DEVELOPMENT intent; no qualification")
+    cold_register = commands.add_parser("preregister-cold")
+    cold_register.add_argument("--plan", type=Path, required=True)
+    cold_discovery = commands.add_parser("discover-cold")
+    cold_discovery.add_argument("--plan", type=Path, required=True)
     register_parser = commands.add_parser("preregister-phase1")
     register_parser.add_argument("--plan", type=Path, required=True,
                                  help="canonical pending candidate plan; no dispatch or gate credit")
@@ -3775,10 +5267,20 @@ def main():
     args = parser.parse_args()
     if args.command == "dispatch" and (args.infra_retry_of is None) != (args.reason is None):
         parser.error("--infra-retry-of and --reason must be given together")
-    EVIDENCE.mkdir(parents=True, exist_ok=True)
+    if args.command in ("local-register", "local-record", "local-append"):
+        local_cli(args)
+        return
+    cold_command = (args.command in ("preregister-cold", "discover-cold") or
+                    (args.command == "dispatch" and (args.cold_plan is not None or args.selection == COLD_SELECTION_ID)))
+    if not cold_command:
+        EVIDENCE.mkdir(parents=True, exist_ok=True)
     if args.command == "dispatch":
         dispatch(args.selection, args.kind, args.infra_retry_of, args.reason, args.phase1_plan,
-                 args.compiler_observation, args.swift_driver_jobs_two)
+                 args.compiler_observation, args.swift_driver_jobs_two, args.cold_plan)
+    elif args.command == "preregister-cold":
+        preregister_cold(args.plan)
+    elif args.command == "discover-cold":
+        cold_original_lifecycle(args.plan, kind="development", discover=True)
     elif args.command == "preregister-phase1":
         preregister_phase1(args.plan)
     elif args.command == "discover-phase1":

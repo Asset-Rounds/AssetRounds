@@ -465,6 +465,8 @@ DEV_BATCH_BINDING_KEYS = {"path", "schema", "sha256", "question", "developmentOn
 # exact bytes and run one closed partition each. The partitions file must cover every
 # direct runnable XCTest method at the checkout. Never acceptance or merge credit.
 SHARED_SELECTION_ID = "v23-shared-coverage-d50x"
+COLD_SELECTION_ID = "v23-cold-shared-original-v1"
+SHARED_SELECTION_IDS = (SHARED_SELECTION_ID, COLD_SELECTION_ID)
 SHARED_PARTITIONS_PATH = "Scripts/v23-coverage-partitions.json"
 SHARED_PARTITIONS_SCHEMA = "v23-coverage-partitions.v2"
 SHARED_KEY = "sharedCoverage"
@@ -2924,7 +2926,7 @@ def selected_input(root, environment):
         require((role, partition, payload) == ("none", "", ""), "V23 shared inputs outside the shared route")
         resolve_selection(default, selection_map, DEFAULT_SELECTION_ID)
         selected = development_batch_selection(root)
-    elif selection_id == SHARED_SELECTION_ID:
+    elif selection_id in SHARED_SELECTION_IDS:
         # One plan per head: the producer builds for it; each consumer runs one
         # closed partition of it. Dispatch (no role) resolves the plan itself.
         resolve_selection(default, selection_map, DEFAULT_SELECTION_ID)
@@ -2997,6 +2999,46 @@ def phase1_worker_context(root, environment, *, remaining=None):
     return binding, raw, selected, selection_record
 
 
+def cold_worker_context(root, environment, *, remaining=None):
+    """Bind the real development event, checkout and full shared census; never a gate."""
+    gate = load_phase1_gates(root)
+    require(not environment.get("V23_COLD_ORIGINAL_PLAN") and not environment.get(gate.COLD_PLAN_INPUT),
+            "environment-only cold intent is refused")
+    event_path = environment.get("GITHUB_EVENT_PATH")
+    require(type(event_path) is str and event_path, "cold actual caller event path")
+    raw = gate.regular_bytes(Path(event_path), limit=gate.MAX_EVENT_BYTES)
+    plan, _ = gate.cold_plan_from_event(raw)
+    require(plan is not None, "cold actual caller intent")
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True,
+                                   **({"timeout": remaining()} if remaining is not None else {})).strip()
+    tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=root, text=True,
+                                   **({"timeout": remaining()} if remaining is not None else {})).strip()
+    selected, selection_record = selected_input(root, environment)
+    require(selection_record["selectionID"] == COLD_SELECTION_ID, "cold actual worker selection")
+    sources = {path: sha256(gate.regular_bytes(root / path, limit=PHASE1_WITNESS_BYTES)) for path in gate.SOURCES}
+    binding = gate.bind_cold_original_event(raw, environment, head=head, tree=tree,
+                    resolved_bytes=canonical(shared_selection(root)), sources=sources)
+    return binding, raw, selected, selection_record
+
+
+def cold_event_admission(root, environment, selection_record):
+    if (environment.get("GITHUB_EVENT_PATH") is None and selection_record["selectionID"] != COLD_SELECTION_ID
+            and not environment.get("V23_COLD_ORIGINAL_PLAN") and not environment.get("v23_cold_original_plan")):
+        return None
+    gate = load_phase1_gates(root)
+    require(not environment.get("V23_COLD_ORIGINAL_PLAN") and not environment.get(gate.COLD_PLAN_INPUT),
+            "environment-only cold intent is refused")
+    path = environment.get("GITHUB_EVENT_PATH")
+    plan = None
+    if path is not None:
+        plan, _ = gate.cold_plan_from_event(gate.regular_bytes(Path(path), limit=gate.MAX_EVENT_BYTES))
+    if plan is None and selection_record["selectionID"] != COLD_SELECTION_ID:
+        return None
+    require(plan is not None and selection_record["selectionID"] == COLD_SELECTION_ID,
+            "cold selection requires its dedicated genuine event")
+    return cold_worker_context(root, environment)[0]
+
+
 def admission(selection, environment, checkout_head, stage, selection_record=None, root=None):
     """Validate actual source inputs. Return None only for unchanged legacy routes."""
     e = environment
@@ -3006,6 +3048,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     if selection_record is None:
         selection_record = {"selectionID": DEFAULT_SELECTION_ID,
                             "selectionSHA256": sha256(canonical(selection)), "selectionMapSHA256": ""}
+    cold_binding = cold_event_admission(root, e, selection_record)
     require(stage in ("dispatch", "worker"), "admission stage")
     if stage == "dispatch":
         lane = e.get("SHARED_LANE", "")
@@ -3048,7 +3091,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
         require(e.get("DISPATCH_NATIVE_SELECTION_ID") == selection_record["selectionID"],
                 "dispatcher selection ID")
         dispatched_selection_sha256 = selection_record["selectionSHA256"]
-        if selection_record["selectionID"] == SHARED_SELECTION_ID:
+        if selection_record["selectionID"] in SHARED_SELECTION_IDS:
             # Dispatch binds the one plan; each worker's own selection derives from it.
             require(isinstance(selection_record.get(SHARED_KEY), dict), "shared coverage record binding")
             dispatched_selection_sha256 = selection_record[SHARED_KEY].get("planSHA256")
@@ -3091,7 +3134,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     }
     development_batch = (selection_record["selectionID"] == DEV_BATCH_SELECTION_ID
                          or DEV_BATCH_KEY in selection)
-    shared = (selection_record["selectionID"] == SHARED_SELECTION_ID or SHARED_KEY in selection
+    shared = (selection_record["selectionID"] in SHARED_SELECTION_IDS or SHARED_KEY in selection
               or SHARED_KEY in selection_record)
     if not shared:
         require(shared_route_environment(e) == ("none", "", ""), "V23 shared inputs outside the shared route")
@@ -3111,7 +3154,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
     elif shared:
         # No parent/tree pin: the plan and partition are recomputed from the checked-in
         # partition file, whose union must equal every runnable method at this checkout.
-        require(selection_record["selectionID"] == SHARED_SELECTION_ID, "shared coverage selector binding")
+        require(selection_record["selectionID"] in SHARED_SELECTION_IDS, "shared coverage selector binding")
         role, partition, payload = shared_route_environment(e)
         plan = shared_selection(root)
         require(selection_record.get(SHARED_KEY) == shared_record_binding(root, e, plan),
@@ -3166,6 +3209,7 @@ def admission(selection, environment, checkout_head, stage, selection_record=Non
             require(tree == expected_tree, "no-index unchanged app/tests/project")
     return {"contractID": CONTRACT, "taskID": TASK, "repository": REPOSITORY,
             **({"phase1Gate": phase1_binding} if phase1_binding is not None else {}),
+            **({"coldOriginal": cold_binding} if cold_binding is not None else {}),
             "ref": e["GITHUB_REF"], "head": head, "runID": e["GITHUB_RUN_ID"],
             "runAttempt": e["GITHUB_RUN_ATTEMPT"], "executionLane": lane,
             "runnerProvider": provider, "runnerLabel": label, **selection_record,
@@ -3388,7 +3432,7 @@ def build_order_observations(artifact, record, selected_udid):
 
 def no_index_build_receipt(root, artifact, record, environment, *, command_artifact=None):
     development_batch = record["selectionID"] == DEV_BATCH_SELECTION_ID
-    shared = record["selectionID"] == SHARED_SELECTION_ID
+    shared = record["selectionID"] in SHARED_SELECTION_IDS
     if shared:
         require(shared_role(record) == "producer", "shared coverage build is producer-only")
     unpinned = development_batch or shared or record["selectionID"] == UI_BATCH_SELECTION_ID
@@ -3454,7 +3498,7 @@ def shared_worker_sources(root):
 
 
 def shared_role(record):
-    binding = record.get(SHARED_KEY) if record.get("selectionID") == SHARED_SELECTION_ID else None
+    binding = record.get(SHARED_KEY) if record.get("selectionID") in SHARED_SELECTION_IDS else None
     require(isinstance(binding, dict) and binding.get("role") in SHARED_ROLES, "shared coverage admitted role")
     return binding["role"]
 
@@ -3653,7 +3697,7 @@ def shared_derived_delta(before, after):
 
 def shared_metadata_identity(root, record, artifact, environment):
     binding = record[SHARED_KEY]
-    return {"schema": SHARED_PAYLOAD_SCHEMA, "routeID": SHARED_SELECTION_ID,
+    return {"schema": SHARED_PAYLOAD_SCHEMA, "routeID": record["selectionID"],
             "repository": record["repository"], "ref": record["ref"], "head": record["head"],
             "gitTree": record["gitTree"], "workspace": str(root),
             "runID": record["runID"], "runAttempt": record["runAttempt"],
@@ -4074,6 +4118,36 @@ def write_new_evidence(path, raw):
         stream.write(raw)
 
 
+def cold_shared_observation(root, artifact, record, environment, stage, kernel, *, source_before=None):
+    require(stage in PHASE1_WITNESS_STAGES and "phase1Gate" not in record, "cold shared observation scope")
+    binding, raw, _, _ = cold_worker_context(root, environment)
+    require(record.get("coldOriginal") == binding and read_json(artifact / "native-admission.json") == record,
+            "cold live observation original admission")
+    require((stage == "seal") == (shared_role(record) == "producer"), "cold observation role/stage")
+    products_root = Path(environment["RUNNER_TEMP"]) / "FieldEvidenceDerivedData" / "Build" / "Products"
+    products = phase1_product_inventory(products_root, kernel)
+    if source_before is not None:
+        require(products == source_before, "cold source Products changed during seal")
+    facts = {}
+    for name in (SHARED_PAYLOAD_METADATA, SHARED_PAYLOAD_RECEIPT, SHARED_RESTORE_RECEIPT,
+                 "v23-shared-fingerprint-before.json", "v23-shared-fingerprint-after.json", SHARED_DERIVED_DATA_DELTA):
+        path = artifact / name
+        if path.exists() or path.is_symlink():
+            facts[name] = sha256(load_phase1_gates(root).regular_bytes(path, limit=PHASE1_WITNESS_BYTES))
+    value = {"schema": "v23-cold-shared-live-observation.v1", "stage": stage,
+             "eventBindingSHA256": sha256(canonical(binding)), "originalEventSHA256": sha256(raw),
+             "admissionSHA256": sha256(canonical(record)), "planSHA256": binding["planSHA256"],
+             "selectionSHA256": record[SHARED_KEY]["planSHA256"], "head": record["head"], "tree": record["gitTree"],
+             "runID": record["runID"], "runAttempt": "1", "role": shared_role(record),
+             "partitionID": record[SHARED_KEY]["partitionID"], "products": products, "receiptSHA256": facts,
+             "status": "INCOMPLETE", "functionalQualification": "PENDING", "processLifetimes": "PENDING",
+             "executionScope": "cold-shared-route-development-v1", "developmentOnly": True,
+             "providerQualification": False, "acceptance": False, "releaseReady": False}
+    require(len(canonical(value)) <= PHASE1_WITNESS_BYTES, "bounded cold live observation")
+    write_new_evidence(artifact / ("cold-shared-observation-%s.json" % stage), canonical(value))
+    return value
+
+
 def shared_seal(root, artifact, record, environment, kernel=None):
     """Producer only: seal the exact no-index build products once; it never runs tests."""
     require(shared_role(record) == "producer", "shared seal is producer-only")
@@ -4087,6 +4161,7 @@ def shared_seal(root, artifact, record, environment, kernel=None):
     source_products = temp / "FieldEvidenceDerivedData" / "Build" / "Products"
     phase1_source_before = (phase1_product_inventory(source_products, kernel)
                            if "phase1Gate" in record else None)
+    cold_source_before = (phase1_product_inventory(source_products, kernel) if "coldOriginal" in record else None)
     payload_root = temp / SHARED_PAYLOAD_DIRECTORY
     transport = temp / SHARED_TRANSPORT_DIRECTORY
     require(not any(path.exists() or path.is_symlink() for path in (payload_root, transport)),
@@ -4116,6 +4191,8 @@ def shared_seal(root, artifact, record, environment, kernel=None):
     if "phase1Gate" in record:
         phase1_shared_live_observation(root, artifact, record, environment, "seal", kernel,
                                        source_before=phase1_source_before)
+    if "coldOriginal" in record:
+        cold_shared_observation(root, artifact, record, environment, "seal", kernel, source_before=cold_source_before)
     return receipt
 
 
@@ -4171,6 +4248,8 @@ def shared_restore(root, artifact, record, environment, kernel=None):
     write_new_evidence(artifact / SHARED_RESTORE_RECEIPT, canonical(receipt))
     if "phase1Gate" in record:
         phase1_shared_live_observation(root, artifact, record, environment, "restore", kernel)
+    if "coldOriginal" in record:
+        cold_shared_observation(root, artifact, record, environment, "restore", kernel)
     return receipt
 
 
@@ -4240,6 +4319,8 @@ def shared_fingerprint(root, artifact, record, environment, phase, kernel=None):
     require(phase == "before" or value["matchesBefore"], "shared products changed during the tests")
     if "phase1Gate" in record:
         phase1_shared_live_observation(root, artifact, record, environment, phase, kernel)
+    if "coldOriginal" in record:
+        cold_shared_observation(root, artifact, record, environment, phase, kernel)
     return value
 
 
@@ -4331,7 +4412,7 @@ def verify_checkpoint(root, artifact, record, selection, environment, *, retaine
     # runner spelling; every fact is read from artifact, with no writes.
     if retained_command_artifact is not None:
         require(record["selectionID"] == UI_BATCH_SELECTION_ID, "retained RUI1 verification only")
-    role = shared_role(record) if record["selectionID"] == SHARED_SELECTION_ID else None
+    role = shared_role(record) if record["selectionID"] in SHARED_SELECTION_IDS else None
     if role == "producer":
         # A build-only producer runs no tests, so it has no diagnostic stream to retain.
         require(environment.get("NATIVE_PRIOR_JOB_STATUS") == "success", "earlier job failure")
@@ -4435,6 +4516,20 @@ def verify_checkpoint(root, artifact, record, selection, environment, *, retaine
             root, artifact, record, record["phase1Gate"])
         if role in ("producer", "consumer"):
             build_order["phase1SharedFacts"] = phase1_retained_shared_facts(root, artifact, record, record["phase1Gate"])
+    if "coldOriginal" in record:
+        required_stages = ("seal",) if role == "producer" else ("restore", "before", "after")
+        cold_facts = {}
+        for stage in required_stages:
+            value = read_json(artifact / ("cold-shared-observation-%s.json" % stage))
+            require(value.get("schema") == "v23-cold-shared-live-observation.v1"
+                    and value.get("eventBindingSHA256") == sha256(canonical(record["coldOriginal"]))
+                    and value.get("admissionSHA256") == sha256(canonical(record))
+                    and value.get("stage") == stage and value.get("status") == "INCOMPLETE"
+                    and value.get("functionalQualification") == "PENDING"
+                    and all(value.get(key) is False for key in ("providerQualification", "acceptance", "releaseReady")),
+                    "cold retained live observation binding")
+            cold_facts[stage] = value
+        build_order["coldSharedObservations"] = cold_facts
     return {**record, **build_order, "recordType": "validated-native-checkpoint", "executedUnitMethods": units,
             "executedUIMethods": ui, "simulator": simulator, "provider": provider, "sdk": sdk,
             "simulatorFileProtectionDiagnostics": diagnostic_evidence,
@@ -4931,7 +5026,7 @@ def main():
                 stream.write("native_selection_id=" + record["selectionID"] + "\n")
                 stream.write("native_selection_sha256=" + record["selectionSHA256"] + "\n")
                 stream.write("native_selection_map_sha256=" + record["selectionMapSHA256"] + "\n")
-                if record["selectionID"] == SHARED_SELECTION_ID:
+                if record["selectionID"] in SHARED_SELECTION_IDS:
                     # The ordered consumer matrix; each entry is one closed partition.
                     stream.write("native_shared_partitions=" + json.dumps(
                         selection[SHARED_KEY]["partitionIDs"], separators=(",", ":")) + "\n")
@@ -4965,6 +5060,17 @@ def main():
             else:
                 require(load_phase1_gates(root).regular_bytes(artifact / relative, limit=1024 * 1024) == raw,
                         "Phase1 worker original event changed")
+    if "coldOriginal" in record:
+        binding, event_raw, _, _ = cold_worker_context(root, os.environ)
+        require(binding == record["coldOriginal"], "cold worker context changed")
+        originals = {"cold-original-plan.json": canonical(binding["plan"]),
+                     "cold-event-binding.json": canonical(binding), "cold-original-event.json": event_raw}
+        for relative, raw in originals.items():
+            if args.command == "admit":
+                write_new_evidence(artifact / relative, raw)
+            else:
+                require(load_phase1_gates(root).regular_bytes(artifact / relative, limit=1024 * 1024) == raw,
+                        "cold worker original event changed")
     if args.command == "observe-build-before-boot":
         raise SystemExit(observe_build_before_boot(root, artifact, record, os.environ))
     if args.command == "record-no-index-build":

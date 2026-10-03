@@ -2283,13 +2283,19 @@ class ParallelDevBatchTests(unittest.TestCase):
                                           workers={path: read_workflow(path) for path in set(workers.values())})
                 with mock.patch.object(NEW, "git_bytes", harness.git_bytes):
                     self.assertEqual(NEW.per_head_concurrency_problems(HEAD, caller, selection), [])
-        # The caller and ordinary worker carry the exact term once; the slim worker names the run.
+        # The caller appends the separate closed cold term; every old term remains exact once.
+        cold_term = ("${{ github.event.inputs.v23_run_kind == 'development' && "
+                     "github.event.inputs.native_selection_id == 'v23-cold-shared-original-v1' && "
+                     "format('-development-{0}', github.sha) || '' }}")
+        self.assertEqual(NEW.COLD_PER_HEAD_GROUP_TERM, cold_term)
         worker = read_workflow(WORKER_PATH)
-        for text in (caller, worker):
+        for text, suffix in ((caller, TERM + cold_term), (worker, TERM)):
             group = NEW.concurrency_group(text)
             self.assertIn("native_selection_id", group)
-            self.assertTrue(group.endswith(TERM), group)
+            self.assertTrue(group.endswith(suffix), group)
             self.assertEqual(text.count(TERM), 1)
+        self.assertEqual(caller.count(cold_term), 1)
+        self.assertNotIn(cold_term, worker)
         self.assertIn(PER_RUN, NEW.concurrency_group(read_workflow(SHARED_WORKER_PATH)))
         harness = self.harness(workflow=caller, workers={WORKER_PATH: worker})
         harness.dispatch(kind="development")
@@ -4770,6 +4776,1681 @@ class Phase1ReviewRegistrationTests(unittest.TestCase):
                 self.assertEqual(result["functionalQualification"], gate.PENDING)
                 self.assertFalse(result["acceptance"])
 
+
+class ColdOriginalControlBoundaryTests(unittest.TestCase):
+    """Cold originals retain strict controls while ordinary development stays usable."""
+
+    def plan_fixture(self):
+        contract = NEW.phase1_gates()
+        sources = {path: contract.sha((REPO_ROOT / path).read_bytes()) for path in contract.SOURCES}
+        selected = {"tier": "D40P", "runUISmoke": False,
+            "unitTestSelectors": ["SyntheticTests/Test/testOnly"], "uiTestSelectors": [],
+            "sharedCoverage": {"partitionsPath": contract.PARTITIONS,
+                "partitionsSHA256": sources[contract.PARTITIONS], "partitionIDs": ["S01"], "partitionID": None,
+                "developmentOnly": True, "acceptance": False}}
+        value = contract.make_cold_plan(head=HEAD, tree="9" * 40, resolved_bytes=contract.canonical(selected),
+            sources=sources, requested_at="2026-09-26T12:00:00Z")
+        return contract, value, selected
+
+    def test_missing_simultaneous_gate_wrong_kind_retry_reason_and_compiler_refuse_before_effects(self):
+        contract, value, _ = self.plan_fixture()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            path = root / "synthetic-cold-plan.json"
+            path.write_bytes(contract.canonical(value))
+            variants = ({}, {"cold_plan": path, "kind": None}, {"cold_plan": path, "kind": "gate"},
+                {"cold_plan": path, "phase1_plan": path, "kind": "development"},
+                {"cold_plan": path, "compiler_observation": True, "kind": "development"},
+                {"cold_plan": path, "swift_driver_jobs_two": True, "kind": "development"},
+                {"cold_plan": path, "infra_retry_of": 1, "kind": "development"},
+                {"cold_plan": path, "reason": "retry", "kind": "development"})
+            for kwargs in variants:
+                with self.subTest(kwargs=kwargs), evidence_root(NEW, root), \
+                        mock.patch.object(NEW, "run") as git, mock.patch.object(NEW, "api") as api, \
+                        mock.patch.object(NEW.subprocess, "run") as process, \
+                        mock.patch.object(NEW, "append_ledger") as append, \
+                        mock.patch.object(NEW, "write_new") as write:
+                    with self.assertRaises((SystemExit, ValueError)):
+                        NEW.dispatch(contract.COLD_SELECTION, **kwargs)
+                    for effect in (git, api, process, append, write): effect.assert_not_called()
+                    self.assertFalse((root / "v23-original-attempts").exists())
+                    self.assertFalse((root / "v23-original-ledger.jsonl").exists())
+                    self.assertFalse((root / "cold-dispatch-active").exists())
+
+    def record_fixture(self, root, variant):
+        record = {"runID": RUN, "head": HEAD, "selection": DEV, "kind": "development",
+                  "resolvedSelection": copy.deepcopy(DEV_PLAN), "resolvedSelectionSHA256": sha(canonical(DEV_PLAN))}
+        ledger_record = copy.deepcopy(record)
+        if variant == "cold-selection": record["selection"] = ledger_record["selection"] = NEW.COLD_SELECTION_ID
+        if variant == "dispatch-marker": record["coldPurpose"] = ""
+        if variant == "ledger-marker": ledger_record["coldPlanSHA256"] = "partial"
+        directory = root / str(RUN)
+        directory.mkdir()
+        (directory / "dispatch.json").write_bytes(canonical(record))
+        write_ledger(root, [ledger_record])
+        if variant == "consumed-prefix":
+            attempts = root / "v23-original-attempts"
+            attempts.mkdir()
+            (attempts / (HEAD + "-" + NEW.COLD_PURPOSE + "-" + NEW.COLD_SELECTION_ID + ".json")).write_bytes(b"{")
+        if variant == "malformed-record": (directory / "dispatch.json").write_bytes(b"{")
+        return record
+
+    def test_ordinary_development_is_admitted_but_cold_markers_and_partial_attempts_refuse_cancel_retry(self):
+        for variant in ("legacy", "cold-selection", "dispatch-marker", "ledger-marker", "consumed-prefix", "malformed-record"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                record = self.record_fixture(root, variant)
+                before = tree_bytes(root)
+                with evidence_root(NEW, root):
+                    _, reason = NEW.recorded_development(RUN)
+                    if variant == "legacy":
+                        self.assertIsNone(reason)
+                        continue
+                    self.assertIn("cold", reason.lower())
+                    with mock.patch.object(NEW, "api") as api, mock.patch.object(NEW.subprocess, "run") as process, \
+                            mock.patch.object(NEW, "append_ledger") as append, mock.patch.object(NEW, "write_new") as write:
+                        with self.assertRaisesRegex(SystemExit, "cold"):
+                            NEW.cancel(RUN, "synthetic broken-run reason")
+                        with self.assertRaisesRegex(SystemExit, "cold"):
+                            NEW.infra_retry_admission(HEAD, record["selection"], DEV_PLAN,
+                                sha(canonical(DEV_PLAN)), RUN, "synthetic infrastructure reason", "development")
+                        for effect in (api, process, append, write): effect.assert_not_called()
+                self.assertEqual(tree_bytes(root), before)
+
+    def test_public_legacy_dispatch_cold_retry_refuses_before_git_resolution_remote_or_evidence_effects(self):
+        # Genuine stored records exercise the public legacy-selection entry;
+        # the cold detector remains real. Even a partial marker/consumed prefix
+        # must stop before the deeper retry helper or any operational boundary.
+        for variant in ("cold-selection", "dispatch-marker", "ledger-marker", "consumed-prefix", "malformed-record"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                self.record_fixture(root, variant)
+                before = tree_bytes(root)
+                names_before = sorted(path.relative_to(root).as_posix() for path in root.rglob("*"))
+                write_attempts = []; actual_open = Path.open
+                def observed_open(path, mode="r", *args, **kwargs):
+                    if any(flag in mode for flag in "wax+"):
+                        write_attempts.append((str(path), mode))
+                        raise AssertionError("public cold retry reached an evidence write")
+                    return actual_open(path, mode, *args, **kwargs)
+                with evidence_root(NEW, root), contextlib.ExitStack() as stack:
+                    effects = {}
+                    for name in ("run", "git_bytes", "resolve_selection", "api", "api_bytes", "runs_for",
+                                 "infra_retry_admission", "append_ledger", "write_new", "cold_append_ledger",
+                                 "phase1_append_ledger", "cold_original_lifecycle", "phase1_candidate_lifecycle"):
+                        effects[name] = stack.enter_context(mock.patch.object(NEW, name,
+                            side_effect=AssertionError("public cold retry reached " + name)))
+                    effects["subprocess.run"] = stack.enter_context(mock.patch.object(NEW.subprocess, "run",
+                        side_effect=AssertionError("public cold retry reached a process")))
+                    for method in ("mkdir", "write_bytes", "write_text", "touch", "unlink", "rmdir", "rename", "replace"):
+                        effects["Path." + method] = stack.enter_context(mock.patch.object(Path, method, autospec=True,
+                            side_effect=AssertionError("public cold retry mutated a path via " + method)))
+                    stack.enter_context(mock.patch.object(Path, "open", autospec=True, side_effect=observed_open))
+                    with self.assertRaisesRegex(SystemExit, "cold original/partial attempt"):
+                        NEW.dispatch(DEV, kind="development", infra_retry_of=RUN,
+                                     reason="synthetic infrastructure failure; never retry a cold original")
+                    for name, effect in effects.items():
+                        with self.subTest(effect=name): effect.assert_not_called()
+                    self.assertEqual(write_attempts, [])
+                self.assertEqual(tree_bytes(root), before)
+                self.assertEqual(sorted(path.relative_to(root).as_posix() for path in root.rglob("*")), names_before)
+                self.assertFalse((root / "cold-dispatch-active").exists())
+                self.assertFalse((root / "phase1-dispatch-active").exists())
+
+    def test_partial_consumed_attempt_blocks_dispatch_before_git_api_lock_or_writer(self):
+        contract, value, _ = self.plan_fixture()
+        for raw in (b"", b"{", b"{}\n"):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                path = root / "synthetic-cold-plan.json"
+                path.write_bytes(contract.canonical(value))
+                attempts = root / "v23-original-attempts"; attempts.mkdir()
+                target = attempts / (contract.cold_original_stem(value) + ".json")
+                target.write_bytes(raw)
+                before = tree_bytes(root)
+                with evidence_root(NEW, root), mock.patch.object(NEW, "run") as git, \
+                        mock.patch.object(NEW, "api") as api, mock.patch.object(NEW.subprocess, "run") as process:
+                    with self.assertRaisesRegex(ValueError, "consumed"):
+                        NEW.dispatch(contract.COLD_SELECTION, kind="development", cold_plan=path)
+                    with self.assertRaisesRegex(SystemExit, "consumed"):
+                        NEW.preregister_cold(path)
+                    for effect in (git, api, process): effect.assert_not_called()
+                self.assertEqual(tree_bytes(root), before)
+                self.assertFalse((root / "cold-dispatch-active").exists())
+
+    def test_cold_and_ordinary_artifact_names_are_closed_distinct_and_share_payload_identity(self):
+        legacy = NEW.shared_artifact_names(RUN, HEAD, ["S01"])
+        cold = NEW.shared_artifact_names(RUN, HEAD, ["S01"], selection=NEW.COLD_SELECTION_ID)
+        self.assertNotEqual(legacy["producer"], cold["producer"])
+        self.assertNotEqual(legacy["consumers"]["S01"], cold["consumers"]["S01"])
+        self.assertEqual(legacy["payload"], cold["payload"])
+        self.assertIn(NEW.COLD_SELECTION_ID, cold["producer"])
+        with self.assertRaises(SystemExit):
+            NEW.shared_artifact_names(RUN, HEAD, ["S01"], selection="caller-chosen-cold")
+
+
+class ColdOriginalCollectionTests(unittest.TestCase):
+    """Actual cold context/collector, with synthetic Git/API/transport boundaries only."""
+    plan_fixture = ColdOriginalControlBoundaryTests.plan_fixture
+
+    def fixture(self, base):
+        core, plan, selected = self.plan_fixture()
+        gate = core.ColdContract()
+        parts = {"partitionIDs": ["S01"], "selectors": {"S01": selected["unitTestSelectors"]}}
+        registration_path, _ = core.register_cold(plan, base / "v23-cold-plans")
+        observations = synthetic_phase1_observations(core, plan)
+        attempt = core.make_cold_attempt(plan, registration_path.read_bytes(), collector_id="a" * 32,
+            requested_at="2026-09-26T12:01:00Z", observations=observations, ledger_bytes="", attempt_names=[])
+        attempts = base / "v23-original-attempts"; attempts.mkdir()
+        attempt_path = attempts / (core.cold_original_stem(plan) + ".json")
+        attempt_path.write_bytes(core.canonical(attempt))
+        observed = {"id": RUN, "run_attempt": 1, "workflow_id": 7, "head_sha": HEAD,
+            "head_branch": NEW.BRANCH, "path": NEW.WORKFLOW_PATH, "event": "workflow_dispatch",
+            "repository": {"full_name": REPO, "id": 77}, "head_repository": {"full_name": REPO, "id": 77},
+            "created_at": "2026-09-26T12:01:01Z", "status": "completed", "conclusion": "success"}
+        event = core.canonical({"repository": {"full_name": REPO}, "ref": plan["ref"],
+                                "inputs": core.cold_dispatch_inputs(plan)})
+        environment = {"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REPOSITORY": REPO,
+            "GITHUB_REF": plan["ref"], "GITHUB_SHA": HEAD, "GITHUB_RUN_ID": str(RUN),
+            "GITHUB_RUN_ATTEMPT": "1", "GITHUB_WORKFLOW_SHA": HEAD,
+            "GITHUB_WORKFLOW_REF": REPO + "/" + NEW.WORKFLOW_PATH + "@" + plan["ref"]}
+        binding = core.bind_cold_original_event(event, environment, head=HEAD, tree=plan["tree"],
+            resolved_bytes=core.canonical(selected), sources=plan["sources"])
+        names = NEW.shared_artifact_names(RUN, HEAD, parts["partitionIDs"], selection=core.COLD_SELECTION)
+        files, blobs, artifacts = {}, {}, []
+        for index, label in enumerate(("producer", "S01")):
+            role = "producer" if label == "producer" else "consumer"
+            record = {"coldOriginal": binding, "head": HEAD, "gitTree": plan["tree"], "ref": plan["ref"],
+                "runID": str(RUN), "runAttempt": "1", "selectionID": core.COLD_SELECTION,
+                "sharedCoverage": {"role": role, "partitionID": None if role == "producer" else label,
+                    "payloadArtifactName": names["payload"], "planSHA256": plan["selectionSHA256"],
+                    "partitionsSHA256": plan["sources"][core.PARTITIONS]}}
+            checkpoint = {"coldOriginal": binding, "executedUnitMethods": [] if role == "producer" else parts["selectors"][label],
+                "executedUIMethods": [], "providerQualification": False, "acceptance": False, "releaseReady": False}
+            files[label] = {"synthetic-only.txt": b"not native evidence", "cold-original-event.json": event,
+                "cold-original-plan.json": core.canonical(plan), "cold-event-binding.json": core.canonical(binding),
+                "native-admission.json": core.canonical(record), "native-checkpoint.json": core.canonical(checkpoint)}
+            receipts = ("v23-shared-payload.json", "v23-shared-payload-receipt.json") if role == "producer" else (
+                "v23-shared-payload.json", "v23-shared-restore.json", "v23-shared-fingerprint-before.json",
+                "v23-shared-fingerprint-after.json", "v23-shared-deriveddata-delta.json")
+            for name in receipts:
+                files[label][name] = core.canonical({"syntheticTestOnly": True, "name": name,
+                                                   "acceptance": False, "providerQualification": False})
+            products = [{"path": "synthetic-product.txt", "type": "file", "size": 4,
+                         "mode": 0o644, "sha256": sha(b"DATA")}]
+            live = {}
+            for stage in (("seal",) if role == "producer" else ("restore", "before", "after")):
+                stage_receipts = receipts if stage in ("seal", "after") else receipts[:2 if stage == "restore" else 3]
+                value = {"schema": "v23-cold-shared-live-observation.v1", "stage": stage,
+                    "eventBindingSHA256": core.sha(core.canonical(binding)), "originalEventSHA256": core.sha(event),
+                    "admissionSHA256": core.sha(core.canonical(record)), "planSHA256": core.sha(core.canonical(plan)),
+                    "selectionSHA256": plan["selectionSHA256"], "head": HEAD, "tree": plan["tree"],
+                    "runID": str(RUN), "runAttempt": "1", "role": role,
+                    "partitionID": None if role == "producer" else label, "products": products,
+                    "receiptSHA256": {name: core.sha(files[label][name]) for name in stage_receipts},
+                    "status": "INCOMPLETE", "functionalQualification": "PENDING", "processLifetimes": "PENDING",
+                    "executionScope": core.COLD_PURPOSE, "developmentOnly": True,
+                    "providerQualification": False, "acceptance": False, "releaseReady": False}
+                files[label]["cold-shared-observation-" + stage + ".json"] = core.canonical(value)
+                live[stage] = value
+            checkpoint["coldSharedObservations"] = live
+            files[label]["native-checkpoint.json"] = core.canonical(checkpoint)
+            blobs[index + 20] = zip_bytes(files[label])
+            artifacts.append({"id": index + 20, "name": names["producer"] if role == "producer" else names["consumers"][label],
+                "expired": False, "digest": "sha256:" + sha(blobs[index + 20]).lower(), "size_in_bytes": len(blobs[index + 20]),
+                "workflow_run": {"id": RUN, "head_sha": HEAD, "head_branch": NEW.BRANCH,
+                                 "repository_id": 77, "head_repository_id": 77}})
+        inner_tar = b"synthetic inner TAR; Stage1 must retain the outer ZIP without opening it"
+        payload = zip_bytes({"FieldEvidencePayload.tar": inner_tar})
+        payload_id = 22
+        artifacts.append({"id": payload_id, "name": names["payload"], "expired": False,
+            "digest": "sha256:" + sha(payload).lower(), "size_in_bytes": len(payload) + 17,
+            "workflow_run": {"id": RUN, "head_sha": HEAD, "head_branch": NEW.BRANCH,
+                             "repository_id": 77, "head_repository_id": 77}})
+        jobs = [{"id": index + 1, "name": name, "run_id": RUN, "run_attempt": 1, "head_sha": HEAD,
+                 "status": "completed", "conclusion": "success", "steps": []} for index, name in enumerate(
+                    (NEW.SHARED_SELECTION_JOB, NEW.SHARED_PRODUCER_JOB,
+                     "V23 shared coverage consumer " + DOT + " S01 (development only) / verify"))]
+        directory = base / str(RUN); directory.mkdir()
+        calls, downloads, commands = [], [], []
+        state = {"core": core, "gate": gate, "plan": plan, "selected": selected, "parts": parts,
+            "attempt": attempt_path, "observed": observed, "jobs": jobs, "artifacts": artifacts,
+            "files": files, "blobs": blobs, "payload": payload, "innerTAR": inner_tar,
+            "payloadID": payload_id, "directory": directory, "calls": calls, "downloads": downloads,
+            "commands": commands, "observations": observations, "runs": [observed]}
+        def api(endpoint):
+            calls.append(endpoint)
+            if endpoint == f"repos/{REPO}": return copy.deepcopy(observations["repository"])
+            for key, ref in (("integration", NEW.BRANCH), ("main", "main")):
+                if endpoint == f"repos/{REPO}/git/ref/heads/{ref}": return copy.deepcopy(observations["refs"][key])
+            if endpoint in (f"repos/{REPO}/actions/workflows/7", f"repos/{REPO}/actions/workflows/{NEW.WORKFLOW}"):
+                return copy.deepcopy(observations["workflow"])
+            prefix = f"repos/{REPO}/actions/runs?head_sha={HEAD}&per_page={NEW.PAGE_SIZE}&page="
+            if endpoint.startswith(prefix):
+                page = int(endpoint.removeprefix(prefix))
+                rows = state["runs"]
+                return {"total_count": len(rows), "workflow_runs": copy.deepcopy(rows[(page - 1) * NEW.PAGE_SIZE:page * NEW.PAGE_SIZE])}
+            base_run = f"repos/{REPO}/actions/runs/{RUN}"
+            if endpoint in (base_run, base_run + "/attempts/1"): return copy.deepcopy(observed)
+            # Discovery fetches IDs actually returned by the mutable census;
+            # a hostile row stays hostile at both discovery and frozen GETs.
+            for row in state["runs"]:
+                identifier = row.get("id")
+                if type(identifier) is int and identifier > 0 and endpoint == f"repos/{REPO}/actions/runs/{identifier}":
+                    return copy.deepcopy(row)
+            for path, key, rows in ((base_run + "/attempts/1/jobs", "jobs", jobs),
+                                    (base_run + "/artifacts", "artifacts", artifacts)):
+                if endpoint.startswith(path + "?per_page="):
+                    page = int(re.search(r"page=(\d+)$", endpoint).group(1))
+                    return {"total_count": len(rows), key: copy.deepcopy(rows[(page - 1) * NEW.PAGE_SIZE:page * NEW.PAGE_SIZE])}
+            raise AssertionError("unexpected synthetic cold API endpoint " + endpoint)
+        def download(endpoint):
+            downloads.append(endpoint)
+            if endpoint == f"repos/{REPO}/actions/runs/{RUN}/attempts/1/logs":
+                return zip_bytes({"synthetic-log.txt": b"not native execution proof"})
+            if re.fullmatch(r"repos/" + re.escape(REPO) + r"/actions/jobs/[1-3]/logs", endpoint):
+                return b"synthetic complete job log, no native proof\n"
+            match = re.fullmatch(r"repos/" + re.escape(REPO) + r"/actions/artifacts/(\d+)/zip", endpoint)
+            self.assertIsNotNone(match)
+            identifier = int(match.group(1))
+            self.assertNotEqual(identifier, payload_id, "cold payload must use bounded streaming")
+            return blobs[identifier]
+        def chunks(identifier):
+            self.assertIn(identifier, (20, 21, payload_id))
+            downloads.append(f"repos/{REPO}/actions/artifacts/{identifier}/zip")
+            raw = payload if identifier == payload_id else blobs[identifier]
+            for offset in range(0, len(raw), 31): yield raw[offset:offset + 31]
+        def git_bytes(*args):
+            self.assertEqual(args[0], "show", "cold Stage1 must not archive or run a reader")
+            self.assertTrue(args[1].startswith(HEAD + ":"))
+            return (REPO_ROOT / args[1].split(":", 1)[1]).read_bytes()
+        def process(*args, **kwargs):
+            commands.append(args)
+            raise AssertionError("cold raw collection must not invoke a child, native tool or dispatch")
+        stack = contextlib.ExitStack()
+        for name, replacement in (("EVIDENCE", base), ("ATTEMPTS", attempts), ("LEDGER", base / "v23-original-ledger.jsonl"),
+                ("cold_gates", lambda: gate), ("cold_timestamp", lambda: "2026-09-26T12:01:02Z"),
+                ("api", api), ("api_bytes", download), ("phase1_payload_chunks", chunks),
+                ("git_bytes", git_bytes), ("run", lambda *args: plan["tree"] + "\n"),
+                ("resolve_selection", lambda *args: (selected, plan["selectionSHA256"])),
+                ("shared_partitions", lambda *args: parts)):
+            stack.enter_context(mock.patch.object(NEW, name, replacement))
+        stack.enter_context(mock.patch.object(NEW.subprocess, "run", process))
+        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+        self.addCleanup(stack.close)
+        lifecycle = NEW.cold_lifecycle_directory(gate, plan); lifecycle.mkdir()
+        receipt = NEW.cold_request_receipt(gate, attempt,
+            result=subprocess.CompletedProcess(attempt["argv"], 0, b"", b""))
+        gate.write_immutable(lifecycle / "request.json", gate.canonical(receipt))
+        entry = NEW.cold_record_discovery(gate, plan, attempt, {
+            "repository": observations["repository"], "refs": observations["refs"],
+            "headRuns": {"total_count": 1, "workflow_runs": [observed]}, "directRun": observed,
+            "error": None, "transportFailure": False,
+            "runPages": [{"endpoint": f"repos/{REPO}/actions/runs?head_sha={HEAD}&per_page={NEW.PAGE_SIZE}&page=1",
+                          "response": {"total_count": 1, "workflow_runs": [observed]}}]})
+        record = NEW.cold_dispatch_record(gate, plan, attempt, selected, entry)
+        gate.write_immutable(directory / "dispatch.json", gate.canonical(record))
+        NEW.cold_append_ledger(gate, record)
+        return state
+
+    def collect_incomplete(self, resume=False):
+        with self.assertRaisesRegex(SystemExit, "INCOMPLETE"):
+            NEW.collect(RUN, resume)
+
+    def state(self, directory):
+        proof = directory / "cold-raw-proof.json"
+        if proof.exists(): return json.loads(proof.read_bytes())
+        return json.loads(sorted((directory / "cold-collection-partials").iterdir())[-1].read_bytes())
+
+    def assert_pending(self, state):
+        self.assertEqual((state["status"], state["functionalQualification"]), ("INCOMPLETE", "PENDING"))
+        for key in ("providerQualification", "acceptance", "releaseReady"): self.assertIs(state[key], False)
+
+    def transports(self, fixture):
+        root = fixture["directory"] / "cold-payload-transports" / str(fixture["payloadID"])
+        entries = sorted(root.iterdir())
+        self.assertEqual([path.name for path in entries], ["%06d" % index for index in range(len(entries))])
+        return entries
+
+    def test_actual_cold_context_retains_raw_outer_zip_and_bound_workers_without_reader_or_gate_credit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            f = self.fixture(Path(temporary).resolve())
+            self.assertEqual(NEW.cold_original_context(RUN)[3], f["plan"])
+            self.collect_incomplete()
+            proof = self.state(f["directory"]); self.assert_pending(proof)
+            self.assertEqual(set(proof["dispatchInputBindings"]), {"producer", "S01"})
+            self.assertEqual(set(proof["artifacts"]), {"producer", "S01", "payload"})
+            self.assertEqual(proof["originalAttribution"]["status"], "DISCOVERED_PENDING_PROOF")
+            self.assertFalse(any(problem.startswith(("worker ", "artifact[", "cold complete"))
+                                 for problem in proof["problems"]), proof["problems"])
+            transport = self.transports(f)[0]
+            receipt = json.loads((transport / "receipt.json").read_bytes())
+            self.assertEqual((receipt["status"], receipt["actualZIPBytes"], receipt["actualZIPSHA256"]),
+                             ("COMPLETE", len(f["payload"]), sha(f["payload"])))
+            self.assertEqual((transport / "raw.zip").read_bytes(), f["payload"])
+            self.assertNotEqual(receipt["actualZIPBytes"], receipt["declaredAPISizeBytes"])
+            self.assertNotEqual(receipt["actualZIPSHA256"], sha(f["innerTAR"]))
+            self.assertEqual(f["commands"], [])
+            self.assertFalse((f["directory"] / "phase1-raw-proof.json").exists())
+            self.assertFalse((f["directory"] / "phase1-payload-recomputations").exists())
+            manifest = json.loads((f["directory"] / "manifest.json").read_bytes())
+            self.assertEqual(manifest["schema"], "v23-cold-original-manifest.v1")
+            self.assertEqual(manifest["files"]["cold-raw-proof.json"], sha((f["directory"] / "cold-raw-proof.json").read_bytes()))
+            before = tree_bytes(f["directory"])
+            with self.assertRaisesRegex(ValueError, "immutable"): NEW.collect(RUN, True)
+            self.assertEqual(tree_bytes(f["directory"]), before)
+
+    def test_bad_authenticated_original_attempt_repo_head_and_workflow_refuse_before_payload_get(self):
+        for changes in ({"id": RUN + 1}, {"run_attempt": 2}, {"run_attempt": True},
+                        {"workflow_id": 8}, {"head_sha": "f" * 40}, {"head_branch": "main"},
+                        {"repository": {"full_name": REPO, "id": 78}}, {"path": "foreign.yml"}):
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as temporary:
+                f = self.fixture(Path(temporary).resolve()); f["observed"].update(changes)
+                with mock.patch.object(NEW, "phase1_payload_chunks") as chunks:
+                    with self.assertRaises(ValueError): NEW.collect(RUN, False)
+                    chunks.assert_not_called()
+                if changes.get("id") == RUN + 1:
+                    self.assertIn(f"repos/{REPO}/actions/runs/{RUN + 1}", f["calls"])
+                    self.assertIn(f"repos/{REPO}/actions/runs/{RUN}", f["calls"])
+                self.assertFalse((f["directory"] / "manifest.json").exists())
+                self.assertTrue((f["directory"] / "collector.claim.json").is_file())
+
+    def test_artifact_origin_id_name_expiry_digest_and_ambiguous_census_never_reach_payload_stream(self):
+        for variant in ("run", "head", "ref", "repository", "id-bool", "name", "expired", "digest", "duplicate"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                f = self.fixture(Path(temporary).resolve()); artifact = f["artifacts"][-1]
+                if variant == "run": artifact["workflow_run"]["id"] += 1
+                if variant == "head": artifact["workflow_run"]["head_sha"] = "f" * 40
+                if variant == "ref": artifact["workflow_run"]["head_branch"] = "main"
+                if variant == "repository": artifact["workflow_run"]["repository_id"] += 1
+                if variant == "id-bool": artifact["id"] = True
+                if variant == "name": artifact["name"] = "caller-chosen-payload"
+                if variant == "expired": artifact["expired"] = True
+                if variant == "digest": artifact["digest"] = "sha256:NOT_A_DIGEST"
+                if variant == "duplicate": f["artifacts"].append(copy.deepcopy(artifact))
+                original = NEW.phase1_payload_chunks
+                def valid_only(identifier):
+                    self.assertNotEqual(identifier, f["payloadID"], "invalid payload reached transport")
+                    yield from original(identifier)
+                with mock.patch.object(NEW, "phase1_payload_chunks", valid_only):
+                    self.collect_incomplete()
+                proof = self.state(f["directory"]); self.assert_pending(proof)
+                self.assertNotIn("payload", proof["artifacts"])
+                self.assertTrue(proof["problems"])
+                self.assertTrue((f["directory"] / "artifacts/S01/synthetic-only.txt").is_file())
+
+    def test_worker_event_identity_role_payload_method_and_gate_masquerade_are_retained_as_failures(self):
+        for variant in ("run", "head", "role", "payload", "methods", "gate", "event", "plan"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                f = self.fixture(Path(temporary).resolve()); files = f["files"]["S01"]
+                admission = json.loads(files["native-admission.json"])
+                checkpoint = json.loads(files["native-checkpoint.json"])
+                if variant == "run": admission["runID"] = str(RUN + 1)
+                if variant == "head": admission["head"] = "f" * 40
+                if variant == "role": admission["sharedCoverage"]["role"] = "producer"
+                if variant == "payload": admission["sharedCoverage"]["payloadArtifactName"] = "caller-payload"
+                if variant == "methods": checkpoint["executedUnitMethods"] = []
+                if variant == "gate": admission["phase1Gate"] = admission["coldOriginal"]
+                if variant == "event":
+                    event = json.loads(files["cold-original-event.json"]); event["inputs"]["v23_run_kind"] = "gate"
+                    files["cold-original-event.json"] = canonical(event)
+                if variant == "plan": files["cold-original-plan.json"] += b" "
+                files["native-admission.json"] = canonical(admission)
+                files["native-checkpoint.json"] = canonical(checkpoint)
+                f["blobs"][21] = zip_bytes(files)
+                f["artifacts"][1].update(digest="sha256:" + sha(f["blobs"][21]).lower(), size_in_bytes=len(f["blobs"][21]))
+                self.collect_incomplete()
+                proof = self.state(f["directory"]); self.assert_pending(proof)
+                self.assertTrue(any("worker S01" in problem for problem in proof["problems"]))
+                self.assertEqual(f["commands"], [])
+
+    def test_authenticated_hostile_worker_zip_is_retained_but_never_extracted_outside_its_role(self):
+        for variant in ("path", "symlink", "duplicate"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                f = self.fixture(Path(temporary).resolve()); buffer = io.BytesIO()
+                with zipfile.ZipFile(buffer, "w") as bundle:
+                    if variant == "path":
+                        bundle.writestr("../../escaped-cold-worker.txt", b"hostile authenticated worker bytes")
+                    elif variant == "symlink":
+                        member = zipfile.ZipInfo("cold-worker-link")
+                        member.create_system = 3; member.external_attr = (stat.S_IFLNK | 0o777) << 16
+                        bundle.writestr(member, b"../../escaped-cold-worker.txt")
+                    else:
+                        bundle.writestr("duplicate-worker.txt", b"first")
+                        bundle.writestr("duplicate-worker.txt", b"second")
+                raw = buffer.getvalue(); f["blobs"][20] = raw
+                f["artifacts"][0].update(digest="sha256:" + sha(raw).lower(), size_in_bytes=len(raw))
+                self.collect_incomplete()
+                proof = self.state(f["directory"]); self.assert_pending(proof)
+                self.assertTrue(any("artifact[0] refused" in problem for problem in proof["problems"]))
+                self.assertNotIn("producer", proof["artifacts"])
+                retained = f["directory"] / "cold-payload-transports/20/000000"
+                receipt = json.loads((retained / "receipt.json").read_bytes())
+                self.assertEqual(receipt["status"], "COMPLETE")
+                self.assertEqual((retained / "raw.zip").read_bytes(), raw)
+                self.assertFalse((f["directory"] / "escaped-cold-worker.txt").exists())
+                self.assertFalse((f["directory"] / "artifacts/producer/cold-worker-link").exists())
+                self.assertEqual(f["commands"], [])
+
+    def test_outer_zip_digest_mismatch_keeps_original_bytes_terminal_and_pending(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            f = self.fixture(Path(temporary).resolve())
+            f["artifacts"][-1]["digest"] = "sha256:" + "f" * 64
+            self.collect_incomplete()
+            proof = self.state(f["directory"]); self.assert_pending(proof)
+            receipt = json.loads((self.transports(f)[0] / "receipt.json").read_bytes())
+            self.assertEqual(receipt["status"], "DIGEST_MISMATCH")
+            self.assertFalse(receipt["digestVerified"])
+            self.assertEqual(receipt["actualZIPSHA256"], sha(f["payload"]))
+            self.assertTrue(any("digest mismatch" in problem for problem in proof["problems"]))
+
+    def test_live_observation_source_identity_receipt_bytes_and_checkpoint_join_cannot_be_forged(self):
+        for variant in ("event", "admission", "plan", "selection", "role", "stage", "head", "attempt",
+                        "lifetime", "qualification", "products", "receipt", "unknown-receipt", "checkpoint", "missing"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                f = self.fixture(Path(temporary).resolve()); files = f["files"]["S01"]
+                name = "cold-shared-observation-before.json"
+                value = json.loads(files[name])
+                for case, field in (("event", "eventBindingSHA256"), ("admission", "admissionSHA256"),
+                                    ("plan", "planSHA256"), ("selection", "selectionSHA256")):
+                    if variant == case: value[field] = "F" * 64
+                if variant == "role": value["role"] = "producer"
+                if variant == "stage": value["stage"] = "seal"
+                if variant == "head": value["head"] = "f" * 40
+                if variant == "attempt": value["runAttempt"] = "2"
+                if variant == "lifetime": value["processLifetimes"] = "PROVEN"
+                if variant == "qualification": value["providerQualification"] = True
+                if variant == "products": value["products"] = None
+                if variant == "unknown-receipt": value["receiptSHA256"]["../caller-receipt.json"] = "F" * 64
+                files[name] = canonical(value)
+                checkpoint = json.loads(files["native-checkpoint.json"])
+                checkpoint["coldSharedObservations"]["before"] = value
+                if variant == "checkpoint": checkpoint["coldSharedObservations"]["before"]["products"] = []
+                files["native-checkpoint.json"] = canonical(checkpoint)
+                if variant == "receipt": files["v23-shared-payload.json"] += b"changed packed receipt bytes"
+                if variant == "missing": del files[name]
+                f["blobs"][21] = zip_bytes(files)
+                f["artifacts"][1].update(digest="sha256:" + sha(f["blobs"][21]).lower(), size_in_bytes=len(f["blobs"][21]))
+                self.collect_incomplete()
+                proof = self.state(f["directory"]); self.assert_pending(proof)
+                self.assertTrue(any("worker S01" in problem for problem in proof["problems"]))
+                self.assertEqual(f["commands"], [])
+
+    def test_interrupted_raw_continuation_preserves_prefix_controls_attempt_and_same_claim(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            f = self.fixture(Path(temporary).resolve())
+            prefix = f["payload"][:19]
+            original = NEW.phase1_payload_chunks
+            def interrupted(identifier):
+                if identifier != f["payloadID"]:
+                    yield from original(identifier); return
+                yield prefix
+                raise OSError("synthetic transport interruption")
+            with mock.patch.object(NEW, "phase1_payload_chunks", interrupted): self.collect_incomplete()
+            first = self.transports(f)[0]; first_bytes = tree_bytes(first)
+            receipt = json.loads((first / "receipt.json").read_bytes())
+            self.assertEqual((receipt["status"], (first / "raw.zip").read_bytes()), ("PARTIAL", prefix))
+            partial = f["directory"] / "cold-collection-partials/000000.json"
+            partial_bytes = partial.read_bytes(); self.assert_pending(json.loads(partial_bytes))
+            claim_bytes = (f["directory"] / "collector.claim.json").read_bytes()
+            attempt_bytes = f["attempt"].read_bytes()
+            self.assertFalse((f["directory"] / "manifest.json").exists())
+            self.collect_incomplete(resume=True)
+            self.assert_pending(self.state(f["directory"]))
+            self.assertEqual([p.name for p in self.transports(f)], ["000000", "000001"])
+            self.assertEqual(tree_bytes(first), first_bytes)
+            self.assertEqual(partial.read_bytes(), partial_bytes)
+            self.assertEqual((f["directory"] / "collector.claim.json").read_bytes(), claim_bytes)
+            self.assertEqual(f["attempt"].read_bytes(), attempt_bytes)
+            self.assertEqual((self.transports(f)[1] / "raw.zip").read_bytes(), f["payload"])
+            self.assertEqual(f["commands"], [])
+
+    def test_completed_raw_is_reused_when_only_worker_transport_continues(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            f = self.fixture(Path(temporary).resolve()); original = NEW.phase1_payload_chunks
+            def interrupted(identifier):
+                if identifier == 20: raise OSError("synthetic worker transport")
+                yield from original(identifier)
+            with mock.patch.object(NEW, "phase1_payload_chunks", interrupted): self.collect_incomplete()
+            retained = self.transports(f)[0]; before = tree_bytes(retained)
+            claim = (f["directory"] / "collector.claim.json").read_bytes()
+            def worker_only(identifier):
+                self.assertNotEqual(identifier, f["payloadID"], "completed raw GET repeated")
+                yield from original(identifier)
+            with mock.patch.object(NEW, "phase1_payload_chunks", worker_only):
+                self.collect_incomplete(resume=True)
+            self.assertEqual(tree_bytes(retained), before)
+            self.assertEqual(len(self.transports(f)), 1)
+            self.assertEqual((f["directory"] / "collector.claim.json").read_bytes(), claim)
+            self.assert_pending(self.state(f["directory"]))
+
+    def test_first_excess_byte_write_prefix_and_fsync_failure_cannot_seal_a_complete_original(self):
+        for variant in ("excess", "write", "fsync"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                f = self.fixture(Path(temporary).resolve()); actual = f["payload"]
+                with contextlib.ExitStack() as stack:
+                    if variant == "excess":
+                        actual = f["payload"][:9]
+                        stack.enter_context(mock.patch.object(NEW, "PHASE1_PAYLOAD_MAX_ZIP_BYTES", 8))
+                    elif variant == "write":
+                        actual = f["payload"][:7]; write = NEW.phase1_payload_write
+                        def failed_write(stream, block):
+                            write(stream, block[:7]); raise OSError("synthetic write after actual prefix")
+                        stack.enter_context(mock.patch.object(NEW, "phase1_payload_write", failed_write))
+                    else:
+                        stack.enter_context(mock.patch.object(NEW, "phase1_payload_fsync", side_effect=OSError("synthetic raw fsync failure")))
+                    self.collect_incomplete()
+                proof = self.state(f["directory"]); self.assert_pending(proof)
+                retained = self.transports(f)[0]
+                receipt = json.loads((retained / "receipt.json").read_bytes())
+                self.assertEqual(receipt["status"], {"excess": "BOUND_EXCEEDED", "write": "PARTIAL", "fsync": "DURABILITY_FAILURE"}[variant])
+                self.assertEqual((retained / "raw.zip").read_bytes(), actual)
+                self.assertEqual(receipt["actualZIPBytes"], len(actual))
+                self.assertEqual(receipt["actualZIPSHA256"], sha(actual))
+                self.assertFalse((f["directory"] / "manifest.json").exists())
+                self.assertEqual(f["commands"], [])
+
+    def test_changed_raw_inode_bytes_claim_or_request_refuses_same_original_resume_without_new_get(self):
+        for variant in ("bytes", "inode", "claim", "request"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                f = self.fixture(Path(temporary).resolve())
+                original = NEW.phase1_payload_chunks
+                def interrupted(identifier):
+                    if identifier != f["payloadID"]:
+                        yield from original(identifier); return
+                    yield f["payload"][:19]; raise OSError("synthetic transport")
+                with mock.patch.object(NEW, "phase1_payload_chunks", interrupted): self.collect_incomplete()
+                retained = self.transports(f)[0]
+                if variant == "bytes": (retained / "raw.zip").write_bytes(b"changed retained prefix")
+                if variant == "inode":
+                    raw = retained / "raw.zip"; original = raw.read_bytes()
+                    raw.rename(f["directory"] / "original-inode.zip"); raw.write_bytes(original)
+                if variant == "claim":
+                    path = f["directory"] / "collector.claim.json"; value = json.loads(path.read_bytes())
+                    value["collectorID"] = "b" * 32; path.write_bytes(canonical(value))
+                if variant == "request": (retained / "request.json").write_bytes(b"{}\n")
+                before = tree_bytes(retained)
+                with mock.patch.object(NEW, "phase1_payload_chunks") as chunks:
+                    if variant == "claim":
+                        with self.assertRaises(ValueError): NEW.collect(RUN, True)
+                    else:
+                        self.collect_incomplete(resume=True)
+                    chunks.assert_not_called()
+                self.assertEqual(tree_bytes(retained), before)
+                self.assertFalse((f["directory"] / "manifest.json").exists())
+
+
+class ColdAttemptLifecycleTests(unittest.TestCase):
+    """Actual dispatch reservation and discovery, with remote effects replaced."""
+    plan_fixture = ColdOriginalControlBoundaryTests.plan_fixture
+    fixture = ColdOriginalCollectionTests.fixture
+
+    def prepare(self, base):
+        f = self.fixture(base)
+        shutil.rmtree(NEW.cold_lifecycle_directory(f["gate"], f["plan"]))
+        f["attempt"].unlink(); shutil.rmtree(f["directory"])
+        NEW.LEDGER.write_bytes(b""); f["runs"].clear()
+        path = base / "synthetic-cold-plan.json"; path.write_bytes(f["core"].canonical(f["plan"]))
+        f["planPath"] = path; f["requests"] = []
+        original_api = NEW.api
+        def api(endpoint):
+            for status in f["core"].ACTIVE_RUN_STATUSES:
+                if endpoint == f"repos/{REPO}/actions/runs?status={status}&per_page={NEW.PAGE_SIZE}&page=1":
+                    return {"total_count": 0, "workflow_runs": []}
+            return original_api(endpoint)
+        def git(*argv):
+            self.assertEqual(argv[0], "git")
+            if argv[1] in ("fetch", "diff"): return ""
+            self.assertEqual(argv[1], "rev-parse")
+            if argv[2].endswith("^{tree}"): return f["plan"]["tree"] + "\n"
+            return {"HEAD": HEAD, "origin/" + NEW.BRANCH: HEAD,
+                    "origin/main": f["core"].BASE_MAIN}[argv[2]] + "\n"
+        def process(argv, **kwargs):
+            # The actual exclusive reservation must be complete before the sole
+            # synthetic remote request, with exact bytes and no inherited stdin.
+            consumed = f["core"].decode(f["attempt"].read_bytes(), limit=f["core"].MAX_ATTEMPT_BYTES)
+            registration = (base / "v23-cold-plans" / (f["core"].cold_original_stem(f["plan"]) + ".json")).read_bytes()
+            f["core"].validate_cold_attempt(consumed, f["plan"], registration)
+            self.assertEqual(argv, f["core"].cold_dispatch_argv(f["plan"], 7))
+            self.assertEqual(kwargs["input"], f["core"].canonical(f["core"].cold_dispatch_inputs(f["plan"])))
+            self.assertIs(kwargs["check"], False)
+            f["requests"].append(copy.deepcopy(consumed)); f["runs"].append(f["observed"])
+            return subprocess.CompletedProcess(argv, 0, b"synthetic request response", b"")
+        stack = contextlib.ExitStack()
+        for name, replacement in (("run", git), ("api", api), ("cold_timestamp", lambda: "2026-09-26T12:01:00Z")):
+            stack.enter_context(mock.patch.object(NEW, name, replacement))
+        stack.enter_context(mock.patch.object(NEW.subprocess, "run", process))
+        self.addCleanup(stack.close)
+        return f
+
+    def test_actual_cold_dispatch_preconsumes_once_and_discovery_only_continues_same_original(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            f = self.prepare(Path(temporary).resolve())
+            record = NEW.dispatch(f["core"].COLD_SELECTION, kind="development", cold_plan=f["planPath"])
+            self.assertEqual(len(f["requests"]), 1)
+            self.assertEqual((record["runID"], record["kind"], record["status"], record["functionalQualification"]),
+                             (RUN, "development", "INCOMPLETE", "PENDING"))
+            self.assertIs(record["developmentOnly"], True)
+            for key in ("providerQualification", "acceptance", "releaseReady"): self.assertIs(record[key], False)
+            consumed = f["attempt"].read_bytes()
+            dispatch_bytes = (f["directory"] / "dispatch.json").read_bytes()
+            with self.assertRaisesRegex(ValueError, "consumed"):
+                NEW.dispatch(f["core"].COLD_SELECTION, kind="development", cold_plan=f["planPath"])
+            continued = NEW.cold_original_lifecycle(f["planPath"], kind="development", discover=True)
+            self.assertEqual(continued, record)
+            self.assertEqual(f["attempt"].read_bytes(), consumed)
+            self.assertEqual((f["directory"] / "dispatch.json").read_bytes(), dispatch_bytes)
+            self.assertEqual(len(f["requests"]), 1)
+            self.assertEqual(NEW.cold_original_context(RUN)[3], f["plan"])
+
+    def test_uncertain_attempt_fsync_never_dispatches_and_retained_consumption_never_retries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            f = self.prepare(Path(temporary).resolve()); fsync = f["core"].os.fsync
+            def failed(fd):
+                if f["attempt"].exists(): raise OSError("synthetic consumed-file fsync uncertainty")
+                return fsync(fd)
+            with mock.patch.object(f["core"].os, "fsync", failed):
+                with self.assertRaises(OSError):
+                    NEW.dispatch(f["core"].COLD_SELECTION, kind="development", cold_plan=f["planPath"])
+            self.assertEqual(f["requests"], [])
+            self.assertTrue(f["attempt"].exists()); consumed = f["attempt"].read_bytes()
+            with self.assertRaisesRegex(ValueError, "consumed"):
+                NEW.dispatch(f["core"].COLD_SELECTION, kind="development", cold_plan=f["planPath"])
+            self.assertEqual(f["attempt"].read_bytes(), consumed)
+            self.assertFalse(f["directory"].exists())
+
+
+# BEGIN LOCAL DEVELOPMENT EVENT TESTS V1
+@unittest.skipUnless(sys.platform == "darwin", "local27 real-FD fixtures require the reviewed Darwin route")
+class LocalDevelopmentEventTests(unittest.TestCase):
+    """Disposable real-FD fixtures; no native, provider, Git or qualification proof."""
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="local-development-data-")
+        self.root = Path(self.temporary.name).resolve()
+        self.inputs = self.root / "inputs"; self.inputs.mkdir()
+        self.original = self.root / "original"; self.original.mkdir()
+        self.source = self.root / "source"; self.source.mkdir()
+        self.packets = self.root / "packets"; self.packets.mkdir()
+        self.recorded_packets = self.root / "recorded-packets"; self.recorded_packets.mkdir()
+        self.evidence = self.root / "evidence"; self.evidence.mkdir()
+        self.attempts = self.evidence / "v23-local-development-attempts"; self.attempts.mkdir()
+        self.ledger_path = self.evidence / "v23-original-ledger.jsonl"
+        self.legacy = canonical({"runID": 42, "head": HEAD, "selection": "legacy", "kind": "gate"})
+        self.ledger_path.write_bytes(self.legacy)
+        source_map = self.put("source-map.json", {"App.swift": {"sha256": "a" * 64, "bytes": 7, "mode": "0o644"}})
+        frozen = self.put("source-freeze.json", {"sourceHEAD": HEAD, "sourceWorktree": str(self.source),
+            "allInputs": {key: source_map[key] for key in ("path", "sha256")}})
+        policy = self.put("policy.json", {"testOnly": True, "purpose": "synthetic local27 fixture"})
+        toolchain = self.put("toolchain.json", {"xcodeVersion": "27.0", "xcodeBuild": "27A266a",
+            "sdkVersion": "27.0", "runtimeVersion": "26.2", "runtimeBuild": "23C54"})
+        bindings = dict.fromkeys(NEW.LOCAL_ROLES)
+        bindings.update(sourceMap=source_map, sourceFreeze=frozen, policy=policy, toolchain=toolchain)
+        self.request = {"schema": NEW.LOCAL_REQUEST_SCHEMA, "registrationMode": "prospective",
+            "originalKind": "build-for-testing", "originalDirectory": str(self.original), "questionID": "compile-data-v1",
+            "head": HEAD, "sourceWorktree": str(self.source), "selectors": [],
+            "plannedArgv": ["/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild", "build-for-testing"],
+            "bindings": bindings, "registration": None}
+        self.patches = contextlib.ExitStack()
+        # Only the immutable decision pin is synthetic; all FD/hash/schema logic is genuine.
+        self.patches.enter_context(mock.patch.object(NEW, "LOCAL_POLICY_SHA", policy["sha256"]))
+        self.patches.enter_context(mock.patch.object(NEW, "LEDGER", self.ledger_path))
+        self.patches.enter_context(mock.patch.object(NEW, "now", return_value=FIXED_NOW))
+        self.patches.enter_context(mock.patch.object(NEW, "api", side_effect=AssertionError("provider effect")))
+        self.patches.enter_context(mock.patch.object(NEW, "run", side_effect=AssertionError("Git/command effect")))
+        self.patches.enter_context(mock.patch.object(NEW.subprocess, "run", side_effect=AssertionError("launch effect")))
+
+    def tearDown(self):
+        self.patches.close()
+        self.temporary.cleanup()
+
+    def ref(self, path):
+        raw = path.read_bytes()
+        return {"path": str(path), "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
+
+    def put(self, name, value, directory=None):
+        path = (directory or self.inputs) / name
+        path.write_bytes(NEW.local_canonical(value))
+        return self.ref(path)
+
+    def prepare(self, request=None, name="event.json", event="local-development-registered"):
+        reference = self.put("request-" + name, request or self.request)
+        output = (self.recorded_packets if event == "local-development-recorded" else self.packets) / name
+        value = NEW.local_prepare(reference, str(output), event)
+        return value, self.ref(output)
+
+    def launch_receipts(self, request, registration=None, result=True):
+        request = copy.deepcopy(request)
+        command = {"argv": request["plannedArgv"], "atUTC": FIXED_NOW, "cwd": str(self.source)}
+        if registration is not None:
+            command["localDevelopmentRegistration"] = {key: registration[key] for key in ("path", "sha256")}
+        command_ref = self.put("COMMAND.json", command, self.original)
+        start = {"pid": 123, "rootPID": 122, "atUTC": FIXED_NOW, "commandSHA256": command_ref["sha256"]}
+        request["bindings"].update(command=command_ref, start=self.put("START.json", start, self.original))
+        if result:
+            request["bindings"]["result"] = self.put("RESULT.json", {"exitCode": 1, "ownedOuterTimedOut": False,
+                "sourceHEAD": HEAD, "trackedInputs": {key: request["bindings"]["sourceMap"][key] for key in ("path", "sha256")},
+                "command": {key: command_ref[key] for key in ("path", "sha256")}, "runtimeExecuted": False}, self.original)
+        request["registration"] = registration
+        return request
+
+    def append(self, reference):
+        return NEW.local_append(reference, hashlib.sha256(self.ledger_path.read_bytes()).hexdigest())
+
+    def test_prepare_is_pending_without_opening_missing_canonical_ledger_or_launching(self):
+        self.ledger_path.unlink()
+        value, _ = self.prepare()
+        self.assertEqual(value["ledgerStatus"], "PENDING_APPEND")
+        self.assertFalse(value["classification"]["executionAuthority"])
+        self.assertIsNone(value["tupleFacts"]["macOS"])
+        self.assertIsNone(value["tupleFacts"]["productsSHA256"])
+        self.assertFalse(self.ledger_path.exists())
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
+    def test_after_fact_failed_original_is_retained_without_backdated_registration(self):
+        request = copy.deepcopy(self.request); request["registrationMode"] = "after-the-fact"
+        request = self.launch_receipts(request)
+        value, reference = self.prepare(request, event="local-development-recorded")
+        self.assertEqual(value["recordedAtUTC"], FIXED_NOW)
+        self.assertEqual(value["registrationMode"], "after-the-fact")
+        self.assertEqual(value["originalIdentity"]["command"], request["bindings"]["command"])
+        result = self.append(reference)
+        self.assertTrue(result["ledgerAppended"])
+        self.assertTrue(self.ledger_path.read_bytes().startswith(self.legacy))
+        self.assertFalse(result["classification"]["acceptance"])
+        self.assertFalse(result["classification"]["gateQualification"])
+
+    def test_prospective_ledger_reservation_actual_command_and_start_are_required(self):
+        registration, reference = self.prepare(name="registration.json")
+        self.append(reference)
+        request = self.launch_receipts(self.request, reference)
+        value, recorded = self.prepare(request, "recorded.json", "local-development-recorded")
+        self.append(recorded)
+        rows = [json.loads(line) for line in self.ledger_path.read_text().splitlines()]
+        self.assertEqual([row.get("event") for row in rows], [None, "local-development-registered", "local-development-recorded"])
+        self.assertEqual(rows[1]["questionKey"], rows[2]["questionKey"])
+        self.assertEqual(NEW.ledger_dispatches(), [json.loads(self.legacy)])
+        self.assertEqual(len(NEW.ledger_events()), 2)
+        self.assertFalse(value["classification"]["exactMainVerification"])
+
+    def test_retrospective_and_missing_registration_cannot_masquerade_as_prospective(self):
+        for hostile in ("missing", "after-fact", "command", "start"):
+            with self.subTest(hostile=hostile):
+                self.original = self.root / ("original-" + hostile); self.original.mkdir()
+                base = copy.deepcopy(self.request); base["originalDirectory"] = str(self.original)
+                _, registration = self.prepare(base, name=hostile + "-reg.json")
+                request = self.launch_receipts(base, registration)
+                if hostile == "missing": request["registration"] = None
+                elif hostile == "after-fact": request["registrationMode"] = "after-the-fact"
+                elif hostile == "command":
+                    request["bindings"]["command"] = self.put("COMMAND.json", {"argv": request["plannedArgv"]}, self.original)
+                else:
+                    request["bindings"]["start"] = self.put("START.json", {"pid": 123, "commandSHA256": "f" * 64}, self.original)
+                with self.assertRaises(ValueError):
+                    self.prepare(request, hostile + "-bad.json", "local-development-recorded")
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
+    def test_unledgered_reservation_does_not_satisfy_prospective_append(self):
+        _, reservation = self.prepare(name="reservation.json")
+        request = self.launch_receipts(self.request, reservation)
+        _, reference = self.prepare(request, "recorded.json", "local-development-recorded")
+        with self.assertRaisesRegex(ValueError, "already be ledgered"):
+            self.append(reference)
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_build_native_selection_and_same_head_changed_map_keys_stay_distinct(self):
+        first = NEW.local_question_key(self.request)
+        native = copy.deepcopy(self.request)
+        native.update(originalKind="test-without-building", selectors=["FieldEvidenceAppTests/Example/testReal"])
+        native["plannedArgv"] = ["xcodebuild", "test-without-building", "-only-testing:" + native["selectors"][0]]
+        self.assertNotEqual(first, NEW.local_question_key(NEW.local_request(native)))
+        changed = copy.deepcopy(self.request); changed["bindings"]["sourceMap"]["sha256"] = "b" * 64
+        self.assertNotEqual(first, NEW.local_question_key(changed))
+        for wrong in (dict(native, selectors=[]), dict(self.request, selectors=native["selectors"])):
+            with self.assertRaisesRegex(ValueError, "build/native"):
+                NEW.local_request(wrong)
+
+    def test_wrong_result_map_foreign_receipt_parent_and_wrong_toolchain_refuse(self):
+        request = self.launch_receipts(dict(self.request, registrationMode="after-the-fact"))
+        request["bindings"]["result"] = self.put("RESULT.json", {"exitCode": 0,
+            "trackedInputs": {"path": "/foreign/map.json", "sha256": "a" * 64}}, self.original)
+        with self.assertRaisesRegex(ValueError, "input-map"):
+            self.prepare(request, event="local-development-recorded")
+        request["bindings"]["result"] = None
+        request["bindings"]["start"] = self.put("foreign-start.json", {"pid": 123})
+        with self.assertRaisesRegex(ValueError, "receipt parent"):
+            self.prepare(request, event="local-development-recorded")
+        bad = copy.deepcopy(self.request)
+        bad["originalDirectory"] = str(self.root / "toolchain-future-original")
+        bad["bindings"]["toolchain"] = self.put("bad-toolchain.json", {"xcodeVersion": "26.6", "xcodeBuild": "17F113",
+            "runtimeVersion": "26.2", "runtimeBuild": "23C54"})
+        with self.assertRaisesRegex(ValueError, "local27"):
+            self.prepare(bad)
+
+    def test_duplicate_nonfinite_unknown_keys_and_forged_authority_refuse(self):
+        for raw in (b'{"x":1,"x":2}', b'{"x":NaN}', b'{"x":Infinity}'):
+            with self.assertRaises(ValueError): NEW.local_json(raw)
+        bad = dict(self.request, runID=123)
+        with self.assertRaisesRegex(ValueError, "closed request"):
+            NEW.local_request(bad)
+        value, _ = self.prepare()
+        for key in ("acceptance", "gateQualification", "executionAuthority", "releaseReady"):
+            bad = copy.deepcopy(value); bad["classification"][key] = True
+            with self.assertRaisesRegex(ValueError, "classification"):
+                NEW.local_event(bad)
+
+    def test_missing_and_wrong_preimage_ledgers_are_not_created_or_repaired(self):
+        _, reference = self.prepare()
+        original = self.ledger_path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "preimage"):
+            NEW.local_append(reference, "f" * 64)
+        self.assertEqual(self.ledger_path.read_bytes(), original)
+        self.ledger_path.unlink()
+        with self.assertRaises(FileNotFoundError): self.append_without_read(reference)
+        self.assertFalse(self.ledger_path.exists())
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
+    def append_without_read(self, reference):
+        return NEW.local_append(reference, hashlib.sha256(self.legacy).hexdigest())
+
+    def test_duplicate_and_partial_consumed_keys_refuse_without_ledger_changes(self):
+        value, reference = self.prepare()
+        claim = self.attempts / (value["questionKey"] + "-" + value["event"] + ".json")
+        claim.write_bytes(b"partial original append attempt\n")
+        before = self.ledger_path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "consumed"):
+            self.append(reference)
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+        self.assertEqual(claim.read_bytes(), b"partial original append attempt\n")
+
+    def test_symlink_hardlink_and_fifo_substitution_are_refused_before_read(self):
+        reference = self.request["bindings"]["sourceMap"]
+        path = Path(reference["path"]); saved = path.with_suffix(".saved"); path.rename(saved)
+        try:
+            for kind in ("symlink", "hardlink", "fifo"):
+                with self.subTest(kind=kind):
+                    if kind == "symlink": path.symlink_to(saved)
+                    elif kind == "hardlink": os.link(saved, path)
+                    else: os.mkfifo(path)
+                    fence = NEW.LocalFence()
+                    try:
+                        with self.assertRaises(ValueError): NEW.local_read(fence, reference, capture=True)
+                    finally:
+                        fence.close(); path.unlink()
+        finally:
+            saved.rename(path)
+
+    def test_open_race_fifo_is_nonblocking_and_registered_before_refusal(self):
+        reference = self.request["bindings"]["sourceMap"]
+        path = Path(reference["path"]); saved = path.with_suffix(".saved")
+        actual_open = os.open
+        calls = []
+        def racing_open(name, flags, *args, **kwargs):
+            if name == path.name and not saved.exists():
+                path.rename(saved); os.mkfifo(path)
+                calls.append(flags)
+            return actual_open(name, flags, *args, **kwargs)
+        fence = NEW.LocalFence()
+        try:
+            with mock.patch.object(NEW.os, "open", side_effect=racing_open):
+                with self.assertRaisesRegex(ValueError, "named/held"):
+                    NEW.local_read(fence, reference, capture=True)
+            self.assertEqual(len(calls), 1)
+            self.assertTrue(calls[0] & os.O_NONBLOCK)
+            self.assertTrue(calls[0] & os.O_NOFOLLOW)
+            self.assertGreater(len(fence.held), 0)
+        finally:
+            fence.close()
+            if saved.exists(): path.unlink(); saved.rename(path)
+
+    def test_ctime_only_input_drift_is_not_resnapshotted(self):
+        reference = self.request["bindings"]["sourceMap"]
+        fence = NEW.LocalFence()
+        try:
+            NEW.local_read(fence, reference, capture=True)
+            expected = [tuple(item[3]) for item in fence.held]
+            path = Path(reference["path"])
+            mode = stat.S_IMODE(path.stat().st_mode)
+            os.chmod(path, mode ^ stat.S_IXUSR); os.chmod(path, mode)
+            current = NEW.local_fact(path.lstat())
+            self.assertEqual(current[:8], expected[-1][:8])
+            self.assertEqual(current[9], expected[-1][9])
+            self.assertNotEqual(current[8], expected[-1][8])
+            with self.assertRaisesRegex(ValueError, "initial full facts"):
+                fence.check()
+            self.assertEqual([tuple(item[3]) for item in fence.held], expected)
+        finally: fence.close()
+
+    def test_zero_and_positive_short_reads_and_writes_preserve_exact_bytes(self):
+        reference = self.request["bindings"]["sourceMap"]
+        actual_read, actual_write = os.read, os.write
+        def short_read(fd, count): return actual_read(fd, min(count, 3))
+        def short_write(fd, raw): return actual_write(fd, raw[:max(1, len(raw) // 2)])
+        with mock.patch.object(NEW.os, "read", side_effect=short_read), \
+                mock.patch.object(NEW.os, "write", side_effect=short_write):
+            _, event = self.prepare()
+            self.assertTrue(self.append(event)["ledgerAppended"])
+        empty = self.inputs / "empty"; empty.write_bytes(b"")
+        fence = NEW.LocalFence()
+        try:
+            raw, _ = NEW.local_read(fence, self.ref(empty), capture=True)
+            self.assertEqual(raw, b"")
+        finally: fence.close()
+        bad = dict(reference, bytes=reference["bytes"] - 1)
+        fence = NEW.LocalFence()
+        try:
+            with self.assertRaisesRegex(ValueError, "expected raw size"):
+                NEW.local_read(fence, bad, capture=True)
+        finally: fence.close()
+
+    def test_zero_append_write_consumes_key_and_never_repairs(self):
+        value, reference = self.prepare()
+        ledger_ino = self.ledger_path.stat().st_ino
+        actual_write = os.write
+        def zero_write(fd, raw):
+            if os.fstat(fd).st_ino == ledger_ino: return 0
+            return actual_write(fd, raw)
+        with mock.patch.object(NEW.os, "write", side_effect=zero_write):
+            with self.assertRaisesRegex(ValueError, "positive bounded"):
+                self.append(reference)
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        claim = self.attempts / (value["questionKey"] + "-" + value["event"] + ".json")
+        before = claim.read_bytes()
+        with self.assertRaisesRegex(ValueError, "consumed"):
+            self.append(reference)
+        self.assertEqual(claim.read_bytes(), before)
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_tuple_forgery_duplicate_event_and_original_outputs_refuse(self):
+        value, reference = self.prepare()
+        bad = copy.deepcopy(value); bad["tupleFacts"]["xcodeVersion"] = "26.6"
+        forged = self.put("forged-event.json", bad)
+        with self.assertRaisesRegex(ValueError, "derives"):
+            self.append(forged)
+        self.append(reference)
+        before = self.ledger_path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "already ledgered"):
+            self.append(reference)
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+        ref = self.put("request-output.json", self.request)
+        with self.assertRaisesRegex(ValueError, "cannot modify original"):
+            NEW.local_prepare(ref, str(self.original / "bad.json"), "local-development-registered")
+        self.assertFalse((self.original / "bad.json").exists())
+
+    def test_public_cli_routes_local_before_generic_evidence_directory_creation(self):
+        request = self.put("request-cli.json", self.request)
+        args = ["v23-original.py", "local-register", "--request", request["path"], "--sha256", request["sha256"],
+                "--bytes", str(request["bytes"]), "--output", str(self.packets / "cli.json")]
+        absent = self.root / "unrelated-evidence"
+        with mock.patch.object(NEW, "EVIDENCE", absent), mock.patch.object(sys, "argv", args), \
+                contextlib.redirect_stdout(io.StringIO()):
+            NEW.main()
+        self.assertTrue((self.packets / "cli.json").is_file())
+        self.assertFalse(absent.exists())
+
+    def test_registration_refuses_existing_launch_receipts_and_supports_absent_original(self):
+        request = self.launch_receipts(dict(self.request, registrationMode="after-the-fact"))
+        with self.assertRaisesRegex(ValueError, "after launch"):
+            self.prepare()
+        future = copy.deepcopy(self.request); future["originalDirectory"] = str(self.root / "future-original")
+        value, _ = self.prepare(future, "future.json")
+        self.assertEqual(value["registrationMode"], "prospective")
+        self.assertFalse(Path(future["originalDirectory"]).exists())
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_online_only_canonical_ledger_is_refused_before_open_or_consumption(self):
+        _, reference = self.prepare()
+        actual_stat, actual_open = os.stat, os.open
+        calls = []
+        def online_stat(name, *args, **kwargs):
+            info = actual_stat(name, *args, **kwargs)
+            if name == self.ledger_path.name:
+                fields = {key: getattr(info, key) for key in ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid",
+                    "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns")}
+                return SimpleNamespace(**fields, st_flags=0x40000000)
+            return info
+        def observed_open(name, *args, **kwargs):
+            calls.append(name); return actual_open(name, *args, **kwargs)
+        with mock.patch.object(NEW.os, "stat", side_effect=online_stat), \
+                mock.patch.object(NEW.os, "open", side_effect=observed_open):
+            with self.assertRaisesRegex(ValueError, "online-only"):
+                self.append_without_read(reference)
+        self.assertNotIn(self.ledger_path.name, calls)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_real_growth_after_first_read_refuses_first_excess_without_output(self):
+        reference = self.request["bindings"]["sourceMap"]
+        path = Path(reference["path"]); inode = path.stat().st_ino
+        actual_read = os.read
+        changed = []
+        def growing_read(fd, count):
+            result = actual_read(fd, count)
+            if os.fstat(fd).st_ino == inode and not changed:
+                with path.open("ab") as stream: stream.write(b"X")
+                changed.append(True)
+            return result
+        fence = NEW.LocalFence()
+        try:
+            with mock.patch.object(NEW.os, "read", side_effect=growing_read):
+                with self.assertRaisesRegex(ValueError, "first excess"):
+                    NEW.local_read(fence, reference, capture=True)
+            self.assertEqual(changed, [True])
+            self.assertEqual(path.stat().st_size, reference["bytes"] + 1)
+        finally: fence.close()
+
+    def test_ledger_fsync_failure_retains_appended_bytes_and_consumed_key_without_retry(self):
+        value, reference = self.prepare()
+        inode = self.ledger_path.stat().st_ino; actual_fsync = os.fsync
+        def failing_fsync(fd):
+            if os.fstat(fd).st_ino == inode: raise OSError("synthetic ledger fsync uncertainty")
+            return actual_fsync(fd)
+        with mock.patch.object(NEW.os, "fsync", side_effect=failing_fsync):
+            with self.assertRaisesRegex(OSError, "uncertainty"):
+                self.append(reference)
+        expected = self.legacy + NEW.local_canonical(value)
+        self.assertEqual(self.ledger_path.read_bytes(), expected)
+        claim = self.attempts / (value["questionKey"] + "-" + value["event"] + ".json")
+        before = claim.read_bytes()
+        with self.assertRaisesRegex(ValueError, "already ledgered"):
+            self.append(reference)
+        self.assertEqual(self.ledger_path.read_bytes(), expected)
+        self.assertEqual(claim.read_bytes(), before)
+
+    def test_checked_ledger_close_failure_never_repeats_close_or_claims_success(self):
+        value, reference = self.prepare()
+        inode = self.ledger_path.stat().st_ino; actual_close = os.close
+        closes = []
+        def uncertain_close(fd):
+            is_ledger = os.fstat(fd).st_ino == inode
+            result = actual_close(fd)
+            if is_ledger:
+                closes.append(fd)
+                raise OSError("synthetic checked close uncertainty after actual close")
+            return result
+        with mock.patch.object(NEW.os, "close", side_effect=uncertain_close):
+            with self.assertRaisesRegex(OSError, "checked close"):
+                self.append(reference)
+        self.assertEqual(len(closes), 1)
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy + NEW.local_canonical(value))
+        self.assertTrue((self.attempts / (value["questionKey"] + "-" + value["event"] + ".json")).is_file())
+
+    def test_late_absent_original_creation_refuses_without_new_baseline(self):
+        request = copy.deepcopy(self.request); request["originalDirectory"] = str(self.root / "future-original")
+        fence = NEW.LocalFence()
+        try:
+            NEW.local_validate_inputs(fence, request, "local-development-registered")
+            expected = [tuple(item[3]) for item in fence.held]
+            Path(request["originalDirectory"]).mkdir()
+            with self.assertRaises(ValueError): fence.check()
+            self.assertEqual([tuple(item[3]) for item in fence.held], expected)
+        finally: fence.close()
+
+    def test_actual_native_shape_timeout_and_ordered_selection_remain_unqualified(self):
+        request = copy.deepcopy(self.request)
+        request.update(registrationMode="after-the-fact", originalKind="test-without-building",
+            questionID="native-timeout", selectors=["FieldEvidenceAppTests/Example/testFirst", "FieldEvidenceAppTests/Example/testSecond"])
+        request["plannedArgv"] = ["xcodebuild", "test-without-building"] + ["-only-testing:" + x for x in request["selectors"]]
+        request = self.launch_receipts(request)
+        request["bindings"]["result"] = self.put("RESULT.json", {"questionID": "native-timeout", "exitCode": -15,
+            "outerTimedOut": True, "trackedInputSHA256": request["bindings"]["sourceMap"]["sha256"]}, self.original)
+        value, reference = self.prepare(request, "native-timeout.json", "local-development-recorded")
+        self.assertEqual(value["spec"]["selectors"], request["selectors"])
+        self.assertIsNone(value["tupleFacts"]["runtimeExecuted"])
+        self.assertEqual(value["retentionStatus"], "DATA_ONLY_UNQUALIFIED")
+        self.assertIn("manifest", value["missingRoles"])
+        self.assertTrue(self.append(reference)["ledgerAppended"])
+        bad = copy.deepcopy(request); bad["selectors"].reverse()
+        with self.assertRaisesRegex(ValueError, "ordered argv selection"):
+            NEW.local_request(bad)
+        self.assertFalse(value["classification"]["gateQualification"])
+
+    def test_empty_ledger_and_boolean_as_integer_authority_are_refused(self):
+        value, reference = self.prepare()
+        self.ledger_path.write_bytes(b"")
+        with self.assertRaisesRegex(ValueError, "must not be empty"):
+            NEW.local_append(reference, hashlib.sha256(b"").hexdigest())
+        self.assertEqual(self.ledger_path.read_bytes(), b"")
+        self.assertEqual(list(self.attempts.iterdir()), [])
+        bad = copy.deepcopy(value); bad["classification"]["acceptance"] = 0
+        with self.assertRaisesRegex(ValueError, "classification"):
+            NEW.local_event(bad)
+
+    def test_writable_fence_uses_readonly_real_ancestors_and_only_writable_regular_leaf(self):
+        actual_open = os.open
+        calls = []
+        def observed_open(name, flags, *args, **kwargs):
+            fd = actual_open(name, flags, *args, **kwargs)
+            calls.append((name, flags, os.fstat(fd).st_mode))
+            return fd
+        fence = NEW.LocalFence()
+        try:
+            with mock.patch.object(NEW.os, "open", side_effect=observed_open):
+                leaf = fence.open(self.ledger_path, writable=True)
+            self.assertGreater(len(calls), 1)
+            for name, flags, mode in calls[:-1]:
+                self.assertTrue(stat.S_ISDIR(mode), name)
+                self.assertEqual(flags & os.O_ACCMODE, os.O_RDONLY, name)
+                self.assertFalse(flags & os.O_APPEND, name)
+                self.assertTrue(flags & os.O_DIRECTORY, name)
+            self.assertTrue(stat.S_ISREG(calls[-1][2]))
+            self.assertEqual(calls[-1][1] & os.O_ACCMODE, os.O_RDWR)
+            self.assertTrue(calls[-1][1] & os.O_APPEND)
+            self.assertTrue(all(not item[4] for item in fence.held[:-1]))
+            self.assertTrue(leaf[4])
+            fence.check()
+        finally:
+            fence.close()
+
+    def test_nested_float_overflow_refuses_before_candidate_or_append_effects(self):
+        for spelling in (b"1e999", b"-1e999"):
+            with self.subTest(spelling=spelling):
+                for raw in (b'{"nested":[{"value":' + spelling + b'}]}',
+                            b'[{"deep":{"value":' + spelling + b'}}]'):
+                    with self.assertRaisesRegex(ValueError, "nonfinite"):
+                        NEW.local_json(raw)
+                raw = NEW.local_canonical(self.request)
+                raw = raw[:-2] + b',"nested":{"value":' + spelling + b'}}\n'
+                path = self.inputs / ("overflow-" + spelling.decode("ascii") + ".json")
+                path.write_bytes(raw)
+                output = self.packets / ("overflow-" + spelling.decode("ascii") + ".json")
+                with self.assertRaisesRegex(ValueError, "nonfinite"):
+                    NEW.local_prepare(self.ref(path), str(output), "local-development-registered")
+                self.assertFalse(output.exists())
+        value, reference = self.prepare(name="finite.json")
+        event_raw = NEW.local_canonical(value)
+        forged = self.inputs / "overflow-event.json"
+        forged.write_bytes(event_raw[:-2] + b',"nested":{"value":1e999}}\n')
+        with self.assertRaisesRegex(ValueError, "nonfinite"):
+            self.append(self.ref(forged))
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+        self.assertEqual(NEW.local_json(b'{"nested":[0.5,1e308,-1e308]}'),
+                         {"nested": [0.5, 1e308, -1e308]})
+
+    def test_same_spec_second_reservation_cannot_masquerade_as_actual_ledgered_event(self):
+        first, first_ref = self.prepare(name="reservation-one.json")
+        self.append(first_ref)
+        before = self.ledger_path.read_bytes()
+        with mock.patch.object(NEW, "now", return_value="2026-09-25T12:00:01+00:00"):
+            second, second_ref = self.prepare(name="reservation-two.json")
+        self.assertEqual(first["spec"], second["spec"])
+        self.assertEqual(first["questionKey"], second["questionKey"])
+        self.assertNotEqual(first_ref["sha256"], second_ref["sha256"])
+        self.assertNotEqual(first["recordedAtUTC"], second["recordedAtUTC"])
+        request = self.launch_receipts(self.request, second_ref)
+        _, recorded = self.prepare(request, "recorded-second.json", "local-development-recorded")
+        with self.assertRaisesRegex(ValueError, "actual ledgered registration"):
+            self.append(recorded)
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy + NEW.local_canonical(first))
+        self.assertEqual([path.name for path in self.attempts.iterdir()],
+            [first["questionKey"] + "-local-development-registered.json"])
+
+    def test_noncanonical_captured_event_refuses_without_ledger_or_claim_effects(self):
+        value, reference = self.prepare(name="canonical-event.json")
+        path = self.inputs / "noncanonical-event.json"
+        path.write_bytes((json.dumps(value, sort_keys=True, indent=2) + "\n").encode("utf-8"))
+        self.assertEqual(NEW.local_json(path.read_bytes()), value)
+        self.assertNotEqual(self.ref(path)["sha256"], reference["sha256"])
+        with self.assertRaisesRegex(ValueError, "event exact canonical captured bytes"):
+            self.append(self.ref(path))
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
+    def test_noncanonical_registration_refuses_before_recorded_candidate_creation(self):
+        registration, reference = self.prepare(name="canonical-reservation.json")
+        path = self.inputs / "noncanonical-reservation.json"
+        path.write_bytes((json.dumps(registration, sort_keys=True, indent=2) + "\n").encode("utf-8"))
+        raw_ref = self.ref(path)
+        request = self.launch_receipts(self.request, raw_ref)
+        output = self.recorded_packets / "noncanonical-reservation-recorded.json"
+        with self.assertRaisesRegex(ValueError, "reservation exact canonical captured bytes"):
+            self.prepare(request, output.name, "local-development-recorded")
+        self.assertFalse(output.exists())
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+        self.assertEqual(NEW.local_json(path.read_bytes()), registration)
+        self.assertNotEqual(raw_ref["sha256"], reference["sha256"])
+
+    def test_noncanonical_local_ledger_row_is_not_normalized_into_reservation_authority(self):
+        registration, reference = self.prepare(name="local-row-reservation.json")
+        self.append(reference)
+        request = self.launch_receipts(self.request, reference)
+        _, recorded = self.prepare(request, "local-row-recorded.json", "local-development-recorded")
+        changed = self.legacy + (json.dumps(registration, sort_keys=True) + "\n").encode("ascii")
+        self.assertNotEqual(changed, self.legacy + NEW.local_canonical(registration))
+        self.ledger_path.write_bytes(changed)  # Disposable hostile prefix, never a real canonical ledger.
+        claims = {path.name: path.read_bytes() for path in self.attempts.iterdir()}
+        with self.assertRaisesRegex(ValueError, "local ledger row exact canonical bytes"):
+            self.append(recorded)
+        self.assertEqual(self.ledger_path.read_bytes(), changed)
+        self.assertEqual({path.name: path.read_bytes() for path in self.attempts.iterdir()}, claims)
+
+    def test_actual_allocated_candidate_and_claim_mode_or_replacement_refuse_before_write(self):
+        actual_open, actual_close, actual_write = os.open, os.close, os.write
+        for role in ("candidate", "claim"):
+            for mutation in ("mode", "replacement"):
+                with self.subTest(role=role, mutation=mutation):
+                    request = copy.deepcopy(self.request)
+                    request["questionID"] = "allocated-" + role + "-" + mutation
+                    name = role + "-" + mutation + ".json"
+                    if role == "candidate":
+                        request_ref = self.put("allocation-request-" + name, request)
+                        target = self.packets / name
+                    else:
+                        value, event_ref = self.prepare(request, name)
+                        target = self.attempts / (value["questionKey"] + "-" + value["event"] + ".json")
+                    created, writes = [], []
+                    def hostile_open(path_name, flags, *args, **kwargs):
+                        fd = actual_open(path_name, flags, *args, **kwargs)
+                        if path_name == target.name and flags & os.O_CREAT and not created:
+                            created.append(NEW.local_fact(os.fstat(fd)))
+                            if mutation == "mode":
+                                os.fchmod(fd, 0o644)
+                            else:
+                                os.unlink(path_name, dir_fd=kwargs["dir_fd"])
+                                replacement = actual_open(path_name, flags, *args, **kwargs)
+                                actual_close(replacement)
+                        return fd
+                    def observed_write(fd, raw):
+                        writes.append((fd, len(raw)))
+                        return actual_write(fd, raw)
+                    with mock.patch.object(NEW.os, "open", side_effect=hostile_open), \
+                            mock.patch.object(NEW.os, "write", side_effect=observed_write):
+                        with self.assertRaisesRegex(ValueError, "allocated|one link"):
+                            if role == "candidate":
+                                NEW.local_prepare(request_ref, str(target), "local-development-registered")
+                            else:
+                                self.append(event_ref)
+                    self.assertEqual(len(created), 1)
+                    self.assertEqual(writes, [])
+                    self.assertTrue(target.is_file())
+                    self.assertEqual(target.read_bytes(), b"")
+                    self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+                    if mutation == "mode":
+                        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o644)
+                        self.assertEqual(target.stat().st_ino, created[0][1])
+                    else:
+                        self.assertNotEqual(target.stat().st_ino, created[0][1])
+                    with self.assertRaises((ValueError, FileExistsError)):
+                        if role == "candidate":
+                            NEW.local_prepare(request_ref, str(target), "local-development-registered")
+                        else:
+                            self.append(event_ref)
+                    self.assertEqual(target.read_bytes(), b"")
+                    self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_resulting_ledger_limit_refuses_before_claim_and_exact_boundary_preserves_prefix(self):
+        value, reference = self.prepare(name="bounded-event.json")
+        expected = self.legacy + NEW.local_canonical(value)
+        before = self.ledger_path.read_bytes()
+        with mock.patch.object(NEW, "LOCAL_LEDGER_LIMIT", len(expected) - 1):
+            with self.assertRaisesRegex(ValueError, "resulting canonical ledger byte bound before claim"):
+                self.append(reference)
+        self.assertEqual(self.ledger_path.read_bytes(), before)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+        with mock.patch.object(NEW, "LOCAL_LEDGER_LIMIT", len(expected)):
+            result = self.append(reference)
+        self.assertTrue(result["ledgerAppended"])
+        self.assertEqual(self.ledger_path.read_bytes(), expected)
+        self.assertTrue(self.ledger_path.read_bytes().startswith(before))
+        self.assertEqual(len(list(self.attempts.iterdir())), 1)
+
+    def test_crlf_registration_row_cannot_mint_canonical_reservation_identity(self):
+        registration, reference = self.prepare(name="line-byte-reservation.json")
+        self.append(reference)
+        request = self.launch_receipts(self.request, reference)
+        _, recorded = self.prepare(request, "line-byte-recorded.json", "local-development-recorded")
+        canonical_row = NEW.local_canonical(registration)
+        actual_row = canonical_row[:-1] + b"\r\n"
+        self.assertEqual(NEW.local_json(actual_row), registration)
+        self.assertNotEqual(hashlib.sha256(actual_row).hexdigest(), reference["sha256"])
+        self.assertEqual(len(actual_row), reference["bytes"] + 1)
+        changed = self.legacy + actual_row
+        self.ledger_path.write_bytes(changed)  # Only this disposable hostile canonical-ledger fixture.
+        claims = {path.name: path.read_bytes() for path in self.attempts.iterdir()}
+        with self.assertRaisesRegex(ValueError, "local ledger row exact canonical bytes"):
+            self.append(recorded)
+        self.assertEqual(self.ledger_path.read_bytes(), changed)
+        self.assertEqual({path.name: path.read_bytes() for path in self.attempts.iterdir()}, claims)
+        self.assertEqual(len(claims), 1)
+        self.assertEqual(Path(reference["path"]).read_bytes(), canonical_row)
+        self.assertFalse((self.attempts / (registration["questionKey"] + "-local-development-recorded.json")).exists())
+    def parent_projection_operation(self, role, label):
+        request = copy.deepcopy(self.request)
+        request["questionID"] = "parent-" + role + "-" + label
+        name = role + "-" + label + ".json"
+        if role == "candidate":
+            reference = self.put("request-" + name, request)
+            target = self.packets / name
+            operation = lambda: NEW.local_prepare(reference, str(target), "local-development-registered")
+        else:
+            value, reference = self.prepare(request, name)
+            target = self.attempts / (value["questionKey"] + "-" + value["event"] + ".json")
+            operation = lambda: self.append(reference)
+        return target, operation
+
+    def test_candidate_and_claim_preserve_actual_plus_one_creation_parent_through_content(self):
+        actual_writer, actual_write, actual_fstat = NEW.local_write_once, os.write, os.fstat
+        for role in ("candidate", "claim"):
+            with self.subTest(role=role):
+                target, operation = self.parent_projection_operation(role, "positive")
+                before = NEW.local_fact(target.parent.lstat())
+                first_write, returned = [], []
+                def observed_write(fd, raw):
+                    if target.exists() and actual_fstat(fd).st_ino == target.lstat().st_ino and not first_write:
+                        first_write.append(NEW.local_fact(target.parent.lstat()))
+                    return actual_write(fd, raw)
+                def observed_writer(path, raw):
+                    result = actual_writer(path, raw)
+                    returned.append(result)
+                    return result
+                with mock.patch.object(NEW, "local_write_once", side_effect=observed_writer), \
+                        mock.patch.object(NEW.os, "write", side_effect=observed_write):
+                    result = operation()
+                self.assertEqual(len(returned), 1)
+                leaf, creation_parent = returned[0]
+                self.assertEqual(creation_parent[:5], before[:5])
+                self.assertEqual(creation_parent[5], before[5] + 1)
+                self.assertEqual(creation_parent[9], before[9])
+                self.assertEqual(first_write, [creation_parent])
+                self.assertEqual(NEW.local_fact(target.parent.lstat()), creation_parent)
+                self.assertEqual(NEW.local_fact(target.lstat()), leaf)
+                self.assertEqual(stat.S_IMODE(target.lstat().st_mode), 0o600)
+                self.assertEqual(target.lstat().st_nlink, 1)
+                if role == "candidate":
+                    self.assertEqual(result["ledgerStatus"], "PENDING_APPEND")
+                    self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+                else:
+                    self.assertTrue(result["ledgerAppended"])
+                    self.assertTrue(self.ledger_path.read_bytes().startswith(self.legacy))
+                self.assertFalse(result["classification"]["executionAuthority"])
+
+    def test_candidate_and_claim_refuse_wrong_creation_link_delta_before_content(self):
+        actual_open, actual_fstat, actual_write = os.open, os.fstat, os.write
+        for role in ("candidate", "claim"):
+            for delta in (0, 2):
+                with self.subTest(role=role, delta=delta):
+                    target, operation = self.parent_projection_operation(role, "links-" + str(delta))
+                    before = NEW.local_fact(target.parent.lstat())
+                    allocated, altered, writes = [], [], []
+                    def observed_open(name, flags, *args, **kwargs):
+                        fd = actual_open(name, flags, *args, **kwargs)
+                        if name == target.name and flags & os.O_CREAT:
+                            allocated.append(fd)
+                        return fd
+                    def wrong_parent_links(fd):
+                        info = actual_fstat(fd)
+                        if allocated and info.st_ino == before[1] and not altered:
+                            real = NEW.local_fact(info)
+                            self.assertEqual(real[5], before[5] + 1)
+                            altered.append(real)
+                            fields = {key: getattr(info, key) for key in ("st_dev", "st_ino", "st_mode",
+                                "st_uid", "st_gid", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns", "st_flags")}
+                            fields["st_nlink"] = before[5] + delta
+                            return SimpleNamespace(**fields)
+                        return info
+                    def observed_write(fd, raw):
+                        writes.append(fd)
+                        return actual_write(fd, raw)
+                    with mock.patch.object(NEW.os, "open", side_effect=observed_open), \
+                            mock.patch.object(NEW.os, "fstat", side_effect=wrong_parent_links), \
+                            mock.patch.object(NEW.os, "write", side_effect=observed_write):
+                        with self.assertRaisesRegex(ValueError, "actual exclusive allocation parent projection"):
+                            operation()
+                    self.assertEqual(len(allocated), 1)
+                    self.assertEqual(len(altered), 1)
+                    self.assertEqual(writes, [])
+                    self.assertEqual(target.read_bytes(), b"")
+                    self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_candidate_and_claim_refuse_foreign_entry_at_exclusive_creation(self):
+        actual_open, actual_write = os.open, os.write
+        for role in ("candidate", "claim"):
+            with self.subTest(role=role):
+                target, operation = self.parent_projection_operation(role, "foreign")
+                foreign = target.parent / (role + "-foreign-entry")
+                created, writes = [], []
+                def foreign_open(name, flags, *args, **kwargs):
+                    fd = actual_open(name, flags, *args, **kwargs)
+                    if name == target.name and flags & os.O_CREAT:
+                        created.append(fd)
+                        foreign.write_bytes(b"foreign disposable member")
+                    return fd
+                def observed_write(fd, raw):
+                    writes.append(fd)
+                    return actual_write(fd, raw)
+                with mock.patch.object(NEW.os, "open", side_effect=foreign_open), \
+                        mock.patch.object(NEW.os, "write", side_effect=observed_write):
+                    with self.assertRaisesRegex(ValueError, "actual exclusive allocation parent projection"):
+                        operation()
+                self.assertEqual(len(created), 1)
+                self.assertEqual(writes, [])
+                self.assertEqual(target.read_bytes(), b"")
+                self.assertEqual(foreign.read_bytes(), b"foreign disposable member")
+                self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_candidate_and_claim_refuse_removed_prior_entry_at_exclusive_creation(self):
+        actual_open, actual_write = os.open, os.write
+        for role in ("candidate", "claim"):
+            with self.subTest(role=role):
+                target, operation = self.parent_projection_operation(role, "removed")
+                prior = target.parent / (role + "-removed-prior")
+                prior.write_bytes(b"old disposable member")
+                created, writes = [], []
+                def removed_open(name, flags, *args, **kwargs):
+                    fd = actual_open(name, flags, *args, **kwargs)
+                    if name == target.name and flags & os.O_CREAT:
+                        created.append(fd)
+                        prior.unlink()
+                    return fd
+                def observed_write(fd, raw):
+                    writes.append(fd)
+                    return actual_write(fd, raw)
+                with mock.patch.object(NEW.os, "open", side_effect=removed_open), \
+                        mock.patch.object(NEW.os, "write", side_effect=observed_write):
+                    with self.assertRaisesRegex(ValueError, "actual exclusive allocation parent projection"):
+                        operation()
+                self.assertEqual(len(created), 1)
+                self.assertEqual(writes, [])
+                self.assertFalse(prior.exists())
+                self.assertEqual(target.read_bytes(), b"")
+                self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_candidate_and_claim_refuse_changed_prior_member_full_fact_at_creation(self):
+        actual_open, actual_write = os.open, os.write
+        for role in ("candidate", "claim"):
+            with self.subTest(role=role):
+                target, operation = self.parent_projection_operation(role, "prior-fact")
+                prior = target.parent / (role + "-changed-prior")
+                prior.write_bytes(b"old disposable member")
+                original = NEW.local_fact(prior.lstat())
+                created, writes = [], []
+                def changed_open(name, flags, *args, **kwargs):
+                    fd = actual_open(name, flags, *args, **kwargs)
+                    if name == target.name and flags & os.O_CREAT:
+                        created.append(fd)
+                        os.chmod(prior, stat.S_IMODE(original[2]) ^ stat.S_IXUSR)
+                    return fd
+                def observed_write(fd, raw):
+                    writes.append(fd)
+                    return actual_write(fd, raw)
+                with mock.patch.object(NEW.os, "open", side_effect=changed_open), \
+                        mock.patch.object(NEW.os, "write", side_effect=observed_write):
+                    with self.assertRaisesRegex(ValueError, "actual exclusive allocation parent projection"):
+                        operation()
+                self.assertEqual(len(created), 1)
+                self.assertEqual(writes, [])
+                self.assertNotEqual(NEW.local_fact(prior.lstat()), original)
+                self.assertEqual(prior.read_bytes(), b"old disposable member")
+                self.assertEqual(target.read_bytes(), b"")
+                self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+
+    def test_candidate_and_claim_refuse_late_parent_ctime_or_mode_after_file_fsync(self):
+        actual_fsync, actual_fstat = os.fsync, os.fstat
+        for role in ("candidate", "claim"):
+            for mutation in ("ctime", "mode"):
+                with self.subTest(role=role, mutation=mutation):
+                    target, operation = self.parent_projection_operation(role, "late-" + mutation)
+                    old_mode = stat.S_IMODE(target.parent.lstat().st_mode)
+                    changed = []
+                    def late_fsync(fd):
+                        result = actual_fsync(fd)
+                        if target.exists() and actual_fstat(fd).st_ino == target.lstat().st_ino and not changed:
+                            creation = NEW.local_fact(target.parent.lstat())
+                            os.chmod(target.parent, old_mode ^ stat.S_IWGRP)
+                            if mutation == "ctime":
+                                os.chmod(target.parent, old_mode)
+                            changed.append((creation, NEW.local_fact(target.parent.lstat())))
+                        return result
+                    try:
+                        with mock.patch.object(NEW.os, "fsync", side_effect=late_fsync):
+                            with self.assertRaisesRegex(ValueError, "parent exact proved creation projection"):
+                                operation()
+                        self.assertEqual(len(changed), 1)
+                        if mutation == "ctime":
+                            self.assertEqual(changed[0][0][:8], changed[0][1][:8])
+                            self.assertEqual(changed[0][0][9], changed[0][1][9])
+                            self.assertNotEqual(changed[0][0][8], changed[0][1][8])
+                        else:
+                            self.assertNotEqual(changed[0][0][2], changed[0][1][2])
+                        self.assertGreater(len(target.read_bytes()), 0)
+                        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+                    finally:
+                        os.chmod(target.parent, old_mode)
+
+    def test_candidate_and_claim_refuse_late_parent_flags_after_file_fsync(self):
+        actual_fsync, actual_fstat = os.fsync, os.fstat
+        for role in ("candidate", "claim"):
+            with self.subTest(role=role):
+                target, operation = self.parent_projection_operation(role, "late-flags")
+                old_flags = target.parent.lstat().st_flags
+                changed = []
+                def late_fsync(fd):
+                    result = actual_fsync(fd)
+                    if target.exists() and actual_fstat(fd).st_ino == target.lstat().st_ino and not changed:
+                        creation = NEW.local_fact(target.parent.lstat())
+                        os.chflags(target.parent, old_flags ^ stat.UF_NODUMP)
+                        changed.append((creation, NEW.local_fact(target.parent.lstat())))
+                    return result
+                try:
+                    with mock.patch.object(NEW.os, "fsync", side_effect=late_fsync):
+                        with self.assertRaisesRegex(ValueError, "parent exact proved creation projection"):
+                            operation()
+                    self.assertEqual(len(changed), 1)
+                    self.assertNotEqual(changed[0][0][9], changed[0][1][9])
+                    self.assertGreater(len(target.read_bytes()), 0)
+                    self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+                finally:
+                    os.chflags(target.parent, old_flags)
+
+    def test_outer_claim_refuses_drift_after_nested_writer_using_original_creation_parent(self):
+        actual_writer = NEW.local_write_once
+        for mutation in ("ctime", "mode", "flags"):
+            with self.subTest(mutation=mutation):
+                target, operation = self.parent_projection_operation("claim", "nested-" + mutation)
+                original_mode = stat.S_IMODE(target.parent.lstat().st_mode)
+                original_flags = target.parent.lstat().st_flags
+                nested = []
+                def late_nested_writer(path, raw):
+                    leaf, creation = actual_writer(path, raw)
+                    self.assertEqual(NEW.local_fact(target.parent.lstat()), creation)
+                    if mutation == "flags":
+                        os.chflags(target.parent, original_flags ^ stat.UF_NODUMP)
+                    else:
+                        os.chmod(target.parent, original_mode ^ stat.S_IWGRP)
+                        if mutation == "ctime":
+                            os.chmod(target.parent, original_mode)
+                    nested.append((leaf, creation, NEW.local_fact(target.parent.lstat())))
+                    return leaf, creation
+                try:
+                    with mock.patch.object(NEW, "local_write_once", side_effect=late_nested_writer):
+                        with self.assertRaisesRegex(ValueError, "attempt directory exact original creation projection"):
+                            operation()
+                    self.assertEqual(len(nested), 1)
+                    self.assertEqual(NEW.local_fact(target.lstat()), nested[0][0])
+                    self.assertNotEqual(nested[0][1], nested[0][2])
+                    if mutation == "ctime":
+                        self.assertEqual(nested[0][1][:8], nested[0][2][:8])
+                        self.assertEqual(nested[0][1][9], nested[0][2][9])
+                        self.assertNotEqual(nested[0][1][8], nested[0][2][8])
+                    self.assertGreater(len(target.read_bytes()), 0)
+                    self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+                    retained = target.read_bytes()
+                    with self.assertRaisesRegex(ValueError, "consumed/uncertain"):
+                        operation()
+                    self.assertEqual(target.read_bytes(), retained)
+                    self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+                finally:
+                    os.chflags(target.parent, original_flags)
+                    os.chmod(target.parent, original_mode)
+
+    def test_public_recorded_prepare_refuses_retained_registration_parent_without_mutation(self):
+        registration, reference = self.prepare(name="same-parent-registration.json")
+        request = self.launch_receipts(self.request, reference)
+        request_ref = self.put("same-parent-recorded-request.json", request)
+        output = self.packets / "same-parent-recorded.json"
+        registration_path = Path(reference["path"])
+        input_refs = [request_ref, reference] + [item for item in request["bindings"].values() if item is not None]
+        before = {item["path"]: (NEW.local_fact(Path(item["path"]).lstat()), Path(item["path"]).read_bytes())
+            for item in input_refs}
+        parent = NEW.local_fact(self.packets.lstat())
+        members = {path.name: NEW.local_fact(path.lstat()) for path in self.packets.iterdir()}
+        ledger = self.ledger_path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "output parent must be distinct from retained input directories"):
+            NEW.local_prepare(request_ref, str(output), "local-development-recorded")
+        self.assertFalse(output.exists())
+        self.assertEqual(NEW.local_fact(self.packets.lstat()), parent)
+        self.assertEqual({path.name: NEW.local_fact(path.lstat()) for path in self.packets.iterdir()}, members)
+        self.assertEqual({item["path"]: (NEW.local_fact(Path(item["path"]).lstat()), Path(item["path"]).read_bytes())
+            for item in input_refs}, before)
+        self.assertEqual(registration_path.read_bytes(), NEW.local_canonical(registration))
+        self.assertEqual(self.ledger_path.read_bytes(), ledger)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+        self.assertEqual(list(self.recorded_packets.iterdir()), [])
+
+    def test_precreated_recorded_parent_preserves_actual_ledgered_registration_reference_and_input_facts(self):
+        self.assertTrue(self.recorded_packets.is_dir())
+        self.assertEqual(self.recorded_packets.parent, self.packets.parent)
+        self.assertNotEqual(self.recorded_packets, self.packets)
+        self.assertEqual(list(self.recorded_packets.iterdir()), [])
+        registration, reference = self.prepare(name="separate-parent-registration.json")
+        self.append(reference)
+        request = self.launch_receipts(self.request, reference)
+        request_ref = self.put("separate-parent-recorded-request.json", request)
+        output = self.recorded_packets / "separate-parent-recorded.json"
+        input_refs = [request_ref, reference] + [item for item in request["bindings"].values() if item is not None]
+        before = {item["path"]: (NEW.local_fact(Path(item["path"]).lstat()), Path(item["path"]).read_bytes())
+            for item in input_refs}
+        registration_parent = NEW.local_fact(self.packets.lstat())
+        registration_members = {path.name: NEW.local_fact(path.lstat()) for path in self.packets.iterdir()}
+        ledger_before_record = self.ledger_path.read_bytes()
+        value = NEW.local_prepare(request_ref, str(output), "local-development-recorded")
+        recorded = self.ref(output)
+        self.assertEqual(recorded["path"], str(output))
+        self.assertEqual(NEW.local_json(value["requestBytes"].encode("utf-8"))["registration"], reference)
+        self.assertEqual(NEW.local_json(Path(request["bindings"]["command"]["path"]).read_bytes())
+            ["localDevelopmentRegistration"], {key: reference[key] for key in ("path", "sha256")})
+        self.assertEqual(NEW.local_fact(self.packets.lstat()), registration_parent)
+        self.assertEqual({path.name: NEW.local_fact(path.lstat()) for path in self.packets.iterdir()}, registration_members)
+        self.assertEqual({item["path"]: (NEW.local_fact(Path(item["path"]).lstat()), Path(item["path"]).read_bytes())
+            for item in input_refs}, before)
+        self.assertEqual(self.ledger_path.read_bytes(), ledger_before_record)
+        self.assertEqual(ledger_before_record, self.legacy + Path(reference["path"]).read_bytes())
+        self.assertEqual(value["ledgerStatus"], "PENDING_APPEND")
+        self.assertFalse(value["classification"]["executionAuthority"])
+        result = self.append(recorded)
+        self.assertTrue(result["ledgerAppended"])
+        self.assertEqual(self.ledger_path.read_bytes(), ledger_before_record + NEW.local_canonical(value))
+        self.assertEqual(Path(reference["path"]).read_bytes(), NEW.local_canonical(registration))
+        self.assertEqual(hashlib.sha256(Path(reference["path"]).read_bytes()).hexdigest(), reference["sha256"])
+        self.assertEqual(len(Path(reference["path"]).read_bytes()), reference["bytes"])
+        self.assertEqual(NEW.local_fact(self.packets.lstat()), registration_parent)
+        self.assertFalse(result["classification"]["acceptance"])
+        self.assertFalse(result["classification"]["gateQualification"])
+
+# END LOCAL DEVELOPMENT EVENT TESTS V1
 
 if __name__ == "__main__":
     unittest.main()

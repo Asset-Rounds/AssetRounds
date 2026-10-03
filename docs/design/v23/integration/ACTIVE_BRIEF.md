@@ -1,47 +1,41 @@
-# Active integration brief — 2026-10-02
+# Active integration brief — 2026-10-03
 
-AGENTS.md and PERFORMANCE_WORKFLOW.md govern. Owner resumed work and approved local27 only. All five Phase1 gates OPEN; releaseReady=false; full V23 release scope remains.
+AGENTS.md and PERFORMANCE_WORKFLOW.md govern. All five Phase1 gates OPEN; releaseReady=false. Full V23 release scope remains.
 
-## Source and preservation
+## Current checkpoint and preservation
 
-- Primary Dropbox checkout: /Users/rentamac/AssetRounds; Developer alias is the same folder. Recovered ten-leaf checkpoint is based on15175376abc1a81fb00a5640638fe7efee9f58ac; current integration HEAD is Git-authoritative. Accepted S10 mainb1d04ae5e684aa9c6807af655089efa1df8a7ed6 is unchanged.
-- Only the ten independently reviewed recovery/fixture code leaves were imported (receipt8467eb97); exact postimage bytes/modes verified. Owner drafts, CODEX_RESUME.md, Finder files, V30, frozen branches, original failures/HOLDs/DD are preserved. No main advancement.
-- One new area: .codex-temp/resume-20261002; WORK_AREA.md maps sources, portable patches, fresh DD and evidence. Historical archive online-only except required hash-exact originals; no bulk recovery.
-- Selected auxiliary patch base3c5830e9/preimages verified; gzipcaf8e76a/plain2559296b/checkpoint4ea66743 and isolated git apply --check passed. Migration34live/26archived/96packet artifacts preserved; paired owner draft not extracted.
+- Dropbox primary integration checkpoint22d75cc78e48a50707ee1b1a3e227af198384ac7, parent15175376abc1a81fb00a5640638fe7efee9f58ac, contains the reviewed ten-leaf recovery and local27 policy/records. Main remains accepted S10 b1d04ae5e684aa9c6807af655089efa1df8a7ed6.
+- Integration publication is blocked by missing Git authentication. Verified isolated non-force transport retains exact33 new objects; both push refusals are preserved. Refresh server refs and exact source/commit guards before publishing. No main advancement.
+- Preserve owner drafts, untracked CODEX_RESUME/Finder work, V30/frozen branches, original failures/HOLDs and migration34live/26archived/96artifacts. Root alone integrates, commits, pushes and operates native/evidence/ledger effects.
+- One work area: .codex-temp/resume-20261002/WORK_AREA.md. New source/evidence stay Dropbox; disposable builds/TMP are in ~/Library/Caches/AssetRounds-resume-20261002. Historical archive remains online-only except selected originals.
 
-## Current critical path
+## Tooling checkpoint
 
-- Frozen swift-source-v4: exact1517 plus eight reviewed leaves, map9d19d753/all2809 inputs, census3712/33. Local27 full app/unit/UI compile PASS365.899s; Products209files/c85a1566. No held source/Products mutation.
-- Native45 fixed plan06558287: first eight original questions PASS and independently settled. Their manifests/HOLDs and additive dispositions remain immutable. Ninth remaining37 ended at original5400s outer deadline(-15); root4c6b1361/controller1. Partial manifest65file rows/28,180,065B/ae516052 retained; actual66regular files including manifest plus9descendant dirs; originalHOLD993a3e unchanged.
-- Terminal rawlog0b7ba1f8:18PASS/2FAIL,17without terminal(1started/16unstarted). Aggregate-detach943.580s and detached-callback950.177s fail unchanged30s publication helper; different controls/shared cause unproved. External-alias PASS1261.734s. No unchanged retry or full37 credit.
-- Actual host birth15:20:25, DURINGe65873f0/installed compiled4a3130d64 captured. Complete audit/retention/refmanifest absent. Once partial export9b65d247 failed1; no sessionassociation. PartialDATAreview31db9ac2 exact; freshphysicalb088d848 independentlyGOb581b99a/additivedisposition712ed5c5; rawguards clean/pressure1. Original30s/1800/5400 unchanged.
-- Independent ci_fixture_review Sol6.1xhigh says CAUSE_PENDING: rating-enter covers several awaits; old startup flag and later cleanup cannot establish cause. No functional fix/guard cache/timeout change justified.
-- New instrumented diagnostic finished native65, one FAIL/0PASS/0skip, no outer timeout. Original30s/1800/5400 limits unchanged; sourcec76/Productsdc79 conserved. Complete1100files/57,007,127B retained. Genuine independent outcome/physical review7030f1c9 and additive disposition1faa9151 preserve failed original/HOLD and grant no next admission.
-- Timing review: scratch cleanup844.124s; second continuation86.685s before preferences, rating0.072s afterward. Internal retirement cost needs bounded DEBUG timing; no functional fix or shared-cause claim yet.
-- Guarded V7 helper9900/callerf6fe: corrected19 PASS3a81 plus unchanged12+9 genuinely reviewed as40 (80b1d44c). Missingfixture failurec473/HOLD retained. Closed schema2 Q9 graphc431 independently GO_DATA_ONLY023cb13e; classifier V3 twenty mocks PASS1bb16e56/genuineGO8471e715. No mock or graph result grants native/gate authority.
-- Q9 partial cannot use V5 complete collector. Newadapters need exactpartialgraph/realplan/coverage/oldtuple and independentphysical settlement; cached priorQ7/Q8 and parentbaselines unchanged. Complete-only V5 still applies only to their original scope.
+- Twelve tooling leaves compose against exact primary22 in isolated primary22-cold-tooling-source. Mapdf159736/all2810; closed dispatcher9dc562fd/tests7a52f9be and retained reader0a95a260. Source-only independent Sol6.1/xhigh GO; cold development originals retain consumed attempts/no cancel/retry and false qualification.
+- Required CI on that actual composition: native393/393 and selection42/42 PASS, zero failures/errors/skips; result9672b072, same nonauthor actualGO. Own before/after2810 full-ten facts/bytes match57a9cf00. Six total workers, distinct fresh TMP, pinnedPythonb33. No Swift/native/gate credit.
+- Reuse applicable prior T4b9 dispatcher234 result:231PASS/3historicalskips/zero fail/error and genuineGOe14ea042. Reader41 retains its exact earlier scope. No unchanged rerun justified by record-only composition. The failed002 fixture-permission original and all HOLDs remain unchanged.
+- Pinned gate route is still unqualified: one cold original must prove payload/source binding, safe extraction, no-rebuild and complete partition results before any full-coverage gate credit. Template5696284 bytes remains below5.75MiB.
 
-## Ready independent checkpoints
+## Current native blocker
 
-- First checkpoint: reviewed ten code leaves(v4eight+hostGitfixtures2), composition34f6cc80/sourceGOd12ddcba. Root apply --check/apply0/import8467eb97; allten0644 exactpostimages and unowned/index preserved. Classifier original native0/35.713s, exact1PASS/0FAIL/skip; outcome/physicalGO5bf48f37/additive954b76bb. Final checkpoint scope audit and linear integration push follow; existing development failures still block Phase1.
-- HostGit affected2 and required nativeCI382/382 + selection42/42 PASS on exact7e797; do not repeat unchanged suites or relabel native-v4 compile scope. Seven Swift bytes/coverage reuse the actual v4 compile; physical source tuples retain their original checkout scope.
-- ColdCI V4 separate map1249ea82: affected6, required393/42 and unchanged gate41/template syntax PASS. Retained reader41/dispatcher190 completed0(659fe8c5),41PASS/187PASS+3historicalskips; independent actual3493e7c8 GO development-only. Original V3 failures/identityHOLDs stay.
-- C43 separate source1329: two-leaf genuine journey reviewed, fresh full compile PASS276.673s/Productsf8b9f76d. AdapterV2 seven mocks PASS; controls DATA reviewed. Currentboundary108a plus laterquieted49 preparationGO only. Diagnostic first, classifier next, C43 freshadmission afterward; native UNRUN/no qualified UI credit.
+- Earlier remaining37 original:18PASS/2FAIL/17withoutterminal at5400s. Aggregate-detach943.580s and detached-callback950.177s fail the unchanged30s publication expectation. Partialmanifestae516/HOLD993 retained; no unchanged retry or full37 credit.
+- Separate instrumented original: native65, one FAIL940.735s, complete1100files/57MB; genuine outcome/physical review7030/additive1faa. Measured scratch retirement844.124s and next continuation86.685s motivate bounded DEBUG timings; common cause with detached-callback remains unproved.
+- New pure-timing sourcef3e158bf/map282a972c compiled locally once, PASS302.237s; Products209files+15dirs/f44e9915, build0ef6338e/toolchain505ef013, genuine source/build reviews4d93/704c. Test predicates and30/1800/5400/TERM15/KILL15 limits unchanged.
+- Native timing adapterV6 ca2d4e4c has reviewed literal-only fresh-boundary correction. Prior actual41 and8 disposable mocks retain separate scopes; no actual49 run. V1 pressure2 HOLD remains. FreshV2 actual43-known-installation/14-role boundary at07:30UTC passed pressure1/source/current-commonProducts/roots/holder guards. Independent operational review, canonical once-registration/append and sole native launch remain due.
+- Canonical ledger naturally downloaded after orderly Dropbox restart and closing only verified stale readonly readers:9467B/f85196df/29legacyrows equals official stable cloudrev65ccab94149ec2ae0eccc; contenthash51399ab8 verified. Genuine provenance/preimageGOda5c is DATA only. Preserve prefix and serialize writers; no append/qualification has occurred.
 
-## Cold correction ownership and blockers
+## Separate unfinished cold correction
 
-- cold-schema2-source has twelve disjoint unfinished leaves: main Service/Startup2; target Factory/Coordinator/Migration3; Intent1; mechanics Ledger/Ninth/PFP3; Diagnostics/tests2 frozen; Preferences1 ci_fixture_review. Root alone integrates/Git/executes/evidence; all helpers Sol6.1xhigh, useful lanes up to10.
-- Main owns authentic first/ingress/PostContent/terminal/namespace/Diagnostics issuers. Target owns reader kernel/Source+Manifest/Registry namespace+close. Intent owns real core/catalog/progress/REQUEST/OBS/writer/lineage producers. Mechanics owns closed Store carrier/shared engine/resource/policy adapters.
-- ScannerV2cbb57004 component PASS_STATIC: entered-close retention/cursor budget/global ordinal mapping corrected; exact composed Intent89f79494 source-only. Closed Store constructor directions and PFP resource deltadaccb9a6 reviewed; final component/caller/actor/budget/compile joins DUE.
-- Post-content transferb0b97 partial source GO with retained actual main446f9fed proof-only access correction; full Original suffix exact. Lineage scalar proposal direction GO; real capacity/retirement/auxiliary domains remain due. Current retired-task label correctiona97929f4 captured separately.
-- Immediate missing producers: durable core/parser/writer/tasks and post-content namespace/control/terminal/Ready. Zero-tempV2 73df componentGO; reviewed scalarb2bf/binaryf598 composed into mutable Intent source-only. Preferences directionV1+V2 GO, genuineMain callbacks authored; authentic maker/admission/window/REQUEST/OBS/terminal and freshorigins stilldue. No NIL cut/fake Original proof can produce Ready. Completed-schema2 startup9820+1e957 directionGO only; constructor-entry carrier and prepared/newauth producer actualsource due. BinaryunlinkOBS mustencode actualabsence, not unavailable historical heldinode.
-- Compound12 freeze, same nonauthor risk review, fresh compile and affected Original/cold tests follow actual closure. Frozen Diagnostics13bb67b8/tests d184d19a(15 methods) stay; regenerate census if methods change.
+- cold-schema2-source remains exact1517 plus twelve owned unfinished leaves. Actual Native07ffa09b/PFPe7a0eb1d/Migrationcd2c4bfd map5732f925 includes reviewed catalog/root/original-selected/current-child borrower components. Original536404-byte suffix and other2808 full-ten/bytes conserved at latest import. Static component review creates no Ready/compile/runtime proof.
+- Target and Native author genuine descendant ReadNode/PolicyScope/current-window storage and actual outer-return/cleared-slot ownership. Mechanics waits immutable real ABI; all helpers Sol6.1/xhigh. Preserve uncertainty charges. No invented many-node/whole-image/backing/Seed producers.
+- Whole traversal/policy, ingress/Attempt/Seed/REQUEST/OBS, eight Native issuers, terminal/final consumer release and full12 source closure remain due before compound review and changed-source compile. Old89-error compiler original remains; no unchanged compile retry.
+- C43 reviewed separate source1329/fullcompile276.673s/Productsf8b9 has native UI journeys UNRUN. Fresh admission follows diagnostic settlement; no qualified UI credit.
 
-## Toolchain/resources and main
+## Toolchain, gates and owner actions
 
-- Local DEVELOPMENT Xcode27.0/27A266a +SDK27/iOS26.2/23C54 owner-approved(decision9172bd2e). Official five gates/exact-main remain GitHub26.6/17F113+iOS26.2/23C54. Old Products unqualified; retained26.6 XIP/macOS27 failures unchanged.
-- Mac16GiB/10CPU; diagnostic settled atpressure1/swap1758MiB; one native stream. Four-worker diagnostic compile283.231s passed atpressure1. Internal84GiB/external233GiB available; no transfer/cleanup needed. Disposable TMP/DATA grouped Caches/AssetRounds-resume-20261002; original Documents staging and cached parent baselines not rebased.
-- After bounded checkpoints/stabilization: deliberate hosted development sweep, cold shared-build qualification, every same-head unit partition, qualified critical UI, independent candidate review, genuine owner screenshots/checklist review, then linear main fast-forward and pinned exact-main verification.
-- Card135 owner-only skipped; device/minimum-runtime/production protection deferred and release-blocking. C55 approval provenance/privacy/App Store/remaining full V23 obligations stay in MERGE_READINESS/VERIFICATION_DUE. No signing/distribution.
+- Local DEVELOPMENT only: Xcode27.0/27A266a, SDK27/24A430, iOS26.2/23C54 under owner decision31. Every exact source/Products/compiler/runtime tuple retains its scope. All five gates/exact-main keep GitHub26.6/17F113 +26.2/23C54.
+- Mac16GiB/10CPU, about51GiB free at07:27UTC, pressure1; choose workers from live contention. Dropbox syncing resumed, global completion unproved. External233GiB available if needed; no transfer or broad cleanup required.
+- After bounded corrections stabilize: hosted development sweep, cold qualification, same-head full units and qualified critical UI, independent candidate review, genuine owner screenshots/checklist review, linear main fast-forward and pinned exact-main verification.
+- Card135 owner-only skipped. Device/minimum-runtime/production protection deferred/release-blocking; C55/privacy/App Store/owner obligations remain. No signing/distribution.
 
-Details: CURRENT_INTEGRATION.md and immutable verification packets; historical CLAUDE_HANDOFF_20261001/checkpoint CODEX_START_HERE remain references. Historical pause does not override current owner authorization.
+Details and immutable scope: CURRENT_INTEGRATION.md, VERIFICATION_DUE.md and WORK_AREA.md. Historical checkpoint/CLAUDE handoff remain references; current owner authorization resumes development.

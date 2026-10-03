@@ -11,7 +11,15 @@ set -euo pipefail
 require_route() {
   test "${CI_RUNNER_PROVIDER:-}:${CI_RUNNER_LABEL:-}" = github:macos-26
   test "${CI_NATIVE_ACCEPTANCE_CONTRACT:-}" = v23.integration.current-native.v1
-  test "${NATIVE_SELECTION_ID:-}" = v23-shared-coverage-d50x
+  case "${NATIVE_SELECTION_ID:-}" in
+    v23-shared-coverage-d50x) ;;
+    v23-cold-shared-original-v1)
+      test "${CI_V23_RUN_KIND:-}" = development
+      test -n "${GITHUB_EVENT_PATH:-}"
+      test -f "$GITHUB_EVENT_PATH"
+      ;;
+    *) printf 'invalid V23 shared selection\n' >&2; exit 65 ;;
+  esac
   test "${DISPATCH_NATIVE_SELECTION_ID:-}" = "$NATIVE_SELECTION_ID"
   case "${V23_SHARED_ROLE:-}:${V23_PARTITION_ID:-}:${V23_PARTITION_TIER:-}" in
     producer::) ;;

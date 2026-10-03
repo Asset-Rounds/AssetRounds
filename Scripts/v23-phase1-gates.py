@@ -171,6 +171,8 @@ def plan_from_event(raw):
     require(type(inputs) is dict, "original dispatch inputs")
     encoded = inputs.get(PLAN_INPUT, "")
     require(type(encoded) is str, "original plan input string")
+    cold_encoded = inputs.get("v23_cold_original_plan", "")
+    require(type(cold_encoded) is str and not (encoded and cold_encoded), "simultaneous cold and gate plans")
     return (None if encoded == "" else parse_plan(encoded.encode("utf-8"))), event
 
 
@@ -662,3 +664,362 @@ def review_pending_assessment(head, records):
             "simulatorProtection": "UNSUPPORTED", "physicalProtection": "UNVERIFIED/DEFERRED",
             "physicalProtectionReleaseBlocker": True, "acceptance": False,
             "providerQualification": False, "releaseReady": False, "trustBoundary": REVIEW_TRUST}
+
+
+# A separate development question; these schemas never enter PURPOSE_REFS.
+COLD_SELECTION = "v23-cold-shared-original-v1"
+COLD_PURPOSE = "cold-shared-route-development-v1"
+COLD_PLAN_INPUT = "v23_cold_original_plan"
+COLD_SCHEMA = "v23-cold-shared-development-intent.v1"
+COLD_EVENT_SCHEMA = "v23-cold-shared-original-event-binding.v1"
+COLD_REGISTRATION_SCHEMA = "v23-cold-shared-registration.v1"
+COLD_ATTEMPT_SCHEMA = "v23-cold-shared-original-attempt.v1"
+COLD_DISCOVERY_SCHEMA = "v23-cold-shared-original-discovery.v1"
+COLD_PENDING = "PENDING"
+COLD_PLAN_KEYS = PLAN_KEYS | {"kind"}
+COLD_CLASSIFICATION = {**CLASSIFICATION, "functionalQualification": COLD_PENDING,
+                       "developmentOnly": True, "status": "INCOMPLETE"}
+
+def validate_cold_plan(value):
+    require(type(value) is dict and set(value) == COLD_PLAN_KEYS, "closed plan keys")
+    require(value["schema"] == COLD_SCHEMA, "plan schema")
+    require(value["purpose"] == COLD_PURPOSE and value["kind"] == "development", "closed purpose")
+    require(value["ref"] == INTEGRATION_REF, "purpose/ref mismatch")
+    for key in ("head", "tree"):
+        require(type(value[key]) is str and re.fullmatch(r"[0-9a-f]{40}", value[key]), key + " identity")
+    require(value["head"] != BASE_MAIN and value["baseMain"] == BASE_MAIN, "Phase1 main baseline")
+    require(value["selection"] == COLD_SELECTION, "closed selection")
+    for key in ("selectionSHA256", "orderedUnitMethodsSHA256", "orderedUIMethodsSHA256"):
+        require(digest(value[key]), key + " digest")
+    require(type(value["sources"]) is dict and set(value["sources"]) == set(SOURCES)
+            and all(digest(v) for v in value["sources"].values()), "closed source closure")
+    exact(value["policies"], POLICIES, "approved policy bytes")
+    require(all(value["sources"][p] == h for p, h in POLICIES.items()), "source/policy mismatch")
+    exact(value["route"], ROUTE, "pinned route and budgets")
+    exact(value["classification"], COLD_CLASSIFICATION, "pending-only classification")
+    exact(value["collector"], {"path": COLLECTOR, "sha256": value["sources"][COLLECTOR]},
+          "sole collector implementation")
+    stamp = value["requestedAtUTC"]
+    require(type(stamp) is str and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", stamp),
+            "UTC timestamp")
+    try:
+        parsed_stamp = datetime.datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as error:
+        raise Refused("Phase1 gate: invalid UTC timestamp") from error
+    require(parsed_stamp >= datetime.datetime(2026, 9, 26), "predates owner decision 24")
+    return value
+
+
+
+def parse_cold_plan(raw):
+    return validate_cold_plan(decode(raw))
+
+
+def cold_plan_from_event(raw):
+    _, event = plan_from_event(raw)
+    encoded = event.get("inputs", {}).get(COLD_PLAN_INPUT, "")
+    require(type(encoded) is str, "cold original input string")
+    require(not (encoded and event["inputs"].get(PLAN_INPUT, "")), "simultaneous cold and gate plans")
+    return (None if encoded == "" else parse_cold_plan(encoded.encode("utf-8"))), event
+
+
+def make_cold_plan(*, head, tree, resolved_bytes, sources, requested_at,
+                   purpose=COLD_PURPOSE, selection=COLD_SELECTION):
+    """Create pending intent from exact source facts, never a qualification receipt."""
+    selected = decode(resolved_bytes, limit=4 * 1024 * 1024)
+    require(type(selected) is dict, "resolved selection object")
+    for field in ("unitTestSelectors", "uiTestSelectors"):
+        require(type(selected.get(field)) is list and all(type(x) is str for x in selected[field]),
+                "ordered selectors")
+    require(purpose == COLD_PURPOSE and selection == COLD_SELECTION, "closed purpose")
+    shared = selected.get("sharedCoverage")
+    require(type(shared) is dict and shared.get("partitionID", "MISSING") is None
+            and shared.get("partitionsPath") == PARTITIONS
+            and shared.get("partitionsSHA256") == sources[PARTITIONS]
+            and shared.get("developmentOnly") is True and shared.get("acceptance") is False
+            and selected.get("tier") == "D40P" and selected.get("runUISmoke") is False
+            and selected["uiTestSelectors"] == []
+            and len(selected["unitTestSelectors"]) == len(set(selected["unitTestSelectors"])) > 0,
+            "cold exact shared producer plan")
+    return validate_cold_plan({
+        "schema": COLD_SCHEMA, "purpose": purpose, "ref": INTEGRATION_REF, "kind": "development", "head": head,
+        "tree": tree, "baseMain": BASE_MAIN, "selection": selection,
+        "selectionSHA256": sha(resolved_bytes),
+        "orderedUnitMethodsSHA256": sha(canonical(selected["unitTestSelectors"])),
+        "orderedUIMethodsSHA256": sha(canonical(selected["uiTestSelectors"])),
+        "sources": dict(sources), "policies": dict(POLICIES), "route": json.loads(canonical(ROUTE)),
+        "classification": dict(COLD_CLASSIFICATION), "requestedAtUTC": requested_at,
+        "collector": {"path": COLLECTOR, "sha256": sources[COLLECTOR]},
+    })
+
+
+
+def bind_cold_facts(plan, *, head, tree, integration_head, main_head, resolved_bytes, sources):
+    validate_cold_plan(plan)
+    require(head == plan["head"] == integration_head and tree == plan["tree"], "frozen checkout/ref/tree")
+    require(main_head == BASE_MAIN, "main moved or wrong phase")
+    rebuilt = make_cold_plan(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
+                        resolved_bytes=resolved_bytes, sources=sources, requested_at=plan["requestedAtUTC"])
+    exact(plan, rebuilt, "committed source/selection binding")
+
+
+
+def bind_cold_original_event(raw, environment, *, head, tree, resolved_bytes, sources):
+    """Pure worker/collector binding. No source, run or human trust is synthesized.
+
+    The native caller must supply independently read checkout/selection/source
+    facts; the sole collector must supply authenticated API run identity and its
+    preregistered plan before relying on this returned pending binding.
+    """
+    plan, event = cold_plan_from_event(raw)
+    if plan is None:
+        return None
+    e, inputs = environment, event["inputs"]
+    require(e.get("GITHUB_EVENT_NAME") == "workflow_dispatch", "original dispatch event")
+    require(e.get("GITHUB_REPOSITORY") == REPOSITORY
+            and type(event.get("repository")) is dict
+            and event["repository"].get("full_name") == REPOSITORY, "original event repository")
+    require(e.get("GITHUB_REF") == plan["ref"]
+            and event.get("ref") in (plan["ref"], plan["ref"].removeprefix("refs/heads/")),
+            "original event ref")
+    require(e.get("GITHUB_SHA") == head == plan["head"] and tree == plan["tree"], "original event head/tree")
+    require(e.get("GITHUB_RUN_ATTEMPT") == "1" and type(e.get("GITHUB_RUN_ID")) is str
+            and re.fullmatch(r"[1-9][0-9]*", e["GITHUB_RUN_ID"]), "original event attempt/run")
+    workflow_ref = REPOSITORY + "/" + ROUTE["workflow"] + "@" + plan["ref"]
+    require(e.get("GITHUB_WORKFLOW_REF") == workflow_ref
+            and e.get("GITHUB_WORKFLOW_SHA") == head, "original workflow source")
+    require(inputs.get("v23_run_kind") == "development"
+            and inputs.get("native_selection_id") == plan["selection"]
+            and inputs.get("execution_lane") == ROUTE["executionLane"], "original event kind/selection/lane")
+    require(inputs.get("run_ui_smoke") == "false",
+            "original event UI intent")
+    require(inputs == cold_dispatch_inputs(plan), "closed cold original dispatch inputs")
+    rebuilt = make_cold_plan(purpose=plan["purpose"], head=head, tree=tree, selection=plan["selection"],
+                        resolved_bytes=resolved_bytes, sources=sources, requested_at=plan["requestedAtUTC"])
+    exact(plan, rebuilt, "original event committed source/selection")
+    return {"schema": COLD_EVENT_SCHEMA, "plan": plan, "planSHA256": sha(canonical(plan)),
+            "originalEventSHA256": sha(raw), "repository": REPOSITORY, "ref": plan["ref"],
+            "head": head, "tree": tree, "workflowRef": workflow_ref, "workflowSHA": head,
+            "runID": e["GITHUB_RUN_ID"], "runAttempt": "1", "kind": "development",
+            "selection": plan["selection"], "functionalQualification": COLD_PENDING, "status": "INCOMPLETE",
+            "developmentOnly": True, "providerQualification": False, "acceptance": False, "releaseReady": False}
+
+
+
+def verify_cold_collected_event(binding, *, registered_plan_bytes, original_event_bytes, api_run,
+                           tree, resolved_bytes, sources):
+    """Bind retained input to an existing root registration and authenticated API facts.
+
+    This is one necessary check, never complete collector/qualification admission.
+    The caller must additionally verify exclusive attempt, sole claim, artifact
+    provenance, all raw proof and genuine review provenance.
+    """
+    require(type(binding) is dict and binding.get("schema") == COLD_EVENT_SCHEMA, "retained event schema")
+    plan = parse_cold_plan(registered_plan_bytes)
+    exact(binding.get("plan"), plan, "retained event differs from registered plan")
+    require(binding.get("planSHA256") == sha(registered_plan_bytes)
+            and binding.get("originalEventSHA256") == sha(original_event_bytes), "retained event bytes")
+    original_plan, _ = cold_plan_from_event(original_event_bytes)
+    exact(original_plan, plan, "original event differs from registered plan")
+    require(type(api_run) is dict and type(api_run.get("id")) is int and api_run["id"] > 0
+            and type(api_run.get("run_attempt")) is int and api_run["run_attempt"] == 1,
+            "authenticated API original")
+    require((api_run.get("head_sha"), api_run.get("head_branch"), api_run.get("event"), api_run.get("path"))
+            == (plan["head"], plan["ref"].removeprefix("refs/heads/"), "workflow_dispatch", ROUTE["workflow"]),
+            "authenticated API identity")
+    require(binding.get("runID") == str(api_run["id"]) and binding.get("runAttempt") == "1"
+            and binding.get("head") == plan["head"] and binding.get("ref") == plan["ref"],
+            "retained run/attempt/ref/head")
+    exact(binding.get("functionalQualification"), COLD_PENDING, "retained pending status")
+    expected = bind_cold_original_event(original_event_bytes, {
+        "GITHUB_EVENT_NAME": api_run["event"], "GITHUB_REPOSITORY": REPOSITORY,
+        "GITHUB_REF": "refs/heads/" + api_run["head_branch"], "GITHUB_SHA": api_run["head_sha"],
+        "GITHUB_RUN_ID": str(api_run["id"]), "GITHUB_RUN_ATTEMPT": str(api_run["run_attempt"]),
+        "GITHUB_WORKFLOW_REF": REPOSITORY + "/" + api_run["path"] + "@" + plan["ref"],
+        "GITHUB_WORKFLOW_SHA": api_run["head_sha"],
+    }, head=api_run["head_sha"], tree=tree, resolved_bytes=resolved_bytes, sources=sources)
+    exact(binding, expected, "complete retained event binding")
+    return {"planSHA256": sha(registered_plan_bytes), "originalEventSHA256": sha(original_event_bytes),
+            "runID": str(api_run["id"]), "runAttempt": "1", "kind": "development",
+            "functionalQualification": COLD_PENDING, "status": "INCOMPLETE",
+            "developmentOnly": True, "providerQualification": False, "acceptance": False, "releaseReady": False}
+
+
+
+def cold_original_key(plan):
+    validate_cold_plan(plan)
+    return (plan["head"], COLD_PURPOSE, COLD_SELECTION)
+
+
+def cold_original_stem(plan):
+    return "-".join(cold_original_key(plan))
+
+
+def cold_conflicting_originals(plan, records, attempt_names):
+    head, _, selection = cold_original_key(plan)
+    conflicts = []
+    for record in records:
+        require(type(record) is dict, "malformed cold ledger record")
+        if "event" not in record and record.get("head") == head and (
+                record.get("selection") == selection or any(str(k).startswith("cold") for k in record)):
+            conflicts.append("ledger:" + str(record.get("runID", "unknown")))
+    for name in attempt_names:
+        require(type(name) is str and Path(name).name == name, "cold attempt basename")
+        if name.startswith(head + "-") and (selection in name or COLD_PURPOSE in name):
+            conflicts.append("attempt:" + name)
+    return conflicts
+
+
+def cold_dispatch_inputs(plan):
+    validate_cold_plan(plan)
+    return {"execution_lane": ROUTE["executionLane"], "native_selection_id": COLD_SELECTION,
+            "run_ui_smoke": "false", "s10_4_shard_id": "none", "s10_4_minimum_core_smoke_id": "none",
+            "s10_4_shared_segment_id": "none", "s10_4_shared_payload_run_id": "",
+            "s10_4_segment_source_run_ids": "", "v23_run_kind": "development",
+            "v23_d50_compiler_observation": "false", "v23_d50_swift_driver_jobs_two": "false",
+            PLAN_INPUT: "", COLD_PLAN_INPUT: canonical(plan).decode("utf-8")}
+
+
+def cold_dispatch_argv(plan, workflow_id):
+    cold_dispatch_inputs(plan)
+    require(type(workflow_id) is int and workflow_id > 0, "cold workflow API identity")
+    return ["gh", "workflow", "run", str(workflow_id), "--repo", REPOSITORY,
+            "--ref", INTEGRATION_REF.removeprefix("refs/heads/"), "--json"]
+
+
+def verify_cold_attempt_inputs(attempt, original_event_raw):
+    plan, event = cold_plan_from_event(original_event_raw)
+    require(plan is not None and canonical(plan).decode("utf-8") == attempt["planBytes"], "cold original intent")
+    require(canonical(event["inputs"]).decode("utf-8") == attempt["inputBytes"], "cold exact requested inputs")
+    return {"originalEventSHA256": sha(original_event_raw), "inputSHA256": sha(attempt["inputBytes"].encode("utf-8"))}
+
+
+def validate_cold_attempt(value, plan, registration_raw):
+    """Closed root record, not authentication of caller-supplied API dictionaries.
+
+    Actual fixed-endpoint capture belongs to the dormant dispatcher. Collection
+    rechecks these bytes, the live original and exact worker inputs separately.
+    """
+    validate_cold_plan(plan)
+    require(plan["purpose"] == COLD_PURPOSE, "candidate-only attempt lifecycle")
+    keys = {"schema", "planBytes", "planSHA256", "registrationSHA256", "collectorSHA256", "collectorID",
+            "workflowID", "repositoryID", "knownRunIDs", "requestedAtUTC", "integrationHead", "mainHead",
+            "inputBytes", "argv", "observations", "ledgerBytes", "attemptNames"}
+    require(type(value) is dict and set(value) == keys and value["schema"] == COLD_ATTEMPT_SCHEMA,
+            "closed consumed attempt v2")
+    exact(decode(registration_raw), {"schema": COLD_REGISTRATION_SCHEMA, "plan": plan,
+          "planSHA256": sha(canonical(plan)), "dispatchEnabled": False, "functionalQualification": COLD_PENDING},
+          "attempt pending registration")
+    require(value["planBytes"] == canonical(plan).decode("utf-8")
+            and value["planSHA256"] == sha(canonical(plan))
+            and value["registrationSHA256"] == sha(registration_raw)
+            and value["collectorSHA256"] == plan["sources"][COLLECTOR]
+            and value["integrationHead"] == plan["head"] and value["mainHead"] == BASE_MAIN,
+            "attempt frozen plan/source/registration")
+    require(type(value["collectorID"]) is str and re.fullmatch(r"[0-9a-f]{32}", value["collectorID"]),
+            "sole collector identity")
+    validate_cold_plan(dict(plan, requestedAtUTC=value["requestedAtUTC"]))
+    require(value["requestedAtUTC"] >= plan["requestedAtUTC"], "attempt predates registration intent")
+    exact(value["argv"], cold_dispatch_argv(plan, value["workflowID"]), "exact dispatch argv")
+    require(value["inputBytes"] == canonical(cold_dispatch_inputs(plan)).decode("utf-8"), "exact dispatch input bytes")
+    observations = value["observations"]
+    require(type(observations) is dict and set(observations) == {"repository", "workflow", "refs", "headRuns", "activeRuns"},
+            "closed predispatch observations")
+    repository, workflow = observations["repository"], observations["workflow"]
+    require(type(repository) is dict and repository.get("full_name") == REPOSITORY
+            and type(repository.get("id")) is int and repository["id"] > 0
+            and type(value["repositoryID"]) is int and value["repositoryID"] == repository["id"],
+            "authenticated repository identity")
+    require(type(workflow) is dict and type(workflow.get("id")) is int and workflow["id"] == value["workflowID"]
+            and workflow.get("path") == ROUTE["workflow"] and workflow.get("state") == "active", "active original workflow")
+    validate_ref_observations(observations["refs"], plan)
+    identifiers = validate_run_census(observations["headRuns"], head=plan["head"])
+    exact(value["knownRunIDs"], identifiers, "known original census")
+    active = observations["activeRuns"]
+    require(type(active) is dict and set(active) == set(ACTIVE_RUN_STATUSES), "closed active-run census")
+    active_ids = [identifier for status in ACTIVE_RUN_STATUSES for identifier in validate_run_census(active[status])]
+    require(len(active_ids) == len(set(active_ids)) < 5, "cold shared-family active capacity")
+    require(type(value["ledgerBytes"]) is str, "retained original ledger bytes")
+    try:
+        records = [json.loads(line, object_pairs_hook=object_pairs,
+                   parse_constant=lambda _: (_ for _ in ()).throw(Refused("nonfinite ledger")))
+                   for line in value["ledgerBytes"].splitlines() if line.strip()]
+    except (ValueError, UnicodeError) as error:
+        raise Refused("Phase1 gate: invalid retained ledger") from error
+    require(all(type(row) is dict for row in records), "ledger objects")
+    originals = [row for row in records if "event" not in row]
+    require(all(type(row.get("runID")) is int and row["runID"] > 0 for row in originals), "ledger original IDs")
+    known = [row["runID"] for row in originals]
+    require(len(known) == len(set(known)) and set(identifiers) <= set(known), "unknown or duplicate ledger originals")
+    by_id = {row["runID"]: row for row in originals}
+    require(all(by_id[identifier].get("head") == plan["head"] for identifier in identifiers),
+            "known ledger original head")
+    for status, census in active.items():
+        for row in census["workflow_runs"]:
+            recorded = by_id.get(row["id"], {})
+            require(row.get("status") == status and recorded.get("kind") == "development"
+                    and recorded.get("head") == row.get("head_sha")
+                    and type(row.get("head_sha")) is str and row["head_sha"] != plan["head"]
+                    and row.get("run_attempt") == 1 and type(row.get("run_attempt")) is int
+                    and row.get("path") == ROUTE["workflow"] and row.get("event") == "workflow_dispatch"
+                    and not any(str(key).startswith("phase1") for key in recorded),
+                    "cold shared-family active gate, unknown, unmarked or same-head original")
+    names = value["attemptNames"]
+    require(type(names) is list and all(type(x) is str for x in names) and names == sorted(set(names)),
+            "complete attempt-name census")
+    require(not cold_conflicting_originals(plan, records, names), "consumed or historical question collision")
+    require(len(canonical(value)) <= MAX_ATTEMPT_BYTES, "bounded consumed attempt")
+    return value
+
+
+
+def make_cold_attempt(plan, registration_raw, *, collector_id, requested_at, observations, ledger_bytes, attempt_names):
+    value = {"schema": COLD_ATTEMPT_SCHEMA, "planBytes": canonical(plan).decode("utf-8"),
+             "planSHA256": sha(canonical(plan)), "registrationSHA256": sha(registration_raw),
+             "collectorSHA256": plan["sources"][COLLECTOR], "collectorID": collector_id,
+             "workflowID": observations["workflow"]["id"], "repositoryID": observations["repository"]["id"],
+             "knownRunIDs": validate_run_census(observations["headRuns"], head=plan["head"]),
+             "requestedAtUTC": requested_at, "integrationHead": plan["head"], "mainHead": BASE_MAIN,
+             "inputBytes": canonical(cold_dispatch_inputs(plan)).decode("utf-8"),
+             "argv": cold_dispatch_argv(plan, observations["workflow"]["id"]), "observations": observations,
+             "ledgerBytes": ledger_bytes, "attemptNames": attempt_names}
+    return validate_cold_attempt(value, plan, registration_raw)
+
+
+
+def register_cold(plan, directory):
+    validate_cold_plan(plan)
+    durable_directory(directory)
+    target = Path(directory) / (cold_original_stem(plan) + ".json")
+    record = {"schema": COLD_REGISTRATION_SCHEMA, "plan": plan, "planSHA256": sha(canonical(plan)),
+              "dispatchEnabled": False, "functionalQualification": COLD_PENDING}
+    write_immutable(target, canonical(record))
+    return target, record
+
+
+class ColdContract:
+    """Dedicated helper interface; never turns cold DATA into a gate envelope."""
+    CANDIDATE = COLD_PURPOSE
+    REGISTRATION_SCHEMA = COLD_REGISTRATION_SCHEMA
+    ATTEMPT_SCHEMA = COLD_ATTEMPT_SCHEMA
+    DISCOVERY_SCHEMA = COLD_DISCOVERY_SCHEMA
+    EVENT_SCHEMA = COLD_EVENT_SCHEMA
+    PENDING = COLD_PENDING
+    SOURCES, COLLECTOR = SOURCES, COLLECTOR
+    MAX_PLAN_BYTES, MAX_EVENT_BYTES = MAX_PLAN_BYTES, MAX_EVENT_BYTES
+    MAX_ATTEMPT_BYTES, MAX_ORIGINAL_RUNS = MAX_ATTEMPT_BYTES, MAX_ORIGINAL_RUNS
+    ACTIVE_RUN_STATUSES = ACTIVE_RUN_STATUSES
+    Refused = Refused
+    require, exact, canonical = staticmethod(require), staticmethod(exact), staticmethod(canonical)
+    sha, decode, object_pairs = staticmethod(sha), staticmethod(decode), staticmethod(object_pairs)
+    digest = staticmethod(digest)
+    regular_bytes, durable_directory = staticmethod(regular_bytes), staticmethod(durable_directory)
+    write_immutable = staticmethod(write_immutable)
+    parse_plan, validate_plan, make_plan = staticmethod(parse_cold_plan), staticmethod(validate_cold_plan), staticmethod(make_cold_plan)
+    bind_facts, original_stem = staticmethod(bind_cold_facts), staticmethod(cold_original_stem)
+    conflicting_originals = staticmethod(cold_conflicting_originals)
+    validate_attempt, make_attempt = staticmethod(validate_cold_attempt), staticmethod(make_cold_attempt)
+    validate_run_census, validate_ref_observations = staticmethod(validate_run_census), staticmethod(validate_ref_observations)
+    verify_attempt_inputs = staticmethod(verify_cold_attempt_inputs)
+    verify_collected_event = staticmethod(verify_cold_collected_event)
+    register_candidate = staticmethod(register_cold)

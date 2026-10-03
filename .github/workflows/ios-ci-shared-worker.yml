@@ -25,6 +25,11 @@ on:
         description: Dispatcher-bound SHA-256 of the complete checked-in V23 selection map
         required: true
         type: string
+      v23_run_kind:
+        description: Explicit DEVELOPMENT kind for the closed cold original; legacy default unchanged
+        required: false
+        default: gate
+        type: string
       v23_shared_role:
         description: Closed V23 shared coverage role (producer or consumer); development only
         required: true
@@ -54,6 +59,7 @@ jobs:
     # D90S (6,000 s total budget) runs one known-slow method; every other role keeps 90.
     timeout-minutes: ${{ inputs.v23_partition_tier == 'D90S' && 120 || 90 }}
     env:
+      CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}
       CI_NATIVE_ACCEPTANCE_CONTRACT: ${{ inputs.native_acceptance_contract }}
       NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}
       DISPATCH_NATIVE_SELECTION_ID: ${{ inputs.native_selection_id }}

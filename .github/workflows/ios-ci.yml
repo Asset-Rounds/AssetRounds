@@ -113,6 +113,7 @@ on:
           - v23-dev-batch-no-index-d50
           - v23-ui-batch-rui1
           - v23-shared-coverage-d50x
+          - v23-cold-shared-original-v1
           - c36-round-item-completion-no-index-build30m
           - c36-live-host
           - c36-round-item-mount
@@ -237,6 +238,11 @@ on:
         required: false
         default: ""
         type: string
+      v23_cold_original_plan:
+        description: Canonical closed cold DEVELOPMENT intent; qualification remains pending
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -247,7 +253,7 @@ env:
   CI_V23_RUN_KIND: ${{ inputs.v23_run_kind }}
 
 concurrency:
-  group: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' && 'v23-bitrise-' || '' }}${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance') && format('-{0}', inputs.native_selection_id) || '' }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}${{ github.event.inputs.v23_run_kind == 'development' && (github.event.inputs.native_selection_id == 'v23-dev-batch-no-index-d50' || github.event.inputs.native_selection_id == 'v23-shared-coverage-d50x') && format('-development-{0}', github.sha) || '' }}
+  group: ${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance' && 'v23-bitrise-' || '' }}${{ startsWith(inputs.execution_lane, 's10-4-shared-') || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance' }}-${{ inputs.s10_4_shared_segment_id }}-${{ inputs.s10_4_shared_payload_run_id }}-ios-ci-dispatch-${{ github.ref }}-${{ inputs.s10_4_shard_id }}${{ (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-acceptance') && format('-{0}', inputs.native_selection_id) || '' }}${{ inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-unit-development-only' && format('-unit-{0}', github.sha) || ((inputs.execution_lane == 'bitrise-build-hub-cache-probe-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-development-only' || inputs.execution_lane == 'bitrise-build-hub-xcode-26.6-segmented-development-only') && format('-{0}', github.sha) || '') }}${{ github.event.inputs.v23_run_kind == 'development' && (github.event.inputs.native_selection_id == 'v23-dev-batch-no-index-d50' || github.event.inputs.native_selection_id == 'v23-shared-coverage-d50x') && format('-development-{0}', github.sha) || '' }}${{ github.event.inputs.v23_run_kind == 'development' && github.event.inputs.native_selection_id == 'v23-cold-shared-original-v1' && format('-development-{0}', github.sha) || '' }}
   cancel-in-progress: false
 
 jobs:
@@ -472,7 +478,7 @@ jobs:
   github-shard:
     name: GitHub Xcode 26.6 acceptance · ${{ inputs.s10_4_shard_id }} · ${{ inputs.s10_4_shared_segment_id }}
     needs: shared-selection
-    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance') && inputs.native_selection_id != 'v23-shared-coverage-d50x' }}
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && (inputs.execution_lane == 'github-xcode-26.6-acceptance' || inputs.execution_lane == 'github-xcode-26.6-shared-build-acceptance') && inputs.native_selection_id != 'v23-cold-shared-original-v1' && inputs.native_selection_id != 'v23-shared-coverage-d50x' }}
     permissions:
       contents: read
       actions: read
@@ -501,7 +507,7 @@ jobs:
   v23-shared-producer:
     name: V23 shared coverage producer · build-for-testing (development only)
     needs: shared-selection
-    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == 'v23-shared-coverage-d50x' && needs.shared-selection.outputs.native_selection_id == 'v23-shared-coverage-d50x' }}
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && ((inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == 'v23-shared-coverage-d50x' && needs.shared-selection.outputs.native_selection_id == 'v23-shared-coverage-d50x') || (inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == 'v23-cold-shared-original-v1' && needs.shared-selection.outputs.native_selection_id == 'v23-cold-shared-original-v1')) }}
     permissions:
       contents: read
       actions: read
@@ -511,13 +517,14 @@ jobs:
       native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}
       native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
       native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       v23_shared_role: producer
       v23_payload_artifact_name: v23-shared-payload-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
 
   v23-shared-consumer:
     name: V23 shared coverage consumer · ${{ matrix.partition_id }} (development only)
     needs: [shared-selection, v23-shared-producer]
-    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && needs.v23-shared-producer.result == 'success' && inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == 'v23-shared-coverage-d50x' && needs.shared-selection.outputs.native_selection_id == 'v23-shared-coverage-d50x' }}
+    if: ${{ !cancelled() && needs.shared-selection.result == 'success' && needs.v23-shared-producer.result == 'success' && ((inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == 'v23-shared-coverage-d50x' && needs.shared-selection.outputs.native_selection_id == 'v23-shared-coverage-d50x') || (inputs.execution_lane == 'github-xcode-26.6-acceptance' && inputs.native_selection_id == 'v23-cold-shared-original-v1' && needs.shared-selection.outputs.native_selection_id == 'v23-cold-shared-original-v1')) }}
     strategy:
       fail-fast: false
       max-parallel: 5
@@ -532,6 +539,7 @@ jobs:
       native_selection_id: ${{ needs.shared-selection.outputs.native_selection_id }}
       native_selection_sha256: ${{ needs.shared-selection.outputs.native_selection_sha256 }}
       native_selection_map_sha256: ${{ needs.shared-selection.outputs.native_selection_map_sha256 }}
+      v23_run_kind: ${{ inputs.v23_run_kind }}
       v23_shared_role: consumer
       v23_partition_id: ${{ matrix.partition_id }}
       v23_partition_tier: ${{ fromJSON(needs.shared-selection.outputs.native_shared_partition_tiers || '{}')[matrix.partition_id] }}

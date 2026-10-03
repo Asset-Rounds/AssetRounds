@@ -5,7 +5,8 @@
             def rui_route:
               ($ENV.NATIVE_SELECTION_ID // "") == "v23-ui-batch-rui1";
             def shared_route:
-              ($ENV.NATIVE_SELECTION_ID // "") == "v23-shared-coverage-d50x";
+              (($ENV.NATIVE_SELECTION_ID // "") == "v23-shared-coverage-d50x"
+               or ($ENV.NATIVE_SELECTION_ID // "") == "v23-cold-shared-original-v1");
             def exact_keys:
               (([
                 "schemaVersion",
