@@ -3191,6 +3191,25 @@ final class EraseIntentStore {
             try store.requireOriginalEraseAuxiliaryPublishedRoster(self)
         }
     }
+    /// Immutable original-publication DATA, captured before owner detachment.
+    /// It retains no receipt, operation, seal, model or descriptor and grants
+    /// no permission to remove the leaf without the current retirement proof.
+    struct OriginalAuxiliaryRetirementDataV1 {
+        fileprivate let storeIdentity: ObjectIdentifier
+        fileprivate let publicationIdentity: ObjectIdentifier
+        fileprivate let supportDevice: dev_t
+        fileprivate let supportInode: ino_t
+        fileprivate let eraseDevice: dev_t
+        fileprivate let eraseInode: ino_t
+        fileprivate let eraseMode: mode_t
+        fileprivate let eraseUser: uid_t
+        fileprivate let eraseGroup: gid_t
+        fileprivate let intent: EraseIntentV1
+        fileprivate let canonicalBytes: Data
+        fileprivate let fact: EraseColdControlLeafFactV1
+        fileprivate let disposition: ProtectedFileVerificationDispositionV1
+    }
+
     @MainActor
     final class Schema2ColdRosterPublicationV1 {
         fileprivate weak var store: EraseIntentStore?
@@ -3351,6 +3370,9 @@ final class EraseIntentStore {
     private var originalAuxiliaryPhaseTracingForTesting = false
 #endif
     private var originalAuxiliaryPhaseUncertain = false
+    private var originalAuxiliaryRetirementIO: OriginalCanonicalCheckedIOV1?
+    private var originalAuxiliaryRetirementFailed = false
+    private var originalAuxiliaryRetirementRemoved = false
     private var originalAuxiliaryRootUser: uid_t?
     private var originalAuxiliaryRootGroup: gid_t?
     private var originalAuxiliaryTemporaryDisposition:
@@ -5349,6 +5371,9 @@ final class EraseIntentStore {
     }
 
     private func verifyRetirementRootNoOpen() throws {
+        guard !originalAuxiliaryRetirementFailed else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
         try Self.requireDirectory(applicationSupportDescriptor,
             identity: applicationSupportIdentity)
         try Self.requireDirectory(eraseDescriptor, identity: eraseIdentity)
@@ -5418,6 +5443,9 @@ final class EraseIntentStore {
     /// check opens no descriptors and grants no phase or deletion authority.
     @MainActor
     private func requireRetirementRoot(_ retirement: ErasedRegistryRetirementProofV1) throws {
+        guard !originalAuxiliaryRetirementFailed else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
         let subject = retirement.binding.subject
         guard applicationSupportURL.standardizedFileURL == subject.applicationSupportURL.standardizedFileURL,
               Int64(applicationSupportIdentity.device) == subject.applicationSupportDevice,
@@ -5437,6 +5465,318 @@ final class EraseIntentStore {
               namedErase.st_dev == eraseIdentity.device,
               namedErase.st_ino == eraseIdentity.inode else {
             throw EraseIntentStoreError.invalidAuthority
+        }
+    }
+
+    /// Captures only the genuine original publication's immutable evidence.
+    /// The old roster is deliberately not replayed after namespace retirement.
+    @MainActor
+    func captureOriginalAuxiliaryRetirementData(expected: EraseIntentV1,
+        operation: EraseRouterOperationV1) throws -> OriginalAuxiliaryRetirementDataV1 {
+        guard expected.schemaVersion == 2, expected.phase == .sessionActivated,
+              originalCanonicalReadIO == nil, originalAuxiliaryRetirementIO == nil,
+              !originalAuxiliaryRetirementFailed, !originalAuxiliaryRetirementRemoved else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let projection = try originalCanonicalLateProjection(operation: operation)
+        let receipt = projection.roster
+        let preparation = try decodePreparation(receipt.preparationBytes)
+        let roster = try EraseSchema2ColdAuxiliaryPhysicalRosterV1.decodeCanonical(
+            receipt.canonicalBytes, intent: expected, preparation: preparation)
+        guard try decode(projection.leaves[0].bytes) == expected,
+              try encode(expected) == projection.leaves[0].bytes,
+              roster.canonicalBytes == receipt.seal.canonicalBytes,
+              roster.record == receipt.seal.firstRoster.record,
+              roster.record.supportDevice == Int64(applicationSupportIdentity.device),
+              roster.record.supportInode == UInt64(applicationSupportIdentity.inode),
+              projection.root.device == eraseIdentity.device,
+              projection.root.inode == eraseIdentity.inode,
+              let disposition = originalAuxiliaryTemporaryDisposition else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        return OriginalAuxiliaryRetirementDataV1(storeIdentity: ObjectIdentifier(self),
+            publicationIdentity: ObjectIdentifier(receipt),
+            supportDevice: applicationSupportIdentity.device,
+            supportInode: applicationSupportIdentity.inode,
+            eraseDevice: eraseIdentity.device, eraseInode: eraseIdentity.inode,
+            eraseMode: projection.root.mode, eraseUser: projection.root.user,
+            eraseGroup: projection.root.group, intent: expected,
+            canonicalBytes: receipt.canonicalBytes, fact: receipt.recordFact,
+            disposition: disposition)
+    }
+
+    private struct OriginalAuxiliaryRetirementWitnessV1: Equatable {
+        let fact: EraseColdControlLeafFactV1
+        let bytes: Data
+    }
+
+    /// One fixed original leaf, under the current consumed retirement owner.
+    /// A cold/legacy survivor is never promoted into original-publication DATA.
+    @MainActor
+    func removeOriginalAuxiliaryAfterRegistryRetirement(expected: EraseIntentV1,
+        retirement: ErasedRegistryRetirementProofV1,
+        data: OriginalAuxiliaryRetirementDataV1?) throws {
+        func currentRetirement() throws {
+            try requireRetirementRoot(retirement)
+            try retirement.requireCompletionControlRemoval(expected: expected)
+            guard retirementUncertainReadDescriptors.isEmpty else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        func absent(_ name: String) throws {
+            try currentRetirement()
+            var value = stat()
+            let result = Darwin.fstatat(eraseDescriptor, name, &value, AT_SYMLINK_NOFOLLOW)
+            let failure = errno
+            try currentRetirement()
+            guard result != 0, failure == ENOENT else {
+#if DEBUG
+                if result == 0 {
+                    print("ORIGINAL_AUX_RETIREMENT_V1 refusal=expected-absence-present")
+                } else {
+                    print("ORIGINAL_AUX_RETIREMENT_V1 syscall=absence-fstatat errno=\(failure)")
+                }
+#endif
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        func completedIntent() throws -> RetirementBoundWitness {
+            try currentRetirement()
+            let value = try readRetirementCanonical(policy: .pureObservation)
+            try currentRetirement()
+            guard try encode(expected) == value.data,
+                  try decode(value.data) == expected else {
+                throw EraseIntentStoreError.intentMismatch
+            }
+            let witness = RetirementBoundWitness(fact: value.fact, data: value.data)
+            let authenticated = try readRetirementCanonical(policy: .authenticated(witness))
+            try currentRetirement()
+            guard authenticated.identity == value.identity,
+                  authenticated.fact == value.fact,
+                  authenticated.data == value.data else {
+                throw EraseIntentStoreError.intentMismatch
+            }
+            return witness
+        }
+        try currentRetirement()
+        guard let data else {
+            guard !originalAuxiliaryPublicationStarted,
+                  originalAuxiliaryPublishedReceipt == nil,
+                  originalAuxiliaryRetirementIO == nil,
+                  !originalAuxiliaryRetirementFailed,
+                  !originalAuxiliaryRetirementRemoved else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            _ = try completedIntent()
+            try absent(Self.auxiliaryRosterName)
+            try absent(Self.auxiliaryRosterNextName)
+            try currentRetirement()
+            return
+        }
+        guard originalAuxiliaryRetirementIO == nil,
+              !originalAuxiliaryRetirementFailed, !originalAuxiliaryRetirementRemoved else {
+            throw EraseIntentStoreError.invalidAuthority
+        }
+        let io = OriginalCanonicalCheckedIOV1()
+        originalAuxiliaryRetirementIO = io // actual owner retained BEFORE acquisition
+        var stage = "data-binding"
+        func bound() throws {
+            try currentRetirement()
+            try requireOriginalCanonicalMemoryLifetime()
+            guard originalAuxiliaryRetirementIO === io,
+                  !originalAuxiliaryRetirementFailed,
+                  data.storeIdentity == ObjectIdentifier(self),
+                  data.supportDevice == applicationSupportIdentity.device,
+                  data.supportInode == applicationSupportIdentity.inode,
+                  data.eraseDevice == eraseIdentity.device,
+                  data.eraseInode == eraseIdentity.inode,
+                  expected == data.intent.advancing(to: .cleanupComplete),
+                  let receipt = originalAuxiliaryPublishedReceipt,
+                  ObjectIdentifier(receipt) == data.publicationIdentity,
+                  receipt.store === self, receipt.checkedSettled,
+                  receipt.canonicalBytes == data.canonicalBytes,
+                  receipt.recordFact == data.fact,
+                  originalAuxiliaryTemporaryDisposition == data.disposition,
+                  !data.canonicalBytes.isEmpty,
+                  data.canonicalBytes.count <= Self.maximumJournalBytes,
+                  data.fact.mode & S_IFMT == S_IFREG, data.fact.links == 1,
+                  data.fact.size == off_t(data.canonicalBytes.count) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            try io.requireNoUncertainty()
+        }
+        func syscall(_ name: String, _ body: () -> Int32) throws {
+            try bound()
+            let result = body(); let failure = errno
+#if DEBUG
+            if result != 0 {
+                print("ORIGINAL_AUX_RETIREMENT_V1 syscall=\(name) errno=\(failure)")
+            }
+#endif
+            try bound()
+            guard result == 0 else { throw EraseIntentStoreError.invalidAuthority }
+        }
+        func rootFact(names: [String]) throws -> EraseColdControlLeafFactV1 {
+            var held = stat(), named = stat()
+            try syscall("root-fstat") { Darwin.fstat(eraseDescriptor, &held) }
+            try syscall("root-fstatat") {
+                Darwin.fstatat(applicationSupportDescriptor, Self.directoryName,
+                    &named, AT_SYMLINK_NOFOLLOW)
+            }
+            let fact = EraseColdControlLeafFactV1(held)
+            guard fact == EraseColdControlLeafFactV1(named),
+                  fact.device == data.eraseDevice, fact.inode == data.eraseInode,
+                  fact.mode == data.eraseMode, fact.user == data.eraseUser,
+                  fact.group == data.eraseGroup,
+                  EraseDirectoryEntryLinkModelV1.matches(
+                    linkCount: Int64(fact.links), directEntryCount: names.count) else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+            return fact
+        }
+        func namespace(_ names: [String]) throws {
+            let before = try rootFact(names: names)
+            _ = try io.names(parent: eraseDescriptor, expected: names, boundary: bound)
+            guard try rootFact(names: names) == before else {
+                throw EraseIntentStoreError.invalidAuthority
+            }
+        }
+        func namedLeaf() throws {
+            var named = stat()
+            try syscall("leaf-fstatat") {
+                Darwin.fstatat(eraseDescriptor, Self.auxiliaryRosterName,
+                    &named, AT_SYMLINK_NOFOLLOW)
+            }
+            guard EraseColdControlLeafFactV1(named) == data.fact else {
+                throw EraseIntentStoreError.intentMismatch
+            }
+        }
+        func heldLeaf(_ descriptor: Int32) throws {
+            var held = stat()
+            try syscall("leaf-fstat") { Darwin.fstat(descriptor, &held) }
+            guard EraseColdControlLeafFactV1(held) == data.fact else {
+                throw EraseIntentStoreError.intentMismatch
+            }
+            try namedLeaf()
+        }
+        func witness(_ descriptor: Int32) throws -> OriginalAuxiliaryRetirementWitnessV1 {
+            try heldLeaf(descriptor)
+            var offset = 0, calls = 0
+            let (maximumCalls, overflow) = data.canonicalBytes.count.addingReportingOverflow(1)
+            guard !overflow else { throw EraseIntentStoreError.invalidAuthority }
+            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+            while true {
+                guard calls < maximumCalls else { throw EraseIntentStoreError.invalidAuthority }
+                calls += 1
+                let requested = offset == data.canonicalBytes.count ? 1
+                    : min(buffer.count, data.canonicalBytes.count - offset)
+                try bound(); try heldLeaf(descriptor)
+                let count = buffer.withUnsafeMutableBytes {
+                    Darwin.pread(descriptor, $0.baseAddress, requested, off_t(offset))
+                }
+                let failure = errno
+#if DEBUG
+                if count < 0 { print("ORIGINAL_AUX_RETIREMENT_V1 syscall=leaf-pread errno=\(failure)") }
+#endif
+                try bound(); try heldLeaf(descriptor)
+                guard count >= 0 else { throw EraseIntentStoreError.invalidAuthority }
+                if count == 0 {
+                    guard offset == data.canonicalBytes.count else {
+                        throw EraseIntentStoreError.intentMismatch
+                    }
+                    break
+                }
+                guard count <= data.canonicalBytes.count - offset else {
+                    throw EraseIntentStoreError.intentMismatch
+                }
+                let equal = data.canonicalBytes.withUnsafeBytes { expectedBytes in
+                    buffer.withUnsafeBytes { actual in
+                        memcmp(expectedBytes.baseAddress!.advanced(by: offset),
+                            actual.baseAddress!, count) == 0
+                    }
+                }
+                guard equal else { throw EraseIntentStoreError.intentMismatch }
+                offset += count
+            }
+            try heldLeaf(descriptor)
+            return OriginalAuxiliaryRetirementWitnessV1(fact: data.fact, bytes: data.canonicalBytes)
+        }
+        let beforeNames = [Self.intentName, Self.preparationName, Self.auxiliaryRosterName].sorted()
+        let afterNames = [Self.intentName, Self.preparationName].sorted()
+        do {
+            try bound()
+            stage = "completed-intent"
+            let intentWitness = try completedIntent()
+            try bound()
+            stage = "namespace-before"
+            try namespace(beforeNames)
+            stage = "leaf-open"
+            try bound()
+            let descriptor = try io.openAt(eraseDescriptor, name: Self.auxiliaryRosterName,
+                flags: O_RDONLY | O_NONBLOCK)
+            try bound()
+            stage = "leaf-fact-bytes"
+            let first = try witness(descriptor)
+            let url = applicationSupportURL.appendingPathComponent(Self.directoryName)
+                .appendingPathComponent(Self.auxiliaryRosterName)
+            stage = "leaf-policy"
+            try bound()
+            let policy = try ProtectedFilePolicyV1.observeTemporalPolicyWithCheckedClose(.journal,
+                at: url, retainUncertainDescriptor: { io.retainUncertainDescriptor($0) })
+            try bound()
+            guard policy.device == UInt64(data.fact.device),
+                  policy.inode == UInt64(data.fact.inode), policy.linkCount == 1,
+                  policy.backupExcluded == true,
+                  policy.state == .strictComplete || (policy.state == .pendingSimulatorRequest
+                    && data.disposition == .simulatorFileProtectionUnsupported),
+                  try witness(descriptor) == first else {
+                throw EraseIntentStoreError.retirementPolicyEffectUnavailable
+            }
+            _ = try ProtectedFilePolicyV1.verifyEraseColdTemporalPolicyWithCheckedRequest(.journal,
+                at: url, retainUncertainDescriptor: { io.retainUncertainDescriptor($0) },
+                unchangedWitness: { try witness(descriptor) })
+            try bound()
+            guard try witness(descriptor) == first else { throw EraseIntentStoreError.intentMismatch }
+            stage = "leaf-close"
+            try bound(); try io.closeOwnedOnce(descriptor); try bound()
+            try io.requireSettled()
+            stage = "completed-intent-before-unlink"
+            guard try completedIntent() == intentWitness else {
+                throw EraseIntentStoreError.intentMismatch
+            }
+            stage = "namespace-unlink"
+            try io.withEffect(name: Self.auxiliaryRosterName,
+                expectedBytes: data.canonicalBytes, replacementBytes: nil) {
+                try namespace(beforeNames)
+                try namedLeaf()
+                try bound()
+                io.markEffectEntry() // consumed effect BEFORE the actual unlink
+                let result = Darwin.unlinkat(eraseDescriptor, Self.auxiliaryRosterName, 0)
+                let failure = errno
+#if DEBUG
+                if result != 0 { print("ORIGINAL_AUX_RETIREMENT_V1 syscall=leaf-unlinkat errno=\(failure)") }
+#endif
+                try bound()
+                guard result == 0 else { throw EraseIntentStoreError.cleanupFailed }
+                stage = "namespace-sync"
+                try syscall("root-fsync") { Darwin.fsync(eraseDescriptor) }
+                stage = "namespace-after"
+                try absent(Self.auxiliaryRosterName)
+                try namespace(afterNames)
+                try bound()
+            }
+            try io.requireSettled(); try bound()
+            originalAuxiliaryRetirementRemoved = true
+        } catch {
+            let failure = error
+#if DEBUG
+            print("ORIGINAL_AUX_RETIREMENT_V1 refusal=\(stage)")
+#endif
+            originalAuxiliaryRetirementFailed = true
+            do { try io.finishOwnedOnce() } catch { io.poison() }
+            io.poison() // failed validation/effect cannot be retried through this owner
+            Self.retainCanonicalIO(io)
+            throw failure
         }
     }
 
@@ -7084,7 +7424,8 @@ private extension EraseIntentStore {
     }
 
     func verifyAuthority() throws {
-        guard !originalRecoveryCloseAttempted, !coldCloseAttempted, !coldClosed,
+        guard !originalAuxiliaryRetirementFailed,
+              !originalRecoveryCloseAttempted, !coldCloseAttempted, !coldClosed,
               (!originalAuxiliaryPublicationStarted ||
                 originalAuxiliaryPublishedReceipt != nil),
               !originalAuxiliaryPublicationUncertain,

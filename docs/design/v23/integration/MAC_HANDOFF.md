@@ -1,5 +1,13 @@
 # Mac development handoff
 
+## Current setup — owner-approved October 2 successor
+
+This macOS27.0.1 host uses installed Xcode27.0/27A266a for local DEVELOPMENT only under [TOOLCHAIN_DEVELOPMENT_DECISION_20261002.md](TOOLCHAIN_DEVELOPMENT_DECISION_20261002.md). Set `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` explicitly; verify exact Xcode/compiler/SDK and available iOS26.2/23C54 before execution. No global xcode-select or account changes are needed. Official gates and exact-main stay GitHub Xcode26.6/iOS26.2(23C54); every local result retains its development-only scope.
+
+Work in the Dropbox repository and start with [ACTIVE_BRIEF.md](ACTIVE_BRIEF.md) for the current candidate and exact question controls. `tooling-source` and `DerivedData-local27-v1` retain the failed initial local27 attempt. The reviewed eight-leaf source/compile is `swift-source-v4` / `DerivedData-local27-v4`; diagnostic and C43 candidates have separate source, fresh DD and Products bindings. Root performs fresh resource/holder admission, complete source/build/Products binding and independent successor-tool review before native execution. Preserve old DD, Products, original failures/HOLDs and all drafts. Do not rebuild old held DD or follow the historical disk-cleanup suggestions below on it. Source and evidence guards remain mandatory; this setup note is not an admitted native recipe.
+
+The sections below retain the original26.6 handoff as history and guidance for compatible/hosted machines. The current owner-approved note supersedes their local26.6 pin, assumed clean checkout, overwrite/global-selection setup and blanket cleanup suggestions on this migrated Mac. Existing S10/Release and owner-draft protection remains binding.
+
 Owner decisions of 2026-09-25 (AGENTS.md): development moves to a persistent cloud Mac running Claude Code: a dedicated Apple-silicon Mac mini (for example from myremotemac.com or rentamac.io) with 16 GB+ RAM and a 512 GB SSD, on a macOS that runs Xcode 26.6 and the iOS 26.2 Simulator. Local builds and tests are for development feedback; official merge and release evidence still comes only from the hosted GitHub route.
 
 ## 1. One-time setup (owner, on the Mac)

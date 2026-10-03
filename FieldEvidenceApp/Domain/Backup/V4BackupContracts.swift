@@ -3737,15 +3737,18 @@ enum C55PartsStockBackupEnrollmentV1 {
             ))
             return .staleRevision
         }
-        FileHandle.standardError.write(Data((
-            "C55 journal entry parts=\(snapshot.parts.count) "
-                + "locations=\(snapshot.locations.count) "
-                + "movements=\(snapshot.movements.count) "
-                + "uses=\(snapshot.uses.count) reversals=\(snapshot.reversals.count) "
-                + "returns=\(snapshot.returns.count) "
-                + "abandonments=\(snapshot.abandonments.count) "
-                + "historyReceipts=\(history.receipts.count)\n"
-        ).utf8))
+        let partsDiagnostic: String = "C55 journal entry parts=\(snapshot.parts.count) "
+        let locationsDiagnostic: String = "locations=\(snapshot.locations.count) "
+        let movementsDiagnostic: String = "movements=\(snapshot.movements.count) "
+        let usageDiagnostic: String = "uses=\(snapshot.uses.count) reversals=\(snapshot.reversals.count) "
+        let returnsDiagnostic: String = "returns=\(snapshot.returns.count) "
+        let abandonmentsDiagnostic: String = "abandonments=\(snapshot.abandonments.count) "
+        let historyDiagnostic: String = "historyReceipts=\(history.receipts.count)\n"
+        let journalDiagnostic: String = [
+            partsDiagnostic, locationsDiagnostic, movementsDiagnostic, usageDiagnostic,
+            returnsDiagnostic, abandonmentsDiagnostic, historyDiagnostic
+        ].joined()
+        FileHandle.standardError.write(Data(journalDiagnostic.utf8))
 #endif
         func isStockKind(_ kind: WorkspaceEntityKindV1) -> Bool {
             switch kind {

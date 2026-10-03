@@ -49,7 +49,7 @@
     {
       "id": "S02",
       "tier": "D50C",
-      "estimatedSeconds": 1607.6,
+      "estimatedSeconds": 1605.3,
       "selectors": [
         "FieldEvidenceAppTests/C27S82TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV901VersionedSchemaIdentity/testC33V901VersionedSchemaIdentityCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -381,7 +381,7 @@
     {
       "id": "S05",
       "tier": "D50C",
-      "estimatedSeconds": 1756.4,
+      "estimatedSeconds": 1738.1,
       "selectors": [
         "FieldEvidenceAppTests/C27S41TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/S3_7CouldNotVerifyTests/testDuplicateAndWrongPurposeEvidenceFailClosedWithoutFinalizationRows",
@@ -565,7 +565,7 @@
     {
       "id": "S06",
       "tier": "D50C",
-      "estimatedSeconds": 1535.7,
+      "estimatedSeconds": 1535.6,
       "selectors": [
         "FieldEvidenceAppTests/C32OperationalContactRestoreBoundaryTests/testV23P03C46HistoricalIntentAcceptsGenuineC32SuccessorAndRejectsMissingReceipt",
         "FieldEvidenceAppTests/C32OperationalContactRestoreBoundaryTests/testV23P04C32RestoreRebindsOneAggregateReceiptWithoutContactFanout",
@@ -1100,7 +1100,7 @@
     {
       "id": "S12",
       "tier": "D50C",
-      "estimatedSeconds": 1805.5,
+      "estimatedSeconds": 1796.7,
       "selectors": [
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV903MigrationRecovery/testC33V903MigrationRecoveryCompatibilityBindsTypedTemporalEvidenceToItsOwner",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorV945EvidenceContext/testC33V945EvidenceContextCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -1180,7 +1180,7 @@
     {
       "id": "S13",
       "tier": "D50C",
-      "estimatedSeconds": 2188.8,
+      "estimatedSeconds": 1954.7,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS3_6CameraRecovery/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C30EvidenceContextAnchorS8_3DiagnosticPrivacy/testTypedEvidenceContextContractAnchor",
@@ -1324,6 +1324,11 @@
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testAuthenticatedReadyRestoreRefusesPostDrainSourceSHMByteMutation",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactoryKeepsStartupUnopenedAndBindsItsExactGateOnce",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testFactorySettingTransactionsCompleteAndReopenWithoutRepair",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalAuxiliaryRetirementConsumesPublishedControlBeforeEmptyRootCompletion",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalAuxiliaryRetirementRefusesForeignPublicationAndRetainsIntent",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalAuxiliaryRetirementRefusesIdenticalBytesOnReplacementAndRetainsIntent",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalAuxiliaryRetirementRefusesMutatedControlAndRetainsIntent",
+        "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalAuxiliaryRetirementRefusesWrongControlNameAndRetainsIntent",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerCompletesAndRefusesForeignReceiptAndBinding",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesChangedCurrentPointerWithoutCompletion",
         "FieldEvidenceAppTests/V23ProductionAppAccessTests/testGenuineOriginalPostCloseSourceOwnerRefusesUnexpectedDataMemberWithoutCompletion",
@@ -2237,7 +2242,7 @@
     {
       "id": "S17",
       "tier": "D50C",
-      "estimatedSeconds": 1615.5,
+      "estimatedSeconds": 1614.1,
       "selectors": [
         "FieldEvidenceAppTests/C32AssistanceAnchorV9ChangeJournalCheckpointReplay/testC32V9ChangeJournalCheckpointReplayCompatibilityKeepsProposalAtExplicitReviewBoundary",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS82GoldenAccessibility/testC33S82GoldenAccessibilityCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -2453,7 +2458,7 @@
     {
       "id": "S19",
       "tier": "D50C",
-      "estimatedSeconds": 1738.9,
+      "estimatedSeconds": 1727.9,
       "selectors": [
         "FieldEvidenceAppTests/C30EvidenceContextAnchorV9_17KernelPersistence/testTypedEvidenceContextContractAnchor",
         "FieldEvidenceAppTests/C33TemporalEvidenceAnchorS41DeterministicRenderer/testC33S41DeterministicRendererCompatibilityBindsTypedTemporalEvidenceToItsOwner",
@@ -3100,7 +3105,7 @@
     {
       "id": "S26",
       "tier": "D50C",
-      "estimatedSeconds": 1579.2,
+      "estimatedSeconds": 1578.8,
       "selectors": [
         "FieldEvidenceAppTests/C27S36TypedLocatorAnchorTests/testAssetLocatorContractAnchor",
         "FieldEvidenceAppTests/C27S66TypedLocatorAnchorTests/testAssetLocatorContractAnchor",

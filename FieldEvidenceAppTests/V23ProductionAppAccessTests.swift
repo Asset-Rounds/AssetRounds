@@ -3044,6 +3044,12 @@ extension V23ProductionAppAccessTests {
                 let lease = try await scratch.acquireScratchLease(request)
                 let actualURL = try await scratch.writeScratchData(payloadBytes,
                     named: "support.json", lease: lease)
+                // Pair profiles need the real C16 ingress root before admission.
+                // Genuine cleanup then publishes its own declared pair there.
+                if profile != .node {
+                    _ = try scratch.reconcileProtectedIngressHygiene(
+                        now: created, operationID: UUID())
+                }
                 endedProducer = scratch
                 return actualURL
             }()
@@ -3797,6 +3803,323 @@ extension V23ProductionAppAccessTests {
             fixture.router.originalRecoveryTransitionObservationForTesting(), fixture: fixture)
         // No metadata repair, second hostile primitive, reset, rearm, cleanup
         // retry or deletion of the retained source namespace follows refusal.
+    }
+}
+#endif
+
+#if DEBUG
+private enum OriginalAuxiliaryRetirementConsumerFaultV1: Equatable {
+    case none, wrongName, mutatedBytes, replacedLeaf, foreignBytes
+}
+
+private enum OriginalAuxiliaryRetirementConsumerFixtureFailureV1: Error {
+    case missingPublication, wrongBoundary, repeatedBoundary, invalidLeaf, missingForeignData
+}
+
+@MainActor
+private final class OriginalAuxiliaryRetirementConsumerStateV1 {
+    private static var retained: [OriginalAuxiliaryRetirementConsumerStateV1] = []
+    var boundaryEntries = 0
+    var publicationBeforeCleanup: Data?
+    var auxiliaryBefore: Data?
+    var intentBefore: Data?
+    var preparationBefore: Data?
+    var beforeFact: stat?
+    var afterFaultFact: stat?
+    var retainedAuxiliaryURL: URL?
+    var mutationReturned = false
+    var hostileWriter: FileHandle?
+    var closeAttemptCount = 0
+    var closeReturned = false
+    var ioOrCloseUncertain = false
+    var mutationFailure: Error?
+
+    init() { Self.retained.append(self) }
+}
+
+extension V23ProductionAppAccessTests {
+    @MainActor
+    private func prepareOriginalAuxiliaryRetirementConsumerFixture(
+        fault: OriginalAuxiliaryRetirementConsumerFaultV1,
+        foreignBytes: Data? = nil
+    ) async throws -> (OriginalPostCloseSourceFixtureV1, OriginalAuxiliaryRetirementConsumerStateV1) {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent(
+            "V23-OriginalAuxiliaryRetirement-" + UUID().uuidString, isDirectory: true)
+        let support = root.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let caches = root.appendingPathComponent("Library/Caches", isDirectory: true)
+        let temporary = root.appendingPathComponent("tmp", isDirectory: true)
+        for directory in [support, caches, temporary] {
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let suite = "V23.OriginalAuxiliaryRetirement." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let shipping = try WorkspacePackageLifecycleCompatibilityV1.shippingProfile()
+        let profiles = try WorkspacePackageLifecycleProfileRegistryV1(profiles: [shipping])
+        let owner = V23EraseOperationHarnessV1(retainingRoot: root,
+            applicationSupportURL: support,
+            runtime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }), profileRegistry: profiles)
+        let completedState = OriginalPostCloseSourceControlsStateV1()
+        let state = OriginalAuxiliaryRetirementConsumerStateV1()
+        // The genuine admission precedes configure. No model/context alias
+        // escapes this preparation frame or bypasses the actual drain witness.
+        let originalGeneration = try await { @MainActor () async throws -> UUID in
+            let (coordinator, diagnostics) = try await owner.startOriginalOwner()
+            let originalGeneration = coordinator.generationID
+            try await owner.admit(coordinator: coordinator)
+            let service = try owner.configure(EraseAllService(applicationSupportURL: support,
+                cachesDirectoryURL: caches, temporaryDirectoryURL: temporary,
+                userDefaults: defaults, defaultsDomainName: suite,
+                admitErase: { try await owner.admitSubject($0) },
+                didCompleteErase: { completedState.receipts.append($0) }))
+            service.beforeOriginalAuxiliaryRetirementValidationForTesting = {
+                try self.applyOriginalAuxiliaryRetirementConsumerFault(fault,
+                    support: support, state: state, foreignBytes: foreignBytes)
+            }
+            // Retain before preparation may throw; no failed IO or actual
+            // operation is silently closed, removed or retried by a teardown.
+            OriginalScratchIssuerDataFixtureRetentionV1.services.append((root, service))
+            try await owner.prepareCompatibility(service: service, confirmation: "ERASE",
+                coordinator: coordinator, diagnostics: diagnostics)
+            return originalGeneration
+        }()
+        XCTAssertEqual(state.boundaryEntries, 0)
+        XCTAssertTrue(completedState.receipts.isEmpty)
+        state.publicationBeforeCleanup = try Data(contentsOf:
+            support.appendingPathComponent("FieldEvidenceErase/auxiliary-retirement.json"))
+        guard state.publicationBeforeCleanup?.isEmpty == false else {
+            throw OriginalAuxiliaryRetirementConsumerFixtureFailureV1.missingPublication
+        }
+        return (OriginalPostCloseSourceFixtureV1(root: root, support: support, owner: owner,
+            operation: try owner.originalOperationForInterruption(), state: completedState,
+            originalGeneration: originalGeneration), state)
+    }
+
+    @MainActor
+    private func originalAuxiliaryRetirementNamedFact(_ url: URL) throws -> stat {
+        var value = stat()
+        let result = url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return Int32(-1) }
+            return Darwin.lstat(path, &value)
+        }
+        guard result == 0, value.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
+              value.st_nlink == 1 else {
+            throw OriginalAuxiliaryRetirementConsumerFixtureFailureV1.invalidLeaf
+        }
+        return value
+    }
+
+    @MainActor
+    private func applyOriginalAuxiliaryRetirementConsumerFault(
+        _ fault: OriginalAuxiliaryRetirementConsumerFaultV1,
+        support: URL, state: OriginalAuxiliaryRetirementConsumerStateV1, foreignBytes: Data?
+    ) throws {
+        state.boundaryEntries += 1
+        guard state.boundaryEntries == 1 else {
+            throw OriginalAuxiliaryRetirementConsumerFixtureFailureV1.repeatedBoundary
+        }
+        let root = support.appendingPathComponent("FieldEvidenceErase", isDirectory: true)
+        let auxiliary = root.appendingPathComponent("auxiliary-retirement.json")
+        let before = try Data(contentsOf: auxiliary)
+        guard let published = state.publicationBeforeCleanup, !before.isEmpty, before == published else {
+            throw OriginalAuxiliaryRetirementConsumerFixtureFailureV1.missingPublication
+        }
+        state.auxiliaryBefore = before
+        state.intentBefore = try Data(contentsOf: root.appendingPathComponent("erase.json"))
+        state.preparationBefore = try Data(contentsOf: root.appendingPathComponent("preparation.json"))
+        let completedIntent = try EraseIntentCodecV1.decode(try XCTUnwrap(state.intentBefore))
+        guard completedIntent.phase == .cleanupComplete else {
+            throw OriginalAuxiliaryRetirementConsumerFixtureFailureV1.wrongBoundary
+        }
+        state.beforeFact = try originalAuxiliaryRetirementNamedFact(auxiliary)
+        state.retainedAuxiliaryURL = auxiliary
+        do {
+            switch fault {
+            case .none: return
+            case .wrongName:
+                let wrong = root.appendingPathComponent("unexpected-auxiliary-retirement.json")
+                try FileManager.default.moveItem(at: auxiliary, to: wrong)
+                state.retainedAuxiliaryURL = wrong
+            case .replacedLeaf:
+                try before.write(to: auxiliary, options: .atomic)
+            case .mutatedBytes, .foreignBytes:
+                let replacement: Data
+                if fault == .foreignBytes {
+                    guard let foreignBytes, !foreignBytes.isEmpty, foreignBytes != before else {
+                        throw OriginalAuxiliaryRetirementConsumerFixtureFailureV1.missingForeignData
+                    }
+                    replacement = foreignBytes
+                } else {
+                    replacement = Data([before[before.startIndex] ^ 0xff])
+                }
+                let writer = try FileHandle(forUpdating: auxiliary)
+                state.hostileWriter = writer
+                try writer.seek(toOffset: 0)
+                try writer.write(contentsOf: replacement)
+                if fault == .foreignBytes {
+                    try writer.truncate(atOffset: try XCTUnwrap(UInt64(exactly: replacement.count)))
+                }
+                try writer.synchronize()
+                state.closeAttemptCount += 1
+                try writer.close()
+                state.closeReturned = true
+            }
+            state.afterFaultFact = try originalAuxiliaryRetirementNamedFact(
+                try XCTUnwrap(state.retainedAuxiliaryURL))
+            state.mutationReturned = true
+        } catch {
+            state.ioOrCloseUncertain = true
+            state.mutationFailure = error
+            throw error
+        }
+    }
+
+    @MainActor
+    private func assertOriginalAuxiliaryRetirementConsumerRefuses(
+        _ fixture: OriginalPostCloseSourceFixtureV1,
+        state: OriginalAuxiliaryRetirementConsumerStateV1,
+        fault: OriginalAuxiliaryRetirementConsumerFaultV1, foreignBytes: Data? = nil
+    ) async throws {
+        var refusal: Error?
+        do {
+            try await fixture.owner.completeCleanup()
+            XCTFail("The genuine auxiliary consumer must refuse changed control evidence")
+        } catch { refusal = error }
+        switch fault {
+        case .wrongName:
+            XCTAssertEqual(refusal as? EraseIntentStoreError, .invalidAuthority)
+        case .mutatedBytes, .replacedLeaf, .foreignBytes:
+            XCTAssertEqual(refusal as? EraseIntentStoreError, .intentMismatch)
+        case .none: XCTFail("A genuine hostile control change is required")
+        }
+        XCTAssertEqual(state.boundaryEntries, 1,
+            "An earlier guard refusal is a fixture gap, not auxiliary consumer coverage")
+        XCTAssertTrue(state.mutationReturned)
+        XCTAssertFalse(state.ioOrCloseUncertain)
+        XCTAssertNil(state.mutationFailure,
+            "Hostile IO failure must not be credited as production consumer refusal")
+        XCTAssertTrue(fixture.state.receipts.isEmpty)
+        XCTAssertThrowsError(try fixture.operation.completedRetirement())
+        guard case let .eraseCleanupPending(.retiring(retained)) = fixture.owner.router.route else {
+            return XCTFail("The refused authentic operation and durable controls must remain held")
+        }
+        XCTAssertTrue(retained === fixture.operation)
+        let root = fixture.support.appendingPathComponent("FieldEvidenceErase", isDirectory: true)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("erase.json")),
+            try XCTUnwrap(state.intentBefore))
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("preparation.json")),
+            try XCTUnwrap(state.preparationBefore))
+        let completedIntent = try EraseIntentCodecV1.decode(try XCTUnwrap(state.intentBefore))
+        let reservation = try fixture.owner.originalReservationForInterruption()
+        XCTAssertEqual(completedIntent.phase, .cleanupComplete)
+        XCTAssertEqual(completedIntent.eraseID, reservation.subject.eraseID)
+        XCTAssertEqual(completedIntent.newGenerationID, reservation.subject.newGenerationID)
+        let actual = try XCTUnwrap(state.retainedAuxiliaryURL)
+        let retainedBytes = try Data(contentsOf: actual)
+        let before = try XCTUnwrap(state.beforeFact)
+        let after = try XCTUnwrap(state.afterFaultFact)
+        XCTAssertEqual(after.st_dev, before.st_dev)
+        let stillRetained = try originalAuxiliaryRetirementNamedFact(actual)
+        XCTAssertEqual(stillRetained.st_dev, after.st_dev)
+        XCTAssertEqual(stillRetained.st_ino, after.st_ino,
+            "The refused consumer must preserve the actual post-mutation evidence inode")
+        switch fault {
+        case .wrongName:
+            XCTAssertEqual(actual.lastPathComponent, "unexpected-auxiliary-retirement.json")
+            XCTAssertFalse(FileManager.default.fileExists(atPath:
+                root.appendingPathComponent("auxiliary-retirement.json").path))
+            XCTAssertEqual(retainedBytes, try XCTUnwrap(state.auxiliaryBefore))
+            XCTAssertEqual(after.st_ino, before.st_ino)
+        case .mutatedBytes:
+            XCTAssertNotEqual(retainedBytes, try XCTUnwrap(state.auxiliaryBefore))
+            XCTAssertEqual(after.st_ino, before.st_ino)
+        case .replacedLeaf:
+            XCTAssertEqual(retainedBytes, try XCTUnwrap(state.auxiliaryBefore))
+            XCTAssertNotEqual(after.st_ino, before.st_ino,
+                "Identical bytes on the original inode do not exercise replacement refusal")
+        case .foreignBytes:
+            XCTAssertEqual(retainedBytes, try XCTUnwrap(foreignBytes))
+            XCTAssertNotEqual(retainedBytes, try XCTUnwrap(state.auxiliaryBefore))
+            XCTAssertEqual(after.st_ino, before.st_ino)
+        case .none: XCTFail("A genuine hostile control change is required")
+        }
+        if fault == .mutatedBytes || fault == .foreignBytes {
+            XCTAssertNotNil(state.hostileWriter)
+            XCTAssertEqual(state.closeAttemptCount, 1)
+            XCTAssertTrue(state.closeReturned)
+        }
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: root.path)),
+            Set([actual.lastPathComponent, "erase.json", "preparation.json"]))
+        // No second advancement, repair, favorable callback, rearm, forced
+        // holder release or deletion of the refused evidence follows.
+    }
+
+    @MainActor
+    func testGenuineOriginalAuxiliaryRetirementConsumesPublishedControlBeforeEmptyRootCompletion() async throws {
+        let (fixture, state) = try await prepareOriginalAuxiliaryRetirementConsumerFixture(fault: .none)
+        try await fixture.owner.completeCleanup()
+        XCTAssertEqual(state.boundaryEntries, 1)
+        let intent = try EraseIntentCodecV1.decode(try XCTUnwrap(state.intentBefore))
+        XCTAssertEqual(intent.phase, .cleanupComplete)
+        XCTAssertEqual(state.auxiliaryBefore, state.publicationBeforeCleanup)
+        XCTAssertNotNil(state.beforeFact)
+        XCTAssertFalse(state.mutationReturned)
+        XCTAssertFalse(state.ioOrCloseUncertain)
+        XCTAssertNil(state.mutationFailure)
+        XCTAssertEqual(fixture.state.receipts.count, 1)
+        let receipt = try XCTUnwrap(fixture.state.receipts.first)
+        let reservation = try fixture.owner.originalReservationForInterruption()
+        XCTAssertEqual(receipt.reservation, reservation)
+        XCTAssertEqual(receipt.subject.eraseID, intent.eraseID)
+        XCTAssertEqual(receipt.subject.newGenerationID, intent.newGenerationID)
+        let (_, _, completed) = try fixture.operation.completedRetirement()
+        let actualCompleted = try XCTUnwrap(completed)
+        XCTAssertEqual(actualCompleted.subject, receipt.subject)
+        XCTAssertEqual(actualCompleted.reservation, receipt.reservation)
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            fixture.support.appendingPathComponent("FieldEvidenceErase").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            fixture.support.appendingPathComponent("FieldEvidenceOperations").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath:
+            StoreGenerationFactory(applicationSupportURL: fixture.support)
+                .installedGenerationURL(id: fixture.originalGeneration).path))
+    }
+
+    @MainActor
+    func testGenuineOriginalAuxiliaryRetirementRefusesWrongControlNameAndRetainsIntent() async throws {
+        let (fixture, state) = try await prepareOriginalAuxiliaryRetirementConsumerFixture(fault: .wrongName)
+        try await assertOriginalAuxiliaryRetirementConsumerRefuses(fixture, state: state, fault: .wrongName)
+    }
+
+    @MainActor
+    func testGenuineOriginalAuxiliaryRetirementRefusesMutatedControlAndRetainsIntent() async throws {
+        let (fixture, state) = try await prepareOriginalAuxiliaryRetirementConsumerFixture(fault: .mutatedBytes)
+        try await assertOriginalAuxiliaryRetirementConsumerRefuses(fixture, state: state, fault: .mutatedBytes)
+    }
+
+    @MainActor
+    func testGenuineOriginalAuxiliaryRetirementRefusesIdenticalBytesOnReplacementAndRetainsIntent() async throws {
+        let (fixture, state) = try await prepareOriginalAuxiliaryRetirementConsumerFixture(fault: .replacedLeaf)
+        try await assertOriginalAuxiliaryRetirementConsumerRefuses(fixture, state: state, fault: .replacedLeaf)
+    }
+
+    @MainActor
+    func testGenuineOriginalAuxiliaryRetirementRefusesForeignPublicationAndRetainsIntent() async throws {
+        let (donor, donorState) = try await prepareOriginalAuxiliaryRetirementConsumerFixture(fault: .none)
+        let foreign = try XCTUnwrap(donorState.publicationBeforeCleanup)
+        let donorReservation = try donor.owner.originalReservationForInterruption()
+        try await donor.owner.completeCleanup()
+        XCTAssertEqual(donorState.boundaryEntries, 1)
+        XCTAssertEqual(donor.state.receipts.count, 1)
+        let (fixture, state) = try await prepareOriginalAuxiliaryRetirementConsumerFixture(
+            fault: .foreignBytes, foreignBytes: foreign)
+        let reservation = try fixture.owner.originalReservationForInterruption()
+        XCTAssertNotEqual(reservation.subject.eraseID, donorReservation.subject.eraseID)
+        XCTAssertNotEqual(state.publicationBeforeCleanup, foreign)
+        try await assertOriginalAuxiliaryRetirementConsumerRefuses(fixture,
+            state: state, fault: .foreignBytes, foreignBytes: foreign)
     }
 }
 #endif

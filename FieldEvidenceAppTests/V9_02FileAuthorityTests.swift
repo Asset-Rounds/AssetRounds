@@ -171,12 +171,14 @@ final class V9_02FileAuthorityTests: XCTestCase {
         // fixture directory never enters the real app-container CI transport.
         let streamID = UUID()
         let framed = ProtectedFileSimulatorDiagnosticJournalV1(cachesURL: root, streamID: streamID)
-        let payload = Data(("V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
-            + " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
-            + " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
-            + " kind=database request=complete capabilityBefore=false capabilityAfter=false"
-            + " urlProtection=completeUntilFirstUserAuthentication backupExcluded=false"
-            + " expectsDirectory=false identityUnchanged=true\n").utf8)
+        let framedPayloadHeader: String = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
+        let framedPayloadPolicy: String = " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
+        let framedPayloadDisposition: String = " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
+        let framedPayloadRequest: String = " kind=database request=complete capabilityBefore=false capabilityAfter=false"
+        let framedPayloadProtection: String = " urlProtection=completeUntilFirstUserAuthentication backupExcluded=false"
+        let framedPayloadIdentity: String = " expectsDirectory=false identityUnchanged=true\n"
+        let framedPayloadText: String = [framedPayloadHeader, framedPayloadPolicy, framedPayloadDisposition, framedPayloadRequest, framedPayloadProtection, framedPayloadIdentity].joined()
+        let payload = Data(framedPayloadText.utf8)
         DispatchQueue.concurrentPerform(iterations: 64) { _ in
             do { try framed.write(payload) }
             catch { XCTFail("Concurrent diagnostic journal write failed: \(error)") }
@@ -413,13 +415,15 @@ final class V9_02FileAuthorityTests: XCTestCase {
         let directory = root.appendingPathComponent("AssetRoundsNativeDiagnostics", isDirectory: true)
         func exact(_ kind: OwnedFileKindV1) -> Data {
             let disposition = ProtectedFilePolicyV1.disposition(for: kind)
-            return Data(("V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
-                + " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
-                + " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
-                + " kind=\(kind.rawValue) request=complete capabilityBefore=false capabilityAfter=false"
-                + " urlProtection=completeUntilFirstUserAuthentication"
-                + " backupExcluded=\(disposition.isExcludedFromBackup)"
-                + " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n").utf8)
+            let eventHeader: String = "V23_SIMULATOR_FILE_PROTECTION_DIAGNOSTIC_V2"
+            let eventPolicy: String = " policyID=V23-SIMULATOR-FILE-PROTECTION-DIAGNOSTIC-20260915"
+            let eventDisposition: String = " disposition=SIMULATOR_FILE_PROTECTION_UNSUPPORTED"
+            let eventRequest: String = " kind=\(kind.rawValue) request=complete capabilityBefore=false capabilityAfter=false"
+            let eventProtection: String = " urlProtection=completeUntilFirstUserAuthentication"
+            let eventBackup: String = " backupExcluded=\(disposition.isExcludedFromBackup)"
+            let eventIdentity: String = " expectsDirectory=\(disposition.expectsDirectory) identityUnchanged=true\n"
+            let eventText: String = [eventHeader, eventPolicy, eventDisposition, eventRequest, eventProtection, eventBackup, eventIdentity].joined()
+            return Data(eventText.utf8)
         }
         func summary(_ kind: OwnedFileKindV1, _ occurrences: Int) -> Data {
             let fields = String(decoding: exact(kind), as: UTF8.self)

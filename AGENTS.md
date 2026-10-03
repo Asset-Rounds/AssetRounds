@@ -9,7 +9,7 @@ Owner priority, 2026-09-29: finish the verified merge as quickly as possible. Ro
 ## Where to work
 
 - Until Phase 1 merges, work on branch `codex/v23-s10-integration-20260910`. After that, work on `main`.
-- The primary development machine is the owner's cloud Mac, running Codex with Xcode 26.6. Local development uses the installed iOS 26.5 Simulator; gates retain iOS 26.2 (23C54) on GitHub. Setup is in `docs/design/v23/integration/MAC_HANDOFF.md`.
+- The primary development machine is the owner's cloud Mac. On the current macOS 27 host, local DEVELOPMENT uses Xcode 27.0 / 27A266a and available iOS 26.2 / 23C54 under [the owner-approved October 2 successor](docs/design/v23/integration/TOOLCHAIN_DEVELOPMENT_DECISION_20261002.md). Official gates and exact-main verification retain GitHub Xcode 26.6 / iOS 26.2 (23C54). Historical Xcode 26.6 / iOS 26.5 development results keep their exact scope. Setup is in `docs/design/v23/integration/MAC_HANDOFF.md`.
 - The Windows checkout `C:\AssetRounds-v23-s10-integration` holds about 55 uncommitted owner drafts. Never reset, delete, overwrite or reformat them, and never stage them without the owner's say-so. In every checkout, preserve owner drafts, untracked work, frozen branches, V30 and the coordination ledger.
 - Start every session with `docs/design/v23/integration/ACTIVE_BRIEF.md`. Then use:
   - `CURRENT_INTEGRATION.md` for batch detail;
@@ -169,6 +169,8 @@ Owner decisions, 2026-09-26 (Codex workflow update):
 29. Latest owner helper budget (2026-09-29): up to 10 concurrent active helpers plus root, limited by actual tool capacity and useful independent work. The owner updated config.toml. Model/effort decision 28 and every safety, review, evidence and gate requirement remain in force.
 
 30. Owner-approved execution workflow (2026-09-30): use the linked performance workflow to advance independent merge blockers alongside local verification, coordinate the assisting chat with explicit ownership, and reuse completed helper contexts. Root remains the sole integrator and operator of Git, native execution and evidence effects. No model, gate, scope, quality, safety or owner-reserved decision changes are authorized by this workflow.
+
+31. Owner-approved local toolchain successor (2026-10-02): use installed Xcode 27.0 / 27A266a with available iOS 26.2 / 23C54 for local DEVELOPMENT only, under the linked October 2 decision. All five Phase 1 gates and exact-main verification keep pinned GitHub Xcode 26.6 / iOS 26.2 (23C54). Record each exact compiler/SDK/runtime/source/Products tuple, use fresh DD and reviewed successor adapters, and never promote local27 evidence or silently substitute versions. Full scope, safety, original/HOLD retention, owner reviews and release boundaries remain unchanged.
 
 ## History
 

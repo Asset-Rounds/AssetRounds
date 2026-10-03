@@ -11887,14 +11887,14 @@ private extension BackupRestoreService {
             let diagnosticError = originalError as NSError
             let restoreStagingPhaseElapsedMilliseconds =
                 (DispatchTime.now().uptimeNanoseconds - restoreStagingPhaseStartedAt) / 1_000_000
-            FileHandle.standardError.write(Data((
-                "BackupRestoreService.materialize failure"
-                    + " phase=\(restoreStagingPhase)"
-                    + " elapsedMillis=\(restoreStagingPhaseElapsedMilliseconds)"
-                    + " type=\(String(reflecting: type(of: originalError)))"
-                    + " domain=\(diagnosticError.domain)"
-                    + " code=\(diagnosticError.code)\n"
-            ).utf8))
+            let failureDiagnostic: String = "BackupRestoreService.materialize failure"
+            let phaseDiagnostic: String = " phase=\(restoreStagingPhase)"
+            let elapsedDiagnostic: String = " elapsedMillis=\(restoreStagingPhaseElapsedMilliseconds)"
+            let typeDiagnostic: String = " type=\(String(reflecting: type(of: originalError)))"
+            let domainDiagnostic: String = " domain=\(diagnosticError.domain)"
+            let codeDiagnostic: String = " code=\(diagnosticError.code)\n"
+            let materializationDiagnostic: String = [failureDiagnostic, phaseDiagnostic, elapsedDiagnostic, typeDiagnostic, domainDiagnostic, codeDiagnostic].joined()
+            FileHandle.standardError.write(Data(materializationDiagnostic.utf8))
 #endif
             let cleanupError: Error?
             do {

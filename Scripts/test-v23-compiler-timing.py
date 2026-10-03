@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shlex
 import shutil
 import subprocess
 import sys
@@ -552,6 +553,13 @@ def run_passive_build_fixture(case, ci, directory, selector, receipt_exit=0, bui
     The fixture owns its Git objects/index/refs and does not modify ROOT's Git.
     """
     case.assertEqual(selector, TIMING.INTERRUPTION_SELECTION_ID)
+    # Capture the host before the fixture installs its deliberately fake Xcode
+    # pin. Apple /usr/bin/git dispatches through the developer-tool shim.
+    host_environment = dict(os.environ)
+    host_git = shutil.which("git", path=host_environment.get("PATH"))
+    case.assertIsNotNone(host_git, "The fixture requires real host Git")
+    host_git = str(Path(host_git).absolute())
+    host_developer_dir = host_environment.get("DEVELOPER_DIR")
     base = Path(directory).resolve()
     checkout = base / "c"
     checkout.mkdir()
@@ -562,11 +570,11 @@ def run_passive_build_fixture(case, ci, directory, selector, receipt_exit=0, bui
              "Scripts/v23-compiler-timing.json", "Scripts/test-v23-compiler-timing.py")
     for relative in owned:
         (checkout / relative).write_bytes((ROOT / relative).read_bytes())
-    subprocess.check_call(["git", "init", "-q", str(checkout)])
-    common = subprocess.check_output(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=ROOT, text=True).strip()
+    subprocess.check_call([host_git, "init", "-q", str(checkout)], env=host_environment)
+    common = subprocess.check_output([host_git, "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=ROOT, env=host_environment, text=True).strip()
     (checkout / ".git/objects/info/alternates").write_text((Path(common) / "objects").as_posix() + "\n", encoding="utf-8", newline="\n")
     def git(*args, data=None):
-        return subprocess.check_output(["git", *args], cwd=checkout, input=data)
+        return subprocess.check_output([host_git, *args], cwd=checkout, env=host_environment, input=data)
     git("config", "core.autocrlf", "false")
     git("config", "core.longpaths", "true")
     git("read-tree", case.source_parent)
@@ -578,21 +586,53 @@ def run_passive_build_fixture(case, ci, directory, selector, receipt_exit=0, bui
     # ZipFile extraction loses executable bits. Restore the final private
     # index's modes and bytes without relaxing the real dirty-source guard.
     git("checkout-index", "--all", "--force")
-    identity = dict(os.environ, GIT_AUTHOR_NAME="Observer fixture", GIT_AUTHOR_EMAIL="fixture@example.invalid",
+    identity = dict(host_environment, GIT_AUTHOR_NAME="Observer fixture", GIT_AUTHOR_EMAIL="fixture@example.invalid",
                     GIT_COMMITTER_NAME="Observer fixture", GIT_COMMITTER_EMAIL="fixture@example.invalid")
-    head = subprocess.check_output(["git", "commit-tree", tree, "-p", case.source_parent,
+    head = subprocess.check_output([host_git, "commit-tree", tree, "-p", case.source_parent,
                                    "-m", "Disposable observer fixture; no native evidence"],
                                   cwd=checkout, env=identity, text=True).strip()
     git("update-ref", "HEAD", head)
     for relative, expected in case.source_trees.items():
         case.assertEqual(git("rev-parse", "HEAD:" + relative).decode().strip(), expected)
     case.assertEqual(git("diff", "HEAD", "--"), b"")
-    bash = Path(shutil.which("git")).resolve().parents[1] / "bin/bash.exe" if os.name == "nt" else Path(shutil.which("bash"))
+    bash = Path(host_git).resolve().parents[1] / "bin/bash.exe" if os.name == "nt" else Path(shutil.which("bash"))
     def shell_path(path):
         if os.name != "nt": return str(path)
         return subprocess.check_output([str(bash), "-c", 'cygpath -u "$1"', "_", str(path)], text=True).strip()
     binary = base / "bin"
     binary.mkdir()
+    # A Python entry bridge works for real Git subprocesses on both Windows
+    # and POSIX. It changes only Git's developer-directory environment; the
+    # admitted CLI, receipt, observer and fake Xcode retain the pinned fixture.
+    git_bridge = base / "host-git-entry.py"
+    git_bridge.write_text(
+        "HOST_GIT = " + repr(host_git) + "\nHOST_DEVELOPER_DIR = " + repr(host_developer_dir)
+        + "\nGIT_AUDIT = " + repr(str(base / "host-git-calls.jsonl")) + "\n" + '''import json,os,runpy,subprocess,sys
+from pathlib import Path
+from unittest import mock
+target=sys.argv[1]; arguments=sys.argv[2:]
+context=arguments[0] if Path(target).name=='python-entry.py' else Path(target).name+':'+arguments[0]
+sys.argv=[target,*arguments]
+original_popen=subprocess.Popen
+def host_git_popen(argv,*args,**kwargs):
+    if isinstance(argv,(list,tuple)) and argv and argv[0]=='git':
+        incoming=dict(os.environ if kwargs.get('env') is None else kwargs['env'])
+        environment=dict(incoming)
+        if HOST_DEVELOPER_DIR is None: environment.pop('DEVELOPER_DIR',None)
+        else: environment['DEVELOPER_DIR']=HOST_DEVELOPER_DIR
+        changed=sorted(key for key in incoming.keys() | environment.keys()
+                       if incoming.get(key)!=environment.get(key))
+        with open(GIT_AUDIT,'a',encoding='utf-8') as stream:
+            stream.write(json.dumps(dict(context=context,argv=list(argv[1:]),
+                hostGit=HOST_GIT,incomingDeveloperDir=incoming.get('DEVELOPER_DIR'),
+                effectiveDeveloperDir=environment.get('DEVELOPER_DIR'),
+                changedEnvironmentKeys=changed),sort_keys=True)+'\\n')
+        argv=[HOST_GIT,*argv[1:]]
+        kwargs['env']=environment
+    return original_popen(argv,*args,**kwargs)
+with mock.patch.object(subprocess,'Popen',side_effect=host_git_popen):
+    runpy.run_path(target,run_name='__main__')
+''', encoding="utf-8", newline="\n")
     shim = base / "python-entry.py"
     shim.write_text('''import importlib.util,json,os,runpy,subprocess,sys
 from pathlib import Path
@@ -633,12 +673,15 @@ def forbidden(*args,**kwargs): raise AssertionError('passive profile must not qu
 with mock.patch.object(m.subprocess,'Popen',side_effect=launch), mock.patch.object(m.subprocess,'check_output',side_effect=check), mock.patch.object(m.subprocess,'run',side_effect=run), mock.patch.object(m.os,'getloadavg',return_value=(1.,1.,1.),create=True), mock.patch.object(m,'run_observed_capability',side_effect=forbidden), mock.patch.object(m,'diagnostic_command',side_effect=forbidden):
     raise SystemExit(m.main())
 ''', encoding="utf-8", newline="\n")
-    (binary / "python3").write_text('#!/bin/bash\nexec "' + shell_path(Path(sys.executable)) + '" "' + shell_path(shim) + '" "$@"\n', encoding="utf-8", newline="\n")
+    (binary / "python3").write_text('#!/bin/bash\nexec '
+        + ' '.join(shlex.quote(shell_path(path)) for path in (Path(sys.executable), git_bridge, shim))
+        + ' "$@"\n', encoding="utf-8", newline="\n")
     (binary / "python3").chmod(0o755)
     xcode = binary / "xcodebuild"
     xcode.write_text('''#!/bin/bash
 printf "build\\n" >> "$TEST_EVENTS"
 printf "%s\\n" "$@" > "$TEST_BUILD_ARGS"
+printf "%s\\n" "$DEVELOPER_DIR" > "$TEST_BUILD_DEVELOPER_DIR"
 sleep 0.1
 if [ "$TEST_BUILD_EXIT" != 0 ]; then exit "$TEST_BUILD_EXIT"; fi
 mkdir -p "$CI_ARTIFACT_DIR/Build.xcresult" "$RUNNER_TEMP/FieldEvidenceDerivedData/Build/Products/Debug-iphonesimulator/FieldEvidenceApp.app"
@@ -650,7 +693,7 @@ touch "$CI_ARTIFACT_DIR/Build.xcresult/result" "$RUNNER_TEMP/FieldEvidenceDerive
     resolved = artifact / "ci-selection.selected.json"
     resolved.write_bytes(ci.canonical(case.selected))
     udid = "00000000-0000-0000-0000-000000000001"
-    e = dict(os.environ, **case.bound_environment())
+    e = dict(host_environment, **case.bound_environment())
     e.update(GITHUB_WORKSPACE=str(checkout), GITHUB_SHA=head, NATIVE_SELECTION_ID=selector,
         PROJECT_PATH="FieldEvidenceApp.xcodeproj", SCHEME="FieldEvidenceApp", CONFIGURATION="Debug",
         CODE_SIGNING_ALLOWED="NO", CI_SIMULATOR_UDID=udid, CI_DESTINATION="platform=iOS Simulator,id=" + udid,
@@ -662,8 +705,9 @@ touch "$CI_ARTIFACT_DIR/Build.xcresult/result" "$RUNNER_TEMP/FieldEvidenceDerive
         CI_ARTIFACT_DIR=str(artifact), CI_SELECTION_PATH=str(resolved), RUNNER_TEMP=str(base / "runner temp"),
         TEST_BASH=str(bash), TEST_XCODE=str(xcode), TEST_EVENTS=shell_path(base / "events"),
         TEST_EVENTS_NATIVE=str(base / "events"), TEST_BUILD_ARGS=shell_path(base / "build-args"),
+        TEST_BUILD_DEVELOPER_DIR=shell_path(base / "build-developer-dir"),
         TEST_RECEIPT_EXIT=str(receipt_exit), TEST_RECEIPT_NAME=ci.NO_INDEX_RECEIPT, TEST_BUILD_EXIT=str(build_exit))
-    admitted = subprocess.run([sys.executable, str(checkout / "Scripts/v23-native-ci.py"), "admit"],
+    admitted = subprocess.run([sys.executable, str(git_bridge), str(checkout / "Scripts/v23-native-ci.py"), "admit"],
                               cwd=checkout, env=e, capture_output=True, text=True)
     case.assertEqual(admitted.returncode, 0, admitted.stderr)
     result = subprocess.run([str(bash), "-c", 'export PATH="$1:$PATH"; exec bash Scripts/build-smoke.sh', "_", shell_path(binary)],

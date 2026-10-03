@@ -4038,6 +4038,36 @@ class NotificationInterruptionDiagnosticTests(ReplacementPartitionDiagnosticTest
         self.assertEqual(fixture_case.selected, self.selected)
         return timing.run_passive_build_fixture(fixture_case, CI, directory, selector, receipt_exit, build_exit)
 
+    def test_passive_fixture_git_preserves_fake_xcode_pin_and_uses_host_environment(self):
+        host_developer_dir = os.environ.get('DEVELOPER_DIR')
+        host_git = shutil.which('git')
+        self.assertIsNotNone(host_git)
+        host_git = str(Path(host_git).absolute())
+        pinned_developer_dir = '/Applications/Xcode_26.6.app/Contents/Developer'
+        with tempfile.TemporaryDirectory() as directory:
+            result, environment, events, _ = self.run_mock_build(
+                directory, CI.NOTIFICATION_INTERRUPTION_SELECTION_ID)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(events, ['receipt', 'build'])
+            self.assertEqual(environment['DEVELOPER_DIR'], pinned_developer_dir)
+            base = Path(directory).resolve()
+            self.assertEqual((base / 'build-developer-dir').read_text().strip(), pinned_developer_dir,
+                             'Fake Xcode must still receive the pinned fixture environment')
+            calls = [json.loads(line) for line in (base / 'host-git-calls.jsonl').read_text().splitlines()]
+            self.assertTrue(calls, 'The fixture must execute real host Git')
+            self.assertEqual({call['context'] for call in calls}, {
+                'v23-native-ci.py:admit', 'Scripts/v23-native-ci.py', 'Scripts/v23-compiler-timing.py'})
+            expected_changes = [] if host_developer_dir == pinned_developer_dir else ['DEVELOPER_DIR']
+            for call in calls:
+                with self.subTest(context=call['context'], argv=call['argv']):
+                    self.assertEqual(call['incomingDeveloperDir'], pinned_developer_dir)
+                    self.assertEqual(call['effectiveDeveloperDir'], host_developer_dir)
+                    self.assertEqual(call['hostGit'], host_git)
+                    self.assertEqual(call['changedEnvironmentKeys'], expected_changes,
+                                     'Only Git receives the host developer-directory setting')
+        self.assertEqual(os.environ.get('DEVELOPER_DIR'), host_developer_dir,
+                         'The fixture must leave the parent environment unchanged')
+
     def test_command_vector_is_nonempty_under_bash32_nounset(self):
         # Static compatibility guard: newer local Bash cannot reproduce the
         # hosted Bash 3.2 empty-array nounset behavior. The paired shell tests

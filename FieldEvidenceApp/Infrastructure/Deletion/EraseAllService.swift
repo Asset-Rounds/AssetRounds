@@ -1316,6 +1316,10 @@ final class EraseAllService {
     var postCloseSourceForeignOwnerForTesting: ErasedRegistryRetirementProofV1?
     var afterTerminalSourceValidationForTesting:
         (@MainActor (ErasePostCloseSourceControlsReadbackV1) throws -> Void)?
+    /// Captured during genuine preparation; fires once before all fresh
+    /// fixed auxiliary-retirement validation, never inside an IO fence.
+    var beforeOriginalAuxiliaryRetirementValidationForTesting:
+        (@MainActor () throws -> Void)?
     /// The genuine cold Service's fresh retained-source context supplies a
     /// value-only before/after refusal readback. Test code never receives its
     /// ModelContext or retains a reader across the failed cold attempt.
@@ -12258,7 +12262,7 @@ private final class EraseOriginalColdExitPreDeletionWitnessV1 {
 @MainActor
 final class EraseCleanupAfterRetirementV1 {
     private enum Phase: Equatable { case prepared, generationsRemoved, manifestPreserved, authorityClosed, notificationClosed, removingNamespace, namespaceRemoved,
-        preferencesPrepared, diagnosticsVerified, phaseWritten, preparationRemoved,
+        preferencesPrepared, diagnosticsVerified, phaseWritten, auxiliaryRemoved, preparationRemoved,
         intentRemoved, eraseRootRemoved, released, abandonmentPending, abandoned, closeUncertain }
     let binding: EraseRetirementBindingV1
     private let intent: EraseIntentV1
@@ -12273,6 +12277,8 @@ final class EraseCleanupAfterRetirementV1 {
     private let notificationControl: AppLockNotificationControlStoreV1
     private let originalNotificationTerminalClose:
         OriginalEraseNotificationTerminalCloseWitnessV1?
+    private let originalAuxiliaryRetirementData:
+        EraseIntentStore.OriginalAuxiliaryRetirementDataV1?
     private let userDefaults: UserDefaults
     private let defaultsDomainName: String
     private let fileManager: FileManager
@@ -12305,6 +12311,18 @@ final class EraseCleanupAfterRetirementV1 {
 #if DEBUG
     private var interruptedLateFault: EraseAllFailurePoint?
     private var coldCleanupProofObservationForTesting: (@MainActor (String) -> Void)?
+    private var beforeOriginalAuxiliaryRetirementValidationForTesting:
+        (@MainActor () throws -> Void)?
+
+    fileprivate func installOriginalAuxiliaryRetirementHookForTesting(
+        _ hook: @escaping @MainActor () throws -> Void
+    ) throws {
+        guard phase == .prepared,
+              beforeOriginalAuxiliaryRetirementValidationForTesting == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        beforeOriginalAuxiliaryRetirementValidationForTesting = hook
+    }
 
     fileprivate func installColdCleanupProofObservationForTesting(
         _ observation: (@MainActor (String) -> Void)?
@@ -12549,6 +12567,8 @@ final class EraseCleanupAfterRetirementV1 {
         diagnosticsStore: DiagnosticsStore, notificationControl: AppLockNotificationControlStoreV1,
         originalNotificationTerminalClose:
             OriginalEraseNotificationTerminalCloseWitnessV1? = nil,
+        originalAuxiliaryRetirementData:
+            EraseIntentStore.OriginalAuxiliaryRetirementDataV1? = nil,
         userDefaults: UserDefaults, defaultsDomainName: String, fileManager: FileManager,
         failureInjection: EraseAllFailureInjection?, reservation: AppAccessGateV1.EraseAdoptionToken?,
         completion: (@MainActor (CompletedEraseReceiptV1) -> Void)?) {
@@ -12557,6 +12577,7 @@ final class EraseCleanupAfterRetirementV1 {
         self.observation = observation; self.manifestScope = manifestScope; self.targetReader = targetReader
         self.diagnosticsStore = diagnosticsStore; self.notificationControl = notificationControl
         self.originalNotificationTerminalClose = originalNotificationTerminalClose
+        self.originalAuxiliaryRetirementData = originalAuxiliaryRetirementData
         self.userDefaults = userDefaults; self.defaultsDomainName = defaultsDomainName
         self.fileManager = fileManager; self.failureInjection = failureInjection; self.reservation = reservation
         self.completion = completion
@@ -13036,6 +13057,27 @@ final class EraseCleanupAfterRetirementV1 {
             if intent.phase != .cleanupComplete { try inject(.afterCleanupPhaseWrite) }
         }
         if phase == .phaseWritten {
+#if DEBUG
+            // Clear before firing. Every freshness check below runs after this
+            // hostile seam; the hook supplies neither a permit nor an outcome.
+            if let hook = beforeOriginalAuxiliaryRetirementValidationForTesting {
+                beforeOriginalAuxiliaryRetirementValidationForTesting = nil
+                try hook()
+            }
+            print("ORIGINAL_AUX_RETIREMENT_V1 stage=entry")
+#endif
+            try proof.requireNamespaceAbsent()
+            guard let diagnosticsZero else { throw EraseAllServiceError.invalidAuthority }
+            try auxiliary.verifyTargetsRemovedExceptDiagnostics()
+            try auxiliary.verifyDiagnostics(expectedData: diagnosticsZero)
+            try intentStore.removeOriginalAuxiliaryAfterRegistryRetirement(
+                expected: completed, retirement: proof, data: originalAuxiliaryRetirementData)
+            phase = .auxiliaryRemoved
+#if DEBUG
+            print("ORIGINAL_AUX_RETIREMENT_V1 stage=complete")
+#endif
+        }
+        if phase == .auxiliaryRemoved {
             try proof.requireNamespaceAbsent()
             guard let diagnosticsZero else { throw EraseAllServiceError.invalidAuthority }
             try auxiliary.verifyTargetsRemovedExceptDiagnostics()
@@ -13531,11 +13573,19 @@ private extension EraseAllService {
         let terminalNotification = try originalAuxiliaryOperation?
             .makeOriginalEraseNotificationTerminalCloseWitness(
                 control: notifications, coordinator: coordinator)
+        let auxiliaryRetirementData: EraseIntentStore.OriginalAuxiliaryRetirementDataV1?
+        if value.schemaVersion == 2, let originalAuxiliaryOperation {
+            auxiliaryRetirementData = try intentStore.captureOriginalAuxiliaryRetirementData(
+                expected: value, operation: originalAuxiliaryOperation)
+        } else {
+            auxiliaryRetirementData = nil
+        }
         let prepared = EraseCleanupAfterRetirementV1(binding: binding, intent: value, factory: generationFactory,
             authority: authority, auxiliary: auxiliary, intentStore: intentStore, observation: observation,
             manifestScope: scope, targetReader: reader, diagnosticsStore: diagnosticsStore,
             notificationControl: notifications,
             originalNotificationTerminalClose: terminalNotification,
+            originalAuxiliaryRetirementData: auxiliaryRetirementData,
             userDefaults: userDefaults, defaultsDomainName: defaultsDomainName,
             fileManager: fileManager, failureInjection: failureInjection, reservation: reservation,
             completion: didCompleteErase)
@@ -13555,6 +13605,9 @@ private extension EraseAllService {
             guard postCloseSourceForeignOwnerForTesting == nil else {
                 throw EraseAllServiceError.invalidAuthority
             }
+        }
+        if let hook = beforeOriginalAuxiliaryRetirementValidationForTesting {
+            try prepared.installOriginalAuxiliaryRetirementHookForTesting(hook)
         }
         if let originalColdExitFrame {
             try prepared.retainOriginalColdExitFrameForTesting(originalColdExitFrame)

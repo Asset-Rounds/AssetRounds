@@ -10297,15 +10297,19 @@ final class EraseReaderRetirementInventoryV1 {
             let expectedWriters = expected.filter { $0.role == .writer }.count
             let observedReaders = leases.filter { $0.role == .reader }.count
             let observedWriters = leases.filter { $0.role == .writer }.count
-            FileHandle.standardError.write(Data((
-                "ERASE_PREPARATION_CENSUS_V1 stage=\(diagnosticStage)"
-                    + " errorType=\(String(reflecting: type(of: error)))"
-                    + " originalReaders=\(originalReaders.count)"
-                    + " allocations=\(allocations.count)"
-                    + " expected=\(expected.count) expectedReaders=\(expectedReaders)"
-                    + " expectedWriters=\(expectedWriters) observed=\(leases.count)"
-                    + " observedReaders=\(observedReaders) observedWriters=\(observedWriters)\n"
-            ).utf8))
+            let stageDiagnostic: String = "ERASE_PREPARATION_CENSUS_V1 stage=\(diagnosticStage)"
+            let errorTypeDiagnostic: String = " errorType=\(String(reflecting: type(of: error)))"
+            let originalReadersDiagnostic: String = " originalReaders=\(originalReaders.count)"
+            let allocationsDiagnostic: String = " allocations=\(allocations.count)"
+            let expectedReadersDiagnostic: String = " expected=\(expected.count) expectedReaders=\(expectedReaders)"
+            let expectedWritersDiagnostic: String = " expectedWriters=\(expectedWriters) observed=\(leases.count)"
+            let observedRolesDiagnostic: String = " observedReaders=\(observedReaders) observedWriters=\(observedWriters)\n"
+            let censusDiagnostic: String = [
+                stageDiagnostic, errorTypeDiagnostic, originalReadersDiagnostic,
+                allocationsDiagnostic, expectedReadersDiagnostic, expectedWritersDiagnostic,
+                observedRolesDiagnostic
+            ].joined()
+            FileHandle.standardError.write(Data(censusDiagnostic.utf8))
 #endif
             throw error
         }
