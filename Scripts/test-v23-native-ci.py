@@ -3353,6 +3353,7 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
     def test_d50_is_exact_to_live_host_and_every_other_route_keeps_d30(self):
         self.assertEqual(CI.TIERS['D50'], (300, 1800, 3000, 0, 5100))
         self.assertEqual(CI.TIERS['D30'], (300, 1800, 900, 0, 3000))
+        # C9 raw-source successor preserves prior current724 as the twelfth historical pin.
         self.assertEqual(CI.SIMULATOR_DIAGNOSTIC_HISTORICAL_SOURCE_SHA256S,
                          ('7391B39F40D4C5DDE3B39AFCCB8A3F0D95037F7FDF0C1333F5D623A40F551A38',
                           'FCFF658FCE118760EAC50B13A3941470EA86ED6FB40E78D17E6A573A10DFA5DB',
@@ -3364,7 +3365,8 @@ class LiveHostBuild30DiagnosticTests(ReplacementPartitionDiagnosticTests):
                           '755870276940DA63430F323ADE00D7CD6820BB3FC4DC84BDBBA076350D48AB31',
                       'EE62E3C5A306D9C60D3210143894EAB94D1CBC19AB82BEE7933AD781E1051DED',
                   '20ABE423C0B06B4084B6B5B8EDF6F89EECCA625F97407F1A3637F6A1FB966B41',
-                  'A154FD5A2D7EE9A9F1FC486237259F2A1D5C829CE3BFA1E0EC569260E3D94CB5'))
+                  'A154FD5A2D7EE9A9F1FC486237259F2A1D5C829CE3BFA1E0EC569260E3D94CB5',
+                  '724DB61680A9BB673E522E3971B6382CC777D3BFFF99972844DCC120CC413D36'))
         self.assertEqual(CI.NO_INDEX_ROUTES[CI.LIVE_HOST_SELECTION_ID], (CI.LIVE_HOST_PARENT, 'D50'))
         self.assertEqual(sorted(k for k, (_, tier) in CI.NO_INDEX_ROUTES.items() if tier == 'D50'),
                          sorted(CI.D50_SELECTION_IDS))

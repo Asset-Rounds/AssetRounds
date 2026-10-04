@@ -1,7 +1,7 @@
 {
   "schema": "v23-coverage-partitions.v2",
   "sourceCensusHead": "27388c99647eff4e786bda786d20a80521b3180f",
-  "generatedAtHead": "414ebc4445d393caff26016a08456b56ec37d50c",
+  "generatedAtHead": "ceb83f9593a6546ba97a15715f7fdde98894467e",
   "sweepOrder": [
     "S01",
     "S02",
@@ -3952,7 +3952,7 @@
     {
       "id": "S33",
       "tier": "D50C",
-      "estimatedSeconds": 1500.0,
+      "estimatedSeconds": 1740.0,
       "selectors": [
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2DrainActualPrefixTemporaryCut",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2DrainActualZeroTemporaryCut",
@@ -3963,6 +3963,10 @@
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PointerSwitchedColdOpensActualEmptyTargetBeforeSessionPhaseCAS",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PointerSwitchedWrongRetiredTemporaryRefusesWithoutCanonicalEffects",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PopulatedNotificationColdRDrainsBeforeFirstGenerationUnlink",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PostGenerationSameBytesForeignIntentRefusesWithoutEffects",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PostGenerationSameBytesForeignPointerRefusesWithoutEffects",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PostGenerationSameBytesForeignRosterRetainsIntent",
+        "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PostGenerationSealInterruptedOwnerResumesReady",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2RevocationActualPrefixTemporaryCut",
         "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2RevocationActualZeroTemporaryCut",
         "FieldEvidenceAppTests/V23EraseDirectoryEntryLinkModelTests/testCompleteRootNamesIncludeUnwalkedAnchorsAndExcludeDescendants",

@@ -122,6 +122,83 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
         }
     }
 
+    /// A single synchronous notification observation under the original
+    /// toggle or configuration-repair proof. It is never a content permit.
+    fileprivate final class PreparedNotificationReadOwner: Sendable {}
+    fileprivate final class PreparedNotificationReadMint: Sendable {}
+    fileprivate final class PreparedNotificationReadReference: @unchecked Sendable {
+        private let lock = NSLock()
+        private var revoked = false
+        private var entered = false
+        private var returned = false
+        func revoke() { lock.lock(); revoked = true; lock.unlock() }
+        func withRead<Value>(_ body: () throws -> Value) throws -> Value {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !revoked, !entered, !returned else { throw AppAccessContractFailureV1.accessDenied }
+            entered = true
+            let value = try body()
+            returned = true
+            return value
+        }
+        func requirePositiveReturnedRead() throws {
+            lock.lock()
+            defer { lock.unlock() }
+            guard entered, returned else { throw AppAccessContractFailureV1.accessDenied }
+        }
+    }
+    fileprivate enum PreparedNotificationReadOrigin: Sendable {
+        case toggle(ToggleAuthenticationToken, targetEnabled: Bool)
+        case repair(ConfigurationAuthenticationToken, ConfigurationStartupRecoveryToken, targetEnabled: Bool)
+    }
+    struct PreparedNotificationReadToken: Sendable {
+        fileprivate let owner: PreparedNotificationReadOwner
+        fileprivate let mint: PreparedNotificationReadMint
+        fileprivate let origin: PreparedNotificationReadOrigin
+        fileprivate let operationID: UUID
+        fileprivate let subject: NotificationOperationSubjectV1?
+        fileprivate let generation: UInt64
+        fileprivate let contentReadEpoch: UInt64
+        fileprivate let reference: PreparedNotificationReadReference
+
+        fileprivate func requireOriginalAuthorization(_ authorization: NotificationOperationAuthorizationV1) throws {
+            guard authorization.gate.issuedPreparedNotificationReadToken(self),
+                  authorization.operationID == operationID,
+                  operationID != SettingsValidationV1.zeroUUID else { throw AppAccessContractFailureV1.accessDenied }
+            switch (subject, authorization.subject) {
+            case (nil, nil): break
+            case (let original?, let current?):
+                guard original.hasSameImmutableSubject(as: current) else { throw AppAccessContractFailureV1.effectMismatch }
+            default: throw AppAccessContractFailureV1.effectMismatch
+            }
+            switch (origin, authorization.proof) {
+            case (.toggle(let original, let target), .toggle(let current, let currentTarget)):
+                guard original.owner === current.owner, original.generation == current.generation,
+                      original.sessionID == current.sessionID, original.targetEnabled == current.targetEnabled,
+                      target == currentTarget, target == current.targetEnabled else { throw AppAccessContractFailureV1.accessDenied }
+            case (.repair(let original, let recovery, let target), .repair(let current, let currentTarget)):
+                guard let supplied = authorization.startupRecoveryToken,
+                      original.owner === current.owner, original.generation == current.generation,
+                      original.sessionID == current.sessionID, target == currentTarget,
+                      recovery.owner === supplied.owner, recovery.mint === supplied.mint,
+                      recovery.generation == supplied.generation, recovery.sessionID == supplied.sessionID,
+                      recovery.operationID == supplied.operationID, recovery.contentReadEpoch == supplied.contentReadEpoch,
+                      recovery.reference === supplied.reference else { throw AppAccessContractFailureV1.accessDenied }
+            default: throw AppAccessContractFailureV1.accessDenied
+            }
+        }
+        func withPreparedNotificationRead<Value>(authorization: NotificationOperationAuthorizationV1,
+            _ body: () throws -> Value) throws -> Value {
+            try requireOriginalAuthorization(authorization)
+            // No await, actor call or callback that re-enters this reference.
+            return try reference.withRead(body)
+        }
+        func requirePositiveReturnedRead(authorization: NotificationOperationAuthorizationV1) throws {
+            try requireOriginalAuthorization(authorization)
+            try reference.requirePositiveReturnedRead()
+        }
+    }
+
     private let authentication: any LocalAuthenticationClient
     private let clock: any ApplicationClock
     private let identifiers: any ApplicationIDSource
@@ -145,6 +222,8 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     private var configurationAuthentication: ConfigurationAuthenticationToken?
     private var configurationStartupRecovery: ConfigurationStartupRecoveryToken?
     private let toggleAuthenticationOwner = ToggleAuthenticationOwner()
+    private let preparedNotificationReadOwner = PreparedNotificationReadOwner()
+    private var preparedNotificationRead: PreparedNotificationReadToken?
     private var toggleAuthentication: ToggleAuthenticationToken?
     private var configurationActiveSettlement: CheckedContinuation<Void, Never>?
     private let eraseAdoptionOwner = EraseAdoptionOwner()
@@ -405,6 +484,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
     }
 
     private func revokeContentReads() {
+        revokePreparedNotificationReads()
         toggleAuthentication = nil
         configurationStartupRecovery?.reference.revoke()
         configurationStartupRecovery = nil
@@ -598,6 +678,7 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
             throw AppAccessContractFailureV1.invalidValue
         }
         try validateConfigurationAuthentication(configuration)
+        revokePreparedNotificationReads()
         configurationStartupRecovery?.reference.revoke()
         let token = ConfigurationStartupRecoveryToken(
             owner: configurationAuthenticationOwner,
@@ -634,6 +715,68 @@ actor AppAccessGateV1: AppAccessGatePortV1 {
             throw AppAccessContractFailureV1.accessDenied
         }
         try validateConfigurationAuthentication(configuration)
+    }
+
+    nonisolated func issuedPreparedNotificationReadToken(_ token: PreparedNotificationReadToken) -> Bool {
+        token.owner === preparedNotificationReadOwner
+    }
+
+    private func revokePreparedNotificationReads() {
+        preparedNotificationRead?.reference.revoke()
+        preparedNotificationRead = nil
+    }
+
+    private func requirePreparedNotificationOriginalProof(_ authorization: NotificationOperationAuthorizationV1) throws
+        -> PreparedNotificationReadOrigin {
+        guard authorization.gate === self, authorization.operationID != SettingsValidationV1.zeroUUID,
+              !contentReadEpochExhausted, sceneIsActive, !protectedDataUnavailableHold,
+              eraseAdoption == nil, !postEraseStartupRequired else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        if let subject = authorization.subject {
+            guard subject.journal.operationID == authorization.operationID else { throw AppAccessContractFailureV1.effectMismatch }
+        }
+        switch authorization.proof {
+        case .content: throw AppAccessContractFailureV1.accessDenied
+        case .toggle(let token, let target):
+            try validateToggleAuthentication(token, targetEnabled: target)
+            if let subject = authorization.subject {
+                guard subject.journal.targetEnabled == target else { throw AppAccessContractFailureV1.effectMismatch }
+            }
+            return .toggle(token, targetEnabled: target)
+        case .repair(let configuration, let target):
+            guard let recovery = authorization.startupRecoveryToken,
+                  authorization.subject?.journal.operationID == authorization.operationID,
+                  authorization.subject?.journal.targetEnabled == target else { throw AppAccessContractFailureV1.accessDenied }
+            try validateConfigurationStartupRecovery(recovery, configuration: configuration,
+                operationID: authorization.operationID)
+            return .repair(configuration, recovery, targetEnabled: target)
+        }
+    }
+
+    func beginPreparedNotificationRead(authorization: NotificationOperationAuthorizationV1) throws -> PreparedNotificationReadToken {
+        let origin = try requirePreparedNotificationOriginalProof(authorization)
+        // Atomic actor issuance supersedes the prior single read reference.
+        revokePreparedNotificationReads()
+        let token = PreparedNotificationReadToken(owner: preparedNotificationReadOwner,
+            mint: PreparedNotificationReadMint(), origin: origin, operationID: authorization.operationID,
+            subject: authorization.subject, generation: generation, contentReadEpoch: contentReadEpoch,
+            reference: PreparedNotificationReadReference())
+        preparedNotificationRead = token
+        return token
+    }
+
+    func validatePreparedNotificationRead(_ token: PreparedNotificationReadToken,
+        authorization: NotificationOperationAuthorizationV1) throws {
+        _ = try requirePreparedNotificationOriginalProof(authorization)
+        try token.requireOriginalAuthorization(authorization)
+        guard token.generation == generation, token.contentReadEpoch == contentReadEpoch,
+              let current = preparedNotificationRead, current.owner === token.owner,
+              current.mint === token.mint, current.reference === token.reference,
+              current.operationID == token.operationID,
+              current.generation == token.generation, current.contentReadEpoch == token.contentReadEpoch else {
+            throw AppAccessContractFailureV1.accessDenied
+        }
     }
 
     func toggleAuthenticationToken(targetEnabled: Bool) throws -> ToggleAuthenticationToken {

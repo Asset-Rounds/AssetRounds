@@ -88,6 +88,7 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
     private let uiGenerationToken: UInt64
     private weak var originalWriter: WorkspaceWriterV1?
     private let readinessAuthority: ProductionOfflineReadinessAuthorityV1?
+    private var preparedNotificationReadOwner: ColdEraseSchema2PreparedNotificationReadOwnerV1?
 
     #if DEBUG
     /// Fault-injection only; cannot supply data, readiness or authorization.
@@ -112,7 +113,15 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
         self.readinessAuthority = readinessAuthority
     }
 
+    convenience init(session: StoreSessionCoordinator, accessGate: AppAccessGateV1,
+        preparedNotificationReadOwner: ColdEraseSchema2PreparedNotificationReadOwnerV1) throws {
+        self.init(session: session, accessGate: accessGate)
+        try preparedNotificationReadOwner.requireSourceSession(session, gate: accessGate)
+        self.preparedNotificationReadOwner = preparedNotificationReadOwner
+    }
+
     func snapshot(for plan: MyDayPlanV1? = nil, evaluatedAt: Date) async throws -> MyDaySourceSnapshotV1 {
+        guard preparedNotificationReadOwner == nil else { throw AppAccessContractFailureV1.accessDenied }
         let token = try await accessGate.beginContentRead(for: .render)
         try Task.checkCancellation()
         try plan?.validate()
@@ -168,6 +177,7 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
     /// Identity validation only; this grants no read or write capability.
     func validatePlanningBinding(_ access: AppAccessPresentationV1.ContentAccess,
                                  expectedSession: StoreSessionCoordinator) throws {
+        guard preparedNotificationReadOwner == nil else { throw AppAccessContractFailureV1.accessDenied }
         guard access.isBound(to: accessGate), try currentSession() === expectedSession else {
             throw AppAccessContractFailureV1.accessDenied
         }
@@ -185,6 +195,7 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
     func commitPlanningCommand(_ command: MyDayCommandV1,
                                expectedSession: StoreSessionCoordinator,
                                authorizing access: AppAccessPresentationV1.ContentAccess) throws -> MyDayCommandResultV1 {
+        guard preparedNotificationReadOwner == nil else { throw AppAccessContractFailureV1.accessDenied }
         try command.validate()
         guard access.isBound(to: accessGate), command.workspaceID == workspaceID else {
             throw AppAccessContractFailureV1.accessDenied
@@ -224,6 +235,7 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
         authorizing access: AppAccessPresentationV1.ContentAccess,
         _ body: (StoreSessionCoordinator, MyDayPlanV1) throws -> T
     ) throws -> T {
+        guard preparedNotificationReadOwner == nil else { throw AppAccessContractFailureV1.accessDenied }
         try sourceReference.validate()
         try MyDayLimitsV1.millisecondInstant(evaluatedAt)
         guard access.isBound(to: accessGate), sourceReference.key.workspaceID == workspaceID else {
@@ -274,6 +286,7 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
                                   actor: ActorSnapshotV1, authoredAt: Date,
                                   expectedSession: StoreSessionCoordinator,
                                   authorizing access: AppAccessPresentationV1.ContentAccess) throws -> MyDayCommandV1 {
+        guard preparedNotificationReadOwner == nil else { throw AppAccessContractFailureV1.accessDenied }
         try sourceReference.validate()
         try targetKey.validate()
         try targetReference?.validate()
@@ -326,18 +339,14 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
         guard authorization.gate === accessGate else { throw AppAccessContractFailureV1.accessDenied }
         try await authorization.validateRead()
         try Task.checkCancellation()
-        let current = try currentSession()
-        let root = try ReportPDFAnchoredFile.rootIdentity(at: current.generationRootURL)
-        let revision = try current.workspaceWriter.currentRevision()
-        let closure = try ScheduleSourceClosure(context: current.modelContext, workspaceID: workspaceID)
-        let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
-            definitions: closure.definitions, history: closure.occurrences)
-        var value = NotificationSourceSnapshotV1(projection: try .init(dueQueue: due,
-            localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue),
-            generationID: generationID, uiGenerationToken: uiGenerationToken, writerRevision: revision,
-            rootDevice: UInt64(root.device), rootInode: UInt64(root.inode),
-            sourceClosureSHA256: try MyDayCanonicalCodecV1.sha256(closure))
-        value.copySources = try Self.notificationCopySources(closure: closure, due: due, projection: value.projection)
+        let value: NotificationSourceSnapshotV1
+        if let readOwner = preparedNotificationReadOwner {
+            value = try await readOwner.withCurrentRead(authorization: authorization) {
+                try materializeNotificationSnapshot(evaluatedAt: evaluatedAt, readOwner: readOwner)
+            }
+        } else {
+            value = try materializeNotificationSnapshot(evaluatedAt: evaluatedAt, readOwner: nil)
+        }
         try await validateNotificationSnapshot(value, authorization: authorization)
         return value
     }
@@ -347,7 +356,11 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
         guard authorization.gate === accessGate else { throw AppAccessContractFailureV1.accessDenied }
         try await authorization.validateRead()
         try Task.checkCancellation()
-        try validateNotificationStorage(expected)
+        if let readOwner = preparedNotificationReadOwner {
+            try await readOwner.withCurrentRead(authorization: authorization) {
+                try validateNotificationStorage(expected, readOwner: readOwner)
+            }
+        } else { try validateNotificationStorage(expected, readOwner: nil) }
     }
 
     /// A reopened process has a new writer instance and UI token. Configuration
@@ -388,9 +401,31 @@ struct NotificationSourceSnapshotV1: Codable, Equatable, Sendable {
         return result
     }
 
-    private func validateNotificationStorage(_ expected: NotificationSourceSnapshotV1) throws {
+    private func materializeNotificationSnapshot(evaluatedAt: Date,
+        readOwner: ColdEraseSchema2PreparedNotificationReadOwnerV1?) throws -> NotificationSourceSnapshotV1 {
         let current = try currentSession()
-        let root = try ReportPDFAnchoredFile.rootIdentity(at: current.generationRootURL)
+        let root: ReportPDFAnchoredFile.RootIdentity
+        if let readOwner { root = try readOwner.observeGenerationRootIdentity(session: current) }
+        else { root = try ReportPDFAnchoredFile.rootIdentity(at: current.generationRootURL) }
+        let revision = try current.workspaceWriter.currentRevision()
+        let closure = try ScheduleSourceClosure(context: current.modelContext, workspaceID: workspaceID)
+        let due = try DueQueueProjectionV1(workspaceID: workspaceID, evaluatedAt: evaluatedAt,
+            definitions: closure.definitions, history: closure.occurrences)
+        var value = NotificationSourceSnapshotV1(projection: try .init(dueQueue: due,
+            localizationKey: ScheduleLocalizationKeyV1.reminder.rawValue),
+            generationID: generationID, uiGenerationToken: uiGenerationToken, writerRevision: revision,
+            rootDevice: UInt64(root.device), rootInode: UInt64(root.inode),
+            sourceClosureSHA256: try MyDayCanonicalCodecV1.sha256(closure))
+        value.copySources = try Self.notificationCopySources(closure: closure, due: due, projection: value.projection)
+        return value
+    }
+
+    private func validateNotificationStorage(_ expected: NotificationSourceSnapshotV1,
+        readOwner: ColdEraseSchema2PreparedNotificationReadOwnerV1?) throws {
+        let current = try currentSession()
+        let root: ReportPDFAnchoredFile.RootIdentity
+        if let readOwner { root = try readOwner.observeGenerationRootIdentity(session: current) }
+        else { root = try ReportPDFAnchoredFile.rootIdentity(at: current.generationRootURL) }
         guard expected.projection.workspaceID == workspaceID,
               expected.generationID == generationID, expected.uiGenerationToken == uiGenerationToken,
               expected.rootDevice == UInt64(root.device), expected.rootInode == UInt64(root.inode),

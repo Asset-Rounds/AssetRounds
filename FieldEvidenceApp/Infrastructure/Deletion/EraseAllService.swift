@@ -1287,6 +1287,11 @@ final class EraseAllService {
     /// this owned effect and the next postorder slot.
     var schema2ColdAfterGenerationUnlinkForTesting:
         (@MainActor (UUID, Int) throws -> Void)?
+    /// Observes only the new context-free comparison seal after complete
+    /// checked generation deletion. It cannot create a permit or outcome.
+    var schema2ColdPostGenerationProjectionForTesting:
+        (@MainActor (EraseSchema2ColdPostGenerationProjectionV1)
+            throws -> Void)?
     /// Fires after the retained cold owner has checked actual notification
     /// removal and OS absence, before the first rostered generation unlink.
     var schema2ColdAfterNotificationDrainBeforeFirstUnlinkForTesting:
@@ -1716,6 +1721,13 @@ final class EraseAllService {
         "recovery.schema2.r-forward.notification-owner",
         "recovery.schema2.r-forward.notification-system",
         "recovery.schema2.r-forward.notification-drained",
+        "recovery.schema2.post-generation-seal-complete",
+        "recovery.schema2.post-generation-terminal-owner-due",
+        "recovery.schema2.post-generation.scratch-enter",
+        "recovery.schema2.post-generation.scratch-settled",
+        "recovery.schema2.post-generation.target-drained",
+        "recovery.schema2.post-generation.reader-retired",
+        "recovery.schema2.post-content-auxiliary-owner-due",
         "recovery.support",
         "recovery.targets",
         "retirement.binding.complete",
@@ -2896,6 +2908,8 @@ final class EraseAllService {
             service.schema2ColdActivatedEntrySessionForTesting
         schema2ColdAfterGenerationUnlinkForTesting =
             service.schema2ColdAfterGenerationUnlinkForTesting
+        schema2ColdPostGenerationProjectionForTesting =
+            service.schema2ColdPostGenerationProjectionForTesting
         schema2ColdAfterNotificationDrainBeforeFirstUnlinkForTesting =
             service.schema2ColdAfterNotificationDrainBeforeFirstUnlinkForTesting
         schema2ColdNotificationTemporaryFaultForTesting =
@@ -3436,12 +3450,19 @@ final class EraseAllService {
                 throw EraseAllServiceError.recoveryRequired
             }
             traceErasePhase("prepare.empty-generation")
-            let created = try generationFactory.createEmptyEraseGeneration(
-                id: newGenerationID,
-                expectedOldPointer: oldPointer,
-                identity: targetIdentity,
-                authority: generationAuthority
-            )
+            let created: (pointer: RestorePointerIdentityV1, ledgerProof: DeletionLedgerProofV2)
+            if try operation.completedSessionTargetGenerationCreationSourceOwnerIfRetained(factory: generationFactory) != nil {
+                created = try generationFactory.createEmptyEraseGenerationForOriginalCurrentCreation(
+                    id: newGenerationID, expectedOldPointer: oldPointer, identity: targetIdentity,
+                    authority: generationAuthority, operation: operation)
+            } else {
+                created = try generationFactory.createEmptyEraseGeneration(
+                    id: newGenerationID,
+                    expectedOldPointer: oldPointer,
+                    identity: targetIdentity,
+                    authority: generationAuthority
+                )
+            }
 #if DEBUG
             traceErasePhase("prepare.empty-generation.factory-returned")
             try originalColdExitFrame?.bindCreatedTargetManifest(created.pointer)
@@ -6916,6 +6937,26 @@ private extension EraseAllService {
 
     /// The post-drain private-copy route cannot repair or mutate rows. Repeat
     /// every incumbent published-empty policy plus its zero mutation history.
+    /// Completed C retains the same graph DATA. This semantic projection
+    /// grants no R effect or publication authority and leaves the incumbent
+    /// R predicate unchanged.
+    internal static func requireCompletedSchema2ColdEmptyGraph(context: ModelContext,
+        generationID: UUID, identity: WorkspaceReplicaIdentityV1,
+        completed: EraseIntentV1) throws {
+        guard completed.schemaVersion == 2, completed.phase == .cleanupComplete,
+              completed.newGenerationID == generationID,
+              completed.targetEmptyProof == EraseEmptyGenerationProofV2(
+                contentRecordCount: 0, deletionLedgerEntryCount: 0) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireEmptyErasePublishedGraph(context: context, generationID: generationID,
+            identity: identity, activated: completed.advancing(to: .sessionActivated))
+        guard !context.hasChanges,
+              try context.fetchCount(FetchDescriptor<MutationReceiptRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+
     internal static func requireEmptyErasePublishedGraph(context: ModelContext,
         generationID: UUID, identity: WorkspaceReplicaIdentityV1,
         activated: EraseIntentV1) throws {
@@ -8347,9 +8388,11 @@ extension EraseAllService {
         try await advanceSchema2ColdRosteredGenerationDeletion(
             operation: operation, roster: roster,
             store: store, manifest: manifest)
-        // The rostered generation cleanup is complete. Later auxiliary,
-        // completion-receipt, and ready publication retain separate owners.
-        throw EraseAllServiceError.recoveryRequired
+        try sealSchema2ColdPostGenerationProjection(
+            intent: first.intent, preparation: first.preparation,
+            roster: roster, store: store, manifest: manifest,
+            operation: operation)
+        try await continueSchema2ColdPostGenerationThroughRetirement(operation: operation)
     }
 
     /// A same-operation retry after the exact P→R publication may re-enter
@@ -8361,32 +8404,149 @@ extension EraseAllService {
     ) async throws {
         try await operation.beginServiceFrame()
         defer { operation.endServiceFrame() }
-        let (intent, store, session, preparation, manifest,
-            source, registry, _) = try operation
-                .requireSchema2ColdActivatedForwardContinuation()
-        guard intent.schemaVersion == 2,
-              intent.phase == .sessionActivated,
-              preparation.c05JobDrainV3 == nil,
-              try store.load() == intent,
-              try operation.requireSchema2ColdPointerPhasePublished(
-                  expected: intent, store: store) === session else {
-            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        do {
+            let (intent, store, session, preparation, manifest,
+                source, registry, _) = try operation
+                    .requireSchema2ColdActivatedForwardContinuation()
+            guard intent.schemaVersion == 2,
+                  intent.phase == .sessionActivated,
+                  preparation.c05JobDrainV3 == nil,
+                  try store.load() == intent,
+                  try operation.requireSchema2ColdPointerPhasePublished(
+                      expected: intent, store: store) === session else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try manifest.requireSchema2ColdFinalPointerCut(
+                intent: intent, operation: operation)
+            try operation.requireSchema2ColdTargetReaderTokenCensus(
+                registry: registry)
+            try operation.requireSchema2ColdTargetSource(source)
+            let roster = try publishOrRequireSchema2ColdDeletionRoster(
+                operation: operation, intent: intent,
+                preparation: preparation, store: store,
+                manifest: manifest)
+            try await advanceSchema2ColdRosteredGenerationDeletion(
+                operation: operation, roster: roster,
+                store: store, manifest: manifest)
+            try sealSchema2ColdPostGenerationProjection(
+                intent: intent, preparation: preparation,
+                roster: roster, store: store, manifest: manifest,
+                operation: operation)
+        } // release this caller's real target model aliases before weak drain
+        try await continueSchema2ColdPostGenerationThroughRetirement(operation: operation)
+    }
+
+    /// Resume the same sealed post-generation owner before any original
+    /// first-admission helper. This remains a HOLD until a distinct cold
+    /// terminal consumer settles the complete content/control/resource tail.
+    func resumeSchema2ColdPostGenerationProjection(
+        operation: EraseColdPreparationOperationV1
+    ) async throws {
+        try await operation.beginServiceFrame()
+        defer { operation.endServiceFrame() }
+        do {
+            let held = try operation.requireSchema2ColdPostGenerationProjection()
+#if DEBUG
+            try schema2ColdPostGenerationProjectionForTesting?(held.projection)
+#endif
+            _ = try operation.requireSchema2ColdPostGenerationProjection()
+            try Self.requireEmptyErasePublishedGraph(
+                context: held.session.modelContext,
+                generationID: held.session.generationID,
+                identity: held.session.workspaceIdentity,
+                activated: held.projection.intent)
+            guard try held.session.modelContext.fetchCount(
+                    FetchDescriptor<MutationReceiptRow>()) == 0 else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            _ = try operation.requireSchema2ColdPostGenerationProjection()
+        } // do not retain a caller model/container alias across retirement
+        try await continueSchema2ColdPostGenerationThroughRetirement(operation: operation)
+    }
+
+    /// The first held R/control/roster observations remain owned throughout.
+    /// This route invokes only genuine distinct cold consumers; each missing
+    /// producer remains an explicit HOLD rather than an Original fallback.
+    private func continueSchema2ColdPostGenerationThroughRetirement(
+        operation: EraseColdPreparationOperationV1
+    ) async throws {
+        let subject: EraseAllOperationSubjectV1
+        do {
+            let held = try operation.requireSchema2ColdPostGenerationProjection()
+            subject = EraseAllOperationSubjectV1(eraseID: held.projection.intent.eraseID,
+                newGenerationID: held.projection.intent.newGenerationID,
+                applicationSupportURL: applicationSupportURL,
+                applicationSupportDevice: Int64(held.projection.supportFact.device),
+                applicationSupportInode: UInt64(held.projection.supportFact.inode))
         }
-        try manifest.requireSchema2ColdFinalPointerCut(
-            intent: intent, operation: operation)
-        try operation.requireSchema2ColdTargetReaderTokenCensus(
-            registry: registry)
-        try operation.requireSchema2ColdTargetSource(source)
-        let roster = try publishOrRequireSchema2ColdDeletionRoster(
-            operation: operation, intent: intent,
-            preparation: preparation, store: store,
-            manifest: manifest)
-        try await advanceSchema2ColdRosteredGenerationDeletion(
-            operation: operation, roster: roster,
+        traceErasePhase("recovery.schema2.post-generation.scratch-enter")
+        _ = try operation.completeColdSchema2ScratchPostGeneration()
+        traceErasePhase("recovery.schema2.post-generation.scratch-settled")
+        try operation.detachSchema2ColdTargetForRetirement(subject: subject)
+        var drained = false
+        var cancelled = false
+        for _ in 0..<200 {
+            if try operation.validateColdSchema2TargetReadOnlyAfterDrain() {
+                drained = true; break
+            }
+            await Task.yield()
+            do { try await sleeper.sleep(for: .milliseconds(10)) }
+            catch is CancellationError { cancelled = true; break }
+        }
+        if !drained && !cancelled {
+            drained = try operation.validateColdSchema2TargetReadOnlyAfterDrain()
+        }
+        guard drained else { throw EraseAllServiceError.recoveryRequired }
+        traceErasePhase("recovery.schema2.post-generation.target-drained")
+        _ = try operation.transferSchema2ColdExclusionAfterTargetDrain()
+        let owner = try operation.beginColdSchema2TerminalOwner()
+        try operation.transferColdSchema2TerminalTargetObservation(owner: owner)
+        _ = try operation.closeColdSchema2ReaderAfterDrain(owner: owner)
+        traceErasePhase("recovery.schema2.post-generation.reader-retired")
+        let basis = try operation.prepareColdSchema2NamespaceBasis(owner: owner)
+        let namespace = try operation.removeColdSchema2OperationsNamespace(owner: owner, basis: basis)
+        _ = try operation.closeColdSchema2RegistryControls(owner: owner, namespace: namespace)
+        traceErasePhase("recovery.schema2.post-generation.current-r-preferences-rating-diagnostics")
+        try await operation.completeActualColdTerminalCurrentTailV4(owner: owner, service: self)
+        traceErasePhase("recovery.schema2.post-generation.terminal-controls-and-ex-closed")
+    }
+
+    private func sealSchema2ColdPostGenerationProjection(
+        intent: EraseIntentV1, preparation: ErasePreparationV2,
+        roster: EraseSchema2ColdDeletionRosterV1,
+        store: EraseIntentStore, manifest: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1
+    ) throws {
+        let session = try operation.requireSchema2ColdPostGenerationSession(
+            roster: roster, store: store)
+        try Self.requireEmptyErasePublishedGraph(context: session.modelContext,
+            generationID: session.generationID,
+            identity: session.workspaceIdentity, activated: intent)
+        guard try session.modelContext.fetchCount(
+                FetchDescriptor<MutationReceiptRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        _ = try operation.sealSchema2ColdPostGenerationProjection(
+            intent: intent, preparation: preparation, roster: roster,
             store: store, manifest: manifest)
-        // Auxiliary and ready publication remain separately bound after
-        // exact checked rostered generation cleanup.
-        throw EraseAllServiceError.recoveryRequired
+        let held = try operation.requireSchema2ColdPostGenerationProjection()
+#if DEBUG
+        try schema2ColdPostGenerationProjectionForTesting?(held.projection)
+#endif
+        _ = try operation.requireSchema2ColdPostGenerationProjection()
+        guard held.session === session, held.store === store,
+              held.manifest === manifest, held.projection.intent == intent,
+              held.projection.preparation == preparation else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try Self.requireEmptyErasePublishedGraph(context: session.modelContext,
+            generationID: session.generationID,
+            identity: session.workspaceIdentity, activated: intent)
+        guard try session.modelContext.fetchCount(
+                FetchDescriptor<MutationReceiptRow>()) == 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        traceErasePhase("recovery.schema2.post-generation-seal-complete")
     }
 
     /// Only the first operation may publish a prospective deletion record.
@@ -13777,3 +13937,31 @@ final class EraseColdPreparationRollbackV1 {
         return phase == .complete
     }
 }
+
+
+// SERVICE_ACTUAL_COLD_RATING_CONFIGURATION_V4_BEGIN
+extension EraseAllService {
+    @MainActor func withColdRatingPreferencesConfigurationV4(owner: ColdEraseSchema2TerminalOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        _ body: (UserDefaults, String) throws -> Void) throws {
+        guard admittedSubject == nil, admittedReservation == nil, !defaultsDomainName.isEmpty else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try operation.requireColdRatingServiceConfigurationV4(owner: owner,
+            applicationSupportURL: applicationSupportURL, factory: generationFactory)
+        try body(userDefaults, defaultsDomainName)
+        try operation.requireColdRatingServiceConfigurationV4(owner: owner,
+            applicationSupportURL: applicationSupportURL, factory: generationFactory)
+    }
+    @MainActor func requireColdRatingPreferencesConfigurationV4(source: ColdEraseSchema2RatingPreferencesSourceV4,
+        owner: ColdEraseSchema2TerminalOwnerV1, operation: EraseColdPreparationOperationV1) throws {
+        try withColdRatingPreferencesConfigurationV4(owner: owner, operation: operation) { defaults, domain in
+            try source.requireSameServiceDefaultsV4(service: self, defaults: defaults, domainName: domain)
+        }
+    }
+    @MainActor func performSchema2ColdPreferencesAndRatingCurrentRV4(owner: ColdEraseSchema2TerminalOwnerV1)
+        async throws -> ColdEraseSchema2CompletedRatingReceiptV4 {
+        try await owner.performPreferencesAndRatingCurrentRV4(service: self)
+    }
+}
+// SERVICE_ACTUAL_COLD_RATING_CONFIGURATION_V4_END

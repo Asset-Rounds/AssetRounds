@@ -1625,6 +1625,9 @@ struct OriginalEraseScratchTemporalPairV1 {
     enum Role {
         case declaredLinkPublication(createRequestID: UUID, linkRequestID: UUID,
             temporaryPath: String, finalPath: String)
+        /// Fresh genuinely observed cold REQUEST prefix, separate from live
+        /// primitive history and authentic Original generic-alias premises.
+        case coldObservedPrefixPublication(ColdEraseScratchObservedRequestLinkV1)
         case admittedOriginalOwnedGenericAliases(premiseIndex: Int,
             originalPaths: [String], originalFacts: [String],
             originalSHA256: String, metadata: OriginalEraseScratchCleanupAliasMetadataV1)
@@ -1655,13 +1658,154 @@ struct OriginalEraseScratchTemporalPairV1 {
 
 /// Lexical read capability only. The raw image has already been proved against
 /// immutable source roles plus the exact retained syscall and saved result.
+/// Closed dispatch of genuine admission objects, never a caller-conformable
+/// authority facade. Snapshot/roster access is comparison DATA; every checked
+/// operation still invokes the retained actual origin's owner and live G proof.
+@MainActor
+enum EraseScratchCleanupAdmissionOriginV1 {
+    case original(OriginalEraseScratchCleanupInitialAdmissionV1)
+    case cold(ColdEraseScratchCleanupInitialAdmissionV1)
+
+    var operationID: UUID {
+        switch self {
+        case .original(let admission): return admission.operationID
+        case .cold(let admission): return admission.operationID
+        }
+    }
+    var applicationSupportURL: URL {
+        switch self {
+        case .original(let admission): return admission.applicationSupportURL
+        case .cold(let admission): return admission.applicationSupportURL
+        }
+    }
+    var firstSnapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+        switch self {
+        case .original(let admission): return admission.firstSnapshot
+        case .cold(let admission): return admission.firstSnapshot
+        }
+    }
+    var notificationAfter: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+        switch self {
+        case .original(let admission): return admission.notificationAfter
+        case .cold(let admission): return admission.notificationAfter
+        }
+    }
+    var scratchStartingChild: EraseSchema2ColdAuxiliaryFirstObserverV1.OperationsChild? {
+        switch self {
+        case .original(let admission): return admission.scratchStartingChild
+        case .cold(let admission): return admission.scratchStartingChild
+        }
+    }
+    var physicalRoster: EraseSchema2ColdAuxiliaryPhysicalRosterV1 {
+        switch self {
+        case .original(let admission): return admission.physicalRoster
+        case .cold(let admission): return admission.physicalRoster
+        }
+    }
+    var originalGenericPairs: [OriginalEraseScratchCleanupOriginalAliasPremiseV1]? {
+        switch self {
+        case .original(let admission): return admission.originalGenericPairs
+        case .cold(let admission): return admission.originalGenericPairs
+        }
+    }
+    var heldScope: EraseScratchCleanupScopeOriginV1 {
+        switch self {
+        case .original(let admission): return .original(admission.heldScope)
+        case .cold(let admission): return .cold(admission.heldScope)
+        }
+    }
+    func requireHeld() throws {
+        switch self {
+        case .original(let admission): try admission.requireHeld()
+        case .cold(let admission): try admission.requireHeld()
+        }
+    }
+    func requireCanonicalSource(path: String, bytes: Data, fullFact: String) throws {
+        switch self {
+        case .original(let admission):
+            try admission.requireCanonicalSource(path: path, bytes: bytes, fullFact: fullFact)
+        case .cold(let admission):
+            try admission.requireCanonicalSource(path: path, bytes: bytes, fullFact: fullFact)
+        }
+    }
+    func requirePublicationRequest(intent: OriginalEraseScratchCleanupPrimitiveIntentV1) throws {
+        switch self {
+        case .original(let admission): try admission.requirePublicationRequest(intent: intent)
+        case .cold(let admission): try admission.requirePublicationRequest(intent: intent)
+        }
+    }
+    func requireFinalizedIngressReplacement(intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        originalBytes: Data, stagedBytes: Data) throws {
+        switch self {
+        case .original(let admission):
+            try admission.requireFinalizedIngressReplacement(intent: intent,
+                originalBytes: originalBytes, stagedBytes: stagedBytes)
+        case .cold(let admission):
+            try admission.requireFinalizedIngressReplacement(intent: intent,
+                originalBytes: originalBytes, stagedBytes: stagedBytes)
+        }
+    }
+    func requirePrimitiveRequest(intent: OriginalEraseScratchCleanupPrimitiveIntentV1,
+        outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?) throws {
+        switch self {
+        case .original(let admission): try admission.requirePrimitiveRequest(intent: intent, outcome: outcome)
+        case .cold(let admission): try admission.requirePrimitiveRequest(intent: intent, outcome: outcome)
+        }
+    }
+    func requireCatalogFrame(attempt: OriginalEraseScratchCleanupAttemptV1,
+        session: OriginalEraseScratchCanonicalSourceCatalogSessionV1) throws {
+        switch self {
+        case .original(let admission): try admission.requireCatalogFrame(attempt: attempt, session: session)
+        case .cold(let admission): try admission.requireCatalogFrame(attempt: attempt, session: session)
+        }
+    }
+    func requireOutside(operationsFact: String, operationsNames: [String],
+        support: Int32, caches: Int32, temporary: Int32, operations: Int32,
+        requireHeld: () throws -> Void) throws {
+        switch self {
+        case .original(let admission):
+            try admission.observer.requireOriginalScratchOutside(anchor: admission.notificationAfter,
+                operationsFact: operationsFact, operationsNames: operationsNames,
+                support: support, caches: caches, temporary: temporary, operations: operations,
+                requireHeld: requireHeld)
+        case .cold(let admission):
+            try admission.requireOutside(operationsFact: operationsFact,
+                operationsNames: operationsNames, support: support, caches: caches,
+                temporary: temporary, operations: operations)
+        }
+    }
+    func poisonOnUncertainCleanup() {
+        switch self {
+        case .original(let admission): admission.poisonOnUncertainCleanup()
+        case .cold(let admission): admission.poisonOnUncertainCleanup()
+        }
+    }
+}
+
+/// Actual scope objects behind the two closed cleanup origins. Equality is
+/// origin-specific object identity only; the carrier does not prove held G,
+/// grant IO or turn a cold owner into an Original scope.
+@MainActor
+enum EraseScratchCleanupScopeOriginV1 {
+    case original(OriginalEraseScratchCleanupHeldGScopeV1)
+    case cold(ColdEraseScratchCleanupHeldGScopeV1)
+
+    func isSame(as other: EraseScratchCleanupScopeOriginV1) -> Bool {
+        switch (self, other) {
+        case (.original(let one), .original(let two)): return one === two
+        case (.cold(let one), .cold(let two)): return one === two
+        case (.original, .cold), (.cold, .original): return false
+        }
+    }
+}
+
 /// Primitive callbacks reprove actual G/frame and lifetime, never a payload
 /// rescan. PFP independently pins all declared named/held ancestors and nodes.
 @MainActor
 final class OriginalEraseScratchTemporalObservationScopeV1 {
     let operationID: UUID
     let observationID = UUID()
-    fileprivate let heldScope: OriginalEraseScratchCleanupHeldGScopeV1
+    fileprivate let heldScope: EraseScratchCleanupScopeOriginV1
     private weak var owner: OriginalEraseScratchCleanupImageOwnerV1?
     private let nodes: [URL: OriginalEraseScratchTemporalPolicyNodeV1]
     private let pairs: [OriginalEraseScratchTemporalPairV1]
@@ -1675,6 +1819,35 @@ final class OriginalEraseScratchTemporalObservationScopeV1 {
     func requireCurrentBinding() throws {
         guard !revoked, let owner else { throw EraseAllServiceError.invalidAuthority }
         try owner.requireScope(self)
+    }
+    /// No scope factory or new authority: this rechecks the exact retained
+    /// cold REQUEST handle in this scope's immutable pair DATA. The range
+    /// owner performs a nonrecursive current-frame proof around actual IO.
+    fileprivate func requirePairOrigins(admission: EraseScratchCleanupAdmissionOriginV1,
+        attempt: OriginalEraseScratchCleanupAttemptV1?) throws {
+        switch admission {
+        case .original:
+            guard !pairs.contains(where: {
+                if case .coldObservedPrefixPublication = $0.role { return true }
+                return false
+            }) else { throw EraseAllServiceError.invalidAuthority }
+        case .cold(let coldAdmission):
+            guard let attempt else { throw EraseAllServiceError.invalidAuthority }
+            try attempt.requireColdImageOwnerOrigin(admission: coldAdmission)
+            for pair in pairs {
+                switch pair.role {
+                case .coldObservedPrefixPublication(let handle):
+                    try coldAdmission.ranges.requireObservedRequestLink(handle: handle,
+                        scope: coldAdmission.heldScope, attempt: attempt)
+                case .declaredLinkPublication:
+                    // A newly performed live cold link still has its genuine
+                    // retained primitive intents; no historical IDs are made.
+                    break
+                case .admittedOriginalOwnedGenericAliases:
+                    throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        }
     }
     func requirePolicyNode(_ kind: OwnedFileKindV1, at url: URL,
         fullFact: String) throws -> OriginalEraseScratchTemporalPolicyNodeV1 {
@@ -1767,6 +1940,432 @@ extension EraseSchema2ColdAuxiliaryFirstObserverV1 {
         try requireHeld(); try io.requireSettled()
     }
 
+    /// Comparison-only projection from Manifest's genuine checked
+    /// Notification/Registry operations. It proves every supplied changed
+    /// fact against two complete scans; unlisted siblings stay exact first.
+    /// The caller's real operation brackets this with its continuous EX/G.
+    /// This does not recapture a survivor baseline or issue an effect owner.
+    func requireColdNotificationProjected(first expected: Snapshot,
+        operationsFact: String, operationsNames: [String],
+        notificationRootFact: String?, notificationNames: [String],
+        notificationLeafFacts: [String: String], notificationLeafSHA256: [String: String],
+        registryChild: OperationsChild, creationRecord: OperationsChild?,
+        support: Int32, caches: Int32, temporary: Int32) throws -> Snapshot {
+        guard try firstObservation() == expected,
+              operationsNames == operationsNames.sorted(),
+              Set(operationsNames).count == operationsNames.count,
+              notificationNames == notificationNames.sorted(),
+              Set(notificationNames).count == notificationNames.count,
+              Set(notificationLeafFacts.keys) == Set(notificationNames),
+              Set(notificationLeafSHA256.keys) == Set(notificationNames) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let notificationName = AppLockNotificationControlStoreV1.rootName
+        let registryName = "generation-leases"
+        let creationName = EraseSchema2ColdNotificationSourceV1.creationRecordName
+        func validate(_ actual: Snapshot) throws {
+            guard actual.supportIdentity == expected.supportIdentity,
+                  actual.cacheIdentity == expected.cacheIdentity,
+                  actual.temporaryIdentity == expected.temporaryIdentity,
+                  actual.supportFact == expected.supportFact,
+                  actual.supportNames == expected.supportNames,
+                  actual.supportTrees == expected.supportTrees,
+                  actual.cacheTree == expected.cacheTree,
+                  actual.temporaryTree == expected.temporaryTree,
+                  actual.operations.rootFact == operationsFact,
+                  actual.operationsChildren.keys.sorted() == operationsNames,
+                  actual.ingressControlNodes == expected.ingressControlNodes,
+                  actual.operationsChildren[registryName] == registryChild,
+                  actual.operationsChildren[creationName] == creationRecord else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let exceptions = Set([notificationName, registryName, creationName])
+            guard Set(actual.operationsChildren.keys).subtracting(exceptions)
+                    == Set(expected.operationsChildren.keys).subtracting(exceptions) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            for (name, child) in expected.operationsChildren where !exceptions.contains(name) {
+                guard actual.operationsChildren[name] == child else { throw EraseAllServiceError.invalidAuthority }
+            }
+            if let notificationRootFact {
+                guard case .directory(let rootFact, _) = actual.operationsChildren[notificationName],
+                      rootFact == notificationRootFact, let nodes = actual.notificationControlNodes,
+                      let root = nodes.first(where: { $0.path.isEmpty }), root.fullFact == notificationRootFact,
+                      nodes.filter({ !$0.path.isEmpty }).map(\.path).sorted() == notificationNames else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                for node in nodes where !node.path.isEmpty {
+                    guard !node.path.contains("/"), notificationLeafFacts[node.path] == node.fullFact,
+                          notificationLeafSHA256[node.path] == node.contentSHA256 else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                }
+            } else {
+                guard notificationNames.isEmpty, notificationLeafFacts.isEmpty,
+                      notificationLeafSHA256.isEmpty, actual.operationsChildren[notificationName] == nil,
+                      actual.notificationControlNodes == nil,
+                      actual.notificationControlStableDigest == nil else { throw EraseAllServiceError.invalidAuthority }
+            }
+        }
+        let one = try observe(support: support, caches: caches, temporary: temporary)
+        try validate(one)
+        let two = try observe(support: support, caches: caches, temporary: temporary)
+        try validate(two)
+        try io.requireSettled()
+        guard one == two else { throw EraseAllServiceError.invalidAuthority }
+        return two
+    }
+
+    func requireColdNotificationProjected(first expected: Snapshot,
+        operationsFact: String, operationsNames: [String],
+        notificationRootFact: String?, notificationNames: [String],
+        notificationLeafFacts: [String: String], notificationLeafSHA256: [String: String],
+        registryChild: OperationsChild, creationRecord: OperationsChild?,
+        support: Int32, caches: Int32, temporary: Int32,
+        observationScope: ColdEraseScratchNotificationObservationScopeV1) throws -> Snapshot {
+        guard try firstObservation() == expected,
+              operationsNames == operationsNames.sorted(),
+              Set(operationsNames).count == operationsNames.count,
+              notificationNames == notificationNames.sorted(),
+              Set(notificationNames).count == notificationNames.count,
+              Set(notificationLeafFacts.keys) == Set(notificationNames),
+              Set(notificationLeafSHA256.keys) == Set(notificationNames) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let notificationName = AppLockNotificationControlStoreV1.rootName
+        let registryName = "generation-leases"
+        let creationName = EraseSchema2ColdNotificationSourceV1.creationRecordName
+        func validate(_ actual: Snapshot) throws {
+            guard actual.supportIdentity == expected.supportIdentity,
+                  actual.cacheIdentity == expected.cacheIdentity,
+                  actual.temporaryIdentity == expected.temporaryIdentity,
+                  actual.supportFact == expected.supportFact,
+                  actual.supportNames == expected.supportNames,
+                  actual.supportTrees == expected.supportTrees,
+                  actual.cacheTree == expected.cacheTree,
+                  actual.temporaryTree == expected.temporaryTree,
+                  actual.operations.rootFact == operationsFact,
+                  actual.operationsChildren.keys.sorted() == operationsNames,
+                  actual.ingressControlNodes == expected.ingressControlNodes,
+                  actual.operationsChildren[registryName] == registryChild,
+                  actual.operationsChildren[creationName] == creationRecord else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let exceptions = Set([notificationName, registryName, creationName])
+            guard Set(actual.operationsChildren.keys).subtracting(exceptions)
+                    == Set(expected.operationsChildren.keys).subtracting(exceptions) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            for (name, child) in expected.operationsChildren where !exceptions.contains(name) {
+                guard actual.operationsChildren[name] == child else { throw EraseAllServiceError.invalidAuthority }
+            }
+            if let notificationRootFact {
+                guard case .directory(let rootFact, _) = actual.operationsChildren[notificationName],
+                      rootFact == notificationRootFact, let nodes = actual.notificationControlNodes,
+                      let root = nodes.first(where: { $0.path.isEmpty }), root.fullFact == notificationRootFact,
+                      nodes.filter({ !$0.path.isEmpty }).map(\.path).sorted() == notificationNames else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                for node in nodes where !node.path.isEmpty {
+                    guard !node.path.contains("/"), notificationLeafFacts[node.path] == node.fullFact,
+                          notificationLeafSHA256[node.path] == node.contentSHA256 else {
+                        throw EraseAllServiceError.invalidAuthority
+                    }
+                }
+            } else {
+                guard notificationNames.isEmpty, notificationLeafFacts.isEmpty,
+                      notificationLeafSHA256.isEmpty, actual.operationsChildren[notificationName] == nil,
+                      actual.notificationControlNodes == nil,
+                      actual.notificationControlStableDigest == nil else { throw EraseAllServiceError.invalidAuthority }
+            }
+        }
+        var enteredWindow: ColdEraseScratchNotificationReadWindowV1?
+        do {
+            try observationScope.requireBorrowedParents(support: support, caches: caches, temporary: temporary)
+            try observationScope.requireObserverBackingReservation()
+            let window = try ColdEraseScratchNotificationReadWindowV1.make(observationScope: observationScope)
+            enteredWindow = window // exact already Native-retained owner before later fallible scans/projection
+            func requireProjection() throws {
+                try observationScope.requireBorrowedParents(support: support, caches: caches, temporary: temporary)
+                try observationScope.requireProjectedSnapshot(first: expected,
+                    operationsFact: operationsFact, operationsNames: operationsNames,
+                    notificationRootFact: notificationRootFact, notificationNames: notificationNames,
+                    notificationLeafFacts: notificationLeafFacts, notificationLeafSHA256: notificationLeafSHA256,
+                    registryChild: registryChild, creationRecord: creationRecord)
+                try observationScope.requireCurrentBinding()
+            }
+            try requireProjection()
+            let firstResult = try observeColdNotification(window: window)
+            let one = try firstResult.requireReturnedSnapshot()
+            try validate(one); try requireProjection()
+            let secondResult = try observeColdNotification(window: window)
+            let two = try secondResult.requireReturnedSnapshot()
+            try validate(two); try requireProjection()
+            guard one == two else { throw EraseAllServiceError.invalidAuthority }
+            try window.completeInitialObservation(observationScope: observationScope)
+            try window.requireCheckedInitialReadSettlement(observationScope: observationScope)
+            return two // same Native-retained full two-scan result, not a Void projection
+        } catch {
+            enteredWindow?.poisonSnapshotMaterialization()
+            observationScope.poisonOnUncertainObservation(); throw error
+        }
+    }
+
+    /// A cold-only complete reader. Every open/read/cursor/close is owned by
+    /// the same entered Window. Field-role slots retain all genuine operands;
+    /// only the exact complete profile may build the Snapshot after close.
+    private func observeColdNotification(window: ColdEraseScratchNotificationReadWindowV1)
+        throws -> ColdEraseScratchNotificationSnapshotResultV1 {
+        let start = window.snapshotSlotCount
+        try window.requireCurrentBinding()
+        try window.withRootDirectory(root: .support) { support in
+            guard support.isDirectory else { throw EraseAllServiceError.invalidAuthority }
+            try window.appendSnapshotSlot(.supportIdentity(support.snapshotParentIdentity, support.fullFact))
+            try window.appendSnapshotSlot(.cacheIdentity(try window.rootIdentity(root: .caches)))
+            try window.appendSnapshotSlot(.temporaryIdentity(try window.rootIdentity(root: .temporary)))
+            try support.readNames()
+            for ordinal in 0..<support.nameCount {
+                try support.withName(at: ordinal) { name in
+                    switch name {
+                    case "FieldEvidenceRestore", "FieldEvidenceCommerce", "FieldEvidenceDiagnostics",
+                         LocalSearchIndexStoreV1.directoryName, PortableExchangeSessionStoreLayoutV2.directoryName,
+                         LocalJobStoreSchemaV1.directoryName, "FieldEvidenceData", "FieldEvidenceErase", "FieldEvidenceOperations": break
+                    default: throw EraseAllServiceError.invalidAuthority
+                    }
+                    try window.appendSnapshotSlot(.name(name))
+                }
+            }
+            @MainActor func supportTree(_ name: String) throws {
+                try window.appendSnapshotSlot(.supportTree(name, try window.captureTree(parent: support, name: name)))
+            }
+            try supportTree("FieldEvidenceRestore"); try supportTree("FieldEvidenceCommerce")
+            try supportTree("FieldEvidenceDiagnostics"); try supportTree(LocalSearchIndexStoreV1.directoryName)
+            try supportTree(PortableExchangeSessionStoreLayoutV2.directoryName); try supportTree(LocalJobStoreSchemaV1.directoryName)
+            let operations = try window.captureTree(parent: support, name: "FieldEvidenceOperations")
+            try window.appendSnapshotSlot(.operations(operations))
+            var ingressPresent = false, notificationPresent = false
+            var notificationStableDigest: String?
+            if case .present(let rootFact, _) = operations {
+                try support.withChild(name: "FieldEvidenceOperations") { directory in
+                    guard directory.isDirectory, directory.fullFact == rootFact else { throw EraseAllServiceError.invalidAuthority }
+                    try directory.readNames()
+                    for ordinal in 0..<directory.nameCount {
+                        try directory.withName(at: ordinal) { name in
+                            // Actual selected node determines the role. A scalar
+                            // caller fact or anonymous Snapshot slot cannot do it.
+                            var directoryChild = false
+                            try directory.withChild(name: name) { child in
+                                directoryChild = child.isDirectory
+                                if !child.isDirectory {
+                                    let digest = try child.digestFile()
+                                    try window.appendSnapshotSlot(.child(name, .regular(fact: child.fullFact, digest: digest)))
+                                }
+                            }
+                            if directoryChild {
+                                let tree = try window.captureTree(parent: directory, name: name)
+                                guard case .present(let fact, let digest) = tree else { throw EraseAllServiceError.invalidAuthority }
+                                try window.appendSnapshotSlot(.child(name, .directory(rootFact: fact, digest: digest)))
+                                if name == "ProtectedIngressReceiptsV1" {
+                                    ingressPresent = true
+                                    _ = try observeColdNotificationControls(window: window, operations: directory,
+                                        name: name, expected: tree, notification: false)
+                                } else if name == AppLockNotificationControlStoreV1.rootName {
+                                    notificationPresent = true
+                                    notificationStableDigest = try observeColdNotificationControls(window: window,
+                                        operations: directory, name: name, expected: tree, notification: true)
+                                }
+                            }
+                        }
+                    }
+                    try directory.requireCurrentBinding()
+                }
+            }
+            try window.appendSnapshotSlot(.ingressPresence(ingressPresent))
+            try window.appendSnapshotSlot(.notificationPresence(notificationPresent))
+            try window.appendSnapshotSlot(.notificationStableDigest(notificationStableDigest))
+            guard try window.captureTree(parent: support, name: "FieldEvidenceOperations") == operations else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try window.appendSnapshotSlot(.cacheTree(try window.captureTree(root: .caches, name: "FieldEvidenceApp")))
+            try window.appendSnapshotSlot(.temporaryTree(try window.captureTree(root: .temporary, name: "FieldEvidenceApp")))
+            // Same borrowed Cache/temp identity, while Support remains full11.
+            var firstCaches: ParentIdentity?, firstTemporary: ParentIdentity?
+            for ordinal in start..<window.snapshotSlotCount {
+                try window.withSnapshotSlot(at: ordinal) { value in
+                    if case .cacheIdentity(let identity) = value { firstCaches = identity }
+                    if case .temporaryIdentity(let identity) = value { firstTemporary = identity }
+                }
+            }
+            guard try window.rootIdentity(root: .caches) == firstCaches,
+                  try window.rootIdentity(root: .temporary) == firstTemporary else { throw EraseAllServiceError.invalidAuthority }
+            try support.requireCurrentBinding()
+            // Node's real close repeats complete names and full11 held/named
+            // facts before/after once-close; the callback has returned first.
+        }
+        try window.requireCheckedReadSettlement()
+        let result = try ColdEraseScratchNotificationSnapshotResultV1.make(window: window,
+            start: start, end: window.snapshotSlotCount)
+        try window.recordCompleteReadPass()
+        return result
+    }
+
+    /// Whole tree/full11/SHA is checked on both sides of the genuine PFP
+    /// policies, whose own pin/getter/checked-close owner is retained before
+    /// first IO. The same active Node consumes each exact row and real slots.
+    private func observeColdNotificationControls(window: ColdEraseScratchNotificationReadWindowV1,
+        operations: ColdEraseScratchNotificationReadNodeV1, name: String, expected: Tree,
+        notification: Bool) throws -> String? {
+        guard case .present(let rootFact, let expectedDigest) = expected,
+              try window.captureTree(parent: operations, name: name) == expected else { throw EraseAllServiceError.invalidAuthority }
+        let start = window.snapshotSlotCount
+        var count = 0
+        let digest = try window.digestTree(parent: operations, name: name) { node, path, sha in
+            guard count < 100_000, path.utf8.count <= 16_639,
+                  !path.isEmpty || node.isDirectory && node.fullFact == rootFact else { throw EraseAllServiceError.invalidAuthority }
+            count += 1
+            if notification, !path.isEmpty {
+                guard !path.contains("/"), !node.isDirectory else { throw EraseAllServiceError.invalidAuthority }
+                try window.requireNotificationLeafName(path)
+            }
+            let scope = try ColdEraseScratchNotificationControlPolicyObservationScopeV1.make(window: window, node: node)
+            let observation = try ProtectedFilePolicyV1.observeColdScratchNotificationControlPolicyWithCheckedClose(scope: scope)
+            try observation.requireCheckedSettlement()
+            guard let policy = observation.value else { throw EraseAllServiceError.invalidAuthority }
+            let row = ControlNode(path: path, fullFact: node.fullFact, policy: policy, contentSHA256: sha)
+            try scope.consumeControlRow(row)
+            try window.appendSnapshotSlot(notification ? .notificationControl(row) : .ingressControl(row))
+            try node.requireCurrentBinding()
+        }
+        guard digest == expectedDigest, count > 0,
+              !notification || count <= 11 else { throw EraseAllServiceError.invalidAuthority }
+        // The stable digest has the incumbent root-only metadata exception;
+        // every selected Node's actual held/named facts still use full11.
+        let stable = notification ? try window.digestTree(parent: operations, name: name, stableNotificationRoot: true) : nil
+        guard try window.captureTree(parent: operations, name: name) == expected else { throw EraseAllServiceError.invalidAuthority }
+        if notification {
+            guard try window.digestTree(parent: operations, name: name, stableNotificationRoot: true) == stable else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        var retained = 0
+        for ordinal in start..<window.snapshotSlotCount {
+            try window.withSnapshotSlot(at: ordinal) { value in
+                if notification { if case .notificationControl = value { retained += 1 } }
+                else { if case .ingressControl = value { retained += 1 } }
+            }
+        }
+        guard retained == count else { throw EraseAllServiceError.invalidAuthority }
+        return stable
+    }
+
+    /// Genuine ongoing cold outside reader: same settled Window transferred
+    /// from the consumed initial Scope to the actual Admission. The incumbent
+    /// Original outside scanner remains byte-for-byte unchanged.
+    private func requireColdNotificationOutside(window: ColdEraseScratchNotificationReadWindowV1,
+        admission: ColdEraseScratchCleanupInitialAdmissionV1, operationsFact: String, operationsNames: [String]) throws {
+        let anchor = admission.notificationAfter
+        try admission.requireColdNotificationOutsideFrame()
+        try window.requireCurrentBinding()
+        try window.withRootDirectory(root: .support) { support in
+            guard support.snapshotParentIdentity == anchor.supportIdentity, support.fullFact == anchor.supportFact,
+                  try window.rootIdentity(root: .caches) == anchor.cacheIdentity,
+                  try window.rootIdentity(root: .temporary) == anchor.temporaryIdentity else { throw EraseAllServiceError.invalidAuthority }
+            try support.readNames()
+            guard support.nameCount == anchor.supportNames.count else { throw EraseAllServiceError.invalidAuthority }
+            for ordinal in 0..<support.nameCount {
+                try support.withName(at: ordinal) { name in
+                    guard anchor.supportNames[ordinal] == name else { throw EraseAllServiceError.invalidAuthority }
+                }
+            }
+            for (name, expected) in anchor.supportTrees {
+                guard try window.captureTree(parent: support, name: name) == expected else { throw EraseAllServiceError.invalidAuthority }
+            }
+            guard try window.captureTree(root: .caches, name: "FieldEvidenceApp") == anchor.cacheTree,
+                  try window.captureTree(root: .temporary, name: "FieldEvidenceApp") == anchor.temporaryTree else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try support.withChild(name: "FieldEvidenceOperations") { operations in
+                guard operations.isDirectory, operations.fullFact == operationsFact else { throw EraseAllServiceError.invalidAuthority }
+                try operations.readNames()
+                guard operations.nameCount == operationsNames.count else { throw EraseAllServiceError.invalidAuthority }
+                var untouchedCount = 0
+                for ordinal in 0..<operations.nameCount {
+                    try operations.withName(at: ordinal) { name in
+                        guard operationsNames[ordinal] == name else { throw EraseAllServiceError.invalidAuthority }
+                        if name != "ScratchDataV1", name != "ProtectedIngressReceiptsV1" {
+                            guard anchor.operationsChildren[name] != nil else { throw EraseAllServiceError.invalidAuthority }
+                            untouchedCount += 1
+                        }
+                    }
+                }
+                var expectedUntouched = 0
+                for (name, expected) in anchor.operationsChildren where name != "ScratchDataV1" && name != "ProtectedIngressReceiptsV1" {
+                    expectedUntouched += 1
+                    try admission.requireColdNotificationOutsideFrame()
+                    switch expected {
+                    case .directory(let fact, let digest):
+                        let tree: Tree = .present(rootFact: fact, digest: digest)
+                        guard try window.captureTree(parent: operations, name: name) == tree else { throw EraseAllServiceError.invalidAuthority }
+                        if name == AppLockNotificationControlStoreV1.rootName {
+                            guard let rows = anchor.notificationControlNodes else { throw EraseAllServiceError.invalidAuthority }
+                            let start = window.snapshotSlotCount
+                            let stable = try observeColdNotificationControls(window: window, operations: operations,
+                                name: name, expected: tree, notification: true)
+                            var actualCount = 0
+                            for ordinal in start..<window.snapshotSlotCount {
+                                try window.withSnapshotSlot(at: ordinal) { slot in
+                                    if case .notificationControl(let row) = slot {
+                                        guard rows.first(where: { $0.path == row.path }) == row else { throw EraseAllServiceError.invalidAuthority }
+                                        actualCount += 1
+                                    }
+                                }
+                            }
+                            guard actualCount == rows.count, stable == anchor.notificationControlStableDigest else {
+                                throw EraseAllServiceError.invalidAuthority
+                            }
+                        }
+                    case .regular(let fact, let digest):
+                        try operations.withChild(name: name) { child in
+                            guard !child.isDirectory, child.fullFact == fact,
+                                  try child.digestFile() == digest else { throw EraseAllServiceError.invalidAuthority }
+                        }
+                    }
+                    try admission.requireColdNotificationOutsideFrame()
+                }
+                guard untouchedCount == expectedUntouched else { throw EraseAllServiceError.invalidAuthority }
+                try operations.requireCurrentBinding()
+            }
+            try support.requireCurrentBinding()
+        }
+        try window.requireCheckedReadSettlement()
+        try admission.requireColdNotificationOutsideFrame()
+    }
+
+    /// Distinct cold consumer of the incumbent complete outside scanner.
+    /// The snapshot is retained by the genuine cold admission; this method
+    /// cannot choose a survivor baseline, issue an Original receipt or change
+    /// either Scratch/ingress image. requireHeld is the nonrecursive G/frame
+    /// proof, so policy scanning cannot recursively authorize itself.
+    @MainActor
+    func requireColdScratchOutside(admission: ColdEraseScratchCleanupInitialAdmissionV1,
+        operationsFact: String, operationsNames: [String], support: Int32,
+        caches: Int32, temporary: Int32, operations: Int32) throws {
+        try admission.requireHeld()
+        guard try firstObservation() == admission.firstSnapshot,
+              admission.notificationAfter.supportIdentity == admission.firstSnapshot.supportIdentity,
+              admission.notificationAfter.cacheIdentity == admission.firstSnapshot.cacheIdentity,
+              admission.notificationAfter.temporaryIdentity == admission.firstSnapshot.temporaryIdentity else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try admission.requireColdNotificationObserverBackingReservation()
+        let window = try admission.ranges.requireColdScratchNotificationOutsideReadWindow(admission: admission)
+        try window.requireOutsideBorrowedParents(support: support, caches: caches,
+            temporary: temporary, operations: operations)
+        try requireColdNotificationOutside(window: window, admission: admission,
+            operationsFact: operationsFact, operationsNames: operationsNames)
+        try admission.requireHeld()
+    }
+
     fileprivate func requireOriginalScratchOutside(
         anchor: Snapshot, operationsFact: String, operationsNames: [String],
         support: Int32, caches: Int32, temporary: Int32, operations: Int32,
@@ -1843,6 +2442,57 @@ extension EraseSchema2ColdAuxiliaryFirstObserverV1 {
     }
 }
 
+/// A closed association of genuine task origin. This DATA label cannot mint
+/// a task, historical Outcome, resource, close result or observation proof.
+enum ColdEraseScratchTaskSettlementOriginV1: Equatable { case live, freshObserved, mixed }
+
+/// Newly issued current-process full task-postimage proof. Only the actual
+/// ImageOwner constructs it after complete scans and positive observer
+/// settlement; Pending/Stage/Image/DATA alone cannot create one. Strong real
+/// owners survive through the sole OBS and remain permanent on uncertainty.
+@MainActor
+final class ColdEraseScratchTaskObservationSettlementV1 {
+    let image: OriginalEraseScratchCleanupImageV1
+    let origin: ColdEraseScratchTaskSettlementOriginV1
+    fileprivate let task: ColdEraseScratchPendingTaskV1
+    fileprivate let sequence: UInt64
+    fileprivate var consumed = false
+    private var owner: OriginalEraseScratchCleanupImageOwnerV1?
+    private var attempt: OriginalEraseScratchCleanupAttemptV1?
+    private var scope: ColdEraseScratchCleanupHeldGScopeV1?
+
+    fileprivate init(owner: OriginalEraseScratchCleanupImageOwnerV1,
+        task: ColdEraseScratchPendingTaskV1, attempt: OriginalEraseScratchCleanupAttemptV1,
+        scope: ColdEraseScratchCleanupHeldGScopeV1,
+        image: OriginalEraseScratchCleanupImageV1,
+        origin: ColdEraseScratchTaskSettlementOriginV1, sequence: UInt64) {
+        self.owner = owner; self.task = task; self.attempt = attempt; self.scope = scope
+        self.image = image; self.origin = origin; self.sequence = sequence
+    }
+
+    func requireBound(task: ColdEraseScratchPendingTaskV1,
+        attempt: OriginalEraseScratchCleanupAttemptV1,
+        scope: ColdEraseScratchCleanupHeldGScopeV1,
+        after: OriginalEraseScratchCleanupImageV1) throws {
+        guard !consumed, self.task === task, self.attempt === attempt,
+              self.scope === scope, image == after, let owner else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try owner.requireColdTaskObservationSettlement(self, task: task,
+            attempt: attempt, scope: scope, after: after)
+    }
+
+    fileprivate func consume(owner: OriginalEraseScratchCleanupImageOwnerV1) throws {
+        guard !consumed, self.owner === owner, attempt != nil, scope != nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // Called only after the actual range owner joins its identical newly
+        // durable OBS/Settled to this same Pending/proof. No close is inferred.
+        consumed = true
+        self.owner = nil; attempt = nil; scope = nil
+    }
+}
+
 /// Retained before IO; no descriptor, effect permit, Registry or current-image
 /// authority escapes. The only image advance is one matched closed primitive.
 @MainActor
@@ -1851,10 +2501,19 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     typealias Intent = OriginalEraseScratchCleanupPrimitiveIntentV1
     typealias Outcome = OriginalEraseScratchCleanupPrimitiveOutcomeV1
     fileprivate let operationID: UUID
-    private let admission: OriginalEraseScratchCleanupInitialAdmissionV1
-    private var callHeldScope: OriginalEraseScratchCleanupHeldGScopeV1?
-    private var lastMatchedHeldScope: OriginalEraseScratchCleanupHeldGScopeV1?
-    fileprivate var currentHeldScope: OriginalEraseScratchCleanupHeldGScopeV1 { admission.heldScope }
+    private let admission: EraseScratchCleanupAdmissionOriginV1
+    private weak var coldAttempt: OriginalEraseScratchCleanupAttemptV1?
+    private var coldReplaySeed: ColdEraseScratchReplaySeedV1?
+    private var coldTaskObservationSettlement: ColdEraseScratchTaskObservationSettlementV1?
+    // Fixed inline references to real range-owner reservations; no growing
+    // bookkeeping array can hide the backing or discard a failed lease.
+    private var coldFirstNodesLease: ColdEraseScratchMechanicsIndexLeaseV1?
+    private var coldMappingsLease: ColdEraseScratchMechanicsIndexLeaseV1?
+    private var coldConsumedLease: ColdEraseScratchMechanicsIndexLeaseV1?
+    private var coldPublicationsLease: ColdEraseScratchMechanicsIndexLeaseV1?
+    private var callHeldScope: EraseScratchCleanupScopeOriginV1?
+    private var lastMatchedHeldScope: EraseScratchCleanupScopeOriginV1?
+    fileprivate var currentHeldScope: EraseScratchCleanupScopeOriginV1 { admission.heldScope }
     private var attempted = false
     private var poisoned = false
     private var initial: Image?
@@ -1870,11 +2529,214 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     private var policyAttempts: [OriginalEraseScratchTemporalPolicyAttemptV1] = []
     private var uncertainFDs: [Int32] = []
     private var uncertainDirectories: [UnsafeMutablePointer<DIR>] = []
+    /// Distinct genuine current-process cold observation owner. The scanner
+    /// never exports its slot objects/FDs. A positive lexical close is recorded
+    /// once; uncertainty permanently retains the exact acquired owner. The
+    /// fixed recursive scanner limit (depth <= 64, plus one names cursor)
+    /// bounds simultaneous acquisitions to 65, with one consumed last slot.
+    @MainActor private final class ColdObservationResources {
+        final class Slot {
+            enum State { case opening, refused, open, cursorEntered, cursor, closeEntered, closed, uncertain }
+            struct Storage {
+                let sequence: UInt64
+                var state: State = State.opening
+                var descriptor: Int32? = nil
+                var directory: UnsafeMutablePointer<DIR>? = nil
+                var openResult: Int32? = nil
+                var openErrno: Int32? = nil
+                var cursorSucceeded: Bool? = nil
+                var cursorErrno: Int32? = nil
+                var closeResult: Int32? = nil
+                var closeErrno: Int32? = nil
+                var beforeCloseFact: stat? = nil
+                var beforeCloseNamedFact: stat? = nil
+                var parentBeforeCloseFact: stat? = nil
+                var parentAfterCloseFact: stat? = nil
+            }
+            private var storage: Storage
+            var sequence: UInt64 {
+                get { storage.sequence }
+            }
+            var state: State {
+                get { storage.state }
+                set { storage.state = newValue }
+            }
+            var descriptor: Int32? {
+                get { storage.descriptor }
+                set { storage.descriptor = newValue }
+            }
+            var directory: UnsafeMutablePointer<DIR>? {
+                get { storage.directory }
+                set { storage.directory = newValue }
+            }
+            var openResult: Int32? {
+                get { storage.openResult }
+                set { storage.openResult = newValue }
+            }
+            var openErrno: Int32? {
+                get { storage.openErrno }
+                set { storage.openErrno = newValue }
+            }
+            var cursorSucceeded: Bool? {
+                get { storage.cursorSucceeded }
+                set { storage.cursorSucceeded = newValue }
+            }
+            var cursorErrno: Int32? {
+                get { storage.cursorErrno }
+                set { storage.cursorErrno = newValue }
+            }
+            var closeResult: Int32? {
+                get { storage.closeResult }
+                set { storage.closeResult = newValue }
+            }
+            var closeErrno: Int32? {
+                get { storage.closeErrno }
+                set { storage.closeErrno = newValue }
+            }
+            var beforeCloseFact: stat? {
+                get { storage.beforeCloseFact }
+                set { storage.beforeCloseFact = newValue }
+            }
+            var beforeCloseNamedFact: stat? {
+                get { storage.beforeCloseNamedFact }
+                set { storage.beforeCloseNamedFact = newValue }
+            }
+            var parentBeforeCloseFact: stat? {
+                get { storage.parentBeforeCloseFact }
+                set { storage.parentBeforeCloseFact = newValue }
+            }
+            var parentAfterCloseFact: stat? {
+                get { storage.parentAfterCloseFact }
+                set { storage.parentAfterCloseFact = newValue }
+            }
+            init(sequence: UInt64) { storage = Storage(sequence: sequence) }
+        }
+        private var entered: UInt64 = 0
+        private var consumed: UInt64 = 0
+        private var active: [Slot] = []
+        private var lastConsumed: Slot?
+        private var uncertain: [Slot] = []
+        private var poisoned = false
+        // Comparison transcript belongs to this actual closed owner. It is
+        // never accepted as a substitute for the private slot transitions.
+        private var transcript = SHA256()
+        init() { active.reserveCapacity(65); uncertain.reserveCapacity(65) }
+        var actualReferenceCapacity: Int { active.capacity + uncertain.capacity + 1 }
+        static var retainedSlotStorageBytes: UInt64 {
+            // Exact source-owned scalar storage plus fixed owner backing.
+            // Runtime object headers/allocator/VM are separately unmeasured.
+            UInt64(66 * MemoryLayout<Slot.Storage>.stride + MemoryLayout<SHA256>.stride
+                + 2 * MemoryLayout<UInt64>.stride + 2 * MemoryLayout<[Slot]>.stride
+                + MemoryLayout<Slot?>.stride + MemoryLayout<Bool>.stride)
+        }
+        func prepare() throws -> Slot {
+            guard !poisoned, uncertain.isEmpty, active.count < 65 else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let next = entered.addingReportingOverflow(1)
+            guard !next.overflow else { throw EraseAllServiceError.invalidAuthority }
+            let slot = Slot(sequence: next.partialValue)
+            active.append(slot); entered = next.partialValue
+            return slot // actual retained acquisition BEFORE openat
+        }
+        func capture(_ slot: Slot, descriptor: Int32, savedErrno: Int32) throws {
+            let expected = active.last === slot && slot.state == .opening && slot.openResult == nil
+            // Retain the actual returned descriptor/result before any refusal
+            // can unwind. No post-call authority check may lose a live FD.
+            slot.openResult = descriptor; slot.openErrno = savedErrno
+            if descriptor >= 0 { slot.descriptor = descriptor }
+            guard expected else {
+                slot.state = .uncertain; retainUncertain(slot)
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if descriptor < 0 { slot.state = .refused; poisoned = true; throw EraseAllServiceError.invalidAuthority }
+            guard !active.dropLast().contains(where: { $0.descriptor == descriptor }) else {
+                slot.state = .uncertain; retainUncertain(slot)
+                throw EraseAllServiceError.invalidAuthority
+            }
+            slot.state = .open
+        }
+        func enterCursor(_ slot: Slot) throws {
+            guard active.last === slot, slot.state == .open else { throw EraseAllServiceError.invalidAuthority }
+            slot.state = .cursorEntered
+        }
+        func captureCursor(_ slot: Slot, directory: UnsafeMutablePointer<DIR>?, savedErrno: Int32) throws {
+            let expected = active.last === slot && slot.state == .cursorEntered && slot.cursorSucceeded == nil
+            slot.cursorSucceeded = directory != nil; slot.cursorErrno = savedErrno
+            if let directory { slot.directory = directory }
+            guard expected else {
+                slot.state = .uncertain; retainUncertain(slot)
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if directory != nil { slot.state = .cursor }
+            else { slot.state = .open; throw EraseAllServiceError.invalidAuthority }
+        }
+        private func retainUncertain(_ slot: Slot) {
+            if !uncertain.contains(where: { $0 === slot }) { uncertain.append(slot) }
+            poisoned = true
+        }
+        func close(_ slot: Slot) throws {
+            guard active.last === slot, slot.state == .open || slot.state == .cursor,
+                  slot.closeResult == nil, let descriptor = slot.descriptor,
+                  let held = slot.beforeCloseFact, let named = slot.beforeCloseNamedFact,
+                  slot.parentBeforeCloseFact != nil,
+                  OriginalEraseScratchCleanupImageOwnerV1.full(held) == OriginalEraseScratchCleanupImageOwnerV1.full(named) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let cursor = slot.directory
+            slot.state = .closeEntered // fence BEFORE the sole close
+            let result = cursor.map { Darwin.closedir($0) } ?? Darwin.close(descriptor)
+            let saved = errno
+            slot.closeResult = result; slot.closeErrno = saved
+            if result == 0 { slot.state = .closed }
+            else { slot.state = .uncertain; uncertain.append(slot); poisoned = true }
+            guard result == 0 else { throw EraseAllServiceError.invalidAuthority }
+        }
+        func retainAfterFailure(_ slot: Slot) {
+            // A failed held/named proof cannot authorize a close of this
+            // numeric FD. Retain the real returned FD/cursor and its owner;
+            // the uncertain lexical window is never reused or settled.
+            slot.state = .uncertain
+            retainUncertain(slot)
+        }
+        func consume(_ slot: Slot) throws {
+            guard !poisoned, active.last === slot, slot.state == .closed,
+                  slot.closeResult == 0, slot.closeErrno != nil, slot.openResult == slot.descriptor,
+                  let beforeParent = slot.parentBeforeCloseFact, let afterParent = slot.parentAfterCloseFact,
+                  OriginalEraseScratchCleanupImageOwnerV1.full(beforeParent) == OriginalEraseScratchCleanupImageOwnerV1.full(afterParent) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            let next = consumed.addingReportingOverflow(1)
+            guard !next.overflow, next.partialValue <= entered else { throw EraseAllServiceError.invalidAuthority }
+            // Lexical scanner consumers have returned with their full facts,
+            // hashes and values. Only this exact next association retires the
+            // previous closed slot; no numeric closed descriptor is reprobed.
+            var fields = [slot.sequence.littleEndian, UInt64(UInt32(bitPattern: slot.descriptor!)).littleEndian,
+                UInt64(UInt32(bitPattern: slot.openErrno!)).littleEndian,
+                UInt64(UInt32(bitPattern: slot.closeErrno!)).littleEndian]
+            fields.withUnsafeBufferPointer { transcript.update(bufferPointer: UnsafeRawBufferPointer($0)) }
+            lastConsumed = slot; active.removeLast(); consumed = next.partialValue
+        }
+        func requireCheckedSettlement() throws {
+            guard !poisoned, uncertain.isEmpty, active.isEmpty, entered == consumed,
+                  entered == 0 || (lastConsumed?.state == .closed && lastConsumed?.closeResult == 0) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        func poison() { poisoned = true }
+    }
+    private var coldObservationResources: ColdObservationResources?
+    private var coldObservationResourcesLease: ColdEraseScratchMechanicsIndexLeaseV1?
+    private enum PublicationKey: Hashable {
+        case live(UUID)
+        case observed(UInt64)
+    }
     private struct Publication {
-        let createID: UUID
+        let createID: UUID?
+        var observedLink: ColdEraseScratchObservedRequestLinkV1?
         var temporaryPath: String
         var finalPath: String
-        let bytes: Data
+        let bytes: EraseScratchCleanupPayloadOriginV1
         let sha256: String
         let exclusiveFinalRename: Bool
         var written: Int
@@ -1882,18 +2744,18 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         var linkID: UUID?
         var replacementID: UUID?
     }
-    private var publications: [UUID: Publication] = [:]
+    private var publications: [PublicationKey: Publication] = [:]
     private struct FinalizedReplacement {
         let requestID: UUID
         let sourcePath: String
-        let bytes: Data
+        let bytes: EraseScratchCleanupPayloadOriginV1
         let sha256: String
         let fullFact: String
     }
     private var finalizedReplacements: [String:FinalizedReplacement] = [:]
     private var pathMapping: [String: String] = [:]
     private var consumed: Set<String> = []
-    private var retainedSources: [String: (bytes: Data, fullFact: String)] = [:]
+    private var retainedSources: [String: (bytes: EraseScratchCleanupPayloadOriginV1, fullFact: String)] = [:]
     private var originalNodes: [String: EraseSchema2ColdAuxiliaryPhysicalRosterV1.Node] = [:]
     private var lastRaw: RawImage?
     private var lastPolicyNodes: [URL:OriginalEraseScratchTemporalPolicyNodeV1] = [:]
@@ -1951,7 +2813,187 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     #endif
 
     init(admission: OriginalEraseScratchCleanupInitialAdmissionV1) {
-        self.admission = admission; operationID = admission.operationID
+        self.admission = .original(admission); operationID = admission.operationID
+    }
+    init(coldAdmission: ColdEraseScratchCleanupInitialAdmissionV1) throws {
+        try coldAdmission.requireHeld()
+        admission = .cold(coldAdmission)
+        operationID = coldAdmission.operationID
+        try coldAdmission.requireHeld()
+    }
+    /// Called only after the genuine ColdPermit has retained this exact attempt
+    /// and bound its range owner. No cold IO precedes the association/charge.
+    func bindColdAttempt(_ attempt: OriginalEraseScratchCleanupAttemptV1) throws {
+        guard case .cold(let coldAdmission) = admission,
+              !attempted, !poisoned,
+              coldAttempt == nil || coldAttempt === attempt else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try coldAdmission.requireHeld()
+        try attempt.requireColdImageOwnerOrigin(admission: coldAdmission)
+        try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+        coldAttempt = attempt
+        guard coldObservationResources == nil, coldObservationResourcesLease == nil else { throw EraseAllServiceError.invalidAuthority }
+        let lease = try coldAdmission.ranges.reserveMechanicsIndex(kind: .resourceOrder,
+            minimumCapacity: 131, elementStride: UInt64(MemoryLayout<ColdObservationResources.Slot>.stride),
+            retainedUTF8Bytes: 0, retainedAuxiliaryStorageBytes: ColdObservationResources.retainedSlotStorageBytes,
+            attempt: attempt, scope: coldAdmission.heldScope)
+        coldObservationResourcesLease = lease // reservation precedes backing
+        let resources = ColdObservationResources()
+        coldObservationResources = resources
+        try coldAdmission.ranges.recordMechanicsIndex(lease: lease,
+            actualCapacity: UInt64(resources.actualReferenceCapacity), retainedUTF8Bytes: 0,
+            retainedAuxiliaryStorageBytes: ColdObservationResources.retainedSlotStorageBytes,
+            attempt: attempt, scope: coldAdmission.heldScope)
+        try coldAdmission.requireHeld()
+    }
+    /// Actual allocator capacity and retained strings are storage DATA. A
+    /// genuine range owner retains every reservation, including failed ones;
+    /// no capacity measurement authorizes namespace or policy effects.
+    private func reserveColdIndex(kind: ColdEraseScratchMechanicsIndexKindV1,
+        minimumCapacity: Int, elementStride: Int, retainedUTF8Bytes: UInt64)
+        throws -> ColdEraseScratchMechanicsIndexLeaseV1 {
+        guard case .cold(let coldAdmission) = admission, let attempt = coldAttempt,
+              let capacity = UInt64(exactly: minimumCapacity),
+              let stride = UInt64(exactly: elementStride), stride > 0 else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try attempt.requireColdImageOwnerOrigin(admission: coldAdmission)
+        try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+        switch kind {
+        case .imageFirstNodes: guard coldFirstNodesLease == nil else { throw EraseAllServiceError.invalidAuthority }
+        case .imageMappings: guard coldMappingsLease == nil else { throw EraseAllServiceError.invalidAuthority }
+        case .imageConsumedPaths: guard coldConsumedLease == nil else { throw EraseAllServiceError.invalidAuthority }
+        case .imagePublications: guard coldPublicationsLease == nil else { throw EraseAllServiceError.invalidAuthority }
+        default: throw EraseAllServiceError.invalidAuthority
+        }
+        let lease = try coldAdmission.ranges.reserveMechanicsIndex(kind: kind,
+            minimumCapacity: capacity, elementStride: stride,
+            retainedUTF8Bytes: retainedUTF8Bytes, attempt: attempt,
+            scope: coldAdmission.heldScope)
+        switch kind {
+        case .imageFirstNodes: coldFirstNodesLease = lease
+        case .imageMappings: coldMappingsLease = lease
+        case .imageConsumedPaths: coldConsumedLease = lease
+        case .imagePublications: coldPublicationsLease = lease
+        default: throw EraseAllServiceError.invalidAuthority
+        }
+        try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+        return lease
+    }
+    private func recordColdIndex(_ lease: ColdEraseScratchMechanicsIndexLeaseV1,
+        actualCapacity: Int, retainedUTF8Bytes: UInt64) throws {
+        guard case .cold(let coldAdmission) = admission, let attempt = coldAttempt,
+              let capacity = UInt64(exactly: actualCapacity) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try attempt.requireColdImageOwnerOrigin(admission: coldAdmission)
+        try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+        try coldAdmission.ranges.recordMechanicsIndex(lease: lease,
+            actualCapacity: capacity, retainedUTF8Bytes: retainedUTF8Bytes,
+            attempt: attempt, scope: coldAdmission.heldScope)
+        try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+    }
+    /// MEMORY-only discharge proof for the actual retained lease. It is
+    /// reached only through the genuine ColdPermit and actual Attempt, after
+    /// the concrete backing and all helper consumers have been removed.
+    func requireColdMechanicsIndexReleased(lease: ColdEraseScratchMechanicsIndexLeaseV1,
+        attempt: OriginalEraseScratchCleanupAttemptV1) throws {
+        guard case .cold(let coldAdmission) = admission, coldAttempt === attempt,
+              !poisoned, uncertainFDs.isEmpty, uncertainDirectories.isEmpty,
+              pending == nil, observationOutcome == nil, activeScope == nil,
+              activeEffectScope == nil, activeCatalog == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try coldAdmission.requireHeld()
+        try attempt.requireColdCompletedImage(current)
+        switch lease.kind {
+        case .imageFirstNodes:
+            guard coldFirstNodesLease === lease, originalNodes.isEmpty, initial == nil,
+                  coldReplaySeed == nil else { throw EraseAllServiceError.invalidAuthority }
+        case .imageMappings:
+            guard coldMappingsLease === lease, pathMapping.isEmpty, directorySourcePaths.isEmpty,
+                  coldReplaySeed == nil else { throw EraseAllServiceError.invalidAuthority }
+        case .imageConsumedPaths:
+            guard coldConsumedLease === lease, consumed.isEmpty, coldReplaySeed == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+        case .imagePublications:
+            guard coldPublicationsLease === lease, publications.isEmpty, finalizedReplacements.isEmpty,
+                  coldReplaySeed == nil else { throw EraseAllServiceError.invalidAuthority }
+        case .resourceOrder:
+            guard coldObservationResourcesLease === lease, coldObservationResources == nil,
+                  coldTaskObservationSettlement == nil else { throw EraseAllServiceError.invalidAuthority }
+        default: throw EraseAllServiceError.invalidAuthority
+        }
+        try coldAdmission.requireHeld()
+    }
+
+    /// The actual ColdPermit calls only after its identical returned readback
+    /// was consumed by Ledger and its final held check returned. No old
+    /// revoked policy scope is asked to prove a live obsolete request again.
+    func consumeColdMechanicsReadback(outcome: Outcome,
+        attempt: OriginalEraseScratchCleanupAttemptV1) throws {
+        guard case .cold(let coldAdmission) = admission, coldAttempt === attempt,
+              !poisoned, pending == nil, observationOutcome == nil,
+              activeScope == nil, activeEffectScope == nil, activeCatalog == nil,
+              let current else { throw EraseAllServiceError.invalidAuthority }
+        try coldAdmission.requireHeld()
+        try attempt.requireColdConsumedReadback(outcome: outcome, after: current)
+        if case .requestPolicy = outcome.intent.kind {
+            guard let scope = retainedEffectScopes.last, scope.intent === outcome.intent else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try scope.consumeColdPositiveOutcome(outcome)
+            guard scope.coldProofConsumed else { throw EraseAllServiceError.invalidAuthority }
+            retainedEffectScopes.removeLast()
+        }
+        // Every retained observation callback has returned and its scope
+        // naturally revoked before this complete primitive consumption point.
+        try settleObservationScopes()
+        guard policyAttempts.count == settledPolicyAttemptCount else { throw EraseAllServiceError.invalidAuthority }
+        policyAttempts.removeAll(keepingCapacity: false); settledPolicyAttemptCount = 0
+        try coldAdmission.requireHeld()
+    }
+
+    /// Cold-only terminal helper backing release, never Original retention
+    /// pruning or global core/progress infrastructure close. Uncertainty keeps
+    /// every original owner/charge; positive actual settlement is necessary.
+    func releaseColdMechanicsBackings(attempt: OriginalEraseScratchCleanupAttemptV1) throws {
+        guard case .cold(let coldAdmission) = admission, coldAttempt === attempt,
+              !poisoned, uncertainFDs.isEmpty, uncertainDirectories.isEmpty,
+              pending == nil, observationOutcome == nil, activeScope == nil,
+              activeEffectScope == nil, activeCatalog == nil,
+              current?.scratch == nil, current?.ingress == nil else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try coldAdmission.requireHeld()
+        try attempt.requireColdCompletedImage(current)
+        try coldAdmission.ranges.requireScratchTasksSettled(attempt: attempt, scope: coldAdmission.heldScope)
+        try settleObservationScopes()
+        guard policyAttempts.count == settledPolicyAttemptCount else { throw EraseAllServiceError.invalidAuthority }
+        // Cold catalogs are never issued. Each effect scope must have had its
+        // positive proof consumed and naturally revoked by its actual request.
+        guard retainedCatalogs.isEmpty, coldTaskObservationSettlement == nil,
+              retainedEffectScopes.allSatisfy({ $0.coldProofConsumed }) else { throw EraseAllServiceError.invalidAuthority }
+        try coldResourceOwner().requireCheckedSettlement()
+        coldObservationResources = nil
+        initial = nil; coldReplaySeed = nil; originalNodes.removeAll(keepingCapacity: false)
+        pathMapping.removeAll(keepingCapacity: false); directorySourcePaths.removeAll(keepingCapacity: false)
+        consumed.removeAll(keepingCapacity: false); retainedSources.removeAll(keepingCapacity: false)
+        publications.removeAll(keepingCapacity: false); finalizedReplacements.removeAll(keepingCapacity: false)
+        lastRaw = nil; lastPolicyNodes.removeAll(keepingCapacity: false); lastPairs.removeAll(keepingCapacity: false)
+        policyAttempts.removeAll(keepingCapacity: false); settledPolicyAttemptCount = 0
+        retainedEffectScopes.removeAll(keepingCapacity: false)
+        try coldAdmission.requireHeld()
+    }
+    private static func chargeUTF8(_ string: String, total: inout UInt64) throws {
+        guard let count = UInt64(exactly: string.utf8.count) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        let next = total.addingReportingOverflow(count)
+        guard !next.overflow else { throw EraseAllServiceError.invalidAuthority }
+        total = next.partialValue
     }
     fileprivate func poison() {
         poisoned = true; activeScope?.revoke(); activeEffectScope?.revoke(); admission.poisonOnUncertainCleanup()
@@ -1960,7 +3002,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         guard !poisoned, uncertainFDs.isEmpty, uncertainDirectories.isEmpty else {
             throw EraseAllServiceError.invalidAuthority
         }
-        guard callHeldScope == nil || callHeldScope === admission.heldScope else {
+        guard callHeldScope == nil || callHeldScope?.isSame(as: admission.heldScope) == true else {
             throw EraseAllServiceError.invalidAuthority
         }
         try admission.requireHeld()
@@ -1968,10 +3010,14 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     }
     fileprivate func requireScope(_ scope: OriginalEraseScratchTemporalObservationScopeV1) throws {
         guard activeScope === scope, scope.operationID == operationID,
-              scope.heldScope === admission.heldScope else {
+              scope.heldScope.isSame(as: admission.heldScope) else {
             throw EraseAllServiceError.invalidAuthority
         }
         try requireHeld()
+        if case .cold = admission {
+            try scope.requirePairOrigins(admission: admission, attempt: coldAttempt)
+            try requireHeld()
+        }
     }
     fileprivate func retainPolicyAttempt(_ attempt: OriginalEraseScratchTemporalPolicyAttemptV1) {
         policyAttempts.append(attempt)
@@ -2069,8 +3115,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             #endif
             guard !attempted else { throw EraseAllServiceError.invalidAuthority }
             attempted = true
-            guard try admission.observer.firstObservation() == admission.firstSnapshot,
-                  admission.policyReceipt.checkedSettled,
+            guard case .original(let originalAdmission) = admission,
+                  try originalAdmission.observer.firstObservation() == admission.firstSnapshot,
+                  originalAdmission.policyReceipt.checkedSettled,
                   admission.applicationSupportURL.isFileURL,
                   let tree = admission.physicalRoster.record.trees.first(where: {
                     $0.key == "support/FieldEvidenceOperations"
@@ -2112,6 +3159,152 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             initial = one; current = one; return one
         }
     }
+    /// A fresh cold process receives only the privately proved current prefix.
+    /// Authentic first facts remain a separate range-backed catalog; vanished
+    /// first paths are never replaced with invented current ownership fields.
+    func captureColdInitial(support: Int32, caches: Int32, temporary: Int32,
+        operations: Int32) throws -> Image {
+        #if DEBUG
+        beginDiagnostic(.captureInitial)
+        #endif
+        return try checked {
+            guard !attempted, case .cold(let coldAdmission) = admission,
+                  let attempt = coldAttempt,
+                  coldAdmission.applicationSupportURL.isFileURL,
+                  let tree = coldAdmission.physicalRoster.record.trees.first(where: {
+                    $0.key == "support/FieldEvidenceOperations"
+                  }), tree.state == "present", let nodes = tree.nodes else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try attempt.requireColdImageOwnerOrigin(admission: coldAdmission)
+            try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+            attempted = true
+            let seed = try coldAdmission.replaySeed()
+            var nodeUTF8: UInt64 = 0
+            for node in nodes {
+                try Self.chargeUTF8(node.path, total: &nodeUTF8)
+                try Self.chargeUTF8(node.path, total: &nodeUTF8) // dictionary key and node path
+                try Self.chargeUTF8(node.fact, total: &nodeUTF8)
+                if let sha = node.sha256 { try Self.chargeUTF8(sha, total: &nodeUTF8) }
+                for member in node.members ?? [] { try Self.chargeUTF8(member, total: &nodeUTF8) }
+            }
+            let firstLease = try reserveColdIndex(kind: .imageFirstNodes,
+                minimumCapacity: nodes.count,
+                elementStride: MemoryLayout<(String, EraseSchema2ColdAuxiliaryPhysicalRosterV1.Node)>.stride,
+                retainedUTF8Bytes: nodeUTF8)
+            originalNodes.reserveCapacity(nodes.count)
+            try recordColdIndex(firstLease, actualCapacity: originalNodes.capacity,
+                retainedUTF8Bytes: nodeUTF8)
+            for node in nodes {
+                guard originalNodes.updateValue(node, forKey: node.path) == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                let count = originalNodeCount.addingReportingOverflow(1)
+                guard !count.overflow else { throw EraseAllServiceError.invalidAuthority }
+                originalNodeCount = count.partialValue
+                if let sha = node.sha256 {
+                    let fact = node.fact.split(separator: "|").map(String.init)
+                    guard fact.count == 9, let bytes = Int64(fact[4]), bytes >= 0,
+                          Self.validSHA(sha) else { throw EraseAllServiceError.invalidAuthority }
+                    let sum = originalByteCount.addingReportingOverflow(bytes)
+                    guard !sum.overflow else { throw EraseAllServiceError.invalidAuthority }
+                    originalByteCount = sum.partialValue
+                }
+            }
+            // The genuine seed has already proved the complete REQUEST/OBS
+            // chain and physical prefix; these are comparison indexes only.
+            guard seed.consumedFirstPaths.allSatisfy({ originalNodes[$0] != nil }),
+                  seed.pathMapping.allSatisfy({ originalNodes[$0.key] != nil }),
+                  seed.directorySourcePaths.allSatisfy({ originalNodes[$0.value]?.kind == "directory" }) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            var mappingUTF8: UInt64 = 0
+            for (from, to) in seed.pathMapping {
+                try Self.chargeUTF8(from, total: &mappingUTF8)
+                try Self.chargeUTF8(to, total: &mappingUTF8)
+            }
+            for (from, to) in seed.directorySourcePaths {
+                try Self.chargeUTF8(from, total: &mappingUTF8)
+                try Self.chargeUTF8(to, total: &mappingUTF8)
+            }
+            let mappingCount = seed.pathMapping.count.addingReportingOverflow(seed.directorySourcePaths.count)
+            guard !mappingCount.overflow else { throw EraseAllServiceError.invalidAuthority }
+            let mappingLease = try reserveColdIndex(kind: .imageMappings,
+                minimumCapacity: mappingCount.partialValue,
+                elementStride: MemoryLayout<(String, String)>.stride,
+                retainedUTF8Bytes: mappingUTF8)
+            pathMapping = seed.pathMapping; directorySourcePaths = seed.directorySourcePaths
+            let mappingCapacity = pathMapping.capacity.addingReportingOverflow(directorySourcePaths.capacity)
+            guard !mappingCapacity.overflow else { throw EraseAllServiceError.invalidAuthority }
+            try recordColdIndex(mappingLease, actualCapacity: mappingCapacity.partialValue,
+                retainedUTF8Bytes: mappingUTF8)
+            var consumedUTF8: UInt64 = 0
+            for path in seed.consumedFirstPaths { try Self.chargeUTF8(path, total: &consumedUTF8) }
+            let consumedLease = try reserveColdIndex(kind: .imageConsumedPaths,
+                minimumCapacity: seed.consumedFirstPaths.count,
+                elementStride: MemoryLayout<String>.stride,
+                retainedUTF8Bytes: consumedUTF8)
+            consumed = seed.consumedFirstPaths
+            try recordColdIndex(consumedLease, actualCapacity: consumed.capacity,
+                retainedUTF8Bytes: consumedUTF8)
+            var generatedUTF8: UInt64 = 0
+            for lineage in seed.generated {
+                try Self.chargeUTF8(lineage.temporaryPath, total: &generatedUTF8)
+                try Self.chargeUTF8(lineage.finalPath, total: &generatedUTF8)
+                try Self.chargeUTF8(lineage.range.sha256, total: &generatedUTF8)
+                try Self.chargeUTF8(lineage.range.originalPath, total: &generatedUTF8)
+                try Self.chargeUTF8(lineage.range.firstFullFact, total: &generatedUTF8)
+                try Self.chargeUTF8(lineage.sourceRequestSHA256, total: &generatedUTF8)
+            }
+            let publicationLease = try reserveColdIndex(kind: .imagePublications,
+                minimumCapacity: seed.generated.count,
+                elementStride: MemoryLayout<(PublicationKey, Publication)>.stride,
+                retainedUTF8Bytes: generatedUTF8)
+            publications.reserveCapacity(seed.generated.count)
+            try recordColdIndex(publicationLease, actualCapacity: publications.capacity,
+                retainedUTF8Bytes: generatedUTF8)
+            for lineage in seed.generated {
+                guard lineage.taskSequence > 0,
+                      lineage.range.ownerIdentity == ObjectIdentifier(coldAdmission.ranges),
+                      let written = Int(exactly: lineage.writtenCount),
+                      written <= (try EraseScratchCleanupPayloadOriginV1.cold(lineage.range).byteCount()),
+                      publications[.observed(lineage.taskSequence)] == nil else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                // An observed prefix uses its genuine retained REQUEST handle;
+                // it never fabricates live create/link/close identities.
+                let link = lineage.observedRequestLink
+                if case .linked = lineage.stage {
+                    guard let link else { throw EraseAllServiceError.invalidAuthority }
+                    try coldAdmission.ranges.requireObservedRequestLink(handle: link,
+                        scope: coldAdmission.heldScope, attempt: attempt)
+                } else if link != nil { throw EraseAllServiceError.invalidAuthority }
+                publications[.observed(lineage.taskSequence)] = Publication(createID: nil,
+                    observedLink: link, temporaryPath: lineage.temporaryPath,
+                    finalPath: lineage.finalPath, bytes: .cold(lineage.range),
+                    sha256: lineage.range.sha256, exclusiveFinalRename: lineage.exclusiveFinalRename,
+                    written: written, acceptedPolicy: lineage.policyAccepted,
+                    linkID: nil, replacementID: nil)
+            }
+            coldReplaySeed = seed
+            try attempt.installColdReplaySeed(seed)
+            #if DEBUG
+            diagnosticObservation = .first
+            #endif
+            let one = try observe(support: support, caches: caches, temporary: temporary,
+                operations: operations, outcome: nil, initialCapture: true)
+            #if DEBUG
+            diagnosticObservation = .second
+            #endif
+            let two = try observe(support: support, caches: caches, temporary: temporary,
+                operations: operations, outcome: nil, initialCapture: true)
+            guard one == two, one == seed.currentImage else { throw EraseAllServiceError.invalidAuthority }
+            initial = one; current = one
+            try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+            return one
+        }
+    }
+
     func requireInitialImage(_ image: Image, support: Int32, caches: Int32,
         temporary: Int32, operations: Int32) throws {
         #if DEBUG
@@ -2125,6 +3318,112 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 temporary: temporary, operations: operations)
         }
     }
+    /// Fresh cold task comparison, reached through the actual retained permit
+    /// and exact four borrowed parents. It issues neither a cut nor a Plan.
+    func currentColdTaskImage(attempt: OriginalEraseScratchCleanupAttemptV1,
+        support: Int32, caches: Int32, temporary: Int32, operations: Int32) throws -> Image {
+        guard case .cold(let coldAdmission) = admission, coldAttempt === attempt else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try attempt.requireColdImageOwnerOrigin(admission: coldAdmission)
+        return try checked {
+            guard pending == nil, observationOutcome == nil, activeEffectScope == nil,
+                  activeScope == nil, activeCatalog == nil, let current else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try requireImage(current, support: support, caches: caches,
+                temporary: temporary, operations: operations)
+            try attempt.requireColdTaskImageComparison(image: current)
+            try requireHeld()
+            return current
+        }
+    }
+    func observeColdTaskSettlement(task: ColdEraseScratchPendingTaskV1,
+        attempt: OriginalEraseScratchCleanupAttemptV1, support: Int32,
+        caches: Int32, temporary: Int32, operations: Int32)
+        throws -> ColdEraseScratchTaskObservationSettlementV1 {
+        guard case .cold(let coldAdmission) = admission, coldAttempt === attempt else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return try checked {
+            guard pending == nil, observationOutcome == nil, activeScope == nil,
+                  activeEffectScope == nil, activeCatalog == nil, let current else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try attempt.requireColdTaskPostimage(task: task, after: current)
+            // This is the actual incumbent complete two-observation check,
+            // including every raw byte/hash/full fact/policy/outside branch.
+            try requireImage(current, support: support, caches: caches,
+                temporary: temporary, operations: operations)
+            try settleObservationScopes()
+            guard policyAttempts.count == settledPolicyAttemptCount,
+                  uncertainFDs.isEmpty, uncertainDirectories.isEmpty,
+                  activeScope == nil, activeEffectScope == nil else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try coldResourceOwner().requireCheckedSettlement()
+            try attempt.requireColdTaskPostimage(task: task, after: current)
+            let origin = try attempt.coldTaskSettlementOrigin(task: task, after: current)
+            try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+            try requireHeld()
+            if let prior = coldTaskObservationSettlement {
+                guard !prior.consumed, prior.task === task,
+                      prior.sequence == attempt.checkedPrimitiveSequence,
+                      prior.image == current, prior.origin == origin else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try prior.requireBound(task: task, attempt: attempt,
+                    scope: coldAdmission.heldScope, after: current)
+                return prior // same proof DATA, after a new full live reproof
+            }
+            let proof = ColdEraseScratchTaskObservationSettlementV1(owner: self,
+                task: task, attempt: attempt, scope: coldAdmission.heldScope,
+                image: current, origin: origin, sequence: attempt.checkedPrimitiveSequence)
+            coldTaskObservationSettlement = proof
+            try proof.requireBound(task: task, attempt: attempt,
+                scope: coldAdmission.heldScope, after: current)
+            try requireHeld(); return proof
+        }
+    }
+
+    fileprivate func requireColdTaskObservationSettlement(
+        _ proof: ColdEraseScratchTaskObservationSettlementV1,
+        task: ColdEraseScratchPendingTaskV1, attempt: OriginalEraseScratchCleanupAttemptV1,
+        scope: ColdEraseScratchCleanupHeldGScopeV1, after: Image) throws {
+        guard case .cold(let coldAdmission) = admission, coldAttempt === attempt,
+              coldAdmission.heldScope === scope, coldTaskObservationSettlement === proof,
+              !proof.consumed, proof.task === task, proof.image == after,
+              proof.sequence == attempt.checkedPrimitiveSequence, current == after,
+              !poisoned, pending == nil, observationOutcome == nil,
+              activeScope == nil, activeEffectScope == nil, activeCatalog == nil,
+              uncertainFDs.isEmpty, uncertainDirectories.isEmpty,
+              policyAttempts.count == settledPolicyAttemptCount else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try coldAdmission.requireHeld()
+        try attempt.requireColdTaskPostimage(task: task, after: after)
+        guard try attempt.coldTaskSettlementOrigin(task: task, after: after) == proof.origin else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        for actual in policyAttempts { try actual.requireCheckedSettlement() }
+        try coldResourceOwner().requireCheckedSettlement()
+        try coldAdmission.requireHeld()
+    }
+
+    func retireColdTaskObservationSettlement(_ proof: ColdEraseScratchTaskObservationSettlementV1,
+        task: ColdEraseScratchPendingTaskV1, settled: ColdEraseScratchSettledTaskV1,
+        attempt: OriginalEraseScratchCleanupAttemptV1) throws {
+        guard case .cold(let coldAdmission) = admission, coldAttempt === attempt,
+              coldTaskObservationSettlement === proof, let current else { throw EraseAllServiceError.invalidAuthority }
+        try proof.requireBound(task: task, attempt: attempt, scope: coldAdmission.heldScope, after: current)
+        try coldAdmission.ranges.requireSettledTask(task: settled, pending: task, proof: proof,
+            attempt: attempt, scope: coldAdmission.heldScope)
+        try requireHeld()
+        try proof.consume(owner: self)
+        coldTaskObservationSettlement = nil
+        try requireHeld()
+    }
+
     func requireFinal(_ image: Image, support: Int32, caches: Int32,
         temporary: Int32, operations: Int32) throws {
         #if DEBUG
@@ -2134,6 +3433,54 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             guard pending == nil, image == current else { throw EraseAllServiceError.invalidAuthority }
             try requireImage(image, support: support, caches: caches,
                 temporary: temporary, operations: operations)
+        }
+    }
+    private func retainPayload(_ bytes: Data, temporaryPath: String)
+        throws -> EraseScratchCleanupPayloadOriginV1 {
+        switch admission {
+        case .original: return .original(bytes)
+        case .cold:
+            guard let attempt = coldAttempt else { throw EraseAllServiceError.invalidAuthority }
+            return .cold(try attempt.requireColdPendingRecipePayload(
+                temporaryPath: temporaryPath, bytes: bytes))
+        }
+    }
+    private func retainCanonicalPayload(_ bytes: Data, path: String, fullFact: String)
+        throws -> EraseScratchCleanupPayloadOriginV1 {
+        switch admission {
+        case .original: return .original(bytes)
+        case .cold(let coldAdmission):
+            guard let attempt = coldAttempt else { throw EraseAllServiceError.invalidAuthority }
+            try coldAdmission.ranges.requireBound(scope: coldAdmission.heldScope, attempt: attempt)
+            let range = try coldAdmission.ranges.canonicalSource(path: path, fullFact: fullFact)
+            let value = EraseScratchCleanupPayloadOriginV1.cold(range)
+            guard try value.matches(bytes: bytes, admission: admission, attempt: attempt) else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            return value
+        }
+    }
+    private func withPayloadBytes<T>(_ payload: EraseScratchCleanupPayloadOriginV1,
+        _ body: (Data) throws -> T) throws -> T {
+        switch (payload, admission) {
+        case (.original(let bytes), .original): return try body(bytes)
+        case (.cold(let range), .cold(let coldAdmission)):
+            guard let attempt = coldAttempt else { throw EraseAllServiceError.invalidAuthority }
+            return try coldAdmission.ranges.withCanonicalBytes(range: range,
+                scope: coldAdmission.heldScope, attempt: attempt, body)
+        default: throw EraseAllServiceError.invalidAuthority
+        }
+    }
+    private func withPayloadPairBytes<T>(_ first: EraseScratchCleanupPayloadOriginV1,
+        _ second: EraseScratchCleanupPayloadOriginV1,
+        _ body: (Data, Data) throws -> T) throws -> T {
+        switch (first, second, admission) {
+        case (.original(let a), .original(let b), .original): return try body(a, b)
+        case (.cold(let a), .cold(let b), .cold(let coldAdmission)):
+            guard let attempt = coldAttempt else { throw EraseAllServiceError.invalidAuthority }
+            return try coldAdmission.ranges.withCanonicalPairBytes(first: a, second: b,
+                scope: coldAdmission.heldScope, attempt: attempt, body)
+        default: throw EraseAllServiceError.invalidAuthority
         }
     }
     func requireCanonicalSource(path: String, bytes: Data, fullFact: String) throws {
@@ -2148,19 +3495,26 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                   Int64(bytes.count) == Int64(Self.fields(fullFact)[6]) else {
                 throw EraseAllServiceError.invalidAuthority
             }
-            let ownVersion = publications.values.contains {
-                $0.finalPath == path && $0.bytes == bytes && $0.written == bytes.count && $0.acceptedPolicy
+            let ownVersion = try publications.values.contains {
+                guard $0.finalPath == path else { return false }
+                guard try $0.bytes.matches(bytes: bytes,
+                    admission: admission, attempt: coldAttempt) else { return false }
+                return $0.written == bytes.count && $0.acceptedPolicy
             } || finalizedReplacements[path].map {
-                $0.bytes == bytes && $0.fullFact == fullFact &&
-                    $0.sha256 == node.contentSHA256
+                (try $0.bytes.matches(bytes: bytes, admission: admission, attempt: coldAttempt))
+                    && $0.fullFact == fullFact && $0.sha256 == node.contentSHA256
             } == true
             if !ownVersion {
                 try admission.requireCanonicalSource(path: path, bytes: bytes, fullFact: fullFact)
                 if let old = retainedSources[path] {
-                    guard old.bytes == bytes, old.fullFact == fullFact else {
+                    guard try old.bytes.matches(bytes: bytes, admission: admission, attempt: coldAttempt),
+                          old.fullFact == fullFact else {
                         throw EraseAllServiceError.invalidAuthority
                     }
-                } else { retainedSources[path] = (bytes, fullFact) }
+                } else {
+                    retainedSources[path] = (try retainCanonicalPayload(bytes, path: path,
+                        fullFact: fullFact), fullFact)
+                }
             }
             // Original bytes stay retained; own newer versions are retained in
             // each immutable create recipe, even after their paths disappear.
@@ -2227,6 +3581,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 #endif
                 guard let scope = activeEffectScope else { throw EraseAllServiceError.invalidAuthority }
                 try scope.requireCheckedSettlement()
+                if case .cold = admission { try scope.retainColdPositiveOutcome(outcome) }
                 scope.revoke(); activeEffectScope = nil
             }
             #if DEBUG
@@ -2352,6 +3707,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
     }
     private func withOpen<T>(parent: Int32, name: String, flags: Int32,
         _ body: (Int32) throws -> T) throws -> T {
+        if case .cold = admission {
+            return try withColdOpen(parent: parent, name: name, flags: flags, body)
+        }
         try requireHeld()
         let fd = Darwin.openat(parent, name, flags | O_NOFOLLOW | O_CLOEXEC)
         guard fd >= 0 else { throw EraseAllServiceError.invalidAuthority }
@@ -2377,6 +3735,88 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             poison(); throw error
         }
     }
+    private func coldResourceOwner() throws -> ColdObservationResources {
+        guard case .cold(let actual) = admission, let attempt = coldAttempt else { throw EraseAllServiceError.invalidAuthority }
+        try attempt.requireColdImageOwnerOrigin(admission: actual)
+        try actual.requireHeld()
+        guard let owner = coldObservationResources else { throw EraseAllServiceError.invalidAuthority }
+        return owner
+    }
+    private func withColdOpen<T>(parent: Int32, name: String, flags: Int32,
+        _ body: (Int32) throws -> T) throws -> T {
+        let owner = try coldResourceOwner(); try requireHeld()
+        let slot = try owner.prepare()
+        let fd = Darwin.openat(parent, name, flags | O_NOFOLLOW | O_CLOEXEC)
+        let saved = errno
+        do {
+            try owner.capture(slot, descriptor: fd, savedErrno: saved)
+            try requireHeld(); let value = try body(fd); try requireHeld()
+            slot.beforeCloseFact = try held(fd)
+            slot.beforeCloseNamedFact = try named(parent, name)
+            slot.parentBeforeCloseFact = try held(parent)
+            try owner.close(slot); try requireHeld()
+            slot.parentAfterCloseFact = try held(parent)
+            try owner.consume(slot)
+            return value
+        } catch {
+            let failure = error
+            if slot.state == .open || slot.state == .cursor || slot.state == .uncertain {
+                owner.retainAfterFailure(slot)
+                if let directory = slot.directory { uncertainDirectories.append(directory) }
+                else if let descriptor = slot.descriptor { uncertainFDs.append(descriptor) }
+            }
+            owner.poison(); poison(); throw failure
+        }
+    }
+    private func coldNames(_ fd: Int32, maximum: Int) throws -> [String] {
+        let owner = try coldResourceOwner(); try requireHeld()
+        guard maximum >= 0 else { throw EraseAllServiceError.invalidAuthority }
+        let bound = maximum.addingReportingOverflow(3)
+        guard !bound.overflow else { throw EraseAllServiceError.invalidAuthority }
+        let slot = try owner.prepare()
+        let copy = Darwin.openat(fd, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        let saved = errno
+        do {
+            try owner.capture(slot, descriptor: copy, savedErrno: saved); try requireHeld()
+            let parentFact = try held(fd), cursorFact = try held(copy)
+            guard Self.full(parentFact) == Self.full(cursorFact),
+                  try named(fd, ".").map(Self.full) == Self.full(cursorFact) else { throw EraseAllServiceError.invalidAuthority }
+            try owner.enterCursor(slot)
+            let directory = Darwin.fdopendir(copy); let cursorErrno = errno
+            try owner.captureCursor(slot, directory: directory, savedErrno: cursorErrno)
+            guard let directory else { throw EraseAllServiceError.invalidAuthority }
+            var values = [String](), calls = 0
+            while true {
+                guard calls < bound.partialValue else { throw EraseAllServiceError.invalidAuthority }
+                calls += 1; try requireHeld(); errno = 0
+                let entry = Darwin.readdir(directory); let actualErrno = errno
+                try add(1, to: &cursorEntries); try requireHeld()
+                guard let entry else { guard actualErrno == 0 else { throw EraseAllServiceError.invalidAuthority }; break }
+                guard let name = OwnedStorageDirectoryEntryNameV1.decode(entry) else { throw EraseAllServiceError.invalidAuthority }
+                if name != "." && name != ".." {
+                    guard values.count < maximum else { throw EraseAllServiceError.invalidAuthority }; values.append(name)
+                }
+            }
+            try requireHeld()
+            slot.beforeCloseFact = try held(copy)
+            slot.beforeCloseNamedFact = try named(fd, ".")
+            slot.parentBeforeCloseFact = try held(fd)
+            guard slot.beforeCloseFact.map(Self.full) == Self.full(cursorFact),
+                  slot.parentBeforeCloseFact.map(Self.full) == Self.full(parentFact),
+                  Set(values).count == values.count else { throw EraseAllServiceError.invalidAuthority }
+            try owner.close(slot); try requireHeld()
+            slot.parentAfterCloseFact = try held(fd)
+            try owner.consume(slot); return values.sorted()
+        } catch {
+            let failure = error
+            if slot.state == .open || slot.state == .cursor || slot.state == .uncertain {
+                owner.retainAfterFailure(slot)
+                if let directory = slot.directory { uncertainDirectories.append(directory) }
+                else if let descriptor = slot.descriptor { uncertainFDs.append(descriptor) }
+            }
+            owner.poison(); poison(); throw failure
+        }
+    }
     private func named(_ parent: Int32, _ name: String) throws -> stat? {
         try requireHeld(); var s = stat()
         let result = Darwin.fstatat(parent, name, &s, AT_SYMLINK_NOFOLLOW)
@@ -2393,6 +3833,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         guard result == 0 else { throw EraseAllServiceError.invalidAuthority }; return s
     }
     private func names(_ fd: Int32, maximum: Int) throws -> [String] {
+        if case .cold = admission { return try coldNames(fd, maximum: maximum) }
         try requireHeld()
         let copy = Darwin.openat(fd, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard copy >= 0 else { throw EraseAllServiceError.invalidAuthority }
@@ -2469,19 +3910,20 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         guard eof == 0 else { throw EraseAllServiceError.invalidAuthority }
         return hash.finalize().map { String(format: "%02x", $0) }.joined()
     }
-    private func candidatePublications(_ outcome: Outcome?) throws -> [UUID: Publication] {
+    private func candidatePublications(_ outcome: Outcome?) throws -> [PublicationKey: Publication] {
         var value = publications
         guard let outcome else { return value }
         switch outcome.intent.kind {
         case .createTemporary(let path, let final, let bytes, let sha, _, let exclusive):
-            value[outcome.intent.requestID] = Publication(createID: outcome.intent.requestID,
-                temporaryPath: path, finalPath: final, bytes: bytes, sha256: sha,
+            value[.live(outcome.intent.requestID)] = Publication(createID: outcome.intent.requestID,
+                observedLink: nil, temporaryPath: path, finalPath: final,
+                bytes: try retainPayload(bytes, temporaryPath: path), sha256: sha,
                 exclusiveFinalRename: exclusive, written: 0, acceptedPolicy: false,
                 linkID: nil, replacementID: nil)
         case .writeTemporary(let path, _, _):
             guard let id = value.first(where: { $0.value.temporaryPath == path })?.key,
                   let count = Int(exactly: outcome.result) else { throw EraseAllServiceError.invalidAuthority }
-            guard count >= 0, count <= value[id]!.bytes.count - value[id]!.written else {
+            guard count >= 0, count <= (try value[id]!.bytes.byteCount()) - value[id]!.written else {
                 throw EraseAllServiceError.invalidAuthority
             }
             let next = value[id]!.written.addingReportingOverflow(count)
@@ -2496,6 +3938,15 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 throw EraseAllServiceError.invalidAuthority
             }
             value[id]!.linkID = outcome.intent.requestID
+            if value[id]!.createID == nil {
+                guard case .cold(let coldAdmission) = admission, let attempt = coldAttempt,
+                      let task = attempt.currentColdPendingTask else { throw EraseAllServiceError.invalidAuthority }
+                // The private owner retained this actual new LinkOutcome at
+                // its raw outcome hook. Its prospective linked DATA does not
+                // advance Pending.cut before the complete consumed readback.
+                value[id]!.observedLink = try coldAdmission.ranges.observedRequestLink(
+                    task: task, scope: coldAdmission.heldScope, attempt: attempt)
+            }
         case .renamePublication(let source, let final, let exclusive):
             if !exclusive {
                 if let id = value.first(where: { $0.value.finalPath == source })?.key {
@@ -2508,7 +3959,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                     guard let original = originalNodes[source], original.kind == "file",
                           let staged = retainedSources[source],
                           Self.nine(staged.fullFact) == original.fact,
-                          StoreMigrationCanonicalJSONV1.sha256(staged.bytes) == original.sha256 else {
+                          staged.bytes.sha256() == original.sha256 else {
                         throw EraseAllServiceError.invalidAuthority
                     }
                 }
@@ -2518,7 +3969,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         return value
     }
     private func rawScan(operations: Int32, support: Int32,
-        publications recipes: [UUID: Publication], outcome: Outcome?) throws -> RawImage {
+        publications recipes: [PublicationKey: Publication], outcome: Outcome?) throws -> RawImage {
         let ops = try held(operations), supportFact = try held(support)
         guard ops.st_mode & S_IFMT == S_IFDIR,
               ops.st_mode & 0o7777 == 0o700 || ops.st_mode & 0o7777 == 0o2700,
@@ -2539,7 +3990,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         }
         var maximumBytes = originalByteCount
         for recipe in recipes.values {
-            let sum = maximumBytes.addingReportingOverflow(Int64(recipe.bytes.count))
+            let sum = maximumBytes.addingReportingOverflow(Int64((try recipe.bytes.byteCount())))
             guard !sum.overflow else { throw EraseAllServiceError.invalidAuthority }
             maximumBytes = sum.partialValue
         }
@@ -2553,7 +4004,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         var visited = 0, namespaceBytes: Int64 = 0
         let admittedOriginalPaths = Set((admission.originalGenericPairs ?? []).flatMap(\.originalPaths)
             .map { currentPath($0,outcome:outcome) })
-        let publicationPaths = Set(recipes.values.filter { $0.linkID != nil }
+        let publicationPaths = Set(recipes.values.filter { $0.linkID != nil || $0.observedLink != nil }
             .flatMap { [$0.temporaryPath, $0.finalPath] })
         func walk(parent: Int32, name: String, path: String, depth: Int,
             output: inout [RawNode], tokens: inout [String]) throws {
@@ -2661,6 +4112,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         return path
     }
     private func requireInitialRaw(_ raw: RawImage) throws {
+        guard case .original(let admission) = self.admission else {
+            throw EraseAllServiceError.invalidAuthority
+        }
         let expectedPaths = Set(originalNodes.keys.filter {
             $0 == "ScratchDataV1" || $0.hasPrefix("ScratchDataV1/") ||
             $0 == "ProtectedIngressReceiptsV1" || $0.hasPrefix("ProtectedIngressReceiptsV1/")
@@ -2795,7 +4249,14 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         else if outcome != nil { diagnosticStage = .rawDelta }
         else { diagnosticStage = .sameRaw }
         #endif
-        if initialCapture { try requireInitialRaw(raw) }
+        if initialCapture {
+            switch admission {
+            case .original: try requireInitialRaw(raw)
+            case .cold:
+                guard let seed = coldReplaySeed else { throw EraseAllServiceError.invalidAuthority }
+                try requireSameRaw(seed.currentImage, raw)
+            }
+        }
         else if let outcome { try requireRawDelta(outcome,after:raw) }
         else {
             guard let current else { throw EraseAllServiceError.invalidAuthority }
@@ -2805,8 +4266,8 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         diagnosticDelta = .none
         diagnosticStage = .outsideBeforePolicy
         #endif
-        try admission.observer.requireOriginalScratchOutside(anchor:admission.notificationAfter,
-            operationsFact:Self.full(raw.operationsFact),operationsNames:raw.operationsNames,
+        try admission.requireOutside(operationsFact:Self.full(raw.operationsFact),
+            operationsNames:raw.operationsNames,
             support:support,caches:caches,temporary:temporary,operations:operations,
             requireHeld: { try self.requireHeld() })
         #if DEBUG
@@ -2845,13 +4306,28 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         }
         for recipe in recipes.values {
             let paths = [recipe.temporaryPath,recipe.finalPath]
-            if let link = recipe.linkID, paths.allSatisfy({ raw.nodes[$0] != nil }) {
-                guard recipe.acceptedPolicy, recipe.written == recipe.bytes.count else {
+            if let link = recipe.linkID, let create = recipe.createID,
+               paths.allSatisfy({ raw.nodes[$0] != nil }) {
+                guard recipe.acceptedPolicy, recipe.written == (try recipe.bytes.byteCount()) else {
                     throw EraseAllServiceError.invalidAuthority
                 }
-                let value = try pair(paths,raw:raw,sha:recipe.sha256,count:Int64(recipe.bytes.count),
-                    role:.declaredLinkPublication(createRequestID:recipe.createID,linkRequestID:link,
+                let value = try pair(paths,raw:raw,sha:recipe.sha256,count:Int64((try recipe.bytes.byteCount())),
+                    role:.declaredLinkPublication(createRequestID:create,linkRequestID:link,
                         temporaryPath:recipe.temporaryPath,finalPath:recipe.finalPath),outcome:outcome)
+                pairs.append(value)
+                for p in paths { guard pairPaths.insert(p).inserted else { throw EraseAllServiceError.invalidAuthority } }
+            } else if let observed = recipe.observedLink,
+                      paths.allSatisfy({ raw.nodes[$0] != nil }) {
+                guard recipe.createID == nil,
+                      recipe.acceptedPolicy, recipe.written == (try recipe.bytes.byteCount()),
+                      case .cold(let coldAdmission) = admission, let attempt = coldAttempt else {
+                    throw EraseAllServiceError.invalidAuthority
+                }
+                try coldAdmission.ranges.requireObservedRequestLink(handle: observed,
+                    scope: coldAdmission.heldScope, attempt: attempt)
+                let value = try pair(paths,raw:raw,sha:recipe.sha256,
+                    count:Int64(try recipe.bytes.byteCount()),
+                    role:.coldObservedPrefixPublication(observed),outcome:outcome)
                 pairs.append(value)
                 for p in paths { guard pairPaths.insert(p).inserted else { throw EraseAllServiceError.invalidAuthority } }
             }
@@ -2873,7 +4349,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         for pair in pairs { uniqueBytes -= pair.byteCount }
         var byteBound = originalByteCount
         for recipe in recipes.values {
-            let sum = byteBound.addingReportingOverflow(Int64(recipe.bytes.count))
+            let sum = byteBound.addingReportingOverflow(Int64((try recipe.bytes.byteCount())))
             guard !sum.overflow else { throw EraseAllServiceError.invalidAuthority }; byteBound = sum.partialValue
         }
         guard uniqueBytes >= 0, uniqueBytes <= byteBound else { throw EraseAllServiceError.invalidAuthority }
@@ -2884,14 +4360,18 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         guard activeScope == nil else { throw EraseAllServiceError.invalidAuthority }
         activeScope = scope
         #if DEBUG
-        OriginalEraseScratchIssuerDataTestsV1.issued(scope, nodes: bindings, pairs: pairs,
-            support: admission.applicationSupportURL, supportIdentity: admission.firstSnapshot.supportIdentity)
+        if case .original = admission {
+            OriginalEraseScratchIssuerDataTestsV1.issued(scope, nodes: bindings, pairs: pairs,
+                support: admission.applicationSupportURL, supportIdentity: admission.firstSnapshot.supportIdentity)
+        }
         #endif
         defer {
             scope.revoke(); activeScope = nil
             #if DEBUG
-            OriginalEraseScratchIssuerDataTestsV1.naturallyRevoked(scope,
-                support: admission.applicationSupportURL)
+            if case .original = admission {
+                OriginalEraseScratchIssuerDataTestsV1.naturallyRevoked(scope,
+                    support: admission.applicationSupportURL)
+            }
             #endif
         }
         var policies = [String:TemporalPolicyObservationV1]()
@@ -2943,8 +4423,8 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         #if DEBUG
         diagnosticStage = .outsideAfterPolicy
         #endif
-        try admission.observer.requireOriginalScratchOutside(anchor:admission.notificationAfter,
-            operationsFact:Self.full(raw.operationsFact),operationsNames:raw.operationsNames,
+        try admission.requireOutside(operationsFact:Self.full(raw.operationsFact),
+            operationsNames:raw.operationsNames,
             support:support,caches:caches,temporary:temporary,operations:operations,
             requireHeld:{ try self.requireHeld() })
         func root(_ r: RawRoot?) -> Image.Root? {
@@ -3011,8 +4491,8 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
             try existing(path,directory:false)
             guard let recipe = publications.values.first(where: { $0.temporaryPath == path }),
                   recipe.linkID == nil, offset == recipe.written,
-                  requested > 0, offset >= 0, offset < recipe.bytes.count,
-                  requested <= recipe.bytes.count - offset,
+                  requested > 0, offset >= 0, offset < (try recipe.bytes.byteCount()),
+                  requested <= (try recipe.bytes.byteCount()) - offset,
                   Int64(Self.fields(nodes[path]!.fullFact)[6]) == Int64(offset) else {
                 throw EraseAllServiceError.invalidAuthority
             }
@@ -3027,7 +4507,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         case .linkPublication(let path, let final):
             try existing(path,directory:false)
             guard let recipe = publications.values.first(where: { $0.temporaryPath == path }),
-                  recipe.finalPath == final, recipe.written == recipe.bytes.count,
+                  recipe.finalPath == final, recipe.written == (try recipe.bytes.byteCount()),
                   !recipe.exclusiveFinalRename, recipe.replacementID == nil,
                   recipe.acceptedPolicy, recipe.linkID == nil, nodes[final] == nil,
                   nodes[path]?.contentSHA256 == recipe.sha256,
@@ -3044,7 +4524,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 guard let recipe = publications.values.first(where: { $0.temporaryPath == source }),
                       recipe.exclusiveFinalRename, recipe.finalPath == final,
                       final == "ProtectedIngressReceiptsV1/scratch-erase.json",
-                      recipe.written == recipe.bytes.count, recipe.acceptedPolicy,
+                      recipe.written == (try recipe.bytes.byteCount()), recipe.acceptedPolicy,
                       recipe.linkID == nil, recipe.replacementID == nil,
                       nodes[source]?.contentSHA256 == recipe.sha256, nodes[final] == nil else {
                     throw EraseAllServiceError.invalidAuthority
@@ -3057,13 +4537,13 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                       let old = nodes[final], old.contentSHA256 != nil,
                       Self.fields(old.fullFact)[5] == "1",
                       let original = retainedSources[final], original.fullFact == old.fullFact,
-                      StoreMigrationCanonicalJSONV1.sha256(original.bytes) == old.contentSHA256 else {
+                      original.bytes.sha256() == old.contentSHA256 else {
                     throw EraseAllServiceError.invalidAuthority
                 }
-                let stagedBytes:Data
+                let stagedBytes: EraseScratchCleanupPayloadOriginV1
                 if let recipe = publications.values.first(where: { $0.finalPath == source }) {
                     guard !recipe.exclusiveFinalRename, recipe.linkID != nil, recipe.replacementID == nil,
-                          recipe.written == recipe.bytes.count, recipe.acceptedPolicy,
+                          recipe.written == (try recipe.bytes.byteCount()), recipe.acceptedPolicy,
                           nodes[recipe.temporaryPath] == nil,
                           nodes[source]?.contentSHA256 == recipe.sha256 else {
                         throw EraseAllServiceError.invalidAuthority
@@ -3077,14 +4557,16 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                           staged.fullFact == node.fullFact,
                           Self.nine(node.fullFact) == sourceP.fact,
                           node.contentSHA256 == sourceP.sha256,
-                          StoreMigrationCanonicalJSONV1.sha256(staged.bytes) == sourceP.sha256,
-                          Int64(staged.bytes.count) == Int64(Self.fields(node.fullFact)[6]) else {
+                          staged.bytes.sha256() == sourceP.sha256,
+                          Int64((try staged.bytes.byteCount())) == Int64(Self.fields(node.fullFact)[6]) else {
                         throw EraseAllServiceError.invalidAuthority
                     }
                     stagedBytes = staged.bytes
                 }
-                try admission.requireFinalizedIngressReplacement(intent:intent,
-                    originalBytes:original.bytes,stagedBytes:stagedBytes)
+                try withPayloadPairBytes(original.bytes, stagedBytes) { originalBytes, staged in
+                    try admission.requireFinalizedIngressReplacement(intent:intent,
+                        originalBytes:originalBytes,stagedBytes:staged)
+                }
             }
         case .renameLeaseDirectory(let from, let to):
             try existing(from,directory:true); _ = try Self.path(to)
@@ -3118,9 +4600,9 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                 try existing(path,directory:false)
                 guard let recipe = publications.values.first(where: {
                     $0.temporaryPath == path || ($0.exclusiveFinalRename && $0.finalPath == path)
-                }), recipe.written == recipe.bytes.count,
+                }), recipe.written == (try recipe.bytes.byteCount()),
                       nodes[path]?.contentSHA256 == recipe.sha256,
-                      Int64(Self.fields(nodes[path]!.fullFact)[6]) == Int64(recipe.bytes.count),
+                      Int64(Self.fields(nodes[path]!.fullFact)[6]) == Int64((try recipe.bytes.byteCount())),
                       Self.fields(nodes[path]!.fullFact)[5] == "1" else {
                     throw EraseAllServiceError.invalidAuthority
                 }
@@ -3274,12 +4756,13 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         case .writeTemporary(let path, let offset, let requested):
             guard let recipe = publications.values.first(where: { $0.temporaryPath == path }),
                   let count = Int(exactly:outcome.result), count >= 0, count <= requested,
-                  offset == recipe.written, count <= recipe.bytes.count - offset,
+                  offset == recipe.written, count <= (try recipe.bytes.byteCount()) - offset,
                   let old = before[path] else { throw EraseAllServiceError.invalidAuthority }
             let value = try node(path), f = Self.fields(value.fact), oldF = Self.fields(old.fact)
             guard Self.stable(old.fact,value.fact), f[5] == oldF[5],
                   Int64(f[6]) == Int64(offset + count),
-                  value.sha == StoreMigrationCanonicalJSONV1.sha256(Data(recipe.bytes.prefix(offset + count))),
+                  value.sha == (try recipe.bytes.prefixSHA256(byteCount: offset + count,
+                    admission: admission, attempt: coldAttempt)),
                   !checkPolicies || value.policy == old.policy else { throw EraseAllServiceError.invalidAuthority }
             changed.insert(path)
         case .requestPolicy(let path, _):
@@ -3393,7 +4876,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
         switch outcome.intent.kind {
         case .renamePublication(let source,let final,let exclusive):
             if !exclusive {
-                let bytes:Data
+                let bytes: EraseScratchCleanupPayloadOriginV1
                 if let recipe = publications.values.first(where: {
                     $0.finalPath == final && $0.replacementID == outcome.intent.requestID
                 }) { bytes = recipe.bytes }
@@ -3404,8 +4887,8 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
                     bytes = staged.bytes
                 }
                 guard let target = lastRaw?.nodes[final],
-                      target.sha256 == StoreMigrationCanonicalJSONV1.sha256(bytes),
-                      Int64(bytes.count) == Int64(target.fact.st_size) else {
+                      target.sha256 == bytes.sha256(),
+                      Int64(try bytes.byteCount()) == Int64(target.fact.st_size) else {
                     throw EraseAllServiceError.invalidAuthority
                 }
                 finalizedReplacements[final] = FinalizedReplacement(
@@ -3450,7 +4933,7 @@ final class OriginalEraseScratchCleanupImageOwnerV1 {
 final class OriginalEraseScratchCleanupPolicyEffectScopeV1 {
     let operationID: UUID
     let requestID: UUID
-    fileprivate let heldScope: OriginalEraseScratchCleanupHeldGScopeV1
+    fileprivate let heldScope: EraseScratchCleanupScopeOriginV1
     let sourceSHA256: String?
     let byteCount: Int64?
     private weak var owner: OriginalEraseScratchCleanupImageOwnerV1?
@@ -3461,6 +4944,11 @@ final class OriginalEraseScratchCleanupPolicyEffectScopeV1 {
     private var outcomes: [OriginalEraseScratchPublicationPolicyOutcomeV1] = []
     private var attempts: [OriginalEraseScratchPublicationPolicyAttemptV1] = []
     private var revoked = false
+    private var coldPositiveOutcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
+    private var coldConsumedOutcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1?
+    fileprivate var coldProofConsumed: Bool {
+        revoked && coldPositiveOutcome != nil && coldConsumedOutcome === coldPositiveOutcome
+    }
     fileprivate init(owner:OriginalEraseScratchCleanupImageOwnerV1,
         intent:OriginalEraseScratchCleanupPrimitiveIntentV1,
         target:OriginalEraseScratchTemporalPolicyNodeV1,sha:String?,count:Int64?) {
@@ -3497,6 +4985,21 @@ final class OriginalEraseScratchCleanupPolicyEffectScopeV1 {
     }
     func poisonOnUncertainPolicy() { revoked = true; owner?.poison() }
     fileprivate func revoke() { revoked = true }
+    fileprivate func retainColdPositiveOutcome(_ outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1) throws {
+        guard case .cold = heldScope, !revoked, coldPositiveOutcome == nil,
+              outcome.intent === intent, outcome.result == 0 else { throw EraseAllServiceError.invalidAuthority }
+        try requireCheckedSettlement() // Actual proof while the scope is live.
+        coldPositiveOutcome = outcome
+    }
+    fileprivate func consumeColdPositiveOutcome(_ outcome: OriginalEraseScratchCleanupPrimitiveOutcomeV1) throws {
+        guard case .cold = heldScope, revoked, coldPositiveOutcome === outcome,
+              coldConsumedOutcome == nil, outcome.intent === intent else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        // The owner calls this only after complete raw/image/delta/commit and
+        // the genuine bound Ledger readback, after all active aliases retire.
+        coldConsumedOutcome = outcome
+    }
     fileprivate func requireCheckedSettlement() throws {
         guard !revoked, outcomes.count == 2, attempts.count == 1 else {
             throw EraseAllServiceError.invalidAuthority
@@ -3518,7 +5021,7 @@ extension OriginalEraseScratchCleanupImageOwnerV1 {
     func currentTemporalObservationScope() throws -> OriginalEraseScratchTemporalObservationScopeV1 {
         try checked {
             guard current != nil, lastRaw != nil, activeEffectScope == nil,
-                  lastMatchedHeldScope === admission.heldScope else {
+                  lastMatchedHeldScope?.isSame(as: admission.heldScope) == true else {
                 throw EraseAllServiceError.invalidAuthority
             }
             try settleObservationScopes()
@@ -3545,7 +5048,7 @@ extension OriginalEraseScratchCleanupImageOwnerV1 {
     }
     fileprivate func requireActivePolicyScope(_ scope:OriginalEraseScratchCleanupPolicyEffectScopeV1) throws {
         guard activeEffectScope === scope, pending === scope.intent, observationOutcome == nil,
-              scope.heldScope === admission.heldScope else {
+              scope.heldScope.isSame(as: admission.heldScope) else {
             throw EraseAllServiceError.invalidAuthority
         }
         try requireHeld()
@@ -3561,7 +5064,7 @@ final class OriginalEraseScratchCanonicalSourceCatalogSessionV1 {
     private var state = State.active
     private weak var owner: OriginalEraseScratchCleanupImageOwnerV1?
     private weak var attempt: OriginalEraseScratchCleanupAttemptV1?
-    fileprivate let heldScope: OriginalEraseScratchCleanupHeldGScopeV1
+    fileprivate let heldScope: EraseScratchCleanupScopeOriginV1
     fileprivate let image: OriginalEraseScratchCleanupImageV1
     private var pending: OriginalEraseScratchCleanupPrimitiveIntentV1?
     private var outcomes: [OriginalEraseScratchCleanupPrimitiveOutcomeV1] = []
@@ -3628,7 +5131,7 @@ extension OriginalEraseScratchCleanupImageOwnerV1 {
     func requireCanonicalSourceOwnership(path:String,fullFact:String) throws {
         do {
             try requireHeld()
-            guard lastMatchedHeldScope === admission.heldScope,
+            guard lastMatchedHeldScope?.isSame(as: admission.heldScope) == true,
                   let raw = lastRaw, let node = raw.nodes[path],
                   let current, let selected = Self.nodes(current)[path],
                   node.fullFact == fullFact, selected.fullFact == fullFact,
@@ -3660,7 +5163,7 @@ extension OriginalEraseScratchCleanupImageOwnerV1 {
     }
     fileprivate func requireCatalog(_ session:OriginalEraseScratchCanonicalSourceCatalogSessionV1,
         attempt:OriginalEraseScratchCleanupAttemptV1) throws {
-        guard activeCatalog === session, session.heldScope === admission.heldScope,
+        guard activeCatalog === session, session.heldScope.isSame(as: admission.heldScope),
               session.image == current, pending == nil, activeEffectScope == nil else {
             throw EraseAllServiceError.invalidAuthority
         }
@@ -4141,3 +5644,524 @@ fileprivate final class OriginalEraseScratchIssuerDataDriverV1 {
     }
 }
 #endif
+
+// COLD_NOTIFICATION_CONTROL_POLICY_SCOPE_COMPONENT_V1_BEGIN
+/// Immutable comparison fields copied only from the SAME actually entered
+/// Window node after the genuine preconstructor reservation. No public maker.
+@MainActor struct ColdEraseScratchNotificationControlPolicyNodeV1 {
+    fileprivate struct Storage {
+        let kind: OwnedFileKindV1
+        let url: URL
+        let fullFact: String
+        let parentFullFact: String
+        let parentDescriptor: Int32
+        let selectedName: String
+        let isDirectory: Bool
+        let absoluteURLUTF8Count: UInt64
+        let fact: ColdEraseScratchNotificationControlFullFactV1
+        let parentFact: ColdEraseScratchNotificationControlFullFactV1
+    }
+    fileprivate let storage: Storage
+    var kind: OwnedFileKindV1 { storage.kind }
+    var url: URL { storage.url }
+    var fullFact: String { storage.fullFact }
+    var parentFullFact: String { storage.parentFullFact }
+    var parentDescriptor: Int32 { storage.parentDescriptor }
+    var selectedName: String { storage.selectedName }
+    var isDirectory: Bool { storage.isDirectory }
+    var absoluteURLUTF8Count: UInt64 { storage.absoluteURLUTF8Count }
+    var fact: ColdEraseScratchNotificationControlFullFactV1 { storage.fact }
+    var parentFact: ColdEraseScratchNotificationControlFullFactV1 { storage.parentFact }
+
+    fileprivate init(node: ColdEraseScratchNotificationReadNodeV1) throws {
+        try node.requireCurrentBinding()
+        let kind = try node.controlPolicyKind()
+        let url = try node.pathURL()
+        let fullFact = node.fullFact, parentFullFact = node.parentFullFact
+        let fact = try ColdEraseScratchNotificationControlFullFactV1(fullFact)
+        let parent = try ColdEraseScratchNotificationControlFullFactV1(parentFullFact)
+        guard url.isFileURL, url.standardizedFileURL == url,
+              !node.selectedName.isEmpty, node.selectedName.utf8.count <= 255,
+              !node.selectedName.contains("/"), !node.selectedName.utf8.contains(0),
+              node.selectedName != ".", node.selectedName != "..", node.parentDescriptor >= 0,
+              kind == .stagingDirectory || kind == .temporaryFile || kind == .journal || kind == .journalTemporary,
+              (fact.mode & UInt32(S_IFMT)) == UInt32(node.isDirectory ? S_IFDIR : S_IFREG),
+              (parent.mode & UInt32(S_IFMT)) == UInt32(S_IFDIR),
+              node.isDirectory || fact.links == 1 else { throw EraseAllServiceError.invalidAuthority }
+        storage = Storage(kind: kind, url: url, fullFact: fullFact, parentFullFact: parentFullFact,
+            parentDescriptor: node.parentDescriptor, selectedName: node.selectedName,
+            isDirectory: node.isDirectory, absoluteURLUTF8Count: UInt64(url.path.utf8.count),
+            fact: fact, parentFact: parent)
+        try node.requireCurrentBinding()
+    }
+    func sameActualFields(as other: Self) -> Bool {
+        kind == other.kind && url == other.url && fullFact == other.fullFact
+            && parentFullFact == other.parentFullFact && parentDescriptor == other.parentDescriptor
+            && selectedName == other.selectedName && isDirectory == other.isDirectory
+            && absoluteURLUTF8Count == other.absoluteURLUTF8Count
+    }
+}
+
+/// Ninth-private row issuer. Actual Window/Node registration and capacity
+/// precede construction; failed joins retain every entered owner permanently.
+@MainActor final class ColdEraseScratchNotificationControlPolicyObservationScopeV1 {
+    private enum State { case registered, observing, completed, rowConsumed, rowClosed, released, uncertain }
+    private struct Storage {
+        var window: ColdEraseScratchNotificationReadWindowV1?
+        var node: ColdEraseScratchNotificationReadNodeV1?
+        let windowIdentity: ObjectIdentifier
+        let nodeIdentity: ObjectIdentifier
+        let operationID: UUID
+        let policyNode: ColdEraseScratchNotificationControlPolicyNodeV1
+        var state: State = .registered
+        var observation: ColdEraseScratchNotificationControlPolicyObservationV1?
+        var consumedRow: EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode?
+        var uncertainDescriptor: Int32?
+        var overflowDescriptor: Int32?
+        var releasedObservationIdentity: ObjectIdentifier?
+    }
+    private var storage: Storage
+    var operationID: UUID { storage.operationID }
+    static func requiredBackingBytes(absoluteURLUTF8Count: UInt64) throws -> UInt64 {
+        guard absoluteURLUTF8Count > 0 else { throw EraseAllServiceError.invalidAuthority }
+        let path = absoluteURLUTF8Count.multipliedReportingOverflow(by: 2)
+        guard !path.overflow else { throw EraseAllServiceError.invalidAuthority }
+        let own = UInt64(MemoryLayout<Storage>.stride
+            + MemoryLayout<ColdEraseScratchNotificationControlPolicyNodeV1.Storage>.stride
+            + MemoryLayout<EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode>.stride
+            + 22 * MemoryLayout<Substring>.stride
+            + 2 * 241 + 255 + 20 + 3 * MemoryLayout<String>.stride)
+        let result = own.addingReportingOverflow(path.partialValue)
+        guard !result.overflow else { throw EraseAllServiceError.invalidAuthority }
+        return result.partialValue
+    }
+    var actualBackingBytes: UInt64 {
+        get throws { try Self.requiredBackingBytes(absoluteURLUTF8Count: storage.policyNode.absoluteURLUTF8Count) }
+    }
+    private init(window: ColdEraseScratchNotificationReadWindowV1,
+        node: ColdEraseScratchNotificationReadNodeV1, policyNode: ColdEraseScratchNotificationControlPolicyNodeV1) {
+        storage = Storage(window: window, node: node, windowIdentity: ObjectIdentifier(window),
+            nodeIdentity: ObjectIdentifier(node), operationID: window.operationID, policyNode: policyNode)
+    }
+    fileprivate static func make(window: ColdEraseScratchNotificationReadWindowV1,
+        node: ColdEraseScratchNotificationReadNodeV1) throws -> Self {
+        try window.requireNode(node)
+        try window.reserveControlPolicyScope(node: node) // real profile BEFORE pathURL/Scope allocation
+        let value = Self(window: window, node: node, policyNode: try .init(node: node))
+        try window.retainControlPolicyScope(value, node: node) // retains before throwing postproof
+        try value.requireCurrentBinding()
+        return value
+    }
+    /// Memory-only producer association. Native must independently hold the
+    /// true reservation/current frame; this cannot authorize IO or capacity.
+    func requireReservationAssociation(window: ColdEraseScratchNotificationReadWindowV1,
+        node: ColdEraseScratchNotificationReadNodeV1) throws {
+        guard storage.window === window, storage.node === node,
+              operationID == window.operationID, operationID == node.operationID,
+              storage.state != .uncertain, storage.state != .released else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+    func requireCurrentBinding() throws {
+        guard let window = storage.window, let node = storage.node,
+              storage.state == .registered || storage.state == .observing || storage.state == .completed else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try window.requireControlPolicyScope(self, node: node)
+        try window.requireCurrentBinding(); try node.requireCurrentBinding()
+        guard operationID == window.operationID, operationID == node.operationID,
+              storage.policyNode.fullFact == node.fullFact,
+              storage.policyNode.parentFullFact == node.parentFullFact,
+              storage.policyNode.parentDescriptor == node.parentDescriptor,
+              storage.policyNode.selectedName == node.selectedName,
+              storage.policyNode.kind == (try node.controlPolicyKind()) else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+    func requireNode() throws -> ColdEraseScratchNotificationControlPolicyNodeV1 {
+        try requireCurrentBinding(); return storage.policyNode
+    }
+    func requireNode(_ kind: OwnedFileKindV1, at url: URL, fullFact: String)
+        throws -> ColdEraseScratchNotificationControlPolicyNodeV1 {
+        let value = try requireNode()
+        guard value.kind == kind, value.url == url, value.fullFact == fullFact else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        return value
+    }
+    func requireKernelDescriptor() throws -> Int32 {
+        try requireCurrentBinding()
+        return try storage.node!.heldDescriptor
+    }
+    func requireObservationConstructionCapacity(additionalBytes: UInt64) throws {
+        try requireCurrentBinding()
+        guard storage.observation == nil, storage.state == .registered,
+              let window = storage.window, let node = storage.node else { throw EraseAllServiceError.invalidAuthority }
+        let exact = try ColdEraseScratchNotificationControlPolicyObservationV1.requiredBackingBytes(
+            absoluteURLUTF8Count: storage.policyNode.absoluteURLUTF8Count)
+        guard additionalBytes == exact else { throw EraseAllServiceError.invalidAuthority }
+        try window.requirePolicyObservationConstructionCapacity(node: node, scope: self, additionalBytes: exact)
+    }
+    func retainObservationAttempt(_ actual: ColdEraseScratchNotificationControlPolicyObservationV1) throws {
+        guard storage.observation == nil, storage.state == .registered else { throw EraseAllServiceError.invalidAuthority }
+        storage.observation = actual; storage.state = .observing // BEFORE PFP pin/getter IO
+        try storage.node!.retainPolicyObservation(actual)
+        try requireObservationAttempt(actual)
+    }
+    func requireObservationAttempt(_ actual: ColdEraseScratchNotificationControlPolicyObservationV1) throws {
+        guard storage.observation === actual, actual.scopeIdentity == ObjectIdentifier(self),
+              actual.operationID == operationID, storage.state == .observing || storage.state == .completed else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try requireCurrentBinding(); try storage.node!.requirePolicyObservation(actual)
+    }
+    func requireObservationCapacity(_ actual: ColdEraseScratchNotificationControlPolicyObservationV1,
+        additionalBytes: UInt64) throws {
+        try requireObservationAttempt(actual)
+        let exact = try actual.actualBackingBytes
+        guard additionalBytes == exact else { throw EraseAllServiceError.invalidAuthority }
+        try storage.window!.requirePolicyObservationCapacity(node: storage.node!, scope: self,
+            observation: actual, additionalBytes: exact)
+    }
+    func completeObservationAttempt(_ actual: ColdEraseScratchNotificationControlPolicyObservationV1) throws {
+        try requireObservationAttempt(actual); try actual.requireCheckedSettlement()
+        guard storage.state == .observing else { throw EraseAllServiceError.invalidAuthority }
+        storage.state = .completed
+        try requireObservationAttempt(actual)
+    }
+    /// Called only by the genuine cold scanner inside the same Node callback.
+    /// Target validates actual raw row SHA/EOF and retains both real slots.
+    fileprivate func consumeControlRow(_ row: EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode) throws {
+        do {
+            guard storage.state == .completed, let actual = storage.observation,
+                  let node = storage.node, let window = storage.window else { throw EraseAllServiceError.invalidAuthority }
+            try requireObservationAttempt(actual); try actual.requireCheckedSettlement()
+            try node.consumeControlRow(row, observation: actual, window: window)
+            storage.consumedRow = row; storage.state = .rowConsumed
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    /// Actual entered Window calls this ONLY after same Node's checked close,
+    /// returned backing-alias consumer and same real policy/control row slots.
+    func releaseAfterCheckedReadNode(node: ColdEraseScratchNotificationReadNodeV1,
+        window: ColdEraseScratchNotificationReadWindowV1,
+        observation: ColdEraseScratchNotificationControlPolicyObservationV1) throws {
+        do {
+            guard storage.node === node, storage.window === window, storage.observation === observation,
+                  storage.state == .rowConsumed, let row = storage.consumedRow else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            try node.requireConsumedControlRow(row, observation: observation, window: window)
+            try observation.requireCheckedSettlement()
+            storage.state = .rowClosed
+            try observation.releaseConsumedScope(self)
+            storage.releasedObservationIdentity = ObjectIdentifier(observation)
+            storage.observation = nil; storage.node = nil; storage.window = nil
+            storage.consumedRow = nil; storage.state = .released
+        } catch { poisonOnUncertainObservation(); throw error }
+    }
+    func requireConsumedObservationAttempt(_ actual: ColdEraseScratchNotificationControlPolicyObservationV1) throws {
+        guard storage.state == .rowClosed, storage.observation === actual,
+              actual.scopeIdentity == ObjectIdentifier(self), actual.operationID == operationID,
+              let row = storage.consumedRow, let node = storage.node, let window = storage.window else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try node.requireConsumedControlRow(row, observation: actual, window: window)
+    }
+    /// Positive producer memory after the real row helper discharged the
+    /// strong cycle. Callers still retain/pass the SAME true objects; neither
+    /// weak disappearance nor these identity scalars issue resource authority.
+    func requireCheckedRowRelease(node: ColdEraseScratchNotificationReadNodeV1,
+        window: ColdEraseScratchNotificationReadWindowV1,
+        observation: ColdEraseScratchNotificationControlPolicyObservationV1) throws {
+        guard storage.state == .released, storage.window == nil, storage.node == nil,
+              storage.observation == nil, storage.consumedRow == nil,
+              storage.windowIdentity == ObjectIdentifier(window), storage.nodeIdentity == ObjectIdentifier(node),
+              storage.releasedObservationIdentity == ObjectIdentifier(observation),
+              operationID == window.operationID, operationID == node.operationID,
+              observation.scopeIdentity == ObjectIdentifier(self), observation.operationID == operationID else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+        try observation.requireCheckedSettlement()
+    }
+    func retainUncertainDescriptor(_ descriptor: Int32) {
+        if storage.uncertainDescriptor == nil { storage.uncertainDescriptor = descriptor }
+        else { storage.overflowDescriptor = descriptor }
+        poisonOnUncertainObservation()
+    }
+    func poisonOnUncertainObservation() {
+        storage.state = .uncertain
+        storage.window?.poisonControlPolicyScope(self, node: storage.node)
+    }
+}
+
+/// Exact complete-field operands derived from the scanner's real typed slots
+/// before any result array/dictionary/Snapshot allocation. Source roles and
+/// counts are DATA, never observation or effect permission.
+@MainActor struct ColdEraseScratchNotificationSnapshotMaterializationProfileV1: Equatable {
+    private struct Storage: Equatable, Sendable {
+        let windowIdentity: ObjectIdentifier
+        let operationID: UUID
+        let start: Int, end: Int
+        var supportNameCount: UInt64 = 0, supportNameUTF8Bytes: UInt64 = 0
+        var supportTreeCount: UInt64 = 0, supportTreeKeyUTF8Bytes: UInt64 = 0
+        var operationsChildCount: UInt64 = 0, operationsChildKeyUTF8Bytes: UInt64 = 0
+        var ingressControlCount: UInt64 = 0, ingressPathUTF8Bytes: UInt64 = 0
+        var notificationControlCount: UInt64 = 0, notificationPathUTF8Bytes: UInt64 = 0
+        var factUTF8Bytes: UInt64 = 0, digestUTF8Bytes: UInt64 = 0, policyStringUTF8Bytes: UInt64 = 0
+        var stringCount: UInt64 = 0
+        var fieldMask: UInt16 = 0
+        var ingressPresent = false, notificationPresent = false
+        let simultaneousResultCount: UInt64 = 2
+    }
+    private let storage: Storage
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.storage == rhs.storage }
+    static func implementedStoredBackingBytes() -> UInt64 { UInt64(MemoryLayout<Storage>.stride) }
+    fileprivate var start: Int { storage.start }
+    fileprivate var end: Int { storage.end }
+    fileprivate var supportNameCount: Int { Int(storage.supportNameCount) }
+    fileprivate var supportTreeCount: Int { Int(storage.supportTreeCount) }
+    fileprivate var operationsChildCount: Int { Int(storage.operationsChildCount) }
+    fileprivate var ingressControlCount: Int { Int(storage.ingressControlCount) }
+    fileprivate var notificationControlCount: Int { Int(storage.notificationControlCount) }
+    fileprivate var ingressPresent: Bool { storage.ingressPresent }
+    fileprivate var notificationPresent: Bool { storage.notificationPresent }
+    fileprivate static func make(window: ColdEraseScratchNotificationReadWindowV1, start: Int, end: Int) throws -> Self {
+        guard start >= 0, end > start, end <= window.snapshotSlotCount else { throw EraseAllServiceError.invalidAuthority }
+        var actual = Storage(windowIdentity: ObjectIdentifier(window), operationID: window.operationID, start: start, end: end)
+        func add(_ lhs: inout UInt64, _ rhs: UInt64) throws { lhs = try ColdEraseControlBinaryV1.adding(lhs, rhs) }
+        func string(_ value: String, _ role: UInt8) throws {
+            let count = UInt64(value.utf8.count)
+            try add(&actual.stringCount, 1)
+            switch role {
+            case 0: try add(&actual.supportNameUTF8Bytes, count)
+            case 1: try add(&actual.supportTreeKeyUTF8Bytes, count)
+            case 2: try add(&actual.operationsChildKeyUTF8Bytes, count)
+            case 3: try add(&actual.ingressPathUTF8Bytes, count)
+            case 4: try add(&actual.notificationPathUTF8Bytes, count)
+            case 5: try add(&actual.factUTF8Bytes, count)
+            case 6: try add(&actual.digestUTF8Bytes, count)
+            case 7: try add(&actual.policyStringUTF8Bytes, count)
+            default: throw EraseAllServiceError.invalidAuthority
+            }
+        }
+        func field(_ bit: UInt16) throws {
+            guard actual.fieldMask & bit == 0 else { throw EraseAllServiceError.invalidAuthority }
+            actual.fieldMask |= bit
+        }
+        func tree(_ value: EraseSchema2ColdAuxiliaryFirstObserverV1.Tree) throws {
+            if case .present(let fact, let digest) = value {
+                guard fact.utf8.count <= 241, digest.utf8.count == 64 else { throw EraseAllServiceError.invalidAuthority }
+                try string(fact, 5); try string(digest, 6)
+            }
+        }
+        func row(_ value: EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode, ingress: Bool) throws {
+            guard value.path.utf8.count <= 16_639, value.fullFact.utf8.count <= 241,
+                  value.policy.backupExcluded == true,
+                  value.policy.state == .strictComplete || value.policy.state == .pendingSimulatorRequest else {
+                throw EraseAllServiceError.invalidAuthority
+            }
+            if ingress { try add(&actual.ingressControlCount, 1); try string(value.path, 3) }
+            else { try add(&actual.notificationControlCount, 1); try string(value.path, 4) }
+            try string(value.fullFact, 5)
+            try string(value.policy.state.rawValue, 7)
+            try string(value.policy.urlProtection, 7)
+            try string(value.policy.fileManagerProtection, 7)
+            if let digest = value.contentSHA256 {
+                guard digest.utf8.count == 64 else { throw EraseAllServiceError.invalidAuthority }
+                try string(digest, 6)
+            }
+        }
+        for ordinal in start..<end {
+            try window.withSnapshotSlot(at: ordinal) { slot in
+                switch slot {
+                case .name(let value):
+                    guard value.utf8.count <= 255 else { throw EraseAllServiceError.invalidAuthority }
+                    try add(&actual.supportNameCount, 1); try string(value, 0)
+                case .supportTree(let key, let value):
+                    guard key.utf8.count <= 255 else { throw EraseAllServiceError.invalidAuthority }
+                    try add(&actual.supportTreeCount, 1); try string(key, 1); try tree(value)
+                case .child(let key, let value):
+                    guard key.utf8.count <= 255 else { throw EraseAllServiceError.invalidAuthority }
+                    try add(&actual.operationsChildCount, 1); try string(key, 2)
+                    switch value {
+                    case .directory(let fact, let digest), .regular(let fact, let digest):
+                        guard fact.utf8.count <= 241, digest.utf8.count == 64 else { throw EraseAllServiceError.invalidAuthority }
+                        try string(fact, 5); try string(digest, 6)
+                    }
+                case .ingressControl(let value): try row(value, ingress: true)
+                case .notificationControl(let value): try row(value, ingress: false)
+                case .supportIdentity(_, let fact): try field(1); guard fact.utf8.count <= 241 else { throw EraseAllServiceError.invalidAuthority }; try string(fact, 5)
+                case .cacheIdentity: try field(2)
+                case .temporaryIdentity: try field(4)
+                case .operations(let value): try field(8); try tree(value)
+                case .ingressPresence(let value): try field(16); actual.ingressPresent = value
+                case .notificationPresence(let value): try field(32); actual.notificationPresent = value
+                case .notificationStableDigest(let value):
+                    try field(64)
+                    if let value { guard value.utf8.count == 64 else { throw EraseAllServiceError.invalidAuthority }; try string(value, 6) }
+                case .cacheTree(let value): try field(128); try tree(value)
+                case .temporaryTree(let value): try field(256); try tree(value)
+                case .control, .checkedNode, .policy: break // real source-owner slots stay separately Native charged
+                case .tree: throw EraseAllServiceError.invalidAuthority // no anonymous field role can issue a Snapshot
+                }
+            }
+        }
+        guard actual.fieldMask == 511, actual.supportNameCount <= 9,
+              actual.supportTreeCount == 6, actual.operationsChildCount <= 100_000,
+              actual.ingressControlCount <= 100_000, actual.notificationControlCount <= 11,
+              actual.ingressPresent == (actual.ingressControlCount > 0),
+              actual.notificationPresent == (actual.notificationControlCount > 0) else { throw EraseAllServiceError.invalidAuthority }
+        return Self(storage: actual)
+    }
+    func requireCurrentSlotBinding(window: ColdEraseScratchNotificationReadWindowV1) throws {
+        guard storage.windowIdentity == ObjectIdentifier(window), storage.operationID == window.operationID,
+              try Self.make(window: window, start: storage.start, end: storage.end) == self else {
+            throw EraseAllServiceError.invalidAuthority
+        }
+    }
+    /// Declared fixed fields, logical elements and UTF8 payload, including
+    /// constructor/returned-result overlap. Swift/Foundation/allocator bucket
+    /// headers, COW implementation, URL/Error internals and VM are unmeasured.
+    func requiredMaterializationBytes() throws -> UInt64 {
+        var total = UInt64(MemoryLayout<Storage>.stride)
+        func add(_ value: UInt64) throws { total = try ColdEraseControlBinaryV1.adding(total, value) }
+        func multiply(_ count: UInt64, _ stride: Int) throws {
+            let value = count.multipliedReportingOverflow(by: UInt64(stride))
+            guard !value.overflow else { throw EraseAllServiceError.invalidAuthority }; try add(value.partialValue)
+        }
+        try add(ColdEraseScratchNotificationSnapshotResultV1.implementedStoredBackingBytes())
+        try add(UInt64(MemoryLayout<EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot>.stride))
+        try multiply(storage.supportNameCount, MemoryLayout<String>.stride)
+        try multiply(storage.supportTreeCount, MemoryLayout<(String, EraseSchema2ColdAuxiliaryFirstObserverV1.Tree)>.stride)
+        try multiply(storage.operationsChildCount, MemoryLayout<(String, EraseSchema2ColdAuxiliaryFirstObserverV1.OperationsChild)>.stride)
+        try multiply(try ColdEraseControlBinaryV1.adding(storage.ingressControlCount, storage.notificationControlCount),
+            MemoryLayout<EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode>.stride)
+        try multiply(storage.stringCount, MemoryLayout<String>.stride)
+        try add(storage.supportNameUTF8Bytes); try add(storage.supportTreeKeyUTF8Bytes)
+        try add(storage.operationsChildKeyUTF8Bytes); try add(storage.ingressPathUTF8Bytes)
+        try add(storage.notificationPathUTF8Bytes); try add(storage.factUTF8Bytes)
+        try add(storage.digestUTF8Bytes); try add(storage.policyStringUTF8Bytes)
+        let overlap = total.multipliedReportingOverflow(by: storage.simultaneousResultCount)
+        guard !overlap.overflow else { throw EraseAllServiceError.invalidAuthority }
+        return overlap.partialValue
+    }
+}
+
+/// The real complete Snapshot result. Native retains this owner before its
+/// arrays/dictionaries or Snapshot are built; uncertain results retain actual
+/// partial fields, source profile and error. No deinit silently settles them.
+@MainActor final class ColdEraseScratchNotificationSnapshotResultV1 {
+    private enum State { case reserved, building, returned, uncertain }
+    private struct Storage {
+        let window: ColdEraseScratchNotificationReadWindowV1
+        let operationID: UUID
+        let constructionProfile: ColdEraseScratchNotificationSnapshotMaterializationProfileV1
+        var state: State = .reserved
+        var snapshot: EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot?
+        var actualMaterializationBytes: UInt64 = 0
+        var retainedFailure: Error?
+        var supportNames: [String] = []
+        var supportTrees: [String: EraseSchema2ColdAuxiliaryFirstObserverV1.Tree] = [:]
+        var operationsChildren: [String: EraseSchema2ColdAuxiliaryFirstObserverV1.OperationsChild] = [:]
+        var ingress: [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode] = []
+        var notification: [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode] = []
+    }
+    private var storage: Storage
+    private init(window: ColdEraseScratchNotificationReadWindowV1,
+        profile: ColdEraseScratchNotificationSnapshotMaterializationProfileV1) {
+        storage = Storage(window: window, operationID: window.operationID, constructionProfile: profile)
+    }
+    static func implementedStoredBackingBytes() -> UInt64 { UInt64(MemoryLayout<Storage>.stride) }
+    func requireReservationAssociation(window: ColdEraseScratchNotificationReadWindowV1,
+        profile: ColdEraseScratchNotificationSnapshotMaterializationProfileV1) throws {
+        guard storage.window === window, storage.operationID == window.operationID,
+              storage.constructionProfile == profile, storage.state != .uncertain else { throw EraseAllServiceError.invalidAuthority }
+    }
+    fileprivate static func make(window: ColdEraseScratchNotificationReadWindowV1,
+        start: Int, end: Int) throws -> Self {
+        let profile = try ColdEraseScratchNotificationSnapshotMaterializationProfileV1.make(window: window, start: start, end: end)
+        try window.requireSnapshotResultConstructionCapacity(profile: profile)
+        let actual = Self(window: window, profile: profile)
+        try window.retainSnapshotResult(actual, profile: profile) // BEFORE real materialization allocations
+        do {
+            try actual.build()
+            try window.recordReturnedSnapshotResult(actual)
+            return actual
+        } catch {
+            actual.storage.retainedFailure = error; actual.storage.state = .uncertain
+            window.poisonSnapshotMaterialization(); throw error
+        }
+    }
+    private func build() throws {
+        guard storage.state == .reserved else { throw EraseAllServiceError.invalidAuthority }
+        let profile = storage.constructionProfile, window = storage.window
+        try profile.requireCurrentSlotBinding(window: window)
+        storage.actualMaterializationBytes = try profile.requiredMaterializationBytes(); storage.state = .building
+        storage.supportNames.reserveCapacity(profile.supportNameCount)
+        storage.supportTrees.reserveCapacity(profile.supportTreeCount)
+        storage.operationsChildren.reserveCapacity(profile.operationsChildCount)
+        storage.ingress.reserveCapacity(profile.ingressControlCount)
+        storage.notification.reserveCapacity(profile.notificationControlCount)
+        var support: EraseSchema2ColdAuxiliaryFirstObserverV1.ParentIdentity?
+        var caches: EraseSchema2ColdAuxiliaryFirstObserverV1.ParentIdentity?
+        var temporary: EraseSchema2ColdAuxiliaryFirstObserverV1.ParentIdentity?
+        var supportFact: String?, operations: EraseSchema2ColdAuxiliaryFirstObserverV1.Tree?
+        var cacheTree: EraseSchema2ColdAuxiliaryFirstObserverV1.Tree?, temporaryTree: EraseSchema2ColdAuxiliaryFirstObserverV1.Tree?
+        var stable: String?
+        for ordinal in profile.start..<profile.end {
+            try window.withSnapshotSlot(at: ordinal) { slot in
+                switch slot {
+                case .name(let value): storage.supportNames.append(value)
+                case .supportTree(let key, let value):
+                    guard storage.supportTrees.updateValue(value, forKey: key) == nil else { throw EraseAllServiceError.invalidAuthority }
+                case .child(let key, let value):
+                    guard storage.operationsChildren.updateValue(value, forKey: key) == nil else { throw EraseAllServiceError.invalidAuthority }
+                case .ingressControl(let value): storage.ingress.append(value)
+                case .notificationControl(let value): storage.notification.append(value)
+                case .supportIdentity(let value, let fact): support = value; supportFact = fact
+                case .cacheIdentity(let value): caches = value
+                case .temporaryIdentity(let value): temporary = value
+                case .operations(let value): operations = value
+                case .cacheTree(let value): cacheTree = value
+                case .temporaryTree(let value): temporaryTree = value
+                case .notificationStableDigest(let value): stable = value
+                case .ingressPresence, .notificationPresence, .control, .checkedNode, .policy: break
+                case .tree: throw EraseAllServiceError.invalidAuthority
+                }
+            }
+        }
+        storage.ingress.sort { $0.path.utf8.lexicographicallyPrecedes($1.path.utf8) }
+        storage.notification.sort { $0.path.utf8.lexicographicallyPrecedes($1.path.utf8) }
+        func requireUnique(_ rows: [EraseSchema2ColdAuxiliaryFirstObserverV1.ControlNode]) throws {
+            if rows.count > 1 {
+                for ordinal in 1..<rows.count {
+                    guard rows[ordinal - 1].path != rows[ordinal].path else { throw EraseAllServiceError.invalidAuthority }
+                }
+            }
+        }
+        try requireUnique(storage.ingress); try requireUnique(storage.notification)
+        guard let support, let caches, let temporary, let supportFact, let operations, let cacheTree, let temporaryTree,
+              storage.supportNames.count == profile.supportNameCount,
+              storage.supportTrees.count == profile.supportTreeCount,
+              storage.operationsChildren.count == profile.operationsChildCount,
+              storage.ingress.count == profile.ingressControlCount, storage.notification.count == profile.notificationControlCount,
+              storage.supportNames == storage.supportNames.sorted(),
+              Set(storage.supportNames).count == storage.supportNames.count,
+              profile.notificationPresent == (stable != nil) else { throw EraseAllServiceError.invalidAuthority }
+        storage.snapshot = .init(supportIdentity: support, cacheIdentity: caches, temporaryIdentity: temporary,
+            supportFact: supportFact, supportNames: storage.supportNames, supportTrees: storage.supportTrees,
+            operations: operations, operationsChildren: storage.operationsChildren,
+            ingressControlNodes: profile.ingressPresent ? storage.ingress : nil,
+            notificationControlNodes: profile.notificationPresent ? storage.notification : nil,
+            notificationControlStableDigest: stable, cacheTree: cacheTree, temporaryTree: temporaryTree)
+        try profile.requireCurrentSlotBinding(window: window)
+        storage.state = .returned
+    }
+    func requireReturnedSnapshot() throws -> EraseSchema2ColdAuxiliaryFirstObserverV1.Snapshot {
+        guard storage.state == .returned, storage.retainedFailure == nil,
+              storage.actualMaterializationBytes == (try storage.constructionProfile.requiredMaterializationBytes()),
+              let snapshot = storage.snapshot else { throw EraseAllServiceError.invalidAuthority }
+        return snapshot
+    }
+}
+// COLD_NOTIFICATION_CONTROL_POLICY_SCOPE_COMPONENT_V1_END

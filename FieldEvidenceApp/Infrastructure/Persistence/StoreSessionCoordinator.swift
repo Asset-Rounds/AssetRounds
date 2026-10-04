@@ -191,6 +191,8 @@ final class StoreSessionCoordinator: ObservableObject {
     let lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1
     private var writerLeaseHandle: GenerationLeaseHandleV1
     private var writerFence: StaleWriterFenceV1
+    private var completedSessionLifetimeOwner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1?
+    private var completedSessionEraseProjection: ColdEraseSchema2CompletedSessionEraseProjectionV1?
     private(set) var workspaceWriter: WorkspaceWriterV1
     private(set) var searchIndexStore: LocalSearchIndexStoreV1
     private(set) var searchServices: ProductionSearchServicesV1
@@ -791,6 +793,10 @@ final class StoreSessionCoordinator: ObservableObject {
         // Revocation is not completion of an awaited byte write. Keep the
         // physical writer lease until every real producer has settled.
         try requireTemporalOwnerIdle()
+        if let owner = completedSessionLifetimeOwner {
+            try owner.closeCurrentCompletedSessionBeforePhysicalWriterRelease(coordinator: self,
+                writer: workspaceWriter)
+        }
         workspaceWriter.invalidate()
         try writerLeaseHandle.close()
     }
@@ -1781,6 +1787,16 @@ final class StoreSessionCoordinator: ObservableObject {
             oldWriter: writerLeaseHandle, targetWriter: targetHandle)
         try exclusion.physicalRoot.revalidate(
             applicationSupportURL: Self.applicationSupportURL(for: session))
+        let completedProjection: ColdEraseSchema2CompletedSessionEraseProjectionV1?
+        if let owner = completedSessionLifetimeOwner {
+            completedProjection = try owner.retainCompletedSessionEraseProjectionBeforeCoordinatorReplacement(
+                coordinator: self, originalSession: self.session, originalWriter: workspaceWriter,
+                originalHandle: writerLeaseHandle, originalFence: writerFence,
+                targetSession: targetSession, targetWriter: targetWriter, targetHandle: targetHandle,
+                targetFence: targetFence, factory: targetFactory, operation: operation,
+                exclusion: exclusion, allocation: allocation)
+            completedSessionEraseProjection = completedProjection // retain actual return before later throw
+        } else { completedProjection = nil }
         try operation.recordOriginalEraseWriterTransitionProjected(
             registry: registry, activity: exclusion.activity,
             targetAllocation: allocation)
@@ -1797,6 +1813,8 @@ final class StoreSessionCoordinator: ObservableObject {
         workspaceWriter = targetWriter
         erasePreparationInstallation = ErasePreparationInstallation(
             operation: operation, allocation: allocation)
+        completedProjection?.recordActualCoordinatorReplacement(coordinator: self,
+            session: targetSession, writer: targetWriter, writerHandle: targetHandle, fence: targetFence)
         exclusion.recordOriginalEraseTargetWriterProjection(
             targetWriter: targetHandle, constructedWriter: targetWriter)
         registerTemporalOwner()
@@ -1956,7 +1974,8 @@ final class StoreSessionCoordinator: ObservableObject {
         registry: GenerationLeaseRegistryV1, leaseHandle: GenerationLeaseHandleV1,
         mutationJournalFailureInjection: MutationJournalFailureInjectionV1?,
         diagnoseOriginalErase: Bool = false,
-        originalEraseRecovery: OriginalEraseWriterRecoveryOwner? = nil
+        originalEraseRecovery: OriginalEraseWriterRecoveryOwner? = nil,
+        completedSchema2StartupOwner: ColdEraseSchema2CompletedStartupOwnerV1? = nil
     ) throws -> WriterBinding {
         let writerLeaseToken = leaseHandle.token
 #if DEBUG
@@ -1964,11 +1983,18 @@ final class StoreSessionCoordinator: ObservableObject {
             print("ORIGINAL_ACTIVATION_V1 stage=fence-enter")
         }
 #endif
-        let staleWriterFence = try generationFactory.makeWriterFence(
-            expectedGenerationEpoch: generationEpoch,
-            writerLeaseToken: writerLeaseToken,
-            registry: registry
-        )
+        let staleWriterFence: StaleWriterFenceV1
+        if let owner = completedSchema2StartupOwner {
+            staleWriterFence = try generationFactory.makeWriterFenceForSchema2ColdCompletedStartup(
+                expectedGenerationEpoch: generationEpoch, writerLeaseToken: writerLeaseToken,
+                registry: registry, owner: owner)
+        } else {
+            staleWriterFence = try generationFactory.makeWriterFence(
+                expectedGenerationEpoch: generationEpoch,
+                writerLeaseToken: writerLeaseToken,
+                registry: registry
+            )
+        }
 #if DEBUG
         if diagnoseOriginalErase {
             print("ORIGINAL_ACTIVATION_V1 stage=fence-complete")
@@ -2204,6 +2230,73 @@ final class StoreSessionCoordinator: ObservableObject {
             // must settle after this synchronous frame unwinds before release.
             throw error
         }
+    }
+
+    /// The post-Erase typed allocation shares the sole real writer/fence
+    /// constructor. It never borrows an Original/retirement writer handle.
+    static func makeForSchema2ColdCompletedStartup(session: StoreGenerationSession,
+        generationFactory: StoreGenerationFactory, owner: ColdEraseSchema2CompletedStartupOwnerV1,
+        clock: any ApplicationClock = SystemApplicationClock(),
+        idSource: any ApplicationIDSource = SystemApplicationIDSource(),
+        fileAuthority: any ApplicationFileAuthorityV1 = SystemApplicationFileAuthorityV1(),
+        lifecycleProfileRegistry: WorkspacePackageLifecycleProfileRegistryV1) throws -> StoreSessionCoordinator {
+        try owner.requireWriterConstruction(session: session, factory: generationFactory)
+        guard session.storeSchemaRelease == PersistentSchemaReleaseRegistryV1.activeRelease,
+              let epoch = session.generationEpoch else { throw GenerationLeaseRegistryFailureV1.staleGeneration }
+        let rootIdentity = try ReportPDFAnchoredFile.rootIdentity(at: session.generationRootURL)
+        let registry = try generationFactory.makeGenerationLeaseRegistry()
+        let searchIndexStore = try LocalSearchIndexStoreV1(applicationSupportURL: generationFactory.restoreApplicationSupportURL)
+        let allocation = try registry.makeWriterAllocationAttempt(epoch: epoch)
+        try owner.retainWriterAllocation(allocation)
+        var constructedWriter: WorkspaceWriterV1?
+        do {
+            let handle = try allocation.acquireWriterForSchema2ColdCompletedStartup(owner: owner)
+            let binding = try constructWriter(session: session, clock: clock, idSource: idSource,
+                fileAuthority: fileAuthority, generationFactory: generationFactory,
+                lifecycleProfileRegistry: lifecycleProfileRegistry, generationEpoch: epoch,
+                rootIdentity: rootIdentity, registry: registry, leaseHandle: handle,
+                mutationJournalFailureInjection: nil, completedSchema2StartupOwner: owner)
+            constructedWriter = binding.writer
+            try owner.observeConstructedWriter(binding.writer)
+            let searchServices = try makeSearchServices(session: session, writer: binding.writer, store: searchIndexStore)
+            try owner.requireWriterConstruction(session: session, factory: generationFactory)
+            return StoreSessionCoordinator(session: session, clock: clock, idSource: idSource,
+                fileAuthority: fileAuthority, generationFactory: generationFactory,
+                lifecycleProfileRegistry: lifecycleProfileRegistry, binding: binding,
+                searchIndexStore: searchIndexStore, searchServices: searchServices)
+        } catch {
+            constructedWriter?.invalidate()
+            allocation.sealForRetirement()
+            throw error // exact typed attempt remains with the actual Router owner
+        }
+    }
+
+    func transferCompletedSchema2StartupFenceLifecycle(owner: ColdEraseSchema2CompletedStartupOwnerV1,
+        receiver: ColdEraseSchema2CompletedStartupPublicationReceiverV1) throws {
+        try owner.requireCompletedStartupLeaseOwnershipConsumed(registry: writerFence.retainedTemporalRegistry)
+        try receiver.requireTransferredRegistry(registry: writerFence.retainedTemporalRegistry, owner: owner)
+        try writerFence.transferCompletedStartupPublishedLifecycle(owner: owner, receiver: receiver)
+    }
+
+    /// Pure actual-object association. Live recovery still enters the same
+    /// writer fence through its existing authorized mutation/read engine.
+    func requireCompletedSchema2StartupAssociation(session expectedSession: StoreGenerationSession,
+        writer expectedWriter: WorkspaceWriterV1, writerHandle expectedHandle: GenerationLeaseHandleV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws {
+        guard session === expectedSession, workspaceWriter === expectedWriter,
+              writerLeaseHandle === expectedHandle,
+              generationFactory.sharesRegistryProvider(with: factory),
+              writerFence.retainedTemporalRegistry === registry,
+              writerFence.writerLeaseToken == expectedHandle.token,
+              writerFence.expectedGenerationEpoch == expectedSession.generationEpoch,
+              expectedHandle.token.role == .writer,
+              expectedHandle.token.epoch == expectedSession.generationEpoch,
+              expectedHandle.token.ownerID == registry.ownerID,
+              generationID == expectedSession.generationID,
+              workspaceIdentity == expectedSession.workspaceIdentity else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try expectedHandle.requireExactRegistry(registry)
     }
 
     /// Restore creates B through its actual opening provider after A's writer
@@ -2631,6 +2724,19 @@ final class StoreTemporalNormalizationExclusionV1 {
         owner != nil && registry === expectedRegistry
             && activity === expectedActivity
             && retainedWriter == expectedWriter
+    }
+
+    /// Pure SAME retained EX DATA. The caller separately proves its actual
+    /// original-Erase projection; this accessor does not reenter G, perform
+    /// an ordinary writer census, acquire a handle or authorize IO.
+    func requireRetainedCurrentOriginalEraseActivity(
+        coordinator: StoreSessionCoordinator,
+        registry expectedRegistry: GenerationLeaseRegistryV1
+    ) throws -> GenerationTemporalActivityHandleV1 {
+        guard owner === coordinator, registry === expectedRegistry else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return activity
     }
 
     /// Pure identity check for a Registry caller that already holds G. It
@@ -5023,6 +5129,10 @@ final class StoreTemporalPhysicalRootExclusionV1 {
     private var descriptor: Int32
     private var checkedCloseUncertain = false
     private var uncertainCloseDescriptor: Int32?
+    private var coldTerminalUnlockResult: Int32?
+    private var coldTerminalUnlockErrno: Int32?
+    private var coldTerminalCloseResult: Int32?
+    private var coldTerminalCloseErrno: Int32?
     private weak var retainedOriginalRecoveryBorrowOwner:
         StoreOriginalEraseRecoveryPreOpenOwnerV1?
 
@@ -5253,6 +5363,41 @@ final class StoreTemporalPhysicalRootExclusionV1 {
             // A close error can leave descriptor ownership ambiguous. Do not
             // retry a possibly reused integer or report successful release.
             checkedCloseUncertain = true
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// Distinct cold terminal close. Latch and detach before either syscall;
+    /// a failed unlock or close leaves its original descriptor retained as
+    /// uncertainty and deinit cannot retry a potentially reused integer.
+    fileprivate func closeColdTerminalAfterNamespaceRemovalChecked() throws {
+        guard coldAcquisition, coldLockHeld, coldIdentityCaptured,
+              descriptor >= 0, !checkedCloseUncertain, uncertainCloseDescriptor == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireOperationsAbsent()
+        let owned = descriptor
+        descriptor = -1
+        uncertainCloseDescriptor = owned
+        checkedCloseUncertain = true
+        let unlock = flock(owned, LOCK_UN)
+        let unlockErrno = errno
+        coldTerminalUnlockResult = unlock; coldTerminalUnlockErrno = unlockErrno
+        guard unlock == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        coldLockHeld = false
+        let closed = Darwin.close(owned)
+        let closeErrno = errno
+        coldTerminalCloseResult = closed; coldTerminalCloseErrno = closeErrno
+        guard closed == 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        uncertainCloseDescriptor = nil
+        checkedCloseUncertain = false
+    }
+
+    fileprivate func requireColdTerminalCheckedClosed() throws {
+        guard coldAcquisition, coldIdentityCaptured, !coldLockHeld,
+              descriptor < 0, !checkedCloseUncertain, uncertainCloseDescriptor == nil,
+              coldTerminalUnlockResult == 0, coldTerminalCloseResult == 0,
+              coldTerminalUnlockErrno != nil, coldTerminalCloseErrno != nil else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
     }
@@ -5889,10 +6034,103 @@ final class EraseSchema2ColdPhysicalExclusionV1 {
     private weak var operation: EraseColdPreparationOperationV1?
     private let applicationSupportURL: URL
     private enum Phase: Equatable {
-        case registered, acquiring, held, uncertain, closed
+        case registered, acquiring, held, transferred, uncertain, closed
     }
     private var phase: Phase = .registered
     private var root: StoreTemporalPhysicalRootExclusionV1?
+    private var scratchBorrowedParents: ColdEraseScratchBorrowedParentsV1?
+    private weak var transferredRetirement: EraseRetirementExclusionV1?
+
+    func transferToColdPostGenerationRetirement(binding: EraseRetirementBindingV1,
+        drain: EraseSessionDrainWitnessV1, registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        operation expected: EraseColdPreparationOperationV1)
+        throws -> EraseRetirementExclusionV1 {
+        guard phase == .held, operation === expected, let actualRoot = root,
+              transferredRetirement == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try expected.requireColdSchema2ExclusionTransferAdmission(original: self,
+            binding: binding, drain: drain, registry: registry, activity: activity)
+        try drain.requireDrained(binding: binding)
+        try actualRoot.requireEraseSupport(binding.subject)
+        if let scratchBorrowedParents { try scratchBorrowedParents.requireCheckedRevoked() }
+        // Consume this wrapper before the same handles enter their successor.
+        // Failure close and ordinary requireHeld are now permanently disabled.
+        phase = .transferred
+        root = nil
+        let successor = EraseRetirementExclusionV1(schema2ColdBinding: binding,
+            drain: drain, registry: registry, activity: activity,
+            physicalRoot: actualRoot, original: self, operation: expected)
+        transferredRetirement = successor
+        try expected.retainColdSchema2TransferredExclusion(successor, original: self,
+            binding: binding, drain: drain, registry: registry, activity: activity)
+        try successor.requireSupport(binding: binding)
+        return successor
+    }
+
+    fileprivate func requireTransferredColdBinding(_ successor: EraseRetirementExclusionV1,
+        operation expected: EraseColdPreparationOperationV1) throws {
+        guard phase == .transferred, root == nil, operation === expected,
+              transferredRetirement === successor else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+
+    /// Lend the same actual held EX and retained Manifest parents. This entry
+    /// neither acquires a lock nor copies authority from descriptor integers.
+    func withColdScratchBorrowedParents<Value>(
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        projection: EraseSchema2ColdPostGenerationProjectionV1,
+        store: EraseIntentStore, operation: EraseColdPreparationOperationV1,
+        scope: ColdEraseScratchCleanupHeldGScopeV1,
+        _ body: (ColdEraseScratchBorrowedParentsV1) throws -> Value) throws -> Value {
+        guard phase == .held, self.operation === operation,
+              scratchBorrowedParents == nil, let root else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try scope.requireOrigin(operation: operation, store: store)
+        try scope.requireHeld()
+        try root.requireSchema2ColdSupport(device: projection.supportFact.device,
+            inode: projection.supportFact.inode)
+        return try root.withOriginalEraseRecoverySupport(at: applicationSupportURL) { support in
+            try manifest.withColdScratchRetainedParents(projection: projection,
+                store: store, operation: operation, scope: scope) { caches, temporary, operations in
+                let loan = ColdEraseScratchBorrowedParentsV1(exclusion: self,
+                    manifest: manifest, operation: operation, scope: scope,
+                    support: support, caches: caches, temporary: temporary,
+                    operations: operations, supportFact: projection.supportFact)
+                scratchBorrowedParents = loan // before any helper capture/IO
+                try operation.retainColdScratchBorrowedParents(loan, scope: scope)
+                do {
+                    try loan.requireBound(operation: operation, scope: scope)
+                    let value = try body(loan)
+                    try loan.requireBound(operation: operation, scope: scope)
+                    try operation.requireColdScratchBorrowedParentsSettled(loan)
+                    loan.revokeChecked()
+                    return value
+                } catch {
+                    loan.poison()
+                    operation.poisonColdScratchOwner()
+                    throw error
+                }
+            }
+        }
+    }
+
+    fileprivate func requireColdScratchBorrowedParents(
+        _ loan: ColdEraseScratchBorrowedParentsV1,
+        operation: EraseColdPreparationOperationV1,
+        scope: ColdEraseScratchCleanupHeldGScopeV1,
+        supportFact: EraseColdControlLeafFactV1) throws {
+        guard phase == .held, self.operation === operation,
+              scratchBorrowedParents === loan, let root else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try scope.requireNonrecursiveCurrentFrame()
+        try root.requireSchema2ColdSupport(device: supportFact.device,
+            inode: supportFact.inode)
+    }
 
     init(applicationSupportURL: URL,
          operation: EraseColdPreparationOperationV1) throws {
@@ -5960,6 +6198,72 @@ final class EraseSchema2ColdPhysicalExclusionV1 {
         phase = .uncertain
         try root.closeCheckedAfterNamespaceRemoval()
         phase = .closed
+    }
+}
+
+
+/// Actual same-EX descriptor loan, privately issued by the physical owner.
+/// No parent FD is owned by this object; its only effect is permanent lexical
+/// fencing. All opened children belong to retained checked engine resources.
+@MainActor final class ColdEraseScratchBorrowedParentsV1 {
+    let support: Int32
+    let caches: Int32
+    let temporary: Int32
+    let operations: Int32
+    private enum State: Equatable { case active, revoked, uncertain }
+    private var state: State = .active
+    private let exclusion: EraseSchema2ColdPhysicalExclusionV1
+    private let manifest: EraseSchema2ColdManifestOwnerV1
+    private weak var operation: EraseColdPreparationOperationV1?
+    private let scope: ColdEraseScratchCleanupHeldGScopeV1
+    private let supportFact: EraseColdControlLeafFactV1
+
+    fileprivate init(exclusion: EraseSchema2ColdPhysicalExclusionV1,
+        manifest: EraseSchema2ColdManifestOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        scope: ColdEraseScratchCleanupHeldGScopeV1,
+        support: Int32, caches: Int32, temporary: Int32,
+        operations: Int32, supportFact: EraseColdControlLeafFactV1) {
+        self.exclusion = exclusion; self.manifest = manifest
+        self.operation = operation; self.scope = scope
+        self.support = support; self.caches = caches
+        self.temporary = temporary; self.operations = operations
+        self.supportFact = supportFact
+    }
+
+    func requireBound(operation: EraseColdPreparationOperationV1,
+        scope: ColdEraseScratchCleanupHeldGScopeV1) throws {
+        do {
+            guard state == .active, self.operation === operation, self.scope === scope else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try operation.requireColdScratchBorrowedParents(self, scope: scope)
+            try exclusion.requireColdScratchBorrowedParents(self, operation: operation,
+                scope: scope, supportFact: supportFact)
+            try manifest.requireColdScratchRetainedParents(support: support,
+                caches: caches, temporary: temporary, operations: operations,
+                operation: operation, scope: scope)
+            try scope.requireNonrecursiveCurrentFrame()
+        } catch { poison(); throw error }
+    }
+
+    fileprivate func revokeChecked() { state = .revoked }
+    fileprivate func requireCheckedRevoked() throws {
+        guard state == .revoked else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+    }
+    /// Revocation is a one-way lexical fence. This join uses the actual retained
+    /// loan and owner identities; revoked parent descriptors are never re-read.
+    func requireCheckedColdScratchLoanRevoked(
+        operation: EraseColdPreparationOperationV1,
+        scope: ColdEraseScratchCleanupHeldGScopeV1) throws {
+        guard state == .revoked, self.operation === operation, self.scope === scope else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+    fileprivate func poison() {
+        state = .uncertain
+        operation?.poisonColdScratchOwner()
+        scope.poisonOnUncertainCleanup()
     }
 }
 
@@ -6154,6 +6458,11 @@ final class EraseRetirementExclusionV1 {
     private var released = false
     private var retirementStarted = false
     private var coldFailureClosing = false
+    private weak var schema2ColdOriginal: EraseSchema2ColdPhysicalExclusionV1?
+    private weak var schema2ColdOperation: EraseColdPreparationOperationV1?
+    private var isSchema2ColdTransfer = false
+    private var coldTerminalReleaseStarted = false
+    private weak var coldTerminalReleaseProof: ColdEraseSchema2TerminalReleaseProofV1?
 #if DEBUG
     private var postRetiredColdClosed = false
 #endif
@@ -6175,6 +6484,18 @@ final class EraseRetirementExclusionV1 {
         self.binding = binding; self.drain = drain; writer = .absentAtColdAdmission
         self.registry = registry; self.activity = activity; self.physicalRoot = physicalRoot
     }
+
+    fileprivate init(schema2ColdBinding binding: EraseRetirementBindingV1,
+        drain: EraseSessionDrainWitnessV1, registry: GenerationLeaseRegistryV1,
+        activity: GenerationTemporalActivityHandleV1,
+        physicalRoot: StoreTemporalPhysicalRootExclusionV1,
+        original: EraseSchema2ColdPhysicalExclusionV1,
+        operation: EraseColdPreparationOperationV1) {
+        self.binding = binding; self.drain = drain; writer = .absentAtColdAdmission
+        self.registry = registry; self.activity = activity; self.physicalRoot = physicalRoot
+        schema2ColdOriginal = original; schema2ColdOperation = operation
+        isSchema2ColdTransfer = true
+    }
     /// Exact comparison DATA for a pre-detach retry. This cannot authorize
     /// model drain, resource close, deletion or a second exclusion transfer.
     fileprivate func requireOriginalRecoveryImageTransfer(
@@ -6190,14 +6511,14 @@ final class EraseRetirementExclusionV1 {
         }
     }
     fileprivate func requireColdAcquisitionRetry() throws {
-        guard case .absentAtColdAdmission = writer, !released, !writerClosed, !retirementStarted, !coldFailureClosing,
+        guard !isSchema2ColdTransfer, case .absentAtColdAdmission = writer, !released, !writerClosed, !retirementStarted, !coldFailureClosing,
               closedReaderIDs.isEmpty, closedAllocationIDs.isEmpty else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try requireLiveRegistry(binding: binding)
     }
     fileprivate func closeColdBeforeRetirement() throws {
-        guard case .absentAtColdAdmission = writer, !retirementStarted else {
+        guard !isSchema2ColdTransfer, case .absentAtColdAdmission = writer, !retirementStarted else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         if released { return }
@@ -6211,10 +6532,25 @@ final class EraseRetirementExclusionV1 {
     }
     func requireSupport(binding expected: EraseRetirementBindingV1) throws {
         guard !released, binding == expected else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        if isSchema2ColdTransfer {
+            guard let schema2ColdOperation, let schema2ColdOriginal else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try schema2ColdOriginal.requireTransferredColdBinding(self, operation: schema2ColdOperation)
+            try schema2ColdOperation.requireColdSchema2TransferredExclusion(self,
+                original: schema2ColdOriginal, binding: binding, drain: drain,
+                registry: registry, activity: activity)
+        }
         try physicalRoot.requireEraseSupport(binding.subject)
     }
     func requireLiveRegistry(binding expected: EraseRetirementBindingV1) throws {
         try requireSupport(binding: expected)
+        if isSchema2ColdTransfer {
+            guard let schema2ColdOperation else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            _ = try registry.observeColdSchema2RetirementRegistry(operation: schema2ColdOperation,
+                activity: activity, exclusion: self, binding: binding, witness: drain)
+            return
+        }
         try registry.requireTemporalEraseNamespace(binding.registryIdentity)
         _ = try registry.observeTemporalNormalizationRegistry(activity)
     }
@@ -6250,6 +6586,7 @@ final class EraseRetirementExclusionV1 {
     /// any close; this does not use the stronger close/completion witness gate.
     func requirePostDrainValidation(reader: GenerationLeaseHandleV1,
         proof: EraseSessionDrainWitnessV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard proof === drain, !released, !retirementStarted, !coldFailureClosing,
               !writerClosed, closedReaderIDs.isEmpty, closedAllocationIDs.isEmpty,
               reader.token.role == .reader, reader.token.epoch == binding.generationEpoch else {
@@ -6288,6 +6625,7 @@ final class EraseRetirementExclusionV1 {
 
     func closeAllocationAfterDrain(allocation: GenerationLeaseAllocationAttemptV1,
                                   proof: EraseSessionDrainWitnessV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard proof === drain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         try proof.requireDrained(binding: binding, allocation: allocation)
         try requireLiveRegistry(binding: binding)
@@ -6301,6 +6639,7 @@ final class EraseRetirementExclusionV1 {
         }
     }
     func closeReaderAfterDrain(handle: GenerationLeaseHandleV1, proof: EraseSessionDrainWitnessV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard proof === drain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         try proof.requireDrained(binding: binding, reader: handle)
         try requireLiveRegistry(binding: binding)
@@ -6312,6 +6651,7 @@ final class EraseRetirementExclusionV1 {
         closedReaderIDs.insert(identity)
     }
     func closeWriterAfterDrain(proof: EraseSessionDrainWitnessV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard proof === drain else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         try proof.requireDrained(binding: binding)
         try requireLiveRegistry(binding: binding)
@@ -6329,6 +6669,7 @@ final class EraseRetirementExclusionV1 {
         writerClosed = true
     }
     func requireNoLeasesAfterDrain(proof: EraseSessionDrainWitnessV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard proof === drain, writerClosed,
               drain.capturedAllocations.allSatisfy({ closedAllocationIDs.contains(ObjectIdentifier($0)) }),
               drain.capturedReaders.allSatisfy({ closedReaderIDs.contains(ObjectIdentifier($0)) }) else {
@@ -6345,6 +6686,7 @@ final class EraseRetirementExclusionV1 {
     /// this exact pair and advanced their own monotonic transfer phases.
     func beginManifestTransfer(retirement: ErasedRegistryRetirementProofV1,
         attempt: EraseManifestRetirementAttemptV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard !manifestTransferRegistered, !released, !coldFailureClosing else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
@@ -6362,6 +6704,7 @@ final class EraseRetirementExclusionV1 {
     /// phase and a fresh empty registry are all required independently.
     func requireManifestTransferRetry(retirement: ErasedRegistryRetirementProofV1,
         attempt: EraseManifestRetirementAttemptV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard manifestTransferRegistered, manifestTransferRetirement === retirement,
               manifestTransferAttempt === attempt, !released, !coldFailureClosing,
               writerClosed,
@@ -6379,6 +6722,7 @@ final class EraseRetirementExclusionV1 {
     }
 
     func releaseAfterNamespaceRemoval(binding expected: EraseRetirementBindingV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         try requireSupport(binding: expected)
         guard writerClosed,
               drain.capturedAllocations.allSatisfy({ closedAllocationIDs.contains(ObjectIdentifier($0)) }),
@@ -6392,6 +6736,41 @@ final class EraseRetirementExclusionV1 {
         released = true
     }
 
+    /// Continuous schema-2 EX release has its own genuine terminal proof.
+    /// It cannot enter any Original Manifest/adoption or maintenance wrapper.
+    @MainActor
+    func releaseColdSchema2AfterNamespaceRemoval(proof: ColdEraseSchema2TerminalReleaseProofV1) throws {
+        guard isSchema2ColdTransfer, case .absentAtColdAdmission = writer,
+              !released, !coldFailureClosing, !coldTerminalReleaseStarted,
+              schema2ColdOriginal != nil, schema2ColdOperation != nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try proof.requireBeforeExRelease(exclusion: self, registry: registry,
+            activity: activity, binding: binding, witness: drain)
+        try physicalRoot.requireEraseSupport(binding.subject)
+        try physicalRoot.requireOperationsAbsent()
+        coldTerminalReleaseStarted = true // permanently before activity/EX IO
+        coldTerminalReleaseProof = proof
+        try activity.closeColdSchema2AfterNamespaceRemoval(proof: proof,
+            exclusion: self, binding: binding, witness: drain)
+        try activity.requireColdSchema2TerminalCheckedClosed(proof: proof)
+        try physicalRoot.requireOperationsAbsent()
+        try physicalRoot.closeColdTerminalAfterNamespaceRemovalChecked()
+        try physicalRoot.requireColdTerminalCheckedClosed()
+        released = true
+        try proof.recordCheckedExRelease(exclusion: self)
+    }
+
+    @MainActor
+    func requireColdTerminalReleased(proof: ColdEraseSchema2TerminalReleaseProofV1) throws {
+        guard isSchema2ColdTransfer, released, coldTerminalReleaseStarted,
+              coldTerminalReleaseProof === proof, !coldFailureClosing else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try activity.requireColdSchema2TerminalCheckedClosed(proof: proof)
+        try physicalRoot.requireColdTerminalCheckedClosed()
+    }
+
 #if DEBUG
     /// The old owner guard stays locked on its proved unlinked inode. Only
     /// the activity and support-root EX are checked closed by the existing
@@ -6401,6 +6780,7 @@ final class EraseRetirementExclusionV1 {
     func closeBeforeNamespaceRemovalForTesting(
         proof: ErasedRegistryRetirementProofV1
     ) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard !released, !postRetiredColdClosed,
               proof.binding == binding, writerClosed,
               drain.capturedAllocations.allSatisfy({
@@ -6419,6 +6799,7 @@ final class EraseRetirementExclusionV1 {
         proof: ErasedRegistryRetirementProofV1,
         registry expected: GenerationLeaseRegistryV1
     ) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard proof.binding == binding, registry === expected,
               released, postRetiredColdClosed else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
@@ -6429,6 +6810,7 @@ final class EraseRetirementExclusionV1 {
         proof: ErasedRegistryRetirementProofV1,
         registry expected: GenerationLeaseRegistryV1
     ) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard proof.binding == binding, registry === expected,
               !released, !postRetiredColdClosed else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
@@ -6437,6 +6819,7 @@ final class EraseRetirementExclusionV1 {
     }
 
     func abandonAfterNamespaceRemovalForTesting(binding expected: EraseRetirementBindingV1) throws {
+        guard !isSchema2ColdTransfer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         guard !released, binding == expected else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
@@ -7242,5 +7625,135 @@ extension StoreSessionCoordinator {
         return try exclusion.physicalRoot
             .withHeldOriginalEraseAuxiliarySupport(
                 at: originalEraseAuxiliarySupportURL, body)
+    }
+}
+
+// COMPLETED_SESSION_LIFETIME_COORDINATOR_DATA_V1_BEGIN
+extension StoreSessionCoordinator {
+    func retainCompletedSessionLifetimeOwnerBeforeReadyJoin(
+        _ owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws {
+        guard completedSessionLifetimeOwner == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        completedSessionLifetimeOwner = owner // before all fallible DATA joins
+    }
+    func requireCompletedSessionLifetimeCoordinatorData(
+        _ owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1,
+        session expectedSession: StoreGenerationSession, writer expectedWriter: WorkspaceWriterV1,
+        writerHandle expectedHandle: GenerationLeaseHandleV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws {
+        guard completedSessionLifetimeOwner === owner else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireCompletedSchema2StartupAssociation(session: expectedSession,
+            writer: expectedWriter, writerHandle: expectedHandle, registry: registry, factory: factory)
+    }
+}
+// COMPLETED_SESSION_LIFETIME_COORDINATOR_DATA_V1_END
+
+// COMPLETED_SESSION_CURRENT_COORDINATOR_V1_BEGIN
+extension StoreSessionCoordinator {
+    struct CompletedCurrentSessionComponentsV1 {
+        let session: StoreGenerationSession
+        let writer: WorkspaceWriterV1
+        let writerHandle: GenerationLeaseHandleV1
+        let fence: StaleWriterFenceV1
+        let factory: StoreGenerationFactory
+    }
+    func requireCompletedSessionCurrentCoordinatorComponents(
+        _ owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws -> CompletedCurrentSessionComponentsV1 {
+        try requireCompletedSessionCurrentCoordinatorData(owner, session: session,
+            writer: workspaceWriter, writerHandle: writerLeaseHandle, fence: writerFence,
+            registry: registry, factory: factory)
+        return CompletedCurrentSessionComponentsV1(session: session, writer: workspaceWriter,
+            writerHandle: writerLeaseHandle, fence: writerFence, factory: generationFactory)
+    }
+    func requireCompletedSessionCurrentCoordinatorData(
+        _ owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1,
+        session expectedSession: StoreGenerationSession, writer expectedWriter: WorkspaceWriterV1,
+        writerHandle expectedHandle: GenerationLeaseHandleV1, fence expectedFence: StaleWriterFenceV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws {
+        guard completedSessionLifetimeOwner === owner, session === expectedSession,
+              workspaceWriter === expectedWriter, writerLeaseHandle === expectedHandle,
+              writerFence === expectedFence, writerFence.retainedTemporalRegistry === registry,
+              generationFactory.sharesRegistryProvider(with: factory),
+              generationFactory.restoreApplicationSupportURL == factory.restoreApplicationSupportURL,
+              writerFence.writerLeaseToken == expectedHandle.token,
+              writerFence.expectedGenerationEpoch == expectedSession.generationEpoch,
+              expectedHandle.token.role == .writer, expectedHandle.token.ownerID == registry.ownerID,
+              expectedHandle.token.epoch == expectedSession.generationEpoch,
+              workspaceIdentity == expectedSession.workspaceIdentity,
+              generationID == expectedSession.generationID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // Logical invalidation does not close the physical wrapper. Teardown
+        // proves this SAME wrapper/census until its actual later lease close.
+        try expectedHandle.requireExactRegistry(registry)
+    }
+    func closeCompletedSessionLifetimeBeforeEraseTransfer(operation: EraseRouterOperationV1,
+        exclusion: StoreTemporalNormalizationExclusionV1, binding: EraseRetirementBindingV1,
+        drain: EraseSessionDrainWitnessV1, permit: TemporalNormalizationEraseTransferPermitV1) throws {
+        guard let owner = completedSessionLifetimeOwner else { return } // actual ordinary origin only
+        guard temporalExclusiveOwner === exclusion, exclusion.owner === self,
+              exclusion.writer === workspaceWriter, exclusion.retainedWriter == writerLeaseHandle.token,
+              temporalAdmission == .exclusive(exclusion.id), temporalProducerIDs.isEmpty,
+              temporalDrainWaiters.isEmpty, let installed = erasePreparationInstallation,
+              installed.operation === operation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try owner.closeCurrentCompletedSessionBeforeSelectedEraseTransfer(coordinator: self,
+            operation: operation, exclusion: exclusion, binding: binding, drain: drain, permit: permit)
+    }
+    func requireCompletedSessionEraseProjectionCoordinatorData(
+        _ projection: ColdEraseSchema2CompletedSessionEraseProjectionV1,
+        owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1,
+        operation: EraseRouterOperationV1, allocation: GenerationWriterAllocationAttemptV1,
+        targetSession: StoreGenerationSession, targetWriter: WorkspaceWriterV1,
+        targetHandle: GenerationLeaseHandleV1, targetFence: StaleWriterFenceV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory,
+        exclusion: StoreTemporalNormalizationExclusionV1) throws {
+        guard completedSessionLifetimeOwner === owner, completedSessionEraseProjection === projection,
+              let installed = erasePreparationInstallation, installed.operation === operation,
+              installed.allocation === allocation, session === targetSession,
+              workspaceWriter === targetWriter, writerLeaseHandle === targetHandle,
+              writerFence === targetFence, temporalExclusiveOwner === exclusion,
+              exclusion.owner === self, exclusion.writer === targetWriter,
+              exclusion.registry === registry, exclusion.retainedWriter == targetHandle.token,
+              temporalAdmission == .exclusive(exclusion.id), temporalProducerIDs.isEmpty,
+              temporalDrainWaiters.isEmpty, exclusion.sourceOwner == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try requireCompletedSessionCurrentCoordinatorData(owner, session: targetSession,
+            writer: targetWriter, writerHandle: targetHandle, fence: targetFence,
+            registry: registry, factory: factory)
+    }
+    func completedSessionLifetimeOwnerForCurrentSession() -> ColdEraseSchema2CompletedSessionLifetimeOwnerV1? {
+        completedSessionLifetimeOwner // actual privately retained origin, not an authority check
+    }
+}
+// COMPLETED_SESSION_CURRENT_COORDINATOR_V1_END
+
+extension StoreSessionCoordinator {
+    func requireCompletedSessionBeforeOriginalEraseReplacementData(
+        _ owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1,
+        originalSession: StoreGenerationSession, originalWriter: WorkspaceWriterV1,
+        originalHandle: GenerationLeaseHandleV1, originalFence: StaleWriterFenceV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory,
+        exclusion: StoreTemporalNormalizationExclusionV1, operation: EraseRouterOperationV1,
+        allocation: GenerationWriterAllocationAttemptV1) throws {
+        guard completedSessionLifetimeOwner === owner, session === originalSession,
+              workspaceWriter === originalWriter, writerLeaseHandle === originalHandle,
+              writerFence === originalFence, writerFence.retainedTemporalRegistry === registry,
+              generationFactory.sharesRegistryProvider(with: factory),
+              temporalExclusiveOwner === exclusion, exclusion.owner === self,
+              exclusion.writer === originalWriter, exclusion.registry === registry,
+              temporalAdmission == .exclusive(exclusion.id), temporalProducerIDs.isEmpty,
+              temporalDrainWaiters.isEmpty, erasePreparationInstallation == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try operation.requireCompletedOriginalEraseWriterTransition(registry: registry,
+            activity: exclusion.activity, targetAllocation: allocation)
+        try originalHandle.requireClosedForOriginalEraseWriterTransition(registry: registry)
     }
 }

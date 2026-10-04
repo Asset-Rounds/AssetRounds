@@ -24,6 +24,10 @@
     "FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderPublisherBeforeInitialPolicyHasZeroPayload",
     "FieldEvidenceAppTests/V9_85RecurringRoundExperienceTests/testConcreteReminderPublisherVerifiedInitialPolicyPrecedesPayload",
     "FieldEvidenceAppTests/V9_02FileAuthorityTests/testCheckedErasePolicyPreservesRealJournalAndDirectoryReadbacks",
-    "FieldEvidenceAppTests/V9_02FileAuthorityTests/testCheckedErasePolicyRejectsHardLinksBeforeRequests"
+    "FieldEvidenceAppTests/V9_02FileAuthorityTests/testCheckedErasePolicyRejectsHardLinksBeforeRequests",
+    "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PostGenerationSealInterruptedOwnerResumesReady",
+    "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PostGenerationSameBytesForeignRosterRetainsIntent",
+    "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PostGenerationSameBytesForeignIntentRefusesWithoutEffects",
+    "FieldEvidenceAppTests/V23ColdErasePhaseTests/testSchema2PostGenerationSameBytesForeignPointerRefusesWithoutEffects"
   ]
 }

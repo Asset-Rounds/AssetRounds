@@ -1197,4 +1197,381 @@ final class V23ColdErasePhaseTests: XCTestCase {
         try await requireActualNotificationTemporaryCut(stage: .publishDrainReceipt,
             cut: .afterStrictPrefixBeforePolicy)
     }
+
+    /// The fault is after the real original R cut has become a complete
+    /// checked generation prefix. A same-owner retry must consume the exact
+    /// context-free seal and eventually publish a genuine empty ready target.
+    @MainActor
+    func testSchema2PostGenerationSealInterruptedOwnerResumesReady() async throws {
+        let fixture = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: Authentication(), clock: SystemApplicationClock(),
+            identifiers: SystemApplicationIDSource())
+        let authenticated = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authenticated, .authenticated)
+        let cold = StartupRouter(applicationSupportURL: fixture.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let recovery = EraseAllService(applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches,
+            temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName)
+        var first: EraseSchema2ColdPostGenerationProjectionV1?
+        var observations = 0
+        recovery.schema2ColdPostGenerationProjectionForTesting = { projection in
+            observations += 1
+            guard projection.intent == fixture.intent,
+                  projection.pointerBytes == fixture.pointerBefore,
+                  projection.generationNames == [fixture.intent.newGenerationID
+                    .uuidString.lowercased()],
+                  try projection.roster.step(at: projection.deletedCount) == nil,
+                  projection.controls.intentBytes == (try EraseIntentCodecV1
+                    .encode(fixture.intent)),
+                  projection.controls.auxiliaryBytes ==
+                    (try Data(contentsOf: fixture.support.appendingPathComponent(
+                        "FieldEvidenceErase/auxiliary-retirement.json"))) else {
+                throw FixtureFailure.activation
+            }
+            for id in fixture.intent.generationIDsToDelete {
+                try self.requireAbsentWithoutFollowing(fixture.support
+                    .appendingPathComponent("FieldEvidenceData/generations")
+                    .appendingPathComponent(id.uuidString.lowercased()))
+            }
+            if let first {
+                guard first === projection else { throw FixtureFailure.activation }
+            } else {
+                first = projection
+                throw FixtureFailure.activation
+            }
+        }
+        Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+        try cold.bindStartupAccessGate(gate)
+        var interrupted: Error?
+        do {
+            try await cold.retryColdEraseForTesting(service: recovery,
+                accessGate: gate)
+        } catch { interrupted = error }
+        XCTAssertNotNil(interrupted)
+        XCTAssertEqual(observations, 1)
+        XCTAssertNotNil(first)
+        XCTAssertEqual(try EraseIntentCodecV1.decode(
+            Data(contentsOf: fixture.intentURL)), fixture.intent)
+        try await cold.retryColdEraseForTesting(service: recovery, accessGate: gate)
+        XCTAssertEqual(observations, 2,
+            "Retry must reprove the same held seal before continuing")
+        guard case let .ready(fresh, diagnostics, _) = cold.route else {
+            throw FixtureFailure.coldRoute
+        }
+        XCTAssertEqual(fresh.generationID, fixture.intent.newGenerationID)
+        XCTAssertTrue(BackupRestoreService.isEmptyCurrent(fresh.modelContext))
+        XCTAssertEqual(try fresh.modelContext.fetchCount(
+            FetchDescriptor<MutationReceiptRow>()), 0)
+        let diagnosticsSnapshot = await diagnostics.snapshot()
+        XCTAssertEqual(diagnosticsSnapshot, .zero)
+        try requireAbsentWithoutFollowing(fixture.intentURL)
+        XCTAssertEqual(try Data(contentsOf: fixture.pointerURL), fixture.pointerBefore)
+        XCTAssertEqual(fixture.completion.count, 0)
+    }
+
+    /// Equal bytes at a new inode cannot replace the first canonical roster
+    /// after generation loss. Failure must retain R and cannot recapture that
+    /// foreign leaf as a new same-operation baseline on retry.
+    @MainActor
+    func testSchema2PostGenerationSameBytesForeignRosterRetainsIntent() async throws {
+        let fixture = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: Authentication(), clock: SystemApplicationClock(),
+            identifiers: SystemApplicationIDSource())
+        let authenticated = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authenticated, .authenticated)
+        let cold = StartupRouter(applicationSupportURL: fixture.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let recovery = EraseAllService(applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches,
+            temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName)
+        let rosterURL = fixture.support.appendingPathComponent(
+            "FieldEvidenceErase/auxiliary-retirement.json")
+        var observations = 0
+        var firstFact: EraseColdControlLeafFactV1?
+        var foreignFact: EraseColdControlLeafFactV1?
+        var raw: Data?
+        recovery.schema2ColdPostGenerationProjectionForTesting = { projection in
+            observations += 1
+            guard observations == 1,
+                  projection.intent == fixture.intent,
+                  try projection.roster.step(at: projection.deletedCount) == nil else {
+                throw FixtureFailure.activation
+            }
+            let bytes = try Data(contentsOf: rosterURL)
+            guard bytes == projection.controls.auxiliaryBytes else {
+                throw FixtureFailure.activation
+            }
+            var before = stat(), after = stat()
+            guard rosterURL.path.withCString({ lstat($0, &before) }) == 0,
+                  EraseColdControlLeafFactV1(before)
+                    == projection.controls.auxiliaryProjectedFact else {
+                throw FixtureFailure.activation
+            }
+            try bytes.write(to: rosterURL, options: .atomic)
+            guard rosterURL.path.withCString({ lstat($0, &after) }) == 0,
+                  after.st_ino != before.st_ino,
+                  after.st_mode & S_IFMT == S_IFREG,
+                  after.st_nlink == 1,
+                  try Data(contentsOf: rosterURL) == bytes else {
+                throw FixtureFailure.activation
+            }
+            firstFact = EraseColdControlLeafFactV1(before)
+            foreignFact = EraseColdControlLeafFactV1(after)
+            raw = bytes
+        }
+        Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+        try cold.bindStartupAccessGate(gate)
+        var refused: Error?
+        do {
+            try await cold.retryColdEraseForTesting(service: recovery,
+                accessGate: gate)
+        } catch { refused = error }
+        XCTAssertNotNil(refused)
+        XCTAssertEqual(observations, 1)
+        XCTAssertNotEqual(try XCTUnwrap(firstFact), try XCTUnwrap(foreignFact))
+        XCTAssertEqual(try Data(contentsOf: rosterURL), try XCTUnwrap(raw))
+        XCTAssertEqual(try EraseIntentCodecV1.decode(
+            Data(contentsOf: fixture.intentURL)), fixture.intent)
+        XCTAssertEqual(try Data(contentsOf: fixture.pointerURL), fixture.pointerBefore)
+        if case .ready = cold.route { XCTFail("Foreign roster must not publish ready") }
+        var retryRefused: Error?
+        do {
+            try await cold.retryColdEraseForTesting(service: recovery,
+                accessGate: gate)
+        } catch { retryRefused = error }
+        XCTAssertNotNil(retryRefused)
+        XCTAssertEqual(observations, 1,
+            "Uncertainty must not reconstruct another projection or effect")
+        XCTAssertEqual(try Data(contentsOf: rosterURL), try XCTUnwrap(raw))
+        XCTAssertEqual(try EraseIntentCodecV1.decode(
+            Data(contentsOf: fixture.intentURL)), fixture.intent)
+        XCTAssertEqual(fixture.completion.count, 0)
+    }
+
+    private enum PostSealForeignLeafRole {
+        case canonicalIntent, currentPointer
+    }
+
+    /// Add complete represented full11 facts to the existing byte census.
+    /// The incumbent helper and all original expectations stay untouched.
+    private func fullPostSealFacts(in support: URL) throws
+        -> [String: EraseColdControlLeafFactV1] {
+        let names = try protectedFacts(in: support).keys.sorted()
+        var result: [String: EraseColdControlLeafFactV1] = [:]
+        for relative in names {
+            let url = support.appendingPathComponent(relative)
+            var named = stat()
+            guard url.path.withCString({ lstat($0, &named) }) == 0,
+                  named.st_mode & S_IFMT == S_IFDIR
+                    || (named.st_mode & S_IFMT == S_IFREG && named.st_nlink == 1) else {
+                throw FixtureFailure.activation
+            }
+            result[relative] = EraseColdControlLeafFactV1(named)
+        }
+        return result
+    }
+
+    /// Hostile fixture IO only: retain the exact bytes and owned mode but
+    /// replace the named inode after the actual post-generation seal. No
+    /// original-control receipt, policy outcome or replay history is minted.
+    private func replacePostSealLeafWithSameBytes(
+        _ url: URL, expectedFact: EraseColdControlLeafFactV1, bytes: Data
+    ) throws -> EraseColdControlLeafFactV1 {
+        var before = stat()
+        guard url.path.withCString({ lstat($0, &before) }) == 0,
+              EraseColdControlLeafFactV1(before) == expectedFact,
+              before.st_mode & S_IFMT == S_IFREG, before.st_nlink == 1,
+              try Data(contentsOf: url) == bytes else {
+            throw FixtureFailure.activation
+        }
+        try bytes.write(to: url, options: .atomic)
+        var named = stat()
+        guard url.path.withCString({ lstat($0, &named) }) == 0,
+              named.st_ino != before.st_ino,
+              named.st_dev == before.st_dev,
+              named.st_uid == before.st_uid, named.st_gid == before.st_gid,
+              named.st_mode & S_IFMT == S_IFREG, named.st_nlink == 1 else {
+            throw FixtureFailure.activation
+        }
+        let descriptor = url.path.withCString {
+            open($0, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else { throw FixtureFailure.activation }
+        var closeEntered = false
+        do {
+            var held = stat()
+            guard fstat(descriptor, &held) == 0,
+                  EraseColdControlLeafFactV1(held) == EraseColdControlLeafFactV1(named),
+                  fchmod(descriptor, before.st_mode & mode_t(0o7777)) == 0 else {
+                throw FixtureFailure.activation
+            }
+            var finalHeld = stat(), finalNamed = stat()
+            guard fstat(descriptor, &finalHeld) == 0,
+                  url.path.withCString({ lstat($0, &finalNamed) }) == 0,
+                  EraseColdControlLeafFactV1(finalHeld) == EraseColdControlLeafFactV1(finalNamed),
+                  finalHeld.st_ino != before.st_ino,
+                  finalHeld.st_dev == before.st_dev,
+                  finalHeld.st_mode == before.st_mode,
+                  finalHeld.st_uid == before.st_uid, finalHeld.st_gid == before.st_gid,
+                  finalHeld.st_nlink == 1, finalHeld.st_size == before.st_size,
+                  try Data(contentsOf: url) == bytes else {
+                throw FixtureFailure.activation
+            }
+            closeEntered = true // Fence before the only close invocation.
+            guard close(descriptor) == 0 else { throw FixtureFailure.activation }
+            var afterClose = stat()
+            guard url.path.withCString({ lstat($0, &afterClose) }) == 0,
+                  EraseColdControlLeafFactV1(afterClose) == EraseColdControlLeafFactV1(finalHeld) else {
+                throw FixtureFailure.activation
+            }
+            return EraseColdControlLeafFactV1(afterClose)
+        } catch {
+            if !closeEntered {
+                closeEntered = true
+                guard close(descriptor) == 0 else { throw FixtureFailure.activation }
+            }
+            throw error
+        }
+    }
+
+    @MainActor
+    private func requirePostSealForeignLeafRefusal(
+        _ role: PostSealForeignLeafRole
+    ) async throws {
+        let fixture = try await makeOriginalColdCut(at: .afterSessionPhaseWrite)
+        defer { fixture.defaults.removePersistentDomain(forName: fixture.defaultsName) }
+        let gate = AppAccessGateV1(setting: .value(.init(isEnabled: true)),
+            authentication: Authentication(), clock: SystemApplicationClock(),
+            identifiers: SystemApplicationIDSource())
+        let authenticated = await gate.authenticate(trigger: .unlock)
+        XCTAssertEqual(authenticated, .authenticated)
+        let cold = StartupRouter(applicationSupportURL: fixture.support,
+            entitlementRuntime: StoreKitEntitlementRuntimeV1(initialEvents: { [] },
+                transactionUpdates: { AsyncStream { $0.finish() } },
+                statusUpdates: { AsyncStream { $0.finish() } }),
+            lifecycleProfileRegistry:
+                try WorkspacePackageLifecycleCompatibilityV1.shippingRegistry())
+        let completion = CompletionBox()
+        let recovery = EraseAllService(applicationSupportURL: fixture.support,
+            cachesDirectoryURL: fixture.caches,
+            temporaryDirectoryURL: fixture.temporary,
+            userDefaults: fixture.defaults,
+            bundleIdentifier: "com.palatis3.fieldrecord",
+            defaultsDomainName: fixture.defaultsName,
+            didCompleteErase: { _ in completion.count += 1 })
+        var observations = 0
+        var actualSeal: EraseSchema2ColdPostGenerationProjectionV1?
+        var expectedFact: EraseColdControlLeafFactV1?
+        var foreignFact: EraseColdControlLeafFactV1?
+        var afterForeign: [String: PhysicalFact]?
+        var afterForeignFull11: [String: EraseColdControlLeafFactV1]?
+        recovery.schema2ColdPostGenerationProjectionForTesting = { projection in
+            observations += 1
+            guard observations == 1, projection.intent == fixture.intent,
+                  projection.pointerBytes == fixture.pointerBefore,
+                  projection.generationNames == [fixture.intent.newGenerationID.uuidString.lowercased()],
+                  try projection.roster.step(at: projection.deletedCount) == nil,
+                  projection.controls.intentBytes == (try EraseIntentCodecV1.encode(fixture.intent)) else {
+                throw FixtureFailure.activation
+            }
+            for id in fixture.intent.generationIDsToDelete {
+                try self.requireAbsentWithoutFollowing(fixture.support
+                    .appendingPathComponent("FieldEvidenceData/generations")
+                    .appendingPathComponent(id.uuidString.lowercased()))
+            }
+            let url: URL
+            let raw: Data
+            let first: EraseColdControlLeafFactV1
+            switch role {
+            case .canonicalIntent:
+                url = fixture.intentURL
+                raw = projection.controls.intentBytes
+                first = projection.controls.intentFact
+            case .currentPointer:
+                url = fixture.pointerURL
+                raw = projection.pointerBytes
+                first = projection.pointerFact
+            }
+            actualSeal = projection; expectedFact = first
+            foreignFact = try self.replacePostSealLeafWithSameBytes(url,
+                expectedFact: first, bytes: raw)
+            try self.requireTargetPointerBinding(support: fixture.support,
+                intent: fixture.intent, pointerBytes: Data(contentsOf: fixture.pointerURL))
+            afterForeign = try self.protectedFacts(in: fixture.support)
+            afterForeignFull11 = try self.fullPostSealFacts(in: fixture.support)
+        }
+        Self.retainedColdOwners.append((fixture.root, cold, gate, recovery))
+        try cold.bindStartupAccessGate(gate)
+        var refused: Error?
+        do {
+            try await cold.retryColdEraseForTesting(service: recovery,
+                accessGate: gate)
+        } catch { refused = error }
+        XCTAssertNotNil(refused)
+        XCTAssertEqual(observations, 1)
+        XCTAssertNotNil(actualSeal)
+        let first = try XCTUnwrap(expectedFact)
+        let foreign = try XCTUnwrap(foreignFact)
+        XCTAssertNotEqual(first.inode, foreign.inode)
+        XCTAssertEqual(first.device, foreign.device)
+        XCTAssertEqual(first.mode, foreign.mode)
+        XCTAssertEqual(first.user, foreign.user)
+        XCTAssertEqual(first.group, foreign.group)
+        XCTAssertEqual(first.links, foreign.links)
+        XCTAssertEqual(first.size, foreign.size)
+        XCTAssertEqual(try Data(contentsOf: fixture.intentURL),
+            try EraseIntentCodecV1.encode(fixture.intent))
+        XCTAssertEqual(try Data(contentsOf: fixture.pointerURL), fixture.pointerBefore)
+        XCTAssertEqual(try protectedFacts(in: fixture.support), try XCTUnwrap(afterForeign),
+            "Seal reproof must refuse before changing canonical data or controls")
+        XCTAssertEqual(try fullPostSealFacts(in: fixture.support), try XCTUnwrap(afterForeignFull11))
+        if case .ready = cold.route { XCTFail("Same bytes cannot replace the sealed control identity") }
+        var retryRefused: Error?
+        do {
+            try await cold.retryColdEraseForTesting(service: recovery,
+                accessGate: gate)
+        } catch { retryRefused = error }
+        XCTAssertNotNil(retryRefused)
+        XCTAssertEqual(observations, 1,
+            "An uncertain same-owner retry must not recapture another seal")
+        XCTAssertEqual(try protectedFacts(in: fixture.support), try XCTUnwrap(afterForeign))
+        XCTAssertEqual(try fullPostSealFacts(in: fixture.support), try XCTUnwrap(afterForeignFull11))
+        XCTAssertEqual(try EraseIntentCodecV1.decode(Data(contentsOf: fixture.intentURL)), fixture.intent)
+        try requireTargetPointerBinding(support: fixture.support,
+            intent: fixture.intent, pointerBytes: Data(contentsOf: fixture.pointerURL))
+        XCTAssertEqual(completion.count, 0)
+        XCTAssertEqual(fixture.completion.count, 0)
+        if case .ready = cold.route { XCTFail("Poisoned retry must retain the R hold") }
+    }
+
+    /// Canonical R bytes at a fresh inode do not grant a new control baseline.
+    @MainActor
+    func testSchema2PostGenerationSameBytesForeignIntentRefusesWithoutEffects() async throws {
+        try await requirePostSealForeignLeafRefusal(.canonicalIntent)
+    }
+
+    /// A semantically equal target pointer cannot replace its sealed inode.
+    @MainActor
+    func testSchema2PostGenerationSameBytesForeignPointerRefusesWithoutEffects() async throws {
+        try await requirePostSealForeignLeafRefusal(.currentPointer)
+    }
 }

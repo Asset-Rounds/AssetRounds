@@ -1284,3 +1284,1190 @@ private func decodePreferenceStorageEnvelopeV1(
             throw PreferencesAdapterFailureV1.invalidCanonicalValue
         }
 }
+
+// MARK: - Closed cold Erase rating candidates (same sole codec and CAS)
+
+/// Only this adapter file can issue an absent lookup after its real locked
+/// configured-domain read and the matching lookup-mode post-read reproof.
+fileprivate enum ColdEraseRatingAbsentDomainV1 { case missing, empty }
+private enum ColdEraseRatingRawDomainV1 {
+    case absent(ColdEraseRatingAbsentDomainV1)
+    case cooldown(Data)
+}
+
+@MainActor final class ColdEraseRatingAbsentLookupV1 {
+    private struct Storage {
+        let acquisition: ColdEraseSchema2RatingObservationAcquisitionV1
+        let adapter: PreferencesAdapterV1
+        weak var plan: ColdEraseSchema2RatingPlanV1? = nil
+        let runtimeOperationID: UUID
+        let eraseID: UUID
+        let persistentDomainName: String
+        let actualDomain: ColdEraseRatingAbsentDomainV1
+        var uncertainPlan: ColdEraseSchema2RatingPlanV1? = nil
+        var permanentUncertainRetention: ColdEraseRatingAbsentLookupV1? = nil
+    }
+    private var storage: Storage
+    // Actual stored-value operands only. Raw payload/string/typed backing,
+    // weak runtime bookkeeping, object headers and allocator/VM are separate.
+    static func declaredBackingBytes() -> UInt64 {
+        UInt64(MemoryLayout<Storage>.stride)
+    }
+    var acquisition: ColdEraseSchema2RatingObservationAcquisitionV1 {
+        get { storage.acquisition }
+    }
+    private var adapter: PreferencesAdapterV1 {
+        get { storage.adapter }
+    }
+    private var plan: ColdEraseSchema2RatingPlanV1? {
+        get { storage.plan }
+        set { storage.plan = newValue }
+    }
+    private var runtimeOperationID: UUID {
+        get { storage.runtimeOperationID }
+    }
+    private var eraseID: UUID {
+        get { storage.eraseID }
+    }
+    private var persistentDomainName: String {
+        get { storage.persistentDomainName }
+    }
+    private var actualDomain: ColdEraseRatingAbsentDomainV1 {
+        get { storage.actualDomain }
+    }
+    private var uncertainPlan: ColdEraseSchema2RatingPlanV1? {
+        get { storage.uncertainPlan }
+        set { storage.uncertainPlan = newValue }
+    }
+    private var permanentUncertainRetention: ColdEraseRatingAbsentLookupV1? {
+        get { storage.permanentUncertainRetention }
+        set { storage.permanentUncertainRetention = newValue }
+    }
+
+    fileprivate init(adapter: PreferencesAdapterV1, plan: ColdEraseSchema2RatingPlanV1,
+        acquisition: ColdEraseSchema2RatingObservationAcquisitionV1, actualDomain: ColdEraseRatingAbsentDomainV1) {
+        storage = Storage(acquisition: acquisition, adapter: adapter, plan: plan,
+            runtimeOperationID: plan.operationID, eraseID: plan.eraseID,
+            persistentDomainName: plan.persistentDomainName, actualDomain: actualDomain)
+    }
+
+    /// Memory-only private-issuer association, never nil/Bool effect authority.
+    func requireAdapterIssuedAssociation(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        guard self.adapter === adapter, self.plan === plan, uncertainPlan == nil,
+              permanentUncertainRetention == nil, plan.operationID == runtimeOperationID,
+              plan.eraseID == eraseID, plan.persistentDomainName == persistentDomainName else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        try acquisition.requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+        guard acquisition.mode == .lookup else { throw RatingEligibilityFailureV1.divergentReplay }
+        switch actualDomain { case .missing, .empty: break }
+    }
+
+    fileprivate func poison() {
+        permanentUncertainRetention = self
+        if let plan {
+            uncertainPlan = plan
+            acquisition.poisonOnUncertainAcquisition(plan: plan, adapter: adapter)
+            plan.poisonCandidateEncoding(adapter: adapter)
+        }
+    }
+}
+
+/// Observation DATA has no reconstructed CAS history. Main retains its actual
+/// charged backing before the post-read owner reproof can throw.
+@MainActor final class ColdEraseRatingExistingCooldownV1 {
+    private enum Phase: Equatable { case observed, retired, uncertain }
+    private struct Storage {
+        let acquisition: ColdEraseSchema2RatingObservationAcquisitionV1
+        let operationID: UUID
+        let state: RatingRequestAttemptLedgerStateV1
+        let erasedAt: Date
+        let suppressUntil: Date
+        let canonicalByteCount: UInt64
+        let canonicalSHA256: String
+        let adapter: PreferencesAdapterV1
+        weak var plan: ColdEraseSchema2RatingPlanV1? = nil
+        let runtimeOperationID: UUID
+        let persistentDomainName: String
+        let observationMode: ColdEraseRatingObservationModeV1
+        var ratingRecipeBorrowActiveV4 = false
+        var phase: Phase = .observed
+        var uncertainPlan: ColdEraseSchema2RatingPlanV1? = nil
+        var permanentUncertainRetention: ColdEraseRatingExistingCooldownV1? = nil
+    }
+    private var storage: Storage
+    private var canonicalBacking: Data?
+    // Actual stored-value operands only. Raw payload/string/typed backing,
+    // weak runtime bookkeeping, object headers and allocator/VM are separate.
+    static func declaredBackingBytes() -> UInt64 {
+        UInt64(MemoryLayout<Storage>.stride) + UInt64(MemoryLayout<Data?>.stride)
+    }
+    var acquisition: ColdEraseSchema2RatingObservationAcquisitionV1 {
+        get { storage.acquisition }
+    }
+    var operationID: UUID {
+        get { storage.operationID }
+    }
+    var state: RatingRequestAttemptLedgerStateV1 {
+        get { storage.state }
+    }
+    var erasedAt: Date {
+        get { storage.erasedAt }
+    }
+    var suppressUntil: Date {
+        get { storage.suppressUntil }
+    }
+    var canonicalByteCount: UInt64 {
+        get { storage.canonicalByteCount }
+    }
+    var canonicalSHA256: String {
+        get { storage.canonicalSHA256 }
+    }
+    private var adapter: PreferencesAdapterV1 {
+        get { storage.adapter }
+    }
+    private var plan: ColdEraseSchema2RatingPlanV1? {
+        get { storage.plan }
+        set { storage.plan = newValue }
+    }
+    private var runtimeOperationID: UUID {
+        get { storage.runtimeOperationID }
+    }
+    private var persistentDomainName: String {
+        get { storage.persistentDomainName }
+    }
+    private var observationMode: ColdEraseRatingObservationModeV1 {
+        get { storage.observationMode }
+    }
+    private var phase: Phase {
+        get { storage.phase }
+        set { storage.phase = newValue }
+    }
+    private var uncertainPlan: ColdEraseSchema2RatingPlanV1? {
+        get { storage.uncertainPlan }
+        set { storage.uncertainPlan = newValue }
+    }
+    private var permanentUncertainRetention: ColdEraseRatingExistingCooldownV1? {
+        get { storage.permanentUncertainRetention }
+        set { storage.permanentUncertainRetention = newValue }
+    }
+
+    fileprivate init(adapter: PreferencesAdapterV1, plan: ColdEraseSchema2RatingPlanV1,
+        acquisition: ColdEraseSchema2RatingObservationAcquisitionV1, state: RatingRequestAttemptLedgerStateV1,
+        erasedAt: Date, suppressUntil: Date, canonicalBytes: Data) {
+        let observationMode = acquisition.mode
+        let runtimeOperationID = plan.operationID, operationID = plan.eraseID
+        let persistentDomainName = plan.persistentDomainName
+        canonicalBacking = canonicalBytes
+        let canonicalByteCount = UInt64(canonicalBytes.count)
+        let canonicalSHA256 = CompatibilityCanonicalV1.sha256(canonicalBytes)
+        storage = Storage(acquisition: acquisition, operationID: operationID,
+            state: state, erasedAt: erasedAt, suppressUntil: suppressUntil,
+            canonicalByteCount: canonicalByteCount, canonicalSHA256: canonicalSHA256,
+            adapter: adapter, plan: plan, runtimeOperationID: runtimeOperationID,
+            persistentDomainName: persistentDomainName, observationMode: observationMode)
+    }
+
+    private func requireIdentity(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        guard self.adapter === adapter, self.plan === plan,
+              plan.operationID == runtimeOperationID, plan.eraseID == operationID,
+              plan.persistentDomainName == persistentDomainName else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        try acquisition.requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+    }
+
+    /// Memory-only, acyclic consumer for the actual Main plan. No IO or callback.
+    func requireAdapterIssuedAssociation(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        try requireIdentity(plan: plan, adapter: adapter)
+        guard phase == .observed, uncertainPlan == nil,
+              let canonicalBacking, UInt64(canonicalBacking.count) == canonicalByteCount,
+              canonicalByteCount > 0,
+              canonicalByteCount <= PreferencesAdapterV1.coldEraseRatingCanonicalByteLimit else {
+            throw RatingEligibilityFailureV1.staleState
+        }
+    }
+
+    func requireBound(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        do {
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            guard try plan.requireObservationMode(adapter: adapter) == observationMode else {
+                throw RatingEligibilityFailureV1.staleState
+            }
+        } catch { poison(); throw error }
+    }
+
+    /// Both actual private backings are compared without exporting either Data.
+    func requireSameCanonicalCandidate(_ candidate: ColdEraseRatingCandidateV1,
+        plan: ColdEraseSchema2RatingPlanV1, adapter: PreferencesAdapterV1) throws {
+        do {
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            try candidate.requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            guard state == candidate.state, canonicalByteCount == candidate.canonicalByteCount,
+                  canonicalSHA256 == candidate.canonicalSHA256, let canonicalBacking,
+                  candidate.matchesCanonicalBacking(canonicalBacking) else {
+                throw RatingEligibilityFailureV1.divergentReplay
+            }
+        } catch { poison(); candidate.poison(); throw error }
+    }
+
+    func retireCanonicalBacking(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        do {
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            guard !storage.ratingRecipeBorrowActiveV4 else { throw RatingEligibilityFailureV1.staleState }
+            try plan.requireExistingCooldownBackingRetirement(self, adapter: adapter)
+            canonicalBacking = nil
+            phase = .retired
+            try plan.recordExistingCooldownBackingRetired(self, adapter: adapter)
+        } catch { poison(); throw error }
+    }
+
+    func requireCanonicalBackingCleared(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        try requireIdentity(plan: plan, adapter: adapter)
+        guard phase == .retired, canonicalBacking == nil, !storage.ratingRecipeBorrowActiveV4, uncertainPlan == nil else {
+            throw RatingEligibilityFailureV1.staleState
+        }
+    }
+
+    fileprivate func poison() {
+        phase = .uncertain
+        permanentUncertainRetention = self
+        if let plan {
+            uncertainPlan = plan
+            acquisition.poisonOnUncertainAcquisition(plan: plan, adapter: adapter)
+            plan.poisonExistingCooldownObservation(self, adapter: adapter)
+        }
+    }
+}
+
+/// A recipe receipt is planned committed DATA, distinct from the actual return
+/// of the one entered CAS. Only the adapter can issue this actual raw owner.
+@MainActor final class ColdEraseRatingCandidateV1 {
+    private enum Phase: Equatable { case prepared, enteredCAS, casReturned, checked, retired, uncertain }
+    private struct Storage {
+        let restorationAcquisition: ColdEraseSchema2RatingRestorationAcquisitionV1?
+        let operationID: UUID
+        let state: RatingRequestAttemptLedgerStateV1
+        let persistedReceipt: RatingLedgerPersistenceReceiptV1
+        let erasedAt: Date
+        let suppressUntil: Date
+        let canonicalByteCount: UInt64
+        let canonicalSHA256: String
+        let adapter: PreferencesAdapterV1
+        weak var plan: ColdEraseSchema2RatingPlanV1? = nil
+        let runtimeOperationID: UUID
+        let persistentDomainName: String
+        var phase: Phase = .prepared
+        var actualCASReturn: RatingLedgerPersistenceReceiptV1? = nil
+        var rawPointerActive: Bool = false
+        var uncertainPlan: ColdEraseSchema2RatingPlanV1? = nil
+        var permanentUncertainRetention: ColdEraseRatingCandidateV1? = nil
+    }
+    private var storage: Storage
+    private var canonicalBacking: Data?
+    // Actual stored-value operands only. Raw payload/string/typed backing,
+    // weak runtime bookkeeping, object headers and allocator/VM are separate.
+    static func declaredBackingBytes() -> UInt64 {
+        UInt64(MemoryLayout<Storage>.stride) + UInt64(MemoryLayout<Data?>.stride)
+    }
+    var restorationAcquisition: ColdEraseSchema2RatingRestorationAcquisitionV1? {
+        get { storage.restorationAcquisition }
+    }
+    var operationID: UUID {
+        get { storage.operationID }
+    }
+    var state: RatingRequestAttemptLedgerStateV1 {
+        get { storage.state }
+    }
+    var persistedReceipt: RatingLedgerPersistenceReceiptV1 {
+        get { storage.persistedReceipt }
+    }
+    var erasedAt: Date {
+        get { storage.erasedAt }
+    }
+    var suppressUntil: Date {
+        get { storage.suppressUntil }
+    }
+    var canonicalByteCount: UInt64 {
+        get { storage.canonicalByteCount }
+    }
+    var canonicalSHA256: String {
+        get { storage.canonicalSHA256 }
+    }
+    private var adapter: PreferencesAdapterV1 {
+        get { storage.adapter }
+    }
+    private var plan: ColdEraseSchema2RatingPlanV1? {
+        get { storage.plan }
+        set { storage.plan = newValue }
+    }
+    private var runtimeOperationID: UUID {
+        get { storage.runtimeOperationID }
+    }
+    private var persistentDomainName: String {
+        get { storage.persistentDomainName }
+    }
+    private var phase: Phase {
+        get { storage.phase }
+        set { storage.phase = newValue }
+    }
+    private var actualCASReturn: RatingLedgerPersistenceReceiptV1? {
+        get { storage.actualCASReturn }
+        set { storage.actualCASReturn = newValue }
+    }
+    private var rawPointerActive: Bool {
+        get { storage.rawPointerActive }
+        set { storage.rawPointerActive = newValue }
+    }
+    private var uncertainPlan: ColdEraseSchema2RatingPlanV1? {
+        get { storage.uncertainPlan }
+        set { storage.uncertainPlan = newValue }
+    }
+    private var permanentUncertainRetention: ColdEraseRatingCandidateV1? {
+        get { storage.permanentUncertainRetention }
+        set { storage.permanentUncertainRetention = newValue }
+    }
+
+    fileprivate init(adapter: PreferencesAdapterV1, plan: ColdEraseSchema2RatingPlanV1,
+        restorationAcquisition: ColdEraseSchema2RatingRestorationAcquisitionV1?,
+        state: RatingRequestAttemptLedgerStateV1, receipt: RatingLedgerPersistenceReceiptV1,
+        erasedAt: Date, suppressUntil: Date, canonicalBytes: Data) {
+        let runtimeOperationID = plan.operationID, operationID = plan.eraseID
+        let persistentDomainName = plan.persistentDomainName
+        canonicalBacking = canonicalBytes
+        let canonicalByteCount = UInt64(canonicalBytes.count)
+        let canonicalSHA256 = CompatibilityCanonicalV1.sha256(canonicalBytes)
+        storage = Storage(restorationAcquisition: restorationAcquisition,
+            operationID: operationID, state: state, persistedReceipt: receipt,
+            erasedAt: erasedAt, suppressUntil: suppressUntil,
+            canonicalByteCount: canonicalByteCount, canonicalSHA256: canonicalSHA256,
+            adapter: adapter, plan: plan, runtimeOperationID: runtimeOperationID,
+            persistentDomainName: persistentDomainName)
+    }
+
+    private func requireIdentity(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        guard self.adapter === adapter, self.plan === plan,
+              plan.operationID == runtimeOperationID, plan.eraseID == operationID,
+              plan.persistentDomainName == persistentDomainName else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        if let restorationAcquisition {
+            try restorationAcquisition.requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            guard restorationAcquisition.byteCount == canonicalByteCount,
+                  restorationAcquisition.sha256 == canonicalSHA256,
+                  restorationAcquisition.chosenState == state else {
+                throw RatingEligibilityFailureV1.divergentReplay
+            }
+        }
+    }
+
+    /// Main invokes this without reentering requireBound. No IO or Main call.
+    func requireAdapterIssuedAssociation(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        try requireIdentity(plan: plan, adapter: adapter)
+        guard phase != .retired, phase != .uncertain, uncertainPlan == nil,
+              let canonicalBacking, UInt64(canonicalBacking.count) == canonicalByteCount,
+              canonicalByteCount > 0,
+              canonicalByteCount <= PreferencesAdapterV1.coldEraseRatingCanonicalByteLimit else {
+            throw RatingEligibilityFailureV1.staleState
+        }
+    }
+
+    func requireBound(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        do {
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            try plan.requireCandidate(self, adapter: adapter)
+        } catch { poison(); throw error }
+    }
+
+    /// The synchronous Void-only pointer is borrowed solely within this call.
+    /// Main's actual range consumer must neither retain it nor clone a recipe map.
+    func withCanonicalBytes(plan: ColdEraseSchema2RatingPlanV1,
+        _ body: (UnsafeRawBufferPointer) throws -> Void) throws {
+        do {
+            try requireBound(plan: plan, adapter: adapter)
+            try plan.requireCandidateBytes(self, adapter: adapter)
+            guard phase == .prepared, !rawPointerActive, canonicalBacking != nil else {
+                throw RatingEligibilityFailureV1.staleState
+            }
+            rawPointerActive = true
+            do {
+                // Retirement refuses while this synchronous borrow is active.
+                try canonicalBacking!.withUnsafeBytes(body)
+            } catch {
+                rawPointerActive = false
+                throw error
+            }
+            rawPointerActive = false
+            try requireBound(plan: plan, adapter: adapter)
+        } catch { poison(); throw error }
+    }
+
+    fileprivate func matchesCanonicalBacking(_ bytes: Data) -> Bool {
+        guard phase != .uncertain, phase != .retired, let canonicalBacking else { return false }
+        return canonicalBacking == bytes
+    }
+
+    fileprivate func enterCAS(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+        guard phase == .prepared, !rawPointerActive, actualCASReturn == nil else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        phase = .enteredCAS
+    }
+
+    /// No throwing owner callback can run before this actual return is stored.
+    fileprivate func captureActualCASReturn(_ receipt: RatingLedgerPersistenceReceiptV1) {
+        actualCASReturn = receipt
+        if phase == .enteredCAS { phase = .casReturned }
+    }
+
+    func requireActualCASReturn(_ receipt: RatingLedgerPersistenceReceiptV1,
+        plan: ColdEraseSchema2RatingPlanV1, adapter: PreferencesAdapterV1) throws {
+        try requireIdentity(plan: plan, adapter: adapter)
+        guard (phase == .casReturned || phase == .checked), uncertainPlan == nil,
+              actualCASReturn == receipt else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+    }
+
+    fileprivate func markChecked() throws {
+        guard phase == .casReturned, !rawPointerActive, actualCASReturn != nil else {
+            throw RatingEligibilityFailureV1.staleState
+        }
+        phase = .checked
+    }
+
+    func retireCanonicalBacking(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        do {
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            guard phase == .checked, !rawPointerActive else {
+                throw RatingEligibilityFailureV1.staleState
+            }
+            try plan.requireCanonicalBackingRetirement(candidate: self, adapter: adapter)
+            canonicalBacking = nil
+            phase = .retired
+            try plan.recordCanonicalBackingRetired(candidate: self, adapter: adapter)
+        } catch { poison(); throw error }
+    }
+
+    func requireCanonicalBackingCleared(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        try requireIdentity(plan: plan, adapter: adapter)
+        guard phase == .retired, canonicalBacking == nil, !rawPointerActive,
+              uncertainPlan == nil else {
+            throw RatingEligibilityFailureV1.staleState
+        }
+    }
+
+    fileprivate func poison() {
+        phase = .uncertain
+        permanentUncertainRetention = self
+        if let plan {
+            uncertainPlan = plan
+            restorationAcquisition?.poisonOnUncertainAcquisition(plan: plan, adapter: adapter)
+            plan.poisonCandidateCASAttempt(candidate: self, adapter: adapter)
+        }
+    }
+}
+
+/// A physical checked readback retains the real CAS return, including replay.
+/// It owns no second canonical Data buffer and reconstructs no CAS history.
+@MainActor final class ColdEraseRatingCheckedReceiptV1 {
+    private struct Storage {
+        let actualCASReceipt: RatingLedgerPersistenceReceiptV1
+        let state: RatingRequestAttemptLedgerStateV1
+        let erasedAt: Date
+        let suppressUntil: Date
+        let canonicalByteCount: UInt64
+        let canonicalSHA256: String
+        let adapter: PreferencesAdapterV1
+        weak var plan: ColdEraseSchema2RatingPlanV1? = nil
+        let candidate: ColdEraseRatingCandidateV1
+    }
+    private var storage: Storage
+    // Actual stored-value operands only. Raw payload/string/typed backing,
+    // weak runtime bookkeeping, object headers and allocator/VM are separate.
+    static func declaredBackingBytes() -> UInt64 {
+        UInt64(MemoryLayout<Storage>.stride)
+    }
+    var actualCASReceipt: RatingLedgerPersistenceReceiptV1 {
+        get { storage.actualCASReceipt }
+    }
+    var state: RatingRequestAttemptLedgerStateV1 {
+        get { storage.state }
+    }
+    var erasedAt: Date {
+        get { storage.erasedAt }
+    }
+    var suppressUntil: Date {
+        get { storage.suppressUntil }
+    }
+    var canonicalByteCount: UInt64 {
+        get { storage.canonicalByteCount }
+    }
+    var canonicalSHA256: String {
+        get { storage.canonicalSHA256 }
+    }
+    private var adapter: PreferencesAdapterV1 {
+        get { storage.adapter }
+    }
+    private var plan: ColdEraseSchema2RatingPlanV1? {
+        get { storage.plan }
+        set { storage.plan = newValue }
+    }
+    private var candidate: ColdEraseRatingCandidateV1 {
+        get { storage.candidate }
+    }
+
+    fileprivate init(adapter: PreferencesAdapterV1, plan: ColdEraseSchema2RatingPlanV1,
+        candidate: ColdEraseRatingCandidateV1, actualReceipt: RatingLedgerPersistenceReceiptV1) {
+        storage = Storage(actualCASReceipt: actualReceipt, state: candidate.state,
+            erasedAt: candidate.erasedAt, suppressUntil: candidate.suppressUntil,
+            canonicalByteCount: candidate.canonicalByteCount, canonicalSHA256: candidate.canonicalSHA256,
+            adapter: adapter, plan: plan, candidate: candidate)
+    }
+
+    func requireAdapterIssuedAssociation(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1) throws {
+        guard self.adapter === adapter, self.plan === plan,
+              state == candidate.state, canonicalByteCount == candidate.canonicalByteCount,
+              canonicalSHA256 == candidate.canonicalSHA256 else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        try candidate.requireActualCASReturn(actualCASReceipt, plan: plan, adapter: adapter)
+    }
+
+    func requireBound(plan: ColdEraseSchema2RatingPlanV1,
+        candidate: ColdEraseRatingCandidateV1, adapter: PreferencesAdapterV1) throws {
+        do {
+            guard self.candidate === candidate else { throw RatingEligibilityFailureV1.divergentReplay }
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            try candidate.requireBound(plan: plan, adapter: adapter)
+        } catch { self.candidate.poison(); throw error }
+    }
+}
+
+extension PreferencesAdapterV1 {
+    static let coldEraseRatingCanonicalByteLimit: UInt64 = 65_536
+    static let coldEraseRatingMaximumRawWindowBytes: UInt64 = 196_608
+
+    @MainActor private func coldEraseRatingDates(
+        _ state: RatingRequestAttemptLedgerStateV1
+    ) throws -> (erasedAt: Date, suppressUntil: Date) {
+        try validateRatingEligibilityState(state)
+        guard state.schemaVersion == RatingRequestAttemptLedgerStateV1.schemaVersion,
+              state.revision == 1, state.attempts.isEmpty,
+              case .erasedCooldown(let erasedAt, let suppressUntil) = state.origin,
+              state.clockHighWatermarkUTC == erasedAt,
+              erasedAt.timeIntervalSinceReferenceDate.isFinite,
+              suppressUntil.timeIntervalSinceReferenceDate.isFinite,
+              suppressUntil == erasedAt.addingTimeInterval(RatingEligibilityPolicyV1.eraseCooldownSeconds) else {
+            throw RatingEligibilityFailureV1.invalidValue
+        }
+        return (erasedAt, suppressUntil)
+    }
+
+    @MainActor private func coldEraseRatingByteCount(_ bytes: Data) throws -> UInt64 {
+        guard let count = UInt64(exactly: bytes.count), count > 0,
+              count <= Self.coldEraseRatingCanonicalByteLimit else {
+            throw RatingEligibilityFailureV1.invalidValue
+        }
+        return count
+    }
+
+    /// Copies exactly one already charged raw window; no loader alias survives.
+    @MainActor private func coldEraseRatingOwnedCopy(_ bytes: Data) throws -> Data {
+        _ = try coldEraseRatingByteCount(bytes)
+        return try bytes.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress, raw.count == bytes.count else {
+                throw RatingEligibilityFailureV1.invalidValue
+            }
+            return Data(bytes: base, count: raw.count)
+        }
+    }
+
+    @MainActor private func coldEraseRatingEnvelope(_ bytes: Data,
+        eraseID: UUID) throws -> RatingEligibilityStorageEnvelopeV1 {
+        _ = try coldEraseRatingByteCount(bytes)
+        guard eraseID != SettingsValidationV1.zeroUUID else { throw RatingEligibilityFailureV1.invalidValue }
+        // This is the incumbent private envelope and sole canonical codec.
+        let envelope = try CompatibilityCanonicalV1.decode(RatingEligibilityStorageEnvelopeV1.self, from: bytes)
+        _ = try coldEraseRatingDates(envelope.state)
+        let record = envelope.writeRecord
+        guard envelope.schemaVersion == RatingEligibilityStorageEnvelopeV1.schemaVersion,
+              record.operationID == eraseID,
+              record.successorStateSHA256 == envelope.state.stateSHA256,
+              record.receipt.operationID == eraseID, record.receipt.expectedRevision == nil,
+              record.receipt.resultingRevision == 1,
+              record.receipt.stateSHA256 == envelope.state.stateSHA256,
+              record.receipt.disposition == .committed else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        return envelope
+    }
+
+    @MainActor private func coldEraseRatingRawLocked(domainName: String,
+        eraseID: UUID) throws -> ColdEraseRatingRawDomainV1 {
+        guard !domainName.isEmpty, eraseID != SettingsValidationV1.zeroUUID else {
+            throw RatingEligibilityFailureV1.invalidValue
+        }
+        guard let domain = defaults.persistentDomain(forName: domainName) else { return .absent(.missing) }
+        guard !domain.isEmpty else { return .absent(.empty) }
+        guard Set(domain.keys) == Set([Self.ratingEligibilityStorageKey]),
+              let bytes = domain[Self.ratingEligibilityStorageKey] as? Data else {
+            throw RatingEligibilityFailureV1.storageUnavailable
+        }
+        _ = try coldEraseRatingByteCount(bytes)
+        guard defaults.data(forKey: Self.ratingEligibilityStorageKey) == bytes else {
+            throw RatingEligibilityFailureV1.storageUnavailable
+        }
+        return .cooldown(bytes)
+    }
+
+    @MainActor func observeColdCompletedEraseCooldown(plan: ColdEraseSchema2RatingPlanV1) throws
+        -> ColdEraseRatingExistingCooldownV1? {
+        var observation: ColdEraseRatingExistingCooldownV1?
+        var absence: ColdEraseRatingAbsentLookupV1?
+        var acquisition: ColdEraseSchema2RatingObservationAcquisitionV1?
+        do {
+            let actual = try plan.beginObservationAcquisition(adapter: self)
+            acquisition = actual
+            try actual.requireCurrentBinding(plan: plan, adapter: self)
+            let mode = actual.mode
+            let eraseID = plan.eraseID, domainName = plan.persistentDomainName
+            guard plan.operationID != SettingsValidationV1.zeroUUID else { throw RatingEligibilityFailureV1.invalidValue }
+            let read = try withRatingEligibilityLock { () throws
+                -> (observation: ColdEraseRatingExistingCooldownV1?, absentDomain: ColdEraseRatingAbsentDomainV1?) in
+                switch try coldEraseRatingRawLocked(domainName: domainName, eraseID: eraseID) {
+                case .absent(let actualDomain):
+                    guard mode == .lookup else { throw RatingEligibilityFailureV1.storageUnavailable }
+                    return (nil, actualDomain)
+                case .cooldown(let bytes):
+                    let envelope = try coldEraseRatingEnvelope(bytes, eraseID: eraseID)
+                    let dates = try coldEraseRatingDates(envelope.state)
+                    let owned = try coldEraseRatingOwnedCopy(bytes)
+                    return (ColdEraseRatingExistingCooldownV1(adapter: self, plan: plan, acquisition: actual,
+                        state: envelope.state, erasedAt: dates.erasedAt, suppressUntil: dates.suppressUntil,
+                        canonicalBytes: owned), nil)
+                }
+            }
+            observation = read.observation
+            if let observation { try plan.retainExistingCooldownObservation(observation, adapter: self) }
+            try actual.requireCurrentBinding(plan: plan, adapter: self)
+            if let observation {
+                guard read.absentDomain == nil else { throw RatingEligibilityFailureV1.divergentReplay }
+                try observation.requireBound(plan: plan, adapter: self)
+                return observation
+            }
+            guard mode == .lookup, let actualDomain = read.absentDomain else {
+                throw RatingEligibilityFailureV1.storageUnavailable
+            }
+            // Issued only after the real absent/empty read and post-mode reproof.
+            let issued = ColdEraseRatingAbsentLookupV1(adapter: self, plan: plan, acquisition: actual, actualDomain: actualDomain)
+            absence = issued
+            try plan.recordAbsentRatingLookup(issued, adapter: self)
+            return nil
+        } catch {
+            if let observation { observation.poison() }
+            else if let absence { absence.poison() }
+            else if let acquisition { acquisition.poisonOnUncertainAcquisition(plan: plan, adapter: self) }
+            else { plan.poisonCandidateEncoding(adapter: self) }
+            throw error
+        }
+    }
+
+    @MainActor func makeColdCompletedEraseCandidate(plan: ColdEraseSchema2RatingPlanV1) throws
+        -> ColdEraseRatingCandidateV1 {
+        var candidate: ColdEraseRatingCandidateV1?
+        do {
+            // Genuine Main admission precharges the whole196608 window first.
+            let state = try plan.requireCandidateEncoding(adapter: self)
+            let dates = try coldEraseRatingDates(state)
+            guard plan.operationID != SettingsValidationV1.zeroUUID,
+                  plan.eraseID != SettingsValidationV1.zeroUUID, !plan.persistentDomainName.isEmpty else {
+                throw RatingEligibilityFailureV1.invalidValue
+            }
+            let recipe = RatingLedgerPersistenceReceiptV1(operationID: plan.eraseID,
+                expectedRevision: nil, resultingRevision: 1, stateSHA256: state.stateSHA256,
+                disposition: .committed)
+            let envelope = RatingEligibilityStorageEnvelopeV1(state: state,
+                writeRecord: .init(operationID: plan.eraseID, successorStateSHA256: state.stateSHA256, receipt: recipe))
+            let bytes = try CompatibilityCanonicalV1.encode(envelope)
+            _ = try coldEraseRatingByteCount(bytes)
+            let issued = ColdEraseRatingCandidateV1(adapter: self, plan: plan, restorationAcquisition: nil,
+                state: state, receipt: recipe,
+                erasedAt: dates.erasedAt, suppressUntil: dates.suppressUntil, canonicalBytes: bytes)
+            candidate = issued
+            try issued.requireBound(plan: plan, adapter: self)
+            return issued
+        } catch {
+            if let candidate { candidate.poison() } else { plan.poisonCandidateEncoding(adapter: self) }
+            throw error
+        }
+    }
+
+    @MainActor func restoreColdCompletedEraseCandidate(plan: ColdEraseSchema2RatingPlanV1,
+        canonicalBytes: Data) throws -> ColdEraseRatingCandidateV1 {
+        var candidate: ColdEraseRatingCandidateV1?
+        var acquisition: ColdEraseSchema2RatingRestorationAcquisitionV1?
+        do {
+            guard plan.operationID != SettingsValidationV1.zeroUUID,
+                  plan.eraseID != SettingsValidationV1.zeroUUID, !plan.persistentDomainName.isEmpty else {
+                throw RatingEligibilityFailureV1.invalidValue
+            }
+            let count = try coldEraseRatingByteCount(canonicalBytes)
+            let digest = CompatibilityCanonicalV1.sha256(canonicalBytes)
+            let actual = try plan.beginPendingCandidateRestoration(adapter: self, byteCount: count, sha256: digest)
+            acquisition = actual
+            try actual.requireCurrentBinding(plan: plan, adapter: self)
+            guard actual.byteCount == count, actual.sha256 == digest else {
+                throw RatingEligibilityFailureV1.divergentReplay
+            }
+            let chosen = actual.chosenState
+            _ = try coldEraseRatingDates(chosen)
+            let envelope = try coldEraseRatingEnvelope(canonicalBytes, eraseID: plan.eraseID)
+            guard envelope.state == chosen else { throw RatingEligibilityFailureV1.divergentReplay }
+            try actual.requireCurrentBinding(plan: plan, adapter: self)
+            let dates = try coldEraseRatingDates(envelope.state)
+            // All throwing decoder/state/owner reproofs precede the owned copy.
+            // Once acquired, that backing is immediately placed in its carrier.
+            let owned = try coldEraseRatingOwnedCopy(canonicalBytes)
+            let issued = ColdEraseRatingCandidateV1(adapter: self, plan: plan, restorationAcquisition: actual,
+                state: envelope.state,
+                receipt: envelope.writeRecord.receipt, erasedAt: dates.erasedAt,
+                suppressUntil: dates.suppressUntil, canonicalBytes: owned)
+            candidate = issued
+            try issued.requireBound(plan: plan, adapter: self)
+            return issued
+        } catch {
+            if let candidate { candidate.poison() }
+            else if let acquisition { acquisition.poisonOnUncertainAcquisition(plan: plan, adapter: self) }
+            else { plan.poisonCandidateEncoding(adapter: self) }
+            throw error
+        }
+    }
+
+    @MainActor func applyColdCompletedEraseCandidate(plan: ColdEraseSchema2RatingPlanV1,
+        candidate: ColdEraseRatingCandidateV1) async throws -> ColdEraseRatingCheckedReceiptV1 {
+        do {
+            try candidate.requireBound(plan: plan, adapter: self)
+            try plan.requireCASAdmission(adapter: self, candidate: candidate)
+            try plan.retainCandidateCASAttempt(candidate: candidate, adapter: self)
+            try candidate.enterCAS(plan: plan, adapter: self)
+            let actualReceipt = try await compareAndSwap(operationID: plan.eraseID,
+                expectedRevision: nil, successor: candidate.state)
+            candidate.captureActualCASReturn(actualReceipt)
+            try plan.requireCASReturn(adapter: self, candidate: candidate, actualReceipt: actualReceipt)
+            try candidate.requireActualCASReturn(actualReceipt, plan: plan, adapter: self)
+            guard actualReceipt.operationID == candidate.operationID,
+                  actualReceipt.expectedRevision == nil, actualReceipt.resultingRevision == 1,
+                  actualReceipt.stateSHA256 == candidate.state.stateSHA256,
+                  (actualReceipt.disposition == .committed || actualReceipt.disposition == .idempotentReplay) else {
+                throw RatingEligibilityFailureV1.divergentReplay
+            }
+            let eraseID = plan.eraseID, domainName = plan.persistentDomainName
+            try withRatingEligibilityLock {
+                guard case .cooldown(let bytes) = try coldEraseRatingRawLocked(domainName: domainName, eraseID: eraseID),
+                      candidate.matchesCanonicalBacking(bytes) else { throw RatingEligibilityFailureV1.storageUnavailable }
+                let envelope = try coldEraseRatingEnvelope(bytes, eraseID: eraseID)
+                guard envelope.state == candidate.state,
+                      envelope.writeRecord.receipt == candidate.persistedReceipt else {
+                    throw RatingEligibilityFailureV1.divergentReplay
+                }
+            }
+            try candidate.markChecked()
+            let checked = ColdEraseRatingCheckedReceiptV1(adapter: self, plan: plan,
+                candidate: candidate, actualReceipt: actualReceipt)
+            try plan.recordCheckedRatingReadback(checked, candidate: candidate, adapter: self)
+            return checked
+        } catch { candidate.poison(); throw error }
+    }
+}
+
+
+// RATING_SAME_SERVICE_SOLE_PREFS_SOURCE_V4_BEGIN
+@MainActor final class ColdEraseSchema2RatingPreferencesSourceV4 {
+    fileprivate struct Storage {
+        let service: EraseAllService
+        let adapter: PreferencesAdapterV1
+        let defaults: UserDefaults
+        let domainName: String
+        let owner: ColdEraseSchema2TerminalOwnerV1
+        let operation: EraseColdPreparationOperationV1
+        let control: ColdEraseSchema2PostNamespaceCurrentControlOwnerV4
+        let chargedBytes: UInt64
+        var preparation: PreparationAttempt?
+        var receipt: PreparationReceipt?
+        var failure: Error?
+    }
+    @MainActor fileprivate final class PreparationAttempt {
+        enum Result { case returned(Bool), threw(Error) }
+        struct Cells { weak var source: ColdEraseSchema2RatingPreferencesSourceV4?; var result: Result?; var receipt: PreparationReceipt? }
+        var cells: Cells
+        init(source: ColdEraseSchema2RatingPreferencesSourceV4) { cells = .init(source: source) }
+    }
+    @MainActor final class PreparationReceipt {
+        enum AbsentDomainV4 { case missing, empty }
+        enum Readback { case absent(AbsentDomainV4), exactCooldown(state: RatingRequestAttemptLedgerStateV1, byteCount: UInt64, sha256: String) }
+        private struct Cells {
+            weak var source: ColdEraseSchema2RatingPreferencesSourceV4?
+            let attempt: PreparationAttempt
+            let keptExisting: Bool
+            let readback: Readback
+        }
+        private let cells: Cells
+        var keptExisting: Bool { cells.keptExisting }
+        var readback: Readback { cells.readback }
+        fileprivate static var declaredBackingBytes: UInt64 { UInt64(MemoryLayout<Cells>.stride) }
+        fileprivate init(source: ColdEraseSchema2RatingPreferencesSourceV4,
+            attempt: PreparationAttempt, kept: Bool, readback: Readback) {
+            cells = .init(source: source, attempt: attempt, keptExisting: kept, readback: readback)
+        }
+        func requireAssociation(source: ColdEraseSchema2RatingPreferencesSourceV4) throws {
+            guard cells.source === source, source.storage.preparation === cells.attempt,
+                  source.storage.receipt === self, cells.attempt.cells.receipt === self,
+                  source.storage.failure == nil,
+                  case .returned(let actual) = cells.attempt.cells.result, actual == keptExisting else {
+                throw RatingEligibilityFailureV1.divergentReplay
+            }
+            switch (actual, readback) {
+            case (false, .absent): break
+            case (true, .exactCooldown(let state, let count, let sha)):
+                try state.validate()
+                guard count > 0, count <= PreferencesAdapterV1.coldEraseRatingCanonicalByteLimit,
+                      state.schemaVersion == 1, state.revision == 1, state.attempts.isEmpty,
+                      case .erasedCooldown(let erasedAt, let until) = state.origin,
+                      erasedAt.timeIntervalSince1970.isFinite,
+                      until.timeIntervalSince(erasedAt) == 365 * 86_400,
+                      state.clockHighWatermarkUTC == erasedAt,
+                      KernelCanonicalHashV1.validSHA256(sha) else { throw RatingEligibilityFailureV1.divergentReplay }
+            default: throw RatingEligibilityFailureV1.divergentReplay
+            }
+        }
+    }
+    fileprivate var storage: Storage
+    var adapter: PreferencesAdapterV1 { storage.adapter }
+    var persistentDomainName: String { storage.domainName }
+    var preparationReceiptV4: PreparationReceipt? { storage.receipt }
+    static func declaredBackingBytes(domainUTF8Count: UInt64) throws -> UInt64 {
+        try ColdEraseControlBinaryV1.adding(UInt64(MemoryLayout<Storage>.stride
+            + MemoryLayout<PreparationAttempt.Cells>.stride), PreparationReceipt.declaredBackingBytes,
+            PreferencesAdapterV1.coldRatingAdapterStoredBackingV4,
+            domainUTF8Count, 128, 3 * 65_536)
+        // The existing three raw-window ceiling is prepaid, not widened.
+        // Dictionary/codec/allocator and VM admission remain separately due.
+    }
+    fileprivate init(service: EraseAllService, defaults: UserDefaults, domainName: String,
+        owner: ColdEraseSchema2TerminalOwnerV1, operation: EraseColdPreparationOperationV1,
+        control: ColdEraseSchema2PostNamespaceCurrentControlOwnerV4, charge: UInt64) {
+        storage = .init(service: service, adapter: PreferencesAdapterV1(defaults: defaults),
+            defaults: defaults, domainName: domainName, owner: owner, operation: operation,
+            control: control, chargedBytes: charge)
+    }
+    func requireAssociation(service: EraseAllService, owner: ColdEraseSchema2TerminalOwnerV1,
+        operation: EraseColdPreparationOperationV1,
+        control: ColdEraseSchema2PostNamespaceCurrentControlOwnerV4) throws {
+        guard storage.service === service, storage.owner === owner, storage.operation === operation,
+              storage.control === control, storage.failure == nil,
+              storage.chargedBytes == (try Self.declaredBackingBytes(domainUTF8Count: UInt64(persistentDomainName.utf8.count))),
+              !persistentDomainName.isEmpty else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        try adapter.requireSameColdRatingDefaultsV4(storage.defaults)
+        try service.requireColdRatingPreferencesConfigurationV4(source: self, owner: owner, operation: operation)
+    }
+    func requireSameServiceDefaultsV4(service: EraseAllService, defaults: UserDefaults,
+        domainName: String) throws {
+        guard storage.service === service, storage.defaults === defaults,
+              persistentDomainName == domainName, storage.failure == nil else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        try adapter.requireSameColdRatingDefaultsV4(defaults)
+    }
+    func prepareWithDurableRequestV4(_ request: ColdEraseSchema2RatingRequestV4) throws -> PreparationReceipt {
+        do {
+            guard storage.preparation == nil, storage.receipt == nil else { throw RatingEligibilityFailureV1.staleState }
+            try request.requireDefaultsPreparationAdmission(source: self)
+            let attempt = PreparationAttempt(source: self)
+            storage.preparation = attempt // entered real owner before incumbent wipe/callback
+            let kept: Bool
+            do {
+                kept = try AppLockNotificationTransactionFenceV1.perform {
+                    try storage.adapter.preparePreferencesForCompletedErase(operationID: request.eraseID,
+                        persistentDomainName: persistentDomainName)
+                }
+                attempt.cells.result = .returned(kept) // actual return before readback/current proof
+            } catch { attempt.cells.result = .threw(error); throw error }
+            let readback = try adapter.coldRatingPreparedDomainReadbackV4(eraseID: request.eraseID,
+                domainName: persistentDomainName, kept: kept)
+            let receipt = PreparationReceipt(source: self, attempt: attempt, kept: kept, readback: readback)
+            attempt.cells.receipt = receipt; storage.receipt = receipt // retain before fallible consumer
+            try receipt.requireAssociation(source: self)
+            try request.recordDefaultsPreparationReturn(source: self, receipt: receipt)
+            return receipt
+        } catch {
+            if storage.failure == nil { storage.failure = error }
+            request.poisonOnUncertainEffect(); throw error
+        }
+    }
+}
+
+extension PreferencesAdapterV1 {
+    @MainActor fileprivate func requireSameColdRatingDefaultsV4(_ actual: UserDefaults) throws {
+        guard defaults === actual else { throw RatingEligibilityFailureV1.divergentReplay }
+    }
+    private struct ColdRatingAdapterCellsV4 {
+        let defaults: UserDefaults
+        let reminderPolicyEditOwner: ReminderPolicyEditOwnerV1
+        let reminderPolicyEditGate: AppAccessGateV1?
+        weak var reminderPolicyEditControl: AppLockNotificationControlStoreV1?
+        let reminderPolicyEditsRetired: Bool
+    }
+    fileprivate static var coldRatingAdapterStoredBackingV4: UInt64 {
+        UInt64(MemoryLayout<ColdRatingAdapterCellsV4>.stride)
+        // ReminderPolicyEditOwnerV1 has no stored cells; runtime object costs remain due.
+    }
+    @MainActor static func issueColdRatingPreferencesSourceV4(service: EraseAllService,
+        owner: ColdEraseSchema2TerminalOwnerV1, operation: EraseColdPreparationOperationV1,
+        control: ColdEraseSchema2PostNamespaceCurrentControlOwnerV4,
+        _ retain: (ColdEraseSchema2RatingPreferencesSourceV4) throws -> Void) throws {
+        try service.withColdRatingPreferencesConfigurationV4(owner: owner, operation: operation) { defaults, domain in
+            let charge = try ColdEraseSchema2RatingPreferencesSourceV4.declaredBackingBytes(domainUTF8Count: UInt64(domain.utf8.count))
+            try control.reserveRatingPreferencesBackingV4(owner: owner, operation: operation, bytes: charge)
+            let source = ColdEraseSchema2RatingPreferencesSourceV4(service: service, defaults: defaults,
+                domainName: domain, owner: owner, operation: operation, control: control, charge: charge)
+            try retain(source) // caller retains SAME returned owner before postproof
+            try source.requireAssociation(service: service, owner: owner, operation: operation, control: control)
+        }
+    }
+    @MainActor fileprivate func coldRatingPreparedDomainReadbackV4(eraseID: UUID,
+        domainName: String, kept: Bool) throws -> ColdEraseSchema2RatingPreferencesSourceV4.PreparationReceipt.Readback {
+        try withRatingEligibilityLock {
+            switch try coldEraseRatingRawLocked(domainName: domainName, eraseID: eraseID) {
+            case .absent(let actual):
+                guard !kept else { throw RatingEligibilityFailureV1.divergentReplay }
+                // Exact DATA from the incumbent private raw-domain result;
+                // no caller can issue this retained checked Receipt.
+                switch actual { case .missing: return .absent(.missing); case .empty: return .absent(.empty) }
+            case .cooldown(let bytes):
+                guard kept else { throw RatingEligibilityFailureV1.divergentReplay }
+                let envelope = try coldEraseRatingEnvelope(bytes, eraseID: eraseID)
+                return .exactCooldown(state: envelope.state, byteCount: try coldEraseRatingByteCount(bytes),
+                    sha256: CompatibilityCanonicalV1.sha256(bytes))
+            }
+        }
+    }
+}
+
+extension ColdEraseRatingExistingCooldownV1 {
+    /// Same immutable owned backing; no Data alias/copy escapes. Add the actual
+    /// borrowing cell to this owner's Storage and declared prebirth profile.
+    func withCanonicalRatingRecipeV4(plan: ColdEraseSchema2RatingPlanV1,
+        adapter: PreferencesAdapterV1, _ body: (UnsafeRawBufferPointer) throws -> Void) throws {
+        do {
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            guard !storage.ratingRecipeBorrowActiveV4, let bytes = canonicalBacking,
+                  UInt64(bytes.count) == canonicalByteCount else { throw RatingEligibilityFailureV1.staleState }
+            storage.ratingRecipeBorrowActiveV4 = true
+            try bytes.withUnsafeBytes { try body($0) }
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            storage.ratingRecipeBorrowActiveV4 = false
+        } catch { poison(); throw error }
+        // A reached callback fault permanently retains the active loan.
+    }
+}
+
+extension ColdEraseRatingCandidateV1 {
+    func requireHistoricalCheckedReturnV4(_ receipt: RatingLedgerPersistenceReceiptV1,
+        plan: ColdEraseSchema2RatingPlanV1, adapter: PreferencesAdapterV1) throws {
+        try requireIdentity(plan: plan, adapter: adapter)
+        guard phase == .checked || phase == .retired, actualCASReturn == receipt,
+              !rawPointerActive, uncertainPlan == nil else { throw RatingEligibilityFailureV1.divergentReplay }
+        if phase == .retired {
+            guard canonicalBacking == nil else { throw RatingEligibilityFailureV1.staleState }
+        }
+    }
+    /// Historical immutable recipe DATA after actual CAS/readback. This is a
+    /// separate closed borrower; the incumbent prepared-only effect borrower
+    /// and all CAS/retirement guards retain their exact meaning.
+    func withHistoricalCanonicalRatingRecipeV4(request: ColdEraseSchema2RatingRequestV4,
+        plan: ColdEraseSchema2RatingPlanV1, _ body: (UnsafeRawBufferPointer) throws -> Void) throws {
+        do {
+            try requireAdapterIssuedAssociation(plan: plan, adapter: adapter)
+            try request.requireCanonicalRecipeBorrow(candidate: self, plan: plan)
+            guard !rawPointerActive, let bytes = canonicalBacking else { throw RatingEligibilityFailureV1.staleState }
+            rawPointerActive = true
+            try bytes.withUnsafeBytes { try body($0) }
+            try request.requireCanonicalRecipeBorrow(candidate: self, plan: plan)
+            rawPointerActive = false
+        } catch { poison(); throw error }
+    }
+}
+
+extension ColdEraseRatingCheckedReceiptV1 {
+    func requireHistoricalAdapterReadbackV4(plan: ColdEraseSchema2RatingPlanV1,
+        candidate: ColdEraseRatingCandidateV1, adapter: PreferencesAdapterV1) throws {
+        guard self.plan === plan, self.adapter === adapter, self.candidate === candidate,
+              state == candidate.state, canonicalByteCount == candidate.canonicalByteCount,
+              canonicalSHA256 == candidate.canonicalSHA256,
+              erasedAt == candidate.erasedAt, suppressUntil == candidate.suppressUntil else {
+            throw RatingEligibilityFailureV1.divergentReplay
+        }
+        try candidate.requireHistoricalCheckedReturnV4(actualCASReceipt, plan: plan, adapter: adapter)
+        // Actual adapter-issued locked readback DATA survives checked backing
+        // retirement. Incumbent live requireBound/CAS guards remain exact.
+    }
+}
+// RATING_SAME_SERVICE_SOLE_PREFS_SOURCE_V4_END
+
+// PREFS_TERMINAL_SAME_CHECKED_COOLDOWN_REENCODING_V4_BEGIN
+/// A separately charged canonical source for K after the genuine Rating
+/// candidate workspace has been retired. It never rearms that old borrower.
+@MainActor final class ColdEraseSchema2TerminalRatingCanonicalWorkspaceV4 {
+    private struct Cells {
+        let completed: ColdEraseSchema2CompletedRatingReceiptV4
+        let candidate: ColdEraseRatingCandidateV1
+        let checked: ColdEraseRatingCheckedReceiptV1
+        var initializationEntered = false
+        var initialized = false
+        var borrowing = false
+        var retirementEntered = false
+        var retirementReturned = false
+        var bytes: Data?
+        var failure: Error?
+    }
+    private var cells: Cells
+    static var declaredBackingBytes: UInt64 {
+        UInt64(MemoryLayout<Cells>.stride + MemoryLayout<Cells>.alignment - 1
+            + MemoryLayout<RatingEligibilityStorageEnvelopeV1>.stride
+            + MemoryLayout<RatingEligibilityWriteRecordV1>.stride
+            + MemoryLayout<RatingRequestAttemptLedgerStateV1>.stride
+            + 6 * MemoryLayout<Data>.stride + 4 * MemoryLayout<Date>.stride) + 65_536
+        // Separate new workspace. The incumbent three-window196608 policy,
+        // retired Candidate/Existing buffers and original recipes are exact.
+        // Foundation/COW/allocator/VM admission remains separately DUE.
+    }
+    var byteCount: UInt64 { cells.checked.canonicalByteCount }
+    var sha256: String { cells.checked.canonicalSHA256 }
+    private init(completed: ColdEraseSchema2CompletedRatingReceiptV4,
+        candidate: ColdEraseRatingCandidateV1, checked: ColdEraseRatingCheckedReceiptV1) {
+        cells = .init(completed: completed, candidate: candidate, checked: checked)
+    }
+    /// Native retains the SAME object in its prepaid fixed cell before this
+    /// synchronous callback or any encoder/proof. No actual codec runs here.
+    static func withUninitialized(completed: ColdEraseSchema2CompletedRatingReceiptV4,
+        _ body: (ColdEraseSchema2TerminalRatingCanonicalWorkspaceV4) throws -> Void) throws {
+        try completed.withTerminalCanonicalRatingInputsV4 { candidate, checked in
+            let actual = ColdEraseSchema2TerminalRatingCanonicalWorkspaceV4(
+                completed: completed, candidate: candidate, checked: checked)
+            try body(actual)
+            try actual.requireUninitializedAssociation(completed: completed)
+        }
+    }
+    private func requireUninitializedAssociation(completed: ColdEraseSchema2CompletedRatingReceiptV4) throws {
+        guard cells.completed === completed, cells.failure == nil,
+              !cells.initializationEntered, !cells.initialized, cells.bytes == nil,
+              !cells.borrowing, !cells.retirementEntered else { throw RatingEligibilityFailureV1.staleState }
+        try completed.requireTerminalCanonicalRatingInputsV4(candidate: cells.candidate, checked: cells.checked)
+    }
+    func initialize(completed: ColdEraseSchema2CompletedRatingReceiptV4) throws {
+        do {
+            try requireUninitializedAssociation(completed: completed)
+            cells.initializationEntered = true // actual prospective codec entry retained before allocation
+            let state = cells.checked.state
+            guard state == cells.candidate.state, state.schemaVersion == RatingRequestAttemptLedgerStateV1.schemaVersion,
+                  state.revision == 1, state.attempts.isEmpty,
+                  case .erasedCooldown(let erasedAt, let suppressUntil) = state.origin,
+                  state.clockHighWatermarkUTC == erasedAt,
+                  erasedAt == cells.checked.erasedAt, erasedAt == cells.candidate.erasedAt,
+                  suppressUntil == cells.checked.suppressUntil, suppressUntil == cells.candidate.suppressUntil,
+                  erasedAt.timeIntervalSinceReferenceDate.isFinite,
+                  suppressUntil.timeIntervalSinceReferenceDate.isFinite,
+                  suppressUntil == erasedAt.addingTimeInterval(RatingEligibilityPolicyV1.eraseCooldownSeconds),
+                  RatingEligibilityPolicyV1.eraseCooldownSeconds == 365 * 86_400,
+                  cells.candidate.persistedReceipt.operationID == cells.candidate.operationID,
+                  cells.candidate.persistedReceipt.expectedRevision == nil,
+                  cells.candidate.persistedReceipt.resultingRevision == 1,
+                  cells.candidate.persistedReceipt.stateSHA256 == state.stateSHA256,
+                  byteCount > 0, byteCount <= 65_536 else { throw RatingEligibilityFailureV1.invalidValue }
+            let envelope = RatingEligibilityStorageEnvelopeV1(state: state, writeRecord: .init(
+                operationID: cells.candidate.operationID, successorStateSHA256: state.stateSHA256,
+                receipt: cells.candidate.persistedReceipt))
+            let actual = try CompatibilityCanonicalV1.encode(envelope)
+            cells.bytes = actual // genuine returned raw owner before any fallible postproof
+            guard UInt64(actual.count) == byteCount,
+                  CompatibilityCanonicalV1.sha256(actual) == sha256,
+                  try CompatibilityCanonicalV1.decode(RatingEligibilityStorageEnvelopeV1.self, from: actual) == envelope else {
+                throw RatingEligibilityFailureV1.invalidValue
+            }
+            try completed.requireTerminalCanonicalRatingInputsV4(candidate: cells.candidate, checked: cells.checked)
+            cells.initialized = true
+        } catch { if cells.failure == nil { cells.failure = error }; throw error }
+    }
+    func requireHistoricalAssociation(completed: ColdEraseSchema2CompletedRatingReceiptV4) throws {
+        guard cells.completed === completed, cells.failure == nil,
+              cells.initializationEntered, cells.initialized,
+              byteCount > 0, byteCount <= 65_536 else { throw RatingEligibilityFailureV1.staleState }
+        if cells.retirementEntered {
+            guard cells.retirementReturned, cells.bytes == nil, !cells.borrowing else { throw RatingEligibilityFailureV1.staleState }
+        } else {
+            guard !cells.retirementReturned, let actual = cells.bytes,
+                  UInt64(actual.count) == byteCount else { throw RatingEligibilityFailureV1.staleState }
+        }
+        try completed.requireTerminalCanonicalRatingInputsV4(candidate: cells.candidate, checked: cells.checked)
+        // Pure genuine retained Rating result; never old canonical workspace,
+        // current Control/Common, physical journal pin, Defaults, CAS or clock.
+    }
+    func withChunk(completed: ColdEraseSchema2CompletedRatingReceiptV4, offset: UInt64, count: Int,
+        _ body: (UnsafeRawBufferPointer) throws -> Void) throws {
+        do {
+            try requireHistoricalAssociation(completed: completed)
+            guard !cells.borrowing, count > 0, count <= 65_536, offset <= byteCount,
+                  UInt64(count) <= byteCount - offset, let start = Int(exactly: offset),
+                  !cells.retirementEntered, !cells.retirementReturned,
+                  let bytes = cells.bytes else { throw RatingEligibilityFailureV1.staleState }
+            cells.borrowing = true
+            try bytes.withUnsafeBytes { try body(UnsafeRawBufferPointer(rebasing: $0[start..<start + count])) }
+            try requireHistoricalAssociation(completed: completed); cells.borrowing = false
+        } catch { if cells.failure == nil { cells.failure = error }; throw error }
+    }
+}
+// PREFS_TERMINAL_SAME_CHECKED_COOLDOWN_REENCODING_V4_END
+// PREFS_TERMINAL_POSITIVE_CANONICAL_REFERENCE_RETIREMENT_V4_BEGIN
+extension ColdEraseSchema2TerminalRatingCanonicalWorkspaceV4 {
+    func retireAfterActualTerminalPublicationV4(publication: ColdEraseSchema2TerminalPublicationReceiptV4,
+        completed: ColdEraseSchema2CompletedRatingReceiptV4) throws {
+        do {
+            try requireHistoricalAssociation(completed: completed)
+            try publication.requireConsumedRatingCanonicalWorkspaceV4(self, completed: completed)
+            guard !cells.borrowing, !cells.retirementEntered, !cells.retirementReturned,
+                  cells.bytes != nil else { throw RatingEligibilityFailureV1.staleState }
+            cells.retirementEntered = true // one-way before sole private raw reference detaches
+            cells.bytes = nil
+            cells.retirementReturned = true // actual reference assignment returned
+            try requireReturnedOwnedRawRetirementV4(completed: completed)
+            try publication.requireConsumedRatingCanonicalWorkspaceV4(self, completed: completed)
+        } catch { if cells.failure == nil { cells.failure = error }; throw error }
+    }
+    func requireReturnedOwnedRawRetirementV4(completed: ColdEraseSchema2CompletedRatingReceiptV4) throws {
+        guard cells.retirementEntered, cells.retirementReturned, cells.bytes == nil,
+              !cells.borrowing else { throw RatingEligibilityFailureV1.staleState }
+        try requireHistoricalAssociation(completed: completed)
+        // Checked envelope/count/SHA/date/CAS history remains real comparison
+        // DATA. There is no borrower rearm, fresh clock or Defaults/CAS call.
+        // Foundation/COW/VM and wider alias retirement remain separately DUE.
+    }
+}
+// PREFS_TERMINAL_POSITIVE_CANONICAL_REFERENCE_RETIREMENT_V4_END
+

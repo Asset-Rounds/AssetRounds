@@ -1,41 +1,31 @@
-# Active integration brief — 2026-10-03
+# Active integration brief - 2026-10-04
 
-AGENTS.md and PERFORMANCE_WORKFLOW.md govern. All five Phase1 gates OPEN; releaseReady=false. Full V23 release scope remains.
+All five Phase 1 gates remain OPEN. Main is accepted S10 b1d04ae5e684aa9c6807af655089efa1df8a7ed6; releaseReady=false. Full V23 scope, genuine owner review and AGENTS.md remain binding.
 
-## Current checkpoint and preservation
+## C9 checkpoint candidate
 
-- Dropbox primary integration checkpoint22d75cc78e48a50707ee1b1a3e227af198384ac7, parent15175376abc1a81fb00a5640638fe7efee9f58ac, contains the reviewed ten-leaf recovery and local27 policy/records. Main remains accepted S10 b1d04ae5e684aa9c6807af655089efa1df8a7ed6.
-- Integration publication is blocked by missing Git authentication. Verified isolated non-force transport retains exact33 new objects; both push refusals are preserved. Refresh server refs and exact source/commit guards before publishing. No main advancement.
-- Preserve owner drafts, untracked CODEX_RESUME/Finder work, V30/frozen branches, original failures/HOLDs and migration34live/26archived/96artifacts. Root alone integrates, commits, pushes and operates native/evidence/ledger effects.
-- One work area: .codex-temp/resume-20261002/WORK_AREA.md. New source/evidence stay Dropbox; disposable builds/TMP are in ~/Library/Caches/AssetRounds-resume-20261002. Historical archive remains online-only except selected originals.
+- Work on codex/v23-s10-integration-20260910. This candidate starts at ceb83f9593a6546ba97a15715f7fdde98894467e, following two recovered unpublished checkpoints. Exact current refs and publication are recorded separately; refresh before every push.
+- Root imported the reviewed 20 source paths once into the Dropbox Primary repository: 14 Swift paths, two canonical selection JSONs and four exact CI pin scripts. Together with four Root records, this is a bounded 24-path DEVELOPMENT checkpoint.
+- Independent GPT-6.1 Sol/xhigh source and actual import review PASS. Isolated exact-base cached check, Primary check and once-apply each returned 0. All 20 postimages match the sealed packet; 2,790 other tracked raw/fullTEN rows stayed unchanged. Primary's twelve 0600 and eight 0644 permissions were preserved. Original failures and HOLDs remain unchanged.
+- Exact import packet MAN23731/13a2a403; actual RESULT5283983/4f7a920d and maps BEFORE53424fc2/AFTER5846c1c7. Evidence lives in .codex-temp/resume-20261002/verification/primary-c9-twenty-primary-apply-original-v1.
+- Whole-module C9 local DEVELOPMENT compile/link passed: 0 compiler errors, app604/unit306/UI79 ordered input footprint. Reused evidence retains its actual isolated S/map257a source and Xcode27 scope; it is not a Primary build or Products qualification.
+- Four exact ordinary FileAuthority app tests passed once, 0 failures/skips/unknown, independently reviewed as affected DEVELOPMENT behavior. The original observer failed; localExecutionQualified=false and its HOLD remain permanent. No unchanged native retry.
+- All 494 changed tooling checks passed: native CI393, selection42, retained reader41, complete affected dispatcher bridge18; 0 failures/errors/skips. Exact isolated 2810 raw/fullTEN endpoints stayed unchanged. The first 3FAIL/160ERROR original is preserved.
+- Canonical census is 3,716 unique methods/33 partitions; dev batch27. Existing3712/old23 order, budgets, Card135 and historical sourceCensus provenance are conserved. Four genuine cold methods were enrolled; generatedAtHead=ceb83 is truthful generation provenance.
+- Canonical four-test completion was recorded/appended once: ledger32 rows/3 claims, SHAa6b92681. DATA_ONLY_UNQUALIFIED; null compiler/runtime fields and original pending files remain unchanged.
+- Two recovered-source EOF blank lines remain cosmetic debt (StartupRouter30939, PreferencesAdapter2473). Actual diff-check exit2 is retained, never reported as PASS.
 
-## Tooling checkpoint
+## Immediate work
 
-- Twelve tooling leaves compose against exact primary22 in isolated primary22-cold-tooling-source. Mapdf159736/all2810; closed dispatcher9dc562fd/tests7a52f9be and retained reader0a95a260. Source-only independent Sol6.1/xhigh GO; cold development originals retain consumed attempts/no cancel/retry and false qualification.
-- Required CI on that actual composition: native393/393 and selection42/42 PASS, zero failures/errors/skips; result9672b072, same nonauthor actualGO. Own before/after2810 full-ten facts/bytes match57a9cf00. Six total workers, distinct fresh TMP, pinnedPythonb33. No Swift/native/gate credit.
-- Reuse applicable prior T4b9 dispatcher234 result:231PASS/3historicalskips/zero fail/error and genuineGOe14ea042. Reader41 retains its exact earlier scope. No unchanged rerun justified by record-only composition. The failed002 fixture-permission original and all HOLDs remain unchanged.
-- Pinned gate route is still unqualified: one cold original must prove payload/source binding, safe extraction, no-rebuild and complete partition results before any full-coverage gate credit. Template5696284 bytes remains below5.75MiB.
+1. Obtain final exact 24-path checkpoint review, explicitly stage only owned paths, commit and publish linearly after refreshing refs. No main advance.
+2. Current hold-release helper V2 closes all three V1 Source defects. Independent Source review PASS; Root's first nine changed pure groups passed once, actual DATA review pending. Fresh tool/version/Source/Products/root admission, two ordered quiet PS plus seven lsof rounds, independent actual DATA and Root disposition are still required before C10 source/Products release.
+3. Private C10 canonical-consumer composition is sealed and independently Source-approved: 107 literal stages from actual C9 inputs, preserving Primary22 controls and both C9 bridges. It is unimported; fresh compile, affected runtime and physical/alias/globalFD/64 obligations remain DUE. SourceReady=false.
+4. After checkpoint publication, the distinct pinned hosted dev27 question is available for diagnosis; it does not contain the locally passed ordinary four. Cold/Ready prerequisites remain due. Run the full shared3716 development sweep at meaningful stabilization to establish the current total.
 
-## Current native blocker
+## Counts, toolchain and preservation
 
-- Earlier remaining37 original:18PASS/2FAIL/17withoutterminal at5400s. Aggregate-detach943.580s and detached-callback950.177s fail the unchanged30s publication expectation. Partialmanifestae516/HOLD993 retained; no unchanged retry or full37 credit.
-- Separate instrumented original: native65, one FAIL940.735s, complete1100files/57MB; genuine outcome/physical review7030/additive1faa. Measured scratch retirement844.124s and next continuation86.685s motivate bounded DEBUG timings; common cause with detached-callback remains unproved.
-- New pure-timing sourcef3e158bf/map282a972c compiled locally once, PASS302.237s; Products209files+15dirs/f44e9915, build0ef6338e/toolchain505ef013, genuine source/build reviews4d93/704c. Test predicates and30/1800/5400/TERM15/KILL15 limits unchanged.
-- Native timing adapterV6 ca2d4e4c has reviewed literal-only fresh-boundary correction. Prior actual41 and8 disposable mocks retain separate scopes; no actual49 run. V1 pressure2 HOLD remains. FreshV2 actual43-known-installation/14-role boundary at07:30UTC passed pressure1/source/current-commonProducts/roots/holder guards. Independent operational review, canonical once-registration/append and sole native launch remain due.
-- Canonical ledger naturally downloaded after orderly Dropbox restart and closing only verified stale readonly readers:9467B/f85196df/29legacyrows equals official stable cloudrev65ccab94149ec2ae0eccc; contenthash51399ab8 verified. Genuine provenance/preimageGOda5c is DATA only. Preserve prefix and serialize writers; no append/qualification has occurred.
-
-## Separate unfinished cold correction
-
-- cold-schema2-source remains exact1517 plus twelve owned unfinished leaves. Actual Native07ffa09b/PFPe7a0eb1d/Migrationcd2c4bfd map5732f925 includes reviewed catalog/root/original-selected/current-child borrower components. Original536404-byte suffix and other2808 full-ten/bytes conserved at latest import. Static component review creates no Ready/compile/runtime proof.
-- Target and Native author genuine descendant ReadNode/PolicyScope/current-window storage and actual outer-return/cleared-slot ownership. Mechanics waits immutable real ABI; all helpers Sol6.1/xhigh. Preserve uncertainty charges. No invented many-node/whole-image/backing/Seed producers.
-- Whole traversal/policy, ingress/Attempt/Seed/REQUEST/OBS, eight Native issuers, terminal/final consumer release and full12 source closure remain due before compound review and changed-source compile. Old89-error compiler original remains; no unchanged compile retry.
-- C43 reviewed separate source1329/fullcompile276.673s/Productsf8b9 has native UI journeys UNRUN. Fresh admission follows diagnostic settlement; no qualified UI credit.
-
-## Toolchain, gates and owner actions
-
-- Local DEVELOPMENT only: Xcode27.0/27A266a, SDK27/24A430, iOS26.2/23C54 under owner decision31. Every exact source/Products/compiler/runtime tuple retains its scope. All five gates/exact-main keep GitHub26.6/17F113 +26.2/23C54.
-- Mac16GiB/10CPU, about51GiB free at07:27UTC, pressure1; choose workers from live contention. Dropbox syncing resumed, global completion unproved. External233GiB available if needed; no transfer or broad cleanup required.
-- After bounded corrections stabilize: hosted development sweep, cold qualification, same-head full units and qualified critical UI, independent candidate review, genuine owner screenshots/checklist review, linear main fast-forward and pinned exact-main verification.
-- Card135 owner-only skipped. Device/minimum-runtime/production protection deferred/release-blocking; C55/privacy/App Store/owner obligations remain. No signing/distribution.
-
-Details and immutable scope: CURRENT_INTEGRATION.md, VERIFICATION_DUE.md and WORK_AREA.md. Historical checkpoint/CLAUDE handoff remain references; current owner authorization resumes development.
+- Current verified count: 0 compiler errors, four passing app tests, 494 passing tooling checks. Three hold-helper Source defects and two import-permission Source defects are closed. Full app failure total UNKNOWN; two historical performance failures and Native20/45 retain their old exact scopes.
+- Local DEVELOPMENT: Xcode27.0/27A266a, Swift6.4/language5, SDK27.0/24A430, runtime26.2/23C54. Every official gate and exact-main verification remains pinned GitHub Xcode26.6/17F113 + iOS26.2/23C54.
+- All same-head coverage/UI/integration/owner-human/main-and-exact-main gates, cold shared-build qualification and direct bridge/cold proof remain open. Minimum runtime and physical protection stay deferred/release-blocking.
+- Root alone operates Git, builds, native execution and evidence effects. Helpers use GPT-6.1 Sol/xhigh in useful disjoint/private or read-only lanes; preserve held Source/Products until actual release. Fresh CPU/memory/disk admission precedes native work.
+- Source, packets and retained receipts stay in Dropbox .codex-temp/resume-20261002. Mutable originals, fresh DD and TMP stay together in ~/Library/Caches/AssetRounds-resume-20261002. Preserve owner drafts/untracked, frozen/V30, the migration packet, original failures/HOLDs and historical identities. Keep the historical archive online-only and leave working Dropbox alone.

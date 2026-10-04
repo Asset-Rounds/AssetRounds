@@ -31,7 +31,7 @@ TAR_NAME = "FieldEvidencePayload.tar"
 DIGEST_NAME = TAR_NAME + ".sha256"
 METADATA = "v23-shared-payload.json"
 EXECUTABLE_SOURCES = {
-    "Scripts/v23-native-ci.py": "2c0793b12d141b9330ee2bca3b32f97964078e4fb0e4815f31b6453890574754",
+    "Scripts/v23-native-ci.py": "9ae1792e7190659dc655b056343b082cd1eaca0f3fa3eadcf02350a86ec25a09",
     "Scripts/v23-phase1-gates.py": "ee9f34bd65c761ba4093390f9f19ecdb5a726ca9b9f24aa3adde53377534c343",
     "Scripts/s10-4-build-payload.py": "ea731fd64278d3ab242956bf2f36d486254903a10f5f8bc17c65de3d10397521",
     "Scripts/v23-selection-generator.py": "4a987864e3046e165c35bb8af1278a693c83a4bb90d2d398e81d528cff2c1c2a",
