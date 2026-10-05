@@ -5536,6 +5536,148 @@ class LocalDevelopmentEventTests(unittest.TestCase):
     def append(self, reference):
         return NEW.local_append(reference, hashlib.sha256(self.ledger_path.read_bytes()).hexdigest())
 
+    def captured_source_request(self, label):
+        """Real disposable Source bytes/facts in the current producer's closed row shape."""
+        leaf = self.source / "App.swift"
+        raw = b"// disposable captured Source fixture\n"
+        leaf.write_bytes(raw); leaf.chmod(0o644)
+        info = leaf.lstat()
+        ten = {key: getattr(info, key) for key in ("st_dev", "st_ino", "st_mode", "st_uid", "st_gid",
+            "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns", "st_flags")}
+        row = {"bytes": len(raw), "mode": oct(stat.S_IMODE(info.st_mode)),
+            "sha256": hashlib.sha256(raw).hexdigest(), "fullTen": ten}
+        return self.source_map_request({"App.swift": row}, label), row
+
+    def source_map_request(self, mapping, label):
+        request = copy.deepcopy(self.request)
+        source_map = self.put(label + "-source-map.json", mapping)
+        frozen = self.put(label + "-source-freeze.json", {"sourceHEAD": HEAD,
+            "sourceWorktree": str(self.source), "allInputs": source_map})
+        request["bindings"].update(sourceMap=source_map, sourceFreeze=frozen)
+        return request
+
+    def test_public_local_register_accepts_captured_fullten_rows_and_ref3_without_promotion(self):
+        request, row = self.captured_source_request("captured-current")
+        request_ref = self.put("captured-current-request.json", request)
+        output = self.packets / "captured-current-event.json"
+        absent = self.root / "unrelated-current-evidence"
+        args = ["v23-original.py", "local-register", "--request", request_ref["path"],
+            "--sha256", request_ref["sha256"], "--bytes", str(request_ref["bytes"]), "--output", str(output)]
+        with mock.patch.object(NEW, "EVIDENCE", absent), mock.patch.object(sys, "argv", args), \
+                contextlib.redirect_stdout(io.StringIO()):
+            NEW.main()
+        event = NEW.local_json(output.read_bytes())
+        self.assertEqual(NEW.local_json(event["requestBytes"].encode()), request)
+        self.assertEqual(NEW.local_json(Path(request["bindings"]["sourceMap"]["path"]).read_bytes()), {"App.swift": row})
+        self.assertEqual(set(row), {"sha256", "bytes", "mode", "fullTen"})
+        self.assertEqual(event["classification"], NEW.LOCAL_CLASSIFICATION)
+        self.assertEqual(event["retentionStatus"], "DATA_ONLY_UNQUALIFIED")
+        self.assertEqual(event["ledgerStatus"], "PENDING_APPEND")
+        self.assertIsNone(event["tupleFacts"]["runtimeExecuted"])
+        self.assertFalse(absent.exists())
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
+    def test_captured_source_fullten_frames_refuse_missing_extra_and_noninteger_fields(self):
+        _, row = self.captured_source_request("frame-base")
+        variants = []
+        missing = copy.deepcopy(row); del missing["fullTen"]["st_size"]; variants.append(("missing-ten", missing))
+        extra = copy.deepcopy(row); extra["fullTen"]["unknown"] = 0; variants.append(("extra-ten", extra))
+        for label, frame in (("null-ten", None), ("list-ten", []), ("string-ten", "frame")):
+            bad = copy.deepcopy(row); bad["fullTen"] = frame; variants.append((label, bad))
+        for key in row["fullTen"]:
+            bad = copy.deepcopy(row); bad["fullTen"][key] = True; variants.append(("bool-" + key, bad))
+        bad = copy.deepcopy(row); bad["fullTen"]["st_mtime_ns"] = 1.0; variants.append(("float-ten", bad))
+        bad = copy.deepcopy(row); bad["fullTen"]["st_uid"] = "501"; variants.append(("string-in-ten", bad))
+        missing = copy.deepcopy(row); del missing["bytes"]; variants.append(("missing-row", missing))
+        extra = copy.deepcopy(row); extra["unknown"] = False; variants.append(("extra-row", extra))
+        for label, bad in variants:
+            with self.subTest(label=label):
+                request = self.source_map_request({"App.swift": bad}, label)
+                with self.assertRaises(ValueError): self.prepare(request, label + "-event.json")
+                self.assertFalse((self.packets / (label + "-event.json")).exists())
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
+    def test_captured_source_fullten_requires_regular_singleton_materialized_consistent_rows(self):
+        request, row = self.captured_source_request("consistent-base")
+        variants = []
+        for label, key, value in (("directory", "st_mode", stat.S_IFDIR | 0o644),
+                ("fifo", "st_mode", stat.S_IFIFO | 0o644), ("hardlink", "st_nlink", 2),
+                ("online-only", "st_flags", 0x40000000), ("mode-mismatch", "st_mode", stat.S_IFREG | 0o600),
+                ("length-mismatch", "st_size", row["bytes"] + 1), ("negative-size", "st_size", -1)):
+            bad = copy.deepcopy(row); bad["fullTen"][key] = value; variants.append((label, bad))
+        for label, key, value in (("bad-sha", "sha256", "G" * 64), ("short-sha", "sha256", "a" * 63),
+                ("bool-bytes", "bytes", True), ("negative-bytes", "bytes", -1), ("unsupported-mode", "mode", "0o444")):
+            bad = copy.deepcopy(row); bad[key] = value; variants.append((label, bad))
+        for label, bad in variants:
+            with self.subTest(label=label):
+                hostile = self.source_map_request({"App.swift": bad}, label)
+                with self.assertRaises(ValueError): self.prepare(hostile, label + "-event.json")
+                self.assertFalse((self.packets / (label + "-event.json")).exists())
+        for label, key, value in (("wrong-raw-sha", "sha256", "0" * 64),
+                ("wrong-raw-length", "bytes", request["bindings"]["sourceMap"]["bytes"] + 1)):
+            with self.subTest(label=label):
+                hostile = copy.deepcopy(request); hostile["bindings"]["sourceMap"][key] = value
+                with self.assertRaises(ValueError): self.prepare(hostile, label + "-event.json")
+                self.assertFalse((self.packets / (label + "-event.json")).exists())
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
+    def test_captured_freeze_ref3_preserves_exact_bytes_path_hash_and_historical_ref2(self):
+        request, row = self.captured_source_request("freeze-ref-base")
+        reference = request["bindings"]["sourceMap"]
+        historical = self.source_map_request({"App.swift": row}, "historical-freeze")
+        # The source-map raw bytes are identical despite the distinct fixture path.
+        historical["bindings"]["sourceFreeze"] = self.put("historical-freeze-exact.json", {
+            "sourceHEAD": HEAD, "sourceWorktree": str(self.source),
+            "allInputs": {key: historical["bindings"]["sourceMap"][key] for key in ("path", "sha256")}})
+        value, _ = self.prepare(historical, "historical-ref2-event.json")
+        self.assertEqual(value["classification"], NEW.LOCAL_CLASSIFICATION)
+        variants = []
+        for key in ("path", "sha256"):
+            bad = dict(reference); del bad[key]; variants.append(("missing-" + key, bad))
+        variants.append(("extra", dict(reference, unknown=False)))
+        for label, key, val in (("wrong-path", "path", str(self.inputs / "foreign-map.json")),
+                ("wrong-sha", "sha256", "0" * 64), ("bool-bytes", "bytes", True),
+                ("zero-bytes", "bytes", 0), ("negative-bytes", "bytes", -1),
+                ("wrong-bytes", "bytes", reference["bytes"] + 1),
+                ("json-cap", "bytes", NEW.LOCAL_JSON_LIMIT + 1), ("raw-cap", "bytes", NEW.LOCAL_LIMIT + 1)):
+            bad = dict(reference); bad[key] = val; variants.append((label, bad))
+        for label, bad in variants:
+            with self.subTest(label=label):
+                hostile = copy.deepcopy(request)
+                hostile["bindings"]["sourceFreeze"] = self.put(label + "-frozen-ref.json", {
+                    "sourceHEAD": HEAD, "sourceWorktree": str(self.source), "allInputs": bad})
+                with self.assertRaises(ValueError): self.prepare(hostile, label + "-ref-event.json")
+                self.assertFalse((self.packets / (label + "-ref-event.json")).exists())
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
+    def test_captured_map_support_keeps_historical_rows_declaration_and_control_caps(self):
+        _, row = self.captured_source_request("limits-base")
+        legacy = {key: row[key] for key in ("sha256", "bytes", "mode")}
+        request = self.source_map_request({"App.swift": legacy}, "legacy-row")
+        value, _ = self.prepare(request, "legacy-row-event.json")
+        self.assertEqual(value["classification"], NEW.LOCAL_CLASSIFICATION)
+        # A consistent large historical declaration is DATA, not an allocation or live-file proof.
+        large = copy.deepcopy(row); large["bytes"] = large["fullTen"]["st_size"] = 45191672
+        request = self.source_map_request({"App.swift": large}, "large-declaration")
+        value, _ = self.prepare(request, "large-declaration-event.json")
+        self.assertEqual(value["classification"], NEW.LOCAL_CLASSIFICATION)
+        for label, mapping in (("empty-map", {}), ("count-cap", {"Source" + str(i) + ".swift": legacy for i in range(10001)})):
+            with self.subTest(label=label):
+                request = self.source_map_request(mapping, label)
+                with self.assertRaises(ValueError): self.prepare(request, label + "-event.json")
+                self.assertFalse((self.packets / (label + "-event.json")).exists())
+        for label, count in (("json-cap", NEW.LOCAL_JSON_LIMIT + 1), ("raw-cap", NEW.LOCAL_LIMIT + 1)):
+            with self.subTest(label=label):
+                request = copy.deepcopy(self.request); request["bindings"]["sourceMap"]["bytes"] = count
+                with self.assertRaises(ValueError): self.prepare(request, label + "-map-event.json")
+                self.assertFalse((self.packets / (label + "-map-event.json")).exists())
+        self.assertEqual(self.ledger_path.read_bytes(), self.legacy)
+        self.assertEqual(list(self.attempts.iterdir()), [])
+
     def test_prepare_is_pending_without_opening_missing_canonical_ledger_or_launching(self):
         self.ledger_path.unlink()
         value, _ = self.prepare()

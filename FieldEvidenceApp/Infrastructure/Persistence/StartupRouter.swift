@@ -28005,6 +28005,12 @@ final class ColdEraseSchema2CompletedSourceCurrentRequestV1 {
         var manifestTransition: ColdEraseSchema2CompletedJournalManifestTransitionV1?
         var lookupStore: StoreMigrationJournalStoreV1?
         var transitionStore: StoreMigrationJournalStoreV1?
+        var selectedDataControlOriginLoanActive = false
+        var selectedDataControlOriginReceipts: ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1?
+        var originalEraseNativeParentHistoryLoanActive = false
+        var originalEraseNativeParentHistoryRequest: ColdEraseSchema2CompletedSourceCurrentRequestV1?
+        var originalEraseNativeParentHistoryReceipt: OriginalEraseRetainedTargetGenerationParentPublicationV1?
+        var originalEraseNativeParentHistoryLoan: ColdEraseSchema2CompletedSessionOriginalEraseNativeParentHistoryLoanV1?
         let currentDebit: ColdEraseSchema2CompletedSessionCurrentDebitV1
         let targetGenerationCreationIdentity: TargetGenerationCreationIdentityV1?
         var targetGenerationCreationBirthEntered = false
@@ -28014,6 +28020,9 @@ final class ColdEraseSchema2CompletedSourceCurrentRequestV1 {
         var targetGenerationCreationModelPin: OriginalEraseCreatedTargetModelPinV1?
         var targetGenerationCreationModelResult: OriginalEraseTargetGenerationModelPreparationResultV1?
         var targetGenerationCreationConsumptionReturn: Result<Void,Error>?
+        var actualWrapperReturn: Result<Void,Error>?
+        var ordinaryHistoricalData: ColdEraseSchema2CompletedOrdinaryCurrentHistoricalDataV1?
+        var ordinaryHistoricalTransferReturn: Result<Void,Error>?
         var entered = false
         var returned = false
         var primaryFailure: Error?
@@ -28380,12 +28389,53 @@ final class ColdEraseSchema2CompletedSourceCurrentRequestV1 {
         storage.consumedScope = scope
         storage.retainedScope = nil
     }
+    fileprivate func retainActualWrapperReturnBeforeFinish(_ actual: Result<Void,Error>) throws {
+        guard storage.actualWrapperReturn == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        storage.actualWrapperReturn = actual // actual SAME outer wrapper return; failure remains DATA
+    }
+    func requireActualOrdinaryWrapperSuccessForHistoricalDATA(
+        scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1) throws {
+        guard !storage.returned, storage.primaryFailure == nil, storage.retainedScope == nil,
+              storage.consumedScope === scope, case .success? = storage.actualWrapperReturn,
+              pthread_equal(storage.thread,pthread_self()) != 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let context = try requireEnteredContextData()
+        guard context.owner === owner else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        switch try requireEnteredOriginData() {
+        case .fence, .fenceCommit, .afterSave: break
+        case .pendingTeardown, .manifestLookup, .manifestPublication, .targetGenerationCreation, .selectedErase:
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        try scope.requireConsumedPositivePermanentSettlement(owner: owner,request: self)
+        // Historical DATA only. No live resource/authorization/frame is entered.
+    }
     fileprivate func finishReturnedRequest() throws {
         let context = try requireEnteredContextData()
         guard storage.retainedScope == nil, let scope = storage.consumedScope else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try scope.requireConsumedPositivePermanentSettlement(owner: context.owner, request: self)
+        if case .success? = storage.actualWrapperReturn {
+            switch try requireEnteredOriginData() {
+            case .fence, .fenceCommit, .afterSave:
+                guard storage.ordinaryHistoricalData == nil, storage.ordinaryHistoricalTransferReturn == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                let actualTransfer = Result<Void,Error> {
+                    let data = try scope.makeOrdinaryHistoricalDATAAfterActualWrapperSuccess(
+                        request: self, owner: context.owner)
+                    storage.ordinaryHistoricalData = data // actual immutable successor before postproof
+                    try data.requireRecordedHistoricalDATA(scope: scope, request: self)
+                }
+                storage.ordinaryHistoricalTransferReturn = actualTransfer // actual producer return
+                do { try actualTransfer.get() }
+                catch { poison(error); throw error } // full old debt plus first error; no credit
+            case .pendingTeardown, .manifestLookup, .manifestPublication, .targetGenerationCreation, .selectedErase:
+                break // separate causality/terminal producers are never ordinary retirement
+            }
+        }
         try storage.currentDebit.finishReturnedFrames(request: self, owner: context.owner)
         storage.returned = true
         // Actual immutable receipts keep their returned raw/resource proof.
@@ -28516,16 +28566,20 @@ extension ColdEraseSchema2CompletedSessionLifetimeOwnerV1 {
         }
         storage.activeCurrentRequest = request // retain actual origin before Scope birth/IO
         do {
-            let value = try context.router.withCompletedSessionCurrentOrigin(request) {
-                try request.enterBeforeScopeBirth()
-                let returned = try context.registry.withSchema2ColdCompletedSessionCurrentResources(
-                    owner: self, session: context.session, factory: context.factory,
-                    request: request, verifyAfterOperation: verifyAfterOperation, body)
-                guard storage.currentScope == nil, storage.currentResourceFrame == nil else {
-                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            let actualWrapper = Result<Value,Error> {
+                try context.router.withCompletedSessionCurrentOrigin(request) {
+                    try request.enterBeforeScopeBirth()
+                    let returned = try context.registry.withSchema2ColdCompletedSessionCurrentResources(
+                        owner: self, session: context.session, factory: context.factory,
+                        request: request, verifyAfterOperation: verifyAfterOperation, body)
+                    guard storage.currentScope == nil, storage.currentResourceFrame == nil else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    return returned
                 }
-                return returned
             }
+            try request.retainActualWrapperReturnBeforeFinish(actualWrapper.map { _ in () })
+            let value = try actualWrapper.get()
             try request.finishReturnedRequest()
             storage.activeCurrentRequest = nil
             return value
@@ -29096,7 +29150,7 @@ extension EraseRouterOperationV1 {
 // COMPLETED_SESSION_CURRENT_ERASE_PROJECTION_V1_BEGIN
 @MainActor
 final class ColdEraseSchema2CompletedSessionEraseProjectionV1 {
-    fileprivate weak var owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1?
+    fileprivate(set) weak var owner: ColdEraseSchema2CompletedSessionLifetimeOwnerV1?
     fileprivate weak var router: StartupRouter?
     fileprivate weak var coordinator: StoreSessionCoordinator?
     fileprivate weak var operation: EraseRouterOperationV1?
@@ -29777,7 +29831,17 @@ fileprivate final class ColdEraseSchema2CompletedSessionCurrentFiniteBackingV1 {
         each = try adding(each, ColdEraseSchema2CompletedSessionCurrentDebitV1.declaredBackingBytes)
         each = try adding(each, ColdEraseSchema2CompletedSessionCurrentAdmissionV1.declaredBackingBytes)
         each = try adding(each, ColdEraseSchema2CompletedSourceCurrentRequestV1.declaredRetentionBackingBytes)
+        // Two real selected-loan value copies and the three nested caller Context values.
+        // Request Storage above separately includes its retained optional value and fence.
+        each = try adding(each, ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1.declaredValueBackingBytes)
+        each = try adding(each, ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1.declaredValueBackingBytes)
+        each = try adding(each, UInt64(MemoryLayout<ColdEraseSchema2CompletedSessionCurrentContextV1>.stride))
+        each = try adding(each, UInt64(MemoryLayout<ColdEraseSchema2CompletedSessionCurrentContextV1>.stride))
+        each = try adding(each, UInt64(MemoryLayout<ColdEraseSchema2CompletedSessionCurrentContextV1>.stride))
+        // Actual Factory-issued pointer PRE/POST loan program, before any borrower value birth.
+        each = try adding(each, OriginalEraseRetainedPointerPublicationCausalDataV1.declaredLoanBackingBytes)
         each = try adding(each, EraseRouterOperationV1.completedTargetGenerationCreationFieldBackingBytes)
+        each = try adding(each, try ColdEraseSchema2CompletedSessionOriginalEraseNativeParentHistoryLoanV1.declaredProgramBackingBytes())
         // Actual constructor/caller value cells are distinct from Request's
         // enlarged stored cells and the already charged Factory owner graph.
         each = try adding(each, UInt64(MemoryLayout<ColdEraseSchema2CompletedSourceCurrentRequestV1.Origin>.stride))
@@ -30250,6 +30314,7 @@ extension ColdEraseSchema2CompletedSessionLifetimeOwnerV1 {
 // MAIN_TARGET_GENERATION_CREATION_STORED_CELLS_V1_BEGIN
 extension EraseRouterOperationV1 {
     fileprivate struct CompletedTargetGenerationCreationV1 {
+        var creationBirthEntered = false
         weak var request: ColdEraseSchema2CompletedSourceCurrentRequestV1?
     }
     fileprivate func retainedCompletedTargetGenerationCreationRequestData()
@@ -30811,6 +30876,7 @@ extension EraseRouterOperationV1 {
             throw AppAccessContractFailureV1.staleAttempt
         }
         try registerPreparationRegistry(context.registry, factory: factory, inventory: inventory)
+        try recordOriginalEraseNativeParentHistoryCreationBirthBeforeRequest()
         let request = try owner.makeFiniteCurrentRequest(context: context,
             origin: .targetGenerationCreation(self, authority, generationID: generationID,
                 expectedOldPointer: expectedOldPointer))
@@ -30936,4 +31002,492 @@ extension ColdEraseSchema2CompletedSourceCurrentRequestV1 {
     }
 }
 // MAIN_TARGET_GENERATION_CREATION_PERMANENT_PARENT_LOAN_V1_END
+
+// MAIN_SELECTED_DATA_CONTROL_ORIGIN_V1_BEGIN
+/// A closed DATA value over the actual retained Original transition objects.
+/// It creates no stat, member census, current Source basis or IO permission.
+@MainActor
+struct ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1 {
+    let projection: ColdEraseSchema2CompletedSessionEraseProjectionV1
+    private weak var operation: EraseRouterOperationV1?
+    let factory: StoreGenerationFactory
+    let pointerAuthority: StoreRestoreGenerationAuthority
+    let pointerReceipt: StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1
+    let pointerSettlement: OriginalEraseRetainedPointerPublicationSettlementV1
+    let writerPublication: OriginalEraseRetainedWriterPublicationProjectionV1
+    let oldWriterRelease: OriginalEraseRetainedOldWriterReleaseProjectionV1
+    let manifestLookup: ColdEraseSchema2CompletedJournalManifestLookupReceiptV1?
+    let manifestTransition: ColdEraseSchema2CompletedJournalManifestTransitionV1?
+    let creatorReceipt: OriginalEraseRetainedTargetGenerationParentPublicationV1
+    let creatorData: OriginalEraseTargetGenerationParentPublicationDataV1
+
+    nonisolated static var declaredValueBackingBytes: UInt64 {
+        UInt64(MemoryLayout<Self>.stride)
+    }
+
+    fileprivate init(projection: ColdEraseSchema2CompletedSessionEraseProjectionV1,
+        operation: EraseRouterOperationV1, factory: StoreGenerationFactory,
+        pointerAuthority: StoreRestoreGenerationAuthority,
+        pointerReceipt: StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1,
+        pointerSettlement: OriginalEraseRetainedPointerPublicationSettlementV1,
+        writerPublication: OriginalEraseRetainedWriterPublicationProjectionV1,
+        oldWriterRelease: OriginalEraseRetainedOldWriterReleaseProjectionV1,
+        manifestLookup: ColdEraseSchema2CompletedJournalManifestLookupReceiptV1?,
+        manifestTransition: ColdEraseSchema2CompletedJournalManifestTransitionV1?,
+        creatorReceipt: OriginalEraseRetainedTargetGenerationParentPublicationV1,
+        creatorData: OriginalEraseTargetGenerationParentPublicationDataV1) {
+        self.projection = projection; self.operation = operation; self.factory = factory
+        self.pointerAuthority = pointerAuthority; self.pointerReceipt = pointerReceipt
+        self.pointerSettlement = pointerSettlement; self.writerPublication = writerPublication
+        self.oldWriterRelease = oldWriterRelease; self.manifestLookup = manifestLookup
+        self.manifestTransition = manifestTransition; self.creatorReceipt = creatorReceipt
+        self.creatorData = creatorData
+    }
+
+    /// Memory-only actual weak OP identity. This is not a live OP or G check.
+    func requireOperationData() throws -> EraseRouterOperationV1 {
+        guard let operation, projection.operation === operation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return operation
+    }
+}
+
+extension ColdEraseSchema2CompletedSessionEraseProjectionV1 {
+    fileprivate func makeSelectedDataControlOriginReceipts(
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        context: ColdEraseSchema2CompletedSessionCurrentContextV1,
+        scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        registry: GenerationLeaseRegistryV1,
+        creatorReceipt: OriginalEraseRetainedTargetGenerationParentPublicationV1,
+        creatorData: OriginalEraseTargetGenerationParentPublicationDataV1) throws
+        -> ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1 {
+        guard owner === context.owner, self.registry === registry,
+              case .selectedErase(let actual, let exclusion, let binding, let drain, let permit)
+                = try request.requireEnteredOriginData(), actual === self,
+              let operation, let authority = pointerAuthority,
+              let receipt = currentPointerReceipt, let settlement = pointerSettlement,
+              let publication = writerPublication, let release = oldWriterRelease,
+              manifestLookup != nil || manifestTransition != nil,
+              creatorData.generationID == context.session.generationID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try request.requireCurrentSessionResourceCloseAuthorization(scope: scope, registry: registry)
+        try requireCurrentSelectedAssociation(context: context, exclusion: exclusion,
+            binding: binding, drain: drain, permit: permit)
+        // The enclosing Request's actual consumed-Creator loan supplies these
+        // two Creator operands. This constructor has no scalar/fact issuer.
+        return .init(projection: self, operation: operation, factory: factory,
+            pointerAuthority: authority, pointerReceipt: receipt, pointerSettlement: settlement,
+            writerPublication: publication, oldWriterRelease: release,
+            manifestLookup: manifestLookup, manifestTransition: manifestTransition,
+            creatorReceipt: creatorReceipt, creatorData: creatorData)
+        // Direct value return; Request retains it before any post-birth proof.
+    }
+
+    fileprivate func requireRetainedSelectedDataControlOriginReceipts(
+        _ receipts: ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1,
+        context: ColdEraseSchema2CompletedSessionCurrentContextV1) throws {
+        guard receipts.projection === self,
+              receipts.factory.sharesRegistryProvider(with: factory),
+              receipts.factory.restoreApplicationSupportURL == factory.restoreApplicationSupportURL,
+              receipts.pointerAuthority === pointerAuthority,
+              receipts.pointerReceipt === currentPointerReceipt,
+              receipts.pointerSettlement === pointerSettlement,
+              receipts.writerPublication === writerPublication,
+              receipts.oldWriterRelease === oldWriterRelease,
+              receipts.manifestLookup === manifestLookup,
+              receipts.manifestTransition === manifestTransition,
+              receipts.creatorData.generationID == context.session.generationID,
+              try receipts.requireOperationData() === requireOperationData() else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // Permanent lower raw DATA remains behind the SAME opaque objects.
+        // Their existing strict validators run in the live selected check;
+        // this comparator invokes no Source/cursor/FD/current-cut callback.
+    }
+}
+
+extension ColdEraseSchema2CompletedSourceCurrentRequestV1 {
+    /// True only for SAME selected Original transition and consumed Creator.
+    /// False only for an authenticated actual non-selected current Origin.
+    /// The Native consumer must retain this value and its actual lower DTOs
+    /// before postproof, under its distinct prospective backing declaration.
+    func withCurrentSelectedDataControlOrigin(
+        scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        registry: GenerationLeaseRegistryV1,
+        _ body: (ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1) throws -> Void
+    ) throws -> Bool {
+        do {
+            let context = try requireEnteredContextData()
+            try scope.requireCurrentFrame() // actual entered Scope phase; Bank G remains its native caller
+            try requirePreparedCurrentSessionResourceOwnership(session: context.session,
+                registry: registry, factory: context.factory)
+            try requireRetainedScope(scope)
+            try context.owner.requireRetainedCurrentScope(scope, request: self)
+            try context.owner.requireCompletedSessionCurrentResourceFrame(scope: scope,
+                registry: registry, session: context.session, factory: context.factory)
+            switch try requireEnteredOriginData() {
+            case .selectedErase(let projection, _, _, _, _):
+                guard storage.selectedProjection === projection, storage.pendingTeardown == nil,
+                      !storage.selectedDataControlOriginLoanActive,
+                      storage.selectedDataControlOriginReceipts == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                storage.selectedDataControlOriginLoanActive = true // before value birth or callback
+                try requireCurrentSessionResourceCloseAuthorization(scope: scope, registry: registry)
+                let returned = try withPermanentTargetGenerationParentProjection(scope: scope,
+                    registry: registry) { creatorReceipt, creatorData in
+                    let receipts = try projection.makeSelectedDataControlOriginReceipts(request: self,
+                        context: context, scope: scope, registry: registry,
+                        creatorReceipt: creatorReceipt, creatorData: creatorData)
+                    storage.selectedDataControlOriginReceipts = receipts // actual value before postproof
+                    try projection.requireRetainedSelectedDataControlOriginReceipts(receipts, context: context)
+                    try body(receipts)
+                    guard storage.primaryFailure == nil, storage.selectedDataControlOriginLoanActive,
+                          let retained = storage.selectedDataControlOriginReceipts,
+                          retained.creatorReceipt === creatorReceipt else {
+                        throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                    }
+                    try projection.requireRetainedSelectedDataControlOriginReceipts(retained, context: context)
+                }
+                guard returned, storage.primaryFailure == nil,
+                      storage.selectedDataControlOriginLoanActive,
+                      storage.selectedDataControlOriginReceipts?.projection === projection else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try scope.requireCurrentFrame() // memory-only Scope postproof, no scanner or G grant
+                try requireCurrentSessionResourceCloseAuthorization(scope: scope, registry: registry)
+                storage.selectedDataControlOriginReceipts = nil // temporary extra alias only; no debit credit
+                storage.selectedDataControlOriginLoanActive = false // no later fallible work
+                return true
+            case .fence, .fenceCommit, .afterSave, .pendingTeardown,
+                 .manifestLookup, .manifestPublication, .targetGenerationCreation:
+                guard storage.selectedProjection == nil,
+                      !storage.selectedDataControlOriginLoanActive,
+                      storage.selectedDataControlOriginReceipts == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                // The existing prepared Origin/Root/Coordinator/Scope/frame
+                // checks above authenticate this ordinary DATA route. It
+                // invokes no selected close checker and creates no loan value.
+                return false
+            }
+        } catch {
+            storage.currentDebit.retainFailure(error)
+            poison(error) // preserves the first failure and every active loan alias
+            throw error
+        }
+    }
+}
+// MAIN_SELECTED_DATA_CONTROL_ORIGIN_V1_END
+
+// MAIN_ORIGINAL_ERASE_NATIVE_PARENT_HISTORY_V1_BEGIN
+// Current Main ownership and immutable creation history are distinct from
+// the Registry's actual live G and any native/Source physical borrower.
+@MainActor
+fileprivate struct ColdEraseSchema2CompletedSessionOriginalEraseNativeParentHistoryLoanV1 {
+    weak var operation: EraseRouterOperationV1?
+    let historicalRequest: ColdEraseSchema2CompletedSourceCurrentRequestV1
+    let receipt: OriginalEraseRetainedTargetGenerationParentPublicationV1
+    let data: OriginalEraseTargetGenerationParentPublicationDataV1
+
+    nonisolated static func declaredProgramBackingBytes() throws -> UInt64 {
+        var total: UInt64 = 0
+        func add(_ value: UInt64) throws {
+            let result = total.addingReportingOverflow(value)
+            guard !result.overflow else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            total = result.partialValue
+        }
+        // The retained optional is independently inside actual Request.Storage.
+        // These are the constructing and post-return caller VALUE copies.
+        try add(UInt64(2 * MemoryLayout<Self>.stride))
+        try add(UInt64(2 * MemoryLayout<OriginalEraseTargetGenerationParentPublicationDataV1>.stride))
+        try add(UInt64(3 * MemoryLayout<ColdEraseSchema2CompletedSessionCurrentContextV1>.stride))
+        try add(UInt64(2 * MemoryLayout<ColdEraseSchema2CompletedSourceCurrentRequestV1.TargetGenerationCreationIdentityV1>.stride))
+        try add(StartupRouter.originalEraseNativeParentHistoryRootCopyBackingBytes)
+        try add(UInt64(8 * MemoryLayout<AnyObject?>.stride
+            + MemoryLayout<GenerationLeaseTokenV1>.stride
+            + MemoryLayout<DeletionLedgerProofV2>.stride
+            + 4 * MemoryLayout<Bool>.stride))
+        return total // declaration only; never admission or effect authority
+    }
+}
+
+extension EraseRouterOperationV1 {
+    fileprivate func recordOriginalEraseNativeParentHistoryCreationBirthBeforeRequest() throws {
+        guard !completedTargetGenerationCreation.creationBirthEntered,
+              completedTargetGenerationCreation.request == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        completedTargetGenerationCreation.creationBirthEntered = true
+        // Never reset: constructor failure or a later missing weak Request
+        // cannot be silently interpreted as an untouched native parent.
+    }
+    fileprivate func requireNoOriginalEraseNativeParentCreationEntered() throws {
+        guard !completedTargetGenerationCreation.creationBirthEntered,
+              completedTargetGenerationCreation.request == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+    fileprivate func requireEnteredOriginalEraseNativeParentCreation(
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1) throws {
+        guard completedTargetGenerationCreation.creationBirthEntered,
+              completedTargetGenerationCreation.request === request else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+    }
+}
+
+extension StartupRouter {
+    nonisolated fileprivate static var originalEraseNativeParentHistoryRootCopyBackingBytes: UInt64 {
+        // Three actual Root ticket-state return/value copies across the
+        // admission, target-subject check and post-callback current check.
+        UInt64(3 * MemoryLayout<OriginalOperationState>.stride
+            + 3 * MemoryLayout<OriginalOperationTicket>.stride)
+    }
+
+    fileprivate func requireCurrentOriginalEraseNativeParentHistoryOperation(
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        context: ColdEraseSchema2CompletedSessionCurrentContextV1) throws -> EraseRouterOperationV1? {
+        try requireCompletedSessionCurrentOrigin(request)
+        guard context.router === self, completedSessionLifetimeOwner === context.owner else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let operation: EraseRouterOperationV1
+        switch try request.requireEnteredOriginData() {
+        case .selectedErase(let projection, _, _, _, _):
+            operation = try projection.requireOperationData()
+        case .manifestLookup(let actual, _, _, _), .manifestPublication(let actual, _, _),
+             .targetGenerationCreation(let actual, _, _, _):
+            operation = actual
+        case .fence, .fenceCommit, .afterSave:
+            guard case .some(.erase) = operationKind else {
+                return nil // actual authenticated non-Erase current owner
+            }
+            guard let actual = retainedEraseRetirementOperation else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            operation = actual
+        case .pendingTeardown:
+            // endOperation may clear the active kind while retaining this OP.
+            // Entered or uncertain retained history cannot become an old basis.
+            if let actual = retainedEraseRetirementOperation {
+                guard actual.router === self else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try actual.requireNoOriginalEraseNativeParentCreationEntered()
+            } else if case .some(.erase) = operationKind {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return nil
+        }
+        try requireEraseRetirementOperation(operation)
+        let state = try awaitlessValidateEraseTicket(operation.ticket)
+        guard operation.router === self, state.source.coordinator === context.coordinator,
+              let owned = operationOwnedWriter, owned.coordinator === context.coordinator,
+              owned.writer === context.writer, owned.generationID == context.session.generationID,
+              context.coordinator.workspaceWriter === context.writer,
+              let subject = state.eraseSubject,
+              state.acknowledgedReservation?.subject == subject,
+              subject.applicationSupportURL == applicationSupportURL,
+              context.factory.restoreApplicationSupportURL == applicationSupportURL,
+              temporalNormalizationOperation == nil, temporalColdOperation == nil else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+        switch try request.requireEnteredOriginData() {
+        case .selectedErase:
+            guard context.session.generationID == subject.newGenerationID,
+                  context.session.generationID != state.sourceGenerationID else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        case .fence, .fenceCommit, .afterSave, .manifestLookup, .manifestPublication,
+             .targetGenerationCreation:
+            guard context.session.generationID == state.sourceGenerationID,
+                  context.session.generationID != subject.newGenerationID else {
+                throw AppAccessContractFailureV1.staleAttempt
+            }
+        case .pendingTeardown:
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        return operation // SAME admitted Root/OP DATA, no G or IO grant
+    }
+
+    fileprivate func requireCurrentOriginalEraseNativeParentHistoryTarget(
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        context: ColdEraseSchema2CompletedSessionCurrentContextV1,
+        operation: EraseRouterOperationV1, generationID: UUID) throws {
+        guard try requireCurrentOriginalEraseNativeParentHistoryOperation(
+                request: request, context: context) === operation else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        let state = try awaitlessValidateEraseTicket(operation.ticket)
+        guard let subject = state.eraseSubject,
+              state.acknowledgedReservation?.subject == subject,
+              generationID == subject.newGenerationID,
+              generationID != state.sourceGenerationID else {
+            throw AppAccessContractFailureV1.staleAttempt
+        }
+    }
+}
+
+extension ColdEraseSchema2CompletedSourceCurrentRequestV1 {
+    private func requireRetainedOriginalEraseNativeParentHistory(
+        _ loan: ColdEraseSchema2CompletedSessionOriginalEraseNativeParentHistoryLoanV1,
+        context: ColdEraseSchema2CompletedSessionCurrentContextV1,
+        scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        registry: GenerationLeaseRegistryV1) throws {
+        guard storage.originalEraseNativeParentHistoryLoanActive,
+              let retained = storage.originalEraseNativeParentHistoryLoan,
+              storage.primaryFailure == nil, let operation = loan.operation,
+              storage.originalEraseNativeParentHistoryRequest === loan.historicalRequest,
+              storage.originalEraseNativeParentHistoryReceipt === loan.receipt,
+              retained.operation === operation,
+              retained.historicalRequest === loan.historicalRequest,
+              retained.receipt === loan.receipt,
+              operation.retainedCompletedTargetGenerationCreationRequestData() === loan.historicalRequest,
+              loan.historicalRequest !== self,
+              let identity = loan.historicalRequest.storage.targetGenerationCreationIdentity,
+              let authority = identity.authority,
+              let consumed = loan.historicalRequest.storage.consumedScope,
+              let result = loan.historicalRequest.storage.targetGenerationCreationModelResult,
+              loan.historicalRequest.storage.targetGenerationCreationReceipt === loan.receipt,
+              loan.historicalRequest.storage.targetGenerationCreationIO == nil,
+              loan.historicalRequest.storage.targetGenerationCreationHistoricalIO != nil,
+              case .success? = loan.historicalRequest.storage.targetGenerationCreationConsumptionReturn,
+              identity.operation === operation, identity.owner === context.owner,
+              identity.registry === registry, identity.source === context.source,
+              identity.factory.sharesRegistryProvider(with: context.factory),
+              identity.factory.restoreApplicationSupportURL == context.factory.restoreApplicationSupportURL,
+              loan.data.generationID == identity.generationID,
+              retained.data.nativePin === loan.data.nativePin,
+              retained.data.generationID == loan.data.generationID else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try context.router.requireCurrentOriginalEraseNativeParentHistoryTarget(
+            request: self, context: context, operation: operation, generationID: identity.generationID)
+        try operation.requireEnteredOriginalEraseNativeParentCreation(request: loan.historicalRequest)
+        let originalWriterToken: GenerationLeaseTokenV1
+        switch try requireEnteredOriginData() {
+        case .selectedErase(let projection, _, _, _, _):
+            guard storage.selectedProjection === projection,
+                  projection.originalLifetime === context.sessionTransfer else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            originalWriterToken = projection.originalHandle.token
+        case .fence, .fenceCommit, .afterSave, .manifestLookup, .manifestPublication:
+            originalWriterToken = context.writerHandle.token
+        case .pendingTeardown, .targetGenerationCreation:
+            throw AppAccessContractFailureV1.accessDenied
+        }
+        try loan.historicalRequest.requireReturnedTargetGenerationCreationModelData(
+            receipt: loan.receipt, operation: operation, factory: identity.factory,
+            authority: authority, generationID: identity.generationID,
+            owner: context.owner, source: context.source, registry: registry,
+            writerToken: originalWriterToken)
+        _ = try result.requireConsumedEmptyLedgerProof(operation: operation, receipt: loan.receipt,
+            factory: identity.factory, authority: authority, generationID: identity.generationID)
+        try loan.receipt.requireConsumedCurrentCreation(request: loan.historicalRequest,
+            scope: consumed, operation: operation, factory: identity.factory,
+            authority: authority, generationID: identity.generationID)
+        try loan.receipt.requirePermanentNativeParentProjection(lifetime: context.sessionTransfer,
+            registry: registry, operation: operation, pin: loan.data.nativePin,
+            before: loan.data.before, beforeNames: loan.data.beforeNames,
+            after: loan.data.after, afterNames: loan.data.afterNames)
+        try requireRetainedScope(scope)
+        // Genuine actual Raw full-facts/names, model return and all positive
+        // closes are checked by their existing closed issuers, never serialized.
+    }
+
+    func withCurrentOriginalEraseNativeParentHistory(
+        scope: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        registry: GenerationLeaseRegistryV1,
+        _ body: (OriginalEraseRetainedTargetGenerationParentPublicationV1,
+            OriginalEraseTargetGenerationParentPublicationDataV1) throws -> Void) throws -> Bool {
+        do {
+            guard !storage.originalEraseNativeParentHistoryLoanActive,
+                  storage.originalEraseNativeParentHistoryLoan == nil,
+                  storage.originalEraseNativeParentHistoryRequest == nil,
+                  storage.originalEraseNativeParentHistoryReceipt == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            storage.originalEraseNativeParentHistoryLoanActive = true // before actual alias/callback birth
+            let context = try requireEnteredContextData()
+            try scope.requireCurrentFrame() // Main/Admission only; never a Bank G loan
+            try requirePreparedCurrentSessionResourceOwnership(session: context.session,
+                registry: registry, factory: context.factory)
+            try context.owner.requireRetainedCurrentScope(scope, request: self)
+            guard let operation = try context.router.requireCurrentOriginalEraseNativeParentHistoryOperation(
+                request: self, context: context) else {
+                guard storage.primaryFailure == nil, storage.selectedProjection == nil,
+                      storage.originalEraseNativeParentHistoryLoan == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try scope.requireCurrentFrame()
+                storage.originalEraseNativeParentHistoryLoanActive = false
+                return false
+            }
+            if case .targetGenerationCreation(let actual, _, _, _) = try requireEnteredOriginData() {
+                guard actual === operation,
+                      operation.retainedCompletedTargetGenerationCreationRequestData() === self,
+                      !storage.targetGenerationCreationBirthEntered,
+                      storage.targetGenerationCreationIO == nil,
+                      storage.targetGenerationCreationReceipt == nil,
+                      storage.targetGenerationCreationModelPin == nil,
+                      storage.targetGenerationCreationModelResult == nil,
+                      storage.targetGenerationCreationConsumptionReturn == nil,
+                      storage.primaryFailure == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try scope.requireCurrentFrame()
+                storage.originalEraseNativeParentHistoryLoanActive = false
+                return false // SAME genuine creation Scope before any creator owner/effect
+            }
+            guard let historical = operation.retainedCompletedTargetGenerationCreationRequestData() else {
+                try operation.requireNoOriginalEraseNativeParentCreationEntered()
+                guard storage.primaryFailure == nil, storage.selectedProjection == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                try scope.requireCurrentFrame()
+                storage.originalEraseNativeParentHistoryLoanActive = false
+                return false // positively unentered creation, not a missing-history fallback
+            }
+            storage.originalEraseNativeParentHistoryRequest = historical // actual archive owner before child proof
+            guard historical !== self, let receipt = historical.storage.targetGenerationCreationReceipt else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            storage.originalEraseNativeParentHistoryReceipt = receipt // actual Raw/model owner before lower proof
+            try receipt.withPermanentNativeParentProjection(operation: operation) { data in
+                let loan = ColdEraseSchema2CompletedSessionOriginalEraseNativeParentHistoryLoanV1(
+                    operation: operation, historicalRequest: historical, receipt: receipt, data: data)
+                storage.originalEraseNativeParentHistoryLoan = loan // returned DATA before every own postproof
+                try requireRetainedOriginalEraseNativeParentHistory(loan, context: context,
+                    scope: scope, registry: registry)
+                try body(receipt, data)
+                try requireRetainedOriginalEraseNativeParentHistory(loan, context: context,
+                    scope: scope, registry: registry)
+            }
+            guard storage.primaryFailure == nil, storage.originalEraseNativeParentHistoryLoanActive,
+                  let retained = storage.originalEraseNativeParentHistoryLoan,
+                  retained.historicalRequest === historical, retained.receipt === receipt else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireRetainedOriginalEraseNativeParentHistory(retained, context: context,
+                scope: scope, registry: registry)
+            try scope.requireCurrentFrame()
+            // Native must already retain any causally borrowed DATA before
+            // these temporary Main aliases are positively released.
+            storage.originalEraseNativeParentHistoryLoan = nil
+            storage.originalEraseNativeParentHistoryRequest = nil
+            storage.originalEraseNativeParentHistoryReceipt = nil
+            storage.originalEraseNativeParentHistoryLoanActive = false
+            return true
+        } catch {
+            storage.currentDebit.retainFailure(error)
+            poison(error) // swallowed nested refusal keeps aliases/fence and poisons SAME Request
+            throw error
+        }
+    }
+}
+// MAIN_ORIGINAL_ERASE_NATIVE_PARENT_HISTORY_V1_END
 

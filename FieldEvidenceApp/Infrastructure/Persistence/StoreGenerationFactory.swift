@@ -918,6 +918,7 @@ final class EraseAbortCheckedSnapshotIOV1 {
         let sha256: String?
     }
 
+    private var selectedControlOwnerCellsV1 = SelectedControlOwnerCellsV1()
     private var uncertainDescriptors: [Int32] = []
     private var uncertainDirectories: [UnsafeMutablePointer<DIR>] = []
     // Distinct per-publication raw lifetime; ordinary Snapshot IO is intact.
@@ -925,6 +926,7 @@ final class EraseAbortCheckedSnapshotIOV1 {
     fileprivate var retainedOriginalPointerPublications: [OriginalErasePointerPublicationIOV1] = []
 
     func requireSettled() throws {
+        try selectedControlOwnerCellsV1.retained?.requireNoRawUncertainty()
         guard !retainedOriginalPointerPublications.contains(where: {
             $0.storage.phase == .uncertain || $0.storage.failure != nil
         }) else { throw StoreGenerationFailure.dataPointerInvalid }
@@ -944,6 +946,9 @@ final class EraseAbortCheckedSnapshotIOV1 {
         if let actual = activeOriginalPointerPublication {
             guard actual.storage.snapshotIO === self else { throw StoreGenerationFailure.dataPointerInvalid }
             return try actual.withOpen(parent: parent, name: name, flags: flags, mode: mode, body)
+        }
+        if selectedControlOwnerV1 != nil {
+            return try selectedControlWithOpenV1(parent: parent, name: name, flags: flags | O_NOFOLLOW | O_CLOEXEC, mode: mode, body)
         }
         let descriptor = Darwin.openat(parent, name,
             flags | O_NOFOLLOW | O_CLOEXEC, mode)
@@ -971,6 +976,7 @@ final class EraseAbortCheckedSnapshotIOV1 {
             guard actual.storage.snapshotIO === self else { throw StoreGenerationFailure.dataPointerInvalid }
             return try actual.names(in: parent)
         }
+        if selectedControlOwnerV1 != nil { return try selectedControlNamesV1(in: parent) }
         let descriptor = Darwin.openat(parent, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
         guard let directory = Darwin.fdopendir(descriptor) else {
@@ -1046,13 +1052,17 @@ final class EraseAbortCheckedSnapshotIOV1 {
     }
 
     private func digestFile(_ descriptor: Int32, before: stat) throws -> String {
+        try selectedControlOwnerV1?.backing.chargeBeforeBirth(UInt64(MemoryLayout<SHA256>.stride
+            + MemoryLayout<[UInt8]>.stride + 65_536 + MemoryLayout<off_t>.stride
+            + MemoryLayout<Int64>.stride + MemoryLayout<Int>.stride))
         var digest = SHA256()
         var count: off_t = 0
         var buffer = [UInt8](repeating: 0, count: 64 * 1024)
         while true {
-            let readCount = buffer.withUnsafeMutableBytes {
-                Darwin.read(descriptor, $0.baseAddress, $0.count)
+            let rawRead = try selectedControlKernelV1(.readRaw, descriptor: descriptor) {
+                Int64(buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, $0.count) })
             }
+            guard let readCount = Int(exactly: rawRead) else { throw StoreGenerationFailure.dataPointerInvalid }
             if readCount > 0 {
                 count += off_t(readCount)
                 guard count <= before.st_size else { throw StoreGenerationFailure.dataPointerInvalid }
@@ -1709,11 +1719,12 @@ final class EraseAbortCheckedSnapshotIOV1 {
             try withOpen(parent: parent, name: name,
                          flags: O_RDONLY | O_DIRECTORY) { directory in
                 var before = stat(), named = stat()
-                guard Darwin.fstat(directory, &before) == 0,
+                guard try selectedControlFStatV1(directory, &before) == 0,
                       before.st_mode & S_IFMT == S_IFDIR,
-                      Darwin.fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
+                      try selectedControlFStatAtV1(parent, name, &named, AT_SYMLINK_NOFOLLOW) == 0,
                       named.st_dev == before.st_dev, named.st_ino == before.st_ino,
-                      named.st_mode & S_IFMT == S_IFDIR else {
+                      named.st_mode & S_IFMT == S_IFDIR,
+                      selectedControlOwnerV1 == nil || Self.selectedControlFullStatEqualV1(before, named) else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
                 if path.isEmpty {
@@ -1735,6 +1746,7 @@ final class EraseAbortCheckedSnapshotIOV1 {
                 let directoryFact = try stableDirectoryFact(before, path: path)
                 tokens.append("D|\(encoded(path))|\(directoryFact)|\(visible.map(encoded).joined(separator: ","))")
                 observeNode?(path, "directory", directoryFact, visible, nil)
+                try selectedControlOwnerV1?.retainTreeNode(path: path, fact: before, members: visible, contentSHA256: nil)
                 observeTypedNode?(CheckedTreeNode(path: path, fact: before,
                     sha256: nil), visible)
                 for entry in visible {
@@ -1744,7 +1756,7 @@ final class EraseAbortCheckedSnapshotIOV1 {
                     }
                     let childPath = path.isEmpty ? entry : "\(path)/\(entry)"
                     var child = stat()
-                    guard Darwin.fstatat(directory, entry, &child,
+                    guard try selectedControlFStatAtV1(directory, entry, &child,
                                          AT_SYMLINK_NOFOLLOW) == 0 else {
                         throw StoreGenerationFailure.dataPointerInvalid
                     }
@@ -1762,7 +1774,7 @@ final class EraseAbortCheckedSnapshotIOV1 {
                         try withOpen(parent: directory, name: entry,
                                      flags: O_RDONLY | O_NONBLOCK) { file in
                             var start = stat(), end = stat(), namedAfter = stat()
-                            guard Darwin.fstat(file, &start) == 0,
+                            guard try selectedControlFStatV1(file, &start) == 0,
                                   start.st_mode & S_IFMT == S_IFREG,
                                   start.st_nlink == 1,
                                   start.st_dev == child.st_dev,
@@ -1771,16 +1783,18 @@ final class EraseAbortCheckedSnapshotIOV1 {
                                 throw StoreGenerationFailure.dataPointerInvalid
                             }
                             let digest = try digestFile(file, before: start)
-                            guard Darwin.fstat(file, &end) == 0,
-                                  Darwin.fstatat(directory, entry, &namedAfter,
+                            guard try selectedControlFStatV1(file, &end) == 0,
+                                  try selectedControlFStatAtV1(directory, entry, &namedAfter,
                                                 AT_SYMLINK_NOFOLLOW) == 0,
                                   nodeFact(start) == nodeFact(end),
-                                  nodeFact(start) == nodeFact(namedAfter) else {
+                                  nodeFact(start) == nodeFact(namedAfter),
+                                  selectedControlOwnerV1 == nil || (Self.selectedControlFullStatEqualV1(start, end) && Self.selectedControlFullStatEqualV1(start, namedAfter)) else {
                                 throw StoreGenerationFailure.dataPointerInvalid
                             }
                             let fileFact = nodeFact(start)
                             tokens.append("F|\(encoded(childPath))|\(fileFact)|\(digest)")
                             observeNode?(childPath, "file", fileFact, nil, digest)
+                            try selectedControlOwnerV1?.retainTreeNode(path: childPath, fact: start, members: nil, contentSHA256: digest)
                             observeTypedNode?(CheckedTreeNode(path: childPath,
                                 fact: start, sha256: digest), nil)
                         }
@@ -1790,11 +1804,12 @@ final class EraseAbortCheckedSnapshotIOV1 {
                 }
                 var after = stat(), namedAfter = stat()
                 guard try names(in: directory) == entries,
-                      Darwin.fstat(directory, &after) == 0,
-                      Darwin.fstatat(parent, name, &namedAfter,
+                      try selectedControlFStatV1(directory, &after) == 0,
+                      try selectedControlFStatAtV1(parent, name, &namedAfter,
                                     AT_SYMLINK_NOFOLLOW) == 0,
                       nodeFact(before) == nodeFact(after),
-                      nodeFact(before) == nodeFact(namedAfter) else {
+                      nodeFact(before) == nodeFact(namedAfter),
+                      selectedControlOwnerV1 == nil || (Self.selectedControlFullStatEqualV1(before, after) && Self.selectedControlFullStatEqualV1(before, namedAfter)) else {
                     throw StoreGenerationFailure.dataPointerInvalid
                 }
             }
@@ -2700,7 +2715,12 @@ enum ColdEraseScratchNotificationReadSnapshotSlotV1 {
         }
         try add(resource.partialValue); try add(references.partialValue)
         try add(UInt64(MemoryLayout<ColdEraseScratchNotificationReadBackingV1?>.stride))
-        try add(UInt64(68 * (17_151 + 255 + 2 * 241 + 64))) // real optional completedDigest<=64 per declared Node
+        let nodePathBytes: UInt64 = 17_151
+        let nodeNameBytes: UInt64 = 255
+        let nodeFactBytes: UInt64 = 2 * 241
+        let nodeDigestBytes: UInt64 = 64
+        let nodePayloadBytes: UInt64 = nodePathBytes + nodeNameBytes + nodeFactBytes + nodeDigestBytes
+        try add(68 * nodePayloadBytes) // real optional completedDigest<=64 per declared Node
         try add(UInt64(2 * 255 + 17_151 + 241 + 64))
         try add(UInt64(MemoryLayout<SHA256>.stride))
         try add(UInt64(MemoryLayout<SHA256.Digest>.stride))
@@ -41795,6 +41815,9 @@ final class ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
         var retainedPin: ColdEraseSchema2CompletedSessionResourceBankV1.Resource?
         let fact: stat
         let names: [String]
+        let nativeOriginFact: stat
+        let nativeOriginNames: [String]
+        let namespaceBasis: ColdEraseSchema2CompletedCanonicalSourceNamespaceBasisV1?
         let initialStartupProjection: ColdEraseSchema2CompletedSourceDataPolicyProjectionV1?
         let previousProjection: ColdEraseSchema2CompletedSessionCurrentSourceDataPolicyProjectionV1?
         let descriptor: Int32
@@ -41814,9 +41837,10 @@ final class ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
     var previousProjection: ColdEraseSchema2CompletedSessionCurrentSourceDataPolicyProjectionV1? { storage.previousProjection }
     fileprivate init(source: ColdEraseSchema2CompletedJournalSourceV1,
         current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
-        pin: ColdEraseSchema2CompletedSessionResourceBankV1.Resource,names: [String]) {
+        pin: ColdEraseSchema2CompletedSessionResourceBankV1.Resource,names: [String],
+        namespaceBasis: ColdEraseSchema2CompletedCanonicalSourceNamespaceBasisV1?,working: (fact: stat,names: [String])) {
         storage = Storage(source: source,current: current,pin: pin,retainedPin: pin,
-            fact: pin.expected,names: names,initialStartupProjection: pin.completedSourceDataPolicyProjectionHead,previousProjection: pin.completedCurrentSourceDataPolicyProjectionHead,
+            fact: working.fact,names: working.names,nativeOriginFact: pin.expected,nativeOriginNames: names,namespaceBasis: namespaceBasis,initialStartupProjection: pin.completedSourceDataPolicyProjectionHead,previousProjection: pin.completedCurrentSourceDataPolicyProjectionHead,
             descriptor: pin.descriptor,parentDescriptor: pin.parentDescriptor,selectedName: pin.selectedName,
             url: pin.url,initial: pin.initial)
     }
@@ -41827,10 +41851,17 @@ final class ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
         }
         try requirePermanentNativePinAssociation(pin: pin)
-        guard ColdEraseSchema2CompletedSessionResourceBankV1.same(pin.expected,storage.fact),
+        guard ColdEraseSchema2CompletedSessionResourceBankV1.same(pin.expected,storage.nativeOriginFact),
               pin.completedSourceDataPolicyProjectionHead === storage.initialStartupProjection,
               pin.completedCurrentSourceDataPolicyProjectionHead === storage.previousProjection else {
             throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        if let edge = storage.namespaceBasis {
+            try edge.requireNativePriorToWorkingLinkV1(source: source,current: current,pin: pin,previous: storage.previousProjection,
+                origin: storage.nativeOriginFact,originNames: storage.nativeOriginNames,working: storage.fact,workingNames: storage.names)
+        } else {
+            guard ColdEraseSchema2CompletedSessionResourceBankV1.same(storage.nativeOriginFact,storage.fact),
+                  storage.nativeOriginNames == storage.names else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
         }
         try current.requireCurrentSourceDataBasisAssociation(self,source: source,pin: pin)
     }
@@ -41938,8 +41969,12 @@ extension StoreGenerationSession {
         try current.requirePendingCurrentSourceDataBasisBirth(source: source,request: request)
         let actual = try lifetime.requireCurrentSourceDataBasisContext(session: self,registry: registry,factory: factory)
         try actual.pin.requirePositiveCompletedCurrentSourceDataPolicyHistory()
+        let edge = try source.requireInstalledCanonicalNamespaceBasisBeforeNativeBirthV1(current: current,request: request)
+        let working: (fact: stat,names: [String])
+        if let edge { working = try edge.requireNativeSourceEndpointV1(source: source,current: current,pin: actual.pin,origin: actual.pin.expected,names: actual.names) }
+        else { working = (actual.pin.expected,actual.names) } // authenticated nonselected; unchanged immutable origin
         return ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1(source: source,current: current,
-            pin: actual.pin,names: actual.names)
+            pin: actual.pin,names: actual.names,namespaceBasis: edge,working: working)
         // Pure direct return; SAME retained Source Attempt installs before charge or IO.
     }
 }
@@ -42075,6 +42110,9 @@ struct ColdEraseSchema2CompletedSessionNativeCurrentProfileV1: Equatable {
             try times(UInt64(maximumConsumers),UInt64(MemoryLayout<ColdEraseSchema2CompletedSessionAfterSaveConsumerV1>.stride))] {
             bytes = try plus(bytes,part)
         }
+        bytes = try plus(bytes,try ColdEraseSchema2CompletedSessionNativeHistoricalDATA.requiredDeclaredBacking(
+            nodes: nodes,names: names,nameBytes: nameBytes,pathBytes: paths,outcomes: Int(rawCount),cursors: Int(cursorCount),
+            maximumConsumers: maximumConsumers))
         return Self(nodes: nodes,directories: dirs,names: names,nameBytes: nameBytes,pathBytes: paths,
             readCalls: calls,outcomes: Int(rawCount),cursors: Int(cursorCount),policyBytes: policy,
             maximumKernelBoundaryCalls:kernelCalls,maximumOwnFileDescriptors:nodes+1,
@@ -42275,12 +42313,18 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentBankV1 {
         // Captured actual pin returns are checked against retained actual heads;
         // Data's separate Source own-policy head is already installed by Source.
         for pin in [pins.data,pins.generations] {
+            guard let current = storage.current else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            let expected: stat
+            if pin === pins.generations {
+                expected = try current.requireNativeWorkingGenerationFact(lifetime: lifetime,
+                    registry: registry, factory: factory, pin: pin)
+            } else { expected = pin.expected }
             let index = -1
             try enter(.held,index);var held = stat();let h = Darwin.fstat(pin.descriptor,&held),he = errno
             try record(.held,index,Int64(h),he,fact:held)
             try enter(.named,index);var named = stat();let n = Darwin.fstatat(pin.parentDescriptor,pin.selectedName,&named,AT_SYMLINK_NOFOLLOW),ne = errno
             try record(.named,index,Int64(n),ne,fact:named)
-            guard h == 0,n == 0,Self.same(held,named),Self.same(held,pin.expected) else { throw StoreGenerationFailure.dataPointerInvalid }
+            guard h == 0,n == 0,Self.same(held,named),Self.same(held,expected) else { throw StoreGenerationFailure.dataPointerInvalid }
         }
         try lifetime.withRetainedNativeCurrentBasis { path,fact,hash,names in
             guard storage.rows.count < storage.profile.nodes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
@@ -43036,7 +43080,13 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentMutationV1 {
         }
     }
     func requireGenerationsPinFact() throws -> stat {
-        try requireFrame();try storage.generations.requireGenuineTransferred();return storage.generations.expected
+        try requireFrame();try storage.generations.requireGenuineTransferred()
+        guard let current = storage.current, let lifetime = storage.lifetime,
+              let registry = storage.registry, let factory = storage.retainedFactory else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try current.requireNativeWorkingGenerationFact(lifetime: lifetime,
+            registry: registry, factory: factory, pin: storage.generations)
     }
     func requireRootURL() throws -> URL { try requireFrame();return storage.root.url }
     func captureAfterSave(_ receipt: ColdEraseSchema2CompletedSessionDidSaveReceiptV1,
@@ -43150,6 +43200,7 @@ final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
         var captureResult: Result<Void,Error>?
         var priorHead: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1?
         var retainedAtLifetime = false
+        var ordinaryHistoricalData: ColdEraseSchema2CompletedSessionNativeHistoricalDATA?
     }
     private var storage: Storage
     static var declaredFieldBackingBytes: UInt64 { UInt64(MemoryLayout<Storage>.stride) }
@@ -43207,7 +43258,14 @@ final class ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
     }
     fileprivate func withNativeHead(_ body: (String,stat,String?,[String]?) throws -> Void) throws {
         guard storage.retainedAtLifetime,case .success? = storage.captureResult else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
-        for item in try storage.mutation.requireFinalGraph(self) { try body(item.row.path,item.fact,item.hash,item.names) }
+        if let historical = storage.ordinaryHistoricalData {
+            try storage.mutation.requireOrdinaryHistoricalReturnedFailureState()
+            try historical.requireConsumerDATA(consumer: self)
+            guard historical.retainedAtLifetime else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            for item in historical.final { try body(item.path,item.fact,item.hash,item.names) }
+        } else {
+            for item in try storage.mutation.requireFinalGraph(self) { try body(item.row.path,item.fact,item.hash,item.names) }
+        }
     }
 }
 
@@ -43417,6 +43475,921 @@ final class ColdEraseSchema2CompletedSessionNativeCurrentPolicyScopeV1 {
     }
     func poisonOnUncertainEffect() { storage.uncertain = true;storage.bank?.poison() }
 }
+
+// SELECTED_CONTROL_SNAPSHOT_RAW_OWNER_V1_BEGIN
+// This is retained observation DATA. Only the actual Target permanent
+// publication/release issuer may turn completed frames into its typed loan.
+final class OriginalEraseSelectedControlSnapshotBackingV1 {
+    private struct Storage {
+        var chargedBytes: UInt64 = 0
+        var births: UInt64 = 0
+        var failed = false
+    }
+    private var storage = Storage()
+    static var declaredStoredCellBytes: UInt64 {
+        UInt64(MemoryLayout<Storage>.stride + MemoryLayout<Storage>.alignment - 1
+            + MemoryLayout<[UInt64]>.stride + 14 * MemoryLayout<UInt64>.stride
+            + 4 * MemoryLayout<Bool>.stride)
+    }
+    var chargedBytes: UInt64 { storage.chargedBytes }
+    func chargeBeforeBirth(_ bytes: UInt64) throws {
+        let (sum, overflow) = storage.chargedBytes.addingReportingOverflow(bytes)
+        let (count, countOverflow) = storage.births.addingReportingOverflow(1)
+        guard !storage.failed, bytes > 0, !overflow, !countOverflow else {
+            storage.failed = true; throw StoreGenerationFailure.dataPointerInvalid
+        }
+        storage.chargedBytes = sum; storage.births = count
+    }
+    func requireCertain() throws {
+        guard !storage.failed else { throw StoreGenerationFailure.dataPointerInvalid }
+    }
+    static func checkedSum(_ values: UInt64...) throws -> UInt64 {
+        var result: UInt64 = 0
+        for value in values {
+            let (next, overflow) = result.addingReportingOverflow(value)
+            guard !overflow else { throw StoreGenerationFailure.dataPointerInvalid }
+            result = next
+        }
+        return result
+    }
+    static func checkedProduct(_ count: Int, _ stride: Int) throws -> UInt64 {
+        guard count >= 0, stride >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        let (result, overflow) = UInt64(count).multipliedReportingOverflow(by: UInt64(stride))
+        guard !overflow else { throw StoreGenerationFailure.dataPointerInvalid }
+        return result
+    }
+}
+
+final class OriginalEraseSelectedControlSnapshotOwnerV1 {
+    enum Phase: Equatable { case pre, effect, post }
+    enum Role: Equatable {
+        case boundaryBefore, boundaryAfter, supportHeld, supportNamed
+        case operationsHeld, operationsNamed, leaseHeld, leaseNamed
+        case ownersHeld, ownersNamed, mutationHeld, mutationNamed, ownerHeld, ownerNamed
+        case operationsTree, leaseTree, leaseNames, sibling(String)
+        case registryPre, registryPost, registryBytesPre, registryBytesPost, effect
+        var associatedUTF8Count: Int { if case .sibling(let name) = self { return name.utf8.count }; return 0 }
+    }
+    enum Operation: Equatable {
+        case open, openAt, descriptorDirectory, heldStat, namedStat, namedRootStat
+        case readDirectory, closeDescriptor, closeDirectory
+        case treeNode, members, bytes, semanticReturn
+        case borrowedOpen, truncate, syncFile, syncDirectory, rename, seek, readRaw, writeRaw
+    }
+    struct Context: Equatable {
+        let role: Role
+        let parentDescriptor: Int32?
+        let rootName: String?
+    }
+    final class Record {
+        fileprivate struct Storage {
+            weak var owner: OriginalEraseSelectedControlSnapshotOwnerV1?
+            let ordinal: UInt64
+            let phase: Phase
+            let context: Context
+            var operation: Operation
+            let descriptor: Int32?
+            let parentDescriptor: Int32?
+            let name: String?
+            var next: Record?
+            weak var resource: Record?
+            weak var previousActiveResource: Record?
+            var close: Record?
+            var entered = false
+            var returned = false
+            var result: Int64?
+            var savedErrno: Int32?
+            var returnedDescriptor: Int32?
+            var directory: UnsafeMutablePointer<DIR>?
+            var fact: stat?
+            var decodedName: String?
+            var decodedNameFailed = false
+            var path: String?
+            var members: [String]?
+            var bytes: Data?
+            var contentSHA256: String?
+            var semanticResult: Result<Void, Error>?
+            var consumed = false
+        }
+        fileprivate var storage: Storage
+        fileprivate init(owner: OriginalEraseSelectedControlSnapshotOwnerV1,
+            ordinal: UInt64, phase: Phase, context: Context, operation: Operation,
+            descriptor: Int32?, parentDescriptor: Int32?, name: String?) {
+            storage = .init(owner: owner, ordinal: ordinal, phase: phase,
+                context: context, operation: operation, descriptor: descriptor,
+                parentDescriptor: parentDescriptor, name: name)
+        }
+        static var declaredStoredCellBytes: UInt64 {
+            // The additional typed argument/result copies are charged per
+            // born event. No old Array arena or optimized lifetime is used.
+            UInt64(MemoryLayout<Storage>.stride + MemoryLayout<Storage>.alignment - 1
+                + 2 * MemoryLayout<Storage>.stride
+                + 47 * MemoryLayout<Record?>.stride + 22 * MemoryLayout<stat?>.stride
+                + 10 * MemoryLayout<Context>.stride
+                + 8 * MemoryLayout<OriginalEraseSelectedControlSnapshotOwnerV1?>.stride
+                + 3 * MemoryLayout<Frame?>.stride
+                + 8 * MemoryLayout<String?>.stride + 4 * MemoryLayout<Data?>.stride
+                + 4 * MemoryLayout<[String]?>.stride)
+        }
+        var ordinal: UInt64 { storage.ordinal }
+        var phase: Phase { storage.phase }
+        var context: Context { storage.context }
+        var operation: Operation { storage.operation }
+        var descriptor: Int32? { storage.descriptor }
+        var parentDescriptor: Int32? { storage.parentDescriptor }
+        var name: String? { storage.name }
+        var result: Int64? { storage.result }
+        var savedErrno: Int32? { storage.savedErrno }
+        var fact: stat? { storage.fact }
+        var members: [String]? { storage.members }
+        var bytes: Data? { storage.bytes }
+        var path: String? { storage.path }
+        var contentSHA256: String? { storage.contentSHA256 }
+        var returnedDescriptor: Int32? { storage.returnedDescriptor }
+        var decodedName: String? { storage.decodedName }
+        var resourceOrdinal: UInt64? { storage.resource?.storage.ordinal }
+        var entered: Bool { storage.entered }
+        var returned: Bool { storage.returned }
+        var consumed: Bool { storage.consumed }
+        var semanticResult: Result<Void, Error>? { storage.semanticResult }
+    }
+    final class Frame {
+        private struct Storage {
+            let owner: OriginalEraseSelectedControlSnapshotOwnerV1
+            let phase: Phase
+            let first: Record
+            let last: Record
+            let count: UInt64
+            var loanActive = false
+            var firstLoanError: Error?
+        }
+        private var storage: Storage
+        fileprivate init(owner: OriginalEraseSelectedControlSnapshotOwnerV1,
+            phase: Phase, first: Record, last: Record, count: UInt64) {
+            storage = .init(owner: owner, phase: phase, first: first, last: last, count: count)
+        }
+        static var declaredStoredCellBytes: UInt64 {
+            UInt64(MemoryLayout<Storage>.stride + MemoryLayout<Storage>.alignment - 1
+                + 3 * MemoryLayout<Record?>.stride)
+        }
+        var phase: Phase { storage.phase }
+        var recordCount: UInt64 { storage.count }
+        var declaredBackingBytes: UInt64 { storage.owner.backing.chargedBytes }
+        func requirePositiveReturned() throws {
+            guard storage.firstLoanError == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            try storage.owner.requirePositiveFrame(first: storage.first, last: storage.last,
+                phase: storage.phase, count: storage.count)
+        }
+        func withRecords(_ body: (Record) throws -> Void) throws {
+            guard !storage.loanActive else {
+                if storage.firstLoanError == nil { storage.firstLoanError = StoreGenerationFailure.dataPointerInvalid }
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            storage.loanActive = true
+            defer { storage.loanActive = false }
+            do {
+                try requirePositiveReturned()
+                var current: Record? = storage.first
+                while let actual = current {
+                    try body(actual)
+                    if actual === storage.last { break }
+                    current = actual.storage.next
+                }
+                try requirePositiveReturned()
+            } catch {
+                if storage.firstLoanError == nil { storage.firstLoanError = error }
+                throw error
+            }
+        }
+        func requireSameOwner(_ other: Frame) throws {
+            guard storage.owner === other.storage.owner else { throw StoreGenerationFailure.dataPointerInvalid }
+        }
+    }
+    private struct Storage {
+        weak var snapshotIO: EraseAbortCheckedSnapshotIOV1?
+        let backing: OriginalEraseSelectedControlSnapshotBackingV1
+        var phase: Phase = .pre
+        var context = Context(role: .boundaryBefore, parentDescriptor: nil, rootName: nil)
+        var first: Record?
+        var last: Record?
+        var phaseFirst: Record?
+        var phaseCount: UInt64 = 0
+        var count: UInt64 = 0
+        var activeResource: Record?
+        var entered = false
+        var returned = false
+        var success = false
+        var primaryError: Error?
+        var secondaryError: Error?
+        var uncertain = false
+        var previousOwner: OriginalEraseSelectedControlSnapshotOwnerV1?
+        var historyLoanActive = false
+        var firstHistoryLoanError: Error?
+    }
+    private var storage: Storage
+    static var declaredStoredCellBytes: UInt64 {
+        UInt64(MemoryLayout<Storage>.stride + MemoryLayout<Storage>.alignment - 1
+            + 2 * MemoryLayout<Context>.stride + 4 * MemoryLayout<Record?>.stride)
+    }
+    private init(snapshotIO: EraseAbortCheckedSnapshotIOV1,
+        backing: OriginalEraseSelectedControlSnapshotBackingV1) {
+        storage = .init(snapshotIO: snapshotIO, backing: backing)
+    }
+    static func makeBeforeActualScope(snapshotIO: EraseAbortCheckedSnapshotIOV1,
+        backing: OriginalEraseSelectedControlSnapshotBackingV1) throws -> OriginalEraseSelectedControlSnapshotOwnerV1 {
+        try backing.chargeBeforeBirth(Self.declaredStoredCellBytes)
+        return OriginalEraseSelectedControlSnapshotOwnerV1(snapshotIO: snapshotIO, backing: backing)
+    }
+    var backing: OriginalEraseSelectedControlSnapshotBackingV1 { storage.backing }
+    func requireSnapshotIO(_ io: EraseAbortCheckedSnapshotIOV1) throws {
+        guard storage.snapshotIO === io, !storage.returned, !storage.uncertain else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try storage.backing.requireCertain()
+    }
+    func beginActualScope(snapshotIO: EraseAbortCheckedSnapshotIOV1) throws {
+        try requireSnapshotIO(snapshotIO)
+        guard !storage.entered else { throw StoreGenerationFailure.dataPointerInvalid }
+        storage.entered = true
+    }
+    func retainPreviousOwner(_ previous: OriginalEraseSelectedControlSnapshotOwnerV1?) throws {
+        guard !storage.entered, storage.previousOwner == nil, previous !== self else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        storage.previousOwner = previous
+    }
+    func requireNoRawUncertainty() throws {
+        try storage.backing.requireCertain()
+        var current: OriginalEraseSelectedControlSnapshotOwnerV1? = self
+        while let actual = current {
+            guard !actual.storage.uncertain else { throw StoreGenerationFailure.dataPointerInvalid }
+            current = actual.storage.previousOwner
+        }
+    }
+    func requireReturnedScopeV1() throws {
+        try storage.backing.requireCertain()
+        guard storage.entered, storage.returned, storage.activeResource == nil,
+              !storage.uncertain, storage.firstHistoryLoanError == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+    }
+    func withReturnedScopeRecordsV1(_ body: (Record) throws -> Void) throws {
+        guard !storage.historyLoanActive else {
+            if storage.firstHistoryLoanError == nil { storage.firstHistoryLoanError = StoreGenerationFailure.dataPointerInvalid }
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        storage.historyLoanActive = true
+        defer { storage.historyLoanActive = false }
+        do {
+            try requireReturnedScopeV1()
+            var current = storage.first
+            while let actual = current { try body(actual); current = actual.storage.next }
+            try requireReturnedScopeV1()
+        } catch {
+            if storage.firstHistoryLoanError == nil { storage.firstHistoryLoanError = error }
+            throw error
+        }
+    }
+    func finishActualScope(_ error: Error?) {
+        storage.returned = true; storage.success = error == nil
+        if let error, storage.primaryError == nil { storage.primaryError = error }
+        if storage.activeResource != nil { storage.uncertain = true }
+    }
+    func retainFailure(_ error: Error) {
+        if storage.primaryError == nil { storage.primaryError = error }
+        else if storage.secondaryError == nil { storage.secondaryError = error }
+    }
+    func setContext(role: Role, parent: Int32? = nil, name: String? = nil) throws {
+        guard storage.entered, !storage.returned, !storage.uncertain else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try storage.backing.chargeBeforeBirth(OriginalEraseSelectedControlSnapshotBackingV1.checkedSum(
+            UInt64(MemoryLayout<Context>.stride), UInt64(role.associatedUTF8Count), UInt64(name?.utf8.count ?? 0)))
+        storage.context = .init(role: role, parentDescriptor: parent, rootName: name)
+    }
+    func begin(_ operation: Operation, descriptor: Int32? = nil,
+        parent: Int32? = nil, name: String? = nil, maximumReturnedNameBytes: Int = 0) throws -> Record {
+        guard storage.entered, !storage.returned, !storage.uncertain,
+              maximumReturnedNameBytes >= 0, maximumReturnedNameBytes <= 255 else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        let (next, overflow) = storage.count.addingReportingOverflow(1)
+        let (phaseCount, phaseOverflow) = storage.phaseCount.addingReportingOverflow(1)
+        guard !overflow, !phaseOverflow else { throw StoreGenerationFailure.dataPointerInvalid }
+        try storage.backing.chargeBeforeBirth(OriginalEraseSelectedControlSnapshotBackingV1.checkedSum(
+            Record.declaredStoredCellBytes, UInt64(storage.context.role.associatedUTF8Count),
+            UInt64(storage.context.rootName?.utf8.count ?? 0), UInt64(name?.utf8.count ?? 0),
+            UInt64(maximumReturnedNameBytes)))
+        let actual = Record(owner: self, ordinal: next - 1, phase: storage.phase,
+            context: storage.context, operation: operation, descriptor: descriptor,
+            parentDescriptor: parent, name: name)
+        if let last = storage.last { last.storage.next = actual }
+        else { storage.first = actual }
+        storage.last = actual
+        if storage.phaseFirst == nil { storage.phaseFirst = actual }
+        storage.count = next; storage.phaseCount = phaseCount
+        return actual // retained before every actual kernel call/optional alias
+    }
+    func enter(_ record: Record) {
+        if record.storage.owner !== self || record.storage.entered { storage.uncertain = true; return }
+        record.storage.entered = true
+    }
+    func returned(_ record: Record, result: Int64, savedErrno: Int32, fact: stat? = nil) {
+        guard record.storage.owner === self, record.storage.entered, !record.storage.returned else {
+            storage.uncertain = true; return
+        }
+        record.storage.result = result; record.storage.savedErrno = savedErrno
+        record.storage.fact = fact; record.storage.returned = true
+    }
+    func returnedSemanticV1(_ record: Record, result: Result<Void, Error>) {
+        guard record.storage.owner === self, record.storage.entered, !record.storage.returned,
+              record.storage.operation == .semanticReturn else { storage.uncertain = true; return }
+        record.storage.semanticResult = result; record.storage.returned = true
+        if case .success = result { record.storage.consumed = true }
+    }
+    func bindOpen(_ opened: Record, close: Record, descriptor: Int32) {
+        guard opened.storage.owner === self, close.storage.owner === self,
+              opened.storage.returned, opened.storage.result == Int64(descriptor), descriptor >= 0 else {
+            storage.uncertain = true; return
+        }
+        opened.storage.returnedDescriptor = descriptor; opened.storage.close = close
+        opened.storage.previousActiveResource = storage.activeResource
+        close.storage.resource = opened
+        storage.activeResource = opened
+    }
+    func bindDescriptorDirectory(_ record: Record, opened: Record, directory: UnsafeMutablePointer<DIR>?) {
+        record.storage.resource = opened; record.storage.directory = directory
+        if let directory { opened.storage.directory = directory }
+    }
+    func enterClose(_ record: Record, directory: UnsafeMutablePointer<DIR>? = nil) {
+        if directory != nil { record.storage.operation = .closeDirectory }
+        record.storage.directory = directory; enter(record)
+    }
+    func consumeClose(_ record: Record) {
+        guard record.storage.owner === self, record.storage.returned,
+              record.storage.result == 0, record.storage.savedErrno != nil,
+              let opened = record.storage.resource, opened.storage.close === record,
+              storage.activeResource === opened else { storage.uncertain = true; return }
+        record.storage.consumed = true; opened.storage.consumed = true
+        storage.activeResource = opened.storage.previousActiveResource
+    }
+    func bindStatResource(_ record: Record, descriptor: Int32) {
+        var active = storage.activeResource
+        while let actual = active {
+            if actual.storage.returnedDescriptor == descriptor { record.storage.resource = actual; return }
+            active = actual.storage.previousActiveResource
+        }
+        // The Registry's actual retained descriptors are borrowed. Their
+        // separate typed attempt/Registry close owner stays Target-owned.
+    }
+    func retainDirectoryName(_ record: Record, actual: UnsafeMutablePointer<dirent>?) {
+        guard record.storage.owner === self, record.storage.returned else { storage.uncertain = true; return }
+        if let actual {
+            record.storage.decodedName = OwnedStorageDirectoryEntryNameV1.decode(actual)
+            record.storage.decodedNameFailed = record.storage.decodedName == nil
+        }
+    }
+    func retainMembers(_ names: [String]) throws {
+        let record = try begin(.members)
+        var bytes = try OriginalEraseSelectedControlSnapshotBackingV1.checkedSum(
+            UInt64(MemoryLayout<[String]>.stride),
+            OriginalEraseSelectedControlSnapshotBackingV1.checkedProduct(names.count, MemoryLayout<String>.stride))
+        for name in names {
+            let (sum, overflow) = bytes.addingReportingOverflow(UInt64(name.utf8.count))
+            guard !overflow else { throw StoreGenerationFailure.dataPointerInvalid }; bytes = sum
+        }
+        try storage.backing.chargeBeforeBirth(bytes)
+        enter(record); record.storage.members = names; record.storage.returned = true
+        record.storage.consumed = true // actual returned decoder/census DATA, not syscall zero
+    }
+    func retainBytes(_ bytes: Data, role: Role, descriptor: Int32? = nil) throws {
+        try setContext(role: role)
+        let record = try begin(.bytes, descriptor: descriptor)
+        try storage.backing.chargeBeforeBirth(OriginalEraseSelectedControlSnapshotBackingV1.checkedSum(
+            UInt64(MemoryLayout<Data>.stride), UInt64(bytes.count)))
+        enter(record); record.storage.bytes = bytes; record.storage.returned = true
+        if let descriptor { bindStatResource(record, descriptor: descriptor) }
+        record.storage.consumed = true
+    }
+    func retainTreeNode(path: String, fact: stat, members: [String]?, contentSHA256: String?) throws {
+        let record = try begin(.treeNode)
+        var bytes = try OriginalEraseSelectedControlSnapshotBackingV1.checkedSum(
+            UInt64(path.utf8.count), UInt64(contentSHA256?.utf8.count ?? 0),
+            UInt64(MemoryLayout<String>.stride), UInt64(MemoryLayout<[String]?>.stride))
+        if let members {
+            let (sum, overflow) = bytes.addingReportingOverflow(try OriginalEraseSelectedControlSnapshotBackingV1.checkedProduct(members.count, MemoryLayout<String>.stride))
+            guard !overflow else { throw StoreGenerationFailure.dataPointerInvalid }; bytes = sum
+            for name in members {
+                let (sum, overflow) = bytes.addingReportingOverflow(UInt64(name.utf8.count))
+                guard !overflow else { throw StoreGenerationFailure.dataPointerInvalid }; bytes = sum
+            }
+        }
+        try storage.backing.chargeBeforeBirth(bytes)
+        enter(record); record.storage.path = path; record.storage.fact = fact
+        record.storage.members = members; record.storage.contentSHA256 = contentSHA256
+        record.storage.returned = true; record.storage.consumed = true
+    }
+    func sealFrameAndAdvance(to next: Phase) throws -> Frame {
+        guard let first = storage.phaseFirst, let last = storage.last,
+              storage.phase != next, storage.activeResource == nil else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try requirePositiveFrame(first: first, last: last, phase: storage.phase, count: storage.phaseCount)
+        try storage.backing.chargeBeforeBirth(Frame.declaredStoredCellBytes)
+        let actual = Frame(owner: self, phase: storage.phase, first: first, last: last, count: storage.phaseCount)
+        storage.phase = next; storage.phaseFirst = nil; storage.phaseCount = 0
+        return actual
+    }
+    func finishPostFrame() throws -> Frame {
+        guard storage.phase == .post, let first = storage.phaseFirst, let last = storage.last,
+              storage.activeResource == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+        try requirePositiveFrame(first: first, last: last, phase: .post, count: storage.phaseCount)
+        try storage.backing.chargeBeforeBirth(Frame.declaredStoredCellBytes)
+        return Frame(owner: self, phase: .post, first: first, last: last, count: storage.phaseCount)
+    }
+    fileprivate func requirePositiveFrame(first: Record, last: Record, phase: Phase, count: UInt64) throws {
+        try storage.backing.requireCertain()
+        guard !storage.uncertain, count > 0, first.storage.owner === self,
+              last.storage.owner === self, first.storage.ordinal <= last.storage.ordinal,
+              last.storage.ordinal - first.storage.ordinal + 1 == count else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        var record: Record? = first
+        var observed: UInt64 = 0
+        while let actual = record {
+            let s = actual.storage
+            guard s.owner === self, s.phase == phase, s.entered, s.returned else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            switch s.operation {
+            case .open, .openAt:
+                guard let result = s.result, result >= 0, s.savedErrno != nil,
+                      s.returnedDescriptor == Int32(exactly: result), s.consumed,
+                      let close = s.close, close.storage.resource === actual,
+                      close.storage.returned, close.storage.result == 0, close.storage.savedErrno != nil,
+                      close.storage.consumed else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .descriptorDirectory:
+                guard s.result == 1, s.savedErrno != nil, s.directory != nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .heldStat, .namedStat, .namedRootStat:
+                guard s.result == 0, s.savedErrno != nil, s.fact != nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .readDirectory:
+                guard (s.result == 0 && s.savedErrno == 0) || (s.result == 1 && !s.decodedNameFailed),
+                      s.savedErrno != nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .closeDescriptor, .closeDirectory:
+                guard s.result == 0, s.savedErrno != nil, s.consumed else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .members:
+                guard s.members != nil, s.consumed, s.result == nil, s.savedErrno == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .bytes:
+                guard s.bytes != nil, s.consumed, s.result == nil, s.savedErrno == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .treeNode:
+                guard s.path != nil, s.fact != nil, s.consumed,
+                      s.result == nil, s.savedErrno == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .semanticReturn:
+                guard s.consumed, s.result == nil, s.savedErrno == nil,
+                      case .success? = s.semanticResult else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .borrowedOpen, .seek:
+                guard let result = s.result, result >= 0, s.savedErrno != nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .truncate, .syncFile, .syncDirectory, .rename:
+                guard s.result == 0, s.savedErrno != nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .readRaw:
+                guard let result = s.result, result >= 0 || (result == -1 && s.savedErrno == EINTR),
+                      s.savedErrno != nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            case .writeRaw:
+                guard let result = s.result, result > 0 || (result == -1 && s.savedErrno == EINTR),
+                      s.savedErrno != nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            }
+            observed += 1
+            if actual === last { break }
+            record = s.next
+        }
+        guard observed == count else { throw StoreGenerationFailure.dataPointerInvalid }
+    }
+}
+// SELECTED_CONTROL_SNAPSHOT_RAW_OWNER_V1_END
+
+// SELECTED_CONTROL_SNAPSHOT_HOOKS_V1_BEGIN
+extension EraseAbortCheckedSnapshotIOV1 {
+    static func selectedControlFullStatEqualV1(_ a: stat, _ b: stat) -> Bool {
+        a.st_dev == b.st_dev && a.st_ino == b.st_ino && a.st_mode == b.st_mode
+            && a.st_uid == b.st_uid && a.st_gid == b.st_gid && a.st_nlink == b.st_nlink
+            && a.st_size == b.st_size && a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec
+            && a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec
+            && a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec
+            && a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec && a.st_flags == b.st_flags
+    }
+    struct SelectedControlOwnerCellsV1 {
+        var active: OriginalEraseSelectedControlSnapshotOwnerV1?
+        var retained: OriginalEraseSelectedControlSnapshotOwnerV1?
+    }
+    static var selectedControlOwnerDeclaredCellBytesV1: UInt64 {
+        UInt64(MemoryLayout<SelectedControlOwnerCellsV1>.stride)
+    }
+    var selectedControlOwnerV1: OriginalEraseSelectedControlSnapshotOwnerV1? {
+        selectedControlOwnerCellsV1.active
+    }
+    func beginSelectedControlActualScopeV1(_ owner: OriginalEraseSelectedControlSnapshotOwnerV1) throws {
+        guard selectedControlOwnerCellsV1.active == nil, activeOriginalPointerPublication == nil else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        try owner.retainPreviousOwner(selectedControlOwnerCellsV1.retained)
+        selectedControlOwnerCellsV1.retained = owner // before entry/postproof
+        try owner.beginActualScope(snapshotIO: self)
+        selectedControlOwnerCellsV1.active = owner
+    }
+    func finishSelectedControlActualScopeV1(_ owner: OriginalEraseSelectedControlSnapshotOwnerV1, error: Error?) {
+        guard selectedControlOwnerCellsV1.active === owner else {
+            owner.retainFailure(StoreGenerationFailure.dataPointerInvalid); return
+        }
+        owner.finishActualScope(error)
+        selectedControlOwnerCellsV1.active = nil
+    }
+    func selectedControlContextV1(_ role: OriginalEraseSelectedControlSnapshotOwnerV1.Role,
+        parent: Int32? = nil, name: String? = nil) throws {
+        try selectedControlOwnerCellsV1.active?.setContext(role: role, parent: parent, name: name)
+    }
+    func selectedControlFStatV1(_ descriptor: Int32, _ information: UnsafeMutablePointer<stat>) throws -> Int32 {
+        guard let owner = selectedControlOwnerCellsV1.active else { return Darwin.fstat(descriptor, information) }
+        let actual = try owner.begin(.heldStat, descriptor: descriptor)
+        owner.enter(actual)
+        let returned = Darwin.fstat(descriptor, information), savedErrno = errno
+        owner.returned(actual, result: Int64(returned), savedErrno: savedErrno, fact: information.pointee)
+        owner.bindStatResource(actual, descriptor: descriptor)
+        return returned
+    }
+    func selectedControlFStatAtV1(_ parent: Int32, _ name: String,
+        _ information: UnsafeMutablePointer<stat>, _ flags: Int32) throws -> Int32 {
+        guard let owner = selectedControlOwnerCellsV1.active else { return Darwin.fstatat(parent, name, information, flags) }
+        let actual = try owner.begin(.namedStat, parent: parent, name: name)
+        owner.enter(actual)
+        let returned = Darwin.fstatat(parent, name, information, flags), savedErrno = errno
+        owner.returned(actual, result: Int64(returned), savedErrno: savedErrno, fact: information.pointee)
+        return returned
+    }
+    func selectedControlLStatV1(_ path: String, _ information: UnsafeMutablePointer<stat>) throws -> Int32 {
+        guard let owner = selectedControlOwnerCellsV1.active else { return Darwin.lstat(path, information) }
+        let actual = try owner.begin(.namedRootStat, name: path)
+        owner.enter(actual)
+        let returned = Darwin.lstat(path, information), savedErrno = errno
+        owner.returned(actual, result: Int64(returned), savedErrno: savedErrno, fact: information.pointee)
+        return returned
+    }
+    // These wrappers keep the exact open flags supplied by the old caller.
+    // Both resource rows are born before open, so catch cleanup never charges.
+    func selectedControlWithOpenV1<Value>(parent: Int32?, name: String, flags: Int32,
+        mode: mode_t = 0, _ body: (Int32) throws -> Value) throws -> Value {
+        guard let owner = selectedControlOwnerCellsV1.active else { throw StoreGenerationFailure.dataPointerInvalid }
+        try owner.backing.chargeBeforeBirth(UInt64(3 * MemoryLayout<Value>.stride))
+        let opened = try owner.begin(parent == nil ? .open : .openAt, parent: parent, name: name)
+        let closed = try owner.begin(.closeDescriptor, parent: parent, name: name)
+        owner.enter(opened)
+        let descriptor: Int32
+        if let parent { descriptor = Darwin.openat(parent, name, flags, mode) }
+        else { descriptor = Darwin.open(name, flags, mode) }
+        let openErrno = errno
+        owner.returned(opened, result: Int64(descriptor), savedErrno: openErrno)
+        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        owner.bindOpen(opened, close: closed, descriptor: descriptor)
+        var closeAttempted = false
+        do {
+            let actual = try body(descriptor)
+            closeAttempted = true; owner.enterClose(closed)
+            let returned = Darwin.close(descriptor), savedErrno = errno
+            owner.returned(closed, result: Int64(returned), savedErrno: savedErrno)
+            guard returned == 0 else {
+                uncertainDescriptors.append(descriptor)
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            owner.consumeClose(closed)
+            return actual
+        } catch {
+            owner.retainFailure(error)
+            if !closeAttempted {
+                closeAttempted = true; owner.enterClose(closed)
+                let returned = Darwin.close(descriptor), savedErrno = errno
+                owner.returned(closed, result: Int64(returned), savedErrno: savedErrno)
+                if returned == 0 { owner.consumeClose(closed) }
+                else { uncertainDescriptors.append(descriptor) }
+            }
+            throw error
+        }
+    }
+    func selectedControlNamesV1(in parent: Int32) throws -> [String] {
+        guard let owner = selectedControlOwnerCellsV1.active else { throw StoreGenerationFailure.dataPointerInvalid }
+        let opened = try owner.begin(.openAt, parent: parent, name: ".")
+        let closed = try owner.begin(.closeDescriptor, parent: parent, name: ".")
+        let converted = try owner.begin(.descriptorDirectory, parent: parent, name: ".")
+        owner.enter(opened)
+        let descriptor = Darwin.openat(parent, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        let openErrno = errno
+        owner.returned(opened, result: Int64(descriptor), savedErrno: openErrno)
+        guard descriptor >= 0 else { throw StoreGenerationFailure.dataPointerInvalid }
+        owner.bindOpen(opened, close: closed, descriptor: descriptor)
+        owner.enter(converted)
+        let directory = Darwin.fdopendir(descriptor), directoryErrno = errno
+        owner.returned(converted, result: directory == nil ? 0 : 1, savedErrno: directoryErrno)
+        owner.bindDescriptorDirectory(converted, opened: opened, directory: directory)
+        guard let directory else {
+            owner.enterClose(closed)
+            let returned = Darwin.close(descriptor), savedErrno = errno
+            owner.returned(closed, result: Int64(returned), savedErrno: savedErrno)
+            if returned == 0 { owner.consumeClose(closed) }
+            else { uncertainDescriptors.append(descriptor) }
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        var closeAttempted = false
+        do {
+            var names = [String]()
+            while true {
+                let read = try owner.begin(.readDirectory, descriptor: descriptor, maximumReturnedNameBytes: 255)
+                owner.enter(read); errno = 0
+                let actual = Darwin.readdir(directory), savedErrno = errno
+                owner.returned(read, result: actual == nil ? 0 : 1, savedErrno: savedErrno)
+                owner.retainDirectoryName(read, actual: actual)
+                guard let actual else {
+                    guard savedErrno == 0 else { throw StoreGenerationFailure.dataPointerInvalid }; break
+                }
+                guard let name = read.decodedName else { throw StoreGenerationFailure.dataPointerInvalid }
+                if name != "." && name != ".." { names.append(name) }
+            }
+            closeAttempted = true; owner.enterClose(closed, directory: directory)
+            let returned = Darwin.closedir(directory), savedErrno = errno
+            owner.returned(closed, result: Int64(returned), savedErrno: savedErrno)
+            guard returned == 0 else {
+                uncertainDirectories.append(directory); throw StoreGenerationFailure.dataPointerInvalid
+            }
+            owner.consumeClose(closed)
+            let actual = names.sorted()
+            try owner.retainMembers(actual)
+            return actual
+        } catch {
+            owner.retainFailure(error)
+            if !closeAttempted {
+                closeAttempted = true; owner.enterClose(closed, directory: directory)
+                let returned = Darwin.closedir(directory), savedErrno = errno
+                owner.returned(closed, result: Int64(returned), savedErrno: savedErrno)
+                if returned == 0 { owner.consumeClose(closed) }
+                else { uncertainDirectories.append(directory) }
+            }
+            throw error
+        }
+    }
+    func selectedControlKernelV1(_ operation: OriginalEraseSelectedControlSnapshotOwnerV1.Operation,
+        descriptor: Int32? = nil, parent: Int32? = nil, name: String? = nil,
+        _ body: () -> Int64) throws -> Int64 {
+        guard let owner = selectedControlOwnerCellsV1.active else { return body() }
+        let actual = try owner.begin(operation, descriptor: descriptor, parent: parent, name: name)
+        owner.enter(actual)
+        let result = body(), savedErrno = errno
+        owner.returned(actual, result: result, savedErrno: savedErrno)
+        return result
+    }
+    func selectedControlSemanticCallV1(_ body: () throws -> Void) throws {
+        guard let owner = selectedControlOwnerCellsV1.active else { return try body() }
+        let actual = try owner.begin(.semanticReturn)
+        owner.enter(actual)
+        do {
+            try body()
+            owner.returnedSemanticV1(actual, result: .success(()))
+        } catch {
+            owner.returnedSemanticV1(actual, result: .failure(error))
+            throw error
+        }
+    }
+}
+// SELECTED_CONTROL_SNAPSHOT_HOOKS_V1_END
+
+
+// ORIGINAL_POINTER_SELECTED_CAUSAL_DATA_LOAN_V1_BEGIN
+/// Factory-issued historical DATA. The existing settlement/Raw owner retains
+/// every operand. This value grants no current Scope, native baseline or IO.
+@MainActor
+struct OriginalEraseRetainedPointerPublicationCausalDataV1 {
+    fileprivate let issuer: OriginalEraseRetainedPointerPublicationSettlementV1
+    let stage: OriginalEraseRetainedPointerStageV1
+    let beforeDataRoot: stat
+    let beforeNames: [String]
+    let beforeCurrentBytes: Data
+    let beforeCurrentFact: stat
+    let beforeRetiredBytes: Data
+    let beforeRetiredFact: stat
+    let beforeSiblings: [OriginalEraseRetainedPointerPublicationDataV1.Sibling]
+    let after: OriginalEraseRetainedPointerPublicationDataV1
+
+    /// Known producer/callback value cells, before this synchronous loan.
+    /// The genuine enclosing Main Demand pays its own retained fields/arrays.
+    /// Arrays/Data here alias real immutable owners; no payload is rebuilt.
+    static var declaredLoanBackingBytes: UInt64 {
+        let values: Int = 4 * (MemoryLayout<Self>.stride + MemoryLayout<Self>.alignment - 1)
+        let facts: Int = 4 * MemoryLayout<OriginalErasePointerFullFactV1>.stride + 6 * MemoryLayout<stat>.stride
+        let optionalOperands: Int = 4 * MemoryLayout<stat?>.stride
+            + 2 * MemoryLayout<OriginalErasePointerPublicationIOV1.ReadProjection?>.stride
+            + MemoryLayout<[OriginalEraseRetainedPointerPublicationDataV1.Sibling]?>.stride
+        let operands: Int = 2 * MemoryLayout<(stat, OriginalErasePointerPublicationIOV1.ReadProjection,
+            OriginalErasePointerPublicationIOV1.ReadProjection, [OriginalEraseRetainedPointerPublicationDataV1.Sibling])>.stride
+        let controls: Int = 4 * MemoryLayout<Data>.stride + 2 * MemoryLayout<[String]>.stride
+        let borrowed: Int = 2 * MemoryLayout<OriginalEraseRetainedPointerPublicationSettlementV1?>.stride
+            + 2 * MemoryLayout<[OriginalEraseRetainedPointerPublicationDataV1.Sibling]>.stride
+        let rawReferences: Int = 8 * MemoryLayout<OriginalErasePointerPublicationIOV1.Raw?>.stride
+            + 6 * MemoryLayout<OriginalErasePointerPublicationIOV1.Child?>.stride
+            + 4 * MemoryLayout<OriginalErasePointerPublicationIOV1.ReadProjection>.stride
+        let graphAndOrigins: Int = 2 * MemoryLayout<OriginalErasePointerPublicationIOV1?>.stride
+            + 2 * MemoryLayout<StoreRestoreGenerationAuthority?>.stride
+            + 2 * MemoryLayout<EraseRouterOperationV1?>.stride
+        let decoding: Int = 4 * MemoryLayout<String>.stride + 3 * MemoryLayout<Bool>.stride
+        let scans: Int = MemoryLayout<IndexingIterator<[OriginalErasePointerPublicationIOV1.Raw]>>.stride
+            + MemoryLayout<IndexingIterator<[OriginalErasePointerPublicationIOV1.ReadProjection]>>.stride
+            + MemoryLayout<IndexingIterator<[OriginalErasePointerPublicationIOV1.Child]>>.stride
+            + MemoryLayout<IndexingIterator<Range<Int>>>.stride + MemoryLayout<Range<Int>>.stride
+        let searchCallbacks: Int = MemoryLayout<(OriginalErasePointerPublicationIOV1.Raw) -> Bool>.stride
+            + MemoryLayout<(OriginalErasePointerPublicationIOV1.ReadProjection) -> Bool>.stride
+            + MemoryLayout<(OriginalErasePointerPublicationIOV1.Child) -> Bool>.stride
+        let iteration: Int = 16 * MemoryLayout<Int>.stride + 4 * MemoryLayout<UInt64>.stride
+        let callbacks: Int = 2 * MemoryLayout<(Self) throws -> Void>.stride
+            + 2 * MemoryLayout<StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1?>.stride
+        let declaredValues: UInt64 = UInt64(values) + UInt64(facts) + UInt64(operands) + UInt64(optionalOperands)
+        let declaredReferences: UInt64 = UInt64(controls) + UInt64(borrowed) + UInt64(rawReferences) + UInt64(graphAndOrigins)
+        let declaredCalls: UInt64 = UInt64(decoding) + UInt64(scans) + UInt64(searchCallbacks) + UInt64(iteration) + UInt64(callbacks)
+        let declared = declaredValues + declaredReferences + declaredCalls
+        return declared
+    }
+    fileprivate init(issuer: OriginalEraseRetainedPointerPublicationSettlementV1,
+        root: stat, names: [String], current: OriginalErasePointerPublicationIOV1.ReadProjection,
+        retired: OriginalErasePointerPublicationIOV1.ReadProjection,
+        siblings: [OriginalEraseRetainedPointerPublicationDataV1.Sibling]) {
+        self.issuer = issuer; stage = issuer.storage.stage; beforeDataRoot = root; beforeNames = names
+        beforeCurrentBytes = current.data; beforeCurrentFact = current.held
+        beforeRetiredBytes = retired.data; beforeRetiredFact = retired.held
+        beforeSiblings = siblings; after = issuer.storage.data
+    }
+    func requireAssociation(settlement: OriginalEraseRetainedPointerPublicationSettlementV1,
+        authority: StoreRestoreGenerationAuthority, operation: EraseRouterOperationV1,
+        receipt: StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1) throws {
+        guard issuer === settlement else { throw StoreGenerationFailure.dataPointerInvalid }
+        try settlement.requirePermanentOriginalErasePointerData(authority: authority, operation: operation, receipt: receipt)
+        try settlement.requireSelectedCausalValue(self, receipt: receipt)
+    }
+}
+extension OriginalEraseRetainedPointerPublicationSettlementV1 {
+    fileprivate static func sameSelectedCausalFact(_ a: stat, _ b: stat) -> Bool {
+        OriginalErasePointerFullFactV1(a) == OriginalErasePointerFullFactV1(b) && a.st_flags == b.st_flags
+    }
+    fileprivate static func sameSelectedCausalSiblings(
+        _ a: [OriginalEraseRetainedPointerPublicationDataV1.Sibling],
+        _ b: [OriginalEraseRetainedPointerPublicationDataV1.Sibling]) -> Bool {
+        guard a.count == b.count else { return false }
+        for index in a.indices {
+            guard a[index].path == b[index].path, sameSelectedCausalFact(a[index].fact, b[index].fact),
+                  a[index].names == b[index].names, a[index].sha256 == b[index].sha256 else { return false }
+        }
+        return true
+    }
+    /// Pure retained pre-effect provenance. No raw call, sorting, array copy,
+    /// old live requireBound or surviving filesystem operand is consulted.
+    private func selectedCausalOperands(receipt: StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1)
+        throws -> (stat, OriginalErasePointerPublicationIOV1.ReadProjection,
+            OriginalErasePointerPublicationIOV1.ReadProjection,
+            [OriginalEraseRetainedPointerPublicationDataV1.Sibling]) {
+        let graph = storage.publication
+        guard let root = graph.storage.firstRoot, let siblings = graph.storage.firstSiblingProjections,
+              let rootHeld = graph.storage.raw.first(where: {
+                $0.storage.kind == .held && $0.storage.descriptor == graph.storage.dataDescriptor
+              }), let rootNamed = graph.storage.raw.first(where: {
+                $0.storage.kind == .named && $0.storage.descriptor == graph.storage.supportDescriptor
+                    && $0.storage.name == graph.storage.dataName
+              }), let heldFact = rootHeld.storage.fact, let namedFact = rootNamed.storage.fact,
+              rootHeld.storage.result == 0, rootNamed.storage.result == 0,
+              rootHeld.storage.consumed, rootNamed.storage.consumed,
+              rootHeld.storage.savedErrno != nil, rootNamed.storage.savedErrno != nil,
+              Self.sameSelectedCausalFact(root, heldFact), Self.sameSelectedCausalFact(root, namedFact),
+              let current = graph.storage.readProjections.first(where: { $0.name == "current.json" }),
+              let retired = graph.storage.readProjections.first(where: { $0.name == "retired.json" }),
+              let writer = graph.storage.children.first(where: { ($0.storage.open.storage.flags ?? 0) & O_CREAT != 0 }),
+              let cursor = graph.storage.children.first(where: {
+                $0.storage.role == "." && $0.storage.open.storage.descriptor == graph.storage.dataDescriptor
+              }), let adoption = cursor.storage.adoption, let cursorClose = cursor.storage.close,
+              let currentClose = current.child.storage.close, let retiredClose = retired.child.storage.close,
+              rootHeld.storage.ordinal < rootNamed.storage.ordinal,
+              rootNamed.storage.ordinal < cursor.storage.open.storage.ordinal,
+              cursor.storage.open.storage.ordinal < adoption.storage.ordinal,
+              adoption.storage.ordinal < cursorClose.storage.ordinal,
+              cursorClose.storage.ordinal < writer.storage.open.storage.ordinal,
+              currentClose.storage.ordinal < writer.storage.open.storage.ordinal,
+              retiredClose.storage.ordinal < writer.storage.open.storage.ordinal,
+              current.eof.storage.ordinal < currentClose.storage.ordinal,
+              retired.eof.storage.ordinal < retiredClose.storage.ordinal,
+              cursor.storage.bodyReturned, cursor.storage.closeEntered, cursor.storage.closeReturned,
+              cursorClose.storage.result == 0, cursorClose.storage.consumed,
+              current.child.storage.closeReturned, retired.child.storage.closeReturned,
+              current.eof.storage.result == 0, retired.eof.storage.result == 0,
+              current.eof.storage.consumed, retired.eof.storage.consumed,
+              let currentCount = Int(exactly: current.held.st_size),
+              let retiredCount = Int(exactly: retired.held.st_size), currentCount >= 0, retiredCount >= 0,
+              current.data.count == currentCount, retired.data.count == retiredCount,
+              Self.sameSelectedCausalFact(current.held, current.named),
+              Self.sameSelectedCausalFact(retired.held, retired.named),
+              graph.storage.dataDescriptor == writer.storage.open.storage.descriptor,
+              receipt.names == storage.data.names else { throw StoreGenerationFailure.dataPointerInvalid }
+        // Receipt.names was privately constructed from the actual FIRST names
+        // (publisher14914), not from POST. The original interval also proved
+        // resultNames == firstNames. Validate its retained first cursor/EOF.
+        var names = 0
+        var eof = 0
+        for raw in graph.storage.raw {
+            if raw.storage.ordinal <= adoption.storage.ordinal || raw.storage.ordinal >= cursorClose.storage.ordinal { continue }
+            guard raw.storage.kind == .readdir, raw.storage.consumed,
+                  raw.storage.descriptor == cursorClose.storage.descriptor,
+                  raw.storage.pointerReturned, raw.storage.savedErrno != nil else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            if raw.storage.directoryEntry == nil {
+                guard raw.storage.savedErrno == 0, raw.storage.decodedName == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+                eof += 1
+            } else {
+                guard eof == 0, let name = raw.storage.decodedName else { throw StoreGenerationFailure.dataPointerInvalid }
+                if name != "." && name != ".." {
+                    // FIRST names were sorted only after this cursor's sole
+                    // close. Compare each retained decode without a new Set.
+                    var lower = 0, upper = receipt.names.count
+                    while lower < upper {
+                        let middle = lower + (upper - lower) / 2
+                        if receipt.names[middle] < name { lower = middle + 1 } else { upper = middle }
+                    }
+                    guard lower < receipt.names.count, receipt.names[lower] == name else {
+                        throw StoreGenerationFailure.dataPointerInvalid
+                    }
+                    names += 1
+                }
+            }
+        }
+        guard eof == 1, names == receipt.names.count else { throw StoreGenerationFailure.dataPointerInvalid }
+        let source = storage.stage == .current ? current : retired
+        let other = storage.stage == .current ? retired : current
+        guard source.data == receipt.source.data,
+              OriginalErasePointerFullFactV1(source.held) == receipt.source.fact,
+              other.data == receipt.other.data,
+              OriginalErasePointerFullFactV1(other.held) == receipt.other.fact else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+        return (root, current, retired, siblings)
+    }
+    fileprivate func requireSelectedCausalValue(_ value: OriginalEraseRetainedPointerPublicationCausalDataV1,
+        receipt: StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1) throws {
+        let (root, current, retired, siblings) = try selectedCausalOperands(receipt: receipt)
+        guard value.issuer === self, value.stage == storage.stage,
+              Self.sameSelectedCausalFact(value.beforeDataRoot, root), value.beforeNames == receipt.names,
+              value.beforeCurrentBytes == current.data, Self.sameSelectedCausalFact(value.beforeCurrentFact, current.held),
+              value.beforeRetiredBytes == retired.data, Self.sameSelectedCausalFact(value.beforeRetiredFact, retired.held),
+              Self.sameSelectedCausalSiblings(value.beforeSiblings, siblings),
+              Self.sameSelectedCausalFact(value.after.dataRoot, storage.data.dataRoot), value.after.stage == storage.stage,
+              value.after.names == storage.data.names, value.after.currentBytes == storage.data.currentBytes,
+              Self.sameSelectedCausalFact(value.after.currentFact, storage.data.currentFact),
+              value.after.retiredBytes == storage.data.retiredBytes,
+              Self.sameSelectedCausalFact(value.after.retiredFact, storage.data.retiredFact),
+              Self.sameSelectedCausalSiblings(value.after.siblings, storage.data.siblings) else {
+            throw StoreGenerationFailure.dataPointerInvalid
+        }
+    }
+    private func selectedCausalValue(receipt: StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1)
+        throws -> OriginalEraseRetainedPointerPublicationCausalDataV1 {
+        let (root, current, retired, siblings) = try selectedCausalOperands(receipt: receipt)
+        return .init(issuer: self, root: root, names: receipt.names, current: current, retired: retired, siblings: siblings)
+    }
+    /// One ordered loan per genuine chain node. A pending/failed successor
+    /// refuses in unchanged permanent law before any callback. Adjacency is
+    /// actual full11+flags/bytes/members, never a later accepted baseline.
+    func withPermanentSelectedPointerCausalData(authority: StoreRestoreGenerationAuthority,
+        operation: EraseRouterOperationV1,
+        receipt: StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1,
+        _ body: (OriginalEraseRetainedPointerPublicationCausalDataV1) throws -> Void) throws {
+        try requirePermanentOriginalErasePointerData(authority: authority, operation: operation, receipt: receipt)
+        guard storage.stage == .current, storage.predecessor == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+        let current = try selectedCausalValue(receipt: receipt)
+        if let successor = storage.successor {
+            guard let nextReceipt = successor.storage.receipt,
+                  storage.successorPublication === successor.storage.publication,
+                  receipt.successor === nextReceipt, nextReceipt.predecessor === receipt,
+                  successor.storage.stage == .retired, successor.storage.predecessor === self else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            let next = try successor.selectedCausalValue(receipt: nextReceipt)
+            guard Self.sameSelectedCausalFact(current.after.dataRoot, next.beforeDataRoot),
+                  current.after.names == next.beforeNames,
+                  current.after.currentBytes == next.beforeCurrentBytes,
+                  Self.sameSelectedCausalFact(current.after.currentFact, next.beforeCurrentFact),
+                  current.after.retiredBytes == next.beforeRetiredBytes,
+                  Self.sameSelectedCausalFact(current.after.retiredFact, next.beforeRetiredFact),
+                  Self.sameSelectedCausalSiblings(current.after.siblings, next.beforeSiblings) else {
+                throw StoreGenerationFailure.dataPointerInvalid
+            }
+            try body(current); try body(next)
+            guard storage.successor === successor, successor.storage.receipt === nextReceipt else { throw StoreGenerationFailure.dataPointerInvalid }
+        } else {
+            guard storage.successorPublication == nil, receipt.successor == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+            try body(current)
+            guard storage.successor == nil, storage.successorPublication == nil, receipt.successor == nil else { throw StoreGenerationFailure.dataPointerInvalid }
+        }
+        try requirePermanentOriginalErasePointerData(authority: authority, operation: operation, receipt: receipt)
+    }
+}
+// ORIGINAL_POINTER_SELECTED_CAUSAL_DATA_LOAN_V1_END
 
 // A prospective declaration of the actual final-close graph. This DATA is
 // debited by the SAME genuine Main Admission before Scope/owner birth.
@@ -44249,3 +45222,798 @@ extension ColdEraseSchema2CompletedSessionLifetimeTransferV1 {
         return receipt
     }
 }
+
+// FACTORY_CANONICAL_SOURCE_LIFETIME_LENDER_V1_BEGIN
+extension ColdEraseSchema2CompletedSessionConstructorReceiptV1 {
+    func captureCanonicalOpeningScopeV1() -> ColdEraseSchema2CompletedSessionOpeningScopeV1? { storage.scope }
+    func requireCanonicalTransferredConstructorOriginV1(lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1) throws {
+        guard storage.positiveLifetimeTransfer === lifetime, storage.returned, !storage.uncertain,
+              storage.primaryFailure == nil, storage.settlementFailure == nil,
+              storage.retainedScope == nil, storage.retainedFactory == nil,
+              storage.nativePlanResult == nil, case .success? = storage.nativeReleaseCheckResult,
+              storage.containerResult == nil, storage.markerResult == nil, storage.sessionResult == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try storage.bank.requireReleasedPositiveOrigin()
+    }
+}
+extension ColdEraseSchema2CompletedSessionLifetimeTransferV1 {
+    /// Direct real owner return. The caller's genuine prospective Demand pays
+    /// this owner before Parent/Request/Scope birth and retains it immediately.
+    func makeCanonicalSourceLeafPredecessorV1(registry: GenerationLeaseRegistryV1)
+        -> ColdEraseSchema2CompletedCanonicalSourceLeafPredecessorV1 {
+        storage.source.makeCanonicalSourceLeafPredecessorV1(registry: registry,
+            nativeLifetime: self, nativePin: storage.data, constructor: storage.constructor,
+            opening: storage.constructor.captureCanonicalOpeningScopeV1())
+    }
+    func requireCanonicalSourcePredecessorOriginV1(source: ColdEraseSchema2CompletedJournalSourceV1,
+        pin: ColdEraseSchema2CompletedSessionResourceBankV1.Resource,
+        constructor: ColdEraseSchema2CompletedSessionConstructorReceiptV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws {
+        guard storage.registry === registry, storage.source === source, storage.data === pin,
+              storage.constructor === constructor, pin.role == .data, pin.permanent,
+              storage.root.url == storage.rootURL, storage.root.role == .generationRoot,
+              storage.generations.role == .generations, storage.generations.permanent, storage.root.permanent,
+              storage.generations.parentDescriptor == pin.descriptor,
+              storage.root.parentDescriptor == storage.generations.descriptor,
+              storage.root.selectedName == storage.epoch.generationID.uuidString.lowercased() else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try storage.provenance.requireMatches(factory: factory)
+        try constructor.requireCanonicalTransferredConstructorOriginV1(lifetime: self)
+        try storage.bank.requireReleasedPositiveOrigin()
+        try pin.requireGenuineTransferred()
+        try pin.requirePositiveCompletedCurrentSourceDataPolicyHistory()
+        // Real retained Source/pin/constructor/normal-policy history only.
+        // No old Session/G/current callback, IO or normal expected mutation.
+    }
+}
+// FACTORY_CANONICAL_SOURCE_LIFETIME_LENDER_V1_END
+
+// ORDINARY_CURRENT_NATIVE_HISTORICAL_DATA_PARTIAL_V1_BEGIN
+
+// Pure returned native DATA. Old Mutation/Row/policy/DidSave owners stay
+// retained and charged pending complete global physical-discharge proof.
+@MainActor
+final class ColdEraseSchema2CompletedSessionNativeHistoricalDATA {
+    struct CaptureDATA {
+        let path: String
+        let fact: stat
+        let hash: String?
+        let names: [String]?
+    }
+    struct PolicyDATA {
+        let path: String
+        let descriptor: Int32
+        let before: EraseColdControlLeafFactV1
+        let beforeFlags: UInt32
+        let after: EraseColdControlLeafFactV1
+        let afterFlags: UInt32
+        let proofReturn: Result<Void,Error>
+    }
+    struct RowDATA {
+        let path: String
+        let descriptor: Int32
+        let parent: Int32
+        let name: String
+        let initial: stat
+        let working: stat
+        let held: stat?
+        let named: stat?
+        let initialHash: String?
+        let lastHash: String?
+        let names: [String]?
+        let borrowed: Bool
+        let openReturned: Int32?
+        let openErrno: Int32?
+        let closeReturned: Int32?
+        let closeErrno: Int32?
+        let policies: [PolicyDATA]
+    }
+    struct CursorDATA {
+        let row: Int
+        let descriptor: Int32
+        let openReturned: Int32?
+        let openErrno: Int32?
+        let adoptReturned: Int64?
+        let adoptErrno: Int32?
+        let before: stat?
+        let beforeReturned: Int32?
+        let beforeErrno: Int32?
+        let after: stat?
+        let afterReturned: Int32?
+        let afterErrno: Int32?
+        let names: [String]
+        let eof: Bool
+        let eofErrno: Int32?
+        let closeReturned: Int32?
+        let closeErrno: Int32?
+    }
+    let consumerIdentity: ObjectIdentifier
+    let mutationIdentity: ObjectIdentifier
+    let priorHeadIdentity: ObjectIdentifier?
+    let receiptIdentity: ObjectIdentifier
+    let retainedAtLifetime: Bool
+    let observed: [CaptureDATA]
+    let afterPolicy: [CaptureDATA]
+    let final: [CaptureDATA]
+    let rows: [RowDATA]
+    let cursors: [CursorDATA]
+    let outcomes: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Outcome]
+    let returnedNativeProof: Result<Void,Error>
+    private struct FieldProfile {
+        let consumerIdentity: ObjectIdentifier
+        let mutationIdentity: ObjectIdentifier
+        let priorHeadIdentity: ObjectIdentifier?
+        let receiptIdentity: ObjectIdentifier
+        let retainedAtLifetime: Bool
+        let observed: [CaptureDATA]
+        let afterPolicy: [CaptureDATA]
+        let final: [CaptureDATA]
+        let rows: [RowDATA]
+        let cursors: [CursorDATA]
+        let outcomes: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Outcome]
+        let returnedNativeProof: Result<Void,Error>
+    }
+    static func requiredDeclaredBacking(nodes: Int,names: Int,nameBytes: UInt64,pathBytes: UInt64,
+        outcomes: Int,cursors: Int,maximumConsumers: Int) throws -> UInt64 {
+        let plus = ColdEraseSchema2CompletedSessionNativeCurrentProfileV1.plus
+        let times = ColdEraseSchema2CompletedSessionNativeCurrentProfileV1.times
+        guard nodes > 0,names >= 0,outcomes > 0,cursors > 0,maximumConsumers > 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        var each = UInt64(2 * MemoryLayout<FieldProfile>.stride + MemoryLayout<Self>.stride
+            + 4 * MemoryLayout<Result<Void,Error>>.stride + 3 * MemoryLayout<Self?>.stride
+            + 2 * MemoryLayout<CaptureDATA>.stride + 2 * MemoryLayout<RowDATA>.stride
+            + 2 * MemoryLayout<CursorDATA>.stride + 2 * MemoryLayout<PolicyDATA>.stride)
+        each = try plus(each,try times(UInt64(nodes),UInt64(3 * MemoryLayout<CaptureDATA>.stride + MemoryLayout<RowDATA>.stride)))
+        each = try plus(each,try times(try times(UInt64(nodes),UInt64(maximumConsumers)),UInt64(MemoryLayout<PolicyDATA>.stride)))
+        each = try plus(each,try times(UInt64(outcomes),UInt64(MemoryLayout<ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Outcome>.stride + 256)))
+        each = try plus(each,try times(UInt64(cursors),UInt64(MemoryLayout<CursorDATA>.stride)))
+        let member = try plus(nameBytes,try times(UInt64(names),UInt64(MemoryLayout<String>.stride)))
+        each = try plus(each,try times(try plus(UInt64(cursors),4),member))
+        each = try plus(each,try times(try plus(UInt64(maximumConsumers),8),pathBytes))
+        each = try plus(each,try times(UInt64(nodes),UInt64(5 * 64)))
+        // Every issued callback has an immutable record. Their old shared Bank
+        // and every copy/cohort remains fully paid; no COW uniqueness is assumed.
+        return try times(each,UInt64(maximumConsumers))
+    }
+    fileprivate init(consumer: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1,
+        mutation: ColdEraseSchema2CompletedSessionNativeCurrentMutationV1,
+        receipt: ColdEraseSchema2CompletedSessionDidSaveReceiptV1,prior: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1?,
+        retainedAtLifetime: Bool,observed: [CaptureDATA],afterPolicy: [CaptureDATA],final: [CaptureDATA],
+        rows: [RowDATA],cursors: [CursorDATA],outcomes: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Outcome],
+        proof: Result<Void,Error>) {
+        consumerIdentity = ObjectIdentifier(consumer);mutationIdentity = ObjectIdentifier(mutation)
+        receiptIdentity = ObjectIdentifier(receipt);priorHeadIdentity = prior.map(ObjectIdentifier.init)
+        self.retainedAtLifetime = retainedAtLifetime;self.observed = observed;self.afterPolicy = afterPolicy;self.final = final
+        self.rows = rows;self.cursors = cursors;self.outcomes = outcomes;returnedNativeProof = proof
+    }
+    func requireConsumerDATA(consumer: ColdEraseSchema2CompletedSessionAfterSaveConsumerV1) throws {
+        guard consumerIdentity == ObjectIdentifier(consumer),case .success = returnedNativeProof,
+              !observed.isEmpty,!afterPolicy.isEmpty,!rows.isEmpty,
+              (!retainedAtLifetime || !final.isEmpty),
+              rows.allSatisfy({$0.borrowed || ($0.descriptor >= 0 && $0.openReturned == $0.descriptor && $0.closeReturned == 0)}),
+              cursors.allSatisfy({$0.eof && $0.eofErrno == 0 && $0.closeReturned == 0}) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // No old-G callback/FD/policy operation is re-entered. This DATA reader
+        // cannot replace current caller authorization or physical ownership.
+    }
+}
+
+extension ColdEraseSchema2CompletedSessionNativeCurrentPolicyScopeV1 {
+    fileprivate func ordinaryHistoricalPolicyDATA() throws -> ColdEraseSchema2CompletedSessionNativeHistoricalDATA.PolicyDATA {
+        let proof = Result<Void,Error> { try requirePositivePermanentSettlement() };try proof.get()
+        guard let after = storage.finalFact,let flags = storage.finalFlags else { throw ProtectedFilePolicyError.identityChanged }
+        return .init(path: url.path,descriptor: descriptor,before: expectedFact,beforeFlags: expectedFlags,
+            after: after,afterFlags: flags,proofReturn: proof)
+    }
+}
+extension ColdEraseSchema2CompletedSessionNativeCurrentBankV1 {
+    fileprivate func ordinaryHistoricalBankDATA() throws
+        -> (rows: [ColdEraseSchema2CompletedSessionNativeHistoricalDATA.RowDATA],
+            cursors: [ColdEraseSchema2CompletedSessionNativeHistoricalDATA.CursorDATA],outcomes: [Outcome]) {
+        try requirePositiveReturnedSettlement()
+        guard storage.finalClose == nil,storage.pending == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let rows = try storage.rows.map { row -> ColdEraseSchema2CompletedSessionNativeHistoricalDATA.RowDATA in
+            let r = row.storage
+            return .init(path: r.path,descriptor: r.descriptor,parent: r.parent,name: r.name,initial: r.initial,
+                working: r.working,held: r.lastHeld,named: r.lastNamed,initialHash: r.initialHash,lastHash: r.lastHash,
+                names: r.names,borrowed: r.borrowed,openReturned: r.openResult,openErrno: r.openErrno,
+                closeReturned: r.closeResult,closeErrno: r.closeErrno,policies: try r.policies.map { try $0.ordinaryHistoricalPolicyDATA() })
+        }
+        let cursors = storage.cursors.map { c -> ColdEraseSchema2CompletedSessionNativeHistoricalDATA.CursorDATA in
+            .init(row: c.row,descriptor: c.descriptor,openReturned: c.openResult,openErrno: c.openErrno,
+                adoptReturned: c.adoptResult,adoptErrno: c.adoptErrno,before: c.before,beforeReturned: c.beforeResult,
+                beforeErrno: c.beforeErrno,after: c.after,afterReturned: c.afterResult,afterErrno: c.afterErrno,
+                names: c.names,eof: c.eof,eofErrno: c.eofErrno,closeReturned: c.closeResult,closeErrno: c.closeErrno)
+        }
+        return (rows,cursors,storage.outcomes.prefix(storage.used).compactMap{$0})
+    }
+}
+extension ColdEraseSchema2CompletedSessionNativeCurrentMutationV1 {
+    fileprivate func requireOrdinaryHistoricalReturnedFailureState() throws {
+        guard storage.entered,storage.returned,storage.published,!storage.uncertain,storage.failure == nil,
+              case .success? = storage.bodyResult else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        // Monotone returned/failure DATA only. Never calls the old Bank/G/FDs.
+    }
+    fileprivate func ordinaryHistoricalBankDATA(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws
+        -> (rows: [ColdEraseSchema2CompletedSessionNativeHistoricalDATA.RowDATA],
+            cursors: [ColdEraseSchema2CompletedSessionNativeHistoricalDATA.CursorDATA],
+            outcomes: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Outcome]) {
+        try requirePositiveReturnedSettlement(current: current)
+        guard let bank = storage.bank else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        return try bank.ordinaryHistoricalBankDATA()
+    }
+}
+extension ColdEraseSchema2CompletedSessionAfterSaveConsumerV1 {
+    func makeOrdinaryNativeHistoricalDATA(current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws
+        -> ColdEraseSchema2CompletedSessionNativeHistoricalDATA {
+        guard storage.ordinaryHistoricalData == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let proof = Result<Void,Error> { try requirePositiveReturnedSettlement(current: current) };try proof.get()
+        guard let observed = storage.observed,let after = storage.afterPolicy else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let bank = try storage.mutation.ordinaryHistoricalBankDATA(current: current)
+        let final = storage.retainedAtLifetime ? try storage.mutation.requireFinalGraph(self) : []
+        func capture(_ items: [ColdEraseSchema2CompletedSessionNativeCurrentBankV1.Capture]) -> [ColdEraseSchema2CompletedSessionNativeHistoricalDATA.CaptureDATA] {
+            items.map { .init(path: $0.row.path,fact: $0.fact,hash: $0.hash,names: $0.names) }
+        }
+        return .init(consumer: self,mutation: storage.mutation,receipt: storage.receipt,prior: storage.priorHead,
+            retainedAtLifetime: storage.retainedAtLifetime,observed: capture(observed),afterPolicy: capture(after),final: capture(final),
+            rows: bank.rows,cursors: bank.cursors,outcomes: bank.outcomes,proof: proof)
+    }
+    func installOrdinaryNativeHistoricalDATA(_ data: ColdEraseSchema2CompletedSessionNativeHistoricalDATA,
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1) throws {
+        try requirePositiveReturnedSettlement(current: current)
+        try data.requireConsumerDATA(consumer: self)
+        guard storage.ordinaryHistoricalData == nil,data.mutationIdentity == ObjectIdentifier(storage.mutation),
+              data.receiptIdentity == ObjectIdentifier(storage.receipt),
+              data.priorHeadIdentity == storage.priorHead.map(ObjectIdentifier.init),
+              data.retainedAtLifetime == storage.retainedAtLifetime else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        storage.ordinaryHistoricalData = data // actual paid return; all predecessor-head consumers now read DATA
+        // Incumbent owning graph remains in its SAME charged archive. There is
+        // deliberately no weak-alias/array-clear/debt-credit transition here.
+    }
+}
+
+// ORDINARY_CURRENT_NATIVE_HISTORICAL_DATA_PARTIAL_V1_END
+
+// NATIVE_WORKING_GENERATION_HISTORY_V1_BEGIN
+// Historical namespace DATA from the actual consumed Creator. The original
+// native generations expected fact is retained unchanged. Current IO still
+// requires the SAME new Main frame and checked Registry G loan.
+@MainActor
+final class ColdEraseSchema2CompletedSessionNativeWorkingGenerationHistoryV1 {
+    typealias Resource = ColdEraseSchema2CompletedSessionResourceBankV1.Resource
+    private struct Storage {
+        weak var current: ColdEraseSchema2CompletedSessionCurrentScopeV1?
+        weak var request: ColdEraseSchema2CompletedSourceCurrentRequestV1?
+        weak var registry: GenerationLeaseRegistryV1?
+        let lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1
+        let provenance: ColdEraseSchema2CompletedRegistryFactoryProvenanceV1
+        let pin: Resource
+        let originFact: stat
+        let originNames: [String]
+        let maximumNames: Int
+        var creator: OriginalEraseRetainedTargetGenerationParentPublicationV1?
+        var actualData: OriginalEraseTargetGenerationParentPublicationDataV1?
+        var actualReturn: Result<Bool, Error>?
+        var firstFailure: Error?
+    }
+    private var storage: Storage
+    nonisolated static var declaredFieldBackingBytes: UInt64 {
+        let owner = MemoryLayout<Storage>.stride
+            + MemoryLayout<ColdEraseSchema2CompletedSessionNativeWorkingGenerationHistoryV1>.stride
+        let values = 4 * MemoryLayout<OriginalEraseTargetGenerationParentPublicationDataV1>.stride
+            + 4 * MemoryLayout<stat>.stride
+            + 4 * MemoryLayout<[String]>.stride
+            + 3 * MemoryLayout<(Resource, stat, [String])>.stride
+            + 6 * MemoryLayout<Resource>.stride
+        let loans = 2 * MemoryLayout<Result<Bool, Error>>.stride
+            + 2 * MemoryLayout<(OriginalEraseRetainedTargetGenerationParentPublicationV1,
+                OriginalEraseTargetGenerationParentPublicationDataV1) throws -> Void>.stride
+            + 2 * MemoryLayout<OriginalEraseRetainedTargetGenerationParentPublicationV1?>.stride
+        let iteration = 4 * MemoryLayout<IndexingIterator<[String]>>.stride
+            + 4 * MemoryLayout<(String) -> Bool>.stride + 8 * MemoryLayout<Int>.stride
+            + 2 * MemoryLayout<IndexingIterator<[ColdEraseSchema2CompletedSessionResourceBankV1.Cursor?]>>.stride
+            + 4 * MemoryLayout<ColdEraseSchema2CompletedSessionResourceBankV1.Cursor?>.stride
+            + 4 * MemoryLayout<[String]?>.stride
+            + 2 * MemoryLayout<Range<Int>>.stride
+            + 2 * MemoryLayout<IndexingIterator<Range<Int>>>.stride
+        return UInt64(owner) + UInt64(values) + UInt64(loans) + UInt64(iteration)
+    }
+    fileprivate init(current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        registry: GenerationLeaseRegistryV1,
+        lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1,
+        provenance: ColdEraseSchema2CompletedRegistryFactoryProvenanceV1,
+        pin: Resource, fact: stat, names: [String], maximumNames: Int) {
+        storage = Storage(current: current, request: request, registry: registry,
+            lifetime: lifetime, provenance: provenance, pin: pin,
+            originFact: fact, originNames: names, maximumNames: maximumNames)
+    }
+    func captureBeforeBankEffects(
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws {
+        guard storage.current === current, storage.request === request,
+              storage.registry === registry, storage.actualReturn == nil,
+              storage.creator == nil, storage.actualData == nil,
+              storage.firstFailure == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try storage.provenance.requireMatches(factory: factory)
+        try current.requireCurrentFrame() // entered Main/Admission DATA phase; no G claim
+        let returned = Result<Bool, Error> {
+            try request.withCurrentOriginalEraseNativeParentHistory(scope: current,
+                registry: registry) { creator, data in
+                guard storage.creator == nil, storage.actualData == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                storage.creator = creator
+                storage.actualData = data // SAME producer return before every fallible PRE/POST join
+                try requireCapturedCreator(creator, data: data, registry: registry)
+            }
+        }
+        storage.actualReturn = returned // genuine synchronous loan result precedes success predicates
+        do {
+            let selected = try returned.get()
+            guard selected == (storage.creator != nil && storage.actualData != nil) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try current.requireCurrentFrame()
+            _ = try requirePositiveReturnedWorkingFact(registry: registry, factory: factory)
+        } catch {
+            storage.firstFailure = storage.firstFailure ?? error
+            throw error // actual Scope caller retains this owner and poisons uncertainty
+        }
+    }
+    private func requireCapturedCreator(
+        _ creator: OriginalEraseRetainedTargetGenerationParentPublicationV1,
+        data: OriginalEraseTargetGenerationParentPublicationDataV1,
+        registry: GenerationLeaseRegistryV1) throws {
+        guard storage.registry === registry, storage.creator === creator,
+              storage.actualData != nil, data.nativePin === storage.pin,
+              ColdEraseSchema2CompletedSessionResourceBankV1.same(storage.originFact, data.before),
+              data.beforeNames.count == storage.originNames.count,
+              data.beforeNames.allSatisfy({ storage.originNames.contains($0) }),
+              storage.originNames.allSatisfy({ data.beforeNames.contains($0) }),
+              data.afterNames.count <= storage.maximumNames else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // This genuine same-file lower checker proves returned Raw, Model,
+        // consumed Creator Scope and full stat+flags/member operands. It never
+        // reenters the ended Creator frame or authorizes current IO.
+        try creator.requirePermanentFinalCloseCapturedParentData(data,
+            lifetime: storage.lifetime, registry: registry)
+    }
+    fileprivate func requirePositiveReturnedWorkingFact(registry: GenerationLeaseRegistryV1,
+        factory: StoreGenerationFactory) throws -> stat {
+        guard storage.registry === registry, storage.firstFailure == nil,
+              let returned = storage.actualReturn,
+              storage.pin.role == .generations, storage.pin.permanent,
+              !storage.pin.closeEntered,
+              ColdEraseSchema2CompletedSessionResourceBankV1.same(storage.pin.expected, storage.originFact) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try storage.provenance.requireMatches(factory: factory)
+        try storage.pin.requireGenuineTransferred()
+        if try returned.get() {
+            guard let creator = storage.creator, let data = storage.actualData else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try requireCapturedCreator(creator, data: data, registry: registry)
+            return data.after // genuine mkdir/closed-member successor; original pin expected is unchanged
+        }
+        guard storage.creator == nil, storage.actualData == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        // False is accepted only from the authentic Main origin producer's
+        // proved no-Creator phase. Missing/uncertain entered history throws there.
+        return storage.originFact
+    }
+    func requireCurrentWorkingFact(
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory,
+        pin: Resource) throws -> stat {
+        guard storage.current === current, storage.request === request,
+              storage.lifetime === lifetime, storage.pin === pin else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        return try requirePositiveReturnedWorkingFact(registry: registry, factory: factory)
+    }
+    fileprivate func requireCurrentWorkingMembers(
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws -> (stat, [String]) {
+        let fact = try requireCurrentWorkingFact(current: current, request: request,
+            lifetime: lifetime, registry: registry, factory: factory, pin: storage.pin)
+        if let actual = storage.actualData { return (fact, actual.afterNames) }
+        return (fact, storage.originNames)
+    }
+}
+
+extension ColdEraseSchema2CompletedSessionLifetimeTransferV1 {
+    // Borrow the already retained, checked Opening census without a new Set,
+    // scan or expected fact. The genuine enclosing Admission pays the owner
+    // before this call; the direct return has no fallible post-birth work.
+    func constructNativeWorkingGenerationHistoryBeforeEffects(
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory,
+        provenance: ColdEraseSchema2CompletedRegistryFactoryProvenanceV1,
+        maximumNames: Int) throws -> ColdEraseSchema2CompletedSessionNativeWorkingGenerationHistoryV1 {
+        try current.requireCurrentFrame()
+        try requireRetainedLifetimeProvenance(registry: registry, factory: factory)
+        try provenance.requireMatches(factory: factory)
+        let actual = storage.generations
+        guard actual.role == .generations, actual.permanent, !actual.closeEntered,
+              actual.parentDescriptor == storage.data.descriptor,
+              actual.selectedName == "generations" else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try actual.requireGenuineTransferred()
+        var names: [String]?
+        var count = 0
+        for slot in storage.bank.cursors {
+            guard let cursor = slot, cursor.parent === actual else { continue }
+            try cursor.requirePositiveClosed()
+            guard cursor.primaryFailure == nil, cursor.settlementFailure == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if let names {
+                guard cursor.rawNames.count == names.count,
+                      cursor.rawNames.allSatisfy({ names.contains($0) }),
+                      names.allSatisfy({ cursor.rawNames.contains($0) }) else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            } else { names = cursor.rawNames }
+            count += 1
+        }
+        guard count > 0, let names, names.count < maximumNames else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        for index in names.indices {
+            for prior in names.indices where prior < index {
+                guard names[prior] != names[index] else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+        }
+        return ColdEraseSchema2CompletedSessionNativeWorkingGenerationHistoryV1(
+            current: current, request: request, registry: registry, lifetime: self,
+            provenance: provenance, pin: actual, fact: actual.expected,
+            names: names, maximumNames: maximumNames)
+    }
+}
+// NATIVE_WORKING_GENERATION_HISTORY_V1_END
+
+// NATIVE_SELECTED_POINTER_ORIGIN_HISTORY_V1_BEGIN
+// Genuine historical DATA joins before the first current kernel effect.
+// This owner does not grant a Source/Registry baseline: their distinct actual
+// canonical/control predecessor adapters must also consume the same chain.
+@MainActor
+final class ColdEraseSchema2CompletedSessionNativeSelectedPointerOriginV1 {
+    typealias Resource = ColdEraseSchema2CompletedSessionResourceBankV1.Resource
+    private struct Storage {
+        weak var current: ColdEraseSchema2CompletedSessionCurrentScopeV1?
+        weak var request: ColdEraseSchema2CompletedSourceCurrentRequestV1?
+        weak var registry: GenerationLeaseRegistryV1?
+        let lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1
+        let provenance: ColdEraseSchema2CompletedRegistryFactoryProvenanceV1
+        let generationHistory: ColdEraseSchema2CompletedSessionNativeWorkingGenerationHistoryV1
+        let pin: Resource
+        let originFact: stat
+        let originNames: [String]
+        let originalTreePrefix: String
+        let originalTreeDescendantPrefix: String
+        let maximumNativeNodes: Int
+        var selected: ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1?
+        var currentPointer: OriginalEraseRetainedPointerPublicationCausalDataV1?
+        var retiredPointer: OriginalEraseRetainedPointerPublicationCausalDataV1?
+        var pointerReturn: Result<Void, Error>?
+        var originMatchReturn: Result<Void, Error>?
+        var actualReturn: Result<Bool, Error>?
+        var workingLoanEntered = false
+        var workingLoanReturn: Result<Void, Error>?
+        var firstFailure: Error?
+    }
+    private var storage: Storage
+    nonisolated static func requiredBackingBytes(nativeProfile: ColdEraseSchema2CompletedSessionNativeCurrentProfileV1) throws -> UInt64 {
+        guard nativeProfile.nodes > 0 else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        let fields: Int = MemoryLayout<Storage>.stride + MemoryLayout<Self>.stride
+        let values: Int = 4 * MemoryLayout<ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1>.stride
+            + 6 * MemoryLayout<OriginalEraseRetainedPointerPublicationCausalDataV1>.stride
+            + 4 * MemoryLayout<OriginalEraseRetainedPointerPublicationDataV1>.stride
+        let returns: Int = 4 * MemoryLayout<Result<Void, Error>>.stride
+            + 4 * MemoryLayout<Result<Bool, Error>>.stride
+            + 4 * MemoryLayout<OriginalEraseRetainedPointerPublicationSettlementV1?>.stride
+            + 4 * MemoryLayout<StoreRestoreGenerationAuthority.OriginalErasePointerReceiptV1?>.stride
+            + 4 * MemoryLayout<(stat, OriginalErasePointerPublicationIOV1.ReadProjection,
+                OriginalErasePointerPublicationIOV1.ReadProjection,
+                [OriginalEraseRetainedPointerPublicationDataV1.Sibling])>.stride
+            + 4 * MemoryLayout<OriginalEraseRetainedPointerPublicationDataV1.Sibling?>.stride
+            + 8 * MemoryLayout<OriginalErasePointerFullFactV1>.stride
+        let calls: Int = 4 * MemoryLayout<(OriginalEraseRetainedPointerPublicationCausalDataV1) throws -> Void>.stride
+            + 4 * MemoryLayout<(ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1) throws -> Void>.stride
+            + 4 * MemoryLayout<(String, stat, String?, [String]?) throws -> Void>.stride
+            + 4 * MemoryLayout<(OriginalEraseRetainedPointerPublicationDataV1.Sibling) -> Bool>.stride
+            + 2 * MemoryLayout<(ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1,
+                OriginalEraseRetainedPointerPublicationCausalDataV1,
+                OriginalEraseRetainedPointerPublicationDataV1) throws -> Void>.stride
+        let iteration: Int = 4 * MemoryLayout<IndexingIterator<[OriginalEraseRetainedPointerPublicationDataV1.Sibling]>>.stride
+            + 4 * MemoryLayout<(stat, [String])>.stride
+            + 8 * MemoryLayout<stat>.stride + 12 * MemoryLayout<String>.stride
+            + 8 * MemoryLayout<[String]?>.stride + 16 * MemoryLayout<Int>.stride
+        // Every matching path is a genuine original native path plus the
+        // fixed generations/UUID prefix. Aggregate payload is reserved before
+        // any one String birth; immutable Data/member payloads remain shared.
+        let prefixes = UInt64(nativeProfile.nodes).multipliedReportingOverflow(by: 2 * 64)
+        let paths = nativeProfile.pathBytes.multipliedReportingOverflow(by: 2)
+        guard !prefixes.overflow, !paths.overflow else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        var bytes = UInt64(fields) + UInt64(values) + UInt64(returns) + UInt64(calls) + UInt64(iteration)
+        for part in [prefixes.partialValue, paths.partialValue, UInt64(4 * 64)] {
+            let sum = bytes.addingReportingOverflow(part)
+            guard !sum.overflow else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            bytes = sum.partialValue
+        }
+        return bytes
+    }
+    fileprivate init(current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1, registry: GenerationLeaseRegistryV1,
+        lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1,
+        provenance: ColdEraseSchema2CompletedRegistryFactoryProvenanceV1,
+        generationHistory: ColdEraseSchema2CompletedSessionNativeWorkingGenerationHistoryV1,
+        pin: Resource, fact: stat, names: [String], originalTreePrefix: String, maximumNativeNodes: Int) {
+        storage = Storage(current: current, request: request, registry: registry,
+            lifetime: lifetime, provenance: provenance, generationHistory: generationHistory,
+            pin: pin, originFact: fact, originNames: names, originalTreePrefix: originalTreePrefix,
+            originalTreeDescendantPrefix: originalTreePrefix + "/",
+            maximumNativeNodes: maximumNativeNodes)
+    }
+    func captureBeforeBankEffects(current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws {
+        guard storage.current === current, storage.request === request, storage.registry === registry,
+              storage.actualReturn == nil, storage.selected == nil, storage.pointerReturn == nil,
+              storage.currentPointer == nil, storage.retiredPointer == nil,
+              storage.originMatchReturn == nil, storage.firstFailure == nil else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try storage.provenance.requireMatches(factory: factory)
+        try current.requireCurrentFrame() // genuine charged Main phase, no pre-G claim
+        let returned = Result<Bool, Error> {
+            try request.withCurrentSelectedDataControlOrigin(scope: current, registry: registry) { value in
+                guard storage.selected == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                storage.selected = value // exact returned VALUE before every fallible association
+                guard value.projection.originalLifetime === storage.lifetime else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+                let operation = try value.requireOperationData()
+                let pointer = Result<Void, Error> {
+                    try value.pointerSettlement.withPermanentSelectedPointerCausalData(
+                        authority: value.pointerAuthority, operation: operation, receipt: value.pointerReceipt) { actual in
+                        if storage.currentPointer == nil {
+                            storage.currentPointer = actual // lower return retained before stage/first-origin proof
+                            guard actual.stage == .current else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                        } else {
+                            guard storage.retiredPointer == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                            storage.retiredPointer = actual
+                            guard actual.stage == .retired else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                        }
+                    }
+                }
+                storage.pointerReturn = pointer // actual producer return before its success predicate
+                try pointer.get()
+                let match = Result<Void, Error> {
+                    try requireCapturedOrigin(current: current, request: request, registry: registry, factory: factory)
+                }
+                storage.originMatchReturn = match // retain genuine matching return before throwing get
+                try match.get()
+            }
+        }
+        storage.actualReturn = returned
+        do {
+            let selected = try returned.get()
+            guard selected == (storage.selected != nil) else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            if selected {
+                guard let match = storage.originMatchReturn, case .success = match,
+                      storage.currentPointer != nil, let pointer = storage.pointerReturn,
+                      case .success = pointer else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            } else {
+                guard storage.currentPointer == nil, storage.retiredPointer == nil,
+                      storage.pointerReturn == nil, storage.originMatchReturn == nil else {
+                    throw GenerationLeaseRegistryFailureV1.uncertainOwner
+                }
+            }
+            try current.requireCurrentFrame()
+        } catch {
+            storage.firstFailure = storage.firstFailure ?? error
+            throw error
+        }
+    }
+    private static func same(_ a: stat, _ b: stat) -> Bool {
+        ColdEraseSchema2CompletedSessionResourceBankV1.same(a, b)
+    }
+    func withCapturedPointerOriginData(current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        registry: GenerationLeaseRegistryV1,
+        lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1,
+        _ body: (ColdEraseSchema2CompletedSessionSelectedDataControlOriginReceiptsV1,
+            OriginalEraseRetainedPointerPublicationCausalDataV1,
+            OriginalEraseRetainedPointerPublicationDataV1) throws -> Void) throws -> Bool {
+        guard storage.current === current, storage.request === request, storage.registry === registry,
+              storage.lifetime === lifetime, storage.firstFailure == nil,
+              let returned = storage.actualReturn else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        guard try returned.get() else {
+            guard storage.selected == nil, storage.currentPointer == nil, storage.retiredPointer == nil else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            return false // authenticated real nonselected Origin; no successor basis
+        }
+        guard !storage.workingLoanEntered, storage.workingLoanReturn == nil,
+              let selected = storage.selected, let first = storage.currentPointer,
+              let matched = storage.originMatchReturn, case .success = matched,
+              let pointer = storage.pointerReturn, case .success = pointer else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        storage.workingLoanEntered = true // genuine one admitted synchronous loan, no retry
+        let result = Result<Void, Error> {
+            try body(selected, first, storage.retiredPointer?.after ?? first.after)
+        }
+        storage.workingLoanReturn = result // actual callback return before positive get
+        if case .failure(let error) = result { storage.firstFailure = storage.firstFailure ?? error }
+        try result.get()
+        return true
+    }
+    private static func sameNames(_ a: [String]?, _ b: [String]?) -> Bool {
+        switch (a, b) {
+        case (nil, nil): return true
+        case (.some(let a), .some(let b)):
+            return a.count == b.count && a.allSatisfy({ b.contains($0) }) && b.allSatisfy({ a.contains($0) })
+        default: return false
+        }
+    }
+    private func requireCapturedOrigin(current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory) throws {
+        guard storage.firstFailure == nil, let selected = storage.selected,
+              let first = storage.currentPointer, first.stage == .current,
+              let pointerReturn = storage.pointerReturn, case .success = pointerReturn,
+              selected.projection.originalLifetime === storage.lifetime,
+              Self.same(storage.pin.expected, storage.originFact),
+              Self.same(storage.originFact, first.beforeDataRoot),
+              Self.sameNames(storage.originNames, first.beforeNames) else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try storage.pin.requirePositiveCompletedCurrentSourceDataPolicyHistory()
+        let operation = try selected.requireOperationData()
+        try first.requireAssociation(settlement: selected.pointerSettlement,
+            authority: selected.pointerAuthority, operation: operation, receipt: selected.pointerReceipt)
+        if let retired = storage.retiredPointer {
+            guard retired.stage == .retired, retired.issuer === selected.pointerSettlement.storage.successor,
+                  let receipt = retired.issuer.storage.receipt else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            try retired.requireAssociation(settlement: retired.issuer,
+                authority: selected.pointerAuthority, operation: operation, receipt: receipt)
+        } else {
+            guard selected.pointerSettlement.storage.successor == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        }
+        let (generations, names) = try storage.generationHistory.requireCurrentWorkingMembers(
+            current: current, request: request, lifetime: storage.lifetime, registry: registry, factory: factory)
+        var parent: OriginalEraseRetainedPointerPublicationDataV1.Sibling?
+        var originalRows = 0
+        for row in first.beforeSiblings {
+            if row.path == "generations" {
+                guard parent == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                parent = row
+            }
+            if row.path == storage.originalTreePrefix || row.path.hasPrefix(storage.originalTreeDescendantPrefix) {
+                originalRows += 1
+            }
+        }
+        guard let parent, Self.same(parent.fact, generations), Self.sameNames(parent.names, names),
+              originalRows == storage.maximumNativeNodes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        var nativeRows = 0
+        try storage.lifetime.withRetainedNativeCurrentBasis { path, fact, hash, members in
+            guard nativeRows < storage.maximumNativeNodes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            let actualPath = path.isEmpty ? storage.originalTreePrefix : storage.originalTreePrefix + "/" + path
+            var matched: OriginalEraseRetainedPointerPublicationDataV1.Sibling?
+            for row in first.beforeSiblings where row.path == actualPath {
+                guard matched == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+                matched = row
+            }
+            guard let matched, Self.same(matched.fact, fact), Self.sameNames(matched.names, members) else {
+                throw GenerationLeaseRegistryFailureV1.uncertainOwner
+            }
+            if let hash {
+                guard matched.sha256 == hash else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            } else if fact.st_mode & S_IFMT == S_IFREG {
+                // Incumbent native SQLite captures intentionally carry no
+                // digest. Preserve their exact fullfact coverage; the real
+                // pointer read additionally owns its hash, never an invented
+                // prior hash or a reduced native fact predicate.
+                guard ColdEraseSchema2CompletedSessionNativeCurrentBankV1.isSQLite(path),
+                      matched.sha256 != nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            } else {
+                guard matched.sha256 == nil else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+            }
+            nativeRows += 1
+        }
+        guard nativeRows == storage.maximumNativeNodes else { throw GenerationLeaseRegistryFailureV1.uncertainOwner }
+        // This joins authentic native origins to pointer FIRST and preserves
+        // the producer's whole CURRENT-to-RETIRED adjacency. It deliberately
+        // does not reconstruct Source leaf or Registry raw control PRE facts.
+    }
+}
+
+extension ColdEraseSchema2CompletedSessionLifetimeTransferV1 {
+    func constructNativeSelectedPointerOriginBeforeEffects(
+        current: ColdEraseSchema2CompletedSessionCurrentScopeV1,
+        request: ColdEraseSchema2CompletedSourceCurrentRequestV1,
+        registry: GenerationLeaseRegistryV1, factory: StoreGenerationFactory,
+        provenance: ColdEraseSchema2CompletedRegistryFactoryProvenanceV1,
+        generationHistory: ColdEraseSchema2CompletedSessionNativeWorkingGenerationHistoryV1,
+        maximumNativeNodes: Int) throws -> ColdEraseSchema2CompletedSessionNativeSelectedPointerOriginV1 {
+        try current.requireCurrentFrame()
+        let basis = try requireNativeSelectedDataControlOriginBasis(registry: registry, factory: factory)
+        guard storage.pendingNativeHead == nil, maximumNativeNodes > 0 else {
+            throw GenerationLeaseRegistryFailureV1.uncertainOwner
+        }
+        try provenance.requireMatches(factory: factory)
+        let prefix = "generations/" + storage.epoch.generationID.uuidString.lowercased()
+        return ColdEraseSchema2CompletedSessionNativeSelectedPointerOriginV1(current: current, request: request,
+            registry: registry, lifetime: self, provenance: provenance, generationHistory: generationHistory,
+            pin: basis.resource, fact: basis.fact, names: basis.names,
+            originalTreePrefix: prefix, maximumNativeNodes: maximumNativeNodes)
+    }
+}
+// NATIVE_SELECTED_POINTER_ORIGIN_HISTORY_V1_END
+
+// FACTORY_CANONICAL_NAMESPACE_BASIS_V1_BEGIN
+extension OriginalEraseRetainedTargetGenerationParentPublicationV1 {
+    func requireCanonicalNamespaceCreatorDATAV1(_ data: OriginalEraseTargetGenerationParentPublicationDataV1,
+        lifetime: ColdEraseSchema2CompletedSessionLifetimeTransferV1, registry: GenerationLeaseRegistryV1) throws {
+        try requirePermanentFinalCloseCapturedParentData(data,lifetime: lifetime,registry: registry)
+    }
+}
+
+extension ColdEraseSchema2CompletedSessionCurrentSourceDataBasisV1 {
+    var namespaceBasisV1: ColdEraseSchema2CompletedCanonicalSourceNamespaceBasisV1? { storage.namespaceBasis }
+    func requireCanonicalNamespacePriorLinkV1(previous: ColdEraseSchema2CompletedSessionCurrentSourceDataPolicyProjectionV1?,
+        fact: stat?, names: [String]?) throws {
+        guard previous === storage.previousProjection else { throw StoreMigrationFailure.invalidIdentity }
+        if let edge = storage.namespaceBasis {
+            guard let source = storage.source,let pin = storage.pin else { throw StoreMigrationFailure.invalidIdentity }
+            try edge.requireRecordedNativePriorToWorkingLinkV1(source: source,pin: pin,previous: previous,
+                origin: storage.nativeOriginFact,originNames: storage.nativeOriginNames,
+                working: storage.fact,workingNames: storage.names)
+            if let previous {
+                guard let fact,let names,previous === storage.previousProjection,
+                      ColdEraseSchema2CompletedSessionResourceBankV1.same(fact,storage.nativeOriginFact) else {
+                    throw StoreMigrationFailure.invalidIdentity
+                }
+                if previous === edge.priorProjection {
+                    guard ColdEraseSchema2CompletedCanonicalNamespaceConsumerV1.sameNames(names,storage.nativeOriginNames) else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                } else {
+                    guard ColdEraseSchema2CompletedSessionResourceBankV1.same(fact,storage.fact),
+                          names == storage.names,names == storage.nativeOriginNames else {
+                        throw StoreMigrationFailure.invalidIdentity
+                    }
+                }
+            } else { guard fact == nil,names == nil else { throw StoreMigrationFailure.invalidIdentity } }
+        } else if let previous {
+            guard let fact,let names,previous === storage.previousProjection,
+                  ColdEraseSchema2CompletedSessionResourceBankV1.same(fact,storage.fact),names == storage.names else {
+                throw StoreMigrationFailure.invalidIdentity
+            }
+        } else { guard fact == nil,names == nil else { throw StoreMigrationFailure.invalidIdentity } }
+    }
+}
+// FACTORY_CANONICAL_NAMESPACE_BASIS_V1_END

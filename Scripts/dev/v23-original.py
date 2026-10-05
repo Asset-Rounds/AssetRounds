@@ -4859,15 +4859,36 @@ def local_validate_inputs(fence, request, event):
     for name, row in source_map.items():
         local_require(type(name) is str and name and not name.startswith("/")
             and all(x not in ("", ".", "..") for x in name.split("/")), "source member")
-        local_require(type(row) is dict and set(row) == {"sha256", "bytes", "mode"}
+        local_require(type(row) is dict and set(row) in
+            ({"sha256", "bytes", "mode"}, {"sha256", "bytes", "mode", "fullTen"})
             and type(row["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", row["sha256"])
             and type(row["bytes"]) is int and row["bytes"] >= 0
             and row["mode"] in ("0o644", "0o755", "0o600"), "source map row")
+        if "fullTen" in row:
+            # Captured compile-interval DATA; this is no current Source/physical proof.
+            full_ten = row["fullTen"]
+            local_require(type(full_ten) is dict and set(full_ten) ==
+                {"st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink",
+                 "st_size", "st_mtime_ns", "st_ctime_ns", "st_flags"}
+                and all(type(value) is int for value in full_ten.values()), "source fullTen closed integer frame")
+            local_require(stat.S_ISREG(full_ten["st_mode"]) and full_ten["st_nlink"] == 1
+                and not full_ten["st_flags"] & 0x40000000
+                and full_ten["st_size"] == row["bytes"]
+                and oct(stat.S_IMODE(full_ten["st_mode"])) == row["mode"],
+                "source fullTen regular/singleton/materialized/mode/byte DATA")
     frozen = values["sourceFreeze"]
-    local_require(type(frozen) is dict and frozen.get("sourceHEAD") == request["head"]
-        and frozen.get("sourceWorktree") == request["sourceWorktree"]
-        and frozen.get("allInputs") == {key: request["bindings"]["sourceMap"][key] for key in ("path", "sha256")},
-        "HEAD/worktree/full source-map freeze join")
+    if type(frozen) is dict and type(frozen.get("allInputs")) is dict and set(frozen["allInputs"]) == {"path", "sha256", "bytes"}:
+        local_ref(frozen["allInputs"])
+        local_require(frozen["allInputs"]["bytes"] <= LOCAL_JSON_LIMIT
+            and frozen.get("sourceHEAD") == request["head"]
+            and frozen.get("sourceWorktree") == request["sourceWorktree"]
+            and frozen["allInputs"] == request["bindings"]["sourceMap"],
+            "HEAD/worktree/captured source-map raw reference freeze join")
+    else:
+        local_require(type(frozen) is dict and frozen.get("sourceHEAD") == request["head"]
+            and frozen.get("sourceWorktree") == request["sourceWorktree"]
+            and frozen.get("allInputs") == {key: request["bindings"]["sourceMap"][key] for key in ("path", "sha256")},
+            "HEAD/worktree/full source-map freeze join")
     if "toolchain" in values:
         toolchain = values["toolchain"]
         local_require(type(toolchain) is dict
